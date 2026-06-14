@@ -330,7 +330,7 @@ function initScroller() {
 
 // --- DAS TIEFE TECHNIK-MUSEUM & TRACK REGISTRY ---
 const trackRegistry = {
-    c64: [
+c64: [
         { 
             title: "1. Rob Hubbard - Commando (Style)", 
             generator: generateHubbardStyleTrack, 
@@ -342,6 +342,16 @@ const trackRegistry = {
                 <hr style="border:1px dashed var(--text-color); margin: 10px 0;">
                 <h3>Composer: Rob Hubbard</h3>
                 <p>Der britische Komponist Rob Hubbard ist der unangefochtene Rockgott des C64. Er ignorierte die von Commodore gelieferten Sound-Routinen und schrieb eigene, pfeilschnelle Maschinencode-Treiber. Er quetschte aus den 3 Stimmen ganze Rock-Bands heraus, inklusive virtuosem Einsatz von Hard-Sync und Ringmodulation.</p>
+            ` 
+        },
+        { 
+            title: "2. Martin Galway - Ocean Loader (Style)", 
+            generator: generateGalwayStyleTrack, 
+            composerInfo: `
+                <h3>Der Galway Echo-Hack</h3>
+                <p>Wenn Hubbard der Rocker des C64 war, war Martin Galway der Pink Floyd der Chiptunes. Er erschuf extrem atmosphärische, melancholische Soundscapes (wie in der bekannten *Ocean Loader* Musik). Er nutzte bevorzugt die Dreieckswelle für glockenartige Melodien.</p>
+                <p><strong>Tech-Deep-Dive:</strong><br>
+                Der SID-Chip hatte keine eingebauten Echo- oder Delay-Effekte. Galway fand heraus, dass man die CPU nutzen konnte, um das 4-Bit-Lautstärkeregister (Master Volume) des SID 50 Mal pro Sekunde blitzschnell laut und leise zu schalten. So entstand in Software ein Echo-Effekt, der den C64 viel räumlicher und gewaltiger klingen ließ, als es die Hardware eigentlich erlaubte.</p>
             ` 
         }
     ],
@@ -444,6 +454,55 @@ function generateHubbardStyleTrack() {
         } else {
             frame.regs[18] = 128; // Gate aus
         }
+
+        data.push(frame);
+    }
+    return data;
+}
+
+// ==========================================
+// TRACK GENERATOR 5: C64 SID "Galway" Style
+// ==========================================
+function generateGalwayStyleTrack() {
+    let data = [];
+    let frames = 400; // 8 Sekunden Loop bei 50Hz
+    
+    const fC4 = 8908, fD4 = 10000, fE4 = 11223, fG4 = 13350;
+
+    for (let i = 0; i < frames; i++) {
+        let frame = { isC64: true, regs: new Uint8Array(29) };
+        
+        // Galway Filter: Glasklar, kaum Resonanz, Highpass-Filter für helle Sounds
+        frame.regs[21] = 0; frame.regs[22] = 200; // Hoher Cutoff
+        frame.regs[23] = 0; // Keine Resonanz, keine Filter-Zuweisung!
+        
+        // --- DER GALWAY ECHO-TRICK ---
+        // Er veränderte blitzschnell die Master-Lautstärke, um ein Delay zu simulieren
+        let echoVol = 15 - (i % 8); 
+        frame.regs[24] = Math.max(echoVol, 5); // Master Volume wobbelt!
+
+        // --- KANAL 1: DIE GLOCKEN-MELODIE (Triangle) ---
+        // Galway liebte reine Dreieckswellen für einen sanften, glockenartigen Sound
+        let melody = [fC4, fD4, fE4, fG4, fE4, fD4];
+        let note = melody[Math.floor(i / 16) % melody.length];
+        frame.regs[0] = note & 0xFF;
+        frame.regs[1] = (note >> 8) & 0xFF;
+        frame.regs[4] = (i % 16 < 14) ? 17 : 16; // Triangle (16) + Gate (1)
+
+        // --- KANAL 2: DER ATMOSPHÄRISCHE ARPEGGIATOR ---
+        // Ein blitzschneller Arpeggiator auf einer Sägezahn-Welle weit im Hintergrund
+        let arpNotes = [fC4 / 2, fE4 / 2, fG4 / 2];
+        let arpNote = arpNotes[i % 3];
+        frame.regs[7] = arpNote & 0xFF;
+        frame.regs[8] = (arpNote >> 8) & 0xFF;
+        frame.regs[11] = 33; // Sawtooth + Gate immer an
+
+        // --- KANAL 3: LEISE RHYTHMUS-PULSE ---
+        frame.regs[14] = (fC4 / 4) & 0xFF;
+        frame.regs[15] = ((fC4 / 4) >> 8) & 0xFF;
+        frame.regs[16] = 2048 & 0xFF; // Feste Pulsweite
+        frame.regs[17] = (2048 >> 8) & 0x0F;
+        frame.regs[18] = (i % 10 === 0) ? 65 : 64; // Kurze Pulse-Klicks
 
         data.push(frame);
     }
