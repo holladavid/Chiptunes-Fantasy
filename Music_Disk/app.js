@@ -59,16 +59,54 @@ async function initAudioEngine() {
     } catch (e) { console.error("AudioWorklet Fehler:", e); }
 }
 
-// Hilfsfunktion, um SID Register zu schreiben
-function writeSIDReg(reg, val) {
-    if(sidNode) sidNode.port.postMessage({ type: 'WRITE_REG', reg: reg, val: val });
+// --- SAMPLES INS PAULA-RAM LADEN ---
+function uploadAmigaSamples() {
+    AMIGA_SAMPLES.kick = createKickSample();
+    AMIGA_SAMPLES.bass = createBassSample();
+    AMIGA_SAMPLES.chord = createChordSample();
+    
+    // Wir senden die echten Sample-Daten VORAB in den Speicher des Worklets!
+    if (paulaNode) {
+        paulaNode.port.postMessage({ type: 'UPLOAD_SAMPLE', name: 'kick', data: AMIGA_SAMPLES.kick });
+        paulaNode.port.postMessage({ type: 'UPLOAD_SAMPLE', name: 'bass', data: AMIGA_SAMPLES.bass });
+        paulaNode.port.postMessage({ type: 'UPLOAD_SAMPLE', name: 'chord', data: AMIGA_SAMPLES.chord });
+    }
+    console.log("Amiga Samples ins Paula-RAM hochgeladen!");
 }
 
-// Hilfsfunktion: Schreibt einen Wert in ein YM-Register
-function writeYMReg(reg, val) {
-    if(ymNode) {
-        ymNode.port.postMessage({ type: 'WRITE_REG', reg: reg, val: val });
+// --- DER NEUE HIGH-PRECISION PLAYER (Jetzt Browser-sicher!) ---
+function startPlayback() {
+    if (isPlaying || trackData.length === 0) return;
+    
+    // WICHTIG: Den AudioContext aufwecken, falls der Browser ihn 
+    // aus Sicherheitsgründen ("Autoplay Policy") eingefroren hat!
+    if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().then(() => console.log("AudioContext aufgeweckt!"));
     }
+
+    isPlaying = true;
+    
+    let isAmiga = trackData[0] && trackData[0].isAmiga;
+    let isC64 = trackData[0] && trackData[0].isC64;
+    
+    // Wir senden das GESAMTE Lied an den entsprechenden Chip.
+    if (isAmiga) {
+        paulaNode.port.postMessage({ type: 'PLAY_TRACK', track: trackData });
+    } else if (isC64) {
+        sidNode.port.postMessage({ type: 'PLAY_TRACK', track: trackData });
+    } else {
+        ymNode.port.postMessage({ type: 'PLAY_TRACK', track: trackData });
+    }
+}
+
+function stopPlayback() {
+    if (!isPlaying) return;
+    isPlaying = false;
+    
+    // Allen Chips den Befehl geben, das Lied zu stoppen und sich stumm zu schalten
+    if (ymNode) ymNode.port.postMessage({ type: 'STOP_TRACK' });
+    if (paulaNode) paulaNode.port.postMessage({ type: 'STOP_TRACK' });
+    if (sidNode) sidNode.port.postMessage({ type: 'STOP_TRACK' });
 }
 
 // --- DER PROOF OF CONCEPT BEEP (C-Dur Akkord) ---
@@ -106,39 +144,6 @@ function playProofOfConceptBeep() {
     }, 2000);
 }
 
-// In der startPlayback() Funktion den C64 Zweig einbauen:
-function startPlayback() {
-    if (isPlaying || trackData.length === 0) return;
-    isPlaying = true;
-    
-    playTimer = setInterval(() => {
-        let frame = trackData[currentFrame];
-        
-        if (frame.isAmiga) {
-            frame.cmds.forEach(cmd => playAmigaNote(cmd.ch, cmd.smp, cmd.per, cmd.vol));
-        } else if (frame.isC64) {
-            // C64 Register schreiben
-            for (let r = 0; r < 29; r++) { writeSIDReg(r, frame.regs[r]); }
-        } else {
-            // Atari YM Register schreiben
-            for (let r = 0; r < 14; r++) { writeYMReg(r, frame[r]); }
-        }
-        
-        currentFrame++;
-        if (currentFrame >= trackData.length) currentFrame = 0; 
-    }, 20);
-}
-
-// In der stopPlayback() Funktion Stille für den SID hinzufügen:
-function stopPlayback() {
-    if (!isPlaying) return;
-    clearInterval(playTimer);
-    isPlaying = false;
-    
-    writeYMReg(8, 0); writeYMReg(9, 0); writeYMReg(10, 0); // Atari aus
-    for(let i=0; i<4; i++) playAmigaNote(i, null, 1, 0);   // Amiga aus
-    writeSIDReg(24, 0); // C64 Master Volume aus
-}
 
 // --- BUGFIX: Sicheres Umschalten der Themes ---
 function setTheme(themeName) {
@@ -165,53 +170,97 @@ function setTheme(themeName) {
     stopPlayback(); 
 }
 
-// --- ZONE 1: DAS ECHTZEIT-OSZILLOSKOP ---
+// --- ZONE 1: HIGH-PERFORMANCE OSZILLOSKOP & RASTERBARS ---
 function initVisuals() {
     const canvas = document.getElementById('demo-canvas');
-    const ctx = canvas.getContext('2d');
+    // alpha: false signalisiert dem Browser, dass der Canvas-Hintergrund deckend ist (Hardware-Boost!)
+    const ctx = canvas.getContext('2d', { alpha: false }); 
     
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
 
-    // Ein Array, um die alten Werte für eine Linie zu speichern
     const historyLength = canvas.width; 
-    const oscHistory = new Array(historyLength).fill(0);
+    
+    // FIX 1: Float32Array statt normalem Array (Perfektes Speichermanagement)
+    const oscHistory = new Float32Array(historyLength);
+    let oscIndex = 0; // Der Ringpuffer-Zeiger
+
+    let startTime = performance.now();
+
+    function drawCopperBar(yCenter, thickness, color1, color2) {
+        let grad = ctx.createLinearGradient(0, yCenter - thickness, 0, yCenter + thickness);
+        grad.addColorStop(0, `rgba(0,0,0,0)`);
+        grad.addColorStop(0.2, color1);
+        grad.addColorStop(0.5, `rgba(255,255,255, 1)`); 
+        grad.addColorStop(0.8, color2);
+        grad.addColorStop(1, `rgba(0,0,0,0)`);
+        
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, yCenter - thickness, canvas.width, thickness * 2);
+    }
 
     function draw() {
-        // 1. Hintergrund leicht transparent übermalen für "Motion Blur" Effekt
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        let now = performance.now();
+        let t = (now - startTime) * 0.001; 
+
+        // Hintergrund
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // 2. Themen-Farbe auslesen
+        let audioPunch = Math.abs(currentOscValue) * 40; 
+        
         const isAmiga = document.body.classList.contains('theme-amiga');
         const isAtari = document.body.classList.contains('theme-atari');
+        
+        let pal1 = isAtari ? ['#005500', '#00aa00'] : isAmiga ? ['#0000aa', '#0055ff'] : ['#352879', '#6c5eb5'];
+        let pal2 = isAtari ? ['#555500', '#aaaa00'] : isAmiga ? ['#aa5500', '#ff8800'] : ['#aa0055', '#ff00aa'];
+        let pal3 = isAtari ? ['#005555', '#00aaaa'] : isAmiga ? ['#5500aa', '#aa00ff'] : ['#555555', '#aaaaaa'];
+
+        ctx.globalCompositeOperation = "screen"; 
+        
+        let y1 = (canvas.height / 2) + Math.sin(t * 1.2) * (canvas.height * 0.3);
+        drawCopperBar(y1, 25 + audioPunch, pal1[0], pal1[1]);
+
+        let y2 = (canvas.height / 2) + Math.sin(t * 1.8 + 2.0) * (canvas.height * 0.35);
+        drawCopperBar(y2, 20 + (audioPunch * 0.8), pal2[0], pal2[1]);
+
+        let y3 = (canvas.height / 2) + Math.sin(t * 1.5 + 4.0) * (canvas.height * 0.25);
+        drawCopperBar(y3, 15 + (audioPunch * 0.5), pal3[0], pal3[1]);
+
+        ctx.globalCompositeOperation = "source-over";
+
         const lineColor = isAtari ? '#55ff55' : isAmiga ? '#ff8800' : '#6c5eb5';
         
-        // 3. Neuen Wert ins Array schieben (und ältesten entfernen)
-        oscHistory.push(currentOscValue);
-        oscHistory.shift();
+        // FIX 2: Ringpuffer füllen (Kein Array.shift() mehr!)
+        oscHistory[oscIndex] = currentOscValue;
+        oscIndex = (oscIndex + 1) % historyLength; // Zeiger wandert im Kreis
 
-        // 4. Die Oszilloskop-Linie zeichnen
         ctx.beginPath();
         ctx.strokeStyle = lineColor;
-        ctx.lineWidth = 3;
         
+        // Ringpuffer zeichnen (Vom ältesten bis zum neuesten Wert iterieren)
         for (let x = 0; x < historyLength; x++) {
-            // currentOscValue ist zwischen -1.0 und 1.0. Wir skalieren es auf die Canvas-Höhe.
-            let val = oscHistory[x];
-            // Y-Mitte plus Ausschlag (Amplituden-Verstärkung * 50)
+            // Reale Position im Puffer berechnen
+            let actualIndex = (oscIndex + x) % historyLength; 
+            let val = oscHistory[actualIndex];
             let y = (canvas.height / 2) - (val * (canvas.height * 0.4)); 
             
-            if (x === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
-            }
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
         }
+        
+        // FIX 3: Fake Glow statt GPU-fressendem shadowBlur
+        ctx.lineWidth = 6;
+        ctx.globalAlpha = 0.3; // Äußere weiche Kante
+        ctx.stroke();
+
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 1.0; // Innerer harter Kern
         ctx.stroke();
 
         requestAnimationFrame(draw);
     }
+    
     draw();
 }
 
@@ -315,6 +364,7 @@ function generateHubbardStyleTrack() {
     const fC3 = 4454, fDs3 = 5298, fF3 = 5947, fG3 = 6675;
 
     for (let i = 0; i < frames; i++) {
+
         let frame = { isC64: true, regs: new Uint8Array(29) };
         
         // --- FILTER SETUP (Register 21-24) ---
@@ -367,7 +417,6 @@ function generateHubbardStyleTrack() {
 
 let trackData = [];    
 let currentFrame = 0;  
-let playTimer = null;  
 let isPlaying = false; 
 let currentTrackIndex = 0;
 
@@ -420,49 +469,7 @@ function selectAndPlayTrack(index, system) {
     startPlayback();
 }
 
-// 50 Hz Player Engine (UPDATE)
-// In der startPlayback() Funktion den C64 Zweig einbauen:
-function startPlayback() {
-    if (isPlaying || trackData.length === 0) return;
-    isPlaying = true;
-    
-    playTimer = setInterval(() => {
-        let frame = trackData[currentFrame];
-        
-        if (frame.isAmiga) {
-            frame.cmds.forEach(cmd => playAmigaNote(cmd.ch, cmd.smp, cmd.per, cmd.vol));
-        } else if (frame.isC64) {
-            // C64 Register schreiben
-            for (let r = 0; r < 29; r++) { writeSIDReg(r, frame.regs[r]); }
-        } else {
-            // Atari YM Register schreiben
-            for (let r = 0; r < 14; r++) { writeYMReg(r, frame[r]); }
-        }
-        
-        currentFrame++;
-        if (currentFrame >= trackData.length) currentFrame = 0; 
-    }, 20);
-}
-
-// In der stopPlayback() Funktion Stille für den SID hinzufügen:
-function stopPlayback() {
-    clearInterval(playTimer);
-    isPlaying = false;
-    
-    // IMMER muten! Auch wenn das Playback scheinbar stand.
-    // 1. Atari stummschalten (Volumen 0 UND Mixer hart aus!)
-    writeYMReg(8, 0); writeYMReg(9, 0); writeYMReg(10, 0);
-    writeYMReg(7, 0xFF); 
-    
-    // 2. Amiga Kanäle leeren
-    for(let i=0; i<4; i++) playAmigaNote(i, null, 1, 0);   
-    
-    // 3. C64 Master-Volume aus
-    writeSIDReg(24, 0); 
-}
-
 // --- BUTTONS BINDEN ---
-// --- BUGFIX: Der Play-Button ---
 document.getElementById('btn-play').addEventListener('click', () => {
     if (isPlaying) {
         stopPlayback();
@@ -477,14 +484,14 @@ document.getElementById('btn-play').addEventListener('click', () => {
 });
 
 document.getElementById('btn-next').addEventListener('click', () => {
-    let nextIdx = (currentTrackIndex + 1) % trackRegistry.atari.length;
-    selectAndPlayTrack(nextIdx, 'atari');
+    let nextIdx = (currentTrackIndex + 1) % trackRegistry[activeSystem].length;
+    selectAndPlayTrack(nextIdx, activeSystem);
 });
 
 document.getElementById('btn-prev').addEventListener('click', () => {
     let prevIdx = currentTrackIndex - 1;
-    if (prevIdx < 0) prevIdx = trackRegistry.atari.length - 1;
-    selectAndPlayTrack(prevIdx, 'atari');
+    if (prevIdx < 0) prevIdx = trackRegistry[activeSystem].length - 1;
+    selectAndPlayTrack(prevIdx, activeSystem);
 });
 
 // ==========================================
@@ -665,31 +672,7 @@ function createChordSample() {
     return data;
 }
 
-function uploadAmigaSamples() {
-    AMIGA_SAMPLES.kick = createKickSample();
-    AMIGA_SAMPLES.bass = createBassSample();
-    AMIGA_SAMPLES.chord = createChordSample();
-    console.log("Amiga Samples generiert und bereit!");
-}
 
-// Helfer, um Befehle an den Paula-Chip zu senden
-function playAmigaNote(channel, sampleName, period, vol) {
-    if(!paulaNode) return;
-    
-    // 1. Wenn ein SampleName übergeben wird, lade das Sample in den Kanal
-    if (sampleName) {
-        let data = AMIGA_SAMPLES[sampleName];
-        let loopLen = sampleName === 'bass' ? data.length : 0; // Bass wird geloopt!
-        paulaNode.port.postMessage({
-            channel: channel, type: 'SET_SAMPLE', data: data, loopStart: 0, loopLen: loopLen
-        });
-    }
-    
-    // 2. Setze Periode und Lautstärke und feuere den Trigger!
-    paulaNode.port.postMessage({
-        channel: channel, type: 'SET_REG', period: period, vol: vol, trigger: sampleName ? true : false
-    });
-}
 
 // ==========================================
 // TRACK GENERATOR 3: Amiga "ProTracker" Style
