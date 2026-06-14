@@ -80,7 +80,11 @@ class PaulaProcessor extends AudioWorkletProcessor {
             if (i === 0) oscValue = (mixedL + mixedR) / 2.0;
         }
 
-        this.port.postMessage({ type: 'VISUAL_DATA', value: oscValue });
+// BUGFIX 2: Performance Boost
+        if (this.visCounter === undefined) this.visCounter = 0;
+        if (this.visCounter++ % 4 === 0) {
+            this.port.postMessage({ type: 'VISUAL_DATA', value: oscValue });
+        }
         return true;
     }
 }

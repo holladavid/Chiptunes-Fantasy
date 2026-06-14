@@ -55,23 +55,19 @@ class YMProcessor extends AudioWorkletProcessor {
     }
 
     // Die Kern-Schleife der Web Audio API. 
-    // Wird ca. 344 Mal pro Sekunde aufgerufen und muss 128 Samples berechnen.
-    process(inputs, outputs, parameters) {
+process(inputs, outputs, parameters) {
         const output = outputs[0];
-        const channelLeft = output[0];  // Linker Lautsprecher
-        const channelRight = output[1] || output[0]; // Rechter (Fallback auf Mono)
+        const channelLeft = output[0];  
+        const channelRight = output[1] || output[0]; 
         
-        // Aktuelle Frequenzen für diesen Frame berechnen
         const freqA = this.getFrequency(1, 0);
         const freqB = this.getFrequency(3, 2);
         const freqC = this.getFrequency(5, 4);
         
-        // Rauschfrequenz (Register 6, nur 5 Bits)
         let noisePeriod = this.regs[6] & 0x1F;
         if (noisePeriod === 0) noisePeriod = 1;
         const noiseFreq = this.clock / (16 * noisePeriod);
         
-        // Mixer-Register auslesen (Bit = 0 bedeutet EINGESCHALTET, historisch invertiert!)
         const mix = this.regs[7];
         const toneEnableA = (mix & 0x01) === 0;
         const toneEnableB = (mix & 0x02) === 0;
@@ -80,70 +76,57 @@ class YMProcessor extends AudioWorkletProcessor {
         const noiseEnableB = (mix & 0x10) === 0;
         const noiseEnableC = (mix & 0x20) === 0;
 
-        // Array für unsere Oszilloskop-Visualisierung später
         let currentVisualValue = 0;
 
-        // 128 Samples für den Audio-Puffer generieren
         for (let i = 0; i < channelLeft.length; i++) {
             
-            // 1. Phasen (Zeitzähler) weiterschieben (abhängig von der SampleRate, meist 48kHz)
             this.phaseA += freqA / sampleRate;
             this.phaseB += freqB / sampleRate;
             this.phaseC += freqC / sampleRate;
             this.noisePhase += noiseFreq / sampleRate;
             
-            // Phasen bei 1.0 umbrechen
-            if (this.phaseA >= 1.0) this.phaseA -= 1.0;
-            if (this.phaseB >= 1.0) this.phaseB -= 1.0;
-            if (this.phaseC >= 1.0) this.phaseC -= 1.0;
+            // BUGFIX 1: Modulo statt Subtraktion! Fängt Frequenz-Explosionen ab.
+            this.phaseA %= 1.0;
+            this.phaseB %= 1.0;
+            this.phaseC %= 1.0;
             
-            // 2. Rausch-Logik (LFSR Taktung)
             if (this.noisePhase >= 1.0) {
-                this.noisePhase -= 1.0;
-                // 17-Bit LFSR Shift (historisch korrekt für YM2149)
+                this.noisePhase %= 1.0; // BUGFIX 1
                 this.noiseLfsr ^= (((this.noiseLfsr & 1) ^ ((this.noiseLfsr >> 3) & 1)) << 17);
                 this.noiseLfsr >>= 1;
                 this.noiseOutput = (this.noiseLfsr & 1) ? 1.0 : -1.0;
             }
 
-            // 3. Oszillatoren auslesen (Rechteckwelle)
             let outA = toneEnableA ? this.getSquareWave(this.phaseA) : 1.0;
             let outB = toneEnableB ? this.getSquareWave(this.phaseB) : 1.0;
             let outC = toneEnableC ? this.getSquareWave(this.phaseC) : 1.0;
             
-            // Rauschen dazumischen (Logical AND, wie im Original-Chip)
             if (noiseEnableA) outA = (outA === 1.0 && this.noiseOutput === 1.0) ? 1.0 : -1.0;
             if (noiseEnableB) outB = (outB === 1.0 && this.noiseOutput === 1.0) ? 1.0 : -1.0;
             if (noiseEnableC) outC = (outC === 1.0 && this.noiseOutput === 1.0) ? 1.0 : -1.0;
 
-            // 4. Lautstärken (Register 8, 9, 10 - Werte 0-15) anwenden
-            // YM2149 Amplitude ist nicht linear! (Später optimieren wir das auf eine Lookup-Table)
             let volA = (this.regs[8] & 0x0F) / 15.0;
             let volB = (this.regs[9] & 0x0F) / 15.0;
             let volC = (this.regs[10] & 0x0F) / 15.0;
 
-            // 5. Kanäle zusammenmischen
-            // Zur Sicherheit dämpfen wir das Gesamtsignal (/3), um Übersteuern (Clipping) zu verhindern
             let mixedOutput = ((outA * volA) + (outB * volB) + (outC * volC)) / 3.0;
 
-            // Mono-Signal auf beide Boxen legen
             channelLeft[i] = mixedOutput;
             if (channelRight) channelRight[i] = mixedOutput;
 
-            // Speichern wir einen Sample-Wert für das Oszilloskop im Haupt-Thread ab
             if (i === 0) currentVisualValue = mixedOutput;
         }
 
-        // Sende die Daten für das Demoscene-Oszilloskop an die app.js
-        this.port.postMessage({
-            type: 'VISUAL_DATA',
-            value: currentVisualValue,
-            regs: this.regs // Die Register schicken wir mit, falls wir sie anzeigen wollen
-        });
+        // BUGFIX 2: Drosselung der Oszilloskop-Nachrichten (Performance Boost)
+        if (this.visCounter === undefined) this.visCounter = 0;
+        if (this.visCounter++ % 4 === 0) {
+            this.port.postMessage({ type: 'VISUAL_DATA', value: currentVisualValue });
+        }
 
-        return true; // Hält den Processor am Leben
+        return true; 
     }
 }
+
 
 // Worklet registrieren
 registerProcessor('ym-processor', YMProcessor);

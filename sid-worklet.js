@@ -81,6 +81,10 @@ class SIDProcessor extends AudioWorkletProcessor {
 
                 // Phase weiterdrehen
                 voiceState.phase += freq / sampleRate;
+
+                // BUGFIX 1: Modulo
+                voiceState.phase %= 1.0; 
+
                 if (voiceState.phase > 1.0) voiceState.phase -= 1.0;
 
                 let waveOut = 0;
@@ -129,8 +133,11 @@ class SIDProcessor extends AudioWorkletProcessor {
             if (i === 0) visualValue = finalOut;
         }
 
-        this.port.postMessage({ type: 'VISUAL_DATA', value: visualValue });
-        return true;
+// BUGFIX 2: Performance Boost
+        if (this.visCounter === undefined) this.visCounter = 0;
+        if (this.visCounter++ % 4 === 0) {
+            this.port.postMessage({ type: 'VISUAL_DATA', value: visualValue });
+        }        return true;
     }
 }
 

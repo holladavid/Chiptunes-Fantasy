@@ -446,13 +446,19 @@ function startPlayback() {
 
 // In der stopPlayback() Funktion Stille für den SID hinzufügen:
 function stopPlayback() {
-    if (!isPlaying) return;
     clearInterval(playTimer);
     isPlaying = false;
     
-    writeYMReg(8, 0); writeYMReg(9, 0); writeYMReg(10, 0); // Atari aus
-    for(let i=0; i<4; i++) playAmigaNote(i, null, 1, 0);   // Amiga aus
-    writeSIDReg(24, 0); // C64 Master Volume aus
+    // IMMER muten! Auch wenn das Playback scheinbar stand.
+    // 1. Atari stummschalten (Volumen 0 UND Mixer hart aus!)
+    writeYMReg(8, 0); writeYMReg(9, 0); writeYMReg(10, 0);
+    writeYMReg(7, 0xFF); 
+    
+    // 2. Amiga Kanäle leeren
+    for(let i=0; i<4; i++) playAmigaNote(i, null, 1, 0);   
+    
+    // 3. C64 Master-Volume aus
+    writeSIDReg(24, 0); 
 }
 
 // --- BUTTONS BINDEN ---
