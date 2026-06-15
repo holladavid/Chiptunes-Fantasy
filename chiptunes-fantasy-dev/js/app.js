@@ -72,11 +72,23 @@ async function initAudioEngine() {
         paulaNode.connect(amigaFilter).connect(masterGain);
         sidNode.connect(masterGain); 
         
-        const visualHandler = (e) => {
+const visualHandler = (e) => {
             if (e.data.type === 'VISUAL_DATA') {
                 currentOscValue = e.data.value;
-                lastKnownFrame = e.data.frame || 0; // Frame aus dem Worklet speichern
-                updateTimelineUI(); // Timeline aktualisieren
+                lastKnownFrame = e.data.frame || 0; 
+                updateTimelineUI(); 
+            }
+            // LÄSST DIE ROTE LED FLACKERN
+            if (e.data.type === 'DEBUG') {
+                const led = document.getElementById('digi-led');
+                if (led) {
+                    led.style.background = '#ff0000';
+                    led.style.boxShadow = '0 0 10px #ff0000';
+                    setTimeout(() => { 
+                        led.style.background = '#440000'; 
+                        led.style.boxShadow = 'none';
+                    }, 50);
+                }
             }
         };
         ymNode.port.onmessage = paulaNode.port.onmessage = sidNode.port.onmessage = visualHandler;
@@ -110,7 +122,7 @@ function updateTimelineUI() {
     document.getElementById('progress-slider').value = (lastKnownFrame / trackData.length) * 100;
 }
 
-// --- PLAYER LOGIK ---
+// --- DER NEUE HIGH-PRECISION PLAYER ---
 function startPlayback() {
     if (isPlaying || trackData.length === 0) return;
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
@@ -119,11 +131,19 @@ function startPlayback() {
     let isAmiga = trackData[0] && trackData[0].isAmiga;
     let isC64 = trackData[0] && trackData[0].isC64;
     
-    if (isAmiga) paulaNode.port.postMessage({ type: 'PLAY_TRACK', track: trackData });
-    else if (isC64) sidNode.port.postMessage({ type: 'PLAY_TRACK', track: trackData });
-    else ymNode.port.postMessage({ type: 'PLAY_TRACK', track: trackData });
+    if (isAmiga) {
+        paulaNode.port.postMessage({ type: 'PLAY_TRACK', track: trackData });
+    } else if (isC64) {
+        sidNode.port.postMessage({ type: 'PLAY_TRACK', track: trackData });
+    } else {
+        // HIER WAR DER FEHLER: Wir müssen die Digidrums explizit mitsenden!
+        ymNode.port.postMessage({ 
+            type: 'PLAY_TRACK', 
+            track: trackData, 
+            digidrums: trackData.digidrums // <--- DAS IST DAS WICHTIGSTE KABEL!
+        });
+    }
 }
-
 function stopPlayback() {
     if (!isPlaying) return;
     isPlaying = false;
@@ -207,7 +227,39 @@ async function selectAndPlayTrack(index, system) {
     if (selectedSong.loadAsync) {
         currentScrollerText = "+++ DOWNLOADING AND PARSING BINARY YM FILE... +++";
         try {
-            trackData = await selectedSong.loadAsync();
+            // Lade das saubere Objekt vom Parser
+            let parsedFile = await selectedSong.loadAsync();
+            
+            // Füttere unsere Player-Variablen
+            trackData = parsedFile.frames; 
+            trackData.digidrums = parsedFile.digidrums; // Wird ans Worklet geschickt
+            trackData.isYmFile = true; // Identifikator für startPlayback()
+            
+            // Metadaten ins HTML-Museum zeichnen! (INKLUSIVE LED)
+            let meta = parsedFile.metadata;
+            let dynamicHTML = `
+                <div style="margin-top: 15px; padding: 10px; background: rgba(0,0,0,0.3); border: 1px dotted currentColor; position: relative;">
+                    
+                    <!-- NEU: DIE DIGIDRUM LED -->
+                    <div id="digi-led" style="position: absolute; top: 10px; right: 10px; width: 12px; height: 12px; border-radius: 50%; background: #440000; border: 1px solid #ff0000; box-shadow: none; transition: background 0.05s;"></div>
+                    
+                    <p style="color: var(--highlight-color); margin-bottom: 8px;"><strong>[ FILE METADATA ]</strong></p>
+                    <p><strong>Title:</strong> ${meta.name}</p>
+                    <p><strong>Author:</strong> ${meta.author}</p>
+                    <p><strong>Comment:</strong> ${meta.comment}</p>
+                </div>
+            `;
+
+            document.getElementById('info-text').innerHTML = `
+                <div style="margin-bottom: 20px;">
+                    <h2 style="color: var(--highlight-color);">> NOW PLAYING:</h2>
+                    <p style="font-size: 1.2em; border-bottom: 1px solid currentColor; padding-bottom: 5px;">${selectedSong.title}</p>
+                </div>
+                ${selectedSong.composerInfo}
+                ${dynamicHTML}
+                <p class="blinking-cursor" style="margin-top: 15px;">_</p>
+            `;
+            
             currentScrollerText = "+++ PARSING SUCCESSFUL! NOW PLAYING YM FILE... +++";
             startPlayback();
         } catch (err) {
