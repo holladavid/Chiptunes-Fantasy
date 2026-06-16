@@ -13,11 +13,7 @@ const myYmFiles = [
 export const externalYmTracks = myYmFiles.map((filename, index) => {
     return {
         title: `${index + 3}. LOAD ORIGINAL: ${filename}`,
-        composerInfo: `
-            <h3>Der YM-Binär-Parser</h3>
-            <p>Dieser Track ist eine echte, de-interleaved <code>.ym</code> Datei, die direkt in den RAM des Emulators geladen wird.</p>
-            <p><strong>Datei:</strong> <code>tracks/atari/${filename}</code></p>
-        `,
+        composerInfo: ``, // Bleibt leer, die app.js übernimmt jetzt!
         generator: function() { return []; },
         loadAsync: async function() {
             return await loadYmFile(`tracks/atari/${filename}`);

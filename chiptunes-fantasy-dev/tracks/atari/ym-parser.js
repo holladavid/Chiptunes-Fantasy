@@ -19,10 +19,18 @@ export async function loadYmFile(url) {
     let regDataStart = 0;
     let numRegs = 14;
     
-    // Unsere drei sauberen Container für die Rückgabe
     let digidrums = []; 
     let frameArray = [];
-    let metadata = { name: "Unknown", author: "Unknown", comment: "" };
+    
+    // Die Basisstruktur für die Metadaten
+    let metadata = { 
+        name: "Unknown", 
+        author: "Unknown", 
+        comment: "", 
+        type: sig, 
+        digidrumCount: 0, 
+        digidrumSizes: [] 
+    };
 
     if (sig === 'YM3!' || sig === 'YM3b') {
         frames = (data.length - 4) / 16;
@@ -36,9 +44,15 @@ export async function loadYmFile(url) {
         
         // --- DIGIDRUMS EXTRAHIEREN ---
         let numDigidrums = (data[20] << 8) | data[21];
+        let digiSizes = [];
+        
         for (let d = 0; d < numDigidrums; d++) {
             let sampleSize = data[pos]*16777216 + data[pos+1]*65536 + data[pos+2]*256 + data[pos+3];
             pos += 4;
+            
+            // Größe abspeichern für das Info-Panel
+            digiSizes.push(sampleSize);
+            
             let pcm = new Float32Array(sampleSize);
             for (let i = 0; i < sampleSize; i++) {
                 pcm[i] = (data[pos + i] - 128) / 128.0; 
@@ -47,7 +61,7 @@ export async function loadYmFile(url) {
             pos += sampleSize;
         }
 
-        // --- METADATEN EXTRAHIEREN (Jetzt fehlerfrei!) ---
+        // --- METADATEN EXTRAHIEREN ---
         let nulls = 0;
         let infoArray = [];
         let currentStr = "";
@@ -65,6 +79,8 @@ export async function loadYmFile(url) {
         metadata.name = infoArray[0] || "Unknown";
         metadata.author = infoArray[1] || "Unknown";
         metadata.comment = infoArray[2] || "";
+        metadata.digidrumCount = numDigidrums;
+        metadata.digidrumSizes = digiSizes;
         
         regDataStart = pos;
         numRegs = 16; 
@@ -80,7 +96,7 @@ export async function loadYmFile(url) {
         frameArray.push(frame);
     }
 
-    // Wir geben nun ein klares, strukturiertes Objekt zurück!
+    // Saubere Übergabe aller Daten (ohne Syntax-Error!)
     return {
         frames: frameArray,
         digidrums: digidrums,

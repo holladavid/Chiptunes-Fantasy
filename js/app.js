@@ -33,9 +33,10 @@ const systemDescriptions = {
     `,
     atari: `
         <div style="border: 1px solid var(--text-color); padding: 10px; margin-bottom: 15px; background: rgba(0,0,0,0.2);">
-            <h3 style="color: var(--highlight-color); margin-bottom: 5px;">[ CHIP-SPECS: YAMAHA YM2149 ]</h3>
-            <p>Ein puristischer Programmable Sound Generator (PSG) mit 3 Rechteck-Kanälen und einem Rauschgenerator. Besitzt keine Filter und hardwareseitig <em>keinen</em> Kanal für Sprachsamples (PCM).</p>
-            <p style="margin-top: 8px;"><strong>🔥 Der Digidrum-Hack:</strong> Jochen Hippel missbrauchte CPU-Timer, um das Lautstärkeregister rasend schnell zu überschreiben und fette PCM-Drums abzuspielen. Um diese Trigger in den winzigen <code>.ym</code> Dateien zu speichern, versteckte Arnaud Carré (Leonard) sie in den <em>ungenutzten Bits (Bit 4-7) der Frequenz-Register</em>! Diese Engine decodiert den Hack in Echtzeit.</p>
+            <h3 style="color: var(--highlight-color); margin-bottom: 5px;">[ CHIP-SPECS: YAMAHA YM2149F ]</h3>
+            <p>Ein Klon des AY-3-8910, der im Atari ST mit 2.000.000 Hz getaktet war. Ein reiner Programmable Sound Generator (PSG) mit 3 Rechteck-Oszillatoren, 1 Noise-Generator (5-Bit LFSR) und 1 Hardware Envelope Generator (HEG, 16 feste Hüllkurven-Shapes). Er bot <em>keinen</em> PCM-Kanal und <em>keine</em> analogen Filter.</p>
+            <p style="margin-top: 8px;"><strong>🔥 Szene-Hack 1 (Digidrums):</strong> Um PCM abzuspielen, hackten Coder CPU-Timer (oft 12.5 kHz), um das 4-Bit-Lautstärkeregister direkt zu überschreiben. Arnaud Carré (Leonard) versteckte diese Trigger für das <code>.ym</code> Format genial in den physikalisch ungenutzten Bits (Bit 4-7) der Frequenzregister.</p>
+            <p style="margin-top: 8px;"><strong>🔥 Szene-Hack 2 (HEG Speech Synthesis):</strong> Für das Thalion-Intro nutzte Jochen Hippel <em>gar keine Samples!</em> Er missbrauchte den Hardware Envelope Generator (Register 13). Durch das Neustarten der Hardware-Hüllkurve in Audio-Geschwindigkeit verformte er die Rechteckwelle so massiv, dass der Chip wie menschliche Stimmbänder klang ("Tha-li-on") – reine Mathematik, 0 Kilobyte Speicherplatz!</p>
         </div>
     `
 };
@@ -97,13 +98,14 @@ async function initAudioEngine() {
         paulaNode.connect(amigaFilter).connect(masterGain);
         sidNode.connect(masterGain); 
         
-const visualHandler = (e) => {
+        const visualHandler = (e) => {
             if (e.data.type === 'VISUAL_DATA') {
                 currentOscValue = e.data.value;
                 lastKnownFrame = e.data.frame || 0; 
                 updateTimelineUI(); 
             }
             // LÄSST DIE ROTE LED FLACKERN
+            /*
             if (e.data.type === 'DEBUG') {
                 const led = document.getElementById('digi-led');
                 if (led) {
@@ -115,6 +117,7 @@ const visualHandler = (e) => {
                     }, 50);
                 }
             }
+            */
         };
         ymNode.port.onmessage = paulaNode.port.onmessage = sidNode.port.onmessage = visualHandler;
 
@@ -254,39 +257,44 @@ async function selectAndPlayTrack(index, system) {
     // NEU: Asynchrones Laden von echten Dateien unterstützen!
     if (selectedSong.loadAsync) {
         currentScrollerText = "+++ DOWNLOADING AND PARSING BINARY YM FILE... +++";
-        try {
-            // Lade das saubere Objekt vom Parser
+try {
             let parsedFile = await selectedSong.loadAsync();
-            
-            // Füttere unsere Player-Variablen
             trackData = parsedFile.frames; 
-            trackData.digidrums = parsedFile.digidrums; // Wird ans Worklet geschickt
-            trackData.isYmFile = true; // Identifikator für startPlayback()
+            trackData.digidrums = parsedFile.digidrums;
+            trackData.isYmFile = true; 
             
-            // Metadaten ins HTML-Museum zeichnen!
             let meta = parsedFile.metadata;
-            let dynamicHTML = `
-                <div style="margin-top: 15px; padding: 10px; background: rgba(0,0,0,0.3); border: 1px dotted currentColor; position: relative;">
-                    <div id="digi-led" style="position: absolute; top: 10px; right: 10px; width: 12px; height: 12px; border-radius: 50%; background: #440000; border: 1px solid #ff0000; box-shadow: none; transition: background 0.05s;"></div>
-                    <p style="color: var(--highlight-color); margin-bottom: 8px;"><strong>[ FILE METADATA ]</strong></p>
-                    <p><strong>Title:</strong> ${meta.name}</p>
-                    <p><strong>Author:</strong> ${meta.author}</p>
-                    <p><strong>Comment:</strong> ${meta.comment}</p>
-                </div>
-            `;
+            
+            // 1. SCROLLER MIT SZENE-JARGON FÜTTERN
+            currentScrollerText = `+++ BOOM! SUCCESSFULLY CRACKED OPEN BINARY FILE +++ NOW PLAYING: ${meta.name.toUpperCase()} BY ${meta.author.toUpperCase()} +++ COMMENT ALONG THE RIDE: ${meta.comment.toUpperCase() || "NO COMMENT"} +++ CRANK UP THE GAIN AND LET THE YM2149 MELT YOUR SPEAKERS +++ `;
 
+            // 2. TECHNISCHE FILE-INFOS GENERIEREN
+            let techInfo = `<p><strong>File Signature:</strong> ${meta.type} (De-interleaved)</p>`;
+            techInfo += `<p><strong>Length:</strong> ${trackData.length} Frames @ 50Hz VBLANK</p>`;
+            
+            if (meta.digidrumCount > 0) {
+                techInfo += `<p style="margin-top: 5px;"><strong>PCM Data:</strong> ${meta.digidrumCount} Digidrum(s) detected!</p>`;
+                let sizes = meta.digidrumSizes.map(s => Math.round(s/1024) + 'kb').join(' / ');
+                techInfo += `<p style="font-size: 0.9em; margin-left: 10px; color: var(--text-color); opacity: 0.8;">> Sample sizes: [ ${sizes} ]</p>`;
+            } else {
+                techInfo += `<p style="margin-top: 5px;"><strong>PCM Data:</strong> None. 100% pure synthesized chip magic.</p>`;
+            }
+
+            // Museum füllen
             document.getElementById('info-text').innerHTML = `
-                ${systemDescriptions[system]} <!-- NEU: Das permanente Handbuch -->
-                <div style="margin-bottom: 10px; margin-top: 20px;">
+                ${systemDescriptions[system]}
+                <div style="margin-bottom: 20px;">
                     <h2 style="color: var(--highlight-color);">> NOW PLAYING:</h2>
                     <p style="font-size: 1.2em; border-bottom: 1px solid currentColor; padding-bottom: 5px;">${selectedSong.title}</p>
                 </div>
-                ${selectedSong.composerInfo}
-                ${dynamicHTML}
+                
+                <div style="margin-top: 15px; padding: 10px; background: rgba(0,0,0,0.3); border: 1px dashed var(--highlight-color);">
+                    <p style="color: var(--highlight-color); margin-bottom: 8px;"><strong>[ BINARY FILE ANALYSIS ]</strong></p>
+                    ${techInfo}
+                </div>
                 <p class="blinking-cursor" style="margin-top: 15px;">_</p>
             `;
             
-            currentScrollerText = "+++ PARSING SUCCESSFUL! NOW PLAYING YM FILE... +++";
             startPlayback();
         } catch (err) {
             alert("FEHLER BEIM LADEN: " + err.message);
