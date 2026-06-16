@@ -1,4 +1,4 @@
-import { loadYmFile } from './ym-parser.js';
+import { loadYmFile } from '../../js/parsers/ym-parser.js';
 
 // HIER EINFACH ALLE DATEINAMEN EINTRAGEN, DIE IN DEINEM ORDNER LIEGEN!
 const myYmFiles = [

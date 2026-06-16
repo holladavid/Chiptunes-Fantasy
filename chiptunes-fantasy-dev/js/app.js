@@ -1,6 +1,6 @@
 // --- IMPORT DER MODULE ---
 import { trackRegistry } from '../tracks/registry.js';
-import { createKickSample, createBassSample, createChordSample } from '../tracks/amiga/amiga_helper.js';
+import { createKickSample, createBassSample, createChordSample } from './utils/amiga-helper.js'; // <-- PFAD GEÄNDERT!
 
 // --- GLOBALE VARIABLEN ---
 let audioCtx;
@@ -274,7 +274,8 @@ try {
             
             if (meta.digidrumCount > 0) {
                 techInfo += `<p style="margin-top: 5px;"><strong>PCM Data:</strong> ${meta.digidrumCount} Digidrum(s) detected!</p>`;
-                let sizes = meta.digidrumSizes.map(s => Math.round(s/1024) + 'kb').join(' / ');
+                // NEU: Exakte Bytes statt fehleranfälliger Kilobyte-Rundung!
+                let sizes = meta.digidrumSizes.map(s => s.toLocaleString('de-DE') + ' Bytes').join(' / ');
                 techInfo += `<p style="font-size: 0.9em; margin-left: 10px; color: var(--text-color); opacity: 0.8;">> Sample sizes: [ ${sizes} ]</p>`;
             } else {
                 techInfo += `<p style="margin-top: 5px;"><strong>PCM Data:</strong> None. 100% pure synthesized chip magic.</p>`;
