@@ -1,9 +1,12 @@
-/* Globale Variablen für dynamisches Theming */
+/* =========================================
+   1. GLOBALE VARIABLEN & THEMES
+   ========================================= */
 :root {
+    /* C64 Theme (Standard) */
     --bg-color: #352879;      
     --fg-color: #6c5eb5;      
     --text-color: #6c5eb5;
-    --panel-text: #352879;    /* NEU: Schriftfarbe für Panels */
+    --panel-text: #352879;    
     --highlight-color: #ffffff;
     --font-main: 'Press Start 2P', monospace;
     --font-size-base: 10px;
@@ -11,9 +14,9 @@
 
 body.theme-amiga {
     --bg-color: #000000;      
-    --fg-color: #002244;      /* Dunkleres Panel-Blau */
+    --fg-color: #002244;      
     --text-color: #ffffff;
-    --panel-text: #ff8800;    /* Orange Schrift im Panel */
+    --panel-text: #ff8800;    
     --highlight-color: #ffffff; 
     --font-main: 'VT323', monospace;
     --font-size-base: 18px;
@@ -21,15 +24,17 @@ body.theme-amiga {
 
 body.theme-atari {
     --bg-color: #000000;      
-    --fg-color: #111111;      /* Sehr dunkles Grau */
+    --fg-color: #111111;      
     --text-color: #55ff55;    
-    --panel-text: #55ff55;    /* Knallgrüne Schrift im Panel! */
+    --panel-text: #55ff55;    
     --highlight-color: #ffffff;
     --font-main: 'VT323', monospace;
     --font-size-base: 20px;
 }
 
-/* Reset & Basis-Setup */
+/* =========================================
+   2. RESET & BASIS
+   ========================================= */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -42,11 +47,24 @@ body, html {
     background-color: var(--bg-color);
     color: var(--text-color);
     font-family: var(--font-main);
-    overflow: hidden; /* Keine Scrollbalken erlaubt in einer Demo! */
+    overflow: hidden; 
     transition: background-color 0.5s, color 0.5s;
 }
 
-/* --- BOOT SCREEN --- */
+.hidden {
+    display: none !important;
+}
+
+.blink {
+    animation: blinker 1s linear infinite;
+}
+@keyframes blinker {
+    50% { opacity: 0; }
+}
+
+/* =========================================
+   3. BOOT SCREEN
+   ========================================= */
 #boot-screen {
     display: flex;
     justify-content: center;
@@ -58,25 +76,15 @@ body, html {
     font-size: 14px;
 }
 
-.blink {
-    animation: blinker 1s linear infinite;
-}
-@keyframes blinker {
-    50% { opacity: 0; }
-}
-
-.hidden {
-    display: none !important;
-}
-
-/* --- HAUPT LAYOUT --- */
+/* =========================================
+   4. HAUPT-LAYOUT (ZONEN)
+   ========================================= */
 #demo-container {
     display: flex;
     flex-direction: column;
     height: 100vh;
 }
 
-/* 1. VISUAL ZONE (Canvas) */
 #visual-zone {
     height: 40vh;
     position: relative;
@@ -89,7 +97,6 @@ body, html {
     display: block;
 }
 
-/* Scanlines für Retro CRT Feeling */
 .scanlines {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -98,7 +105,6 @@ body, html {
     pointer-events: none;
 }
 
-/* 2. UI ZONE (Player + Museum) */
 #ui-zone {
     height: 50vh;
     display: flex;
@@ -107,158 +113,6 @@ body, html {
     gap: 20px;
 }
 
-/* --- BUGFIX: KONTRAST & LESBARKEIT IM PLAYER --- */
-#player-panel {
-    background-color: var(--fg-color);
-    color: var(--panel-text); 
-}
-
-.system-tabs {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 15px;
-}
-
-.tab-btn {
-    background: var(--bg-color);
-    color: var(--text-color);
-    border: 2px solid var(--text-color);
-    padding: 5px 10px;
-    font-family: var(--font-main);
-    font-size: var(--font-size-base);
-    cursor: pointer;
-}
-
-.tab-btn.active, .tab-btn:hover {
-    background: var(--text-color);
-    color: var(--bg-color);
-}
-
-#tracklist {
-    list-style: none;
-    flex-grow: 1;
-    overflow-y: auto;
-    font-size: var(--font-size-base);
-    line-height: 1.8;
-}
-
-#tracklist li {
-    color: var(--panel-text); 
-    transition: background 0.2s, color 0.2s;
-}
-
-#tracklist li:hover {
-    background: var(--panel-text); 
-    color: var(--fg-color);      
-}
-
-/* Pulsierender Track: Ändert NUR die Farben, keine Opacity! */
-.active-track {
-    animation: pulse-track 1.5s infinite alternate;
-}
-
-@keyframes pulse-track {
-    0% { background: var(--highlight-color); color: #000 !important; }
-    100% { background: var(--panel-text); color: #000 !important; }
-}
-
-.controls {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    margin-top: 10px;
-}
-
-.controls button {
-    color: var(--panel-text);
-    border-color: var(--panel-text);
-}
-/* --- TIMELINE --- */
-.timeline-control {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 15px;
-    color: var(--bg-color);
-    font-size: calc(var(--font-size-base) * 0.8);
-}
-.timeline-control input[type="range"] {
-    flex-grow: 1;
-    -webkit-appearance: none;
-    background: var(--bg-color);
-    height: 4px;
-    outline: none;
-}
-.timeline-control input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 8px;
-    height: 8px;
-    background: var(--bg-color);
-}
-
-/* --- VOLUME SLIDER --- */
-.volume-control {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 10px;
-    color: var(--bg-color);
-    font-size: calc(var(--font-size-base) * 0.8);
-}
-
-.volume-control input[type="range"] {
-    flex-grow: 1;
-    -webkit-appearance: none;
-    background: var(--bg-color);
-    height: 4px;
-    outline: none;
-}
-
-.volume-control input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 15px;
-    height: 15px;
-    background: var(--bg-color);
-    border: 2px solid var(--text-color);
-    cursor: pointer;
-}
-
-/* Rechte Spalte: Museum */
-#museum-panel {
-    flex: 1;
-    border: 2px solid var(--text-color);
-    background-color: var(--bg-color);
-    padding: 15px;
-    display: flex;
-    flex-direction: column;
-}
-
-.museum-header h2 {
-    font-size: calc(var(--font-size-base) * 1.2);
-    margin-bottom: 15px;
-    border-bottom: 2px dashed var(--text-color);
-    padding-bottom: 5px;
-    color: var(--highlight-color);
-}
-
-.museum-content {
-    font-size: var(--font-size-base);
-    line-height: 1.5;
-    overflow-y: auto;
-}
-
-.museum-content p {
-    margin-bottom: 15px;
-}
-
-.blinking-cursor {
-    display: inline-block;
-    width: 10px;
-    background-color: var(--text-color);
-    animation: blinker 1s step-end infinite;
-}
-
-/* 3. SCROLLER ZONE */
 #scroller-zone {
     height: 10vh;
     background-color: #000;
@@ -270,61 +124,174 @@ body, html {
     display: block;
 }
 
-/* --- CHIP HUD (Register Visualisierung) --- */
-#chip-hud {
-    position: absolute;
-    top: 15px;
-    right: 15px;
-    width: 320px;
-    background: rgba(0, 0, 0, 0.6);
-    border: 1px solid var(--text-color);
-    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+/* =========================================
+   5. PLAYER PANEL (LINKS)
+   ========================================= */
+#player-panel {
+    flex: 0 0 35%;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--fg-color);
+    color: var(--panel-text); 
+    border: 2px solid var(--text-color);
     padding: 10px;
-    color: var(--highlight-color);
-    font-size: calc(var(--font-size-base) * 0.8);
-    pointer-events: none; /* Klicks gehen durch das HUD hindurch zum Canvas */
-    z-index: 10;
 }
 
-#chip-hud h3 {
-    border-bottom: 1px dotted var(--text-color);
+/* System Tabs */
+.system-tabs {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+}
+.tab-btn {
+    background: var(--bg-color);
+    color: var(--text-color);
+    border: 2px solid var(--text-color);
+    padding: 5px 10px;
+    font-family: inherit;
+    font-size: var(--font-size-base);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.tab-btn.active, .tab-btn:hover {
+    background: var(--text-color);
+    color: var(--bg-color);
+}
+
+/* Playlist */
+#tracklist {
+    list-style: none;
+    flex-grow: 1;
+    overflow-y: auto;
+    font-size: var(--font-size-base);
+    line-height: 1.8;
+}
+#tracklist li {
+    color: var(--panel-text); 
+    padding: 2px 5px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+#tracklist li:hover {
+    background: var(--panel-text); 
+    color: var(--fg-color);      
+}
+.active-track {
+    animation: pulse-track 1.5s infinite alternate;
+}
+@keyframes pulse-track {
+    0% { background: var(--highlight-color); color: #000 !important; }
+    100% { background: var(--panel-text); color: #000 !important; }
+}
+
+/* Retro Player Buttons */
+.controls {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    gap: 10px;
+}
+.controls button {
+    flex: 1;
+    background: transparent;
+    color: var(--panel-text);
+    border: 2px solid var(--panel-text);
+    padding: 8px 0;
+    font-size: calc(var(--font-size-base) * 1.2);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.1s;
+}
+.controls button:hover {
+    background: var(--panel-text);
+    color: var(--fg-color);
+}
+.controls button:active {
+    transform: scale(0.95); /* Physischer "Klick"-Effekt */
+}
+
+/* Fette Tracker-Slider (Volume & Timeline) */
+.timeline-control, .volume-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 15px;
+    color: var(--panel-text); /* Perfekter Kontrast */
+    font-size: calc(var(--font-size-base) * 0.9);
+}
+
+.timeline-control input[type="range"], 
+.volume-control input[type="range"] {
+    flex-grow: 1;
+    -webkit-appearance: none;
+    background: rgba(0, 0, 0, 0.4); /* Dunkle, edle Schiene */
+    border: 1px solid var(--panel-text);
+    height: 12px;
+    outline: none;
+    cursor: pointer;
+}
+
+/* Der Schieberegler (Thumb) im fetten Block-Design */
+.timeline-control input[type="range"]::-webkit-slider-thumb,
+.volume-control input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 20px;
+    background: var(--panel-text);
+    border: none;
+    cursor: pointer;
+}
+.timeline-control input[type="range"]::-moz-range-thumb,
+.volume-control input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 20px;
+    background: var(--panel-text);
+    border: none;
+    cursor: pointer;
+    border-radius: 0;
+}
+
+/* =========================================
+   6. MUSEUM PANEL (RECHTS)
+   ========================================= */
+#museum-panel {
+    flex: 1;
+    border: 2px solid var(--text-color);
+    background-color: var(--bg-color);
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+}
+.museum-header h2 {
+    font-size: calc(var(--font-size-base) * 1.2);
+    margin-bottom: 15px;
+    border-bottom: 2px dashed var(--text-color);
     padding-bottom: 5px;
+    color: var(--highlight-color);
+}
+.museum-content {
+    font-size: var(--font-size-base);
+    line-height: 1.5;
+    overflow-y: auto;
+}
+.museum-content p {
     margin-bottom: 10px;
-    color: var(--text-color);
 }
 
-/* Die Matrix für die Hex-Werte */
-.hud-grid {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    gap: 4px;
-    margin-bottom: 10px;
-}
-
-.hud-cell {
-    background: rgba(255, 255, 255, 0.1);
-    text-align: center;
-    padding: 2px;
-}
-
-.hud-label {
-    color: var(--text-color);
-    display: inline-block;
-    width: 80px;
-}
-
-/* --- CHIP HUD (Register Visualisierung) --- */
+/* =========================================
+   7. CHIP HUD (DSP MATRIX & ANALYZER)
+   ========================================= */
 #chip-hud {
     position: absolute;
     top: 15px;
     right: 15px;
-    width: 320px;
-    background: rgba(0, 0, 0, 0.7);
+    width: 480px; /* DEUTLICH breiter für die 2 Spalten! */
+    background: rgba(0, 0, 0, 0.75);
     border: 1px solid var(--text-color);
     box-shadow: 0 0 10px rgba(0,0,0,0.5);
-    padding: 10px;
+    padding: 15px; /* Etwas mehr Luft zum Atmen */
     color: var(--highlight-color);
-    pointer-events: auto; /* Damit der Button klickbar ist */
+    pointer-events: auto; 
     z-index: 10;
 }
 .hud-header {
@@ -333,7 +300,7 @@ body, html {
     align-items: center;
     border-bottom: 1px dashed var(--text-color);
     padding-bottom: 5px;
-    margin-bottom: 10px;
+    margin-bottom: 15px;
     font-size: calc(var(--font-size-base) * 0.9);
 }
 #btn-hud-info {
@@ -346,6 +313,7 @@ body, html {
 }
 #btn-hud-info:hover { color: #ffffff; }
 
+/* Die Hex-Matrix (Fallback für C64 / Amiga) */
 #hud-matrix {
     display: grid;
     grid-template-columns: repeat(8, 1fr);
@@ -364,6 +332,81 @@ body, html {
 .hud-cell-val {
     font-size: calc(var(--font-size-base) * 0.9);
 }
+
+/* --- NEU: ADVANCED DSP ANALYZER (Atari ST) --- */
+.atari-analyzer-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* Zwei saubere 50/50 Spalten */
+    gap: 20px; /* Abstand zwischen den Spalten */
+}
+
+.hud-channel {
+    margin-bottom: 12px;
+    border-bottom: 1px dotted rgba(255,255,255,0.2);
+    padding-bottom: 8px;
+}
+.hud-channel:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+
+.hud-channel h4 {
+    color: var(--highlight-color);
+    font-size: calc(var(--font-size-base) * 0.8);
+    margin-bottom: 8px;
+    /* BUGFIX: Glow extrem reduziert für perfekte Lesbarkeit! */
+    text-shadow: 0 0 2px var(--text-color); 
+    letter-spacing: 1px;
+}
+
+.hud-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+    font-size: calc(var(--font-size-base) * 0.75);
+}
+.hud-row label {
+    flex-shrink: 0;
+    width: 65px; /* Kompakter, damit der Balken Platz hat */
+    color: var(--text-color);
+    opacity: 0.8;
+}
+.hud-bar {
+    flex-grow: 1;
+    height: 6px;
+    background: rgba(255,255,255,0.15);
+    margin-right: 8px;
+    position: relative;
+    border: 1px solid rgba(0,0,0,0.5);
+}
+.hud-bar-fill {
+    height: 100%;
+    background: var(--text-color);
+    width: 0%; 
+    transition: width 0.05s linear; 
+}
+.hud-val {
+    flex-shrink: 0;
+    width: 35px; /* Fester Platz für die Zahlen (max 4095) */
+    text-align: right;
+    font-family: 'Press Start 2P', monospace; 
+    font-size: 8px;
+}
+.hud-led {
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #222;
+    border: 1px solid var(--text-color);
+    margin-right: 4px;
+}
+.hud-led.on {
+    background: var(--text-color);
+    box-shadow: 0 0 6px var(--text-color);
+}
+.hud-text-sel {
+    color: var(--highlight-color);
+    font-weight: bold;
+}
+
 #hud-legend {
     margin-top: 10px;
     padding-top: 10px;

@@ -371,47 +371,204 @@ document.getElementById('btn-hud-info').addEventListener('click', () => {
 });
 
 // --- HIGH-PERFORMANCE CHIP HUD UPDATE ---
-let cachedRegCount = 0;
+let cachedSystem = null; // Speichert, welches Layout gerade gezeichnet ist
 let hudValElements = [];
+
+// Hilfsfunktion: Generiert das HTML für einen Atari-Kanal
+function makeAtariChannelRow(ch, pitchId, volId, hegId, digiId) {
+    let digiHtml = digiId ? `
+        <div class="hud-row">
+            <label>Digi Hack</label>
+            <span id="${digiId}" class="hud-text-sel">--</span>
+        </div>` : '';
+    
+    return `
+        <div class="hud-channel">
+            <h4>[ CH ${ch} ]</h4>
+            <div class="hud-row">
+                <label>Pitch</label>
+                <div class="hud-bar"><div class="hud-bar-fill" id="${pitchId}-bar"></div></div>
+                <span class="hud-val" id="${pitchId}-val">0</span>
+            </div>
+            <div class="hud-row">
+                <label>Volume</label>
+                <div class="hud-bar"><div class="hud-bar-fill" id="${volId}-bar"></div></div>
+                <span class="hud-val" id="${volId}-val">0</span>
+                <div style="width: 15px;"></div>
+                <div class="hud-led" id="${hegId}-led"></div><span style="font-size:0.8em; color:var(--text-color);">HEG</span>
+            </div>
+            ${digiHtml}
+        </div>
+    `;
+}
 
 function updateChipHUD() {
     if (!isPlaying || !currentChipRegs) return;
     
-    if (cachedRegCount !== currentChipRegs.length) {
-        cachedRegCount = currentChipRegs.length;
-        const matrix = document.getElementById('hud-matrix');
-        let html = '';
-        
-        for (let i = 0; i < cachedRegCount; i++) {
-            let regLabel = i.toString(16).toUpperCase().padStart(2, '0');
-            html += `
-                <div class="hud-cell">
-                    <div class="hud-cell-label">R${regLabel}</div>
-                    <div class="hud-cell-val" id="hud-val-${i}">00</div>
-                </div>
-            `;
-        }
-        
-        if (activeSystem === 'atari') {
-            html += `
-                <div style="grid-column: span 8; margin-top: 10px; display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--text-color); padding-top: 5px;">
-                    <span style="font-size: 0.8em;">DIGI-SAMPLE: <span id="hud-digi-val" style="color:#fff;">--</span></span>
-                    <div id="hud-digi-led" style="width: 10px; height: 10px; border-radius: 50%; background: #440000; border: 1px solid #ff0000;"></div>
-                </div>
-            `;
-        }
-        
-        matrix.innerHTML = html;
+    const matrix = document.getElementById('hud-matrix');
 
-        hudValElements = [];
-        for (let i = 0; i < cachedRegCount; i++) {
-            hudValElements.push(document.getElementById(`hud-val-${i}`));
+    // 1. DOM nur neu aufbauen, wenn das Computer-System gewechselt wurde!
+    if (cachedSystem !== activeSystem) {
+        cachedSystem = activeSystem;
+        
+if (activeSystem === 'atari') {
+            // ADVANCED DSP ANALYZER LAYOUT FÜR ATARI (Zwei Spalten!)
+            matrix.innerHTML = `
+                <div class="atari-analyzer-grid">
+                    
+                    <!-- LINKE SPALTE: Die 3 Soundkanäle -->
+                    <div>
+                        ${makeAtariChannelRow('A', 'pitch-a', 'vol-a', 'heg-a', 'digi-a')}
+                        ${makeAtariChannelRow('B', 'pitch-b', 'vol-b', 'heg-b', 'digi-b')}
+                        ${makeAtariChannelRow('C', 'pitch-c', 'vol-c', 'heg-c', null)}
+                    </div>
+                    
+                    <!-- RECHTE SPALTE: Globale Register -->
+                    <div>
+                        <div class="hud-channel">
+                            <h4>[ MIXER & NOISE ]</h4>
+                            <div class="hud-row">
+                                <label>N-Freq</label>
+                                <div class="hud-bar"><div class="hud-bar-fill" id="noise-bar"></div></div>
+                                <span class="hud-val" id="noise-val">0</span>
+                            </div>
+                            <div class="hud-row">
+                                <label>Tone Mix</label>
+                                <div class="hud-led" id="tone-a-led"></div><span style="margin-right: 12px">A</span>
+                                <div class="hud-led" id="tone-b-led"></div><span style="margin-right: 12px">B</span>
+                                <div class="hud-led" id="tone-c-led"></div><span>C</span>
+                            </div>
+                            <div class="hud-row">
+                                <label>Noise Mix</label>
+                                <div class="hud-led" id="noise-a-led"></div><span style="margin-right: 12px">A</span>
+                                <div class="hud-led" id="noise-b-led"></div><span style="margin-right: 12px">B</span>
+                                <div class="hud-led" id="noise-c-led"></div><span>C</span>
+                            </div>
+                        </div>
+
+                        <div class="hud-channel">
+                            <h4>[ HARDWARE ENVELOPE ]</h4>
+                            <div class="hud-row">
+                                <label>Period</label>
+                                <div class="hud-bar"><div class="hud-bar-fill" id="env-bar"></div></div>
+                                <span class="hud-val" id="env-val">0</span>
+                            </div>
+                            <div class="hud-row">
+                                <label>Shape</label>
+                                <span id="env-shape-val" class="hud-text-sel">--</span>
+                            </div>
+                            <div class="hud-row">
+                                <label>Global Trig</label>
+                                <span id="digi-g-val" class="hud-text-sel">--</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            `;
+        } else {
+            // FALLBACK HEX-MATRIX FÜR C64 & AMIGA
+            let html = '';
+            for (let i = 0; i < currentChipRegs.length; i++) {
+                let regLabel = i.toString(16).toUpperCase().padStart(2, '0');
+                html += `
+                    <div class="hud-cell">
+                        <div class="hud-cell-label">R${regLabel}</div>
+                        <div class="hud-cell-val" id="hud-val-${i}">00</div>
+                    </div>
+                `;
+            }
+            matrix.innerHTML = html;
+            
+            // Cache für Hex-Matrix anlegen
+            hudValElements = [];
+            for (let i = 0; i < currentChipRegs.length; i++) {
+                hudValElements.push(document.getElementById(`hud-val-${i}`));
+            }
         }
     }
     
-    for (let i = 0; i < cachedRegCount; i++) {
-        let hexVal = currentChipRegs[i].toString(16).toUpperCase().padStart(2, '0');
-        if (hudValElements[i].innerText !== hexVal) hudValElements[i].innerText = hexVal;
+    // 2. High-Speed Update der Werte
+    if (activeSystem === 'atari') {
+        // --- ATARI ADVANCED PARSING ---
+        const r = currentChipRegs;
+
+        // Kanal A (Pitch: 12-Bit = max 4095. Vol: 4-Bit = max 15)
+        let pitchA = ((r[1] & 0x0F) << 8) | r[0];
+        document.getElementById('pitch-a-bar').style.width = (pitchA / 4095 * 100) + '%';
+        document.getElementById('pitch-a-val').innerText = pitchA;
+        let volA = r[8] & 0x0F;
+        document.getElementById('vol-a-bar').style.width = (volA / 15 * 100) + '%';
+        document.getElementById('vol-a-val').innerText = volA;
+        document.getElementById('heg-a-led').className = (r[8] & 0x10) ? 'hud-led on' : 'hud-led';
+        let digiA = (r[1] & 0xF0) >> 4;
+        document.getElementById('digi-a').innerText = digiA > 0 ? `SMP #${digiA}` : '--';
+
+        // Kanal B
+        let pitchB = ((r[3] & 0x0F) << 8) | r[2];
+        document.getElementById('pitch-b-bar').style.width = (pitchB / 4095 * 100) + '%';
+        document.getElementById('pitch-b-val').innerText = pitchB;
+        let volB = r[9] & 0x0F;
+        document.getElementById('vol-b-bar').style.width = (volB / 15 * 100) + '%';
+        document.getElementById('vol-b-val').innerText = volB;
+        document.getElementById('heg-b-led').className = (r[9] & 0x10) ? 'hud-led on' : 'hud-led';
+        let digiB = (r[3] & 0xF0) >> 4;
+        document.getElementById('digi-b').innerText = digiB > 0 ? `SMP #${digiB}` : '--';
+
+        // Kanal C
+        let pitchC = ((r[5] & 0x0F) << 8) | r[4];
+        document.getElementById('pitch-c-bar').style.width = (pitchC / 4095 * 100) + '%';
+        document.getElementById('pitch-c-val').innerText = pitchC;
+        let volC = r[10] & 0x0F;
+        document.getElementById('vol-c-bar').style.width = (volC / 15 * 100) + '%';
+        document.getElementById('vol-c-val').innerText = volC;
+        document.getElementById('heg-c-led').className = (r[10] & 0x10) ? 'hud-led on' : 'hud-led';
+
+        // Noise & Mixer (0 = Aktiv, 1 = Aus!)
+        let noiseP = r[6] & 0x1F;
+        document.getElementById('noise-bar').style.width = (noiseP / 31 * 100) + '%';
+        document.getElementById('noise-val').innerText = noiseP;
+        
+        let mix = r[7];
+        document.getElementById('tone-a-led').className = (mix & 0x01) === 0 ? 'hud-led on' : 'hud-led';
+        document.getElementById('tone-b-led').className = (mix & 0x02) === 0 ? 'hud-led on' : 'hud-led';
+        document.getElementById('tone-c-led').className = (mix & 0x04) === 0 ? 'hud-led on' : 'hud-led';
+        document.getElementById('noise-a-led').className = (mix & 0x08) === 0 ? 'hud-led on' : 'hud-led';
+        document.getElementById('noise-b-led').className = (mix & 0x10) === 0 ? 'hud-led on' : 'hud-led';
+        document.getElementById('noise-c-led').className = (mix & 0x20) === 0 ? 'hud-led on' : 'hud-led';
+
+        // Envelope (16-Bit = max 65535)
+        let envP = (r[12] << 8) | r[11];
+        document.getElementById('env-bar').style.width = (envP / 65535 * 100) + '%';
+        document.getElementById('env-val').innerText = envP;
+        
+        // Envelope Shape Decoder (Klartext!)
+        let shapeBits = r[13];
+        let shapeStr = "--";
+        if (shapeBits !== 0xFF && shapeBits !== 0) {
+            const shapes = {
+                0:'\\___', 4:'/___', 8:'\\\\\\\\', 9:'\\___', 10:'\\/\\/', 
+                11:'\\---', 12:'////', 13:'/---', 14:'/\\/\\', 15:'/___'
+            };
+            let s = shapeBits & 0x0F;
+            if (s < 4) shapeStr = '\\___';
+            else if (s < 8) shapeStr = '/___';
+            else shapeStr = shapes[s] || `0x${s.toString(16)}`;
+            shapeStr = `[0x${s.toString(16).toUpperCase()}] ` + shapeStr;
+        }
+        document.getElementById('env-shape-val').innerText = shapeStr;
+
+        // Globaler Digidrum Trigger
+        document.getElementById('digi-g-val').innerText = r[15] > 0 ? `SMP #${r[15]}` : '--';
+
+    } else {
+        // --- C64 & AMIGA HEX-UPDATE ---
+        for (let i = 0; i < currentChipRegs.length; i++) {
+            let hexVal = currentChipRegs[i].toString(16).toUpperCase().padStart(2, '0');
+            if (hudValElements[i].innerText !== hexVal) {
+                hudValElements[i].innerText = hexVal;
+            }
+        }
     }
 }
 
