@@ -1,9 +1,8 @@
 // --- IMPORT DER MODULE ---
 import { trackRegistry } from '../tracks/registry.js';
 import { createKickSample, createBassSample, createChordSample } from './utils/amiga-helper.js'; 
-
-// NEU: Wir importieren den Content für das Museum absolut sauber!
 import { systemDescriptions, chipCheatSheets } from './content/museum.js';
+import { workletRegistry } from './worklets/registry.js';
 
 // --- GLOBALE VARIABLEN ---
 let audioCtx;
@@ -60,51 +59,71 @@ function initApp() {
 if (document.readyState === 'loading') document.addEventListener("DOMContentLoaded", initApp);
 else initApp();
 
-// --- AUDIO ENGINE CORE ---
+// Globale Filter-Referenz für das Routing
+let amigaFilter; 
+
+// --- AUDIO ENGINE CORE (DYNAMISCH) ---
 async function initAudioEngine() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     try {
-        await audioCtx.audioWorklet.addModule('js/worklets/ym-worklet.js');
-        await audioCtx.audioWorklet.addModule('js/worklets/paula-worklet.js');
-        await audioCtx.audioWorklet.addModule('js/worklets/sid-worklet.js'); 
-        
-        ymNode = new AudioWorkletNode(audioCtx, 'ym-processor');
-        paulaNode = new AudioWorkletNode(audioCtx, 'paula-processor');
-        sidNode = new AudioWorkletNode(audioCtx, 'sid-processor'); 
-        
-        const amigaFilter = audioCtx.createBiquadFilter();
+        amigaFilter = audioCtx.createBiquadFilter();
         amigaFilter.type = 'lowpass';
         amigaFilter.frequency.value = 6000; 
 
-        // --- MASTER VOLUME & FFT ANALYZER ---
         analyserNode = audioCtx.createAnalyser();
         analyserNode.fftSize = 4096; 
 
         masterGain = audioCtx.createGain();
         masterGain.gain.value = 0.5; 
         
-        ymNode.connect(masterGain);
-        paulaNode.connect(amigaFilter).connect(masterGain);
-        sidNode.connect(masterGain); 
-        
         masterGain.connect(analyserNode);
         analyserNode.connect(audioCtx.destination);
+
+        // Lade die Standard-Cores für alle Systeme beim Booten
+        await loadEmuCore('atari', workletRegistry.atari[0]);
+        await loadEmuCore('c64', workletRegistry.c64[0]);
+        await loadEmuCore('amiga', workletRegistry.amiga[0]);
+
+    } catch (e) { console.error("Audio Engine Boot Fehler:", e); }
+}
+
+// Der "virtuelle Lötkolben": Tauscht einen Chip auf dem Mainboard aus!
+async function loadEmuCore(system, coreConfig) {
+    try {
+        // Skript in den Browser-Cache laden
+        await audioCtx.audioWorklet.addModule(coreConfig.file);
         
-        const visualHandler = (e) => {
+        // Alten Chip abklemmen, falls vorhanden
+        if (system === 'atari' && ymNode) ymNode.disconnect();
+        if (system === 'c64' && sidNode) sidNode.disconnect();
+        if (system === 'amiga' && paulaNode) paulaNode.disconnect();
+
+        // Neuen Chip einsetzen
+        let newNode = new AudioWorkletNode(audioCtx, coreConfig.processor);
+        
+        // Routing anwenden
+        if (system === 'amiga') {
+            newNode.connect(amigaFilter).connect(masterGain);
+        } else {
+            newNode.connect(masterGain);
+        }
+
+        // Sensoren (HUD & Oszilloskop) anschließen
+        newNode.port.onmessage = (e) => {
             if (e.data.type === 'VISUAL_DATA') {
                 currentOscValue = e.data.value;
                 lastKnownFrame = e.data.frame || 0; 
                 currentChipRegs = e.data.regs; 
             }
-            // DIE ROTE NERD-LED WIRD BEFEUERT!
             if (e.data.type === 'DEBUG') {
+                let match = e.data.msg.match(/Drum (\d+)/);
+                let drumNo = match ? "#" + match[1] : "TRIG";
                 const led = document.getElementById('hud-digi-led');
-                
-                if (led) {
+                const val = document.getElementById('hud-digi-val');
+                if (led && val) {
+                    val.innerText = drumNo;
                     led.style.background = '#ff0000';
                     led.style.boxShadow = '0 0 10px #ff0000';
-                    
-                    // Hardware-Nachleuchten (50 Millisekunden)
                     setTimeout(() => { 
                         led.style.background = '#440000'; 
                         led.style.boxShadow = 'none';
@@ -113,9 +132,19 @@ async function initAudioEngine() {
             }
         };
 
-        ymNode.port.onmessage = paulaNode.port.onmessage = sidNode.port.onmessage = visualHandler;
-        uploadAmigaSamples();
-    } catch (e) { console.error("AudioWorklet Fehler:", e); }
+        // Globale Referenzen updaten
+        if (system === 'atari') ymNode = newNode;
+        if (system === 'c64') sidNode = newNode;
+        if (system === 'amiga') {
+            paulaNode = newNode;
+            // Wenn der Amiga-Chip neu eingelötet wird, muss sein RAM neu gefüllt werden!
+            uploadAmigaSamples(); 
+        }
+
+        console.log(`[CORE LOADED] System: ${system} -> ${coreConfig.name}`);
+    } catch (e) {
+        console.error(`Fehler beim Laden des ${coreConfig.name} Cores:`, e);
+    }
 }
 
 function uploadAmigaSamples() {
@@ -209,7 +238,21 @@ function setTheme(themeName) {
 
     trackData = [];
     currentTrackIndex = 0;
-    currentChipRegs = null; // NEU: Verhindert alte Geister-Werte beim Tab-Wechsel!
+    
+    // NEU: Dropdown mit den passenden Cores für das System füllen!
+    renderCoreSelector(activeSystem);
+}
+
+// NEU: Baut die Dropdown-Liste
+function renderCoreSelector(system) {
+    const select = document.getElementById('core-selector');
+    select.innerHTML = '';
+    workletRegistry[system].forEach((core, index) => {
+        const opt = document.createElement('option');
+        opt.value = index;
+        opt.text = core.name;
+        select.appendChild(opt);
+    });
 }
 
 function renderTracklist(system) {
@@ -321,6 +364,17 @@ document.getElementById('btn-hud-info').addEventListener('click', () => {
     const legend = document.getElementById('hud-legend');
     legend.innerHTML = chipCheatSheets[activeSystem]; 
     legend.classList.toggle('hidden');
+});
+
+// --- EMU CORE WECHSEL (Dropdown) ---
+document.getElementById('core-selector').addEventListener('change', async (e) => {
+    stopPlayback();
+    const coreIndex = e.target.value;
+    const coreConfig = workletRegistry[activeSystem][coreIndex];
+    document.getElementById('hud-content') ? document.getElementById('hud-content').innerText = "RE-WIRING DSP..." : null;
+    await loadEmuCore(activeSystem, coreConfig);
+    // Spielt den Track automatisch mit dem neuen Chip weiter!
+    startPlayback(); 
 });
 
 // --- HIGH-PERFORMANCE CHIP HUD UPDATE ---

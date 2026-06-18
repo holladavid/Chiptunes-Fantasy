@@ -157,6 +157,29 @@ body, html {
     background: var(--text-color);
     color: var(--bg-color);
 }
+/* --- EMU CORE SELECTOR --- */
+.core-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: calc(var(--font-size-base) * 0.8);
+    color: var(--panel-text);
+}
+.core-control select {
+    flex-grow: 1;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--panel-text);
+    padding: 4px;
+    font-family: inherit;
+    font-size: inherit;
+    outline: none;
+    cursor: pointer;
+}
+.core-control select:hover {
+    border-color: var(--highlight-color);
+}
 
 /* Playlist */
 #tracklist {
