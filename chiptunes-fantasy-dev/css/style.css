@@ -157,6 +157,7 @@ body, html {
     background: var(--text-color);
     color: var(--bg-color);
 }
+
 /* --- EMU CORE SELECTOR --- */
 .core-control {
     display: flex;
@@ -166,19 +167,29 @@ body, html {
     font-size: calc(var(--font-size-base) * 0.8);
     color: var(--panel-text);
 }
+
 .core-control select {
     flex-grow: 1;
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    border: 1px solid var(--panel-text);
-    padding: 4px;
+    background-color: var(--bg-color); /* Dunkler Hintergrund */
+    color: var(--highlight-color);     /* KLARES WEISS für maximalen Kontrast! */
+    border: 2px solid var(--panel-text); /* Fetter Rand wie bei den Buttons */
+    padding: 6px;
     font-family: inherit;
     font-size: inherit;
     outline: none;
     cursor: pointer;
+    transition: all 0.1s;
 }
-.core-control select:hover {
+
+.core-control select:hover, .core-control select:focus {
     border-color: var(--highlight-color);
+}
+
+/* Die aufgeklappte Liste ebenfalls lesbar machen */
+.core-control select option {
+    background-color: var(--bg-color);
+    color: var(--highlight-color); 
+    padding: 5px;
 }
 
 /* Playlist */
