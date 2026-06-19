@@ -8,7 +8,14 @@ const myYmFiles = [
     "GOLDRUN.YM",
     "spherical_intro.YM",
     "BIONIC1.YM",
-    "Dragonflight_Title.YM"
+    "Dragonflight_Title.YM",
+    "Dragonflight_City_1.YM",
+    "Dragonflight_City_2.YM",
+    "Dragonflight_City_3.YM",
+    'Dragonflight_unspec.YM',
+    'EnchantedLands_Intro.YM',
+    'UnionDemo_Level_16_Fullscreen.YM',
+    'UnionDemo_Mega_Apocalypse.YM'
 ];
 
 // Wir generieren mit .map() automatisch für jeden Namen einen fertigen Track-Eintrag!
