@@ -465,3 +465,74 @@ body, html {
     line-height: 1.4;
     color: var(--text-color);
 }
+
+/* =========================================
+   8. MOBILE RESPONSIVE DESIGN (Smartphones)
+   ========================================= */
+@media (max-width: 800px) {
+    
+    /* 1. Scrolling erlauben & Höhen anpassen */
+    body, html {
+        overflow-y: auto; 
+        height: auto;
+    }
+    
+    #demo-container {
+        height: auto;
+        min-height: 100vh;
+    }
+
+    #visual-zone {
+        height: 45vh; /* Etwas mehr Platz für das gestapelte HUD */
+    }
+
+    #scroller-zone {
+        height: 8vh;
+    }
+
+    /* 2. UI-Zonen untereinander stapeln */
+    #ui-zone {
+        flex-direction: column;
+        height: auto;
+        padding: 10px;
+    }
+
+    #player-panel, #museum-panel {
+        flex: none;
+        width: 100%;
+    }
+
+    /* Tracklist Touch-Friendly machen & Höhe limitieren */
+    #tracklist {
+        max-height: 250px; /* Damit man auf kleinen Handys noch zum Museum scrollen kann */
+    }
+    
+    #tracklist li {
+        padding: 10px 5px; /* Größere Klickfläche für Daumen (Fat-Finger) */
+        margin-bottom: 2px;
+    }
+
+    /* 3. Das HUD (DSP Matrix) komprimieren */
+    #chip-hud {
+        width: 94%;
+        top: 10px;
+        right: 3%;
+        padding: 8px;
+    }
+
+    /* Das Atari Analyzer-Grid von 2 auf 1 Spalte umbrechen */
+    .atari-analyzer-grid {
+        grid-template-columns: 1fr;
+        gap: 5px;
+    }
+
+    /* Balken im HUD leicht anpassen */
+    .hud-row label {
+        width: 55px; /* Etwas kompakter für schmale Displays */
+    }
+    
+    .hud-channel {
+        margin-bottom: 5px;
+        padding-bottom: 5px;
+    }
+}
