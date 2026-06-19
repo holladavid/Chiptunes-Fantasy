@@ -707,7 +707,10 @@ function initVisuals() {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        let audioPunch = Math.abs(currentOscValue) * 40; 
+let audioPunch = Math.abs(currentOscValue) * 40; 
+        // NEU: Der Airbag! Falls der Audiochip crasht (NaN), retten wir das Canvas!
+        if (isNaN(audioPunch) || !isFinite(audioPunch)) audioPunch = 0;
+        
         const isAmiga = document.body.classList.contains('theme-amiga');
         const isAtari = document.body.classList.contains('theme-atari');
         
