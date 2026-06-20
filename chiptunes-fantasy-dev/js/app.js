@@ -18,6 +18,8 @@ let isPlaying = false;
 let currentTrackIndex = 0;
 let currentScrollerText = "+++ INITIALIZING DEMO ENGINE... +++";
 let lastKnownFrame = 0; 
+let previousFrame = 0;       // NEU: Merkt sich den vorherigen Frame für den Loop-Check
+let isAutoAdvancing = false; // NEU: Verhindert doppeltes Auslösen beim Trackwechsel
 
 // --- YM2149 NOISE FREQUENCY LOOKUP TABLE (2 MHz Clock) ---
 // 32 diskrete Werte für die 5 Bits (0 - 31). Periode 0 wird als 1 behandelt.
@@ -88,6 +90,7 @@ async function initAudioEngine() {
 }
 
 // Der "virtuelle Lötkolben": Tauscht einen Chip auf dem Mainboard aus!
+// Der "virtuelle Lötkolben": Tauscht einen Chip auf dem Mainboard aus!
 async function loadEmuCore(system, coreConfig) {
     try {
         // Skript in den Browser-Cache laden
@@ -108,12 +111,25 @@ async function loadEmuCore(system, coreConfig) {
             newNode.connect(masterGain);
         }
 
-        // Sensoren (HUD & Oszilloskop) anschließen
+        // Sensoren (HUD, Oszilloskop & Auto-Advance) anschließen
         newNode.port.onmessage = (e) => {
             if (e.data.type === 'VISUAL_DATA') {
                 currentOscValue = e.data.value;
+                
+                // 1. Frame-Historie für den Loop-Detector speichern
+                previousFrame = lastKnownFrame;
                 lastKnownFrame = e.data.frame || 0; 
                 currentChipRegs = e.data.regs; 
+
+                // 2. AUTO-ADVANCE (Playlist Jukebox Modus)
+                if (isPlaying && trackData.length > 0 && !isAutoAdvancing) {
+                    if (previousFrame > trackData.length - 20 && lastKnownFrame < 10) {
+                        isAutoAdvancing = true; // Gegen Doppel-Trigger sperren
+                        let nextIdx = (currentTrackIndex + 1) % trackRegistry[activeSystem].length;
+                        console.log(`Track zu Ende! Wechsle automatisch zu Track ${nextIdx}...`);
+                        selectAndPlayTrack(nextIdx, activeSystem);
+                    }
+                }
             }
             
             // DIE REPARIERTE UND OPTIMIERTE ROTE NERD-LED!
@@ -122,28 +138,24 @@ async function loadEmuCore(system, coreConfig) {
                 let drumNo = match ? "SMP #" + match[1] : "TRIG";
                 
                 const led = document.getElementById('hud-digi-led');
-                const val = document.getElementById('digi-g-val'); // <-- BUGFIX: Die korrekte ID!
+                const val = document.getElementById('digi-g-val'); 
                 
                 if (led && val) {
-                    // 1. Lass den Text aufpoppen (Weiß leuchtend!)
                     val.innerText = drumNo;
                     val.style.color = '#ffffff';
                     val.style.textShadow = '0 0 10px #ffffff';
                     
-                    // 2. LED auf Rot stellen
                     led.style.background = '#ff0000';
                     led.style.boxShadow = '0 0 12px #ff0000';
                     
-                    // 3. Bestehenden Timeout löschen, falls ein extrem schneller Blastbeat kommt!
                     if (val.timeoutId) clearTimeout(val.timeoutId);
                     
-                    // 4. Nach 120ms (Perfekte Lesbarkeit) wieder abdunkeln
                     val.timeoutId = setTimeout(() => { 
                         led.style.background = '#440000'; 
                         led.style.boxShadow = 'none';
-                        val.style.color = ''; // Zurück auf CSS-Standard
+                        val.style.color = ''; 
                         val.style.textShadow = 'none';
-                        val.innerText = '--'; // Nach dem Schlag wieder nullen
+                        val.innerText = '--'; 
                     }, 120);
                 }
             }
@@ -303,12 +315,21 @@ function renderTracklist(system) {
 }
 
 async function selectAndPlayTrack(index, system) {
+    isAutoAdvancing = true; // NEU: Sperre aktivieren, während geladen wird
+
     const songs = trackRegistry[system];
-    if (!songs || !songs[index]) return;
+    if (!songs || !songs[index]) {
+        isAutoAdvancing = false;
+        return;
+    }
 
     stopPlayback();
     currentTrackIndex = index;
     const selectedSong = songs[index];
+    
+    // NEU: Frame-Zähler hart resetten, um Geister-Loops zu verhindern
+    lastKnownFrame = 0;
+    previousFrame = 0; 
     
     renderTracklist(system); 
 
@@ -318,7 +339,7 @@ async function selectAndPlayTrack(index, system) {
             let parsedFile = await selectedSong.loadAsync();
             trackData = parsedFile.frames; 
             trackData.digidrums = parsedFile.digidrums;
-            trackData.isYmFile = true; 
+            trackData.isYmFile = true;
             
             let meta = parsedFile.metadata;
             
@@ -358,12 +379,15 @@ async function selectAndPlayTrack(index, system) {
                 <p class="blinking-cursor" style="margin-top: 15px;">_</p>
             `;
             startPlayback();
+            isAutoAdvancing = false; // NEU: Sperre wieder lösen!
+            
         } catch (err) {
             alert("FEHLER BEIM LADEN: " + err.message);
             currentScrollerText = "+++ ERROR LOADING FILE +++";
+            isAutoAdvancing = false; // NEU: Sperre bei Fehler lösen!
         }
     } else {
-        // Der alte Weg (Generatoren) - Auch hier die Rahmenlinien entfernt!
+        // Der alte Weg (Generatoren)
         document.getElementById('info-text').innerHTML = `
             <div style="margin-bottom: 20px;">
                 <h2 style="color: var(--highlight-color);">> NOW PLAYING:</h2>
@@ -379,6 +403,7 @@ async function selectAndPlayTrack(index, system) {
         currentScrollerText = "+++ NOW PLAYING: " + selectedSong.title + " +++";
         trackData = selectedSong.generator();
         startPlayback();
+        isAutoAdvancing = false; // NEU: Sperre wieder lösen!
     }
 }
 
