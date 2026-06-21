@@ -4,6 +4,7 @@ import { loadYmFile } from '../../js/parsers/ym-parser.js';
 const myYmFiles = [
     "thalion_loader.YM",           // Dein erster Test-Song
     "turrican1_world_1_1.YM",      // Lade hier deine entpackten Lieblingstracks rein...
+    'Turrican2_TheDesertRocks.YM',
     "WINGLEV1.YM",               // ...
     'WINGLEV2.YM',
     'WINGLEV3.YM',

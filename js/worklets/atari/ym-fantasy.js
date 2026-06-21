@@ -1,5 +1,6 @@
 // =========================================================
 // YM2149F "CHIPTUNES FANTASY" CORE (The Ultimate Mastering)
+// On-The-Fly Dynamic Staging & -18dBFS Headroom Gain Staging
 // =========================================================
 
 const YM_DAC = [
@@ -27,13 +28,12 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
         this.clock = 2000000; 
         this.regs = new Uint8Array(16); 
         this.phaseA = 0; this.phaseB1 = 0; this.phaseB2 = 0; this.phaseC = 0;
-        this.lfoPhase1 = 0.0; this.lfoPhase2 = 0.0; 
+        this.lfoPhase1 = 0.0; 
         this.noiseLfsr = 1; this.noisePhase = 0; this.noiseOutput = 1;
         this.envPhase = 0.0;
         
         this.f1Low = [0,0,0]; this.f1Band = [0,0,0]; 
         this.f2Low = [0,0,0]; this.f2Band = [0,0,0]; 
-        
         this.nLow1 = 0; this.nBand1 = 0; this.nLow2 = 0; this.nBand2 = 0; 
         this.nHpLow = 0; this.nHpBand = 0; 
         
@@ -56,18 +56,18 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
         this.lastDigiTrigger = 0;
         
         this.trackData = null;
-        this.roles = { A: 'LEAD', B: 'PAD', C: 'BASS' }; // Default
-        
         this.currentFrame = 0;
         this.sampleCounter = 0;
         this.isPlaying = false;
+
+        // DYNAMIC STAGING TARGETS (Weiches Überblenden der Panning & Sub-Bass Anteile)
+        this.panA = 0.5; this.panB = 0.5; this.panC = 0.5;
+        this.subA = 0.0; this.subB = 0.0; this.subC = 0.0;
         
         this.port.onmessage = (event) => {
             if (event.data.type === 'PLAY_TRACK') {
                 this.trackData = event.data.track;
                 this.digidrums = event.data.digidrums || []; 
-                this.roles = event.data.roles || this.roles; // Empfange die Smart-Roles!
-                
                 this.currentFrame = 0;
                 this.sampleCounter = 0;
                 this.currentDigidrum = null;
@@ -91,27 +91,12 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
         this.f1Low[ch] += f * this.f1Band[ch];
         let high1 = input - this.f1Low[ch] - q * this.f1Band[ch];
         this.f1Band[ch] += f * high1;
-        
         this.f2Low[ch] += f * this.f2Band[ch];
         let high2 = this.f1Low[ch] - this.f2Low[ch] - q * this.f2Band[ch];
         this.f2Band[ch] += f * high2;
 
         if (isNaN(this.f2Low[ch])) { this.f1Low[ch]=0; this.f1Band[ch]=0; this.f2Low[ch]=0; this.f2Band[ch]=0; }
         return this.f2Low[ch]; 
-    }
-
-    // Baut den Oscillator basierend auf seiner "Rolle" im Song!
-    renderOscillator(phase, role, inc) {
-        let sq = (phase < 0.5 ? 1.0 : -1.0) + polyBLEP(phase, inc) - polyBLEP((phase + 0.5) % 1.0, inc);
-        if (role === 'BASS') {
-            let sub = Math.sin(phase * Math.PI); // Fetter Analog-Sub
-            return sq * 0.5 + sub * 0.5;
-        } else if (role === 'LEAD') {
-            let saw = (phase * 2.0 - 1.0) - polyBLEP(phase, inc); // Scharfer Sägezahn für die Melodie
-            return sq * 0.6 + saw * 0.4;
-        } else { // PAD / ARP
-            return sq; // Reines PolyBLEP Square (sitzt gut im Mix)
-        }
     }
 
     process(inputs, outputs) {
@@ -152,7 +137,7 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
                         if (this.digidrums[activeDigiTrigger - 1]) {
                             this.currentDigidrum = this.digidrums[activeDigiTrigger - 1];
                             this.digiPos = 0;
-                            this.sidechainEnv = 0.35; // Kick Ducking
+                            this.sidechainEnv = 0.35; 
                             this.port.postMessage({ type: 'DEBUG', msg: 'Drum ' + activeDigiTrigger });
                         }
                     }
@@ -174,32 +159,69 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             this.phaseA = (this.phaseA + incA) % 1.0;
             this.phaseB1 = (this.phaseB1 + incB) % 1.0;
             this.phaseC = (this.phaseC + incC) % 1.0;
+            this.lfoPhase1 = (this.lfoPhase1 + 1.8 / sampleRate) % 1.0; 
             
+            let detune = Math.sin(this.lfoPhase1 * 2.0 * Math.PI) * 0.005;
+            this.phaseB2 = (this.phaseB2 + incB * (1.0 + detune)) % 1.0;
+
             const mix = this.regs[7];
             let tA = (mix & 0x01) === 0; let tB = (mix & 0x02) === 0; let tC = (mix & 0x04) === 0;
             let nA = (mix & 0x08) === 0; let nB = (mix & 0x10) === 0; let nC = (mix & 0x20) === 0;
 
-            // --- OSCILLATORS (Mit Rollen-Zuweisung!) ---
-            let sigA = tA ? this.renderOscillator(this.phaseA, this.roles.A, incA) : 0.0;
-            let sigB = tB ? this.renderOscillator(this.phaseB1, this.roles.B, incB) : 0.0;
-            let sigC = tC ? this.renderOscillator(this.phaseC, this.roles.C, incC) : 0.0;
+            // =========================================================
+            // DYNAMIC GAIN STAGING (On The Fly)
+            // Analysiert JEDEN Frame die Rolle des Kanals und blendet Parameter weich über!
+            // =========================================================
+            
+            // Ziel-Parameter definieren (Default ist 'LEAD' - gepannt, kein Sub)
+            let tPanA = 0.2; let tSubA = 0.0; 
+            let tPanB = 0.8; let tSubB = 0.0;
+            let tPanC = 0.5; let tSubC = 0.0; // C ist der "Wanderer"
+
+            // BASS-DETECTION: Periode > 400 (tiefer als ca. 300 Hz) und kein Noise
+            if (pA > 400 && !nA) { tPanA = 0.5; tSubA = 1.0; }
+            if (pB > 400 && !nB) { tPanB = 0.5; tSubB = 1.0; }
+            if (pC > 400 && !nC) { tPanC = 0.5; tSubC = 1.0; }
+
+            // DRUM-DETECTION: Wenn Noise aktiv ist, zentrieren wir den Sound für maximalen Punch
+            if (nA) { tPanA = 0.5; tSubA = 0.0; }
+            if (nB) { tPanB = 0.5; tSubB = 0.0; }
+            if (nC) { tPanC = 0.5; tSubC = 0.0; }
+
+            // Slew Limiter: Butterweiches Morphen der Stereobühne & Sub-Oszillatoren (verhindert Glitches)
+            let stageSpeed = 0.001; 
+            this.panA += (tPanA - this.panA) * stageSpeed; this.subA += (tSubA - this.subA) * stageSpeed;
+            this.panB += (tPanB - this.panB) * stageSpeed; this.subB += (tSubB - this.subB) * stageSpeed;
+            this.panC += (tPanC - this.panC) * stageSpeed; this.subC += (tSubC - this.subC) * stageSpeed;
+
+            // --- OSCILLATORS (Mit dynamischem Sub-Bass) ---
+            let sqA = (this.phaseA < 0.5 ? 1.0 : -1.0) + polyBLEP(this.phaseA, incA) - polyBLEP((this.phaseA + 0.5) % 1.0, incA);
+            let sSubA = Math.sin(this.phaseA * Math.PI); // Oktave tiefer
+            let sigA = tA ? (sqA * (1.0 - this.subA*0.5) + sSubA * this.subA) : 0.0;
+
+            let sawB1 = ((this.phaseB1 * 2.0) - 1.0) - polyBLEP(this.phaseB1, incB);
+            let sawB2 = ((this.phaseB2 * 2.0) - 1.0) - polyBLEP(this.phaseB2, incB * (1.0 + detune));
+            let sSubB = Math.sin(this.phaseB1 * Math.PI);
+            let sigB_L = tB ? (sawB1 * (1.0 - this.subB*0.5) + sSubB * this.subB) : 0.0;
+            let sigB_R = tB ? (sawB2 * (1.0 - this.subB*0.5) + sSubB * this.subB) : 0.0;
+
+            let pwmWidth = Math.sin(this.lfoPhase1 * 2.0 * Math.PI) * 0.3 + 0.5;
+            let pwmC = (this.phaseC < pwmWidth ? 1.0 : -1.0) + polyBLEP(this.phaseC, incC) - polyBLEP((this.phaseC + pwmWidth) % 1.0, incC);
+            let sSubC = Math.sin(this.phaseC * Math.PI);
+            let sigC = tC ? (pwmC * (1.0 - this.subC*0.5) + sSubC * this.subC) : 0.0;
 
             // --- DUAL-BAND INTELLIGENT NOISE ---
             let pN = this.regs[6] & 0x1F;
-            let noiseVal = 0;
-            let subNoiseVal = 0;
-
+            let noiseVal = 0; let subNoiseVal = 0;
             if (nA || nB || nC) {
                 let rawNoise = (Math.random() * 2.0 - 1.0);
                 if (pN > 12) {
-                    // TIEFER BASS (Explosionen)
                     let cutoffN = 150 + (31 - pN) * 20; 
                     let fN = 2.0 * Math.sin(Math.PI * cutoffN / sampleRate);
                     this.nLow1 += fN * this.nBand1; let h1 = rawNoise - this.nLow1 - 0.2 * this.nBand1; this.nBand1 += fN * h1;
                     this.nLow2 += fN * this.nBand2; let h2 = this.nLow1 - this.nLow2 - 0.2 * this.nBand2; this.nBand2 += fN * h2;
                     subNoiseVal = this.nLow2 * 2.0; 
                 } else {
-                    // HOHE HATS (Zischen)
                     let cutoffHp = 4000 + (12 - pN) * 500;
                     let fHp = 2.0 * Math.sin(Math.PI * cutoffHp / sampleRate);
                     this.nHpLow += fHp * this.nHpBand;
@@ -209,9 +231,9 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
                 }
             }
 
-            if (nA) { sigA += noiseVal + subNoiseVal; }
-            if (nB) { sigB += noiseVal + subNoiseVal; }
-            if (nC) { sigC += noiseVal + subNoiseVal; }
+            if (nA) sigA += noiseVal + subNoiseVal; 
+            if (nB) { sigB_L += noiseVal + subNoiseVal; sigB_R += noiseVal + subNoiseVal; }
+            if (nC) sigC += noiseVal + subNoiseVal;
 
             // --- ENVELOPES & FILTERS ---
             this.envPhase += (2000000 / (256 * (((this.regs[12] << 8) | this.regs[11]) === 0 ? 1 : ((this.regs[12] << 8) | this.regs[11])))) / sampleRate;
@@ -232,7 +254,6 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             let volB_raw = (this.regs[9] & 0x10) ? envVolIndex : (this.regs[9] & 0x0F);
             let volC_raw = (this.regs[10] & 0x10) ? envVolIndex : (this.regs[10] & 0x0F);
 
-            // Slew Limiters
             let slewSpeedA = (this.regs[8] & 0x10) ? 1.0 : (volA_raw > this.smoothVolA ? 0.002 : 0.0003);
             let slewSpeedB = (this.regs[9] & 0x10) ? 1.0 : (volB_raw > this.smoothVolB ? 0.002 : 0.0003);
             let slewSpeedC = (this.regs[10] & 0x10) ? 1.0 : (volC_raw > this.smoothVolC ? 0.002 : 0.0003);
@@ -240,24 +261,21 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             this.smoothVolB += (volB_raw - this.smoothVolB) * slewSpeedB;
             this.smoothVolC += (volC_raw - this.smoothVolC) * slewSpeedC;
 
-            let sweepA = Math.pow(this.smoothVolA / 15.0, 1.5);
-            let sweepB = Math.pow(this.smoothVolB / 15.0, 1.5);
-            let sweepC = Math.pow(this.smoothVolC / 15.0, 1.5);
+            let sweepA = Math.pow(this.smoothVolA / 15.0, 1.8);
+            let sweepB = Math.pow(this.smoothVolB / 15.0, 1.8);
+            let sweepC = Math.pow(this.smoothVolC / 15.0, 1.8);
 
-            // Filter Cutoff abhängig von der Rolle (Bass ist dumpfer, Lead knallt hoch!)
-            let cutA = this.roles.A === 'BASS' ? 6000 : (this.roles.A === 'LEAD' ? 16000 : 10000);
-            let cutB = this.roles.B === 'BASS' ? 6000 : (this.roles.B === 'LEAD' ? 16000 : 10000);
-            let cutC = this.roles.C === 'BASS' ? 6000 : (this.roles.C === 'LEAD' ? 16000 : 10000);
-
-            sigA = this.apply4PoleFilter(sigA, 0, 150 + sweepA * cutA, 0.4); 
-            sigB = this.apply4PoleFilter(sigB, 1, 150 + sweepB * cutB, 0.4); 
-            sigC = this.apply4PoleFilter(sigC, 2, 150 + sweepC * cutC, 0.4); 
+            // Dynamisches Filter: Bässe haben einen niedrigeren Basis-Cutoff als Leads
+            sigA = this.apply4PoleFilter(sigA, 0, (this.subA*100 + 100) + sweepA * 14000, 0.45); 
+            sigB_L = this.apply4PoleFilter(sigB_L, 1, (this.subB*100 + 150) + sweepB * 15000, 0.35); 
+            sigB_R = this.apply4PoleFilter(sigB_R, 2, (this.subB*100 + 150) + sweepB * 15000, 0.35); 
+            sigC = this.apply4PoleFilter(sigC, 3, (this.subC*100 + 200) + sweepC * 16000, 0.5); 
 
             let volA = YM_DAC[Math.round(this.smoothVolA)];
             let volB = YM_DAC[Math.round(this.smoothVolB)];
             let volC = YM_DAC[Math.round(this.smoothVolC)];
 
-            // --- CUBIC INTERPOLATION PCM ---
+            // --- CUBIC PCM ---
             let digiSample = 0;
             if (this.currentDigidrum) {
                 let posInt = Math.floor(this.digiPos);
@@ -273,26 +291,20 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             }
 
             // =========================================================
-            // DYNAMIC STAGING PANNING
+            // GAIN STAGING (-18dBFS Headroom pro Kanal) & DYNAMIC PANNING
             // =========================================================
-            let synthA = sigA * volA * this.sidechainEnv;
-            let synthB = sigB * volB * this.sidechainEnv;
-            let synthC = sigC * volC * this.sidechainEnv;
+            // Headroom: Oszillatoren liefern intern ca. 0.15 bis 0.2 Amplitude
+            let synthA = sigA * volA * this.sidechainEnv * 0.18;
+            let synthB_L = sigB_L * volB * this.sidechainEnv * 0.18;
+            let synthB_R = sigB_R * volB * this.sidechainEnv * 0.18;
+            let synthC = sigC * volC * this.sidechainEnv * 0.18;
+            let drums = digiSample * 0.4; // Drums peaken bei ca. -8dBFS
             
-            // Pan-Werte nach Rolle: BASS = Mitte, LEAD = Breit, PAD = Extrem Breit
-            let panA_L = this.roles.A === 'BASS' ? 0.707 : (this.roles.A === 'LEAD' ? 0.8 : 0.3);
-            let panA_R = this.roles.A === 'BASS' ? 0.707 : (this.roles.A === 'LEAD' ? 0.6 : 0.9);
-            
-            let panB_L = this.roles.B === 'BASS' ? 0.707 : (this.roles.B === 'LEAD' ? 0.8 : 0.3);
-            let panB_R = this.roles.B === 'BASS' ? 0.707 : (this.roles.B === 'LEAD' ? 0.6 : 0.9);
-            
-            let panC_L = this.roles.C === 'BASS' ? 0.707 : (this.roles.C === 'LEAD' ? 0.8 : 0.3);
-            let panC_R = this.roles.C === 'BASS' ? 0.707 : (this.roles.C === 'LEAD' ? 0.6 : 0.9);
+            // Mix mit den fließend morphenden Dynamic Panning Werten (0.0 bis 1.0)
+            let mixL = (synthA * (1.0 - this.panA)) + (synthB_L * (1.0 - this.panB)) + (synthC * (1.0 - this.panC)) + (drums * 0.5);
+            let mixR = (synthA * this.panA) + (synthB_R * this.panB) + (synthC * this.panC) + (drums * 0.5);
 
-            let mixL = (synthA * panA_L) + (synthB * panB_L) + (synthC * panC_L) + (digiSample * 0.5);
-            let mixR = (synthA * panA_R) + (synthB * panB_R) + (synthC * panC_R) + (digiSample * 0.5);
-
-            // Reverb / Tape Delay
+            // --- REVERB / TAPE DELAY ---
             let readIdxL = (this.delayIdx - this.delayTime + 131072) & this.delayMask;
             let readIdxR = (this.delayIdx - this.delayTime + 131072 + Math.floor(this.delayTime/2)) & this.delayMask;
             
@@ -311,8 +323,10 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             this.delayBufR[this.delayIdx] = mixL * 0.3 + tapeEchoR * 0.15;
             this.delayIdx = (this.delayIdx + 1) & this.delayMask;
 
-            finalL = (Math.tanh(finalL * 1.5) / 1.1) * 0.9;
-            finalR = (Math.tanh(finalR * 1.5) / 1.1) * 0.9;
+            // --- ANALOG MASTER BUS COMPRESSOR (Makeup Gain) ---
+            // Wir pushen das Signal in den Saturator (Makeup Gain * 4.0), um Loudness zu erzeugen
+            finalL = (Math.tanh(finalL * 4.0) / 1.1) * 0.9;
+            finalR = (Math.tanh(finalR * 4.0) / 1.1) * 0.9;
 
             let dcBlockL = finalL - this.lastInL + 0.995 * this.lastOutL;
             this.lastInL = finalL; this.lastOutL = dcBlockL;
