@@ -821,7 +821,8 @@ function initVisuals() {
     canvas.height = canvas.clientHeight;
     
     const historyLength = canvas.width; 
-    const oscHistory = new Float32Array(historyLength);
+    // NEU: Mit NaN füllen, damit anfangs absolute Leere herrscht!
+    const oscHistory = new Float32Array(historyLength).fill(NaN);
     let oscIndex = 0; 
     let startTime = performance.now();
     let hudCounter = 0; 
@@ -872,18 +873,37 @@ function initVisuals() {
         drawCopperBar((canvas.height / 2) + Math.sin(t * 1.5 + 4.0) * (canvas.height * 0.25), 15 + (audioPunch * 0.5), pal3[0], pal3[1]);
         ctx.globalCompositeOperation = "source-over";
 
-        oscHistory[oscIndex] = currentOscValue;
+        // --- 3. DAS OSZILLOSKOP ---
+        // NEU: Wenn kein Track geladen ist, pumpen wir "Nichts" (NaN) ins Array. 
+        // Dadurch scrollt eine alte Linie beim Systemwechsel wunderschön aus dem Bild!
+        oscHistory[oscIndex] = (trackData.length === 0) ? NaN : currentOscValue;
         oscIndex = (oscIndex + 1) % historyLength; 
         
         ctx.beginPath();
         ctx.strokeStyle = lineColor;
+        
+        let isFirstPoint = true;
         for (let x = 0; x < historyLength; x++) {
             let actualIndex = (oscIndex + x) % historyLength; 
-            let y = (canvas.height / 2) - (oscHistory[actualIndex] * (canvas.height * 0.4)); 
-            if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            let val = oscHistory[actualIndex];
+            
+            // NEU: Nur zeichnen, wenn ein echter Audio-Wert vorliegt!
+            if (!isNaN(val)) {
+                let y = (canvas.height / 2) - (val * (canvas.height * 0.4)); 
+                if (isFirstPoint) {
+                    ctx.moveTo(x, y);
+                    isFirstPoint = false;
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
         }
-        ctx.lineWidth = 6; ctx.globalAlpha = 0.3; ctx.stroke();
-        ctx.lineWidth = 2; ctx.globalAlpha = 1.0; ctx.stroke();
+        
+        // Nur den Glow und die Linie zeichnen, wenn es Punkte gab
+        if (!isFirstPoint) {
+            ctx.lineWidth = 6; ctx.globalAlpha = 0.3; ctx.stroke();
+            ctx.lineWidth = 2; ctx.globalAlpha = 1.0; ctx.stroke();
+        }
 
         // --- SPECTRUM ANALYZER ---
         if (analyserNode && isPlaying) {
