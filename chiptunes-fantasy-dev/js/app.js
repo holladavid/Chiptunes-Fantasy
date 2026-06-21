@@ -297,7 +297,7 @@ function setTheme(themeName) {
     renderCoreSelector(activeSystem);
 }
 
-// Baut die Dropdown-Liste inkl. ASCII-CPU-Meter am Ende!
+// Baut die Dropdown-Liste inkl. ASCII-CPU-Meter
 function renderCoreSelector(system) {
     const select = document.getElementById('core-selector');
     select.innerHTML = '';
@@ -311,8 +311,8 @@ function renderCoreSelector(system) {
             meter += (i <= cpuLoad) ? '■' : '□';
         }
         
-        // NEU: Name zuerst, dann die CPU-Last am Ende
-        opt.text = `${core.name}  [CPU:${meter}]`;
+        // FIX 1: Ein klares Trennzeichen für mobile native Dropdowns!
+        opt.text = `${core.name} • CPU:${meter}`;
         
         select.appendChild(opt);
     });
@@ -459,31 +459,46 @@ document.getElementById('btn-prev').addEventListener('click', () => {
 let wakeLock = null;
 
 // --- PURE AUDIO / ECO MODE TOGGLE ---
+
+// FIX 2: Der unsichtbare iOS No-Sleep Video-Hack (Base64 kodiertes, 1px großes, schwarzes MP4-Video)
+const noSleepVideo = document.createElement('video');
+noSleepVideo.setAttribute('playsinline', '');
+noSleepVideo.setAttribute('muted', '');
+noSleepVideo.setAttribute('loop', '');
+
+// Ein absolut winziges, leeres Video, das Safari austrickst
+noSleepVideo.src = 'data:video/mp4;base64,AAAAHGZ0eXBtcDQyAAAAAG1wNDJpc29tYXZjMQAAAz5tb292AAAAbG12aGQAAAAA/8f/3v/H/+QAAALuAAAC7gABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAGGlvZHMAAAAAE//H/+QAAALuAAAC7gABAAAAAAABAAAAMXRyYWsAAABcdGtoZAAAAAD/x//e/8f/5AAAAAEAAAAAAAAC7gAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAgAAAAIAAAAgZWR0cwAAABBlbHN0AAAAAQAAAu4AAAAAAAEAAAAAAixtZGlhAAAAIG1kaGQAAAAA/8f/3v/H/+QAAALuAAAC7gABAAAAAAAxAAAAAAAvaGRscgAAAAAAAAAAdmlkZQAAAAAAAAAAAAAAAFZpZGVvSGFuZGxlcgAAAAIcbWluZgAAABR2bWhkAAAAAQAAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAcRzdGJsAAAAp3N0c2QAAAAAAAAAAQAAAJNhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAgACAEgAAABIAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAR//8AAAAxYXZjQwH0AAr/4QAZZ/QACq608AUBzgAAAwAABgAAAwivDxgXoAAAAQAAABhzdHRzAAAAAAAAAAEAAAABAAAC7gAAAABzdHNzAAAAAAAAAAEAAAABAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAABAAAAHHN0c3oAAAAAAAAAAAAAAAEAAAAeAAAAFHN0Y28AAAAAAAAAAQAAADAAAAA0dWR0YQAAACxtZXRhAAAAAAAAAABoZGxyAAAAAAAAAABtZGlyYXBwbAAAAAAAAAAAAAAA';
+
+
 document.getElementById('btn-eco').addEventListener('click', async () => {
     isEcoMode = true;
     document.getElementById('eco-overlay').classList.remove('hidden');
     
-    // NEU: Wake Lock beim Browser anfordern!
+    // 1. Offizielle Methode (Für Desktop & Android)
     try {
         if ('wakeLock' in navigator) {
             wakeLock = await navigator.wakeLock.request('screen');
-            console.log('[SYSTEM] Wake Lock aktiv. Bildschirm bleibt an.');
         }
     } catch (err) {
-        console.warn(`Wake Lock Fehler: ${err.name}, ${err.message}`);
+        console.warn(`Wake Lock API blockiert (HTTP/iOS?). Fallback aktiviert.`);
     }
+    
+    // 2. iOS Fallback-Hack (Zwingt das iPhone, wach zu bleiben)
+    noSleepVideo.play().catch(e => console.warn('iOS Video-Hack blockiert:', e));
 });
 
 document.getElementById('btn-eco-off').addEventListener('click', async () => {
     isEcoMode = false;
     document.getElementById('eco-overlay').classList.add('hidden');
     
-    // NEU: Wake Lock wieder freigeben, Gerät darf wieder schlafen!
+    // Offizielle Methode beenden
     if (wakeLock !== null) {
         await wakeLock.release();
         wakeLock = null;
-        console.log('[SYSTEM] Wake Lock freigegeben.');
     }
+    
+    // iOS Fallback beenden
+    noSleepVideo.pause();
 });
 
 document.getElementById('volume-slider').addEventListener('input', (e) => {
