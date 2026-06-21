@@ -19,7 +19,7 @@ let currentTrackIndex = 0;
 let currentScrollerText = "+++ INITIALIZING DEMO ENGINE... +++";
 let lastKnownFrame = 0; 
 let previousFrame = 0;       // NEU: Merkt sich den vorherigen Frame für den Loop-Check
-let isAutoAdvancing = false; // NEU: Verhindert doppeltes Auslösen beim Trackwechsel
+let lastTrackChangeTime = 0; // NEU: Der kugelsichere Cooldown-Timer
 let isEcoMode = false;      // NEU: Status für den Pure Audio Mode
 
 // --- YM2149 NOISE FREQUENCY LOOKUP TABLE (2 MHz Clock) ---
@@ -120,13 +120,16 @@ async function loadEmuCore(system, coreConfig) {
                 lastKnownFrame = e.data.frame || 0; 
                 currentChipRegs = e.data.regs; 
 
-                // AUTO-ADVANCE (Jukebox Modus)
-                if (isPlaying && trackData.length > 0 && !isAutoAdvancing) {
+                // 2. AUTO-ADVANCE (Playlist Jukebox Modus)
+                if (isPlaying && trackData.length > 0) {
                     if (previousFrame > trackData.length - 20 && lastKnownFrame < 10) {
-                        isAutoAdvancing = true; 
-                        let nextIdx = (currentTrackIndex + 1) % trackRegistry[activeSystem].length;
-                        console.log(`Track zu Ende! Wechsle automatisch zu Track ${nextIdx}...`);
-                        selectAndPlayTrack(nextIdx, activeSystem);
+                        // NEU: Der 2-Sekunden Cooldown! (Verhindert die Endlosschleife und den Safari-Absturz)
+                        if (performance.now() - lastTrackChangeTime > 2000) {
+                            lastTrackChangeTime = performance.now(); // Sofort sperren!
+                            let nextIdx = (currentTrackIndex + 1) % trackRegistry[activeSystem].length;
+                            console.log(`Track zu Ende! Wechsle automatisch zu Track ${nextIdx}...`);
+                            selectAndPlayTrack(nextIdx, activeSystem);
+                        }
                     }
                 }
             }
@@ -294,14 +297,25 @@ function setTheme(themeName) {
     renderCoreSelector(activeSystem);
 }
 
-// NEU: Baut die Dropdown-Liste
+// NEU: Baut die Dropdown-Liste inkl. ASCII-CPU-Meter!
 function renderCoreSelector(system) {
     const select = document.getElementById('core-selector');
     select.innerHTML = '';
+    
     workletRegistry[system].forEach((core, index) => {
         const opt = document.createElement('option');
         opt.value = index;
-        opt.text = core.name;
+        
+        // Demoscene Magic: Wir generieren einen Unicode-Balken (1 bis 4 Segmente)
+        let cpuLoad = core.cpu || 1;
+        let meter = '';
+        for (let i = 1; i <= 4; i++) {
+            meter += (i <= cpuLoad) ? '■' : '□';
+        }
+        
+        // Das Ergebnis sieht dann z.B. so aus: [CPU:■■■□] YM2149 (Hi-Fi Remaster)
+        opt.text = `[CPU:${meter}] ${core.name}`;
+        
         select.appendChild(opt);
     });
 }
@@ -322,23 +336,24 @@ function renderTracklist(system) {
 }
 
 async function selectAndPlayTrack(index, system) {
-    isAutoAdvancing = true; // NEU: Sperre aktivieren, während geladen wird
+    // NEU: Der Cooldown-Stempel! Setzt die Sperre für den Jukebox-Wechsel auf JETZT
+    lastTrackChangeTime = performance.now();
 
+    // iOS Safari Fix: Context sofort beim Klicken aufwecken (falls nötig)
     if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume();
+        audioCtx.resume().catch(e => console.log("AudioContext resume blockiert:", e));
     }
 
     const songs = trackRegistry[system];
     if (!songs || !songs[index]) {
-        isAutoAdvancing = false;
-        return;
+        return; // Die alte isAutoAdvancing Sperre wurde hier restlos gelöscht!
     }
 
     stopPlayback();
     currentTrackIndex = index;
     const selectedSong = songs[index];
     
-    // NEU: Frame-Zähler hart resetten, um Geister-Loops zu verhindern
+    // Frame-Zähler hart resetten, um Geister-Loops zu verhindern
     lastKnownFrame = 0;
     previousFrame = 0; 
     
@@ -367,7 +382,7 @@ async function selectAndPlayTrack(index, system) {
                 techInfo += `<p style="margin-top: 5px;"><strong>PCM Data:</strong> None. 100% pure synthesized chip magic.</p>`;
             }
 
-            // NEU: Tracker-Design (border-left statt dashed border!)
+            // Tracker-Design (border-left statt dashed border!)
             let dynamicHTML = `
                 <div style="margin-top: 15px; padding: 10px 15px; background: rgba(0,0,0,0.2); border-left: 4px solid var(--highlight-color); position: relative;">
                     <p style="color: var(--highlight-color); margin-bottom: 8px;"><strong>[ BINARY FILE ANALYSIS ]</strong></p>
@@ -390,12 +405,12 @@ async function selectAndPlayTrack(index, system) {
                 <p class="blinking-cursor" style="margin-top: 15px;">_</p>
             `;
             startPlayback();
-            isAutoAdvancing = false; // NEU: Sperre wieder lösen!
+            // Die alte isAutoAdvancing Sperre wurde hier restlos gelöscht!
             
         } catch (err) {
             alert("FEHLER BEIM LADEN: " + err.message);
             currentScrollerText = "+++ ERROR LOADING FILE +++";
-            isAutoAdvancing = false; // NEU: Sperre bei Fehler lösen!
+            // Die alte isAutoAdvancing Sperre wurde hier restlos gelöscht!
         }
     } else {
         // Der alte Weg (Generatoren)
@@ -414,7 +429,7 @@ async function selectAndPlayTrack(index, system) {
         currentScrollerText = "+++ NOW PLAYING: " + selectedSong.title + " +++";
         trackData = selectedSong.generator();
         startPlayback();
-        isAutoAdvancing = false; // NEU: Sperre wieder lösen!
+        // Die alte isAutoAdvancing Sperre wurde hier restlos gelöscht!
     }
 }
 
