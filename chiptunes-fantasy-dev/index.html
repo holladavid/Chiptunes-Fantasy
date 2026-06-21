@@ -22,9 +22,15 @@
         <div id="visual-zone">
 
             <canvas id="demo-canvas"></canvas>
-            
-            <!-- NEU: Das nerdige Hardware-HUD (Jetzt einklappbar!) -->
-            <div id="chip-hud">
+                        
+            <!-- NEU: Das animierte Chiptunes Fantasy Logo -->
+            <div id="brand-logo">
+                <div class="brand-main">CHIPTUNES</div>
+                <div class="brand-sub">FANTASY</div>
+            </div>
+
+            <!-- NEU: class="collapsed" hinzugefügt! -->
+            <div id="chip-hud" class="collapsed">
                 <div class="hud-header">
                     <span id="hud-title">DSP REGISTERS</span>
                     <div>
@@ -33,7 +39,6 @@
                     </div>
                 </div>
                 
-                <!-- Der Body-Wrapper (Standardmäßig hochgeklappt) -->
                 <div id="hud-body" class="hidden">
                     <div id="hud-matrix"></div>
                     <div id="hud-legend" class="hidden"></div>

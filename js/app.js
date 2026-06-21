@@ -277,8 +277,13 @@ function setTheme(themeName) {
     // NEU: HUD Body und [?] Button beim Systemwechsel sauber verstecken
     const hudBody = document.getElementById('hud-body');
     if (hudBody) hudBody.classList.add('hidden');
+    
+    const hudMain = document.getElementById('chip-hud'); // NEU
+    if (hudMain) hudMain.classList.add('collapsed');     // NEU
+    
     const hudToggleBtn = document.getElementById('btn-hud-toggle');
     if (hudToggleBtn) hudToggleBtn.innerText = '[+]';
+    
     const infoBtn = document.getElementById('btn-hud-info');
     if (infoBtn) infoBtn.classList.add('hidden');
 
@@ -450,17 +455,20 @@ document.getElementById('btn-hud-info').addEventListener('click', () => {
 
 // --- Toggle für das gesamte DSP HUD ---
 document.getElementById('btn-hud-toggle').addEventListener('click', (e) => {
+    const hud = document.getElementById('chip-hud'); // NEU: Der Haupt-Container
     const body = document.getElementById('hud-body');
-    const infoBtn = document.getElementById('btn-hud-info'); // Den [?] Button holen
+    const infoBtn = document.getElementById('btn-hud-info'); 
     const isHidden = body.classList.contains('hidden');
     
     if (isHidden) {
         body.classList.remove('hidden');
-        infoBtn.classList.remove('hidden'); // [?] Button EINBLENDEN
+        infoBtn.classList.remove('hidden'); 
+        hud.classList.remove('collapsed'); // NEU: HUD ausbreiten!
         e.target.innerText = '[-]'; 
     } else {
         body.classList.add('hidden');
-        infoBtn.classList.add('hidden'); // [?] Button AUSBLENDEN
+        infoBtn.classList.add('hidden'); 
+        hud.classList.add('collapsed'); // NEU: HUD schrumpfen!
         e.target.innerText = '[+]'; 
         
         const legend = document.getElementById('hud-legend');
