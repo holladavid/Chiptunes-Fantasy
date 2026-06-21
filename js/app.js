@@ -205,10 +205,63 @@ function updateTimelineUI() {
     document.getElementById('progress-slider').value = (lastKnownFrame / trackData.length) * 100;
 }
 
+// =========================================================
+// DYNAMIC STAGING: Pre-Scanner für Chiptunes Fantasy
+// =========================================================
+function analyzeTrackRoles(trackData) {
+    if (!trackData || trackData.length === 0) return { A: 'LEAD', B: 'PAD', C: 'BASS' }; // Fallback
+    
+    let stats = [
+        { ch: 'A', totalPeriod: 0, activeFrames: 0 },
+        { ch: 'B', totalPeriod: 0, activeFrames: 0 },
+        { ch: 'C', totalPeriod: 0, activeFrames: 0 }
+    ];
+
+    // Scanne das gesamte Lied durch!
+    for (let i = 0; i < trackData.length; i++) {
+        let frame = trackData[i];
+        
+        // Lautstärken checken (Ist der Kanal in diesem Frame aktiv?)
+        let volA = frame[8] & 0x1F; 
+        let volB = frame[9] & 0x1F; 
+        let volC = frame[10] & 0x1F;
+
+        if (volA > 0) {
+            let pA = ((frame[1] & 0x0F) << 8) | frame[0];
+            stats[0].totalPeriod += pA; stats[0].activeFrames++;
+        }
+        if (volB > 0) {
+            let pB = ((frame[3] & 0x0F) << 8) | frame[2];
+            stats[1].totalPeriod += pB; stats[1].activeFrames++;
+        }
+        if (volC > 0) {
+            let pC = ((frame[5] & 0x0F) << 8) | frame[4];
+            stats[2].totalPeriod += pC; stats[2].activeFrames++;
+        }
+    }
+
+    // Durchschnittliche Periode berechnen (Hohe Periode = Tiefer Ton!)
+    stats.forEach(s => {
+        s.avgPeriod = s.activeFrames > 0 ? (s.totalPeriod / s.activeFrames) : 0;
+    });
+
+    // Sortiere nach Periode absteigend (Höchste Periode = Tiefster Ton = Bass)
+    stats.sort((a, b) => b.avgPeriod - a.avgPeriod);
+
+    // Rollenverteilung
+    let roles = {};
+    roles[stats[0].ch] = 'BASS';   // Der tiefste Kanal
+    roles[stats[1].ch] = 'PAD';    // Der mittlere Kanal
+    roles[stats[2].ch] = 'LEAD';   // Der höchste Kanal (Lead Melodie)
+
+    console.log(`[DYNAMIC STAGING] Analyse abgeschlossen: A=${roles.A}, B=${roles.B}, C=${roles.C}`);
+    return roles;
+}
+
 // --- DER NEUE HIGH-PRECISION PLAYER ---
-function startPlayback() { // Startet immer einen NEUEN Track bei Frame 0
+function startPlayback() {
     if (isPlaying || trackData.length === 0) return;
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(e=>console.log(e));
 
     isPlaying = true;
     let isAmiga = trackData[0] && trackData[0].isAmiga;
@@ -219,7 +272,15 @@ function startPlayback() { // Startet immer einen NEUEN Track bei Frame 0
     } else if (isC64) {
         sidNode.port.postMessage({ type: 'PLAY_TRACK', track: trackData });
     } else {
-        ymNode.port.postMessage({ type: 'PLAY_TRACK', track: trackData, digidrums: trackData.digidrums });
+        // NEU: Den Track scannen und das Mischpult automatisch einstellen!
+        let trackRoles = analyzeTrackRoles(trackData);
+        
+        ymNode.port.postMessage({ 
+            type: 'PLAY_TRACK', 
+            track: trackData, 
+            digidrums: trackData.digidrums,
+            roles: trackRoles // <-- Das Skript an den Studio-Core senden!
+        });
     }
 }
 
