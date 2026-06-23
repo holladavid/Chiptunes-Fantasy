@@ -15,7 +15,6 @@
         <h1 class="blink">[ INSERT DISK AND CLICK TO START ]</h1>
     </div>
 
-    <!-- HIER FEHLTE DIESE ZEILE: -->
     <div id="demo-container" class="hidden">
 
         <!-- ZONE 1: Das Spektakel (40% Höhe) -->
@@ -23,13 +22,13 @@
 
             <canvas id="demo-canvas"></canvas>
                         
-            <!-- NEU: Das animierte Chiptunes Fantasy Logo -->
+            <!-- Das animierte Chiptunes Fantasy Logo -->
             <div id="brand-logo">
                 <div class="brand-main">CHIPTUNES</div>
                 <div class="brand-sub">FANTASY</div>
             </div>
 
-            <!-- NEU: class="collapsed" hinzugefügt! -->
+            <!-- Das nerdige Hardware-HUD -->
             <div id="chip-hud" class="collapsed">
                 <div class="hud-header">
                     <span id="hud-title">DSP REGISTERS</span>
@@ -51,7 +50,6 @@
                     <h2 class="blink">[ PURE AUDIO MODE ]</h2>
                     <p>Visual processing suspended to conserve power.</p>
                     <p>DSP Cores running at maximum priority.</p>
-                    <!-- NEU: Wake Lock Info -->
                     <p style="color: var(--text-color); margin-top: 15px; font-weight: bold;">>>> SCREEN SLEEP DISABLED <<<</p>
                     <button id="btn-eco-off">WAKE UP</button>
                 </div>
@@ -59,44 +57,48 @@
 
             <div class="scanlines"></div> <!-- CRT Monitor Effekt -->
         </div>
+        
+        <!-- DIE STICKY PLAYBACK BAR -->
+        <div id="playback-bar">
+            <div class="controls">
+                <button id="btn-prev">⏮</button>
+                <button id="btn-play">▶ / ⏸</button>
+                <button id="btn-next">⏭</button>
+                <button id="btn-eco" title="Pure Audio Mode">ECO</button>
+            </div>
+            
+            <div class="timeline-control">
+                <span id="time-current">00:00</span>
+                <input type="range" id="progress-slider" min="0" max="100" value="0" disabled>
+                <span id="time-total">00:00</span>
+            </div>
+
+            <div class="volume-control">
+                <label>VOL</label>
+                <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5">
+            </div>
+        </div>
+
+        <!-- ZONE 2 & 3: Player und Museum -->
         <div id="ui-zone">
+            
+            <!-- Linke Spalte: Player & Tracklist -->
             <div id="player-panel">
-                
-                <!-- NEU: Saubere data-theme Attribute statt onclick! -->
                 <div class="system-tabs">
                     <button class="tab-btn active" data-theme="theme-c64">C64</button>
                     <button class="tab-btn" data-theme="theme-amiga">AMIGA</button>
                     <button class="tab-btn" data-theme="theme-atari">ATARI ST</button>
                 </div>
                 
-                <!-- NEU: Emu Core Selector -->
                 <div class="core-control">
                     <label>CORE:</label>
                     <select id="core-selector"></select>
                 </div>
-
+                
                 <ul id="tracklist"></ul>
-                
-                <div class="controls">
-                    <button id="btn-prev">⏮</button>
-                    <button id="btn-play">▶ / ⏸</button>
-                    <button id="btn-next">⏭</button>
-                    <button id="btn-eco" title="Pure Audio Mode">ECO</button>
-                </div>
-                
-                <!-- NEU: Die Timeline (Dauer des Tracks) -->
-                <div class="timeline-control">
-                    <span id="time-current">00:00</span>
-                    <input type="range" id="progress-slider" min="0" max="100" value="0" disabled>
-                    <span id="time-total">00:00</span>
-                </div>
+            </div> <!-- Ende player-panel -->
 
-                <div class="volume-control">
-                    <label>VOL</label>
-                    <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5">
-                </div>
-            </div>
-
+            <!-- Rechte Spalte: Museum / Info -->
             <div id="museum-panel">
                 <div class="museum-header">
                     <h2>>>> INFO: MOS Technology SID 6581</h2>
@@ -104,15 +106,16 @@
                 <div class="museum-content" id="info-text">
                     <p class="blinking-cursor">_</p>
                 </div>
-            </div>
+            </div> <!-- Ende museum-panel -->
 
-        </div>
+        </div> <!-- Ende ui-zone -->
 
+        <!-- ZONE 4: Scroller -->
         <div id="scroller-zone">
             <canvas id="scroller-canvas"></canvas>
         </div>
 
-    </div>
+    </div> <!-- Ende demo-container -->
 
     <!-- WICHTIG: Das Skript MUSS ans Ende des Bodys! -->
     <script type="module" src="js/app.js"></script>
