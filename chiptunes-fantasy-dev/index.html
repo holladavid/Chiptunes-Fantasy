@@ -60,10 +60,16 @@
         
         <!-- DIE STICKY PLAYBACK BAR -->
         <div id="playback-bar">
-            <div class="controls">
-                <button id="btn-prev">⏮</button>
-                <button id="btn-play">▶ / ⏸</button>
-                <button id="btn-next">⏭</button>
+        <div class="controls">
+                <!-- |◀ (Strich und linkes Dreieck) -->
+                <button id="btn-prev">|&#9664;</button>
+                
+                <!-- ▶ / || (Rechtes Dreieck und zwei ASCII-Striche für Pause) -->
+                <button id="btn-play">&#9654; / ||</button>
+                
+                <!-- ▶| (Rechtes Dreieck und Strich) -->
+                <button id="btn-next">&#9654;|</button>
+                
                 <button id="btn-eco" title="Pure Audio Mode">ECO</button>
             </div>
             
