@@ -242,24 +242,22 @@ body, html {
     background-color: var(--fg-color);
     padding: 10px 20px;
     gap: 20px;
-    border-bottom: 2px solid var(--bg-color); /* Hebt sich schön von der UI Zone ab */
+    border-bottom: 2px solid var(--bg-color); 
 }
 
-/* Alte Margins löschen, da Flexbox das jetzt regelt! */
-.controls { display: flex; gap: 5px; flex: 0 0 auto; margin-top: 0; }
+/* FIX 1: Flex-Verteilung für Desktop (Buttons bekommen genug Platz!) */
+.controls { 
+    display: flex; 
+    gap: 5px; 
+    flex: 0 0 300px; /* Feste Breite für die 4 Buttons auf dem Desktop */
+    margin-top: 0; 
+}
 .timeline-control { flex: 1; margin-top: 0; }
 .volume-control { flex: 0 0 150px; margin-top: 0; }
 
-/* Retro Player Buttons (Flat Design) */
-.controls {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 15px;
-    gap: 5px;
-}
 .controls button {
     flex: 1;
-    background: rgba(0, 0, 0, 0.15); /* Abgedunkelter Block */
+    background: rgba(0, 0, 0, 0.15); 
     color: var(--panel-text);
     border: none; 
     padding: 10px 0;
@@ -635,11 +633,11 @@ body, html {
 
     /* Begrenzt die Höhe des aufgeklappten HUDs auf Handys */
     #hud-body {
-        max-height: 50vh; 
+        max-height: 35vh; /* FIX 2A: Passt nun perfekt in die 45vh Visual-Zone! */
         overflow-y: auto;
         overflow-x: hidden;
     }
-    
+
     #demo-container {
         height: auto;
         min-height: 100vh;
@@ -670,9 +668,9 @@ body, html {
         overflow-y: visible !important; 
     }
 
-    /* NEU: Sticky Playback-Bar auf dem Handy (iOS Safe!) */
+/* NEU: Sticky Playback-Bar auf dem Handy (iOS Safe!) */
     #playback-bar {
-        position: -webkit-sticky; /* WICHTIG: Apple Prefix! */
+        position: -webkit-sticky; 
         position: sticky;
         top: 0; 
         z-index: 100; 
@@ -681,10 +679,28 @@ body, html {
         box-shadow: 0 5px 15px rgba(0,0,0,0.8); 
     }
     
-    /* Elemente auf dem Handy untereinander anordnen */
-    #playback-bar .controls { width: 100%; justify-content: center; margin-bottom: 5px; }
-    #playback-bar .timeline-control { width: 100%; margin-bottom: 5px; }
-    #playback-bar .volume-control { width: 100%; justify-content: center; }
+/* Elemente auf dem Handy untereinander anordnen und Flex-Sperren lösen! */
+    #playback-bar .controls { 
+        flex: 1 1 100%; /* Überschreibt die Desktop-Sperre */
+        width: 100%; 
+        justify-content: center; 
+        margin-bottom: 5px; 
+    }
+    #playback-bar .timeline-control { 
+        flex: 1 1 100%; 
+        width: 100%; 
+        margin-bottom: 10px; 
+    }
+    #playback-bar .volume-control { 
+        flex: 1 1 100%; /* HIER WAR DER FEHLER: Sprengt die 150px Grenze! */
+        width: 100%; 
+        justify-content: flex-start; 
+    }
+    
+    /* Play/Pause doppelt so groß wie Prev/Next! */
+    #btn-prev, #btn-next { flex: 1; }
+    #btn-play { flex: 2; font-weight: bold; } /* Nimmt 2 Anteile vom Platz ein */
+    #btn-eco { flex: 1; font-size: 0.8em; }   /* ECO Button bleibt kompakt */
 
     /* Tracklist Touch-Friendly machen & Höhe limitieren */
     #tracklist {
@@ -710,6 +726,7 @@ body, html {
         top: 10px;
         right: 3%;
         padding: 8px;
+        z-index: 110; /* FIX 2B: Liegt jetzt ÜBER der Sticky-Bar (z-index: 100)! */
     }
 
     #chip-hud.collapsed {

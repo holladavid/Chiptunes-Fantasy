@@ -50,7 +50,7 @@
                     <h2 class="blink">[ PURE AUDIO MODE ]</h2>
                     <p>Visual processing suspended to conserve power.</p>
                     <p>DSP Cores running at maximum priority.</p>
-                    <p style="color: var(--text-color); margin-top: 15px; font-weight: bold;">>>> SCREEN SLEEP DISABLED <<<</p>
+                    <p style="color: var(--text-color); margin-top: 15px; font-weight: bold;">>>> SCREEN SLEEP DISABLED <<<<>
                     <button id="btn-eco-off">WAKE UP</button>
                 </div>
             </div>
@@ -61,15 +61,10 @@
         <!-- DIE STICKY PLAYBACK BAR -->
         <div id="playback-bar">
         <div class="controls">
-                <!-- |◀ (Strich und linkes Dreieck) -->
-                <button id="btn-prev">|&#9664;</button>
-                
-                <!-- ▶ / || (Rechtes Dreieck und zwei ASCII-Striche für Pause) -->
-                <button id="btn-play">&#9654; / ||</button>
-                
-                <!-- ▶| (Rechtes Dreieck und Strich) -->
-                <button id="btn-next">&#9654;|</button>
-                
+                <!-- Klassische Tracker ASCII-Buttons -->
+                <button id="btn-prev">|&lt;</button>
+                <button id="btn-play">&gt; / ||</button>
+                <button id="btn-next">&gt;|</button>
                 <button id="btn-eco" title="Pure Audio Mode">ECO</button>
             </div>
             
