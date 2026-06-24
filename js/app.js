@@ -21,6 +21,7 @@ let lastKnownFrame = 0;
 let previousFrame = 0;       // NEU: Merkt sich den vorherigen Frame für den Loop-Check
 let lastTrackChangeTime = 0; // NEU: Der kugelsichere Cooldown-Timer
 let isEcoMode = false;      // NEU: Status für den Pure Audio Mode
+let isUserDragging = false; // NEU: Verhindert Slider-Zucken während des Ziehens
 
 // --- YM2149 NOISE FREQUENCY LOOKUP TABLE (2 MHz Clock) ---
 // 32 diskrete Werte für die 5 Bits (0 - 31). Periode 0 wird als 1 behandelt.
@@ -199,11 +200,49 @@ function formatTime(frames) {
 
 function updateTimelineUI() {
     if (!isPlaying || trackData.length === 0) return;
-    document.getElementById('time-current').innerText = formatTime(lastKnownFrame);
-    document.getElementById('time-total').innerText = formatTime(trackData.length);
-    document.getElementById('progress-slider').value = (lastKnownFrame / trackData.length) * 100;
+    // Aktualisierung blockieren, wenn der Nutzer den Regler manuell verschiebt
+    if (!isUserDragging) {
+        document.getElementById('time-current').innerText = formatTime(lastKnownFrame);
+        document.getElementById('time-total').innerText = formatTime(trackData.length);
+        document.getElementById('progress-slider').value = (lastKnownFrame / trackData.length) * 100;
+    }
 }
 
+// --- HIGH-PRECISION SCRUBBING & TRACK-SEEKING ---
+const progressSlider = document.getElementById('progress-slider');
+
+progressSlider.addEventListener('mousedown', () => { isUserDragging = true; });
+progressSlider.addEventListener('mouseup', () => { isUserDragging = false; });
+progressSlider.addEventListener('touchstart', () => { isUserDragging = true; });
+progressSlider.addEventListener('touchend', () => { isUserDragging = false; });
+
+progressSlider.addEventListener('input', (e) => {
+    if (trackData.length === 0) return;
+    const targetPercent = parseFloat(e.target.value);
+    const targetFrame = Math.floor((targetPercent / 100) * trackData.length);
+    // Sofortige visuelle Rückmeldung der Zeitmarke beim Ziehen
+    document.getElementById('time-current').innerText = formatTime(targetFrame);
+});
+
+progressSlider.addEventListener('change', (e) => {
+    if (trackData.length === 0) return;
+    const targetPercent = parseFloat(e.target.value);
+    const targetFrame = Math.floor((targetPercent / 100) * trackData.length);
+    
+    // Lokalen Frame-Zähler synchronisieren
+    lastKnownFrame = targetFrame;
+    previousFrame = targetFrame;
+
+    // Seek-Signal an den aktiven AudioWorklet-Knoten senden
+    const seekMsg = { type: 'SEEK_TRACK', frame: targetFrame };
+    if (activeSystem === 'amiga' && paulaNode) {
+        paulaNode.port.postMessage(seekMsg);
+    } else if (activeSystem === 'c64' && sidNode) {
+        sidNode.port.postMessage(seekMsg);
+    } else if (ymNode) {
+        ymNode.port.postMessage(seekMsg);
+    }
+});
 
 // --- DER NEUE HIGH-PRECISION PLAYER ---
 function startPlayback() {
@@ -299,6 +338,12 @@ function setTheme(themeName) {
     currentTrackIndex = 0;
     currentChipRegs = null;
     
+    // Slider zurücksetzen und sperren, bis ein Song geladen wird
+    document.getElementById('progress-slider').value = 0;
+    document.getElementById('progress-slider').disabled = true;
+    document.getElementById('time-current').innerText = "00:00";
+    document.getElementById('time-total').innerText = "00:00";
+    
     renderCoreSelector(activeSystem);
 }
 
@@ -356,11 +401,13 @@ async function selectAndPlayTrack(index, system) {
     currentTrackIndex = index;
     const selectedSong = songs[index];
     
-    // Frame-Zähler hart resetten, um Geister-Loops zu verhindern
     lastKnownFrame = 0;
     previousFrame = 0; 
     
-    renderTracklist(system); 
+    // Regler für das Scrubbing freigeben
+    document.getElementById('progress-slider').disabled = false;
+    
+    renderTracklist(system);
 
     if (selectedSong.loadAsync) {
         currentScrollerText = "+++ DOWNLOADING AND PARSING BINARY YM FILE... +++";

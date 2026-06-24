@@ -62,6 +62,11 @@ class YMExactProcessor extends AudioWorkletProcessor {
                 this.isPlaying = false;
             } else if (event.data.type === 'RESUME_TRACK') {
                 this.isPlaying = true; 
+            } else if (event.data.type === 'SEEK_TRACK') {
+                if (this.trackData) {
+                    this.currentFrame = event.data.frame % this.trackData.length;
+                    this.currentDigidrum = null; // Verhindert das Hängenbleiben von Digidrum-Fragmenten
+                }
             }
         };
     }

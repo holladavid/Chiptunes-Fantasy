@@ -252,8 +252,15 @@ body, html {
     flex: 0 0 300px; /* Feste Breite für die 4 Buttons auf dem Desktop */
     margin-top: 0; 
 }
-.timeline-control { flex: 1; margin-top: 0; }
-.volume-control { flex: 0 0 150px; margin-top: 0; }
+/* Fette Tracker-Slider (Volume & Timeline) */
+.timeline-control, .volume-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 0; /* Von 15px auf 0 korrigiert für perfekte vertikale Zentrierung */
+    color: var(--panel-text); /* Perfekter Kontrast */
+    font-size: calc(var(--font-size-base) * 0.9);
+}
 
 .controls button {
     flex: 1;

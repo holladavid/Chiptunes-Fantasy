@@ -30,6 +30,8 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 // Auch hier: Kanäle nicht mehr nullen!
             } else if (msg.type === 'RESUME_TRACK') {
                 this.isPlaying = true;
+            } else if (msg.type === 'SEEK_TRACK') {
+                if (this.trackData) this.currentFrame = msg.frame % this.trackData.length;
             }
         };
     }

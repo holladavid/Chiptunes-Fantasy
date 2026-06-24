@@ -23,6 +23,8 @@ class SIDProcessor extends AudioWorkletProcessor {
                 // Keine Register mehr löschen
             } else if (e.data.type === 'RESUME_TRACK') {
                 this.isPlaying = true;
+            } else if (e.data.type === 'SEEK_TRACK') {
+                if (this.trackData) this.currentFrame = e.data.frame % this.trackData.length;
             }
         };
     }

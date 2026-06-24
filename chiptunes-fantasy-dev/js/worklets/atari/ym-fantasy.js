@@ -50,7 +50,14 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
                 this.currentFrame = 0; this.sampleCounter = 0; this.currentDigidrum = null;
                 this.lastDigiTrigger = 0; this.envPhase = 0; this.isPlaying = true;
             } else if (event.data.type === 'STOP_TRACK') this.isPlaying = false;
-            else if (event.data.type === 'RESUME_TRACK') this.isPlaying = true; 
+            else if (event.data.type === 'RESUME_TRACK') {
+                this.isPlaying = true; 
+            } else if (event.data.type === 'SEEK_TRACK') {
+                if (this.trackData) {
+                    this.currentFrame = event.data.frame % this.trackData.length;
+                    this.currentDigidrum = null; // Verhindert das Hängenbleiben von Digidrum-Fragmenten
+                }
+            }
         };
     }
 
