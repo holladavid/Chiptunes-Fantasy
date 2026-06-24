@@ -1,4 +1,4 @@
-import { YM_DAC, polyBLEP, cubicInterpolate, FourPoleFilter, MoogFilter, DCBlocker } from '../lib/dsp-utils.js';
+import { YM_DAC, polyBLEP, cubicInterpolate, FourPoleFilter, MoogFilter, DCBlocker, detectDigidrum } from '../lib/dsp-utils.js';
 import { DynamicStaging } from '../lib/dynamic-staging.js';
 
 class YMFantasyProcessor extends AudioWorkletProcessor {
@@ -68,19 +68,8 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
                         else this.regs[r] = frame[r];
                     }
                     
-                    let activeDigiTrigger = 0;
-                    if (frame[15] > 0) activeDigiTrigger = frame[15];
-                    else if (frame[14] > 0) activeDigiTrigger = frame[14];
-                    let fx1Voice = (frame[1] & 0x30) >> 4;
-                    if (fx1Voice > 0) activeDigiTrigger = (frame[8 + fx1Voice - 1] & 0x1F) + 1;
-                    let fx2Voice = (frame[3] & 0x30) >> 4;
-                    if (fx2Voice > 0) activeDigiTrigger = (frame[8 + fx2Voice - 1] & 0x1F) + 1;
-                    if (activeDigiTrigger === 0) {
-                        let fx1Type = (frame[1] & 0xC0) >> 6;
-                        if (fx1Type === 0 && fx1Voice > 0) activeDigiTrigger = (frame[8 + fx1Voice - 1] & 0x1F) + 1;
-                        let fx2Type = (frame[3] & 0xC0) >> 6;
-                        if (fx2Type === 0 && fx2Voice > 0) activeDigiTrigger = (frame[8 + fx2Voice - 1] & 0x1F) + 1;
-                    }
+                    // Modularer Digidrum Catcher
+                    let activeDigiTrigger = detectDigidrum(frame);
 
                     if (activeDigiTrigger > 0 && activeDigiTrigger !== this.lastDigiTrigger) {
                         if (this.digidrums[activeDigiTrigger - 1]) {
@@ -173,7 +162,7 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             if (cycles > 0 && hold) { envVolRaw = (alt ? (attack ? 0.0 : 1.0) : (attack ? 1.0 : 0.0)); } 
             else { let flip = (cycles % 2 === 1) && alt; let up = attack ? !flip : flip; envVolRaw = up ? localPhase : (1.0 - localPhase); }
             
-            let envVolIndex = Math.floor(envVolRaw * 15.99);
+            let envVolIndex = Math.min(15, Math.max(0, Math.floor(envVolRaw * 15.99)));
 
             let targetVolA = (this.regs[8] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[8] & 0x0F];
             let targetVolB = (this.regs[9] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[9] & 0x0F];
@@ -210,12 +199,18 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             let digiSample = 0;
             if (this.currentDigidrum) {
                 let posInt = Math.floor(this.digiPos);
-                let mu = this.digiPos - posInt;
-                digiSample = cubicInterpolate(
-                    this.currentDigidrum[posInt - 1] || 0, this.currentDigidrum[posInt],
-                    this.currentDigidrum[posInt + 1] || 0, this.currentDigidrum[posInt + 2] || 0, mu) * 0.8; 
-                this.digiPos += 7812.5 / sampleRate; 
-                if (this.digiPos >= this.currentDigidrum.length - 2) this.currentDigidrum = null; 
+                if (posInt >= 0 && posInt < this.currentDigidrum.length - 2) {
+                    let mu = this.digiPos - posInt;
+                    let y0 = posInt > 0 ? this.currentDigidrum[posInt - 1] : 0;
+                    let y1 = this.currentDigidrum[posInt];
+                    let y2 = this.currentDigidrum[posInt + 1];
+                    let y3 = this.currentDigidrum[posInt + 2];
+
+                    digiSample = cubicInterpolate(y0, y1, y2, y3, mu) * 0.8; 
+                    this.digiPos += 7812.5 / sampleRate; 
+                } else {
+                    this.currentDigidrum = null; 
+                }
             }
 
             // --- GAIN STAGING ---
@@ -276,4 +271,5 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
         return true; 
     }
 }
+
 registerProcessor('ym-fantasy-processor', YMFantasyProcessor);

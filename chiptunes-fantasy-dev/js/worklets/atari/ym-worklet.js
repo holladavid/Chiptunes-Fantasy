@@ -2,6 +2,8 @@
 // YM2149F CORE (CYCLE-EXACT, LOGARITHMIC DAC, OPTIMIZED)
 // =========================================================
 
+import { detectDigidrum } from '../lib/dsp-utils.js';
+
 // Die physikalisch exakten Spannungswerte des YM2149 DAC (Logarithmisch)
 const YM_DAC = [
     0.0000, 0.0137, 0.0205, 0.0291, 0.0423, 0.0618, 0.0847, 0.1369, 
@@ -113,16 +115,8 @@ class YMProcessor extends AudioWorkletProcessor {
                         }
                     }
                     
-                    // Digidrum Catcher (V3)
-                    let activeDigiTrigger = 0;
-                    if (frame[15] > 0) activeDigiTrigger = frame[15];
-                    else if (frame[14] > 0) activeDigiTrigger = frame[14];
-
-                    let fx1Voice = (frame[1] & 0x30) >> 4;
-                    if (fx1Voice > 0) activeDigiTrigger = (frame[8 + fx1Voice - 1] & 0x1F) + 1;
-
-                    let fx2Voice = (frame[3] & 0x30) >> 4;
-                    if (fx2Voice > 0) activeDigiTrigger = (frame[8 + fx2Voice - 1] & 0x1F) + 1;
+                    // Digidrum Catcher via modular helper
+                    let activeDigiTrigger = detectDigidrum(frame);
 
                     if (activeDigiTrigger > 0 && activeDigiTrigger !== this.lastDigiTrigger) {
                         if (this.digidrums[activeDigiTrigger - 1]) {
@@ -186,7 +180,7 @@ class YMProcessor extends AudioWorkletProcessor {
             }
             
             // Konvertiere die lineare HEG-Phase in den 16-stufigen Hardware-Wert
-            let envVolIndex = Math.floor(envVolRaw * 15.99);
+            let envVolIndex = Math.min(15, Math.max(0, Math.floor(envVolRaw * 15.99)));
 
             // LOGARITHMISCHE DAC TABELLE ANWENDEN!
             let volA = (this.regs[8] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[8] & 0x0F];
@@ -196,7 +190,7 @@ class YMProcessor extends AudioWorkletProcessor {
             let digiSample = 0;
             if (this.currentDigidrum) {
                 let posInt = Math.floor(this.digiPos);
-                if (posInt < this.currentDigidrum.length) {
+                if (posInt >= 0 && posInt < this.currentDigidrum.length) {
                     digiSample = this.currentDigidrum[posInt] * 2.0;
                     this.digiPos += 7812.5 / sampleRate; 
                 } else {
@@ -233,4 +227,5 @@ class YMProcessor extends AudioWorkletProcessor {
         return true; 
     }
 }
+
 registerProcessor('ym-processor', YMProcessor);
