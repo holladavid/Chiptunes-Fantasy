@@ -3,7 +3,7 @@
 // Pure Modular Architecture - Vangelis Synthesizer & Tape Delay
 // =========================================================
 
-import { YM_DAC, polyBLEP, cubicInterpolate, MoogFilter, DCBlocker, detectDigidrum } from '../lib/dsp-utils.js';
+import { YM_DAC, polyBLEP, cubicInterpolate, MoogFilter, DCBlocker, detectDigidrum, detectDigidrumVoice } from '../lib/dsp-utils.js';
 import { DynamicStaging } from '../lib/dynamic-staging.js';
 
 class YMBladeRunnerProcessor extends AudioWorkletProcessor {
@@ -40,6 +40,7 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
         this.filterB_L = new MoogFilter(); this.filterB_R = new MoogFilter();
         this.filterC_L = new MoogFilter(); this.filterC_R = new MoogFilter();
         this.noiseFilter = new MoogFilter();
+        this.drumHp = new MoogFilter(); // HF-Exciter für die Drums
         
         this.dcBlockL = new DCBlocker();
         this.dcBlockR = new DCBlocker();
@@ -57,6 +58,7 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
         this.currentDigidrum = null;
         this.digiPos = 0;
         this.lastDigiTrigger = 0;
+        this.currentDrumVoice = 0; // Trigger-Kanal-Tracking
         this.sidechainEnv = 1.0; 
         
         // --- PORT MESSAGING ---
@@ -113,8 +115,9 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
                         }
                     }
                     
-                    // Digidrum Catcher über modularen Helper
+                    // Modularer Digidrum Catcher
                     let activeDigiTrigger = detectDigidrum(frame);
+                    let activeDigiVoice = detectDigidrumVoice(frame);
 
                     if (activeDigiTrigger > 0 && activeDigiTrigger !== this.lastDigiTrigger) {
                         if (this.digidrums[activeDigiTrigger - 1]) {
@@ -125,6 +128,12 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
                         }
                     }
                     this.lastDigiTrigger = activeDigiTrigger;
+
+                    // Trigger-Kanal für die Dynamic-Staging-Schleife erfassen
+                    if (activeDigiTrigger > 0) {
+                        this.currentDrumVoice = activeDigiVoice;
+                    }
+
                     this.currentFrame = (this.currentFrame + 1) % this.trackData.length;
                 }
             }
@@ -146,27 +155,38 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
             let tA = (mix & 0x01) === 0; let tB = (mix & 0x02) === 0; let tC = (mix & 0x04) === 0;
             let nA = (mix & 0x08) === 0; let nB = (mix & 0x10) === 0; let nC = (mix & 0x20) === 0;
 
+            // Reset des Trigger-Kanals, sobald die Wiedergabe des Samples endet
+            if (!this.currentDigidrum) {
+                this.currentDrumVoice = 0;
+            }
+
             // Stager aufrufen (Sehr langsamer, epischer Morph für Blade Runner: 0.001)
-            let stage = this.stager.update(pA, pB, pC, nA, nB, nC, 0.001);
+            let stage = this.stager.update(pA, pB, pC, nA, nB, nC, 0.001, this.currentDrumVoice);
 
             // ==========================================
-            // LFOs & ORGANIC PITCH DRIFT
+            // LFOs & ORGANIC PITCH DRIFT (Unkorreliertes Stimmen-Schweben)
             // ==========================================
             this.lfoVibrato = (this.lfoVibrato + 5.5 / sampleRate) % 1.0; 
             this.lfoWow = (this.lfoWow + 0.15 / sampleRate) % 1.0; 
             this.lfoFlutter = (this.lfoFlutter + 1.2 / sampleRate) % 1.0;  
             
-            let wow = Math.sin(this.lfoWow * 2.0 * Math.PI) * 0.005; 
-            let flutter = Math.sin(this.lfoFlutter * 2.0 * Math.PI) * 0.0015; 
+            // Phasenverschobene LFO-Modulationen pro Kanal für unkorreliertes Driften
+            let wowA = Math.sin(this.lfoWow * 2.0 * Math.PI) * 0.005; 
+            let wowB = Math.sin((this.lfoWow + 0.33) * 2.0 * Math.PI) * 0.005; 
+            let wowC = Math.sin((this.lfoWow + 0.66) * 2.0 * Math.PI) * 0.005; 
+
+            let flutterA = Math.sin(this.lfoFlutter * 2.0 * Math.PI) * 0.0015; 
+            let flutterB = Math.sin((this.lfoFlutter + 0.25) * 2.0 * Math.PI) * 0.0015; 
+            let flutterC = Math.sin((this.lfoFlutter + 0.5) * 2.0 * Math.PI) * 0.0015; 
             
             // "Expressive Vibrato": Weint stärker, wenn die Note laut anschwillt!
             let vibA = Math.sin(this.lfoVibrato * 2.0 * Math.PI) * (0.0005 + this.smoothVoltA * 0.004);
             let vibB = Math.sin(this.lfoVibrato * 2.0 * Math.PI) * (0.0005 + this.smoothVoltB * 0.004);
             let vibC = Math.sin(this.lfoVibrato * 2.0 * Math.PI) * (0.0005 + this.smoothVoltC * 0.004);
 
-            let driftA = 1.0 + wow + flutter + vibA;
-            let driftB = 1.0 + wow + flutter + vibB;
-            let driftC = 1.0 + wow + flutter + vibC;
+            let driftA = 1.0 + wowA + flutterA + vibA;
+            let driftB = 1.0 + wowB + flutterB + vibB;
+            let driftC = 1.0 + wowC + flutterC + vibC;
             
             // Leichtes Stereo-Detune durch versetzte Phasen
             this.phaseA_L = (this.phaseA_L + incA * driftA) % 1.0;
@@ -180,7 +200,6 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
 
             // ==========================================
             // CS-80 OSCILLATORS (Unified Voices)
-            // Jeder Kanal ist ein Mix aus PWM (Puls), Sägezahn und dickem Fundamental-Sinus
             // ==========================================
             let pwmWidth = Math.sin(this.lfoVibrato * 2.0 * Math.PI) * 0.2 + 0.5;
             
@@ -230,7 +249,6 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
 
             let pN = this.regs[6] & 0x1F;
             let noiseCutoff = 300 + (31 - pN) * 200; 
-            // Moog-gefiltertes Rauschen, das wie analoger Wind klingt
             let filteredNoise = this.noiseFilter.process(this.noiseOutput, noiseCutoff, 0.1, sampleRate) * 0.45;
 
             if (nA) { sigA_L += filteredNoise; sigA_R += filteredNoise; }
@@ -252,14 +270,12 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
             if (cycles > 0 && hold) { envVolRaw = (alt ? (attack ? 0.0 : 1.0) : (attack ? 1.0 : 0.0)); } 
             else { let flip = (cycles % 2 === 1) && alt; let up = attack ? !flip : flip; envVolRaw = up ? localPhase : (1.0 - localPhase); }
             
-            // Schutz vor Indexüberschreitungen des DAC-Arrays (max index 15)
             let envVolIndex = Math.min(15, Math.max(0, Math.floor(envVolRaw * 15.99)));
 
             let targetVolA = (this.regs[8] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[8] & 0x0F];
             let targetVolB = (this.regs[9] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[9] & 0x0F];
             let targetVolC = (this.regs[10] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[10] & 0x0F];
 
-            // HEG = Instant Response (Speech Synthesis). Tracker Volume = Slow Swell
             let slewSpeedA = (this.regs[8] & 0x10) ? 1.0 : (targetVolA > this.smoothVoltA ? 0.001 : 0.0001);
             let slewSpeedB = (this.regs[9] & 0x10) ? 1.0 : (targetVolB > this.smoothVoltB ? 0.002 : 0.0002);
             let slewSpeedC = (this.regs[10] & 0x10) ? 1.0 : (targetVolC > this.smoothVoltC ? 0.005 : 0.0005);
@@ -272,7 +288,6 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
             let sweepB = Math.pow(this.smoothVoltB, 1.2);
             let sweepC = Math.pow(this.smoothVoltC, 1.2);
 
-            // Sanftes Filter-Morphing (Cutoff sinkt weich ab, wenn Kanal zum Bass wird)
             let cutA = 150 + sweepA * (6000 - stage.A.sub * 4200); 
             let cutB = 150 + sweepB * (6000 - stage.B.sub * 4200);
             let cutC = 150 + sweepC * (6000 - stage.C.sub * 4200);
@@ -281,21 +296,32 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
             let resB = Math.max(0.01, 0.35 - (stage.B.sub * 0.3));
             let resC = Math.max(0.01, 0.35 - (stage.C.sub * 0.3));
 
-            // Filter Processing via Modul!
-            sigA_L = this.filterA_L.process(sigA_L, cutA, resA, sampleRate);
-            sigA_R = this.filterA_R.process(sigA_R, cutA + 50, resA, sampleRate);
-            sigB_L = this.filterB_L.process(sigB_L, cutB, resB, sampleRate);
-            sigB_R = this.filterB_R.process(sigB_R, cutB + 50, resB, sampleRate);
-            sigC_L = this.filterC_L.process(sigC_L, cutC, resC, sampleRate);
-            sigC_R = this.filterC_R.process(sigC_R, cutC + 50, resC, sampleRate);
+            // --- FILTER OVERDRIVE (Analog Saturation) ---
+            // Wir übersteuern das Signal sachte beim Öffnen der Hüllkurve im Moog-Filter
+            let driveA = 1.0 + sweepA * 0.5;
+            let drivenA_L = Math.tanh(sigA_L * driveA) / driveA;
+            let drivenA_R = Math.tanh(sigA_R * driveA) / driveA;
+            sigA_L = this.filterA_L.process(drivenA_L, cutA, resA, sampleRate);
+            sigA_R = this.filterA_R.process(drivenA_R, cutA + 50, resA, sampleRate);
+
+            let driveB = 1.0 + sweepB * 0.5;
+            let drivenB_L = Math.tanh(sigB_L * driveB) / driveB;
+            let drivenB_R = Math.tanh(sigB_R * driveB) / driveB;
+            sigB_L = this.filterB_L.process(drivenB_L, cutB, resB, sampleRate);
+            sigB_R = this.filterB_R.process(drivenB_R, cutB + 50, resB, sampleRate);
+
+            let driveC = 1.0 + sweepC * 0.5;
+            let drivenC_L = Math.tanh(sigC_L * driveC) / driveC;
+            let drivenC_R = Math.tanh(sigC_R * driveC) / driveC;
+            sigC_L = this.filterC_L.process(drivenC_L, cutC, resC, sampleRate);
+            sigC_R = this.filterC_R.process(drivenC_R, cutC + 50, resC, sampleRate);
 
             // ==========================================
-            // CUBIC PCM DRUMS
+            // CUBIC PCM DRUMS (WITH HF-EXCITER)
             // ==========================================
             let digiSample = 0;
             if (this.currentDigidrum) {
                 let posInt = Math.floor(this.digiPos);
-                // Harter Grenzschutz vor unerwünschten Array-Überschreitungen
                 if (posInt >= 0 && posInt < this.currentDigidrum.length - 2) {
                     let mu = this.digiPos - posInt;
                     let y0 = posInt > 0 ? this.currentDigidrum[posInt - 1] : 0;
@@ -303,8 +329,14 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
                     let y2 = this.currentDigidrum[posInt + 1];
                     let y3 = this.currentDigidrum[posInt + 2];
                     
-                    digiSample = cubicInterpolate(y0, y1, y2, y3, mu) * 0.45; 
-                    this.digiPos += 8000 / sampleRate; // Epic, gepitchte Drums!
+                    let rawSample = cubicInterpolate(y0, y1, y2, y3, mu) * 0.45; 
+                    
+                    // HF-Exciter zur Auffrischung der Drum-Transienten
+                    let hpExciter = this.drumHp.process(rawSample, 3500, 0.15, sampleRate);
+                    let highHarmonics = Math.tanh(hpExciter * 3.5) * 0.25;
+
+                    digiSample = rawSample + highHarmonics;
+                    this.digiPos += 8000 / sampleRate; 
                 } else {
                     this.currentDigidrum = null; 
                 }
@@ -320,19 +352,22 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
             let lvlC_L = sigC_L * this.smoothVoltC * this.sidechainEnv * 0.18;
             let lvlC_R = sigC_R * this.smoothVoltC * this.sidechainEnv * 0.18;
 
+            // Dynamisches Drum-Staging integrieren
+            let lvlD = digiSample * stage.drums.gain;
+
             let epL_A = Math.cos(stage.A.pan * Math.PI * 0.5); let epR_A = Math.sin(stage.A.pan * Math.PI * 0.5);
             let epL_B = Math.cos(stage.B.pan * Math.PI * 0.5); let epR_B = Math.sin(stage.B.pan * Math.PI * 0.5);
             let epL_C = Math.cos(stage.C.pan * Math.PI * 0.5); let epR_C = Math.sin(stage.C.pan * Math.PI * 0.5);
+            let epL_D = Math.cos(stage.drums.pan * Math.PI * 0.5); let epR_D = Math.sin(stage.drums.pan * Math.PI * 0.5);
 
-            let mixL = (lvlA_L * epL_A) + (lvlB_L * epL_B) + (lvlC_L * epL_C) + (digiSample * 0.4);
-            let mixR = (lvlA_R * epR_A) + (lvlB_R * epR_B) + (lvlC_R * epR_C) + (digiSample * 0.4);
+            let mixL = (lvlA_L * epL_A) + (lvlB_L * epL_B) + (lvlC_L * epL_C) + (lvlD * epL_D);
+            let mixR = (lvlA_R * epR_A) + (lvlB_R * epR_B) + (lvlC_R * epR_C) + (lvlD * epR_D);
 
             // ==========================================
-            // CATHEDRAL REVERB NETWORK
+            // CATHEDRAL REVERB NETWORK (With Dynamic Drum Reverb)
             // ==========================================
-            let revL = (lvlA_L * epL_A * stage.A.rev) + (lvlB_L * epL_B * stage.B.rev) + (lvlC_L * epL_C * stage.C.rev);
-            let revR = (lvlA_R * epR_A * stage.A.rev) + (lvlB_R * epR_B * stage.B.rev) + (lvlC_R * epR_C * stage.C.rev);
-            if (this.currentDigidrum) { revL += digiSample * 0.15; revR += digiSample * 0.15; }
+            let revL = (lvlA_L * epL_A * stage.A.rev) + (lvlB_L * epL_B * stage.B.rev) + (lvlC_L * epL_C * stage.C.rev) + (lvlD * epL_D * stage.drums.rev);
+            let revR = (lvlA_R * epR_A * stage.A.rev) + (lvlB_R * epR_B * stage.B.rev) + (lvlC_R * epR_C * stage.C.rev) + (lvlD * epR_D * stage.drums.rev);
 
             // Bitwise Wrap für 64k Puffer (sicher auf iOS)
             const tap1 = this.delayTime;
