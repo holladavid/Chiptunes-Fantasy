@@ -112,7 +112,7 @@ async function loadEmuCore(system, coreConfig) {
             newNode.connect(masterGain);
         }
 
-// Sensoren (HUD, Oszilloskop & Auto-Advance) anschließen
+        // Sensoren (HUD, Oszilloskop & Auto-Advance) anschließen
         newNode.port.onmessage = (e) => {
             if (e.data.type === 'VISUAL_DATA') {
                 currentOscValue = e.data.value;
@@ -256,16 +256,19 @@ function startPlayback() {
     let isC64 = trackData[0] && trackData[0].isC64;
     
     if (isAmiga) {
-        paulaNode.port.postMessage({ type: 'PLAY_TRACK', track: trackData });
+        // SICHERHEIT: Prüfen ob der Node existiert, bevor wir postMessage aufrufen!
+        if (paulaNode) paulaNode.port.postMessage({ type: 'PLAY_TRACK', track: trackData });
+        else console.error("[CRITICAL] paulaNode ist undefined. Das Worklet konnte nicht geladen werden.");
     } else if (isC64) {
-        sidNode.port.postMessage({ type: 'PLAY_TRACK', track: trackData });
+        if (sidNode) sidNode.port.postMessage({ type: 'PLAY_TRACK', track: trackData });
     } else {
-        // Keine "roles" mehr! Der Chip macht das jetzt On-the-Fly!
-        ymNode.port.postMessage({ 
-            type: 'PLAY_TRACK', 
-            track: trackData, 
-            digidrums: trackData.digidrums 
-        });
+        if (ymNode) {
+            ymNode.port.postMessage({ 
+                type: 'PLAY_TRACK', 
+                track: trackData, 
+                digidrums: trackData.digidrums 
+            });
+        }
     }
 }
 
@@ -276,7 +279,7 @@ function resumePlayback() {
 
     isPlaying = true;
     if (activeSystem === 'amiga') paulaNode.port.postMessage({ type: 'RESUME_TRACK' });
-    else if (activeSystem === 'c64') sidNode.port.postMessage({ type: 'RESUME_TRACK' });
+    else if (activeSystem === 'c64' && sidNode) sidNode.port.postMessage({ type: 'RESUME_TRACK' });
     else ymNode.port.postMessage({ type: 'RESUME_TRACK' });
 }
 
@@ -386,7 +389,7 @@ function renderTracklist(system) {
 }
 
 async function selectAndPlayTrack(index, system) {
-    // NEU: Der Cooldown-Stempel! Setzt die Sperre für den Jukebox-Wechsel auf JETZT
+    // Der Cooldown-Stempel! Setzt die Sperre für den Jukebox-Wechsel auf JETZT
     lastTrackChangeTime = performance.now();
 
     // iOS Safari Fix: Context sofort beim Klicken aufwecken (falls nötig)
@@ -413,30 +416,44 @@ async function selectAndPlayTrack(index, system) {
     renderTracklist(system); 
 
     if (selectedSong.loadAsync) {
-        const isAmigaFile = selectedSong.title.toLowerCase().includes("hipc") || selectedSong.title.toLowerCase().includes("amiga");
-        currentScrollerText = isAmigaFile 
-            ? "+++ DOWNLOADING AND PARSING BINARY AMIGA HIPEL-COSO FILE... +++"
+        // BUGFIX: Echte Systemprüfung statt fehlerhafter String-Suche im Titel!
+        const isAmigaSystem = (system === 'amiga');
+        
+        currentScrollerText = isAmigaSystem 
+            ? "+++ DOWNLOADING AND PARSING BINARY AMIGA MODULE... +++"
             : "+++ DOWNLOADING AND PARSING BINARY YM FILE... +++";
         
         try {
             let parsedFile = await selectedSong.loadAsync();
             trackData = parsedFile.frames; 
-            trackData.digidrums = parsedFile.digidrums;
+            trackData.digidrums = parsedFile.digidrums || [];
             
-            if (isAmigaFile) {
-                trackData.isHipcFile = true;
+            if (isAmigaSystem) {
+                trackData.isAmigaFile = true; // Flag für die Playback-Engine
+                
+                // --- DYNAMISCHER SAMPLE-UPLOAD IN DEN PAULA ARBEITSSPEICHER ---
+                if (parsedFile.samples && paulaNode) {
+                    for (let sampleName in parsedFile.samples) {
+                        paulaNode.port.postMessage({
+                            type: 'UPLOAD_SAMPLE',
+                            name: sampleName,
+                            data: parsedFile.samples[sampleName]
+                        });
+                    }
+                    console.log(`[PAULA RAM] ${Object.keys(parsedFile.samples).length} Original-Samples erfolgreich geladen.`);
+                }
             } else {
                 trackData.isYmFile = true;
             }
-            
+
             let meta = parsedFile.metadata;
             
-            currentScrollerText = isAmigaFile
-                ? `+++ BOOM! SUCCESSFULLY DECODED AMIGA HIPEL-COSO FILE +++ NOW PLAYING: ${meta.name.toUpperCase()} BY ${meta.author.toUpperCase()} +++ FORMAT: ${meta.type} +++ COMPOSER: JOCHEN HIPPEL +++ `
+            currentScrollerText = isAmigaSystem
+                ? `+++ BOOM! SUCCESSFULLY DECODED AMIGA MODULE +++ NOW PLAYING: ${meta.name.toUpperCase()} BY ${meta.author.toUpperCase()} +++ FORMAT: ${meta.type} +++ THIS IS PURE PROTRACKER MAGIC +++ `
                 : `+++ BOOM! SUCCESSFULLY CRACKED OPEN BINARY FILE +++ NOW PLAYING: ${meta.name.toUpperCase()} BY ${meta.author.toUpperCase()} +++ COMMENT ALONG THE RIDE: ${meta.comment.toUpperCase() || "NO COMMENT"} +++ CRANK UP THE GAIN AND LET THE YM2149 MELT YOUR SPEAKERS +++ `;
 
             let techInfo = "";
-            if (isAmigaFile) {
+            if (isAmigaSystem) {
                 techInfo += `<p><strong>File Signature:</strong> ${meta.type}</p>`;
                 techInfo += `<p><strong>Size in Memory:</strong> ${meta.fileSize.toLocaleString('de-DE')} Bytes</p>`;
                 techInfo += `<p><strong>Structure:</strong> ${meta.patternCount} Patterns, ${meta.instrumentCount} Synthesized Amiga Instruments</p>`;
@@ -467,7 +484,7 @@ async function selectAndPlayTrack(index, system) {
                 ? systemDescriptions[system] 
                 : '<p style="color: var(--text-color);">[ Museumdatenarchiv geladen, Beschreibung temporär nicht verfügbar ]</p>';
 
-            // Museum füllen (Rahmenlinien gelöscht!)
+            // Museum füllen
             document.getElementById('info-text').innerHTML = `
                 <div style="margin-bottom: 20px;">
                     <h2 style="color: var(--highlight-color);">> NOW PLAYING:</h2>
@@ -704,9 +721,10 @@ function makeAtariChannelRow(ch, pitchId, volId, hegId, digiId) {
 
 function updateChipHUD() {
     const matrix = document.getElementById('hud-matrix');
+    let regCount = activeSystem === 'c64' ? 29 : (activeSystem === 'amiga' ? 28 : 16);
 
     // 1. DOM IMMER sofort neu aufbauen, wenn sich das System ändert (auch wenn die Musik stoppt!)
-    if (cachedSystem !== activeSystem) {
+    if (cachedSystem !== activeSystem || hudValElements.length !== regCount) {
         cachedSystem = activeSystem;
         
         if (activeSystem === 'atari') {
@@ -764,16 +782,25 @@ function updateChipHUD() {
             
             // Historien leeren, falls wir von einem anderen Track zurückkommen
             pitchHistA.fill(0); pitchHistB.fill(0); pitchHistC.fill(0);
+            
+            hudValElements = []; // Für Atari-Grid nicht direkt indiziert
 
         } else {
             // FALLBACK HEX-MATRIX FÜR C64 & AMIGA (Baut sich nun auch im Stop-Modus auf!)
-            // C64 hat 29 Register, Amiga hat 16 Register
-            let regCount = activeSystem === 'c64' ? 29 : 16;
             let html = '';
+            // Echte Amiga custom-chip Registerbezeichner (Paula)
+            const amigaLabels = [
+                'A0LCH', 'A0LCL', 'A0LENH', 'A0LENL', 'A0PERH', 'A0PERL', 'A0VOL',
+                'A1LCH', 'A1LCL', 'A1LENH', 'A1LENL', 'A1PERH', 'A1PERL', 'A1VOL',
+                'A2LCH', 'A2LCL', 'A2LENH', 'A2LENL', 'A2PERH', 'A2PERL', 'A2VOL',
+                'A3LCH', 'A3LCL', 'A3LENH', 'A3LENL', 'A3PERH', 'A3PERL', 'A3VOL'
+            ];
+
             for (let i = 0; i < regCount; i++) {
-                let regLabel = i.toString(16).toUpperCase().padStart(2, '0');
-                // Standardwert "--" statt "00", bis Musik startet
-                html += `<div class="hud-cell"><div class="hud-cell-label">R${regLabel}</div><div class="hud-cell-val" id="hud-val-${i}">--</div></div>`;
+                let regLabel = activeSystem === 'amiga' ? amigaLabels[i] : i.toString(16).toUpperCase().padStart(2, '0');
+                if (activeSystem !== 'amiga') regLabel = 'R' + regLabel;
+                
+                html += `<div class="hud-cell"><div class="hud-cell-label">${regLabel}</div><div class="hud-cell-val" id="hud-val-${i}">--</div></div>`;
             }
             matrix.innerHTML = html;
             
@@ -791,8 +818,6 @@ function updateChipHUD() {
     // 3. High-Speed Update & Physik-Berechnung
     if (activeSystem === 'atari') {
         const r = currentChipRegs;
-        
-        // ... [AB HIER GEHT DEIN NORMALER CODE WEITER (Kanal A, etc.)] ...
 
         // KANAL A: Hertz Berechnung (2MHz / 16 / Period)
         let pitchA = ((r[1] & 0x0F) << 8) | r[0];
