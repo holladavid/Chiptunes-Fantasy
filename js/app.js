@@ -911,14 +911,42 @@ function makeAtariChannelRow(ch, pitchId, volId, hegId, digiId) {
     `;
 }
 
+// --- NEU: C64 KANAL-GENERATOR FÜR DAS SID-HUD ---
+function makeC64ChannelRow(ch, vIdx) {
+    return `
+        <div class="hud-channel">
+            <h4>[ VOICE ${ch} ]</h4>
+            <div class="hud-row">
+                <label>Freq</label>
+                <canvas class="hud-sparkline" id="c64-pitch-${vIdx}-chart" width="100" height="18"></canvas>
+                <span class="hud-val" id="c64-pitch-${vIdx}-val">0 Hz</span>
+            </div>
+            <div class="hud-row">
+                <label>Wave</label>
+                <div class="hud-led" id="c64-tri-${vIdx}-led"></div><span style="margin-right:8px">TRI</span>
+                <div class="hud-led" id="c64-saw-${vIdx}-led"></div><span style="margin-right:8px">SAW</span>
+                <div class="hud-led" id="c64-pul-${vIdx}-led"></div><span style="margin-right:8px">PUL</span>
+                <div class="hud-led" id="c64-noi-${vIdx}-led"></div><span>NOI</span>
+            </div>
+            <div class="hud-row">
+                <label>PW</label>
+                <div class="hud-bar"><div class="hud-bar-fill" id="c64-pw-${vIdx}-bar"></div></div>
+                <span class="hud-val" id="c64-pw-${vIdx}-val" style="width: 35px;">0%</span>
+            </div>
+            <div class="hud-row">
+                <label>ADSR</label>
+                <span class="hud-text-sel" id="c64-adsr-${vIdx}-val" style="flex-grow:1; font-size: 0.9em;">A:0 D:0 S:0 R:0</span>
+                <div class="hud-led" id="c64-gate-${vIdx}-led"></div><span style="font-size:0.8em; color:var(--text-color);">GATE</span>
+            </div>
+        </div>
+    `;
+}
+
 function updateChipHUD() {
     const matrix = document.getElementById('hud-matrix');
-    let regCount = activeSystem === 'c64' ? 29 : (activeSystem === 'amiga' ? 28 : 16);
 
-    // 1. DOM IMMER sofort neu aufbauen, wenn sich das System ändert (auch wenn die Musik stoppt!)
-    // BUGFIX: Da das Atari-Grid "hudValElements" nicht befüllt, hat der Längen-Check hier zu einem 
-    // endlosen innerHTML-Rebuild-Loop geführt, der die Sparkline-Canvases im VBLANK vernichtet hat.
-    if (cachedSystem !== activeSystem || (activeSystem !== 'atari' && hudValElements.length !== regCount)) {
+    // 1. DOM IMMER sofort neu aufbauen, wenn sich das System ändert!
+    if (cachedSystem !== activeSystem || (activeSystem === 'amiga' && hudValElements.length !== 28)) {
         cachedSystem = activeSystem;
         
         if (activeSystem === 'atari') {
@@ -973,50 +1001,98 @@ function updateChipHUD() {
                     </div>
                 </div>
             `;
-            
-            // Historien leeren, falls wir von einem anderen Track zurückkommen
             pitchHistA.fill(0); pitchHistB.fill(0); pitchHistC.fill(0);
-            
-            hudValElements = []; // Für Atari-Grid nicht direkt indiziert
+            hudValElements = []; 
+
+        } else if (activeSystem === 'c64') {
+            // ADVANCED DSP ANALYZER LAYOUT FÜR C64 SID
+            matrix.innerHTML = `
+                <div class="atari-analyzer-grid">
+                    <div>
+                        ${makeC64ChannelRow(1, '1')}
+                        ${makeC64ChannelRow(2, '2')}
+                        ${makeC64ChannelRow(3, '3')}
+                    </div>
+                    <div>
+                        <div class="hud-channel">
+                            <h4>[ ANALOG FILTER ]</h4>
+                            <div class="hud-row">
+                                <label>Cutoff</label>
+                                <div class="hud-bar"><div class="hud-bar-fill" id="c64-cut-bar"></div></div>
+                                <span class="hud-val" id="c64-cut-val">0 Hz</span>
+                            </div>
+                            <div class="hud-row">
+                                <label>Resonance</label>
+                                <div class="hud-bar"><div class="hud-bar-fill" id="c64-res-bar"></div></div>
+                                <span class="hud-val" id="c64-res-val">0</span>
+                            </div>
+                            <div class="hud-row">
+                                <label>Type</label>
+                                <div class="hud-led" id="c64-lp-led"></div><span style="margin-right:12px">LP</span>
+                                <div class="hud-led" id="c64-bp-led"></div><span style="margin-right:12px">BP</span>
+                                <div class="hud-led" id="c64-hp-led"></div><span>HP</span>
+                            </div>
+                            <div class="hud-row">
+                                <label>Routing</label>
+                                <div class="hud-led" id="c64-route-1-led"></div><span style="margin-right:12px">V1</span>
+                                <div class="hud-led" id="c64-route-2-led"></div><span style="margin-right:12px">V2</span>
+                                <div class="hud-led" id="c64-route-3-led"></div><span>V3</span>
+                            </div>
+                        </div>
+                        <div class="hud-channel">
+                            <h4>[ MASTER OUTPUT ]</h4>
+                            <div class="hud-row">
+                                <label>Volume</label>
+                                <div class="hud-bar"><div class="hud-bar-fill" id="c64-vol-bar"></div></div>
+                                <span class="hud-val" id="c64-vol-val">0</span>
+                            </div>
+                            <div class="hud-row">
+                                <label>Voice3 Off</label>
+                                <div class="hud-led" id="c64-v3off-led"></div>
+                            </div>
+                            <div class="hud-row" style="margin-top: 15px;">
+                                <label>Digi Hack</label>
+                                <span id="digi-g-val" class="hud-text-sel" style="flex-grow: 1;">--</span>
+                                <div id="hud-digi-led" style="width: 10px; height: 10px; border-radius: 50%; background: #440000; border: 1px solid #ff0000; box-shadow: none;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            pitchHistA.fill(0); pitchHistB.fill(0); pitchHistC.fill(0);
+            hudValElements = []; 
 
         } else {
-            // FALLBACK HEX-MATRIX FÜR C64 & AMIGA (Baut sich nun auch im Stop-Modus auf!)
+            // FALLBACK HEX-MATRIX FÜR AMIGA
             let html = '';
-            // Echte Amiga custom-chip Registerbezeichner (Paula)
             const amigaLabels = [
                 'A0LCH', 'A0LCL', 'A0LENH', 'A0LENL', 'A0PERH', 'A0PERL', 'A0VOL',
                 'A1LCH', 'A1LCL', 'A1LENH', 'A1LENL', 'A1PERH', 'A1PERL', 'A1VOL',
                 'A2LCH', 'A2LCL', 'A2LENH', 'A2LENL', 'A2PERH', 'A2PERL', 'A2VOL',
                 'A3LCH', 'A3LCL', 'A3LENH', 'A3LENL', 'A3PERH', 'A3PERL', 'A3VOL'
             ];
-
-            for (let i = 0; i < regCount; i++) {
-                let regLabel = activeSystem === 'amiga' ? amigaLabels[i] : i.toString(16).toUpperCase().padStart(2, '0');
-                if (activeSystem !== 'amiga') regLabel = 'R' + regLabel;
-                
-                html += `<div class="hud-cell"><div class="hud-cell-label">${regLabel}</div><div class="hud-cell-val" id="hud-val-${i}">--</div></div>`;
+            for (let i = 0; i < 28; i++) {
+                html += `<div class="hud-cell"><div class="hud-cell-label">${amigaLabels[i]}</div><div class="hud-cell-val" id="hud-val-${i}">--</div></div>`;
             }
             matrix.innerHTML = html;
             
             hudValElements = [];
-            for (let i = 0; i < regCount; i++) {
+            for (let i = 0; i < 28; i++) {
                 hudValElements.push(document.getElementById(`hud-val-${i}`));
             }
         }
     }
     
-    // 2. SICHERHEITSSCHRANKE FÜR WERTE-UPDATES:
-    // Wenn nichts gespielt wird, brechen wir HIER ab, VOR den physikalischen Berechnungen!
+    // 2. SICHERHEITSSCHRANKE FÜR WERTE-UPDATES
     if (!isPlaying || !currentChipRegs) return;
     
     // 3. High-Speed Update & Physik-Berechnung
     if (activeSystem === 'atari') {
         const r = currentChipRegs;
-
-        // KANAL A: Hertz Berechnung (2MHz / 16 / Period)
+        
         let pitchA = ((r[1] & 0x0F) << 8) | r[0];
         let hzA = pitchA === 0 ? 0 : 2000000 / (16 * pitchA);
-        if (hzA > 15000) hzA = 0; // Filtert unhörbare Ultraschall-Signale (125 kHz) heraus
+        if (hzA > 15000) hzA = 0; 
         pitchHistA[histIdx] = hzA;
         document.getElementById('pitch-a-val').innerText = Math.round(hzA) + ' Hz';
         drawSparkline('pitch-a-chart', pitchHistA, (histIdx+1)%HIST_LEN, '#55ff55');
@@ -1028,7 +1104,6 @@ function updateChipHUD() {
         let digiA = (r[1] & 0xF0) >> 4;
         document.getElementById('digi-a').innerText = digiA > 0 ? `SMP #${digiA}` : '--';
 
-        // KANAL B
         let pitchB = ((r[3] & 0x0F) << 8) | r[2];
         let hzB = pitchB === 0 ? 0 : 2000000 / (16 * pitchB);
         if (hzB > 15000) hzB = 0;
@@ -1043,7 +1118,6 @@ function updateChipHUD() {
         let digiB = (r[3] & 0xF0) >> 4;
         document.getElementById('digi-b').innerText = digiB > 0 ? `SMP #${digiB}` : '--';
 
-        // KANAL C
         let pitchC = ((r[5] & 0x0F) << 8) | r[4];
         let hzC = pitchC === 0 ? 0 : 2000000 / (16 * pitchC);
         if (hzC > 15000) hzC = 0;
@@ -1056,21 +1130,11 @@ function updateChipHUD() {
         document.getElementById('vol-c-val').innerText = volC;
         document.getElementById('heg-c-led').className = (r[10] & 0x10) ? 'hud-led on' : 'hud-led';
 
-        // Ringpuffer weiterdrehen
         histIdx = (histIdx + 1) % HIST_LEN;
 
-        // NOISE (5-Bit Lookup Table anwenden!)
         let noiseP = r[6] & 0x1F;
         let exactHz = NOISE_LUT_HZ[noiseP];
-        
-        // Dynamische Formatierung, damit es sauber in die 75px Box passt
-        let noiseStr = "";
-        if (exactHz >= 10000) {
-            noiseStr = (exactHz / 1000).toFixed(1) + " kHz"; // Aus 125000 wird "125.0 kHz"
-        } else {
-            noiseStr = exactHz + " Hz"; // Aus 8333 wird "8333 Hz"
-        }
-
+        let noiseStr = exactHz >= 10000 ? (exactHz / 1000).toFixed(1) + " kHz" : exactHz + " Hz";
         document.getElementById('noise-bar').style.width = (noiseP / 31 * 100) + '%';
         document.getElementById('noise-val').innerText = noiseStr;
 
@@ -1082,7 +1146,6 @@ function updateChipHUD() {
         document.getElementById('noise-b-led').className = (mix & 0x10) === 0 ? 'hud-led on' : 'hud-led';
         document.getElementById('noise-c-led').className = (mix & 0x20) === 0 ? 'hud-led on' : 'hud-led';
 
-        // ENVELOPE (Hertz Berechnung: Takt / 256 / Period)
         let envP = (r[12] << 8) | r[11];
         let envHz = envP === 0 ? 0 : 2000000 / (256 * envP);
         document.getElementById('env-bar').style.width = (envP / 65535 * 100) + '%';
@@ -1096,17 +1159,78 @@ function updateChipHUD() {
                 11:'\\---', 12:'////', 13:'/---', 14:'/\\/\\', 15:'/___'
             };
             let s = shapeBits & 0x0F;
-            if (s < 4) shapeStr = '\\___';
-            else if (s < 8) shapeStr = '/___';
-            else shapeStr = shapes[s] || `0x${s}`;
-            shapeStr = `[0x${s.toString(16).toUpperCase()}] ` + shapeStr;
+            shapeStr = `[0x${s.toString(16).toUpperCase()}] ` + (s < 4 ? '\\___' : (s < 8 ? '/___' : shapes[s] || `0x${s}`));
         }
         document.getElementById('env-shape-val').innerText = shapeStr;
 
+    } else if (activeSystem === 'c64') {
+        // --- C64 SID HARDWARE REGISTER UPDATER ---
+        const r = currentChipRegs;
+        
+        for (let v = 0; v < 3; v++) {
+            let base = v * 7;
+            
+            // Frequenz
+            let freq = r[base] | (r[base+1] << 8);
+            let hz = freq ? (freq * 985248) / 16777216 : 0;
+            if (hz > 15000) hz = 0; 
+
+            let histArr = v === 0 ? pitchHistA : (v === 1 ? pitchHistB : pitchHistC);
+            histArr[histIdx] = hz;
+            
+            document.getElementById(`c64-pitch-${v+1}-val`).innerText = hz >= 1000 ? (hz/1000).toFixed(1)+' kHz' : Math.round(hz) + ' Hz';
+            drawSparkline(`c64-pitch-${v+1}-chart`, histArr, (histIdx+1)%HIST_LEN, '#6c5eb5');
+
+            // Pulse Width
+            let pw = r[base+2] | ((r[base+3] & 0x0F) << 8);
+            document.getElementById(`c64-pw-${v+1}-bar`).style.width = (pw / 4095 * 100) + '%';
+            document.getElementById(`c64-pw-${v+1}-val`).innerText = Math.round((pw / 4095) * 100) + '%';
+
+            // Control LEDs
+            let ctrl = r[base+4];
+            document.getElementById(`c64-tri-${v+1}-led`).className = (ctrl & 16) ? 'hud-led on' : 'hud-led';
+            document.getElementById(`c64-saw-${v+1}-led`).className = (ctrl & 32) ? 'hud-led on' : 'hud-led';
+            document.getElementById(`c64-pul-${v+1}-led`).className = (ctrl & 64) ? 'hud-led on' : 'hud-led';
+            document.getElementById(`c64-noi-${v+1}-led`).className = (ctrl & 128) ? 'hud-led on' : 'hud-led';
+            document.getElementById(`c64-gate-${v+1}-led`).className = (ctrl & 1) ? 'hud-led on' : 'hud-led';
+
+            // ADSR Text
+            let ad = r[base+5];
+            let sr = r[base+6];
+            document.getElementById(`c64-adsr-${v+1}-val`).innerText = `A:${ad>>4} D:${ad&15} S:${sr>>4} R:${sr&15}`;
+        }
+        
+        histIdx = (histIdx + 1) % HIST_LEN;
+
+        // Filter / Routing
+        let fcut = (r[21] & 7) | (r[22] << 3);
+        let fhz = 30 + (fcut * 8);
+        document.getElementById('c64-cut-bar').style.width = (fcut / 2047 * 100) + '%';
+        document.getElementById('c64-cut-val').innerText = fhz >= 1000 ? (fhz/1000).toFixed(1)+' kHz' : Math.round(fhz) + ' Hz';
+
+        let fres = r[23] >> 4;
+        document.getElementById('c64-res-bar').style.width = (fres / 15 * 100) + '%';
+        document.getElementById('c64-res-val').innerText = fres;
+
+        let froute = r[23] & 15;
+        document.getElementById('c64-route-1-led').className = (froute & 1) ? 'hud-led on' : 'hud-led';
+        document.getElementById('c64-route-2-led').className = (froute & 2) ? 'hud-led on' : 'hud-led';
+        document.getElementById('c64-route-3-led').className = (froute & 4) ? 'hud-led on' : 'hud-led';
+
+        let fmode = r[24] & 0xF0;
+        document.getElementById('c64-lp-led').className = (fmode & 16) ? 'hud-led on' : 'hud-led';
+        document.getElementById('c64-bp-led').className = (fmode & 32) ? 'hud-led on' : 'hud-led';
+        document.getElementById('c64-hp-led').className = (fmode & 64) ? 'hud-led on' : 'hud-led';
+        document.getElementById('c64-v3off-led').className = (fmode & 128) ? 'hud-led on' : 'hud-led';
+
+        let vol = r[24] & 15;
+        document.getElementById('c64-vol-bar').style.width = (vol / 15 * 100) + '%';
+        document.getElementById('c64-vol-val').innerText = vol;
+
     } else {
-        // C64 / AMIGA Fallback (Ausfallsicher!)
+        // AMIGA FALLBACK UPDATE
         for (let i = 0; i < currentChipRegs.length; i++) {
-            if (!hudValElements[i]) continue; // Sicherheit: Verhindert Absturz beim schnellen Wechsel!
+            if (!hudValElements[i]) continue;
             let hexVal = currentChipRegs[i].toString(16).toUpperCase().padStart(2, '0');
             if (hudValElements[i].innerText !== hexVal) hudValElements[i].innerText = hexVal;
         }
