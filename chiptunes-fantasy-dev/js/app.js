@@ -728,9 +728,11 @@ document.getElementById('volume-slider').addEventListener('input', (e) => {
     if (masterGain) masterGain.gain.value = e.target.value;
 });
 
-// --- FULLSCREEN TOGGLE LOGIK (Mit nativem & iOS-Pseudo-Support) ---
+// --- FULLSCREEN TOGGLE LOGIK (Mit nativem & Brute-Force iOS-Support) ---
 function toggleFullscreen() {
     const visualZone = document.getElementById('visual-zone');
+    const demoContainer = document.getElementById('demo-container');
+    const playbackBar = document.getElementById('playback-bar'); // Unser Ankerpunkt für die Rückkehr
     
     // Kugel- und Safari-sichere iOS-Erkennung (iPhone, iPad, iPod incl. iPadOS 13+ Safari)
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
@@ -754,18 +756,24 @@ function toggleFullscreen() {
             }
         }
     } else {
-        // iOS / iPhone & iPad Safari Pseudo-Fullscreen Fallback!
+        // iOS / iPhone Brute-Force Pseudo-Fullscreen Fallback!
         const isPseudo = visualZone.classList.toggle('pseudo-fullscreen');
         const btn = document.getElementById('btn-fullscreen');
         
         if (isPseudo) {
             btn.innerText = '[ EXIT ]';
+            // BUGFIX iOS: Das Element aus dem Flex-Container herausreißen und direkt an den Body hängen!
+            // Nur so ignoriert Safari auf iPhones alle layout-technischen Einschränkungen.
+            document.body.appendChild(visualZone);
         } else {
             btn.innerText = '[ ⛶ ]';
+            // Das Element exakt an seine Ursprungsposition (vor die Playback-Bar) zurückpflanzen
+            if (demoContainer && playbackBar) {
+                demoContainer.insertBefore(visualZone, playbackBar);
+            }
         }
         
-        // BUGFIX: Gib dem iOS Safari DOM 50 Millisekunden Zeit, die Fixed-Positioning-Regeln
-        // anzuwenden, bevor wir das Canvas zwingen, sich neu zu berechnen!
+        // Gib dem iOS Safari DOM 50 Millisekunden Zeit für das Reparenting, bevor das Canvas resizt!
         setTimeout(() => {
             window.dispatchEvent(new Event('resize'));
         }, 50);

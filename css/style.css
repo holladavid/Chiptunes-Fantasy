@@ -161,6 +161,11 @@ body, html {
     transition: all 0.15s cubic-bezier(0.25, 0.8, 0.25, 1);
     outline: none;
     text-transform: uppercase;
+    
+    /* BUGFIX: Verhindert, dass die ASCII-Klammern in eine neue Zeile rutschen! */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Schneidet sanft ab, falls der Platz (z. B. auf Mobile) wirklich zu eng wird */
 }
 
 /* Die magischen Tracker ASCII-Klammer-Generatoren */
@@ -491,14 +496,14 @@ body.theme-atari .tab-btn.active {
     position: absolute;
     top: 15px;
     right: 15px;
-    width: 480px; 
+    width: 520px; /* Von 480px auf 520px verbreitert (Fix für Amiga-Labels) */
     background: rgba(0, 0, 0, 0.75);
-    border-left: 4px solid var(--text-color); /* Tracker Style! */
+    border-left: 4px solid var(--text-color);
     box-shadow: 0 0 10px rgba(0,0,0,0.5);
     padding: 15px; 
     color: var(--highlight-color);
     pointer-events: auto; 
-    z-index: 15; /* Etwas höher als das Logo, falls es beim Aufklappen überlappt */
+    z-index: 15; 
 }
 
 /* NEU: Der geschrumpfte Zustand! */
