@@ -702,7 +702,8 @@ body.theme-atari .tab-btn.active {
 }
 
 #btn-eco-off {
-    margin-top: 15px;          /* Sachte optische Abgrenzung */
+    display: block;            /* BUGFIX: Erzwingt den Umbruch in eine eigene Zeile */
+    margin: 20px auto 0 auto;  /* Zentriert den Button horizontal und schafft Abstand nach oben */
     background: transparent;
     color: var(--highlight-color);
     border: 2px solid var(--highlight-color);

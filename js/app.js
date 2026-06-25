@@ -580,26 +580,24 @@ document.getElementById('btn-prev').addEventListener('click', () => {
 // Globale Variable für den Wake Lock Sensor
 let wakeLock = null;
 
-// --- PURE AUDIO / ECO MODE TOGGLE ---
+// --- PURE AUDIO / ECO MODE TOGGLE (Echte Modularisierung) ---
 
-// FIX 2: Der unsichtbare iOS No-Sleep Video-Hack (Base64 kodiertes, 1px großes, schwarzes MP4-Video)
+// FIX 2: Der unsichtbare iOS No-Sleep Video-Hack (Base64)
 const noSleepVideo = document.createElement('video');
 noSleepVideo.setAttribute('playsinline', '');
 noSleepVideo.setAttribute('muted', '');
 noSleepVideo.setAttribute('loop', '');
-
-// Ein absolut winziges, leeres Video, das Safari austrickst
 noSleepVideo.src = 'data:video/mp4;base64,AAAAHGZ0eXBtcDQyAAAAAG1wNDJpc29tYXZjMQAAAz5tb292AAAAbG12aGQAAAAA/8f/3v/H/+QAAALuAAAC7gABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAGGlvZHMAAAAAE//H/+QAAALuAAAC7gABAAAAAAABAAAAMXRyYWsAAABcdGtoZAAAAAD/x//e/8f/5AAAAAEAAAAAAAAC7gAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAgAAAAIAAAAgZWR0cwAAABBlbHN0AAAAAQAAAu4AAAAAAAEAAAAAAixtZGlhAAAAIG1kaGQAAAAA/8f/3v/H/+QAAALuAAAC7gABAAAAAAAxAAAAAAAvaGRscgAAAAAAAAAAdmlkZQAAAAAAAAAAAAAAAFZpZGVvSGFuZGxlcgAAAAIcbWluZgAAABR2bWhkAAAAAQAAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAcRzdGJsAAAAp3N0c2QAAAAAAAAAAQAAAJNhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAgACAEgAAABIAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAR//8AAAAxYXZjQwH0AAr/4QAZZ/QACq608AUBzgAAAwAABgAAAwivDxgXoAAAAQAAABhzdHRzAAAAAAAAAAEAAAABAAAC7gAAAABzdHNzAAAAAAAAAAEAAAABAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAABAAAAHHN0c3oAAAAAAAAAAAAAAAEAAAAeAAAAFHN0Y28AAAAAAAAAAQAAADAAAAA0dWR0YQAAACxtZXRhAAAAAAAAAABoZGxyAAAAAAAAAABtZGlyYXBwbAAAAAAAAAAAAAAA';
 
-// --- PURE AUDIO / ECO MODE TOGGLE ---
-document.getElementById('btn-eco').addEventListener('click', async () => {
-    // 1. WICHTIG FÜR iOS: Video MUSS synchron in der ersten Millisekunde nach dem Klick starten!
+// Funktion zum Aktivieren des ECO-Modus (Pure Audio)
+async function enableEcoMode() {
+    // 1. WICHTIG FÜR iOS: Video MUSS synchron im ersten Klick-Frame starten!
     noSleepVideo.play().catch(e => console.warn('iOS Video-Hack blockiert:', e));
 
     isEcoMode = true;
     document.getElementById('eco-overlay').classList.remove('hidden');
     
-    // 2. Offizielle Methode (Für Desktop, Android & neuere iOS Versionen)
+    // 2. Offizielle Wake-Lock-Methode (Desktop & Android)
     try {
         if ('wakeLock' in navigator) {
             wakeLock = await navigator.wakeLock.request('screen');
@@ -608,9 +606,10 @@ document.getElementById('btn-eco').addEventListener('click', async () => {
     } catch (err) {
         console.warn(`Wake Lock API blockiert. Fallback läuft.`);
     }
-});
+}
 
-document.getElementById('btn-eco-off').addEventListener('click', async () => {
+// Funktion zum Deaktivieren des ECO-Modus (Wieder aufwecken)
+async function disableEcoMode() {
     isEcoMode = false;
     document.getElementById('eco-overlay').classList.add('hidden');
     
@@ -622,6 +621,25 @@ document.getElementById('btn-eco-off').addEventListener('click', async () => {
     
     // iOS Fallback beenden
     noSleepVideo.pause();
+    
+    // Trigger ein Resize-Event, damit sich die Visualisierungs-Canvases sofort neu kalibrieren
+    window.dispatchEvent(new Event('resize'));
+}
+
+// KOPPLUNG DER EVENTS: Sowohl ECO-Button als auch WAKE-UP-Button steuern die Funktionen
+document.getElementById('btn-eco').addEventListener('click', async () => {
+    // Falls audioCtx im Hintergrund schläft, aufwecken
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+
+    if (isEcoMode) {
+        await disableEcoMode(); // 2. Druck schaltet den ECO-Modus aus!
+    } else {
+        await enableEcoMode();  // 1. Druck schaltet den ECO-Modus ein!
+    }
+});
+
+document.getElementById('btn-eco-off').addEventListener('click', async () => {
+    await disableEcoMode();
 });
 
 document.getElementById('volume-slider').addEventListener('input', (e) => {
