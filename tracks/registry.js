@@ -1,17 +1,15 @@
-import { hubbardTrack } from './c64/hubbard.js';
-import { galwayTrack } from './c64/galway.js';
-import { externalSidTracks } from './c64/external.js'; // NEU: Der binäre SID-Lader
+import { externalSidTracks } from './c64/external.js'; // Binärer SID-Lader
 
 import { hippelTrack } from './atari/hippel.js';
 import { bigAlecTrack } from './atari/bigalec.js';
 import { externalYmTracks } from './atari/external.js'; 
 
 import { jesterTrack } from './amiga/jester.js'; 
-import { externalModTracks } from './amiga/mods.js'; // Geladen statt der veralteten HIPC-Version
+import { externalModTracks } from './amiga/mods.js'; 
 
 export const trackRegistry = {
-    // Echte SIDs in die C64-Schiene einhängen!
-    c64: [ hubbardTrack, galwayTrack, ...externalSidTracks ],
+    // 100% echter, binärer C64-Wiedergabe-Zweig (Nativ über die emulierte 6502-CPU!)
+    c64: [ ...externalSidTracks ],
     
     atari: [ hippelTrack, bigAlecTrack, ...externalYmTracks ], 
     amiga: [ jesterTrack, ...externalModTracks ]

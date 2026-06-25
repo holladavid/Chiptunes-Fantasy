@@ -4,7 +4,6 @@
 // ==========================================
 
 // ECHTE HVSC SONGLENGTH DATABASE (SLDB) FÜR HISTORISCHE PRÄZISION
-// Enthält die sekundengenauen Originallängen aller Subsongs aus dem HVSC-Archiv
 const SID_SLDB = {
     // Commando (Rob Hubbard)
     "commando": {
@@ -18,9 +17,13 @@ const SID_SLDB = {
     "delta": {
         lengths: [306, 10, 10] // Subsong 1: 5:06 min (306 Sek)
     },
-    // Wizball (Martin Galway) - NEU!
+    // Wizball (Martin Galway)
     "wizball": {
-        lengths: [625, 163, 10] // Subsong 1 (Main Title): 10:25 min (625 Sek) | Subsong 2: 2:43 min
+        lengths: [625, 163, 10] // Subsong 1: 10:25 min (625 Sek)
+    },
+    // The Great Giana Sisters (Chris Hülsbeck) - NEU!
+    "greatgianasisters": {
+        lengths: [215, 146, 111, 131, 161, 13, 93, 47] // Subtune 1 (Intro): 3:35 min (215s) | Subtune 2 (Menu): 2:26 min (146s) | Subtune 4 (In-Game): 1:51 min (111s)
     }
 };
 
