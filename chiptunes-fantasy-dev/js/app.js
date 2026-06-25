@@ -22,6 +22,7 @@ let previousFrame = 0;       // NEU: Merkt sich den vorherigen Frame für den Lo
 let lastTrackChangeTime = 0; // NEU: Der kugelsichere Cooldown-Timer
 let isEcoMode = false;      // NEU: Status für den Pure Audio Mode
 let isUserDragging = false; // NEU: Verhindert Slider-Zucken während des Ziehens
+let currentSubsongIndex = 1; // NEU: Speichert das aktive C64-Subsong-Verzeichnis (1-basiert)
 
 // --- YM2149 NOISE FREQUENCY LOOKUP TABLE (2 MHz Clock) ---
 // 32 diskrete Werte für die 5 Bits (0 - 31). Periode 0 wird als 1 behandelt.
@@ -437,9 +438,10 @@ async function selectAndPlayTrack(index, system) {
             
             // WEICHENSTELLUNG: SID-Dateien liefern das Emulator-Objekt, andere Dateien ein Frame-Table
             if (isC64System) {
-                trackData = parsedFile; // Das gesamte 6502-Code-Paket übergeben!
-            } else {
-                trackData = parsedFile.frames; 
+                // Das komplette, binäre CPU-Paket an die Playback-Engine übergeben!
+                trackData = parsedFile; 
+                currentSubsongIndex = parsedFile.startSong || 1; // Standard-Startsong deklarieren
+            } else {                trackData = parsedFile.frames; 
                 trackData.digidrums = parsedFile.digidrums || [];
             }
             
@@ -553,6 +555,33 @@ async function selectAndPlayTrack(index, system) {
         startPlayback();
     }
 }
+
+// --- DYNAMISCHER SUBSONG-WECHSEL (Echtzeit!) ---
+function changeC64Subsong(subsongId) {
+    if (!sidNode || !trackData || !trackData.isSidFile) return;
+
+    // Signalisiere der CPU das Umschalten des Subsongs im Audio-Thread
+    sidNode.port.postMessage({ type: 'CHANGE_SUBSONG', frame: subsongId });
+    currentSubsongIndex = subsongId;
+
+    // Zeitanzeige dynamisch auf die exakte HVSC-Länge des neuen Subsongs umstellen!
+    let songLengthSeconds = trackData.lengths[subsongId - 1] || trackData.lengths[0] || 180;
+    trackData.length = songLengthSeconds * 50; // Frameanzahl aktualisieren
+
+    // Slider-Timeline hart zurücksetzen
+    lastKnownFrame = 0;
+    previousFrame = 0;
+    document.getElementById('time-current').innerText = "00:00";
+    document.getElementById('time-total').innerText = formatTime(trackData.length);
+    document.getElementById('progress-slider').value = 0;
+
+    // Scroller-Text aktualisieren
+    let meta = trackData.metadata;
+    currentScrollerText = `+++ BOOM! SWITCHED TO SUBSONG ${subsongId} OF ${meta.songs} +++ NOW PLAYING: ${meta.name.toUpperCase()} (TRACK ${subsongId}) BY ${meta.author.toUpperCase()} +++ `;
+    
+    console.log(`[C64 JUKEBOX] Switched to Subsong ${subsongId} / ${meta.songs} (${songLengthSeconds}s)`);
+}
+
 // --- BUTTON EVENTS ---
 document.getElementById('btn-play').addEventListener('click', () => {
     // NEU: iOS SAFARI FIX!
@@ -567,11 +596,34 @@ document.getElementById('btn-play').addEventListener('click', () => {
 
 document.getElementById('btn-next').addEventListener('click', () => {
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); // iOS FIX
+
+    // Prüfen, ob wir uns auf einem C64-Track mit mehreren Subsongs befinden
+    if (activeSystem === 'c64' && trackData && trackData.isSidFile) {
+        const totalSongs = trackData.metadata.songs || 1;
+        if (currentSubsongIndex < totalSongs) {
+            // Schalte zum nächsten Subsong um und brich das Tracklist-Wechseln ab
+            changeC64Subsong(currentSubsongIndex + 1);
+            return; 
+        }
+    }
+
+    // Normales Playlist-Wechseln
     selectAndPlayTrack((currentTrackIndex + 1) % trackRegistry[activeSystem].length, activeSystem);
 });
 
 document.getElementById('btn-prev').addEventListener('click', () => {
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); // iOS FIX
+
+    // Prüfen, ob wir uns auf einem C64-Track mit mehreren Subsongs befinden
+    if (activeSystem === 'c64' && trackData && trackData.isSidFile) {
+        if (currentSubsongIndex > 1) {
+            // Schalte zum vorherigen Subsong um und brich das Tracklist-Wechseln ab
+            changeC64Subsong(currentSubsongIndex - 1);
+            return;
+        }
+    }
+
+    // Normales Playlist-Wechseln
     let prevIdx = currentTrackIndex - 1;
     if (prevIdx < 0) prevIdx = trackRegistry[activeSystem].length - 1;
     selectAndPlayTrack(prevIdx, activeSystem);

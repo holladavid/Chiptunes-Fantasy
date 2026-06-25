@@ -64,6 +64,24 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.isPlaying = true;
             } else if (msg.type === 'SEEK_TRACK') {
                 this.currentFrame = msg.frame % 5000;
+            } else if (msg.type === 'CHANGE_SUBSONG') {
+                // BUGFIX: SID-Chip zurücksetzen, um hängende Noten beim Umschalten zu verhindern
+                this.sid = new SIDChip();
+                this.cpu.sid = this.sid; // CPU an den neuen Chip koppeln
+                
+                // Vektoren neu laden und Subsong-Index setzen
+                let songIndex = (msg.frame > 0 ? msg.frame : 0) & 0xFF;
+                this.cpu.a = songIndex;
+                this.cpu.x = songIndex;
+                this.cpu.y = 0;
+                this.cpu.p &= ~1;
+                
+                // Initialisiere das C64-Programm für den neuen Subsong
+                this.cpu.jsr(this.initAddress);
+                
+                this.currentFrame = 0;
+                this.sampleCounter = 0;
+                console.log(`[6502 CPU] Switched to Subsong ${songIndex + 1} at play address: $${this.playAddress.toString(16)}`);
             }
         };
     }
