@@ -1,10 +1,11 @@
+// === js/worklets/atari/ym-standard.js ===
 // =========================================================
 // YM2149F CORE (CYCLE-EXACT, LOGARITHMIC DAC, OPTIMIZED)
+// With Sub-Sample Accurate Phase & Envelope Alignment
 // =========================================================
 
 import { detectDigidrum } from '../lib/dsp-utils.js';
 
-// Die physikalisch exakten Spannungswerte des YM2149 DAC (Logarithmisch)
 const YM_DAC = [
     0.0000, 0.0137, 0.0205, 0.0291, 0.0423, 0.0618, 0.0847, 0.1369, 
     0.1691, 0.2647, 0.3527, 0.4499, 0.5704, 0.6873, 0.8482, 1.0000
@@ -13,22 +14,19 @@ const YM_DAC = [
 class YMProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.clock = 2000000; // 2 MHz
+        this.clock = 2000000; 
         this.regs = new Uint8Array(16); 
         this.phaseA = 0; this.phaseB = 0; this.phaseC = 0;
         this.noiseLfsr = 1; this.noisePhase = 0; this.noiseOutput = 1;
         this.envPhase = 0.0;
         
-        // Caching Variablen für extreme Performance
         this.incA = 0; this.incB = 0; this.incC = 0;
         this.incNoise = 0; this.incEnv = 0;
         this.toneA = false; this.toneB = false; this.toneC = false;
         this.noiseA = false; this.noiseB = false; this.noiseC = false;
         
-        // DC Blocker (Highpass) Variablen
         this.lastIn = 0; this.lastOut = 0;
 
-        // Digidrum System
         this.digidrums = [];
         this.currentDigidrum = null;
         this.digiPos = 0;
@@ -38,32 +36,36 @@ class YMProcessor extends AudioWorkletProcessor {
         this.currentFrame = 0;
         this.sampleCounter = 0;
         this.isPlaying = false;
+
+        // Visualizer Zero-Allocation Ring Buffer (40 Floats * 4 Bytes = 160 Bytes)
+        this.visualView = new Float32Array(40);
         
         this.port.onmessage = (event) => {
-            if (event.data.type === 'PLAY_TRACK') {
-                this.trackData = event.data.track;
-                this.digidrums = event.data.digidrums || []; 
+            const msg = event.data;
+
+            if (msg.type === 'PLAY_TRACK') {
+                this.trackData = msg.track;
+                this.digidrums = msg.digidrums || []; 
                 this.currentFrame = 0;
                 this.sampleCounter = 0;
                 this.currentDigidrum = null;
                 this.lastDigiTrigger = 0;
                 this.envPhase = 0;
                 this.isPlaying = true;
-                this.updateInternals(); // Caches füllen!
-            } else if (event.data.type === 'STOP_TRACK') {
+                this.updateInternals(); 
+            } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
-            } else if (event.data.type === 'RESUME_TRACK') {
+            } else if (msg.type === 'RESUME_TRACK') {
                 this.isPlaying = true; 
-            } else if (event.data.type === 'SEEK_TRACK') {
+            } else if (msg.type === 'SEEK_TRACK') {
                 if (this.trackData) {
-                    this.currentFrame = event.data.frame % this.trackData.length;
-                    this.currentDigidrum = null; // Verhindert das Hängenbleiben von Digidrum-Fragmenten
+                    this.currentFrame = msg.frame % this.trackData.length;
+                    this.currentDigidrum = null; 
                 }
             }
         };
     }
 
-    // Berechnet die Frequenz-Inkremente NUR neu, wenn Register sich ändern (50Hz)
     updateInternals() {
         let pA = ((this.regs[1] & 0x0F) << 8) | this.regs[0];
         let pB = ((this.regs[3] & 0x0F) << 8) | this.regs[2];
@@ -94,52 +96,53 @@ class YMProcessor extends AudioWorkletProcessor {
         let currentVisualValue = 0;
 
         for (let i = 0; i < channelLeft.length; i++) {
-            
-            // ECHTE PAUSE
             if (!this.isPlaying) {
                 channelLeft[i] = 0; if (channelRight) channelRight[i] = 0;
                 continue; 
             }
 
-            // --- 50HZ HARDWARE SEQUENZER ---
             if (this.isPlaying && this.trackData) {
                 this.sampleCounter--;
                 if (this.sampleCounter <= 0) {
+                    // === DETERMINISTISCHE SUB-SAMPLE PHASEN-KOMPENSATION ===
+                    const overshoot = -this.sampleCounter; // Fraktionaler Überhang in Samples
                     this.sampleCounter += sampleRate / 50.0; 
                     
                     let frame = this.trackData[this.currentFrame];
-                    
                     for(let r=0; r<16; r++) {
                         if (r === 13) {
                             if (frame[13] !== 0xFF) {
                                 this.regs[13] = frame[13];
-                                this.envPhase = 0.0; 
+                                // Hüllkurven-Phase exakt am Sub-Sample-Startpunkt synchronisieren
+                                this.envPhase = overshoot * this.incEnv; 
                             }
                         } else {
                             this.regs[r] = frame[r];
                         }
                     }
                     
-                    // Digidrum Catcher via modular helper
                     let activeDigiTrigger = detectDigidrum(frame);
 
                     if (activeDigiTrigger > 0 && activeDigiTrigger !== this.lastDigiTrigger) {
                         if (this.digidrums[activeDigiTrigger - 1]) {
                             this.currentDigidrum = this.digidrums[activeDigiTrigger - 1];
-                            this.digiPos = 0;
+                            // Digidrum-Startpunkt sub-sample-genau kompensieren
+                            this.digiPos = overshoot * (7812.5 / sampleRate);
                             this.port.postMessage({ type: 'DEBUG', msg: 'Drum ' + activeDigiTrigger });
                         }
                     }
                     this.lastDigiTrigger = activeDigiTrigger;
                     
-                    // WICHTIG: Nach dem Beschreiben der Register Caches erneuern!
                     this.updateInternals();
+
+                    // Phasen-Akkumulatoren der Oszillatoren ausrichten
+                    this.phaseA = (this.phaseA + overshoot * this.incA) % 1.0;
+                    this.phaseB = (this.phaseB + overshoot * this.incB) % 1.0;
+                    this.phaseC = (this.phaseC + overshoot * this.incC) % 1.0;
 
                     this.currentFrame = (this.currentFrame + 1) % this.trackData.length;
                 }
             }
-
-            // --- HOCHGESCHWINDIGKEITS-DSP (Ab hier nur noch rohe Mathematik) ---
             
             this.phaseA = (this.phaseA + this.incA) % 1.0;
             this.phaseB = (this.phaseB + this.incB) % 1.0;
@@ -161,7 +164,6 @@ class YMProcessor extends AudioWorkletProcessor {
             if (this.noiseB) outB = (outB === 1.0 && this.noiseOutput === 1.0) ? 1.0 : -1.0;
             if (this.noiseC) outC = (outC === 1.0 && this.noiseOutput === 1.0) ? 1.0 : -1.0;
 
-            // Hardware Envelope Generator (HEG)
             this.envPhase += this.incEnv;
             let shape = this.regs[13] & 0x0F;
             let cycles = Math.floor(this.envPhase);
@@ -184,10 +186,8 @@ class YMProcessor extends AudioWorkletProcessor {
                 envVolRaw = up ? localPhase : (1.0 - localPhase);
             }
             
-            // Konvertiere die lineare HEG-Phase in den 16-stufigen Hardware-Wert
             let envVolIndex = Math.min(15, Math.max(0, Math.floor(envVolRaw * 15.99)));
 
-            // LOGARITHMISCHE DAC TABELLE ANWENDEN!
             let volA = (this.regs[8] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[8] & 0x0F];
             let volB = (this.regs[9] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[9] & 0x0F];
             let volC = (this.regs[10] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[10] & 0x0F];
@@ -203,16 +203,13 @@ class YMProcessor extends AudioWorkletProcessor {
                 }
             }
 
-            // Raw Mix
             let rawOutput = ((outA * volA) + (outB * volB) + (outC * volC) + digiSample) / 4.0;
 
-            // DC BLOCKER (Zentriert die Welle auf 0, entfernt "Lautsprecher-Knacken")
             this.lastOut = rawOutput - this.lastIn + 0.995 * this.lastOut;
             this.lastIn = rawOutput;
             
             let finalOutput = this.lastOut;
 
-            // Hard Limiter
             if (finalOutput > 1.0) finalOutput = 1.0;
             if (finalOutput < -1.0) finalOutput = -1.0;
 
@@ -225,7 +222,19 @@ class YMProcessor extends AudioWorkletProcessor {
         if (this.visCounter % 4 === 0) {
             let isAudible = Math.abs(currentVisualValue) > 0.001;
             if (isAudible || this.wasAudible) {
-                this.port.postMessage({ type: 'VISUAL_DATA', value: currentVisualValue, frame: this.currentFrame, regs: this.regs });
+                const view = this.visualView;
+                view[0] = 2; // System Flag: 2 = Atari ST
+                view[1] = this.isPlaying ? 1 : 0;
+                view[2] = this.currentFrame;
+                view[3] = currentVisualValue;
+
+                // Die 16 YM-Register befüllen
+                for (let r = 0; r < 16; r++) {
+                    view[4 + r] = this.regs[r];
+                }
+
+                // Senden ohne Transferables (Absolut robust und absturzsicher!)
+                this.port.postMessage(view);
             }
             this.wasAudible = isAudible;
         }

@@ -171,16 +171,59 @@ progressSlider.addEventListener('change', (e) => {
 });
 
 // ==========================================
-// 4. ASYNCHRONER WORKLET WORKER-DISPATCHER
+// 4. ASYNCHRONER WORKLET WORKER-DISPATCHER (Bulletproof Copy-Mode)
 // ==========================================
 function handleWorkletMessage(e) {
+    // --- 1. SCHNELLE, ZERO-ALLOCATION ABSPIEL-SCHLEIFE ---
+    if (e.data instanceof Float32Array) {
+        const view = e.data;
+        const systemId = view[0];
+        const isPlayingVal = view[1] === 1;
+        const frameVal = view[2];
+        currentOscValue = view[3];
+
+        if (!currentChipRegs) {
+            currentChipRegs = new Uint8Array(32);
+        }
+        
+        // NEU (Kopiert alle SID-Register vollständig und sicher!):
+        for (let i = 0; i < 32; i++) {
+            currentChipRegs[i] = view[4 + i];
+        }
+
+        previousFrame = lastKnownFrame;
+        lastKnownFrame = frameVal;
+
+        // Auto-Advance Playlist Logik
+        if (isPlaying && trackData.length > 0) {
+            if (previousFrame > trackData.length - 20 && lastKnownFrame < 10) {
+                if (performance.now() - lastTrackChangeTime > 2000) {
+                    lastTrackChangeTime = performance.now(); 
+                    
+                    if (activeSystem === 'c64' && trackData.isSidFile) {
+                        const totalSongs = trackData.metadata.songs || 1;
+                        if (currentSubsongIndex < totalSongs) {
+                            changeC64Subsong(currentSubsongIndex + 1);
+                            return; 
+                        }
+                    }
+
+                    let nextIdx = (currentTrackIndex + 1) % trackRegistry[activeSystem].length;
+                    console.log(`Track zu Ende! Wechsle automatisch zu Track ${nextIdx}...`);
+                    selectAndPlayTrack(nextIdx, activeSystem);
+                }
+            }
+        }
+        return; // Kein Recycling-Zwang mehr! Extrem stabil und narrensicher!
+    }
+
+    // --- 2. LEGACY FALLBACK PFAD (Atari & C64 Cores ohne Zero-Allocation) ---
     if (e.data.type === 'VISUAL_DATA') {
         currentOscValue = e.data.value;
         previousFrame = lastKnownFrame;
         lastKnownFrame = e.data.frame || 0; 
         currentChipRegs = e.data.regs; 
 
-        // AUTO-ADVANCE (Playlist Jukebox Modus)
         if (isPlaying && trackData.length > 0) {
             if (previousFrame > trackData.length - 20 && lastKnownFrame < 10) {
                 if (performance.now() - lastTrackChangeTime > 2000) {
@@ -202,7 +245,7 @@ function handleWorkletMessage(e) {
         }
     }
     
-    // Rote Digi-LED (Atari ST, Amiga, C64)
+    // Rote Digi-LED Steuerung
     if (e.data.type === 'DEBUG') {
         if (isEcoMode) return; 
 
@@ -470,7 +513,7 @@ async function selectAndPlayTrack(index, system) {
             : (isC64System ? "+++ DOWNLOADING AND PARSING BINARY C64 PSID FILE... +++" : "+++ DOWNLOADING AND PARSING BINARY YM FILE... +++");
         
         try {
-            let parsedFile = await selectedSong.loadAsync();
+let parsedFile = await selectedSong.loadAsync();
             
             if (isC64System) {
                 trackData = parsedFile; 
@@ -492,8 +535,13 @@ async function selectAndPlayTrack(index, system) {
                     subsongDisplay.innerText = "";
                 }
 
-                trackData = parsedFile.frames; 
-                trackData.digidrums = parsedFile.digidrums || [];
+                // === DYNAMISCHE STRUKTUR-WEICHE FÜR SEQUENCED TRACKS ===
+                if (parsedFile.isSequenced) {
+                    trackData = parsedFile; // Komplettes Tracker-Manifest übergeben
+                } else {
+                    trackData = parsedFile.frames; // Legacy 50Hz Frame Fallback (Hippel / Jester)
+                    trackData.digidrums = parsedFile.digidrums || [];
+                }
                 
                 if (isAmigaSystem) {
                     trackData.isAmigaFile = true; 

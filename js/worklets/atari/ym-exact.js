@@ -1,5 +1,7 @@
+// === js/worklets/atari/ym-exact.js ===
 // =========================================================
 // YM2149F CORE (CYCLE-EXACT, LOG-DAC, POLY-BLEP ANTI-ALIASING)
+// With Sub-Sample Accurate Phase & Envelope Alignment
 // =========================================================
 
 import { detectDigidrum } from '../lib/dsp-utils.js';
@@ -9,7 +11,6 @@ const YM_DAC = [
     0.1691, 0.2647, 0.3527, 0.4499, 0.5704, 0.6873, 0.8482, 1.0000
 ];
 
-// Anti-Aliasing Mathematik (Glättet die scharfen Kanten der digitalen Rechteckwelle)
 function polyBLEP(t, dt) {
     if (t < dt) {
         t /= dt;
@@ -35,7 +36,7 @@ class YMExactProcessor extends AudioWorkletProcessor {
         this.toneA = false; this.toneB = false; this.toneC = false;
         this.noiseA = false; this.noiseB = false; this.noiseC = false;
         
-        this.lastIn = 0; this.lastOut = 0; // DC Blocker
+        this.lastIn = 0; this.lastOut = 0; 
 
         this.digidrums = [];
         this.currentDigidrum = null;
@@ -46,11 +47,14 @@ class YMExactProcessor extends AudioWorkletProcessor {
         this.currentFrame = 0;
         this.sampleCounter = 0;
         this.isPlaying = false;
+
+        this.visualView = new Float32Array(40);
         
         this.port.onmessage = (event) => {
-            if (event.data.type === 'PLAY_TRACK') {
-                this.trackData = event.data.track;
-                this.digidrums = event.data.digidrums || []; 
+            const msg = event.data;
+            if (msg.type === 'PLAY_TRACK') {
+                this.trackData = msg.track;
+                this.digidrums = msg.digidrums || []; 
                 this.currentFrame = 0;
                 this.sampleCounter = 0;
                 this.currentDigidrum = null;
@@ -58,14 +62,14 @@ class YMExactProcessor extends AudioWorkletProcessor {
                 this.envPhase = 0;
                 this.isPlaying = true;
                 this.updateInternals(); 
-            } else if (event.data.type === 'STOP_TRACK') {
+            } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
-            } else if (event.data.type === 'RESUME_TRACK') {
+            } else if (msg.type === 'RESUME_TRACK') {
                 this.isPlaying = true; 
-            } else if (event.data.type === 'SEEK_TRACK') {
+            } else if (msg.type === 'SEEK_TRACK') {
                 if (this.trackData) {
-                    this.currentFrame = event.data.frame % this.trackData.length;
-                    this.currentDigidrum = null; // Verhindert das Hängenbleiben von Digidrum-Fragmenten
+                    this.currentFrame = msg.frame % this.trackData.length;
+                    this.currentDigidrum = null; 
                 }
             }
         };
@@ -76,7 +80,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
         let pB = ((this.regs[3] & 0x0F) << 8) | this.regs[2];
         let pC = ((this.regs[5] & 0x0F) << 8) | this.regs[4];
         
-        // BUGFIX: Periode 0 ist nicht 0 Hz, sondern entspricht der Periode 1 (Ultra-Hoch)!
         this.incA = (this.clock / (16 * (pA === 0 ? 1 : pA))) / sampleRate;
         this.incB = (this.clock / (16 * (pB === 0 ? 1 : pB))) / sampleRate;
         this.incC = (this.clock / (16 * (pC === 0 ? 1 : pC))) / sampleRate;
@@ -102,7 +105,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
         let currentVisualValue = 0;
 
         for (let i = 0; i < channelLeft.length; i++) {
-            
             if (!this.isPlaying) {
                 channelLeft[i] = 0; if (channelRight) channelRight[i] = 0;
                 continue; 
@@ -111,6 +113,8 @@ class YMExactProcessor extends AudioWorkletProcessor {
             if (this.isPlaying && this.trackData) {
                 this.sampleCounter--;
                 if (this.sampleCounter <= 0) {
+                    // === DETERMINISTISCHE SUB-SAMPLE PHASEN-KOMPENSATION ===
+                    const overshoot = -this.sampleCounter; // Fraktionaler Überhang in Samples
                     this.sampleCounter += sampleRate / 50.0; 
                     
                     let frame = this.trackData[this.currentFrame];
@@ -118,26 +122,33 @@ class YMExactProcessor extends AudioWorkletProcessor {
                         if (r === 13) {
                             if (frame[13] !== 0xFF) {
                                 this.regs[13] = frame[13];
-                                this.envPhase = 0.0; 
+                                // Hüllkurve exakt ab dem sub-sample-genauen Startpunkt triggern!
+                                this.envPhase = overshoot * this.incEnv; 
                             }
                         } else {
                             this.regs[r] = frame[r];
                         }
                     }
                     
-                    // Modularer Digidrum Catcher
                     let activeDigiTrigger = detectDigidrum(frame);
 
                     if (activeDigiTrigger > 0 && activeDigiTrigger !== this.lastDigiTrigger) {
                         if (this.digidrums[activeDigiTrigger - 1]) {
                             this.currentDigidrum = this.digidrums[activeDigiTrigger - 1];
-                            this.digiPos = 0;
+                            // Digidrum-Startpunkt sub-sample-genau kompensieren!
+                            this.digiPos = overshoot * (7812.5 / sampleRate);
                             this.port.postMessage({ type: 'DEBUG', msg: 'Drum ' + activeDigiTrigger });
                         }
                     }
                     this.lastDigiTrigger = activeDigiTrigger;
                     
                     this.updateInternals();
+
+                    // Oszillatoren sub-sample-genau an der Rhythmus-Achse ausrichten!
+                    this.phaseA = (this.phaseA + overshoot * this.incA) % 1.0;
+                    this.phaseB = (this.phaseB + overshoot * this.incB) % 1.0;
+                    this.phaseC = (this.phaseC + overshoot * this.incC) % 1.0;
+
                     this.currentFrame = (this.currentFrame + 1) % this.trackData.length;
                 }
             }
@@ -154,8 +165,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
                 this.noiseOutput = (this.noiseLfsr & 1) ? 1.0 : -1.0;
             }
 
-            // --- POLY-BLEP ANTI-ALIASING ---
-            // Anstatt einer harten Kante generieren wir eine glatte Kante. Das killt hohe Störtöne!
             let sqA = (this.phaseA < 0.5 ? 1.0 : -1.0) + polyBLEP(this.phaseA, this.incA) - polyBLEP((this.phaseA + 0.5) % 1.0, this.incA);
             let sqB = (this.phaseB < 0.5 ? 1.0 : -1.0) + polyBLEP(this.phaseB, this.incB) - polyBLEP((this.phaseB + 0.5) % 1.0, this.incB);
             let sqC = (this.phaseC < 0.5 ? 1.0 : -1.0) + polyBLEP(this.phaseC, this.incC) - polyBLEP((this.phaseC + 0.5) % 1.0, this.incC);
@@ -209,7 +218,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
 
             let rawOutput = ((outA * volA) + (outB * volB) + (outC * volC) + digiSample) / 4.0;
 
-            // DC BLOCKER
             this.lastOut = rawOutput - this.lastIn + 0.995 * this.lastOut;
             this.lastIn = rawOutput;
             
@@ -226,7 +234,17 @@ class YMExactProcessor extends AudioWorkletProcessor {
         if (this.visCounter % 4 === 0) {
             let isAudible = Math.abs(currentVisualValue) > 0.001;
             if (isAudible || this.wasAudible) {
-                this.port.postMessage({ type: 'VISUAL_DATA', value: currentVisualValue, frame: this.currentFrame, regs: this.regs });
+                const view = this.visualView;
+                view[0] = 2; 
+                view[1] = this.isPlaying ? 1 : 0;
+                view[2] = this.currentFrame;
+                view[3] = currentVisualValue;
+
+                for (let r = 0; r < 16; r++) {
+                    view[4 + r] = this.regs[r];
+                }
+
+                this.port.postMessage(view);
             }
             this.wasAudible = isAudible;
         }

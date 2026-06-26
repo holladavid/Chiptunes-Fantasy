@@ -1,3 +1,9 @@
+// === js/worklets/atari/ym-fantasy.js ===
+// =========================================================
+// YM2149F CORE (CHIPTUNES FANTASY EDITION)
+// With Sub-Sample Accurate Phase & Envelope Alignment
+// =========================================================
+
 import { YM_DAC, polyBLEP, cubicInterpolate, FourPoleFilter, MoogFilter, DCBlocker, detectDigidrum, detectDigidrumVoice } from '../lib/dsp-utils.js';
 import { DynamicStaging } from '../lib/dynamic-staging.js';
 
@@ -8,14 +14,12 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
         this.regs = new Uint8Array(16); 
         this.phaseA = 0; this.phaseB1 = 0; this.phaseB2 = 0; this.phaseC = 0;
         
-        // Sub-Oszillator Phasen (genau eine Oktave unter der Grundwelle f/2)
         this.subPhaseA = 0; this.subPhaseB = 0; this.subPhaseC = 0;
 
         this.lfoPhase1 = 0.0; 
         this.noiseLfsr = 1; this.noisePhase = 0; this.noiseOutput = 1;
         this.envPhase = 0.0;
         
-        // Modulare DSP Pipeline Instanzen
         this.stager = new DynamicStaging();
         
         this.filterA = new FourPoleFilter();
@@ -25,7 +29,6 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
         this.noiseHp = new MoogFilter(); 
         this.noiseLp1 = new MoogFilter(); this.noiseLp2 = new MoogFilter(); 
         
-        // Highpass-Filter für den HF-Exciter des Digidrum-Kanals
         this.drumHp = new MoogFilter();
         
         this.dcBlockL = new DCBlocker();
@@ -35,27 +38,30 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
         this.delayMask = 131071; this.delayIdx = 0; this.delayTime = 0; 
         this.delayLpL = 0; this.delayLpR = 0; this.delayHpL = 0; this.delayHpR = 0;
         
-        // True Voltage Slews
         this.smoothVoltA = 0; this.smoothVoltB = 0; this.smoothVoltC = 0;
         this.sidechainEnv = 1.0; 
 
         this.digidrums = []; this.currentDigidrum = null; this.digiPos = 0; this.lastDigiTrigger = 0;
-        this.currentDrumVoice = 0; // Speichert den triggernden Kanal des aktuellen Samples
+        this.currentDrumVoice = 0; 
         this.trackData = null; this.currentFrame = 0; this.sampleCounter = 0; this.isPlaying = false;
+
+        // Visualizer Zero-Allocation Ring Buffer (40 Floats * 4 Bytes = 160 Bytes)
+        this.visualView = new Float32Array(40);
         
         this.port.onmessage = (event) => {
-            if (event.data.type === 'PLAY_TRACK') {
-                this.trackData = event.data.track;
-                this.digidrums = event.data.digidrums || []; 
+            const msg = event.data;
+            if (msg.type === 'PLAY_TRACK') {
+                this.trackData = msg.track;
+                this.digidrums = msg.digidrums || []; 
                 this.currentFrame = 0; this.sampleCounter = 0; this.currentDigidrum = null;
                 this.lastDigiTrigger = 0; this.envPhase = 0; this.isPlaying = true;
-            } else if (event.data.type === 'STOP_TRACK') this.isPlaying = false;
-            else if (event.data.type === 'RESUME_TRACK') {
+            } else if (msg.type === 'STOP_TRACK') this.isPlaying = false;
+            else if (msg.type === 'RESUME_TRACK') {
                 this.isPlaying = true; 
-            } else if (event.data.type === 'SEEK_TRACK') {
+            } else if (msg.type === 'SEEK_TRACK') {
                 if (this.trackData) {
-                    this.currentFrame = event.data.frame % this.trackData.length;
-                    this.currentDigidrum = null; // Verhindert das Hängenbleiben von Digidrum-Fragmenten
+                    this.currentFrame = msg.frame % this.trackData.length;
+                    this.currentDigidrum = null; 
                 }
             }
         };
@@ -76,31 +82,60 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             if (this.isPlaying && this.trackData) {
                 this.sampleCounter--;
                 if (this.sampleCounter <= 0) {
+                    // === DETERMINISTISCHE SUB-SAMPLE PHASEN-KOMPENSATION ===
+                    const overshoot = -this.sampleCounter;
                     this.sampleCounter += sampleRate / 50.0; 
+                    
                     let frame = this.trackData[this.currentFrame];
                     for(let r=0; r<16; r++) {
-                        if (r === 13) { if (frame[13] !== 0xFF) { this.regs[13] = frame[13]; this.envPhase = 0.0; } } 
-                        else this.regs[r] = frame[r];
+                        if (r === 13) { 
+                            if (frame[13] !== 0xFF) { 
+                                this.regs[13] = frame[13]; 
+                                let pE = (this.regs[12] << 8) | this.regs[11];
+                                let incEnv = (2000000 / (256 * (pE === 0 ? 1 : pE))) / sampleRate;
+                                // Hüllkurve phasenkompensieren
+                                this.envPhase = overshoot * incEnv; 
+                            } 
+                        } else {
+                            this.regs[r] = frame[r];
+                        }
                     }
                     
-                    // Modularer Digidrum Catcher
                     let activeDigiTrigger = detectDigidrum(frame);
                     let activeDigiVoice = detectDigidrumVoice(frame);
 
                     if (activeDigiTrigger > 0 && activeDigiTrigger !== this.lastDigiTrigger) {
                         if (this.digidrums[activeDigiTrigger - 1]) {
                             this.currentDigidrum = this.digidrums[activeDigiTrigger - 1];
-                            this.digiPos = 0;
+                            // Startpunkt Digidrums kompensieren
+                            this.digiPos = overshoot * (7812.5 / sampleRate);
                             this.sidechainEnv = 0.45; 
                             this.port.postMessage({ type: 'DEBUG', msg: 'Drum ' + activeDigiTrigger });
                         }
                     }
                     this.lastDigiTrigger = activeDigiTrigger;
 
-                    // Trigger-Kanal für die Dynamic-Staging-Schleife erfassen
                     if (activeDigiTrigger > 0) {
                         this.currentDrumVoice = activeDigiVoice;
                     }
+
+                    // Frequenzen & Phasen der Oszillatoren mit Overshoot kompensieren
+                    let pA = ((this.regs[1] & 0x0F) << 8) | this.regs[0];
+                    let pB = ((this.regs[3] & 0x0F) << 8) | this.regs[2];
+                    let pC = ((this.regs[5] & 0x0F) << 8) | this.regs[4];
+                    
+                    let incA = (2000000 / (16 * (pA === 0 ? 1 : pA))) / sampleRate;
+                    let incB = (2000000 / (16 * (pB === 0 ? 1 : pB))) / sampleRate;
+                    let incC = (2000000 / (16 * (pC === 0 ? 1 : pC))) / sampleRate;
+
+                    this.phaseA = (this.phaseA + overshoot * incA) % 1.0;
+                    this.phaseB1 = (this.phaseB1 + overshoot * incB) % 1.0;
+                    this.phaseB2 = (this.phaseB2 + overshoot * (incB * 1.003)) % 1.0; 
+                    this.phaseC = (this.phaseC + overshoot * incC) % 1.0;
+                    
+                    this.subPhaseA = (this.subPhaseA + overshoot * (incA * 0.5)) % 1.0;
+                    this.subPhaseB = (this.subPhaseB + overshoot * (incB * 0.5)) % 1.0;
+                    this.subPhaseC = (this.subPhaseC + overshoot * (incC * 0.5)) % 1.0;
 
                     this.currentFrame = (this.currentFrame + 1) % this.trackData.length;
                 }
@@ -121,7 +156,6 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             this.phaseB2 = (this.phaseB2 + incB * 1.003) % 1.0; 
             this.phaseC = (this.phaseC + incC) % 1.0;
             
-            // Sub-Phasen-Inkrementierung (genau halbe Frequenz für ein fettes Bassfundament)
             this.subPhaseA = (this.subPhaseA + incA * 0.5) % 1.0;
             this.subPhaseB = (this.subPhaseB + incB * 0.5) % 1.0;
             this.subPhaseC = (this.subPhaseC + incC * 0.5) % 1.0;
@@ -132,21 +166,17 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             let tA = (mix & 0x01) === 0; let tB = (mix & 0x02) === 0; let tC = (mix & 0x04) === 0;
             let nA = (mix & 0x08) === 0; let nB = (mix & 0x10) === 0; let nC = (mix & 0x20) === 0;
 
-            // Reset des Trigger-Kanals, sobald die Wiedergabe des Samples endet
             if (!this.currentDigidrum) {
                 this.currentDrumVoice = 0;
             }
 
-            // --- EXTERNES DYNAMIC STAGING ---
             let stage = this.stager.update(pA, pB, pC, nA, nB, nC, 0.002, this.currentDrumVoice);
 
-            // Channel A: Square + Fundamental Sine + Sub-Oktav-Generator
             let sqA = (this.phaseA < 0.5 ? 1.0 : -1.0) + polyBLEP(this.phaseA, incA) - polyBLEP((this.phaseA + 0.5) % 1.0, incA);
             let sFundA = Math.sin(this.phaseA * 2.0 * Math.PI); 
             let sSubA = Math.sin(this.subPhaseA * 2.0 * Math.PI);
             let sigA = tA ? (sqA * (1.0 - stage.A.sub*0.4) + sFundA * stage.A.sub * 1.0 + sSubA * stage.A.sub * 0.7) : 0.0; 
 
-            // Channel B: Detuned Dual-Sawtooth + Sub-Oktav-Generator (Supersaw)
             let sawB1 = ((this.phaseB1 * 2.0) - 1.0) - polyBLEP(this.phaseB1, incB);
             let sawB2 = ((this.phaseB2 * 2.0) - 1.0) - polyBLEP(this.phaseB2, incB * 1.003);
             let sFundB = Math.sin(this.phaseB1 * 2.0 * Math.PI);
@@ -154,7 +184,6 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             let sigB_L = tB ? (sawB1 * (1.0 - stage.B.sub*0.4) + sFundB * stage.B.sub * 1.0 + sSubB * stage.B.sub * 0.7) : 0.0;
             let sigB_R = tB ? (sawB2 * (1.0 - stage.B.sub*0.4) + sFundB * stage.B.sub * 1.0 + sSubB * stage.B.sub * 0.7) : 0.0;
 
-            // Channel C: PWM-Wellen + Sub-Oktav-Generator
             let pwmWidth = Math.sin(this.lfoPhase1 * 2.0 * Math.PI) * 0.3 + 0.5;
             let pwmC = (this.phaseC < pwmWidth ? 1.0 : -1.0) + polyBLEP(this.phaseC, incC) - polyBLEP((this.phaseC + pwmWidth) % 1.0, incC);
             let sFundC = Math.sin(this.phaseC * 2.0 * Math.PI);
@@ -162,7 +191,6 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             let sigC_L = tC ? (pwmC * (1.0 - stage.C.sub*0.4) + sFundC * stage.C.sub * 1.0 + sSubC * stage.C.sub * 0.7) : 0.0;
             let sigC_R = sigC_L;
 
-            // Rausch-Generierung
             this.noisePhase += (2000000 / (16 * ((this.regs[6] & 0x1F) === 0 ? 1 : (this.regs[6] & 0x1F)))) / sampleRate;
             if (this.noisePhase >= 1.0) {
                 this.noisePhase %= 1.0;
@@ -224,7 +252,6 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             let cutB = 250 + sweepB * (12000 - stage.B.sub * 10000);
             let cutC = 250 + sweepC * (12000 - stage.C.sub * 10000);
 
-            // Filter Drive (Kaskaden-Sättigung)
             let driveA = 1.0 + sweepA * 0.4;
             let drivenA = Math.tanh(sigA * driveA) / driveA;
             sigA = this.filterA.process(drivenA, cutA, 0.45 - stage.A.sub*0.35, sampleRate);
@@ -245,7 +272,6 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             let volB = this.smoothVoltB;
             let volC = this.smoothVoltC;
 
-            // --- CUBIC PCM MIT HIGH-FREQUENCY EXCITER ---
             let digiSample = 0;
             if (this.currentDigidrum) {
                 let posInt = Math.floor(this.digiPos);
@@ -265,7 +291,6 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
                 }
             }
 
-            // --- GAIN STAGING & DYNAMIC PANNING ---
             let lvlA_L = sigA * volA * this.sidechainEnv * 0.18;
             let lvlA_R = sigA * volA * this.sidechainEnv * 0.18;
             let lvlB_L = sigB_L * volB * this.sidechainEnv * 0.18;
@@ -273,7 +298,6 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             let lvlC_L = sigC_L * volC * this.sidechainEnv * 0.18;
             let lvlC_R = sigC_R * volC * this.sidechainEnv * 0.18;
 
-            // Dynamisches Drum-Staging anwenden
             let lvlD = digiSample * stage.drums.gain;
 
             let epL_A = Math.cos(stage.A.pan * Math.PI * 0.5); let epR_A = Math.sin(stage.A.pan * Math.PI * 0.5);
@@ -300,7 +324,6 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             let finalL = mixL + this.delayLpL * 0.6; 
             let finalR = mixR + this.delayLpR * 0.6;
 
-            // Reverb-Mischmatrix für alle Quellen (einschließlich Drums)
             let revL = (lvlA_L * epL_A * stage.A.rev) + (lvlB_L * epL_B * stage.B.rev) + (lvlC_L * epL_C * stage.C.rev) + (lvlD * epL_D * stage.drums.rev);
             let revR = (lvlA_R * epR_A * stage.A.rev) + (lvlB_R * epR_B * stage.B.rev) + (lvlC_R * epR_C * stage.C.rev) + (lvlD * epR_D * stage.drums.rev);
 
@@ -311,7 +334,6 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             finalL = (Math.tanh(finalL * 2.8) / 1.1) * 0.95;
             finalR = (Math.tanh(finalR * 2.8) / 1.1) * 0.95;
 
-            // DC Blocker via externes Modul
             let dcL = this.dcBlockL.process(finalL);
             let dcR = this.dcBlockR.process(finalR);
 
@@ -324,7 +346,17 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
         if (this.visCounter % 4 === 0) {
             let isAudible = Math.abs(currentVisualValue) > 0.001;
             if (isAudible || this.wasAudible) {
-                this.port.postMessage({ type: 'VISUAL_DATA', value: currentVisualValue, frame: this.currentFrame, regs: this.regs });
+                const view = this.visualView;
+                view[0] = 2; // System Flag: 2 = Atari ST
+                view[1] = this.isPlaying ? 1 : 0;
+                view[2] = this.currentFrame;
+                view[3] = currentVisualValue;
+
+                for (let r = 0; r < 16; r++) {
+                    view[4 + r] = this.regs[r];
+                }
+
+                this.port.postMessage(view);
             }
             this.wasAudible = isAudible;
         }

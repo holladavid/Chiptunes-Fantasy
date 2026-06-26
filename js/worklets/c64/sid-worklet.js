@@ -1,6 +1,7 @@
+// === js/worklets/c64/sid-worklet.js ===
 // =========================================================
 // MOS TECHNOLOGY SID 6581 AUDIO WORKLET PROCESSOR
-// Dynamic CIA Speed & IRQ Controller
+// With Safe-Cloned Zero-Allocation View & Sub-Sample Phase Alignment
 // =========================================================
 
 import { CPU6502 } from '../lib/cpu6502.js';
@@ -23,6 +24,9 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.useCiaTimer = false; 
         this.isIrqRoutine = false; 
 
+        // Visualizer Zero-Allocation Buffer (Safe Clone)
+        this.visualView = new Float32Array(40);
+
         this.port.onmessage = (e) => {
             const msg = e.data;
             if (msg.isSidFile) {
@@ -36,10 +40,9 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.y = 0;
                 this.cpu.p &= ~1;
                 
-                // PSID Speed-Flag für diesen Subsong auslesen (0 = VBLANK 50Hz, 1 = CIA)
                 this.useCiaTimer = ((msg.speed >> songIndex) & 1) !== 0;
 
-                this.cpu.jsr(this.initAddress); // 6502 Initialisierung aufrufen
+                this.cpu.jsr(this.initAddress); 
                 
                 this.isIrqRoutine = false;
 
@@ -100,19 +103,18 @@ class SIDProcessor extends AudioWorkletProcessor {
                 continue; 
             }
             
-            // --- C64 CPU & SID RUNTIME ---
             if (this.isPlaying && this.playAddress > 0) {
                 this.sampleCounter--;
                 if (this.sampleCounter <= 0) {
+                    // === DETERMINISTISCHE SUB-SAMPLE PHASEN-KOMPENSATION ===
+                    const overshoot = -this.sampleCounter;
+
+                    let hz = 50.0; 
                     
-                    let hz = 50.0; // Standard PAL VBLANK
-                    
-                    // Korrekte Taktung: CIA-Timer NUR nutzen, wenn das PSID-Speed-Flag es explizit vorschreibt!
                     if (this.useCiaTimer && this.cpu.ciaTimerA > 0) {
                         hz = this.clock / this.cpu.ciaTimerA;
                     }
 
-                    // Begrenzung um extreme Frequenzen abzufedern (min 10Hz, max 1000Hz)
                     if (hz < 10) hz = 10;
                     if (hz > 1000) hz = 1000;
                     
@@ -124,6 +126,16 @@ class SIDProcessor extends AudioWorkletProcessor {
                         this.cpu.irq(this.playAddress);
                     } else {
                         this.cpu.jsr(this.playAddress);
+                    }
+
+                    // Die Phasen-Akkumulatoren des SIDs sub-sample-genau ausrichten!
+                    // Dies kompensiert Jitter, der entsteht, wenn die 6502-CPU einen Oszillator via Test-Bit resetet.
+                    for (let v = 0; v < 3; v++) {
+                        let ch = this.sid.voices[v];
+                        if (ch.freq > 0) {
+                            let phaseInc = ((ch.freq * this.clock) / 16777216.0) / sampleRate;
+                            ch.phase = (ch.phase + overshoot * phaseInc) % 1.0;
+                        }
                     }
                     
                     this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
@@ -162,13 +174,23 @@ class SIDProcessor extends AudioWorkletProcessor {
             if (i === 0) visualValue = finalOut;
         }
 
-        // --- AKKURATE REGISTER-RÜCKMELDUNG INS HUD ---
         this.visCounter = (this.visCounter || 0) + 1;
         if (this.visCounter % 4 === 0) {
             let isAudible = Math.abs(visualValue) > 0.001;
             if (isAudible || this.wasAudible) {
-                // Sende die Register an das HUD
-                this.port.postMessage({ type: 'VISUAL_DATA', value: visualValue, frame: this.currentFrame, regs: this.sid.regs });
+                const view = this.visualView;
+                view[0] = 0; // System Flag: 0 = C64 (SID)
+                view[1] = this.isPlaying ? 1 : 0;
+                view[2] = this.currentFrame;
+                view[3] = visualValue;
+
+                // Die 29 SID-Register in den Puffer kopieren
+                for (let r = 0; r < 29; r++) {
+                    view[4 + r] = this.sid.regs[r];
+                }
+
+                // Absolut stabiles Senden ohne Entwertung
+                this.port.postMessage(view);
             }
             this.wasAudible = isAudible;
         }
