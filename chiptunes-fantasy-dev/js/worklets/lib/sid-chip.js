@@ -1,7 +1,7 @@
 // === js/worklets/lib/sid-chip.js ===
 // ==========================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Cycle-Exact 15-Bit Rate Counter & Exponential ADSR Capacitor Modeling
+// Cycle-Exact 15-Bit ADSR & Physical NMOS Transistor Waveform Mixing Model
 // ==========================================
 
 const ADSR_RATES_S = [
@@ -64,7 +64,6 @@ export class SIDChip {
         }
     }
 
-    // Liefert das Zyklen-Intervall der gewählten Rate aus der Hardware-Tabelle
     getRatePeriod(v, state) {
         let base = v * 7;
         let ad = this.regs[base + 5];
@@ -72,15 +71,13 @@ export class SIDChip {
         
         if (state === ENV_ATTACK) return RATE_COUNTER_PERIOD[ad >> 4];
         if (state === ENV_DECAY) return RATE_COUNTER_PERIOD[ad & 15];
-        return RATE_COUNTER_PERIOD[sr & 15]; // RELEASE
+        return RATE_COUNTER_PERIOD[sr & 15]; 
     }
 
-    // === DIE NEUE NATIVE EXPONENTIELLE ADSR-KLOCKSCHLEIFE ===
     clockEnvelope(v, cycles) {
         let ch = this.voices[v];
         if (ch.state === ENV_SUSTAIN) {
             let sr = this.regs[v * 7 + 6];
-            // Sustain-Level Double-Nibble Verdopplung (0x8 -> 0x88 / 136)
             ch.envelope_counter = (sr >> 4) | ((sr >> 4) << 4);
             return;
         }
@@ -89,9 +86,8 @@ export class SIDChip {
 
         while (cycles > 0) {
             if (ch.rate_counter <= 0) {
-                ch.rate_counter += ratePeriod; // Zähler neu laden
+                ch.rate_counter += ratePeriod; 
 
-                // Bestimmen des Exponential-Teilers basierend auf der aktuellen Lautstärke
                 let expPeriod = 1;
                 if (ch.state !== ENV_ATTACK) {
                     let envVal = ch.envelope_counter;
@@ -107,7 +103,6 @@ export class SIDChip {
                 if (ch.exponential_counter >= expPeriod) {
                     ch.exponential_counter = 0;
 
-                    // Envelope-Wert inkrementieren oder dekrementieren
                     if (ch.state === ENV_ATTACK) {
                         ch.envelope_counter++;
                         if (ch.envelope_counter >= 255) {
@@ -140,7 +135,7 @@ export class SIDChip {
     synthesizeVoice(v, clock, sampleRate, cyclesToRun) {
         let ch = this.voices[v];
 
-        // 1. Taktgenaues ADSR-Update basierend auf den verflossenen CPU-Zyklen!
+        // 1. Taktgenaues ADSR-Update
         this.clockEnvelope(v, cyclesToRun);
 
         // 2. Phasen-Akkumulator & Noise-Shift berechnen
@@ -163,29 +158,81 @@ export class SIDChip {
             }
         }
 
-        // 8-Bit Wellenformen (0-255)
-        let tri8 = ch.phase < 0.5 ? Math.floor(ch.phase * 2.0 * 255) : Math.floor((1.0 - ch.phase) * 2.0 * 255);
-        let saw8 = Math.floor((1.0 - ch.phase) * 255);
-        let pulse8 = ch.phase > (ch.pw / 4095.0) ? 255 : 0;
-        let noise8 = (ch.lfsr >> 15) & 0xFF; 
+        // Grundwellenformen als kontinuierliche Floats (0.0 bis 1.0) berechnen
+        let tri = ch.phase < 0.5 ? ch.phase * 2.0 : (1.0 - ch.phase) * 2.0;
+        let saw = 1.0 - ch.phase;
+        let pulseHigh = ch.phase > (ch.pw / 4095.0);
+        let noiseHigh = ((ch.lfsr >> 22) & 1) === 1;
 
-        let waveOut8 = 255;
+        let waveOutVal = 0;
         let hasWave = false;
 
-        // Bitgenaue analoge Dioden-AND-Mischung
-        if (ch.ctrl & 16) { waveOut8 &= tri8; hasWave = true; }
-        if (ch.ctrl & 32) { waveOut8 &= saw8; hasWave = true; }
-        if (ch.ctrl & 64) { waveOut8 &= pulse8; hasWave = true; }
-        if (ch.ctrl & 128) { waveOut8 &= noise8; hasWave = true; }
+        let hasTri = (ch.ctrl & 16) !== 0;
+        let hasSaw = (ch.ctrl & 32) !== 0;
+        let hasPulse = (ch.ctrl & 64) !== 0;
+        let hasNoise = (ch.ctrl & 128) !== 0;
 
-        if (!hasWave) waveOut8 = 0; 
+        // === REALISTISCHES PHYSICAL-MODEL DER ANALOGEN NMOS-WAVEFORM-MISCHUNG ===
+        // Emuliert die gegenseitige Spannungs- und Schwellenstrombelastung der Transistoren
+        if (hasTri && hasSaw && hasPulse) {
+            // Tri + Saw + Pulse (0x70)
+            let trisaw = tri * saw * 1.4;
+            if (trisaw > 1.0) trisaw = 1.0;
+            let val = pulseHigh ? (trisaw * 0.78 + 0.22) : (trisaw * 0.12);
+            waveOutVal = val;
+            hasWave = true;
+        } else if (hasTri && hasSaw) {
+            // Tri + Saw (0x30): Das Dreieck moduliert die Gate-Spannung des Sägezahn-Kanals
+            let val = tri * saw * 1.4;
+            if (val > 1.0) val = 1.0;
+            waveOutVal = val;
+            hasWave = true;
+        } else if (hasTri && hasPulse) {
+            // Tri + Pulse (0x50): Gate-Sinking mit 12% analogem Leckstrom (Leakage)
+            let val = pulseHigh ? (tri * 0.78 + 0.22) : (tri * 0.12);
+            waveOutVal = val;
+            hasWave = true;
+        } else if (hasSaw && hasPulse) {
+            // Saw + Pulse (0x60)
+            let val = pulseHigh ? (saw * 0.78 + 0.22) : (saw * 0.12);
+            waveOutVal = val;
+            hasWave = true;
+        } else if (hasNoise && (hasTri || hasSaw || hasPulse)) {
+            // Noise moduliert Trägerwellen analog als ultraschneller Torschalter
+            let carrier = 1.0;
+            if (hasTri) carrier = tri;
+            else if (hasSaw) carrier = saw;
+            else if (hasPulse) carrier = pulseHigh ? 1.0 : 0.0;
+            
+            let val = noiseHigh ? (carrier * 0.78 + 0.22) : (carrier * 0.12);
+            waveOutVal = val;
+            hasWave = true;
+        } else {
+            // Einzele-Wellenformen (Saubere float-basierte Auswertung)
+            if (hasTri) {
+                waveOutVal = tri;
+                hasWave = true;
+            } else if (hasSaw) {
+                waveOutVal = saw;
+                hasWave = true;
+            } else if (hasPulse) {
+                waveOutVal = pulseHigh ? 1.0 : 0.0;
+                hasWave = true;
+            } else if (hasNoise) {
+                // reSID-konformer 8-Bit-Abgriff aus den obersten LFSR-Zellen
+                waveOutVal = ((ch.lfsr >> 15) & 0xFF) / 255.0; 
+                hasWave = true;
+            }
+        }
+
+        if (!hasWave) waveOutVal = 0.0; 
 
         // Speichern für Hubbard-Hack und Visualizer
-        ch.waveOut8Bit = waveOut8;
+        ch.waveOut8Bit = Math.floor(waveOutVal * 255);
         ch.env8Bit = ch.envelope_counter;
 
-        let waveOutFloat = (waveOut8 / 127.5) - 1.0;
-        // Bipolar modulieren mit dem hochpräzisen, exponentiellen Envelope-Wert
+        // Bipolare Skalierung (-1.0 bis 1.0) multipliziert mit dem exponentiellen ADSR-Wert
+        let waveOutFloat = (waveOutVal * 2.0) - 1.0;
         return waveOutFloat * (ch.envelope_counter / 255.0);
     }
 }

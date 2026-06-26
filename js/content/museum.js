@@ -1,3 +1,4 @@
+// === js/content/museum.js ===
 // ==========================================
 // DAS DIGITALE MUSEUM (Texte & Handbücher)
 // ==========================================
@@ -7,6 +8,10 @@ c64: `
         <div style="border-left: 4px solid var(--text-color); padding: 10px 15px; margin-bottom: 15px; background: rgba(0,0,0,0.2); line-height: 1.6;">
             <h3 style="color: var(--highlight-color); margin-bottom: 5px;">[ DEEP DIVE: MOS TECHNOLOGY SID 6581 ]</h3>
             <p>Der Sound Interface Device (SID), 1981 von Bob Yannes entworfen, ist ein analoger subtraktiver Synthesizer auf einem einzigen Silizium-Chip. Er besitzt 3 Oszillatoren (Sägezahn, Dreieck, Rechteck, Rauschen), individuelle ADSR-Generatoren und ein analoges Multimode-Filter.</p>
+
+            <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> THERMAL CUTOFF DRIFT (DIE HITZE DES C64)</h4>
+            <p>Der analoge Filter des MOS 6581 war extrem temperaturempfindlich. Wenn der C64 lief, heizte sich der Chip im Gehäuse massiv auf, was den Widerstand der internen FET-Transistoren veränderte. Das Resultat: Die Grenzfrequenz (Cutoff) des Filters rutschte ab. Ein Track, den Rob Hubbard nach 5 Stunden an einem heißen Sommernachmittag perfekt und "cremig" abgemischt hatte, klang am nächsten Morgen im eiskalten Studio plötzlich viel zu schrill und beißend!</p>
+            <p style="margin-top: 5px;"><strong>Mit dem <em>TEMP</em>-Regler</strong> kannst du genau dieses Klima nun selbst steuern. Zieh ihn auf eiskalte <strong>15°C</strong> für brillante, aggressiv schneidende Höhen, oder auf glühende <strong>75°C</strong> für den legendären, warm-sättigenden und dumpfen Sound. Was damals der Albtraum für C64-Coder war, ist heute dein Spielplatz.</p>
 
             <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> DER HUBBARD'SCHE RAUSCH-ZUFALLS-HACK ($D41B)</h4>
             <p>Rob Hubbard (Komponist von <em>Commando</em> und <em>Delta</em>) stand vor dem Problem, dass der C64 keinen mathematischen Zufallsgenerator besitzt, um dynamische Snare-Drums und Hi-Hats zu berechnen. Seine geniale Lösung: Er schaltete Oszillator 3 auf Rauschen und las in seiner Play-Routine kontinuierlich das Hardware-Register <strong>$D41B (Voice 3 Waveform Output)</strong> aus. Die fluktuierenden Rohdaten nutzte er direkt als Hardware-Zufallszahlen für seine peitschenden Percussions!</p>

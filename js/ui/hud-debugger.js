@@ -1,10 +1,8 @@
+// === js/ui/hud-debugger.js ===
 // =========================================================
 // HIGH-PERFORMANCE DSP REGISTER HUD & ANALYZER MODULE
-// ES6 Modular Architecture - JIT-Safe Sparkline Rendering
 // =========================================================
 
-// --- YM2149 NOISE FREQUENCY LOOKUP TABLE (2 MHz Clock) ---
-// Aus app.js ausgelagert, um globale Hardware-Konstanten sauber zu kapseln
 const NOISE_LUT_HZ = [
     125000, 125000,  62500,  41667,  31250,  25000,  20833,  17857,
      15625,  13889,  12500,  11364,  10417,   9615,   8929,   8333,
@@ -12,22 +10,16 @@ const NOISE_LUT_HZ = [
       5208,   5000,   4808,   4630,   4464,   4310,   4167,   4032
 ];
 
-// --- INTERNER MODUL-STATUS ---
 let cachedSystem = null; 
 let hudValElements = [];
 
-// Historien-Speicher für die Frequenz-Liniendiagramme (ca. 4-5 Sekunden Historie)
 const HIST_LEN = 60; 
 const pitchHistA = new Float32Array(HIST_LEN);
 const pitchHistB = new Float32Array(HIST_LEN);
 const pitchHistC = new Float32Array(HIST_LEN);
-const pitchHistD = new Float32Array(HIST_LEN); // Exklusiv für Amiga Paula CH 3 (DMA 3)
+const pitchHistD = new Float32Array(HIST_LEN); 
 let histIdx = 0;
 
-/**
- * Resettet die historischen Frequenzpuffer und Cache-Variablen.
- * Wird beim Track-Wechsel oder System-Reset aufgerufen.
- */
 export function resetHUD() {
     pitchHistA.fill(0);
     pitchHistB.fill(0);
@@ -38,9 +30,6 @@ export function resetHUD() {
     hudValElements = [];
 }
 
-/**
- * Zeichnet eine sachte Frequenz-Sparkline in ein Mini-Canvas.
- */
 function drawSparkline(canvasId, historyArr, headIdx, color) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
@@ -51,7 +40,6 @@ function drawSparkline(canvasId, historyArr, headIdx, color) {
     ctx.strokeStyle = color;
     ctx.lineWidth = 1.5;
 
-    // Dynamische vertikale Skalierung auf Basis der Min/Max Frequenzen im Puffer
     let maxVal = 10;
     let minVal = 99999;
     for (let i = 0; i < HIST_LEN; i++) {
@@ -60,7 +48,7 @@ function drawSparkline(canvasId, historyArr, headIdx, color) {
     }
     if (minVal === 99999) minVal = 0;
     let range = maxVal - minVal;
-    if (range < 100) range = 100; // Mindestzoom, damit Stille nicht flackert
+    if (range < 100) range = 100; 
 
     for (let i = 0; i < HIST_LEN; i++) {
         let actualIdx = (headIdx + i) % HIST_LEN;
@@ -76,7 +64,6 @@ function drawSparkline(canvasId, historyArr, headIdx, color) {
     ctx.stroke();
 }
 
-// --- ATARI ST KANAL ROW GENERATOR ---
 function makeAtariChannelRow(ch, pitchId, volId, hegId, digiId) {
     let digiHtml = digiId ? `
         <div class="hud-row">
@@ -104,7 +91,6 @@ function makeAtariChannelRow(ch, pitchId, volId, hegId, digiId) {
     `;
 }
 
-// --- C64 SID KANAL ROW GENERATOR ---
 function makeC64ChannelRow(ch, id) {
     return `
         <div class="hud-channel">
@@ -135,7 +121,6 @@ function makeC64ChannelRow(ch, id) {
     `;
 }
 
-// --- AMIGA PAULA KANAL ROW GENERATOR ---
 function makeAmigaChannelRow(ch, pan) {
     return `
         <div class="hud-channel">
@@ -159,14 +144,6 @@ function makeAmigaChannelRow(ch, pan) {
     `;
 }
 
-/**
- * Führt die hochfrequente Echtzeit-Auswertung und das Zeichnen des Debugger-HUDs aus.
- * 
- * @param {Object} stateGetters - Objekt mit Closures zum Auslesen des App-Zustands
- * @param {Function} stateGetters.getActiveSystem - Liefert den aktiven Systemstring ('atari', 'c64', 'amiga')
- * @param {Function} stateGetters.getIsPlaying - Liefert den aktuellen Playback-Zustand
- * @param {Function} stateGetters.getCurrentChipRegs - Liefert das aktuelle custom chip Register-Array (Uint8Array)
- */
 export function updateChipHUD(stateGetters) {
     const matrix = document.getElementById('hud-matrix');
     if (!matrix) return;
@@ -175,7 +152,6 @@ export function updateChipHUD(stateGetters) {
     const isPlaying = stateGetters.getIsPlaying();
     const currentChipRegs = stateGetters.getCurrentChipRegs();
 
-    // 1. DOM IMMER sofort neu aufbauen, wenn sich das System ändert!
     if (cachedSystem !== activeSystem) {
         cachedSystem = activeSystem;
         
@@ -329,10 +305,8 @@ export function updateChipHUD(stateGetters) {
         }
     }
     
-    // 2. Sicherheits-Ausstieg falls kein Signal anliegt
     if (!isPlaying || !currentChipRegs) return;
     
-    // 3. High-Speed Update & Register-to-Text Berechnungen
     if (activeSystem === 'atari') {
         const r = currentChipRegs;
         
@@ -443,10 +417,17 @@ export function updateChipHUD(stateGetters) {
         
         histIdx = (histIdx + 1) % HIST_LEN;
 
+        // === THERMISCHES DRIFT-UPDATE FÜR DIE ANZEIGE DES CUTOFFS ===
+        let temp = r[29] || 28; // Aus virtuellem Register auslesen
         let fcut = (r[21] & 7) | (r[22] << 3);
-        let fhz = 30 + (fcut * 8);
+        
+        // Physikalische Grenzfrequenzkompensation: Cutoff sinkt, wenn der Chip heißer wird!
+        let thermalCoefficient = 1.0 - (temp - 40.0) * 0.0035;
+        let fhz = (30 + (fcut * 8)) * thermalCoefficient;
+        if (fhz < 30) fhz = 30;
+
         document.getElementById('c64-cut-bar').style.width = (fcut / 2047 * 100) + '%';
-        document.getElementById('c64-cut-val').innerText = fhz >= 1000 ? (fhz/1000).toFixed(1)+' kHz' : Math.round(fhz) + ' Hz';
+        document.getElementById('c64-cut-val').innerText = `${Math.round(fhz)} Hz (${temp}°C)`;
 
         let fres = r[23] >> 4;
         document.getElementById('c64-res-bar').style.width = (fres / 15 * 100) + '%';

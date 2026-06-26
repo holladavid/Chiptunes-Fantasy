@@ -1,3 +1,8 @@
+// === tracks/c64/external.js ===
+// ==========================================
+// C64 Jukebox Playlist Registry
+// ==========================================
+
 import { loadSidFile } from '../../js/parsers/sid-parser.js';
 
 const mySidFiles = [
@@ -10,7 +15,12 @@ const mySidFiles = [
     "Rambo_First_Blood_Part_II.sid",
     "Mega_Apocalypse_PSID.sid",
     "Bionic_Commando.sid",            // David Whittaker / Tim Follin (1988)
-    "Last_Ninja.sid"                  // Ben Daglish / Anthony Lees (1987)
+    "Last_Ninja.sid",                 // Ben Daglish / Anthony Lees (1987)
+    "Miami_Vice.sid",                 // Jan Hammer / Martin Galway (1986)
+    "Way_of_the_Tiger.sid",           // Ben Daglish (1986)
+    "Platoon.sid",                    // Jonathan Dunn (1988)
+    "Compilation_I.sid",              // Chris Hülsbeck (1989)
+    "Compilation_II.sid"              // Chris Hülsbeck (1989)
 ];
 
 // Automatische Generierung der Jukebox-Einträge

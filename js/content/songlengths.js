@@ -1,3 +1,4 @@
+// === js/content/songlengths.js ===
 // =========================================================
 // HIGH-VOLTAGE SONGLENGTH DATABASE (SLDB) FOR C64 SID
 // Static ES6 Module - Universal Webserver Compatibility
@@ -33,5 +34,21 @@ export const SID_SLDB = {
     },
     "lastninja": {
         lengths: [332, 231, 168]
+    },
+    // === NEU: OFFIZIELLE SLDB-LAUFZEITEN (IN SEKUNDEN) ===
+    "miamivice": {
+        lengths: [69] // Jan Hammer Theme (Martin Galway Cover)
+    },
+    "wayofthetiger": {
+        lengths: [170, 48, 32, 12, 15, 15, 15, 15, 15, 15, 15] // Ben Daglish (11 Subsongs)
+    },
+    "platoon": {
+        lengths: [317] // Jonathan Dunn Title-Theme
+    },
+    "compilationi": {
+        lengths: [311, 230, 215, 342] // Chris Hülsbeck (Elladita, Time, Old Imagines, Trioly)
+    },
+    "compilationii": {
+        lengths: [482, 180, 240, 150] // Chris Hülsbeck
     }
 };
