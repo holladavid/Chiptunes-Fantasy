@@ -186,8 +186,8 @@ function handleWorkletMessage(e) {
             currentChipRegs = new Uint8Array(32);
         }
         
-        // Register-Werte in das HUD-Array übertragen (GC-schonend)
-        for (let i = 0; i < 28; i++) {
+        // NEU (Kopiert alle SID-Register vollständig und sicher!):
+        for (let i = 0; i < 32; i++) {
             currentChipRegs[i] = view[4 + i];
         }
 
