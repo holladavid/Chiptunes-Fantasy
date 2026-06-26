@@ -1,7 +1,7 @@
 // === js/worklets/c64/sid-worklet.js ===
 // =========================================================
 // MOS TECHNOLOGY SID 6581 AUDIO WORKLET PROCESSOR
-// With Safe-Cloned Zero-Allocation View & Sub-Sample Phase Alignment
+// With Analog Op-Amp Saturation, Filter Leakage & Real-Time Thermal Drift
 // =========================================================
 
 import { CPU6502 } from '../lib/cpu6502.js';
@@ -24,11 +24,21 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.useCiaTimer = false; 
         this.isIrqRoutine = false; 
 
+        // Starttemperatur: Kühle 28°C beim Einschalten des Systems
+        this.temperature = 28.0;
+
         // Visualizer Zero-Allocation Buffer (Safe Clone)
         this.visualView = new Float32Array(40);
 
         this.port.onmessage = (e) => {
             const msg = e.data;
+            
+            // Manuelle Temperatureinstellung über den Regler
+            if (msg.type === 'SET_TEMPERATURE') {
+                this.temperature = Math.min(75, Math.max(15, msg.value));
+                return;
+            }
+
             if (msg.isSidFile) {
                 this.cpu.reset(msg.loadAddress, msg.c64Code);
                 this.initAddress = msg.initAddress;
@@ -59,6 +69,9 @@ class SIDProcessor extends AudioWorkletProcessor {
                     }
                 }
 
+                // Temperatur beim Track-Start auf kühle 28°C zurücksetzen (Neustart-Feeling)
+                this.temperature = 28.0;
+
                 this.currentFrame = 0;
                 this.sampleCounter = 0;
                 
@@ -87,7 +100,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.currentFrame = 0;
                 this.sampleCounter = 0;
                 this.maxFrames = msg.length || 7500;
-                console.log(`[6502 CPU] Switched Subsong to ${songIndex + 1}. Max frames: ${this.maxFrames}`);
             }
         };
     }
@@ -106,11 +118,9 @@ class SIDProcessor extends AudioWorkletProcessor {
             if (this.isPlaying && this.playAddress > 0) {
                 this.sampleCounter--;
                 if (this.sampleCounter <= 0) {
-                    // === DETERMINISTISCHE SUB-SAMPLE PHASEN-KOMPENSATION ===
                     const overshoot = -this.sampleCounter;
 
                     let hz = 50.0; 
-                    
                     if (this.useCiaTimer && this.cpu.ciaTimerA > 0) {
                         hz = this.clock / this.cpu.ciaTimerA;
                     }
@@ -119,7 +129,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                     if (hz > 1000) hz = 1000;
                     
                     this.sampleCounter += sampleRate / hz;
-                    
                     this.cpu.write(0xD019, 0x81);
                     
                     if (this.isIrqRoutine) {
@@ -128,8 +137,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                         this.cpu.jsr(this.playAddress);
                     }
 
-                    // Die Phasen-Akkumulatoren des SIDs sub-sample-genau ausrichten!
-                    // Dies kompensiert Jitter, der entsteht, wenn die 6502-CPU einen Oszillator via Test-Bit resetet.
+                    // Phasen-Ausrichtung
                     for (let v = 0; v < 3; v++) {
                         let ch = this.sid.voices[v];
                         if (ch.freq > 0) {
@@ -142,18 +150,40 @@ class SIDProcessor extends AudioWorkletProcessor {
                 }
             }
 
+            // === DYNAMISCHE THERMISCHE ERWÄRMUNG (Selbsterhitzung im Betrieb) ===
+            if (this.temperature < 55.0) {
+                this.temperature += (55.0 - this.temperature) * 0.000003; 
+            }
+
             let mix = 0;
             for (let v = 0; v < 3; v++) {
                 let voiceOut = this.sid.synthesizeVoice(v, this.clock, sampleRate);
                 
                 if (this.sid.regs[23] & (1 << v)) {
-                    let f = 2.0 * Math.sin(Math.PI * this.sid.cutoff / sampleRate);
+                    // 1. THERMISCHEN DRIFT-KOEFFIZIENT ANWENDEN
+                    // Grenzfrequenz (Cutoff) sinkt bei Hitze (Widerstand der FETs steigt)
+                    let thermalCoefficient = 1.0 - (this.temperature - 40.0) * 0.0035;
+                    let activeCutoff = this.sid.cutoff * thermalCoefficient;
+                    if (activeCutoff < 30) activeCutoff = 30;
+                    if (activeCutoff > 12000) activeCutoff = 12000;
+
+                    let f = 2.0 * Math.sin(Math.PI * activeCutoff / sampleRate);
                     if (f > 1.0) f = 1.0; 
                     
                     this.sid.filterLow += f * this.sid.filterBand;
-                    let high = voiceOut - this.sid.filterLow - (1.0 - this.sid.resonance * 0.9) * this.sid.filterBand;
+                    
+                    // Resonanz dämpft sich bei Hitze minimal ab (thermischer Transistor-Drift)
+                    let resonanceDamp = 1.0 - (this.sid.resonance * 0.92) * (1.0 + (this.temperature - 40.0) * 0.001);
+                    if (resonanceDamp < 0.05) resonanceDamp = 0.05;
+
+                    let feedback = this.sid.filterLow + resonanceDamp * this.sid.filterBand;
+                    
+                    // 2. ANALOGE SÄTTIGUNG (Math.tanh Soft-Clipping) im Op-Amp-Feedback-Weg
+                    let saturatedFeedback = Math.tanh(feedback);
+                    let high = voiceOut - saturatedFeedback;
                     this.sid.filterBand += f * high;
                     
+                    // Anti-Windup Hard-Clamping
                     if (this.sid.filterBand > 3.0) this.sid.filterBand = 3.0;
                     if (this.sid.filterBand < -3.0) this.sid.filterBand = -3.0;
                     if (this.sid.filterLow > 3.0) this.sid.filterLow = 3.0;
@@ -163,7 +193,11 @@ class SIDProcessor extends AudioWorkletProcessor {
                     if (this.sid.filterMode & 16) filterOut += this.sid.filterLow; 
                     if (this.sid.filterMode & 32) filterOut += this.sid.filterBand; 
                     if (this.sid.filterMode & 64) filterOut += high; 
-                    voiceOut = filterOut;
+                    
+                    // 3. ANALOGES SIGNAL-LEAKAGE (Leckstrom)
+                    // Etwa 11% des trockenen Signals umgehen den Filter (Silicon-Ungenauigkeit des 6581)
+                    let leakage = voiceOut * 0.11;
+                    voiceOut = filterOut + leakage;
                 }
                 mix += voiceOut;
             }
@@ -189,7 +223,9 @@ class SIDProcessor extends AudioWorkletProcessor {
                     view[4 + r] = this.sid.regs[r];
                 }
 
-                // Absolut stabiles Senden ohne Entwertung
+                // Temperatur-Rückmeldung an den Puffer übergeben (Index 33)
+                view[33] = this.temperature;
+
                 this.port.postMessage(view);
             }
             this.wasAudible = isAudible;

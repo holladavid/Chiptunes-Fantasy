@@ -1,12 +1,7 @@
 // =========================================================================
 //                  CHIPTUNES FANTASY - MAIN APP CONTROLLER
 // =========================================================================
-// Orchestriert das Zusammenspiel zwischen UI, Audio-Modul und Grafik-Engines
-// =========================================================================
 
-// ==========================================
-// 1. IMPORT DER MODULE
-// ==========================================
 import { trackRegistry } from '../tracks/registry.js';
 import { systemDescriptions, chipCheatSheets } from './content/museum.js'; 
 import { workletRegistry } from './worklets/registry.js';
@@ -23,31 +18,23 @@ import {
     getYmNode, 
     getPaulaNode, 
     getSidNode 
-} from './audio/audio-controller.js'; // Binäre Audio-Schnittstelle importiert
+} from './audio/audio-controller.js';
 
-// ==========================================
-// 2. GLOBALE APPLIKATIONS-VARIABLEN
-// ==========================================
 let currentOscValue = 0; 
 let currentChipRegs = null; 
 let activeSystem = 'atari';
 let trackData = [];    
-let currentFrame = 0;  
 let isPlaying = false; 
 let currentTrackIndex = 0;
 let currentScrollerText = "+++ INITIALIZING DEMO ENGINE... +++";
 let lastKnownFrame = 0; 
-let previousFrame = 0;       // Merkt sich den vorherigen Frame für den Loop-Check
-let lastTrackChangeTime = 0; // Der kugelsichere Cooldown-Timer
-let isEcoMode = false;      // Status für den Pure Audio Mode
-let isUserDragging = false; // Verhindert Slider-Zucken während des Ziehens
-let currentSubsongIndex = 1; // Speichert das aktive C64-Subsong-Verzeichnis (1-basiert)
+let previousFrame = 0;       
+let lastTrackChangeTime = 0; 
+let isEcoMode = false;      
+let isUserDragging = false; 
+let currentSubsongIndex = 1; 
 
-// ==========================================
-// 3. BOOT- & INITIALISIERUNGS-SEQUENZ
-// ==========================================
 function initApp() {
-    // Service-Worker für iOS-Homescreen-Standalone-Modus registrieren
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('sw.js')
@@ -65,34 +52,28 @@ function initApp() {
     const bootScreen = document.getElementById("boot-screen");
     bootScreen.addEventListener("click", async () => {
         const demoContainer = document.getElementById("demo-container");
-        if (!demoContainer) {
-            alert("FEHLER: HTML Element 'demo-container' fehlt in der index.html!");
-            return;
-        }
+        if (!demoContainer) return;
 
         bootScreen.classList.add("hidden");
         demoContainer.classList.remove("hidden");
         
-        // 1. Audio-Engine starten (Einmaliger Aufruf!)
         await initAudioEngine();
         
-        // 2. Die 3 Standard-Prozessoren beim Booten auf dem virtuellen Mainboard einlöten!
         try {
             await loadEmuCore('atari', workletRegistry.atari[0], handleWorkletMessage);
             await loadEmuCore('c64', workletRegistry.c64[0], handleWorkletMessage);
             await loadEmuCore('amiga', workletRegistry.amiga[0], handleWorkletMessage);
         } catch (err) {
-            console.error("[CRITICAL] Cores konnten beim Booten nicht geladen werden:", err);
+            console.error("[CRITICAL] Cores konnten nicht geladen werden:", err);
         }
         
-        // 3. BUGFIX: Wir übergeben die dynamischen Audio-Schnittstellen (Getters) anstatt der nicht deklarierten Variablen!
         initVisuals({
             getEcoMode: () => isEcoMode,
             getCurrentOscValue: () => currentOscValue,
             getTrackData: () => trackData,
-            getAnalyserNode: getAnalyserNode,  // Importierten dynamic Getter direkt übergeben
+            getAnalyserNode: getAnalyserNode,  
             getIsPlaying: () => isPlaying,
-            getAudioContext: getAudioContext  // Importierten dynamic Getter direkt übergeben
+            getAudioContext: getAudioContext  
         }, {
             updateTimelineUI: () => updateTimelineUI(),
             updateChipHUD: () => updateChipHUD({
@@ -102,12 +83,7 @@ function initApp() {
             })
         });
         
-        initScroller(
-            () => currentScrollerText, 
-            () => isEcoMode
-        ); 
-        
-        // System initialisieren, nun läuft der C64 fehlerfrei an!
+        initScroller(() => currentScrollerText, () => isEcoMode); 
         setTheme('theme-c64');
     });
 }
@@ -115,7 +91,6 @@ function initApp() {
 if (document.readyState === 'loading') document.addEventListener("DOMContentLoaded", initApp);
 else initApp();
 
-// --- TIMELINE HELPER ---
 function formatTime(frames) {
     if (!frames) return "00:00";
     let totalSeconds = Math.floor(frames / 50);
@@ -133,9 +108,7 @@ function updateTimelineUI() {
     }
 }
 
-// --- HIGH-PRECISION SCRUBBING & TRACK-SEEKING ---
 const progressSlider = document.getElementById('progress-slider');
-
 progressSlider.addEventListener('mousedown', () => { isUserDragging = true; });
 progressSlider.addEventListener('mouseup', () => { isUserDragging = false; });
 progressSlider.addEventListener('touchstart', () => { isUserDragging = true; });
@@ -170,11 +143,8 @@ progressSlider.addEventListener('change', (e) => {
     }
 });
 
-// ==========================================
-// 4. ASYNCHRONER WORKLET WORKER-DISPATCHER (Bulletproof Copy-Mode)
-// ==========================================
+// === DER REPARIERTE VISUALISIERUNGS-SPEICHER-EMPFÄNGER ===
 function handleWorkletMessage(e) {
-    // --- 1. SCHNELLE, ZERO-ALLOCATION ABSPIEL-SCHLEIFE ---
     if (e.data instanceof Float32Array) {
         const view = e.data;
         const systemId = view[0];
@@ -186,15 +156,27 @@ function handleWorkletMessage(e) {
             currentChipRegs = new Uint8Array(32);
         }
         
-        // NEU (Kopiert alle SID-Register vollständig und sicher!):
+        // Bis zu 32 Register-Einträge kopieren (für alle C64 SID Register)
         for (let i = 0; i < 32; i++) {
             currentChipRegs[i] = view[4 + i];
+        }
+
+        // Dynamisches thermisches Feedback für C64
+        if (systemId === 0) {
+            const tempVal = Math.round(view[33]);
+            currentChipRegs[29] = tempVal; // In virtuellem Register 29 parken für HUD
+            
+            const tempSlider = document.getElementById('temp-slider');
+            const tempDisplay = document.getElementById('temp-display');
+            if (tempSlider && document.activeElement !== tempSlider) {
+                tempSlider.value = tempVal;
+                if (tempDisplay) tempDisplay.innerText = `${tempVal}°C`;
+            }
         }
 
         previousFrame = lastKnownFrame;
         lastKnownFrame = frameVal;
 
-        // Auto-Advance Playlist Logik
         if (isPlaying && trackData.length > 0) {
             if (previousFrame > trackData.length - 20 && lastKnownFrame < 10) {
                 if (performance.now() - lastTrackChangeTime > 2000) {
@@ -209,43 +191,20 @@ function handleWorkletMessage(e) {
                     }
 
                     let nextIdx = (currentTrackIndex + 1) % trackRegistry[activeSystem].length;
-                    console.log(`Track zu Ende! Wechsle automatisch zu Track ${nextIdx}...`);
                     selectAndPlayTrack(nextIdx, activeSystem);
                 }
             }
         }
-        return; // Kein Recycling-Zwang mehr! Extrem stabil und narrensicher!
+        return; 
     }
 
-    // --- 2. LEGACY FALLBACK PFAD (Atari & C64 Cores ohne Zero-Allocation) ---
     if (e.data.type === 'VISUAL_DATA') {
         currentOscValue = e.data.value;
         previousFrame = lastKnownFrame;
         lastKnownFrame = e.data.frame || 0; 
         currentChipRegs = e.data.regs; 
-
-        if (isPlaying && trackData.length > 0) {
-            if (previousFrame > trackData.length - 20 && lastKnownFrame < 10) {
-                if (performance.now() - lastTrackChangeTime > 2000) {
-                    lastTrackChangeTime = performance.now(); 
-                    
-                    if (activeSystem === 'c64' && trackData.isSidFile) {
-                        const totalSongs = trackData.metadata.songs || 1;
-                        if (currentSubsongIndex < totalSongs) {
-                            changeC64Subsong(currentSubsongIndex + 1);
-                            return; 
-                        }
-                    }
-
-                    let nextIdx = (currentTrackIndex + 1) % trackRegistry[activeSystem].length;
-                    console.log(`Track zu Ende! Wechsle automatisch zu Track ${nextIdx}...`);
-                    selectAndPlayTrack(nextIdx, activeSystem);
-                }
-            }
-        }
     }
     
-    // Rote Digi-LED Steuerung
     if (e.data.type === 'DEBUG') {
         if (isEcoMode) return; 
 
@@ -259,12 +218,10 @@ function handleWorkletMessage(e) {
             val.innerText = drumNo;
             val.style.color = '#ffffff';
             val.style.textShadow = '0 0 10px #ffffff';
-            
             led.style.background = '#ff0000';
             led.style.boxShadow = '0 0 12px #ff0000';
             
             if (val.timeoutId) clearTimeout(val.timeoutId);
-            
             val.timeoutId = setTimeout(() => { 
                 led.style.background = '#440000'; 
                 led.style.boxShadow = 'none';
@@ -276,11 +233,9 @@ function handleWorkletMessage(e) {
     }
 }
 
-// --- DYNAMISCHER SUBSONG-WECHSEL (C64) ---
 function changeC64Subsong(subsongId) {
     const sidNode = getSidNode();
     if (activeSystem === 'c64' && trackData && trackData.isSidFile && sidNode) { 
-        // Signalisiere der CPU das Umschalten des Subsongs im Audio-Thread samt neuer Länge!
         sidNode.port.postMessage({ 
             type: 'CHANGE_SUBSONG', 
             frame: subsongId,
@@ -288,42 +243,32 @@ function changeC64Subsong(subsongId) {
         });
         currentSubsongIndex = subsongId;
 
-        // Absicherung falls lengths undefiniert ist
         let sldbLengths = trackData.lengths || [180];
         let songLengthSeconds = sldbLengths[subsongId - 1] || sldbLengths[0] || 180;
-        trackData.length = songLengthSeconds * 50; // Frameanzahl aktualisieren
+        trackData.length = songLengthSeconds * 50; 
 
-        // Slider-Timeline hart zurücksetzen
         lastKnownFrame = 0;
         previousFrame = 0;
         document.getElementById('time-current').innerText = "00:00";
         document.getElementById('time-total').innerText = formatTime(trackData.length);
         document.getElementById('progress-slider').value = 0;
 
-        // Subsong-Anzeige aktualisieren
         const subsongDisplay = document.getElementById('subsong-display');
         if (subsongDisplay) {
             subsongDisplay.innerText = `[SUB ${subsongId}/${trackData.metadata.songs}]`;
         }
 
-        // Scroller-Text aktualisieren
         let meta = trackData.metadata;
         currentScrollerText = `+++ BOOM! SWITCHED TO SUBSONG ${subsongId} OF ${meta.songs} +++ NOW PLAYING: ${meta.name.toUpperCase()} (TRACK ${subsongId}) BY ${meta.author.toUpperCase()} +++ `;
-        
-        console.log(`[C64 JUKEBOX] Switched to Subsong ${subsongId} / ${meta.songs} (${songLengthSeconds}s)`);
     }    
 }
 
-// ==========================================
-// 5. AUDIO PLAYBACK ORCHESTRIERUNG
-// ==========================================
 function startPlayback() {
     if (isPlaying || trackData.length === 0) return;
-    resumeAudioContext().catch(e=>console.log(e)); // AudioContext über Wrapper aufwecken
+    resumeAudioContext().catch(e=>console.log(e));
 
     isPlaying = true;
     
-    // BUGFIX: Weichenstellung unterstützt dynamic Objekte (SIDs) und Arrays (MODs/YMs) gleichermaßen!
     let isAmiga = (trackData[0] && trackData[0].isAmiga) || trackData.isAmigaFile;
     let isC64 = (trackData[0] && trackData[0].isC64) || trackData.isSidFile;
     
@@ -333,7 +278,6 @@ function startPlayback() {
     
     if (isAmiga) {
         if (paulaNode) paulaNode.port.postMessage({ type: 'PLAY_TRACK', track: trackData });
-        else console.error("[CRITICAL] paulaNode ist undefined.");
     } else if (isC64) {
         if (sidNode) {
             if (trackData.isSidFile) {
@@ -356,7 +300,6 @@ function startPlayback() {
 function resumePlayback() {
     if (isPlaying || trackData.length === 0) return;
     resumeAudioContext().catch(e=>console.log(e));
-
     isPlaying = true;
     
     const paulaNode = getPaulaNode();
@@ -381,9 +324,6 @@ function stopPlayback() {
     if (sidNode) sidNode.port.postMessage({ type: 'STOP_TRACK' });
 }
 
-// ==========================================
-// 6. PLAYLIST & INTERFACE-THEME LOGIK
-// ==========================================
 function setTheme(themeName) {
     document.body.className = themeName;
     const tabs = document.querySelectorAll('.tab-btn');
@@ -394,6 +334,13 @@ function setTheme(themeName) {
 
     activeSystem = themeName === 'theme-atari' ? 'atari' : themeName === 'theme-amiga' ? 'amiga' : 'c64';
     
+    // Temperaturregler-Sichtbarkeit umschalten
+    const tempContainer = document.getElementById('temp-control-container');
+    if (tempContainer) {
+        if (activeSystem === 'c64') tempContainer.classList.remove('hidden');
+        else tempContainer.classList.add('hidden');
+    }
+
     renderTracklist(activeSystem);
     stopPlayback(); 
 
@@ -456,7 +403,6 @@ function renderCoreSelector(system) {
     workletRegistry[system].forEach((core, index) => {
         const opt = document.createElement('option');
         opt.value = index;
-        
         let cpuLoad = core.cpu || 1;
         let meter = '';
         for (let i = 1; i <= 4; i++) {
@@ -513,7 +459,7 @@ async function selectAndPlayTrack(index, system) {
             : (isC64System ? "+++ DOWNLOADING AND PARSING BINARY C64 PSID FILE... +++" : "+++ DOWNLOADING AND PARSING BINARY YM FILE... +++");
         
         try {
-let parsedFile = await selectedSong.loadAsync();
+            let parsedFile = await selectedSong.loadAsync();
             
             if (isC64System) {
                 trackData = parsedFile; 
@@ -535,11 +481,10 @@ let parsedFile = await selectedSong.loadAsync();
                     subsongDisplay.innerText = "";
                 }
 
-                // === DYNAMISCHE STRUKTUR-WEICHE FÜR SEQUENCED TRACKS ===
                 if (parsedFile.isSequenced) {
-                    trackData = parsedFile; // Komplettes Tracker-Manifest übergeben
+                    trackData = parsedFile; 
                 } else {
-                    trackData = parsedFile.frames; // Legacy 50Hz Frame Fallback (Hippel / Jester)
+                    trackData = parsedFile.frames; 
                     trackData.digidrums = parsedFile.digidrums || [];
                 }
                 
@@ -643,13 +588,10 @@ let parsedFile = await selectedSong.loadAsync();
     }
 }
 
-// ==========================================
-// 8. FULLSCREEN & iOS COMPATIBILITY HACKS
-// ==========================================
 function enterPseudoFullscreen(visualZone) {
     visualZone.classList.add('pseudo-fullscreen');
     document.getElementById('btn-fullscreen').innerText = '[ EXIT ]';
-    document.body.style.overflow = 'hidden'; // Scrollen der App im Hintergrund blockieren
+    document.body.style.overflow = 'hidden'; 
     document.body.appendChild(visualZone);
     setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
 }
@@ -657,7 +599,7 @@ function enterPseudoFullscreen(visualZone) {
 function exitPseudoFullscreen(visualZone) {
     visualZone.classList.remove('pseudo-fullscreen');
     document.getElementById('btn-fullscreen').innerText = '[ ⛶ ]';
-    document.body.style.overflow = ''; // Scrollen wieder erlauben
+    document.body.style.overflow = ''; 
     const demoContainer = document.getElementById('demo-container');
     const playbackBar = document.getElementById('playback-bar');
     if (demoContainer && playbackBar) {
@@ -684,7 +626,7 @@ function toggleFullscreen() {
             let promise = visualZone.requestFullscreen();
             if (promise && typeof promise.catch === 'function') {
                 promise.catch((err) => {
-                    console.log("Native fullscreen rejected by Safari, triggering iOS Fallback.", err);
+                    console.log("Native fullscreen rejected, triggering iOS Fallback.", err);
                     enterPseudoFullscreen(visualZone);
                 });
             }
@@ -692,7 +634,6 @@ function toggleFullscreen() {
             visualZone.webkitRequestFullscreen();
             setTimeout(() => {
                 if (!document.webkitFullscreenElement && !visualZone.classList.contains('pseudo-fullscreen')) {
-                    console.log("Legacy webkitRequestFullscreen failed, triggering iOS Fallback.");
                     enterPseudoFullscreen(visualZone);
                 }
             }, 200);
@@ -718,9 +659,6 @@ function handleFullscreenChange() {
     window.dispatchEvent(new Event('resize'));
 }
 
-// ==========================================
-// 9. PURE AUDIO (ECO) MODE & WAKE LOCKS
-// ==========================================
 const noSleepVideo = document.createElement('video');
 noSleepVideo.setAttribute('playsinline', '');
 noSleepVideo.setAttribute('muted', '');
@@ -754,9 +692,6 @@ async function disableEcoMode() {
     window.dispatchEvent(new Event('resize'));
 }
 
-// ==========================================
-// 10. EVENT-KOPPLUNGEN (BUTTONS & SLIDERS)
-// ==========================================
 document.getElementById('btn-play').addEventListener('click', () => {
     resumeAudioContext().catch(e=>console.log(e));
     if (isPlaying) {
@@ -818,7 +753,6 @@ document.getElementById('btn-hud-toggle').addEventListener('click', (e) => {
         infoBtn.classList.add('hidden'); 
         hud.classList.add('collapsed'); 
         e.target.innerText = '[+]'; 
-        
         const legend = document.getElementById('hud-legend');
         if (legend) legend.classList.add('hidden');
     }
@@ -831,6 +765,17 @@ document.getElementById('core-selector').addEventListener('change', async (e) =>
     document.getElementById('hud-content') ? document.getElementById('hud-content').innerText = "RE-WIRING DSP..." : null;
     await loadEmuCore(activeSystem, coreConfig, handleWorkletMessage);
     startPlayback(); 
+});
+
+// Kopplung des neuen, interaktiven analogen Temperaturreglers
+document.getElementById('temp-slider').addEventListener('input', (e) => {
+    const tempVal = parseInt(e.target.value);
+    document.getElementById('temp-display').innerText = `${tempVal}°C`;
+    
+    const sidNode = getSidNode();
+    if (sidNode) {
+        sidNode.port.postMessage({ type: 'SET_TEMPERATURE', value: tempVal });
+    }
 });
 
 document.getElementById('btn-eco').addEventListener('click', async () => {
