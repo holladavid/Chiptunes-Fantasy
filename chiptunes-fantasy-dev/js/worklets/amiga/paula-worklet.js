@@ -1,7 +1,7 @@
 // === js/worklets/amiga/paula-worklet.js ===
 // ==========================================
 // MOS TECHNOLOGY PAULA 8364 CHIP EMULATION
-// With Integrated Real-Time Tracker Sequencer & Bulletproof Single-Allocation View
+// Dynamic Channel Allocator & High-Performance Dynamic Mixer Loop
 // ==========================================
 
 class StaticRCFilter {
@@ -106,15 +106,15 @@ class PaulaProcessor extends AudioWorkletProcessor {
         super();
         this.clock = 3546895; 
         
+        // 64 Kanäle für absolute Kompatibilität mit riesigen XM-Dateien initialisieren
         this.channels = [];
-        for (let i = 0; i < 32; i++) {
+        for (let i = 0; i < 64; i++) {
             this.channels.push(new PaulaChannel());
         }
         
         this.samples = {}; 
         this.isPlaying = false;
 
-        // Einmalige Allokation des Views (Wird nie detached, stürzt nie ab!)
         this.visualView = new Float32Array(40);
 
         // Sequenzer Engine Variablen
@@ -125,7 +125,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
         this.patterns = null;
         this.bpm = 125;
         this.speed = 6;
-        this.numChannels = 4;
+        this.numChannels = 4; // Startet mit Standard 4 Kanälen
         
         this.currentOrder = 0;
         this.currentRow = 0;
@@ -156,7 +156,8 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     };
                 }
             } else if (msg.type === 'PLAY_TRACK') {
-                for (let i = 0; i < 32; i++) {
+                // Hard Reset aller 64 Kanäle bei Songwechsel
+                for (let i = 0; i < 64; i++) {
                     this.channels[i].data = null;
                     this.channels[i].vol = 0;
                     this.channels[i].per = 428;
@@ -186,13 +187,14 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 } else {
                     this.isSequenced = false;
                     this.trackData = msg.track;
+                    this.numChannels = 4; // Fallback auf 4 Amiga-Kanäle
                     this.currentFrame = 0;
                     this.sampleCounter = 0;
                     this.isPlaying = true;
                 }
             } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
-                for (let i = 0; i < 32; i++) {
+                for (let i = 0; i < 64; i++) {
                     this.channels[i].data = null;
                     this.channels[i].vol = 0;
                 }
@@ -393,7 +395,8 @@ class PaulaProcessor extends AudioWorkletProcessor {
 
             let mixedL = 0, mixedR = 0;
             
-            for (let c = 0; c < 32; c++) {
+            // === DYNAMISCHER MIXER: Verarbeitet nur Spuren, die der Song tatsächlich nutzt ===
+            for (let c = 0; c < this.numChannels; c++) {
                 let sampleVal = this.channels[c].step(clockTicksPerSample);
                 if (sampleVal !== 0) {
                     if ((c % 4) === 0 || (c % 4) === 3) mixedL += sampleVal; 
@@ -416,11 +419,10 @@ class PaulaProcessor extends AudioWorkletProcessor {
 
         this.visCounter = (this.visCounter || 0) + 1;
         if (this.visCounter % 4 === 0) {
-            // === ABSOLUT ABSTURZSICHERE VISUALISIERUNG ===
             let isAudible = Math.abs(oscValue) > 0.001;
             if (isAudible || this.wasAudible) {
                 const view = this.visualView;
-                view[0] = 1; // System Flag: 1 = Amiga
+                view[0] = 1; 
                 view[1] = this.isPlaying ? 1 : 0;
                 view[2] = this.isSequenced 
                     ? (this.currentOrder * 64 * this.speed + this.currentRow * this.speed + this.currentTick)
@@ -445,7 +447,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     view[4 + offset + 6] = Math.round(ch.vol) & 0xFF;
                 }
 
-                // Senden ohne Transferables (Stürzt NIEMALS ab, absolut robust!)
                 this.port.postMessage(view);
             }
             this.wasAudible = isAudible;
