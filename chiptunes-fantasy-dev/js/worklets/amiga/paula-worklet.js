@@ -1,7 +1,7 @@
 // === js/worklets/amiga/paula-worklet.js ===
 // ==========================================
 // MOS TECHNOLOGY PAULA 8364 CHIP EMULATION
-// With Integrated Real-Time Tracker Sequencer (MOD / XM)
+// With Integrated Real-Time Tracker Sequencer & Bulletproof Single-Allocation View
 // ==========================================
 
 class StaticRCFilter {
@@ -52,7 +52,7 @@ class PaulaChannel {
         this.repPointer = 0;
         this.repLength = 0; 
         this.phase = 0;     
-        this.activeSample = 1; // Hält das zuletzt aktive Instrument auf diesem Kanal fest
+        this.activeSample = 1; 
     }
 
     trigger(data, loopStart, loopLen) {
@@ -114,6 +114,9 @@ class PaulaProcessor extends AudioWorkletProcessor {
         this.samples = {}; 
         this.isPlaying = false;
 
+        // Einmalige Allokation des Views (Wird nie detached, stürzt nie ab!)
+        this.visualView = new Float32Array(40);
+
         // Sequenzer Engine Variablen
         this.isSequenced = false;
         this.seqType = 'MOD';
@@ -153,7 +156,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     };
                 }
             } else if (msg.type === 'PLAY_TRACK') {
-                // === HARD-RESET ALL 32 DMA CHANNELS TO PREVENT HANGING NOTES ===
                 for (let i = 0; i < 32; i++) {
                     this.channels[i].data = null;
                     this.channels[i].vol = 0;
@@ -182,7 +184,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.samplesUntilNextTick = 0;
                     this.isPlaying = true;
                 } else {
-                    // Abwärtskompatibler Fallback für Jester/HIPC Demos
                     this.isSequenced = false;
                     this.trackData = msg.track;
                     this.currentFrame = 0;
@@ -191,7 +192,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 }
             } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
-                // === SILENCE ALL CHANNELS IMMEDIATELY ===
                 for (let i = 0; i < 32; i++) {
                     this.channels[i].data = null;
                     this.channels[i].vol = 0;
@@ -216,10 +216,9 @@ class PaulaProcessor extends AudioWorkletProcessor {
         };
     }
 
-    // === DIE VERBESSERTE NATIVE TICK-MASCHINE MIT REAL-TIME TRANSTPOSITION ===
     processTrackerTick() {
         if (this.currentOrder >= this.songLength) {
-            this.currentOrder = 0; // Song Loop
+            this.currentOrder = 0; 
         }
 
         const patternIdx = this.orderTable[this.currentOrder];
@@ -241,7 +240,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
 
             const channel = this.channels[ch];
 
-            // Aktive Instrumenten-Auswahl bestimmen
             if (sample > 0) {
                 channel.activeSample = sample;
             }
@@ -250,7 +248,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
             const currentSmpObj = this.samples[smpName];
 
             if (this.currentTick === 0) {
-                // --- TICK 0: Trigger Phase ---
                 if (sample > 0 && currentSmpObj && currentSmpObj.data) {
                     channel.trigger(currentSmpObj.data, currentSmpObj.loopStart, currentSmpObj.loopLen);
                     channel.vol = currentSmpObj.baseVolume; 
@@ -259,19 +256,18 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 if (period > 0) {
                     if (this.seqType === 'MOD') {
                         channel.per = period;
-                    } else { // XM: period enthält die rohe Note (1-96, oder 97 für Key Off)
+                    } else { 
                         if (period === 0xFFFF || period === 97) {
-                            channel.vol = 0; // FastTracker Key Off
+                            channel.vol = 0; 
                         } else {
                             const relNote = currentSmpObj ? (currentSmpObj.relNote || 0) : 0;
                             const actualNote = period + relNote;
                             const clampedNote = Math.min(96, Math.max(1, actualNote));
-                            // Oktaven-Formel zur Laufzeit: 428 * 2^((37-note)/12)
                             channel.per = Math.round(428.0 * Math.pow(2.0, (37 - clampedNote) / 12.0));
                         }
                     }
                     if (period !== 0xFFFF && period !== 97) {
-                        channel.phase = 0; // Retrigger
+                        channel.phase = 0; 
                     }
                 }
 
@@ -279,12 +275,11 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     channel.vol = volume; 
                 }
 
-                // Sofort-Effekte
                 switch (effect) {
-                    case 0x0C: // Set Volume
+                    case 0x0C: 
                         channel.vol = param > 64 ? 64 : param;
                         break;
-                    case 0x0F: // Set Speed / Tempo
+                    case 0x0F: 
                         if (param > 0) {
                             if (param < 32) {
                                 this.speed = param;
@@ -293,12 +288,12 @@ class PaulaProcessor extends AudioWorkletProcessor {
                             }
                         }
                         break;
-                    case 0x0B: // Position Jump
+                    case 0x0B: 
                         this.currentOrder = param;
                         this.currentRow = 0;
                         this.currentTick = -1; 
                         break;
-                    case 0x0D: // Pattern Break
+                    case 0x0D: 
                         const targetRow = ((param >> 4) * 10) + (param & 0x0F);
                         this.currentRow = targetRow < numRows ? targetRow : 0;
                         this.currentOrder++;
@@ -306,26 +301,25 @@ class PaulaProcessor extends AudioWorkletProcessor {
                         break;
                 }
             } else {
-                // --- TICK > 0: Dynamic Modulation Effects ---
                 switch (effect) {
-                    case 0x00: // Arpeggio
+                    case 0x00: 
                         if (param > 0 && channel.per > 0) {
                             const arpOffsets = [0, (param >> 4) & 0x0F, param & 0x0F];
                             const currentOffset = arpOffsets[this.currentTick % 3];
                             channel.per = period * Math.pow(0.9438, currentOffset);
                         }
                         break;
-                    case 0x01: // Portamento Up
+                    case 0x01: 
                         if (channel.per > 0) {
                             channel.per = Math.max(113, channel.per - param); 
                         }
                         break;
-                    case 0x02: // Portamento Down
+                    case 0x02: 
                         if (channel.per > 0) {
                             channel.per = Math.min(856, channel.per + param); 
                         }
                         break;
-                    case 0x0A: // Volume Slide
+                    case 0x0A: 
                         if (param > 0) {
                             const slideUp = (param >> 4) & 0x0F;
                             const slideDown = param & 0x0F;
@@ -340,7 +334,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
             }
         }
 
-        // Ticks voranschreiten lassen
         this.currentTick++;
         if (this.currentTick >= this.speed) {
             this.currentTick = 0;
@@ -423,32 +416,37 @@ class PaulaProcessor extends AudioWorkletProcessor {
 
         this.visCounter = (this.visCounter || 0) + 1;
         if (this.visCounter % 4 === 0) {
+            // === ABSOLUT ABSTURZSICHERE VISUALISIERUNG ===
             let isAudible = Math.abs(oscValue) > 0.001;
             if (isAudible || this.wasAudible) {
-                let fakeRegs = new Uint8Array(28); 
+                const view = this.visualView;
+                view[0] = 1; // System Flag: 1 = Amiga
+                view[1] = this.isPlaying ? 1 : 0;
+                view[2] = this.isSequenced 
+                    ? (this.currentOrder * 64 * this.speed + this.currentRow * this.speed + this.currentTick)
+                    : this.currentFrame;
+                view[3] = oscValue;
+
                 for(let c = 0; c < 4; c++) {
                     let offset = c * 7;
                     let ch = this.channels[c];
                     
                     let simulatedAddress = ch.data ? 0x00020000 + c * 0x4000 + Math.floor(ch.pointer) : 0;
-                    fakeRegs[offset] = (simulatedAddress >> 8) & 0xFF; 
-                    fakeRegs[offset+1] = simulatedAddress & 0xFF;       
+                    view[4 + offset] = (simulatedAddress >> 8) & 0xFF; 
+                    view[4 + offset + 1] = simulatedAddress & 0xFF;       
                     
                     let len = ch.data ? Math.floor(ch.data.length / 2) : 0;
-                    fakeRegs[offset+2] = (len >> 8) & 0xFF;
-                    fakeRegs[offset+3] = len & 0xFF;
+                    view[4 + offset + 2] = (len >> 8) & 0xFF;
+                    view[4 + offset + 3] = len & 0xFF;
                     
-                    fakeRegs[offset+4] = (ch.per >> 8) & 0xFF;
-                    fakeRegs[offset+5] = ch.per & 0xFF;
+                    view[4 + offset + 4] = (ch.per >> 8) & 0xFF;
+                    view[4 + offset + 5] = ch.per & 0xFF;
                     
-                    fakeRegs[offset+6] = Math.round(ch.vol) & 0xFF;
+                    view[4 + offset + 6] = Math.round(ch.vol) & 0xFF;
                 }
 
-                const reportedFrame = this.isSequenced 
-                    ? (this.currentOrder * 64 * this.speed + this.currentRow * this.speed + this.currentTick)
-                    : this.currentFrame;
-
-                this.port.postMessage({ type: 'VISUAL_DATA', value: oscValue, frame: reportedFrame, regs: fakeRegs });
+                // Senden ohne Transferables (Stürzt NIEMALS ab, absolut robust!)
+                this.port.postMessage(view);
             }
             this.wasAudible = isAudible;
         }
