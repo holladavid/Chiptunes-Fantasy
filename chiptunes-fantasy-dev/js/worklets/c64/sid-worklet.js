@@ -1,7 +1,7 @@
 // === js/worklets/c64/sid-worklet.js ===
 // =========================================================
 // MOS TECHNOLOGY SID 6581 AUDIO WORKLET PROCESSOR
-// With Analog Op-Amp Saturation, Filter Leakage & Real-Time Thermal Drift
+// With Analog Op-Amp Saturation, Filter Leakage & Static User-Controlled Temperature
 // =========================================================
 
 import { CPU6502 } from '../lib/cpu6502.js';
@@ -24,8 +24,8 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.useCiaTimer = false; 
         this.isIrqRoutine = false; 
 
-        // Starttemperatur: Kühle 28°C beim Einschalten des Systems
-        this.temperature = 28.0;
+        // Starttemperatur: Standard-Betriebstemperatur von 55°C (rein nutzergesteuert)
+        this.temperature = 55.0;
 
         // Visualizer Zero-Allocation Buffer (Safe Clone)
         this.visualView = new Float32Array(40);
@@ -68,9 +68,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                         this.playAddress = this.initAddress + 3; 
                     }
                 }
-
-                // Temperatur beim Track-Start auf kühle 28°C zurücksetzen (Neustart-Feeling)
-                this.temperature = 28.0;
 
                 this.currentFrame = 0;
                 this.sampleCounter = 0;
@@ -150,10 +147,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 }
             }
 
-            // === DYNAMISCHE THERMISCHE ERWÄRMUNG (Selbsterhitzung im Betrieb) ===
-            if (this.temperature < 55.0) {
-                this.temperature += (55.0 - this.temperature) * 0.000003; 
-            }
+            // === DER AUTOMATISCHE DRIFT WURDE SELEKTIV ENTFERNT ===
 
             let mix = 0;
             for (let v = 0; v < 3; v++) {
@@ -161,7 +155,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 
                 if (this.sid.regs[23] & (1 << v)) {
                     // 1. THERMISCHEN DRIFT-KOEFFIZIENT ANWENDEN
-                    // Grenzfrequenz (Cutoff) sinkt bei Hitze (Widerstand der FETs steigt)
+                    // Grenzfrequenz (Cutoff) verschiebt sich rein nutzergesteuert
                     let thermalCoefficient = 1.0 - (this.temperature - 40.0) * 0.0035;
                     let activeCutoff = this.sid.cutoff * thermalCoefficient;
                     if (activeCutoff < 30) activeCutoff = 30;
@@ -172,7 +166,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                     
                     this.sid.filterLow += f * this.sid.filterBand;
                     
-                    // Resonanz dämpft sich bei Hitze minimal ab (thermischer Transistor-Drift)
+                    // Resonanz dämpft sich je nach gewähltem Temperaturwert
                     let resonanceDamp = 1.0 - (this.sid.resonance * 0.92) * (1.0 + (this.temperature - 40.0) * 0.001);
                     if (resonanceDamp < 0.05) resonanceDamp = 0.05;
 
@@ -195,7 +189,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                     if (this.sid.filterMode & 64) filterOut += high; 
                     
                     // 3. ANALOGES SIGNAL-LEAKAGE (Leckstrom)
-                    // Etwa 11% des trockenen Signals umgehen den Filter (Silicon-Ungenauigkeit des 6581)
                     let leakage = voiceOut * 0.11;
                     voiceOut = filterOut + leakage;
                 }
@@ -213,17 +206,15 @@ class SIDProcessor extends AudioWorkletProcessor {
             let isAudible = Math.abs(visualValue) > 0.001;
             if (isAudible || this.wasAudible) {
                 const view = this.visualView;
-                view[0] = 0; // System Flag: 0 = C64 (SID)
+                view[0] = 0; 
                 view[1] = this.isPlaying ? 1 : 0;
                 view[2] = this.currentFrame;
                 view[3] = visualValue;
 
-                // Die 29 SID-Register in den Puffer kopieren
                 for (let r = 0; r < 29; r++) {
                     view[4 + r] = this.sid.regs[r];
                 }
 
-                // Temperatur-Rückmeldung an den Puffer übergeben (Index 33)
                 view[33] = this.temperature;
 
                 this.port.postMessage(view);
