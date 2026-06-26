@@ -4,6 +4,7 @@ import { createKickSample, createBassSample, createChordSample, createSnareSampl
 import { systemDescriptions, chipCheatSheets } from './content/museum.js'; // <- DIESER IMPORT MUSS INTACT SEIN!
 import { workletRegistry } from './worklets/registry.js';
 import { initScroller } from './visuals/scroller.js'; // NEU: Scroller-Modul importiert
+import { initVisuals } from './visuals/visualizer.js'; // NEU: Visualizer-Modul importiert
 
 // --- GLOBALE VARIABLEN ---
 let audioCtx;
@@ -63,9 +64,21 @@ function initApp() {
         demoContainer.classList.remove("hidden");
         
         await initAudioEngine();
-        initVisuals(); 
-
-        // NEU: Initialisierung mit reaktiven Gettern zur Kapselung des Scroller-States
+        
+        // NEU: Initialisierung des Grafik-Moduls mit asynchronem State-Routing
+        initVisuals({
+            getEcoMode: () => isEcoMode,
+            getCurrentOscValue: () => currentOscValue,
+            getTrackData: () => trackData,
+            getAnalyserNode: () => analyserNode,
+            getIsPlaying: () => isPlaying,
+            getAudioContext: () => audioCtx
+        }, 
+        {
+            updateTimelineUI: () => updateTimelineUI(),
+            updateChipHUD: () => updateChipHUD()
+        }); 
+        
         initScroller(
             () => currentScrollerText, 
             () => isEcoMode
@@ -73,6 +86,7 @@ function initApp() {
         
         // System initialisieren, aber KEINEN Track automatisch starten!
         setTheme('theme-c64');
+
     });
 }
 
@@ -1353,171 +1367,6 @@ function updateChipHUD() {
     }
 }
 
-// --- ZONE 1: HIGH-PERFORMANCE OSZILLOSKOP, RASTERBARS & SPECTRUM ---
-function initVisuals() {
-    const canvas = document.getElementById('demo-canvas');
-    const ctx = canvas.getContext('2d', { alpha: false }); 
-    
-    // Dynamischer Puffer-Speicher für das Oszilloskop
-    let historyLength = canvas.width;
-    let oscHistory = new Float32Array(historyLength).fill(NaN);
-    let oscIndex = 0;
 
-    // BUGFIX: Bewahrt die Oszilloskop-Welle beim Resize (Kein "Löschen" mehr!)
-    function resizeCanvas() {
-        const newWidth = canvas.clientWidth;
-        const newHeight = canvas.clientHeight;
-        
-        if (canvas.width !== newWidth) {
-            let oldHistory = oscHistory;
-            let oldLen = oldHistory ? oldHistory.length : 0;
-            
-            canvas.width = newWidth; 
-            canvas.height = newHeight;
-            historyLength = canvas.width;
-            
-            oscHistory = new Float32Array(historyLength).fill(NaN);
-            
-            // Alte Welle nahtlos in den neuen Puffer retten!
-            if (oldLen > 0) {
-                let copyLen = Math.min(oldLen, historyLength);
-                for (let i = 0; i < copyLen; i++) {
-                    let oldVal = oldHistory[(oscIndex - copyLen + i + oldLen) % oldLen];
-                    oscHistory[i] = oldVal;
-                }
-                oscIndex = copyLen % historyLength;
-            }
-        } else {
-            canvas.height = newHeight; // Nur Höhe hat sich geändert
-        }
-    }
-    
-    // Initiales Setup und Resize-Event-Kopplung
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    
-    let startTime = performance.now();
-    let hudCounter = 0; 
-
-    const bufferLength = analyserNode ? analyserNode.frequencyBinCount : 512;
-    const dataArray = new Uint8Array(bufferLength);
-    const barCount = 48; 
-    const peaks = new Array(barCount).fill(0); 
-
-    function drawCopperBar(yCenter, thickness, color1, color2) {
-        let grad = ctx.createLinearGradient(0, yCenter - thickness, 0, yCenter + thickness);
-        grad.addColorStop(0, `rgba(0,0,0,0)`); grad.addColorStop(0.2, color1);
-        grad.addColorStop(0.5, `rgba(255,255,255, 1)`); grad.addColorStop(0.8, color2);
-        grad.addColorStop(1, `rgba(0,0,0,0)`);
-        ctx.fillStyle = grad; ctx.fillRect(0, yCenter - thickness, canvas.width, thickness * 2);
-    }
-
-    function draw() {
-
-        // NEU: Wenn ECO Mode aktiv ist, zeichnen wir GAR NICHTS auf das Canvas!
-        if (isEcoMode) {
-            updateTimelineUI(); // Timeline soll natürlich weiterlaufen
-            requestAnimationFrame(draw);
-            return; // HIER BRECHEN WIR AB! GPU & CPU haben Pause!
-        }
-
-        let t = (performance.now() - startTime) * 0.001; 
-        
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; 
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        let audioPunch = Math.abs(currentOscValue) * 40; 
-
-        // NEU: Der Airbag! Falls der Audiochip crasht (NaN), retten wir das Canvas!
-        if (isNaN(audioPunch) || !isFinite(audioPunch)) audioPunch = 0;
-
-        const isAmiga = document.body.classList.contains('theme-amiga');
-        const isAtari = document.body.classList.contains('theme-atari');
-        
-        let pal1 = isAtari ? ['#005500', '#00aa00'] : isAmiga ? ['#0000aa', '#0055ff'] : ['#352879', '#6c5eb5'];
-        let pal2 = isAtari ? ['#555500', '#aaaa00'] : isAmiga ? ['#aa5500', '#ff8800'] : ['#aa0055', '#ff00aa'];
-        let pal3 = isAtari ? ['#005555', '#00aaaa'] : isAmiga ? ['#5500aa', '#aa00ff'] : ['#555555', '#aaaaaa'];
-        const lineColor = isAtari ? '#55ff55' : isAmiga ? '#ff8800' : '#6c5eb5';
-
-        ctx.globalCompositeOperation = "screen"; 
-        drawCopperBar((canvas.height / 2) + Math.sin(t * 1.2) * (canvas.height * 0.3), 25 + audioPunch, pal1[0], pal1[1]);
-        drawCopperBar((canvas.height / 2) + Math.sin(t * 1.8 + 2.0) * (canvas.height * 0.35), 20 + (audioPunch * 0.8), pal2[0], pal2[1]);
-        drawCopperBar((canvas.height / 2) + Math.sin(t * 1.5 + 4.0) * (canvas.height * 0.25), 15 + (audioPunch * 0.5), pal3[0], pal3[1]);
-        ctx.globalCompositeOperation = "source-over";
-
-        // --- 3. DAS OSZILLOSKOP ---
-        oscHistory[oscIndex] = (trackData.length === 0) ? NaN : currentOscValue;
-        oscIndex = (oscIndex + 1) % historyLength; 
-        
-        ctx.beginPath();
-        ctx.strokeStyle = lineColor;
-        
-        let isFirstPoint = true;
-        for (let x = 0; x < historyLength; x++) {
-            let actualIndex = (oscIndex + x) % historyLength; 
-            let val = oscHistory[actualIndex];
-            
-            if (!isNaN(val)) {
-                let y = (canvas.height / 2) - (val * (canvas.height * 0.4)); 
-                if (isFirstPoint) {
-                    ctx.moveTo(x, y);
-                    isFirstPoint = false;
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            }
-        }
-        
-        if (!isFirstPoint) {
-            ctx.lineWidth = 6; ctx.globalAlpha = 0.3; ctx.stroke();
-            ctx.lineWidth = 2; ctx.globalAlpha = 1.0; ctx.stroke();
-        }
-
-        // --- SPECTRUM ANALYZER ---
-        if (analyserNode && isPlaying) {
-            analyserNode.getByteFrequencyData(dataArray);
-            let barWidth = (canvas.width / barCount) - 2;
-            let x = 0;
-            
-            let hzPerBin = audioCtx.sampleRate / analyserNode.fftSize;
-            let minBin = Math.max(1, Math.floor(50 / hzPerBin)); 
-            let maxBin = Math.floor(12000 / hzPerBin); 
-            let lastEndBin = minBin;
-            
-            for (let i = 0; i < barCount; i++) {
-                let startBin = lastEndBin;
-                let endBin = Math.floor(minBin * Math.pow(maxBin / minBin, (i + 1) / barCount));
-                if (endBin <= startBin) endBin = startBin + 1;
-                lastEndBin = endBin;
-                
-                let sum = 0;
-                for (let b = startBin; b < endBin; b++) sum += dataArray[b];
-                let avg = sum / (endBin - startBin);
-                
-                let heightBoost = 1.0 + (i / barCount) * 0.5;
-                let barHeight = ((avg * heightBoost) / 255.0) * (canvas.height * 0.4);
-                
-                if (barHeight > peaks[i]) peaks[i] = barHeight; 
-                else { peaks[i] -= 1.5; if (peaks[i] < 0) peaks[i] = 0; }
-                
-                ctx.fillStyle = lineColor; ctx.globalAlpha = 0.7;
-                ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-                
-                if (peaks[i] > 2) {
-                    ctx.globalAlpha = 1.0; ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(x, canvas.height - peaks[i] - 4, barWidth, 2);
-                }
-                x += barWidth + 2;
-            }
-            ctx.globalAlpha = 1.0;
-        }
-
-        hudCounter++;
-        updateTimelineUI();
-        if (hudCounter % 4 === 0) updateChipHUD();
-        requestAnimationFrame(draw);
-    }
-    draw();
-}
 
 
