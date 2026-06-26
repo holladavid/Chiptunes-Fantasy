@@ -1,7 +1,7 @@
 // === js/worklets/atari/ym-standard.js ===
 // =========================================================
 // YM2149F CORE (CYCLE-EXACT, LOGARITHMIC DAC, OPTIMIZED)
-// With Zero-Allocation Visualizer Buffer (Safe Clone)
+// With Sub-Sample Accurate Phase & Envelope Alignment
 // =========================================================
 
 import { detectDigidrum } from '../lib/dsp-utils.js';
@@ -104,6 +104,8 @@ class YMProcessor extends AudioWorkletProcessor {
             if (this.isPlaying && this.trackData) {
                 this.sampleCounter--;
                 if (this.sampleCounter <= 0) {
+                    // === DETERMINISTISCHE SUB-SAMPLE PHASEN-KOMPENSATION ===
+                    const overshoot = -this.sampleCounter; // Fraktionaler Überhang in Samples
                     this.sampleCounter += sampleRate / 50.0; 
                     
                     let frame = this.trackData[this.currentFrame];
@@ -111,7 +113,8 @@ class YMProcessor extends AudioWorkletProcessor {
                         if (r === 13) {
                             if (frame[13] !== 0xFF) {
                                 this.regs[13] = frame[13];
-                                this.envPhase = 0.0; 
+                                // Hüllkurven-Phase exakt am Sub-Sample-Startpunkt synchronisieren
+                                this.envPhase = overshoot * this.incEnv; 
                             }
                         } else {
                             this.regs[r] = frame[r];
@@ -123,17 +126,24 @@ class YMProcessor extends AudioWorkletProcessor {
                     if (activeDigiTrigger > 0 && activeDigiTrigger !== this.lastDigiTrigger) {
                         if (this.digidrums[activeDigiTrigger - 1]) {
                             this.currentDigidrum = this.digidrums[activeDigiTrigger - 1];
-                            this.digiPos = 0;
+                            // Digidrum-Startpunkt sub-sample-genau kompensieren
+                            this.digiPos = overshoot * (7812.5 / sampleRate);
                             this.port.postMessage({ type: 'DEBUG', msg: 'Drum ' + activeDigiTrigger });
                         }
                     }
                     this.lastDigiTrigger = activeDigiTrigger;
                     
                     this.updateInternals();
+
+                    // Phasen-Akkumulatoren der Oszillatoren ausrichten
+                    this.phaseA = (this.phaseA + overshoot * this.incA) % 1.0;
+                    this.phaseB = (this.phaseB + overshoot * this.incB) % 1.0;
+                    this.phaseC = (this.phaseC + overshoot * this.incC) % 1.0;
+
                     this.currentFrame = (this.currentFrame + 1) % this.trackData.length;
                 }
             }
-
+            
             this.phaseA = (this.phaseA + this.incA) % 1.0;
             this.phaseB = (this.phaseB + this.incB) % 1.0;
             this.phaseC = (this.phaseC + this.incC) % 1.0;
@@ -210,7 +220,6 @@ class YMProcessor extends AudioWorkletProcessor {
 
         this.visCounter = (this.visCounter || 0) + 1;
         if (this.visCounter % 4 === 0) {
-            // === NATIVE SPEICHERÜBERTRAGUNG (Sichert die Live-Frequenzlinie!) ===
             let isAudible = Math.abs(currentVisualValue) > 0.001;
             if (isAudible || this.wasAudible) {
                 const view = this.visualView;
