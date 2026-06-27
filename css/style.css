@@ -939,3 +939,11 @@ body.theme-atari .tab-btn.active {
         padding-bottom: 5px;
     }
 }
+
+/* Blendet den Cursor im Vollbildmodus bei Inaktivität aus */
+#visual-zone.no-cursor {
+    cursor: none !important;
+}
+#visual-zone.no-cursor * {
+    cursor: none !important;
+}

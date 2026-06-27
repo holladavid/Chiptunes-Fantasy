@@ -20,27 +20,29 @@ c64: `
         </div>
 
         <div style="border-left: 4px solid var(--text-color); padding: 10px 15px; margin-bottom: 15px; background: rgba(0,0,0,0.2); line-height: 1.6;">
-            <h3 style="color: var(--highlight-color); margin-bottom: 5px;">[ DEEP DIVE: MOS TECHNOLOGY SID 6581 ]</h3>
+            <h3 style="color: var(--highlight-color); margin-bottom: 15px;">[ DEEP DIVE: MOS TECHNOLOGY SID 6581 ]</h3>
             <p>Der Sound Interface Device (SID), 1981 von Bob Yannes entworfen, ist ein analoger subtraktiver Synthesizer auf einem einzigen Silizium-Chip. Er besitzt 3 Oszillatoren (Sägezahn, Dreieck, Rechteck, Rauschen), individuelle ADSR-Generatoren und ein analoges Multimode-Filter.</p>
 
-            <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> DIE ANALOGE FILTER-ROUTING-MATRIX ($D417)</h4>
+            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> HISTORIE: DER 24-JÄHRIGE REBELL & DAS JUBILÄUM DES SIDS</h4>
+            <p>In der zweiten Hälfte des Jahres 1981 stand der erst 24-jährige Robert "Bob" Yannes vor einer monumentalen Aufgabe. Commodore-Gründer Jack Tramiel gab der Halbleiter-Sparte MOS Technology ein knallhartes Ultimatum: Der Sound- und Grafikchip für das geplante "Project Red" (den späteren Commodore 64) musste in genau <strong>fünf Monaten</strong> fertig sein, um pünktlich zur Consumer Electronics Show (CES) im Januar 1982 präsentiert werden zu können.</p>
+            <p>Yannes, der kurz zuvor als junger Absolvent eingestellt worden war, verabscheute die damals typischen simplen Soundchips der Spielhallen-Ära (die er als "primitive Beep-Generatoren" bezeichnete). Da er in seiner Freizeit hobbymäßig eigene Synthesizer gebaut hatte, beschloss er, das Unmögliche zu wagen: Er wollte einen vollwertigen, professionellen subtraktiven Synthesizer auf ein winziges Stück Silizium bannen. Unter extremem Zeitdruck entwarf er ein revolutionäres Design mit drei physisch getrennten Stimmen, flexiblen ADSR-Hüllkurven und einem echten analogen Multimode-Filter.</p>
+
+            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> DIE ANOMALIEN: WARUM DER SID SCHWER ZU EMULIEREN IST</h4>
+            <p>Die unerreichte Seele des SID-Klangs liegt in seinen physikalischen "Fehlern" und analogen Imperfektionen begründet. Das ist auch der Grund, weshalb einfache Emulationen oft steril und flach klingen. Unser cycle-genauer Mischer bildet diese Anomalien präzise ab:</p>
+            <ul>
+                <li><strong>NMOS Transistor Sättigung:</strong> Wenn Musiker mehrere Wellenformen auf einem Kanal mischten (z. B. Dreieck + Sägezahn), war dies kein logisches digitales ODER. Die analogen Signalströme belasteten sich auf dem Silizium physisch gegenseitig, was zu nicht-linearen harmonischen Verzerrungen (Sättigung) führte.</li>
+                <li><strong>DC-Leakage & der Galway-Hack ($D418):</strong> Die analoge VCA-Lautstärkeregelung hatte ein leichtes Gleichspannungs-Leck. Martin Galway (Komponist von <em>Wizball</em>) fand heraus, dass man dieses Leck ausnutzen konnte: Durch blitzschnelles Beschreiben des Lautstärkeregisters mit mehreren Kilohertz erzeugte die CPU eine hörbare DC-Spannungsschwankung – der berühmte 4-Bit-Sample-Hack war geboren, den unser neuer 1-MHz-Mischer detailgetreu wiedergibt.</li>
+                <li><strong>Thermal Cutoff Drift:</strong> Der analoge Filter besaß keine Temperaturkompensation. Wenn sich der Rechner im Betrieb erwärmte, sank der Widerstand der internen FET-Transistoren, wodurch die Filter-Grenzfrequenz (Cutoff) dramatisch abrutschte. Ein Track, der nachmittags im heißen Studio warm klang, klang morgens eisig und schrill. (Dies lässt sich über unseren <em>TEMP</em>-Regler manuell nachstellen).</li>
+            </ul>
+
+            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> DIE ANALOGE FILTER-ROUTING-MATRIX ($D417)</h4>
             <p>Der SID besitzt auf dem Silizium genau einen physischen Filter-Schaltkreis (VCF). Coder konnten in Register <strong>$D417</strong> über einzelne Schalter (Bits) für jede der 3 Stimmen entscheiden, ob sie den Filter durchlaufen oder ihn umgehen (Bypass).<br>
             <strong>🎵 Szene-Trick:</strong> Komponisten schickten oft nur die fette Bassline (Stimme 1) in den Filter, um sie per LFO "wabbeln" zu lassen, während die schnellen Arpeggios und Drums (Stimme 2 & 3) ungefiltert direkt zum Master-Out liefen, um kristallklar und aggressiv zu bleiben. (Tipp: Beobachte im HUD die LEDs unter <em>Routing (V1/V2/V3)</em>!)</p>
 
-            <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> THERMAL CUTOFF DRIFT (DIE HITZE DES C64)</h4>
-            <p>Der analoge Filter des MOS 6581 war extrem temperaturempfindlich. Wenn der C64 lief, heizte sich der Chip im Gehäuse massiv auf, was den Widerstand der internen FET-Transistoren veränderte. Das Resultat: Die Grenzfrequenz (Cutoff) des Filters rutschte ab. Ein Track, den Rob Hubbard nach 5 Stunden an einem heißen Sommernachmittag perfekt und "cremig" abgemischt hatte, klang am nächsten Morgen im eiskalten Studio plötzlich viel zu schrill und beißend!</p>
-            <p style="margin-top: 5px;"><strong>Mit dem <em>TEMP</em>-Regler</strong> kannst du genau dieses Klima nun selbst steuern. Zieh ihn auf eiskalte <strong>15°C</strong> für brillante, aggressiv schneidende Höhen, oder auf glühende <strong>75°C</strong> für den legendären, warm-sättigenden und dumpfen Sound. Was damals der Albtraum für C64-Coder war, ist heute dein Spielplatz.</p>
-
-            <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> DER HUBBARD'SCHE RAUSCH-ZUFALLS-HACK ($D41B)</h4>
-            <p>Rob Hubbard (Komponist von <em>Commando</em> und <em>Delta</em>) stand vor dem Problem, dass der C64 keinen mathematischen Zufallsgenerator besitzt, um dynamische Snare-Drums und Hi-Hats zu berechnen. Seine geniale Lösung: Er schaltete Oszillator 3 auf Rauschen und las in seiner Play-Routine kontinuierlich das Hardware-Register <strong>$D41B (Voice 3 Waveform Output)</strong> aus. Die fluktuierenden Rohdaten nutzte er direkt as Hardware-Zufallszahlen für seine peitschenden Percussions!</p>
-
-            <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> DIE 3-STIMMEN-POLYPHONIE-FALLE (ARPEGGIOS)</h4>
+            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> DIE 3-STIMMEN-POLYPHONIE-FALLE (ARPEGGIOS)</h4>
             <p>Da der SID nur über 3 Stimmen verfügt, mussten Musiker tricksen, um dreistimmige Akkorde plus Bass und Melodie abzubilden. Sie koppelten die Akkord-Noten (z. B. Grundton, kleine Terz, Quinte) in einer schnellen 50Hz-VBLANK-Routine auf einer einzigen Stimme. Durch das rasant schnelle Umschalten der Frequenz entsteht das berühmte "Flirren" (Arpeggio), das dem menschlichen Ohr einen echten, dreistimmigen Akkord vorgaukelt.</p>
 
-            <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> DER GALWAY VOLUME-ECHO-HACK ($D418)</h4>
-            <p>Martin Galway (Komponist von <em>Wizball</em>) fand heraus, dass man den SID zwingen kann, digitale Samples (PCM) abzuspielen, indem man das globale Lautstärkeregister <strong>$D418</strong> mit einer Frequenz von mehreren Kilohertz beschreibt. Dieser Hardware-Hack modulierte die DC-Spannung des Chips so schnell, dass ein hörbarer digitaler 4-Bit Soundstrom entstand.</p>
-
-            <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> DYNAMISCHE PULSWEITENMODULATION (PWM)</h4>
+            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> DYNAMISCHE PULSWEITENMODULATION (PWM)</h4>
             <p>Um dünne Synth-Klänge extrem "fett" und schwebend klingen zu lassen, modulierten Coder die Rechteckbreite (Pulse Width) über sinusförmige Software-LFOs. Das erzeugte ein sattes chorusschwebendes Klangbild, das klingt, als spielten mehrere Oszillatoren gleichzeitig.</p>
         </div>
     `,
@@ -59,11 +61,17 @@ c64: `
         </div>
 
         <div style="border-left: 4px solid var(--text-color); padding: 10px 15px; margin-bottom: 15px; background: rgba(0,0,0,0.2); line-height: 1.6;">
-            <h3 style="color: var(--highlight-color); margin-bottom: 5px;">[ CHIP-SPECS: MOS PAULA 8364 (AMIGA 500) ]</h3>
-            <p>Paula war ein reiner DMA-Sample-Player, der 4 unabhängige PCM-Kanäle direkt aus dem Chip-RAM auslas. Um den typischen "Amiga 500 Sound" exakt nachzubilden, emuliert dieser Standard-Core drei hardware-spezifische Bausteine:</p>
+            <h3 style="color: var(--highlight-color); margin-bottom: 15px;">[ DEEP DIVE: MOS TECHNOLOGY PAULA 8364 ]</h3>
+            <p>Paula war das Herzstück des Amiga-Audiosystems und einer der fortschrittlichsten Soundchips seiner Epoche.</p>
 
-            <!-- NEU: Exakte, tiefgründige Erklärung der variablen D/A-Wandlungsrate hier im Haupt-Deep-Dive! -->
-            <h4 style="color: var(--highlight-color); margin: 15px 0 5px 0;">> DIE VARIABLE D/A-WANDLUNGSRATE (DER AMIGA-SCHIMMER)</h4>
+            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> HISTORIE: JAY MINERS MENTORSHIP & GLENN KELLERS ERSTER CHIP</h4>
+            <p>In der frühen Entwicklungsphase der Amiga-Lorraine-Prototypen trug die Paula noch einen ganz anderen Namen: Sie hieß intern <strong>Portia</strong> (abgeleitet von I/O "Ports"). Da der Custom-Chip neben der Tonausgabe auch für die Steuerung der Diskettenlaufwerke und der seriellen Schnittstelle zuständig war, lag dieser logische Name nah. Später bildeten die Ingenieure um Jay Miner daraus die alliterativen, freundlicheren Codenamen Agnus, Denise und schließlich <strong>Paula</strong>.</p>
+            <p>Die Schaltung von Paula wurde vom jungen Ingenieur <strong>Glenn Keller</strong> entworfen, der von Amiga-Urvater Jay Miner persönlich als Mentor betreut wurde. Faszinierend dabei: Paula war Glenn Kellers **allerliebstes und erstes-Chip-Design überhaupt**! Und er lieferte ein absolutes Meisterwerk ab. Während der Amiga im Laufe der Jahre technologisch weiterentwickelt wurde und Agnus (Fat Agnus, Alice) sowie Denise (Lisa) mehrfach komplett neu designt wurden, blieb Paula über die gesamte Lebensspanne des Amiga von 1985 (Amiga 1000) bis zum Ende 1992 (Amiga 4000 / CD32) **völlig unverändert**. Sie war von Tag eins an schlicht fehlerfrei und perfekt ausgelegt.</p>
+
+            <h3 style="color: var(--highlight-color); margin: 30px 0 15px 0;">[ CHIP-SPECS: EMULIERTE HARDWARE-KOMPONENTEN ]</h3>
+            <p>Paula war ein reiner DMA-Sample-Player, der 4 unabhängige PCM-Kanäle direkt aus dem Chip-RAM auslas. Um den typischen "Amiga 500 Sound" exakt nachzubilden, emuliert dieser Standard-Core vier hardware-spezifische Bausteine:</p>
+
+            <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> DIE VARIABLE D/A-WANDLUNGSRATE (DER AMIGA-SCHIMMER)</h4>
             <p>Paula arbeitet im Gegensatz zu modernen Soundkarten nicht mit einer starren, globalen Samplerate (wie 44.1 kHz oder 48 kHz). Jeder der 4 Kanäle liest sein Sample mit einer völlig eigenständigen Hardware-Geschwindigkeit aus!<br>
             Diese Rate wird direkt aus dem PAL-Haupttakt (3.546.895 Hz) geteilt durch den im Register hinterlegten Periodenwert berechnet. Dieses variable Auslesen erzeugt im Hochtonbereich die berühmten analogen Spiegelfrequenzen (Aliasing) – den legendären <strong>Amiga-Schimmer</strong>, der Tracker-Musik diesen unverwechselbar lebendigen Glanz verleiht.</p>
 
@@ -71,7 +79,7 @@ c64: `
             <p>Das D/A-Wandler-System multipliziert das vorzeichenbehaftete 8-Bit-Sample in Echtzeit mit dem 6-Bit-Lautstärkeregister (0-64). Das resultiert in einer 14-Bit Digitalauflösung mit dem berühmt-berüchtigten, erdigen "Crunch" und metallischen Spiegelfrequenzen (Aliasing) im Hochtonbereich.</p>
 
             <h4 style="color: var(--highlight-color); margin: 15px 0 5px 0;">> STATISCHER ANALOG-FILTER (6 dB/oct)</h4>
-            <p>Ein permanenter Tiefpass-Filter (RC-Schaltung), der im originalen Amiga 500 bei genau <strong>4.420,97 Hz</strong> einsetzt, um hochfrequentes Digitalrauschen sachte abzufedern.</p>
+            <p>Ein permanente Tiefpass-Filter (RC-Schaltung), der im originalen Amiga 500 bei genau <strong>4.420,97 Hz</strong> einsetzt, um hochfrequentes Digitalrauschen sachte abzufedern.</p>
 
             <h4 style="color: var(--highlight-color); margin: 15px 0 5px 0;">> DYNAMISCHER LED-FILTER (12 dB/oct)</h4>
             <p>Ein zuschaltbarer Butterworth-Filter 2. Ordnung bei genau <strong>3.090,53 Hz</strong> ($Q = 0,660$). Er wurde im Original durch das CIA-Register gesteuert (welches auch die Helligkeit der Power-LED dimmte), um den Ton besonders warm und dumpf klingen zu lassen.</p>
@@ -80,7 +88,7 @@ c64: `
     atari: `
         <!-- === TECHNICAL SPECIFICATION GRID (ATARI YM2149F) === -->
         <div style="padding: 4px 0; margin-bottom: 20px; font-size: calc(var(--font-size-base) * 0.75); background: transparent; font-family: monospace;">
-            <p style="color: var(--highlight-color); margin-bottom: 8px; font-weight: bold; border-bottom: 1px dashed var(--text-color); padding-bottom: 4px;">>>> HARDWARE SPECIFICATIONS:</p>
+            <p style="color: var(--highlight-color); margin-bottom: 8px; bold; border-bottom: 1px dashed var(--text-color); padding-bottom: 4px;">>>> HARDWARE SPECIFICATIONS:</p>
             <div style="display: grid; grid-template-columns: 140px 1fr; gap: 6px; line-height: 1.4;">
                 <div><strong>Kanäle:</strong></div><div>3 analoge Hauptkanäle (A, B, C) mit zuschaltbarem Rauschen (kein 4. Kanal)</div>
                 <div><strong>Taktfrequenz:</strong></div><div>2.000.000 Hz (2.0 MHz Master Clock)</div>
@@ -92,66 +100,27 @@ c64: `
         </div>
 
         <div style="border-left: 4px solid var(--text-color); padding: 10px 15px; margin-bottom: 15px; background: rgba(0,0,0,0.2); line-height: 1.6;">
-            <h3 style="color: var(--highlight-color); margin-bottom: 15px;">[ DEEP DIVE: YM2149F ARCHITEKTUR ]</h3>
-            <p>Der Yamaha YM2149 (im Atari ST mit 2 MHz getaktet) ist ein puristischer Rechteck-Synthesizer. Er hat keine analogen Filter, aber eine geniale, rohe digitale Architektur. Hier erfährst du, was die Live-Werte im DSP-Analyzer (oben rechts) bedeuten:</p>
+            <h3 style="color: var(--highlight-color); margin-bottom: 15px;">[ DEEP DIVE: YAMAHA YM2149 (ATARI ST) ]</h3>
+            <p>Der Yamaha YM2149 war der akustische Herzschlag der 16-Bit Atari ST Serie – ein scheinbar primitiver Chip mit einer spektakulären Entwicklungsgeschichte.</p>
+
+            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> HISTORIE: SHIRAZ SHIVJIS COST-CUT-HACK & DIE RETTUNG DES 'JACKINTOSH'</h4>
+            <p>Als Jack Tramiel Commodore im Streit verließ und 1984 die Reste von Atari kaufte, beauftragte er seinen genialen Chefdesigner <strong>Shiraz Shivji</strong> (der zuvor am C64 mitgearbeitet hatte), in weniger als einem Jahr einen extrem günstigen Macintosh-Killer (den "Atari ST") zu entwerfen. Jedes Bauteil musste auf den Cent genau kalkuliert werden. Um den Preis für teure dedizierte I/O-Controller-Chips zu sparen, vollbrachte Shivji einen legendären Hacker-Trick: Er wählte den spottbilligen Yamaha YM2149 (einen optimierten Lizenzbau des 1978er AY-3-8910 von General Instrument) und <strong>missbrauchte dessen freie I/O-Ports als System-Rückgrat</strong>.</p>
+            <p>Auf dem Atari ST steuert der Soundchip deshalb nicht nur Töne, sondern über seine physischen Pins (I/O Port A) direkt: Die Laufwerksauswahl des Diskettenlaufwerks (Drive A/B Select, Side Select), das Strobe-Signal für den Druckerport, die Steuerleitungen für das RS-232-Modem sowie die Selektionssignale für die MIDI- und Tastatur-Controller! Ein Ausfall des Soundchips führte somit zum sofortigen Stillstand des gesamten Computers.</p>
+
+            <h3 style="color: var(--highlight-color); margin: 30px 0 15px 0;">[ CHIP-SPECS: EMULIERTE HARDWARE-KOMPONENTEN & SCENE-TRICKS ]</h3>
+            <p>Der YM2149 besitzt keinerlei analoge Filter oder native PCM-Sample-Wandler. Um dem Chip dennoch komplexe Klänge zu entlocken, mussten die Musik-Magier der ST-Demoszene tief in die Trickkiste greifen. Unsere Synthese-Cores emulieren diese Hardware-Kniffe detailgetreu:</p>
 
             <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> DIE OSZILLATOREN (CH A, B, C)</h4>
-            <p>Drei reine Rechteckwellen. Die Tonhöhe (Pitch) wird über einen 12-Bit Timer gesteuert. <em>Vorsicht, Counter-Logic:</em> Es ist ein Teiler-Wert! Je kleiner die Zahl im Register, desto höher der Ton (Hertz = Takt / (16 * Period)).</p>
+            <p>Drei reine, harsche Rechteck-Generatoren. Die Frequenzsteuerung erfolgt über einen 12-Bit-Teilerwert. Je kleiner der Registerwert, desto schneller schwingt die Phase. (Tipp: Beobachte im HUD die Sparklines im Live-Oszillogramm pro Kanal!)</p>
 
             <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> DER NOISE-GENERATOR (N-FREQ)</h4>
-            <p>Ein 5-Bit Linear Feedback Shift Register (LFSR), das pseudozufälliges "weißes Rauschen" generiert. Die Frequenz bestimmt, wie "hell" oder "dumpf" das Rauschen klingt.<br>
-            <strong>🎵 Szene-Trick:</strong> Musiker änderten die Noise-Frequenz rasend schnell, um aus dem statischen Rauschen knackige Snare-Drums und zischende Hi-Hats zu formen.</p>
+            <p>Ein 5-Bit Linear Feedback Shift Register (LFSR), das pseudozufälliges "weißes Rauschen" erzeugt. Durch rasant schnelles Umschalten der Noise-Frequenz emulierten Coder knackige Snare-Drums und zischende Hi-Hats, die im Mischer flexibel auf die 3 Spuren geroutet werden konnten.</p>
 
-            <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> DER MIXER (TONE & NOISE)</h4>
-            <p>Das logische Herz des Chips. Für jeden der 3 Kanäle kann man Rechteckwelle (Tone) und Rauschen (Noise) separat ein- oder ausschalten.<br>
-            <strong>🎵 Szene-Trick:</strong> Legt man auf einen Kanal Tone UND Noise gleichzeitig, entsteht ein rauer, metallischer Klang – perfekt für elektronische Percussion.</p>
-
-            <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> HARDWARE ENVELOPE GENERATOR (HEG)</h4>
-            <p>Eigentlich gedacht, die Lautstärke ohne CPU-Last zu formen (16 feste Shapes). Ein Kanal nutzt den HEG, wenn die <strong>HEG-LED</strong> im HUD leuchtet.<br>
-            <strong>💡 Der Hippel-Hack:</strong> Jochen Hippel setzte die HEG-Frequenz so extrem hoch an, dass die Hüllkurve selbst hörbar wurde! Er nutzte die wilden HEG-Shapes, um die menschliche Stimme ("Tha-li-on" Intro) zu simulieren.</p>
+            <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> HARDWARE ENVELOPE GENERATOR (HEG) & DER HIPPEL-SID-HACK</h4>
+            <p>Der Chip besitzt eigentlich nur eine einzige, starre Hüllkurve (HEG) mit 16 vordefinierten Mustern. <strong>Jochen Hippel (Mad Max)</strong> fand jedoch heraus: Wenn man die HEG-Frequenz über Software-Timer extrem hochreißt (in den hörbaren Bereich), fängt die Hüllkurve selbst an zu schwingen. Koppelmen wir diesen "Hippel-Hack" mit den Rechteck-Generatoren, entstehen resonante, synthetische Dreieckswellen – die berühmten "ST-SID-Voices", die im HUD das rote <em>HEG-LED</em> zum Leuchten bringen.</p>
 
             <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> YM6 SPEC: DIE DIGIDRUMS (DIGI HACK)</h4>
-            <p>Hardwareseitig besitzt der YM2149 **keine** D/A-Wandler für PCM-Sprachsamples oder Trommeln. ST-Coder behalfen sich mit hochfrequenten CPU-Software-Timern (wie dem MFP 68901), um die 4-Bit-Lautstärkeregister (R8, R9, R10) direkt im Kilohertz-Bereich mit analogen Pegeln zu beschreiben.</p>
-            <p style="margin-top: 5px;"><strong>Das Format-Geheimnis von Arnaud Carré (Leonard):</strong> Um diese emulierten Trommel-Hits platzsparend im datei-komprimierten <code>.ym</code>-Registerdump zu hinterlegen, erfand er ein geniales Meta-Protokoll für das <strong>YM6-Format</strong>. Da die oberen Bits der Pitch-Feinabstimmungsregister (R1 und R3) physisch ungenutzt sind, codierte er dort die Trigger!</p>
-            <p style="font-size: 0.9em; margin-left: 10px; color: var(--text-color); opacity: 0.8;">
-                &gt; <strong>Bit 6-7 von R1 oder R3 = 01:</strong> Signaliert unserer Engine einen aktiven Digidrum-Start!<br>
-                &gt; <strong>Bit 4-5 von R1 oder R3:</strong> Bestimmt, welcher Kanal (01: Voice A, 10: Voice B, 11: Voice C) gehijackt wird.<br>
-                &gt; Das zugehörige Volume-Register (R8, R9 oder R10) transportiert in diesem Frame anstelle der Lautstärke die 5-Bit ID des eingebetteten PCM-Trommelsamples.<br>
-                &gt; Unsere Engine fängt diesen Hardware-Hack ab, startet das Sample, leitet die emulierten Trigger-Infos an die rote <strong>Global-Trig-LED</strong> im HUD weiter und schreibt die Sample-Nummer live in die Zeile <strong>Digi Hack</strong> des betroffenen Kanals!
-            </p>
+            <p>Da der YM2149 keine D/A-Wandler besitzt, nutzten Coder wie **Arnaud Carré (Leonard)** hochfrequente CPU-Timer-Interrupts, um die 4-Bit-Lautstärkeregister im Kilohertz-Bereich direkt mit Sample-Amplituden zu füttern (Pulse Code Modulation). Das von uns emulierte **YM6-Format** fängt diese Register-Hacks ab, leitet sie an die rote <em>Global-Trig-LED</em> im HUD weiter und rendert die legendären 4-Bit-Trommelschläge glasklar im Stereo-Raum.</p>
         </div>
-    `
-};
-
-export const chipCheatSheets = {
-    atari: `
-        <strong>YM2149 Cheat Sheet:</strong><br>
-        <span style="color:#fff">R00-R05:</span> Pitch A/B/C (Fine & Coarse)<br>
-        <span style="color:#fff">R06:</span> Noise Frequency<br>
-        <span style="color:#fff">R07:</span> Mixer (Bit 0-2 Tone, 3-5 Noise)<br>
-        <span style="color:#fff">R08-R0A:</span> Volume A/B/C (Bit 4 = HEG Mode)<br>
-        <span style="color:#fff">R0B-R0C:</span> Hardware Envelope (HEG) Period<br>
-        <span style="color:#fff">R0D:</span> HEG Shape (Saw, Triangle, etc.)<br>
-        <span style="color:#fff">R0F:</span> Geheimer Digidrum-Trigger!
-    `,
-    c64: `
-        <strong>SID 6581 Cheat Sheet:</strong><br>
-        <span style="color:#fff">R00-R06:</span> Voice 1 (Freq, PW, Ctrl, AD, SR)<br>
-        <span style="color:#fff">R07-R0D:</span> Voice 2 (Freq, PW, Ctrl, AD, SR)<br>
-        <span style="color:#fff">R0E-R14:</span> Voice 3 (Freq, PW, Ctrl, AD, SR)<br>
-        <span style="color:#fff">R15-R16:</span> Filter Cutoff Frequency<br>
-        <span style="color:#fff">R17:</span> Resonance & Voice Routing<br>
-        <span style="color:#fff">R18:</span> Filter Mode & Master Volume
-    `,
-    amiga: `
-        <strong>PAULA DMA Cheat Sheet:</strong><br>
-        (Hardware via Software repräsentiert)<br>
-        <span style="color:#fff">CH1-CH4 (je 4 Bytes):</span><br>
-        [0-1]: Periode (Pitch)<br>
-        [2]: Volume (0-64)<br>
-        [3]: Trigger-Status (Aktiv/Inaktiv)<br>
-        <br>
-        <span style="color:#ff8800">💡 Gehäuse-LED-Filter (Bypass):</span><br>
-        Die rote <span style="color:#fff">Power-LED (PWR)</span> ist interaktiv! Klicke direkt darauf, um das analoge 12dB/Okt-Tiefpass-Filter (LED-Filter) manuell zu überbrücken (gedimmt/on = warmer, weicher Sound; hell/off = klarer, höhenreicher Sound).
     `
 };

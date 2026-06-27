@@ -4,7 +4,8 @@
 // =========================================================================
 
 import { trackRegistry } from '../tracks/registry.js';
-import { systemDescriptions, chipCheatSheets } from './content/museum.js'; 
+import { systemDescriptions } from './content/museum.js'; 
+import { chipCheatSheets } from './content/cheatsheets.js'; // --- NEU: Modularer Import ---
 import { workletRegistry } from './worklets/registry.js';
 import { initScroller } from './visuals/scroller.js'; 
 import { initVisuals } from './visuals/visualizer.js'; 
@@ -34,8 +35,25 @@ let lastTrackChangeTime = 0;
 let isEcoMode = false;      
 let isUserDragging = false; 
 let currentSubsongIndex = 1; 
-// Globales Array für die Kanallautstärken (Zero-Allocation)
 let channelVolumes = new Float32Array(4);
+
+// Cursor-Hiding Inaktivitäts-Timer
+let mouseIdleTimer = null;
+const visualZone = document.getElementById('visual-zone');
+
+function resetMouseIdleTimer() {
+    if (!visualZone) return;
+    visualZone.classList.remove('no-cursor');
+    clearTimeout(mouseIdleTimer);
+    
+    // Nur im Vollbild- oder Pseudo-Vollbildmodus den Zeiger ausblenden
+    const isFS = document.fullscreenElement || document.webkitFullscreenElement || visualZone.classList.contains('pseudo-fullscreen');
+    if (isFS) {
+        mouseIdleTimer = setTimeout(() => {
+            visualZone.classList.add('no-cursor');
+        }, 3000); // 3 Sekunden Inaktivität
+    }
+}
 
 function initApp() {
     if ('serviceWorker' in navigator) {
@@ -73,7 +91,7 @@ function initApp() {
         initVisuals({
             getEcoMode: () => isEcoMode,
             getCurrentOscValue: () => currentOscValue,
-            getChannelVolumes: () => channelVolumes, // === DIESEN GETTER HIER ERGÄNZEN ===
+            getChannelVolumes: () => channelVolumes,
             getTrackData: () => trackData,
             getAnalyserNode: getAnalyserNode,  
             getIsPlaying: () => isPlaying,
@@ -92,13 +110,19 @@ function initApp() {
         // INTERAKTIVE SKEUOMORPHIC LED KOPPLUNG (AMIGA)
         document.getElementById('chip-hud').addEventListener('click', (e) => {
             if (e.target && e.target.id === 'amiga-led-pwr') {
-                // Sendet den Umschalt-Zyklus (Auto -> Force ON -> Force OFF -> Auto) an das Worklet
                 const paulaNode = getPaulaNode();
                 if (paulaNode) {
                     paulaNode.port.postMessage({ type: 'CYCLE_FILTER' });
                 }
             }
         });
+
+        // Event-Listener für das Cursor-Hiding binden
+        if (visualZone) {
+            visualZone.addEventListener('mousemove', resetMouseIdleTimer);
+            visualZone.addEventListener('mousedown', resetMouseIdleTimer);
+            visualZone.addEventListener('touchstart', resetMouseIdleTimer);
+        }
 
         setTheme('theme-c64');
     });
@@ -138,7 +162,10 @@ progressSlider.addEventListener('input', (e) => {
 });
 
 progressSlider.addEventListener('change', (e) => {
-    if (trackData.length === 0) return;
+
+    // --- NEU: Generative C64 Programme können nicht per Slider gespult werden! ---
+    if (trackData.length === 0 || activeSystem === 'c64') return;
+
     const targetPercent = parseFloat(e.target.value);
     const targetFrame = Math.floor((targetPercent / 100) * trackData.length);
     
@@ -173,54 +200,36 @@ function handleWorkletMessage(e) {
         
         for (let i = 0; i < 32; i++) {
             currentChipRegs[i] = view[4 + i];
-            // === AUSLESEN DER EINZELNEN KANAL-LAUTSTÄRKEN FÜR RASTER-BARS ===
             channelVolumes[0] = view[34];
             channelVolumes[1] = view[35];
             channelVolumes[2] = view[36];
             channelVolumes[3] = view[37];            
         }
 
-        // === THERMISCHES FEEDBACK FÜR DEN SID-FILTER ===
         if (systemId === 0) {
             const tempVal = Math.round(view[33]);
-            currentChipRegs[29] = tempVal; // In virtuellem Register 29 parken für HUD
+            currentChipRegs[29] = tempVal; 
         }
 
-
-        // AUSSCHNITT 1: Der Klick-Event-Listener im boot-screen-Block (ca. Zeile 80)
-        document.getElementById('chip-hud').addEventListener('click', (e) => {
-            if (e.target && e.target.id === 'amiga-led-pwr') {
-                // Sendet den Umschalt-Zyklus (Auto -> Force ON -> Force OFF -> Auto) an das Worklet
-                const paulaNode = getPaulaNode();
-                if (paulaNode) {
-                    paulaNode.port.postMessage({ type: 'CYCLE_FILTER' });
-                }
-            }
-        });
-
-
-        // AUSSCHNITT 2: Der Message-Port-Receiver in handleWorkletMessage(e) (ca. Zeile 200)
         if (systemId === 1) {
             const ledState = Math.round(view[33]);
-            const overrideState = Math.round(view[38]); // Auslesen des 3-Stufen-Status (0: Auto, 1: Force ON, 2: Force OFF)
+            const overrideState = Math.round(view[38]); 
             currentChipRegs[29] = ledState; 
             currentChipRegs[30] = overrideState; 
             
             const pwrLed = document.getElementById('amiga-led-pwr');
             if (pwrLed) {
-                if (ledState === 0) { // Filter ist AUS -> LED leuchtet HELL!
+                if (ledState === 0) { 
                     pwrLed.classList.add('on');
                     pwrLed.style.background = '#ff0000';
                     pwrLed.style.boxShadow = '0 0 8px #ff0000';
-                } else { // Filter ist AN -> LED ist GEDIMMT!
+                } else { 
                     pwrLed.classList.remove('on');
                     pwrLed.style.background = '#440000';
                     pwrLed.style.boxShadow = 'none';
                 }
             }
 
-            // === DYNAMISCHES OVERRIDE LABEL UPDATE ===
-            // Schaltet sich vollautomatisch ab, wenn wir wieder im Auto-Modus (0) angekommen sind!
             const pwrLedOverride = document.getElementById('amiga-led-override');
             if (pwrLedOverride) {
                 pwrLedOverride.style.display = overrideState > 0 ? 'block' : 'none';
@@ -257,7 +266,8 @@ function handleWorkletMessage(e) {
         lastKnownFrame = e.data.frame || 0; 
         currentChipRegs = e.data.regs; 
     }
-    
+
+    // --- NEU RESTAURIERT: Globaler Digidrum-Trigger für die ST-Debugger LED ---
     if (e.data.type === 'DEBUG') {
         if (isEcoMode) return; 
 
@@ -487,11 +497,9 @@ async function selectAndPlayTrack(index, system) {
         resumeAudioContext().catch(e => console.log("AudioContext resume blockiert:", e));
     }
 
-    // === REPARIERT: Auslesen der Songliste des aktiven Systems ===
     const songs = trackRegistry[system]; 
     if (!songs || !songs[index]) return;
 
-    // === SOFORTIGER RESET DES OVERRIDE-LABELS BEI TRACKWECHSEL ===
     const pwrLedOverride = document.getElementById('amiga-led-override');
     if (pwrLedOverride) pwrLedOverride.style.display = 'none';
 
@@ -510,6 +518,9 @@ async function selectAndPlayTrack(index, system) {
     if (selectedSong.loadAsync) {
         const isAmigaSystem = (system === 'amiga');
         const isC64System = (system === 'c64');
+
+        // --- NEU: Progress-Slider für C64 Tracks aus Sicherheitsgründen sperren ---
+        document.getElementById('progress-slider').disabled = isC64System;
         
         currentScrollerText = isAmigaSystem 
             ? "+++ DOWNLOADING AND PARSING BINARY AMIGA MODULE... +++"
@@ -570,9 +581,6 @@ async function selectAndPlayTrack(index, system) {
                     ? `+++ BOOM! SUCCESSFULLY CRACKED OPEN BINARY PSID FILE +++ NOW PLAYING: ${meta.name.toUpperCase()} BY ${meta.author.toUpperCase()} +++ FORMAT: ${meta.type} +++ CRANK UP THE VOLUME AND LET THE ANALOG SID FILTERS SHINE +++ `
                     : `+++ BOOM! SUCCESSFULLY CRACKED OPEN BINARY FILE +++ NOW PLAYING: ${meta.name.toUpperCase()} BY ${meta.author.toUpperCase()} +++ COMMENT ALONG THE RIDE: ${meta.comment.toUpperCase() || "NO COMMENT"} +++ CRANK UP THE GAIN AND LET THE YM2149 MELT YOUR SPEAKERS +++ `);
 
-// === js/app.js (Ausschnitt: selectAndPlayTrack ab ca. Zeile 435) ===
-// ... [Dateianalyse-Logik] ...
-
             let techInfo = "";
             if (isAmigaSystem) {
                 techInfo += `<p><strong>File Signature:</strong> ${meta.type}</p>`;
@@ -609,7 +617,6 @@ async function selectAndPlayTrack(index, system) {
                 ? systemDescriptions[system] 
                 : '<p style="color: var(--text-color);">[ Museumdatenarchiv geladen, Beschreibung temporär nicht verfügbar ]</p>';
 
-            // --- NEU: Zusammenführen von Composer-Metadata und technischer Analyse ---
             document.getElementById('info-text').innerHTML = `
                 <div style="margin-bottom: 20px;">
                     <h2 style="color: var(--highlight-color);">&gt; NOW PLAYING:</h2>
@@ -829,7 +836,6 @@ document.getElementById('core-selector').addEventListener('change', async (e) =>
     startPlayback(); 
 });
 
-// Kopplung des neuen, interaktiven analogen Temperaturreglers (Ohne Auto-Reset-Konflikt!)
 document.getElementById('temp-slider').addEventListener('input', (e) => {
     const tempVal = parseInt(e.target.value);
     document.getElementById('temp-display').innerText = `${tempVal}°C`;
