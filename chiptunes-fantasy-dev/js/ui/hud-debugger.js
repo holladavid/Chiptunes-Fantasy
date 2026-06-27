@@ -1,7 +1,7 @@
 // === js/ui/hud-debugger.js ===
 // =========================================================
 // HIGH-PERFORMANCE REGISTER HUD & ANALYZER MODULE
-// Dynamic Layouts & Correct Non-Linear Filter Displays
+// Dynamic Layouts & Symmetrical Column-Nested Amiga LEDs
 // =========================================================
 
 const NOISE_LUT_HZ = [
@@ -263,10 +263,14 @@ export function updateChipHUD(stateGetters) {
 
         } else if (activeSystem === 'amiga') {
             let ledState = currentChipRegs && currentChipRegs[29] !== undefined ? currentChipRegs[29] : 1;
-            let ledClass = ledState === 1 ? 'on' : '';
-            let ledStyle = ledState === 1 
+            let overrideState = currentChipRegs && currentChipRegs[30] !== undefined ? currentChipRegs[30] : 0;
+            
+            let ledClass = ledState === 0 ? 'on' : '';
+            let ledStyle = ledState === 0 
                 ? 'background:#ff0000; box-shadow:0 0 8px #ff0000;' 
                 : 'background:#440000; box-shadow:none;';
+                
+            let overrideStyle = overrideState === 1 ? 'display:block;' : 'display:none;';
 
             matrix.innerHTML = `
                 <div class="atari-analyzer-grid">
@@ -283,11 +287,19 @@ export function updateChipHUD(stateGetters) {
                                 <label>Clock</label>
                                 <span class="hud-text-sel" style="flex-grow: 1;">3.546895 MHz (PAL)</span>
                             </div>
-                            <div class="hud-row">
+                            <div class="hud-row" style="position: relative;">
                                 <label>LED Filter</label>
                                 <span class="hud-text-sel" style="flex-grow: 1;">12dB Butterworth</span>
-                                <div class="hud-led ${ledClass}" id="amiga-led-pwr" style="${ledStyle} border-color:#ff8800; cursor:pointer;" title="Klicken, um Amiga LED-Filter manuell umzuschalten"></div>
-                                <span style="font-size:0.8em; margin-left:8px; color:var(--text-color);">PWR</span>
+                                
+                                <!-- KORREKTUR: Die rote LED und der PWR-Label stehen nebeneinander, -->
+                                <!-- die Override-Schrift wurde perfekt zentriert DARUNTER gesetzt! -->
+                                <div style="display: flex; flex-direction: column; align-items: center; margin-left: 8px;">
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <div class="hud-led ${ledClass}" id="amiga-led-pwr" style="${ledStyle} border-color:#ff8800; cursor:pointer;" title="Klicken, um Amiga LED-Filter manuell umzuschalten"></div>
+                                        <span style="font-size:0.8em; color:var(--text-color); font-weight:bold;">PWR</span>
+                                    </div>
+                                    <span id="amiga-led-override" style="color:#ff8800; font-size:7px; margin-top:3px; font-weight:bold; letter-spacing:0.5px; ${overrideStyle}">-override-</span>
+                                </div>
                             </div>
                             <div class="hud-row">
                                 <label>RC Filter</label>
@@ -414,16 +426,13 @@ export function updateChipHUD(stateGetters) {
         
         histIdx = (histIdx + 1) % HIST_LEN;
 
-        // === KORREKT: SYNCHRONISIERTES DYNAMISCHES THERMISCHES FEEDBACK FÜR DEN HUD-WERTE ===
-        let temp = r[29] || 55; // Re-Mappen auf den persistenten, eingestellten User-Wert
+        let temp = r[29] || 55; 
         let fcut = (r[21] & 7) | (r[22] << 3);
         let norm = fcut / 2047.0;
         
-        // Identisches physikalisches Modell wie im Audio-Thread (Kondensator-Untergrenze bei 220Hz!)
-        let baseCutoff = 220.0 + Math.pow(norm, 1.4) * 11500.0;
         let thermalCoefficient = 1.0 - (temp - 55.0) * 0.0035;
-        let fhz = baseCutoff * thermalCoefficient;
-        if (fhz < 30) fhz = 30; // Hard-Limit Schutz für Extremwerte
+        let fhz = (220.0 + Math.pow(norm, 1.4) * 11500.0) * thermalCoefficient;
+        if (fhz < 30) fhz = 30;
 
         document.getElementById('c64-cut-bar').style.width = (fcut / 2047 * 100) + '%';
         document.getElementById('c64-cut-val').innerText = `${Math.round(fhz)} Hz (${temp}°C)`;

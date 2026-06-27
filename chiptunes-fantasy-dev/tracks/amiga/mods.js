@@ -1,5 +1,10 @@
+// === tracks/amiga/mods.js ===
+// ==========================================
+// AMIGA MODS PLAYLIST INTERFACE
+// ==========================================
+
 import { loadModFile } from '../../js/parsers/mod-parser.js';
-import { loadXmFile } from '../../js/parsers/xm-parser.js'; // Den XM-Parser dazu importieren
+import { loadXmFile } from '../../js/parsers/xm-parser.js'; 
 
 const myModFiles = [
     "ELYSIUM.MOD",
@@ -13,16 +18,14 @@ const myModFiles = [
 ];
 
 export const externalModTracks = myModFiles.map((filename, index) => {
-    // Endung prüfen (case-insensitive)
     const isXm = filename.toLowerCase().endsWith('.xm');
     const label = isXm ? "FASTTRACKER" : "PROTRACKER";
 
     return {
-        title: `${index + 2}. LOAD ${label}: ${filename}`,
+        title: `${index + 1}. LOAD ${label}: ${filename}`, // Index auf 1-basiert korrigiert!
         composerInfo: ``,
         generator: function() { return []; },
         loadAsync: async function() {
-            // Smart Routing: Wähle automatisch den korrekten Parser!
             if (isXm) {
                 return await loadXmFile(`tracks/amiga/${filename}`);
             } else {

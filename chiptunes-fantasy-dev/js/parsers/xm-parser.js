@@ -1,6 +1,7 @@
 // === js/parsers/xm-parser.js ===
 // ==========================================
 // FASTTRACKER II (.XM) COMPACT BINARY PARSER
+// With High-Performance Int8Array Chip RAM Allocation
 // ==========================================
 
 export async function loadXmFile(url) {
@@ -31,7 +32,12 @@ export async function loadXmFile(url) {
     let orderTable = new Uint8Array(songLength);
     for(let i=0; i<songLength; i++) orderTable[i] = data[80 + i];
 
-    // 1. PATTERNS ZUERST PARSEN (Strikte Einhaltung der sequentiellen Dateistruktur!)
+    const amigaPeriods = new Float32Array(97);
+    for(let n=1; n<=96; n++) {
+        amigaPeriods[n] = 428.0 * Math.pow(2.0, (37 - n) / 12.0);
+    }
+
+    // 1. PATTERNS ZUERST PARSEN
     let offset = 60 + headerSize;
     let patterns = [];
 
@@ -64,16 +70,13 @@ export async function loadXmFile(url) {
                     }
                 }
                 
-                // Volume Column Byte Dekompression
                 let volVal = 0xFF; 
                 if (vol >= 0x10 && vol <= 0x50) {
                     volVal = vol - 0x10;
                 }
                 
-                // Wir speichern die rohe Note (0-97) direkt in den Period-Bytes ab (16-Bit)
-                // Das Worklet rechnet dies später zur Laufzeit zusammen mit relNote in Frequenzen um.
                 cellBuffer[dst]     = note & 0xFF;
-                cellBuffer[dst + 1] = 0; // High-Byte ungenutzt für Note
+                cellBuffer[dst + 1] = 0; 
                 cellBuffer[dst + 2] = smp;
                 cellBuffer[dst + 3] = volVal;
                 cellBuffer[dst + 4] = eff;
@@ -89,7 +92,7 @@ export async function loadXmFile(url) {
         offset += patHeaderLen + packedSize;
     }
 
-    // 2. INSTRUMENTE & DELTA-SAMPLES ERST DANACH PARSEN (Genau hinter den Patterns)
+    // 2. INSTRUMENTE & DELTA-SAMPLES ERST DANACH PARSEN
     let samples = {};
     let loadedSamplesCount = 0;
 
@@ -122,7 +125,8 @@ export async function loadXmFile(url) {
                     let is16Bit = (sh.type & 16) !== 0;
                     let isLoop = (sh.type & 3) !== 0;
                     
-                    let floatData = new Float32Array(is16Bit ? sh.length/2 : sh.length);
+                    // === NATIVE 8-BIT CHIP RAM SPEICHERUNG (Int8Array) ===
+                    let byteData = new Int8Array(is16Bit ? sh.length/2 : sh.length);
                     let old = 0;
                     
                     if (is16Bit) {
@@ -131,7 +135,8 @@ export async function loadXmFile(url) {
                             sDataOffset += 2;
                             old = (old + v) & 0xFFFF;
                             let signed = old < 32768 ? old : old - 65536;
-                            floatData[j] = signed / 32768.0;
+                            // 16-Bit wird für Paula bitgenau auf 8-Bit quantisiert!
+                            byteData[j] = Math.round(signed / 256.0);
                         }
                     } else {
                         for(let j=0; j<sh.length; j++) {
@@ -139,12 +144,12 @@ export async function loadXmFile(url) {
                             sDataOffset += 1;
                             old = (old + v) & 0xFF;
                             let signed = old < 128 ? old : old - 256;
-                            floatData[j] = signed / 128.0;
+                            byteData[j] = signed;
                         }
                     }
                     
                     samples[`xm_sample_${i}`] = {
-                        data: floatData,
+                        data: byteData,
                         loopStart: is16Bit ? sh.loopStart/2 : sh.loopStart,
                         loopLen: isLoop ? (is16Bit ? sh.loopLen/2 : sh.loopLen) : 0,
                         baseVolume: sh.vol,

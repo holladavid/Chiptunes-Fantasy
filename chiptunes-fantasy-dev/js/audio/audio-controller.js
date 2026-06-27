@@ -1,10 +1,8 @@
 // === js/audio/audio-controller.js ===
 // =========================================================
 // CENTRAL WEB AUDIO ENGINE & WORKLET CONTROLLER
-// Pure ES6 Module - With Master Limiter and Analog Routing
+// Pure ES6 Module - Cleaned up and Optimized
 // =========================================================
-
-import { createKickSample, createBassSample, createChordSample, createSnareSample, createLeadSample } from '../utils/amiga-helper.js';
 
 let audioCtx = null;
 let ymNode = null;
@@ -13,7 +11,7 @@ let sidNode = null;
 let masterGain = null;
 let analyserNode = null;
 let amigaFilter = null;
-let masterLimiter = null; // Master Studio Limiter
+let masterLimiter = null; 
 
 export function getAudioContext() { return audioCtx; }
 export function getAnalyserNode() { return analyserNode; }
@@ -25,29 +23,23 @@ export function getSidNode() { return sidNode; }
 export async function initAudioEngine() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     try {
-        // Statischer Rekonstruktions-Tiefpassfilter für den Amiga-Soundboard-Weg
         amigaFilter = audioCtx.createBiquadFilter();
         amigaFilter.type = 'lowpass';
         amigaFilter.frequency.value = 6000; 
 
-        // Master Spectrum Analyzer
         analyserNode = audioCtx.createAnalyser();
         analyserNode.fftSize = 4096; 
 
-        // Master Lautstärkeregler (Gain)
         masterGain = audioCtx.createGain();
         masterGain.gain.value = 0.5; 
         
-        // === MASTER DYNAMICS LIMITER (Studio Soft-Limiter) ===
-        // Fängt Resonanzpeaks warm ab und verhindert digitales Clipping
         masterLimiter = audioCtx.createDynamicsCompressor();
-        masterLimiter.threshold.value = -1.5; // Limitierung startet bei -1.5 dBFS
-        masterLimiter.knee.value = 4.0;       // Weicher Knie-Übergang
-        masterLimiter.ratio.value = 12.0;     // Kompressions-Verhältnis für Limiting
-        masterLimiter.attack.value = 0.003;   // Extrem schnelle Ansprechzeit (3ms)
-        masterLimiter.release.value = 0.08;   // Release-Zeit (80ms)
+        masterLimiter.threshold.value = -1.5; 
+        masterLimiter.knee.value = 4.0;       
+        masterLimiter.ratio.value = 12.0;     
+        masterLimiter.attack.value = 0.003;   
+        masterLimiter.release.value = 0.08;   
         
-        // Signalweg verbinden: Cores -> masterGain -> masterLimiter -> analyserNode -> destination
         masterGain.connect(masterLimiter);
         masterLimiter.connect(analyserNode);
         analyserNode.connect(audioCtx.destination);
@@ -81,7 +73,7 @@ export async function loadEmuCore(system, coreConfig, onMessageCallback) {
         if (system === 'c64') sidNode = newNode;
         if (system === 'amiga') {
             paulaNode = newNode;
-            uploadAmigaSamples(); 
+            // === KORREKTUR: uploadAmigaSamples() gelöscht! ===
         }
 
         console.log(`[AUDIO ENGINE] Soundprozessor erfolgreich getauscht: ${system.toUpperCase()} -> ${coreConfig.name}`);
@@ -89,15 +81,6 @@ export async function loadEmuCore(system, coreConfig, onMessageCallback) {
         console.error(`[AUDIO ENGINE] Fehler beim Einhängen des Cores ${coreConfig.name}:`, e);
         throw e;
     }
-}
-
-export function uploadAmigaSamples() {
-    if (!paulaNode) return;
-    paulaNode.port.postMessage({ type: 'UPLOAD_SAMPLE', name: 'kick', data: createKickSample() });
-    paulaNode.port.postMessage({ type: 'UPLOAD_SAMPLE', name: 'bass', data: createBassSample() });
-    paulaNode.port.postMessage({ type: 'UPLOAD_SAMPLE', name: 'chord', data: createChordSample() });
-    paulaNode.port.postMessage({ type: 'UPLOAD_SAMPLE', name: 'snare', data: createSnareSample() }); 
-    paulaNode.port.postMessage({ type: 'UPLOAD_SAMPLE', name: 'lead', data: createLeadSample() });   
 }
 
 export async function resumeAudioContext() {

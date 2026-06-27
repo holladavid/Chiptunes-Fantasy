@@ -1,16 +1,18 @@
-import { externalSidTracks } from './c64/external.js'; // Binärer SID-Lader
+// === tracks/registry.js ===
+// ==========================================
+// CENTRAL TRACK PLAYLIST REGISTRY
+// ==========================================
+
+import { externalSidTracks } from './c64/external.js'; 
 
 import { hippelTrack } from './atari/hippel.js';
 import { bigAlecTrack } from './atari/bigalec.js';
 import { externalYmTracks } from './atari/external.js'; 
 
-import { jesterTrack } from './amiga/jester.js'; 
-import { externalModTracks } from './amiga/mods.js'; 
+import { externalModTracks } from './amiga/mods.js'; // Jester gelöscht!
 
 export const trackRegistry = {
-    // 100% echter, binärer C64-Wiedergabe-Zweig (Nativ über die emulierte 6502-CPU!)
     c64: [ ...externalSidTracks ],
-    
     atari: [ hippelTrack, bigAlecTrack, ...externalYmTracks ], 
-    amiga: [ jesterTrack, ...externalModTracks ]
+    amiga: [ ...externalModTracks ]
 };

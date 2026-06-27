@@ -1,6 +1,7 @@
 // === js/parsers/mod-parser.js ===
 // ==========================================
 // AMIGA PROTRACKER (.MOD) COMPACT BINARY PARSER
+// With High-Performance Int8Array Chip RAM Allocation
 // ==========================================
 
 export async function loadModFile(url) {
@@ -47,15 +48,17 @@ export async function loadModFile(url) {
         let loopLen = ((data[offset + 28] << 8) | data[offset + 29]) * 2;
 
         if (sampleLenBytes > 2) {
-            let floatData = new Float32Array(sampleLenBytes);
+            // === NATIVE 8-BIT INTEGERS ALS CHIP-RAM SPEICHER (Int8Array) ===
+            // Spart 75% Arbeitsspeicher und emuliert die echte R-2R Leiter-Multiplikation
+            let byteData = new Int8Array(sampleLenBytes);
             for (let s = 0; s < sampleLenBytes; s++) {
                 let signedByte = data[currentSampleOffset + s];
                 if (signedByte > 127) signedByte -= 256;
-                floatData[s] = signedByte / 128.0;
+                byteData[s] = signedByte;
             }
 
             samples[`mod_sample_${i + 1}`] = {
-                data: floatData,
+                data: byteData,
                 loopStart: loopStart,
                 loopLen: loopLen,
                 baseVolume: volume
@@ -75,13 +78,12 @@ export async function loadModFile(url) {
         fileSize: data.length
     };
 
-    // --- NEU: PATTERNS IN COMPACT STRUC-ARRAYS PARSEN (6 Bytes pro Zelle) ---
     const patternData = [];
     const numPatterns = maxPattern + 1;
 
     for (let p = 0; p < numPatterns; p++) {
         const pOffset = 1084 + (p * 1024);
-        const cellBuffer = new Uint8Array(64 * 4 * 6); // 64 Rows, 4 Kanäle, 6 Bytes pro Zelle
+        const cellBuffer = new Uint8Array(64 * 4 * 6); 
         let dst = 0;
 
         for (let row = 0; row < 64; row++) {
@@ -97,11 +99,10 @@ export async function loadModFile(url) {
                 const effect = b2 & 0x0F;
                 const param = b3;
 
-                // 6-Byte Cell Packing
                 cellBuffer[dst]     = period & 0xFF;
                 cellBuffer[dst + 1] = (period >> 8) & 0xFF;
                 cellBuffer[dst + 2] = sample;
-                cellBuffer[dst + 3] = 0xFF; // Kein Volume-Column Wert im Standard MOD-Format
+                cellBuffer[dst + 3] = 0xFF; 
                 cellBuffer[dst + 4] = effect;
                 cellBuffer[dst + 5] = param;
                 dst += 6;
@@ -114,14 +115,13 @@ export async function loadModFile(url) {
         });
     }
 
-    // Order Tabelle kopieren
     const orderTable = new Uint8Array(songLength);
     for (let i = 0; i < songLength; i++) {
         orderTable[i] = data[952 + i];
     }
 
     const defaultSpeed = 6;
-    const estimatedFrames = songLength * 64 * defaultSpeed; // Zur Erhaltung der UI-Timeline
+    const estimatedFrames = songLength * 64 * defaultSpeed; 
 
     return {
         isSequenced: true,

@@ -92,22 +92,10 @@ function initApp() {
         // INTERAKTIVE SKEUOMORPHIC LED KOPPLUNG (AMIGA)
         document.getElementById('chip-hud').addEventListener('click', (e) => {
             if (e.target && e.target.id === 'amiga-led-pwr') {
-                const isFilterOn = e.target.classList.contains('on');
-                const nextState = !isFilterOn;
-                
-                if (nextState) {
-                    e.target.classList.add('on');
-                    e.target.style.background = '#ff0000';
-                    e.target.style.boxShadow = '0 0 8px #ff0000';
-                } else {
-                    e.target.classList.remove('on');
-                    e.target.style.background = '#440000';
-                    e.target.style.boxShadow = 'none';
-                }
-
+                // Sendet den Umschalt-Zyklus (Auto -> Force ON -> Force OFF -> Auto) an das Worklet
                 const paulaNode = getPaulaNode();
                 if (paulaNode) {
-                    paulaNode.port.postMessage({ type: 'SET_LED_FILTER', enabled: nextState });
+                    paulaNode.port.postMessage({ type: 'CYCLE_FILTER' });
                 }
             }
         });
@@ -172,7 +160,7 @@ progressSlider.addEventListener('change', (e) => {
 });
 
 function handleWorkletMessage(e) {
-    if (e.data instanceof Float32Array) {
+    if (e.data && e.data.constructor && e.data.constructor.name === 'Float32Array') {
         const view = e.data;
         const systemId = view[0];
         const isPlayingVal = view[1] === 1;
@@ -198,22 +186,44 @@ function handleWorkletMessage(e) {
             currentChipRegs[29] = tempVal; // In virtuellem Register 29 parken für HUD
         }
 
-        // DYNAMISCHES SCHLÜSSEL-UPDATE FÜR DIE AMIGA LED
+
+        // AUSSCHNITT 1: Der Klick-Event-Listener im boot-screen-Block (ca. Zeile 80)
+        document.getElementById('chip-hud').addEventListener('click', (e) => {
+            if (e.target && e.target.id === 'amiga-led-pwr') {
+                // Sendet den Umschalt-Zyklus (Auto -> Force ON -> Force OFF -> Auto) an das Worklet
+                const paulaNode = getPaulaNode();
+                if (paulaNode) {
+                    paulaNode.port.postMessage({ type: 'CYCLE_FILTER' });
+                }
+            }
+        });
+
+
+        // AUSSCHNITT 2: Der Message-Port-Receiver in handleWorkletMessage(e) (ca. Zeile 200)
         if (systemId === 1) {
             const ledState = Math.round(view[33]);
+            const overrideState = Math.round(view[38]); // Auslesen des 3-Stufen-Status (0: Auto, 1: Force ON, 2: Force OFF)
             currentChipRegs[29] = ledState; 
+            currentChipRegs[30] = overrideState; 
             
             const pwrLed = document.getElementById('amiga-led-pwr');
             if (pwrLed) {
-                if (ledState === 1) {
+                if (ledState === 0) { // Filter ist AUS -> LED leuchtet HELL!
                     pwrLed.classList.add('on');
                     pwrLed.style.background = '#ff0000';
                     pwrLed.style.boxShadow = '0 0 8px #ff0000';
-                } else {
+                } else { // Filter ist AN -> LED ist GEDIMMT!
                     pwrLed.classList.remove('on');
                     pwrLed.style.background = '#440000';
                     pwrLed.style.boxShadow = 'none';
                 }
+            }
+
+            // === DYNAMISCHES OVERRIDE LABEL UPDATE ===
+            // Schaltet sich vollautomatisch ab, wenn wir wieder im Auto-Modus (0) angekommen sind!
+            const pwrLedOverride = document.getElementById('amiga-led-override');
+            if (pwrLedOverride) {
+                pwrLedOverride.style.display = overrideState > 0 ? 'block' : 'none';
             }
         }
 
@@ -477,8 +487,13 @@ async function selectAndPlayTrack(index, system) {
         resumeAudioContext().catch(e => console.log("AudioContext resume blockiert:", e));
     }
 
-    const songs = trackRegistry[system];
-    if (!songs || !songs[index]) return; 
+    // === REPARIERT: Auslesen der Songliste des aktiven Systems ===
+    const songs = trackRegistry[system]; 
+    if (!songs || !songs[index]) return;
+
+    // === SOFORTIGER RESET DES OVERRIDE-LABELS BEI TRACKWECHSEL ===
+    const pwrLedOverride = document.getElementById('amiga-led-override');
+    if (pwrLedOverride) pwrLedOverride.style.display = 'none';
 
     stopPlayback();
     currentTrackIndex = index;

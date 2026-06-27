@@ -1,7 +1,7 @@
 // === js/worklets/amiga/paula-worklet.js ===
 // ==========================================
 // MOS TECHNOLOGY PAULA 8364 CHIP EMULATION
-// With ProTracker E0x Filter Modulation & Safe-Cloned Visualizer (4 Channel-Coupled)
+// With 3-State Hardware Filter Cycle (Auto -> Force ON -> Force OFF -> Auto)
 // ==========================================
 
 class StaticRCFilter {
@@ -58,13 +58,21 @@ class PaulaChannel {
     trigger(data, loopStart, loopLen) {
         this.data = data;
         this.pointer = 0;
-        this.length = data.length;
         this.phase = 0;
         
         if (loopLen > 2) {
+            if (loopStart >= data.length) {
+                loopStart = 0;
+            }
+            if (loopStart + loopLen > data.length) {
+                loopLen = data.length - loopStart;
+            }
+
+            this.length = loopStart + loopLen;
             this.repPointer = loopStart;
             this.repLength = loopLen;
         } else {
+            this.length = data.length;
             this.repPointer = -1; 
             this.repLength = 0;
         }
@@ -92,12 +100,14 @@ class PaulaChannel {
 
         if (!this.data) return 0;
         
-        let rawByte = this.data[Math.floor(this.pointer)];
-        if (isNaN(rawByte)) rawByte = 0; 
+        let idx = Math.floor(this.pointer);
+        if (idx >= this.data.length) idx = this.data.length - 1;
+        if (idx < 0) idx = 0;
+
+        let rawByte = this.data[idx];
+        let vol6 = Math.round(this.vol); 
         
-        let sample8 = Math.round(rawByte * 127.0); 
-        let vol6 = Math.round(this.vol);
-        return (sample8 * vol6) / 8128.0; 
+        return (rawByte * vol6) / 8128.0; 
     }
 }
 
@@ -131,28 +141,20 @@ class PaulaProcessor extends AudioWorkletProcessor {
         this.currentTick = 0;
         this.samplesUntilNextTick = 0;
 
-        // Legacy Fallback Variablen
-        this.trackData = null;
-        this.currentFrame = 0;
-        this.sampleCounter = 0;
-
         this.staticL = new StaticRCFilter(sampleRate);
         this.staticR = new StaticRCFilter(sampleRate);
         this.ledL = new AmigaLEDFilter(sampleRate);
         this.ledR = new AmigaLEDFilter(sampleRate);
         this.ledFilterOn = true; 
+        
+        // === NEU: 3-STUFIGER FILTER STATUS-WERTE (0 = Auto, 1 = Force ON, 2 = Force OFF) ===
+        this.filterModeState = 0; 
 
         this.port.onmessage = (e) => {
             const msg = e.data;
             if (msg.type === 'UPLOAD_SAMPLE') {
-                if (msg.data && msg.data.data instanceof Float32Array) {
+                if (msg.data && msg.data.data instanceof Int8Array) {
                     this.samples[msg.name] = msg.data;
-                } else {
-                    this.samples[msg.name] = {
-                        data: msg.data,
-                        loopStart: msg.loopStart || 0,
-                        loopLen: msg.loopLen !== undefined ? msg.loopLen : (msg.name === 'bass' || msg.name === 'chord' ? msg.data.length : 0)
-                    };
                 }
             } else if (msg.type === 'PLAY_TRACK') {
                 for (let i = 0; i < 64; i++) {
@@ -166,6 +168,9 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.channels[i].phase = 0;
                     this.channels[i].activeSample = 1;
                 }
+
+                // Bei jedem neuen Track den Modus zurück auf AUTO stellen
+                this.filterModeState = 0;
 
                 if (msg.track && msg.track.isSequenced) {
                     this.isSequenced = true;
@@ -210,8 +215,14 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 } else {
                     if (this.trackData) this.currentFrame = msg.frame % this.trackData.length;
                 }
-            } else if (msg.type === 'SET_LED_FILTER') {
-                this.ledFilterOn = msg.enabled;
+            } else if (msg.type === 'CYCLE_FILTER') {
+                // === ROTATION DES ZYKLUSBEFEHLS (Auto -> Force ON -> Force OFF -> Auto) ===
+                this.filterModeState = (this.filterModeState + 1) % 3;
+                if (this.filterModeState === 1) {
+                    this.ledFilterOn = true;  // Force ON (LED wird gedimmt)
+                } else if (this.filterModeState === 2) {
+                    this.ledFilterOn = false; // Force OFF (LED wird hell)
+                }
             }
         };
     }
@@ -305,7 +316,10 @@ class PaulaProcessor extends AudioWorkletProcessor {
                         break;
                     case 0x0E:
                         if ((param & 0xF0) === 0x00) { 
-                            this.ledFilterOn = (param & 0x0F) === 0; 
+                            // === DEKODIERUNG NUR AUSFÜHREN, WENN WIR IM AUTO MODUS (0) SIND! ===
+                            if (this.filterModeState === 0) {
+                                this.ledFilterOn = (param & 0x0F) === 0; 
+                            }
                         }
                         break;
                 }
@@ -392,7 +406,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                                     }
                                 }
                                 if (cmd.per !== undefined) ch.per = cmd.per;
-                                // In der Legacy-Loop ebenfalls den Kanal-Volumenzug sichern
                                 if (cmd.vol !== undefined) ch.vol = cmd.vol; 
                             }
                         }
@@ -454,14 +467,15 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     view[4 + offset + 6] = Math.round(ch.vol) & 0xFF;
                 }
 
-                // Amiga LED Status im Puffer übertragen (Index 33)
                 view[33] = this.ledFilterOn ? 1.0 : 0.0;
 
-                // === KANALLAUTSTÄRKEN DER ERSTEN 4 PAULA DMA KANÄLE ÜBERTRAGEN ===
                 for (let c = 0; c < 4; c++) {
                     let ch = this.channels[c];
                     view[34 + c] = ch.data ? (ch.vol / 64.0) : 0.0;
                 }
+
+                // === USER OVERRIDE STATE IN DEN PUFFER ÜBERTRAGEN (0 = Auto, 1/2 = Override) ===
+                view[38] = this.filterModeState;
 
                 this.port.postMessage(view);
             }
