@@ -1,7 +1,7 @@
 // === js/parsers/xm-parser.js ===
 // ==========================================
 // FASTTRACKER II (.XM) COMPACT BINARY PARSER
-// With Ping-Pong Loop Unrolling & Linear Frequency Flag
+// With Default Sample Panning & Volume Column Panning Support
 // ==========================================
 
 export async function loadXmFile(url) {
@@ -26,7 +26,6 @@ export async function loadXmFile(url) {
     let numPatterns = view.getUint16(70, true);
     let numInstruments = view.getUint16(72, true);
     
-    // --- NEU: Linear Frequency Flag auslesen ---
     let flags = view.getUint16(74, true);
     let linearFreq = (flags & 1) === 1;
     
@@ -71,6 +70,9 @@ export async function loadXmFile(url) {
                 let volVal = 0xFF; 
                 if (vol >= 0x10 && vol <= 0x50) {
                     volVal = vol - 0x10;
+                } else if (vol >= 0xC0 && vol <= 0xCF) {
+                    // --- NEU: Volume Column Panning (0xC0 - 0xCF) durchlassen! ---
+                    volVal = vol; 
                 }
                 
                 cellBuffer[dst]     = note & 0xFF;
@@ -110,6 +112,8 @@ export async function loadXmFile(url) {
                     vol: view.getUint8(shOffset+12),
                     finetune: view.getInt8(shOffset+13),
                     type: view.getUint8(shOffset+14),
+                    // --- NEU: Sample Default Panning aus Byte 15 parsen ---
+                    pan: view.getUint8(shOffset+15), 
                     relNote: view.getInt8(shOffset+16),
                 });
                 shOffset += sampleHeaderSize;
@@ -170,7 +174,8 @@ export async function loadXmFile(url) {
                         loopLen: lLen,
                         baseVolume: sh.vol,
                         relNote: sh.relNote,
-                        finetune: sh.finetune 
+                        finetune: sh.finetune,
+                        pan: sh.pan // --- NEU: Panning-Wert an Worklet weitergeben ---
                     };
                     loadedSamplesCount++;
                 }
@@ -187,7 +192,7 @@ export async function loadXmFile(url) {
     return {
         isSequenced: true,
         type: 'XM',
-        linearFreq: linearFreq, // --- NEU GEBUNDEN ---
+        linearFreq: linearFreq,
         songLength: songLength,
         orderTable: orderTable,
         patterns: patterns,
