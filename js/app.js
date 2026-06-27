@@ -34,6 +34,8 @@ let lastTrackChangeTime = 0;
 let isEcoMode = false;      
 let isUserDragging = false; 
 let currentSubsongIndex = 1; 
+// Globales Array für die Kanallautstärken (Zero-Allocation)
+let channelVolumes = new Float32Array(4);
 
 function initApp() {
     if ('serviceWorker' in navigator) {
@@ -67,10 +69,11 @@ function initApp() {
         } catch (err) {
             console.error("[CRITICAL] Cores konnten nicht geladen werden:", err);
         }
-        
+
         initVisuals({
             getEcoMode: () => isEcoMode,
             getCurrentOscValue: () => currentOscValue,
+            getChannelVolumes: () => channelVolumes, // === DIESEN GETTER HIER ERGÄNZEN ===
             getTrackData: () => trackData,
             getAnalyserNode: getAnalyserNode,  
             getIsPlaying: () => isPlaying,
@@ -182,6 +185,11 @@ function handleWorkletMessage(e) {
         
         for (let i = 0; i < 32; i++) {
             currentChipRegs[i] = view[4 + i];
+            // === AUSLESEN DER EINZELNEN KANAL-LAUTSTÄRKEN FÜR RASTER-BARS ===
+            channelVolumes[0] = view[34];
+            channelVolumes[1] = view[35];
+            channelVolumes[2] = view[36];
+            channelVolumes[3] = view[37];            
         }
 
         // === THERMISCHES FEEDBACK FÜR DEN SID-FILTER ===

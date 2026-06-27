@@ -1,11 +1,12 @@
 // === js/worklets/atari/ym-fantasy.js ===
 // =========================================================
 // YM2149F CORE (CHIPTUNES FANTASY EDITION)
-// With Sub-Sample Accurate Phase & Envelope Alignment
+// Fully Synced with Shared YMVisualizer I/O
 // =========================================================
 
 import { YM_DAC, polyBLEP, cubicInterpolate, FourPoleFilter, MoogFilter, DCBlocker, detectDigidrum, detectDigidrumVoice } from '../lib/dsp-utils.js';
 import { DynamicStaging } from '../lib/dynamic-staging.js';
+import { YMVisualizer } from '../lib/ym-visualizer.js'; // NEU IMPORTIERT!
 
 class YMFantasyProcessor extends AudioWorkletProcessor {
     constructor() {
@@ -45,8 +46,10 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
         this.currentDrumVoice = 0; 
         this.trackData = null; this.currentFrame = 0; this.sampleCounter = 0; this.isPlaying = false;
 
-        // Visualizer Zero-Allocation Ring Buffer (40 Floats * 4 Bytes = 160 Bytes)
-        this.visualView = new Float32Array(40);
+        this.volA = 0.0; this.volB = 0.0; this.volC = 0.0;
+
+        // Visualizer Schnittstelle instanziieren
+        this.visualizer = new YMVisualizer(this.port);
         
         this.port.onmessage = (event) => {
             const msg = event.data;
@@ -82,10 +85,8 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             if (this.isPlaying && this.trackData) {
                 this.sampleCounter--;
                 if (this.sampleCounter <= 0) {
-                    // === DETERMINISTISCHE SUB-SAMPLE PHASEN-KOMPENSATION ===
                     const overshoot = -this.sampleCounter;
                     this.sampleCounter += sampleRate / 50.0; 
-                    
                     let frame = this.trackData[this.currentFrame];
                     for(let r=0; r<16; r++) {
                         if (r === 13) { 
@@ -93,12 +94,9 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
                                 this.regs[13] = frame[13]; 
                                 let pE = (this.regs[12] << 8) | this.regs[11];
                                 let incEnv = (2000000 / (256 * (pE === 0 ? 1 : pE))) / sampleRate;
-                                // Hüllkurve phasenkompensieren
                                 this.envPhase = overshoot * incEnv; 
                             } 
-                        } else {
-                            this.regs[r] = frame[r];
-                        }
+                        } else this.regs[r] = frame[r];
                     }
                     
                     let activeDigiTrigger = detectDigidrum(frame);
@@ -107,7 +105,6 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
                     if (activeDigiTrigger > 0 && activeDigiTrigger !== this.lastDigiTrigger) {
                         if (this.digidrums[activeDigiTrigger - 1]) {
                             this.currentDigidrum = this.digidrums[activeDigiTrigger - 1];
-                            // Startpunkt Digidrums kompensieren
                             this.digiPos = overshoot * (7812.5 / sampleRate);
                             this.sidechainEnv = 0.45; 
                             this.port.postMessage({ type: 'DEBUG', msg: 'Drum ' + activeDigiTrigger });
@@ -119,7 +116,6 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
                         this.currentDrumVoice = activeDigiVoice;
                     }
 
-                    // Frequenzen & Phasen der Oszillatoren mit Overshoot kompensieren
                     let pA = ((this.regs[1] & 0x0F) << 8) | this.regs[0];
                     let pB = ((this.regs[3] & 0x0F) << 8) | this.regs[2];
                     let pC = ((this.regs[5] & 0x0F) << 8) | this.regs[4];
@@ -272,6 +268,8 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             let volB = this.smoothVoltB;
             let volC = this.smoothVoltC;
 
+            this.volA = volA; this.volB = volB; this.volC = volC;
+
             let digiSample = 0;
             if (this.currentDigidrum) {
                 let posInt = Math.floor(this.digiPos);
@@ -342,24 +340,8 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             if (i === 0) currentVisualValue = (dcL + dcR) / 2.0;
         }
 
-        this.visCounter = (this.visCounter || 0) + 1;
-        if (this.visCounter % 4 === 0) {
-            let isAudible = Math.abs(currentVisualValue) > 0.001;
-            if (isAudible || this.wasAudible) {
-                const view = this.visualView;
-                view[0] = 2; // System Flag: 2 = Atari ST
-                view[1] = this.isPlaying ? 1 : 0;
-                view[2] = this.currentFrame;
-                view[3] = currentVisualValue;
-
-                for (let r = 0; r < 16; r++) {
-                    view[4 + r] = this.regs[r];
-                }
-
-                this.port.postMessage(view);
-            }
-            this.wasAudible = isAudible;
-        }
+        // Taktgenaue Visualisierungs-Ausgabe
+        this.visualizer.update(this.isPlaying, this.currentFrame, currentVisualValue, this.regs, this.volA, this.volB, this.volC);
         return true; 
     }
 }

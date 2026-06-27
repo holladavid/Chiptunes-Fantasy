@@ -1,22 +1,9 @@
+// === js/visuals/visualizer.js ===
 // =========================================================
 // HIGH-PERFORMANCE RETROWAVE VISUALIZER MODULE
-// Amiga Copperbars, Oscilloscope & Spectrum Analyzer Canvas Loop
+// Dynamic 3/4 Channel-Coupled Copperbars & Spectrum Analyzer
 // =========================================================
 
-/**
- * Initialisiert das gesamte Visualizer-System auf dem Canvas.
- * 
- * @param {Object} stateGetters - Objekt mit asynchronen Gettern zum Auslesen des App-Zustands
- * @param {Function} stateGetters.getEcoMode - Liefert den aktiven ECO-Status (Pure Audio)
- * @param {Function} stateGetters.getCurrentOscValue - Liefert den aktuellen Oszillator-Pegel
- * @param {Function} stateGetters.getTrackData - Liefert die geladenen Trackdaten
- * @param {Function} stateGetters.getAnalyserNode - Liefert den Web Audio AnalyserNode
- * @param {Function} stateGetters.getIsPlaying - Liefert den aktiven Playback-Status
- * @param {Function} stateGetters.getAudioContext - Liefert den Web Audio Context
- * @param {Object} callbacks - Objekt mit Hooks zur Rückmeldung an den Haupt-Thread
- * @param {Function} callbacks.updateTimelineUI - Hook zur Aktualisierung des Timeline-Sliders
- * @param {Function} callbacks.updateChipHUD - Hook zur Aktualisierung des DSP-HUDs
- */
 export function initVisuals(stateGetters, callbacks) {
     const canvas = document.getElementById('demo-canvas');
     if (!canvas) {
@@ -26,12 +13,10 @@ export function initVisuals(stateGetters, callbacks) {
 
     const ctx = canvas.getContext('2d', { alpha: false }); 
     
-    // Dynamischer Puffer-Speicher für das Oszilloskop
     let historyLength = canvas.width;
     let oscHistory = new Float32Array(historyLength).fill(NaN);
     let oscIndex = 0;
 
-    // Passt das Canvas und den Oszilloskop-Puffer bei Größenänderungen an
     function resizeCanvas() {
         const newWidth = canvas.clientWidth;
         const newHeight = canvas.clientHeight;
@@ -46,7 +31,6 @@ export function initVisuals(stateGetters, callbacks) {
             
             oscHistory = new Float32Array(historyLength).fill(NaN);
             
-            // Alte Welle nahtlos in den neuen Puffer retten! (Verhindert das Flackern/Löschen)
             if (oldLen > 0) {
                 const copyLen = Math.min(oldLen, historyLength);
                 for (let i = 0; i < copyLen; i++) {
@@ -56,7 +40,7 @@ export function initVisuals(stateGetters, callbacks) {
                 oscIndex = copyLen % historyLength;
             }
         } else {
-            canvas.height = newHeight; // Nur die Höhe hat sich geändert
+            canvas.height = newHeight; 
         }
     }
     
@@ -66,19 +50,17 @@ export function initVisuals(stateGetters, callbacks) {
     const startTime = performance.now();
     let hudCounter = 0; 
 
-    // Cache-Tabelle für den Analyzer vorbereiten
     const activeAnalyser = stateGetters.getAnalyserNode();
     const bufferLength = activeAnalyser ? activeAnalyser.frequencyBinCount : 512;
     const dataArray = new Uint8Array(bufferLength);
     const barCount = 48; 
     const peaks = new Array(barCount).fill(0); 
 
-    // Hilfsfunktion zum Zeichnen der Rasterbars / Copperbars
     function drawCopperBar(yCenter, thickness, color1, color2) {
         const grad = ctx.createLinearGradient(0, yCenter - thickness, 0, yCenter + thickness);
         grad.addColorStop(0, `rgba(0,0,0,0)`); 
         grad.addColorStop(0.2, color1);
-        grad.addColorStop(0.5, `rgba(255,255,255, 1)`); 
+        grad.addColorStop(0.5, `rgba(255,255,255,1)`); 
         grad.addColorStop(0.8, color2);
         grad.addColorStop(1, `rgba(0,0,0,0)`);
         ctx.fillStyle = grad; 
@@ -86,7 +68,6 @@ export function initVisuals(stateGetters, callbacks) {
     }
 
     function draw() {
-        // CPU/GPU-Schonung: Wenn ECO aktiv ist, zeichnen wir gar nichts!
         if (stateGetters.getEcoMode()) {
             callbacks.updateTimelineUI(); 
             requestAnimationFrame(draw);
@@ -95,16 +76,9 @@ export function initVisuals(stateGetters, callbacks) {
 
         const t = (performance.now() - startTime) * 0.001; 
         
-        // Sachte Bewegungsschwärzung für Motion-Blur Schweif-Effekte
         ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        const currentOscValue = stateGetters.getCurrentOscValue();
-        let audioPunch = Math.abs(currentOscValue) * 40; 
-
-        // Airbag gegen kurzzeitige NaN-Werte des Audio-Cores
-        if (isNaN(audioPunch) || !isFinite(audioPunch)) audioPunch = 0;
-
         const isAmiga = document.body.classList.contains('theme-amiga');
         const isAtari = document.body.classList.contains('theme-atari');
         
@@ -113,13 +87,38 @@ export function initVisuals(stateGetters, callbacks) {
         const pal3 = isAtari ? ['#005555', '#00aaaa'] : isAmiga ? ['#5500aa', '#aa00ff'] : ['#555555', '#aaaaaa'];
         const lineColor = isAtari ? '#55ff55' : isAmiga ? '#ff8800' : '#6c5eb5';
 
+        // === DOPPELTE KANALKOPPLUNG FÜR COPPERBARS ===
+        const channelVolumes = stateGetters.getChannelVolumes ? stateGetters.getChannelVolumes() : [0, 0, 0, 0];
+        const numBars = isAmiga ? 4 : 3;
+
+        const pals = [
+            isAtari ? ['#005500', '#00aa00'] : isAmiga ? ['#0000aa', '#0055ff'] : ['#352879', '#6c5eb5'],
+            isAtari ? ['#555500', '#aaaa00'] : isAmiga ? ['#aa5500', '#ff8800'] : ['#aa0055', '#ff00aa'],
+            isAtari ? ['#005555', '#00aaaa'] : isAmiga ? ['#5500aa', '#aa00ff'] : ['#555555', '#aaaaaa'],
+            isAmiga ? ['#555555', '#ffffff'] : []
+        ];
+
+        const sinTimes = [1.2, 1.8, 1.5, 2.1];
+        const sinOffsets = [0.0, 2.0, 4.0, 1.5];
+        
+        // === FEINERE, FILIGRANERE BASISDICKEN FÜR REINERE OPTIK ===
+        const baseThickness = [14, 10, 8, 6]; 
+        const heightWeights = [0.3, 0.35, 0.25, 0.28];
+
         ctx.globalCompositeOperation = "screen"; 
-        drawCopperBar((canvas.height / 2) + Math.sin(t * 1.2) * (canvas.height * 0.3), 25 + audioPunch, pal1[0], pal1[1]);
-        drawCopperBar((canvas.height / 2) + Math.sin(t * 1.8 + 2.0) * (canvas.height * 0.35), 20 + (audioPunch * 0.8), pal2[0], pal2[1]);
-        drawCopperBar((canvas.height / 2) + Math.sin(t * 1.5 + 4.0) * (canvas.height * 0.25), 15 + (audioPunch * 0.5), pal3[0], pal3[1]);
+        for (let c = 0; c < numBars; c++) {
+            let vol = channelVolumes[c] || 0;
+            
+            // Reduzierter Punch (Ausschlag) verhindert das unschöne Verschmelzen der Linien
+            let punch = vol * 18; 
+            
+            let yCenter = (canvas.height / 2) + Math.sin(t * sinTimes[c] + sinOffsets[c]) * (canvas.height * heightWeights[c]);
+            drawCopperBar(yCenter, baseThickness[c] + punch, pals[c][0], pals[c][1]);
+        }
         ctx.globalCompositeOperation = "source-over";
 
-        // --- 3. DAS OSZILLOSKOP ---
+        // --- DAS OSZILLOSKOP ---
+        const currentOscValue = stateGetters.getCurrentOscValue();
         const trackData = stateGetters.getTrackData();
         const trackLength = trackData ? (trackData.length || 0) : 0;
         

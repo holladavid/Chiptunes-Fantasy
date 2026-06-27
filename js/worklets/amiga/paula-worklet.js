@@ -1,7 +1,7 @@
 // === js/worklets/amiga/paula-worklet.js ===
 // ==========================================
 // MOS TECHNOLOGY PAULA 8364 CHIP EMULATION
-// With ProTracker E0x Filter Modulation & Safe-Cloned Visualizer
+// With ProTracker E0x Filter Modulation & Safe-Cloned Visualizer (4 Channel-Coupled)
 // ==========================================
 
 class StaticRCFilter {
@@ -140,7 +140,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
         this.staticR = new StaticRCFilter(sampleRate);
         this.ledL = new AmigaLEDFilter(sampleRate);
         this.ledR = new AmigaLEDFilter(sampleRate);
-        this.ledFilterOn = true; // Der Amiga startet standardmäßig mit gedimmter LED (Filter an)
+        this.ledFilterOn = true; 
 
         this.port.onmessage = (e) => {
             const msg = e.data;
@@ -251,7 +251,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
             const currentSmpObj = this.samples[smpName];
 
             if (this.currentTick === 0) {
-                // --- TICK 0 ---
                 if (sample > 0 && currentSmpObj && currentSmpObj.data) {
                     channel.trigger(currentSmpObj.data, currentSmpObj.loopStart, currentSmpObj.loopLen);
                     channel.vol = currentSmpObj.baseVolume; 
@@ -304,11 +303,9 @@ class PaulaProcessor extends AudioWorkletProcessor {
                         this.currentOrder++;
                         this.currentTick = -1;
                         break;
-                    
-                    // === NEU: NATIVE EMULATION DES PROTRACKER E0x-FILTER-EFFEKTS ===
                     case 0x0E:
-                        if ((param & 0xF0) === 0x00) { // E0x Befehl detektiert
-                            this.ledFilterOn = (param & 0x0F) === 0; // E00 = Filter an (LED an), E01 = Filter aus
+                        if ((param & 0xF0) === 0x00) { 
+                            this.ledFilterOn = (param & 0x0F) === 0; 
                         }
                         break;
                 }
@@ -395,6 +392,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                                     }
                                 }
                                 if (cmd.per !== undefined) ch.per = cmd.per;
+                                // In der Legacy-Loop ebenfalls den Kanal-Volumenzug sichern
                                 if (cmd.vol !== undefined) ch.vol = cmd.vol; 
                             }
                         }
@@ -458,6 +456,12 @@ class PaulaProcessor extends AudioWorkletProcessor {
 
                 // Amiga LED Status im Puffer übertragen (Index 33)
                 view[33] = this.ledFilterOn ? 1.0 : 0.0;
+
+                // === KANALLAUTSTÄRKEN DER ERSTEN 4 PAULA DMA KANÄLE ÜBERTRAGEN ===
+                for (let c = 0; c < 4; c++) {
+                    let ch = this.channels[c];
+                    view[34 + c] = ch.data ? (ch.vol / 64.0) : 0.0;
+                }
 
                 this.port.postMessage(view);
             }

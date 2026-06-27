@@ -1,11 +1,11 @@
 // === js/worklets/atari/ym-bladerunner.js ===
 // =========================================================
 // YM2149F "BLADE RUNNER" CORE (Cinematic Analog CS-80 Edition)
-// With Sub-Sample Accurate Phase Alignment & Organic Drift
 // =========================================================
 
 import { YM_DAC, polyBLEP, cubicInterpolate, MoogFilter, DCBlocker, detectDigidrum, detectDigidrumVoice } from '../lib/dsp-utils.js';
 import { DynamicStaging } from '../lib/dynamic-staging.js';
+import { YMVisualizer } from '../lib/ym-visualizer.js'; // NEU IMPORTIERT!
 
 class YMBladeRunnerProcessor extends AudioWorkletProcessor {
     constructor() {
@@ -55,8 +55,10 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
         this.currentDrumVoice = 0; 
         this.sidechainEnv = 1.0; 
 
-        // Visualizer Zero-Allocation Ring Buffer (40 Floats = 160 Bytes)
-        this.visualView = new Float32Array(40);
+        this.volA = 0.0; this.volB = 0.0; this.volC = 0.0;
+
+        // Visualizer Schnittstelle instanziieren!
+        this.visualizer = new YMVisualizer(this.port);
         
         this.port.onmessage = (event) => {
             const msg = event.data;
@@ -85,7 +87,7 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
 
     process(inputs, outputs) {
         const outL = outputs[0][0];  
-        const outR = outputs[0][1] || outputs[0][0]; 
+        const outR = outputs[0].length > 1 ? outputs[0][1] : outputs[0][0]; 
         let currentVisualValue = 0;
 
         if (this.delayTime === 0) this.delayTime = Math.floor(sampleRate * 0.375);
@@ -100,7 +102,6 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
             if (this.trackData) {
                 this.sampleCounter--;
                 if (this.sampleCounter <= 0) {
-                    // === DETERMINISTISCHE SUB-SAMPLE PHASEN-KOMPENSATION ===
                     const overshoot = -this.sampleCounter;
                     this.sampleCounter += sampleRate / 50.0; 
                     let frame = this.trackData[this.currentFrame];
@@ -145,7 +146,6 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
                     let incB = (this.clock / (16 * (pB === 0 ? 1 : pB))) / sampleRate;
                     let incC = (this.clock / (16 * (pC === 0 ? 1 : pC))) / sampleRate;
 
-                    // Oszillatoren mit Overshoot kompensieren
                     this.phaseA_L = (this.phaseA_L + overshoot * incA) % 1.0;
                     this.phaseA_R = (this.phaseA_R + overshoot * (incA + 0.002)) % 1.0; 
                     
@@ -169,7 +169,6 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
             let incB = (this.clock / (16 * (pB === 0 ? 1 : pB))) / sampleRate;
             let incC = (this.clock / (16 * (pC === 0 ? 1 : pC))) / sampleRate;
 
-            // === HIER WAREN DIE FEHLENDEN DEKLARATIONEN ===
             const mix = this.regs[7];
             let tA = (mix & 0x01) === 0; let tB = (mix & 0x02) === 0; let tC = (mix & 0x04) === 0;
             let nA = (mix & 0x08) === 0; let nB = (mix & 0x10) === 0; let nC = (mix & 0x20) === 0;
@@ -180,7 +179,6 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
 
             let stage = this.stager.update(pA, pB, pC, nA, nB, nC, 0.001, this.currentDrumVoice);
 
-            // === HIER WAR DER FEHLENDE CS-80 ORGANIC DRIFT ===
             this.lfoVibrato = (this.lfoVibrato + 5.5 / sampleRate) % 1.0; 
             this.lfoWow = (this.lfoWow + 0.15 / sampleRate) % 1.0; 
             this.lfoFlutter = (this.lfoFlutter + 1.2 / sampleRate) % 1.0;  
@@ -242,8 +240,8 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
             let sFundC_R = Math.sin(this.phaseC_R * 2.0 * Math.PI);
             let sigC_R = tC ? ((sqC_R * 0.3 + sawC_R * 0.7) * (1.0 - stage.C.sub*0.3) + sFundC_R * (0.3 + stage.C.sub * 0.9)) : 0.0;
 
-            // Noise
-            this.noisePhase += (this.clock / (16 * ((this.regs[6] & 0x1F) === 0 ? 1 : (this.regs[6] & 0x1F)))) / sampleRate;
+            let noisePhaseInc = (this.clock / (16 * ((this.regs[6] & 0x1F) === 0 ? 1 : (this.regs[6] & 0x1F)))) / sampleRate;
+            this.noisePhase += noisePhaseInc;
             if (this.noisePhase >= 1.0) {
                 this.noisePhase %= 1.0;
                 this.noiseLfsr ^= (((this.noiseLfsr & 1) ^ ((this.noiseLfsr >> 3) & 1)) << 17);
@@ -284,6 +282,10 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
             this.smoothVoltA += (targetVolA - this.smoothVoltA) * slewSpeedA;
             this.smoothVoltB += (targetVolB - this.smoothVoltB) * slewSpeedB;
             this.smoothVoltC += (targetVolC - this.smoothVoltC) * slewSpeedC;
+
+            this.volA = this.smoothVoltA;
+            this.volB = this.smoothVoltB;
+            this.volC = this.smoothVoltC;
 
             let sweepA = Math.pow(this.smoothVoltA, 1.2);
             let sweepB = Math.pow(this.smoothVoltB, 1.2);
@@ -387,24 +389,8 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
             if (i === 0) currentVisualValue = (dcL + dcR) / 2.0;
         }
 
-        this.visCounter = (this.visCounter || 0) + 1;
-        if (this.visCounter % 4 === 0) {
-            let isAudible = Math.abs(currentVisualValue) > 0.001;
-            if (isAudible || this.wasAudible) {
-                const view = this.visualView;
-                view[0] = 2; 
-                view[1] = this.isPlaying ? 1 : 0;
-                view[2] = this.currentFrame;
-                view[3] = currentVisualValue;
-
-                for (let r = 0; r < 16; r++) {
-                    view[4 + r] = this.regs[r];
-                }
-
-                this.port.postMessage(view);
-            }
-            this.wasAudible = isAudible;
-        }
+        // Visualizer Schnittstelle füttern
+        this.visualizer.update(this.isPlaying, this.currentFrame, currentVisualValue, this.regs, this.volA, this.volB, this.volC);
         return true; 
     }
 }

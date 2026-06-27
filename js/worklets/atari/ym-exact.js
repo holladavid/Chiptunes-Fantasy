@@ -1,10 +1,11 @@
 // === js/worklets/atari/ym-exact.js ===
 // =========================================================
 // YM2149F CORE (CYCLE-EXACT, LOG-DAC, POLY-BLEP ANTI-ALIASING)
-// With Sub-Sample Accurate Phase & Envelope Alignment
+// Fully Synced with Shared YMVisualizer I/O
 // =========================================================
 
 import { detectDigidrum } from '../lib/dsp-utils.js';
+import { YMVisualizer } from '../lib/ym-visualizer.js';
 
 const YM_DAC = [
     0.0000, 0.0137, 0.0205, 0.0291, 0.0423, 0.0618, 0.0847, 0.1369, 
@@ -48,7 +49,10 @@ class YMExactProcessor extends AudioWorkletProcessor {
         this.sampleCounter = 0;
         this.isPlaying = false;
 
-        this.visualView = new Float32Array(40);
+        this.volA = 0.0; this.volB = 0.0; this.volC = 0.0;
+
+        // Visualizer Schnittstelle instanziieren
+        this.visualizer = new YMVisualizer(this.port);
         
         this.port.onmessage = (event) => {
             const msg = event.data;
@@ -113,8 +117,7 @@ class YMExactProcessor extends AudioWorkletProcessor {
             if (this.isPlaying && this.trackData) {
                 this.sampleCounter--;
                 if (this.sampleCounter <= 0) {
-                    // === DETERMINISTISCHE SUB-SAMPLE PHASEN-KOMPENSATION ===
-                    const overshoot = -this.sampleCounter; // Fraktionaler Überhang in Samples
+                    const overshoot = -this.sampleCounter;
                     this.sampleCounter += sampleRate / 50.0; 
                     
                     let frame = this.trackData[this.currentFrame];
@@ -122,7 +125,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
                         if (r === 13) {
                             if (frame[13] !== 0xFF) {
                                 this.regs[13] = frame[13];
-                                // Hüllkurve exakt ab dem sub-sample-genauen Startpunkt triggern!
                                 this.envPhase = overshoot * this.incEnv; 
                             }
                         } else {
@@ -135,7 +137,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     if (activeDigiTrigger > 0 && activeDigiTrigger !== this.lastDigiTrigger) {
                         if (this.digidrums[activeDigiTrigger - 1]) {
                             this.currentDigidrum = this.digidrums[activeDigiTrigger - 1];
-                            // Digidrum-Startpunkt sub-sample-genau kompensieren!
                             this.digiPos = overshoot * (7812.5 / sampleRate);
                             this.port.postMessage({ type: 'DEBUG', msg: 'Drum ' + activeDigiTrigger });
                         }
@@ -143,12 +144,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     this.lastDigiTrigger = activeDigiTrigger;
                     
                     this.updateInternals();
-
-                    // Oszillatoren sub-sample-genau an der Rhythmus-Achse ausrichten!
-                    this.phaseA = (this.phaseA + overshoot * this.incA) % 1.0;
-                    this.phaseB = (this.phaseB + overshoot * this.incB) % 1.0;
-                    this.phaseC = (this.phaseC + overshoot * this.incC) % 1.0;
-
                     this.currentFrame = (this.currentFrame + 1) % this.trackData.length;
                 }
             }
@@ -205,6 +200,8 @@ class YMExactProcessor extends AudioWorkletProcessor {
             let volB = (this.regs[9] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[9] & 0x0F];
             let volC = (this.regs[10] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[10] & 0x0F];
 
+            this.volA = volA; this.volB = volB; this.volC = volC;
+
             let digiSample = 0;
             if (this.currentDigidrum) {
                 let posInt = Math.floor(this.digiPos);
@@ -230,24 +227,8 @@ class YMExactProcessor extends AudioWorkletProcessor {
             if (i === 0) currentVisualValue = finalOutput;
         }
 
-        this.visCounter = (this.visCounter || 0) + 1;
-        if (this.visCounter % 4 === 0) {
-            let isAudible = Math.abs(currentVisualValue) > 0.001;
-            if (isAudible || this.wasAudible) {
-                const view = this.visualView;
-                view[0] = 2; 
-                view[1] = this.isPlaying ? 1 : 0;
-                view[2] = this.currentFrame;
-                view[3] = currentVisualValue;
-
-                for (let r = 0; r < 16; r++) {
-                    view[4 + r] = this.regs[r];
-                }
-
-                this.port.postMessage(view);
-            }
-            this.wasAudible = isAudible;
-        }
+        // Taktgenaue Ausgabe über die neue, geteilte Schnittstelle
+        this.visualizer.update(this.isPlaying, this.currentFrame, currentVisualValue, this.regs, this.volA, this.volB, this.volC);
         return true; 
     }
 }
