@@ -1,7 +1,8 @@
-// === js/worklets/amiga/paula-worklet.js ===
+// === js/worklets/amiga/paula-exact.js ===
 // ==========================================
 // MOS TECHNOLOGY PAULA 8364 CHIP EMULATION
-// With Analog Motherboard Crosstalk, DAC Saturation & HSYNC Noise Floor
+// Analog Dirt Edition: Crosstalk, Tanh Saturation, HSYNC Noise
+// Fully synchronized with Pattern Delays, Jumps & XM Logic
 // ==========================================
 
 class StaticRCFilter {
@@ -72,6 +73,9 @@ class PaulaChannel {
         this.hasVibrato = false;
         
         this.lastPlayedSample = 0;
+        
+        this.patternLoopRow = 0;
+        this.patternLoopCount = 0;
     }
 
     trigger(data, loopStart, loopLen) {
@@ -154,7 +158,14 @@ class PaulaProcessor extends AudioWorkletProcessor {
         this.currentRow = 0;
         this.currentTick = 0;
         this.samplesUntilNextTick = 0;
+        
+        // Globale Tracker-State Caches für saubere Transitions
+        this.patternDelay = 0;
+        this.breakPending = false;
+        this.breakOrder = 0;
+        this.breakRow = 0;
 
+        // Filter und Analog-States
         this.staticL = new StaticRCFilter(sampleRate);
         this.staticR = new StaticRCFilter(sampleRate);
         this.ledL = new AmigaLEDFilter(sampleRate);
@@ -162,7 +173,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
         this.ledFilterOn = true; 
         this.filterModeState = 0; 
         
-        // --- NEU: Analog Noise Floor Phasen ---
         this.hsyncPhase = 0;
         this.vblankPhase = 0;
 
@@ -198,6 +208,9 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.channels[i].volSlideSpeed = 0;
                     this.channels[i].sampleOffset = 0;
                     
+                    this.channels[i].patternLoopRow = 0;
+                    this.channels[i].patternLoopCount = 0;
+                    
                     this.channels[i].lastPlayedSample = 0;
                     
                     if (isXM) this.channels[i].pan = 0.5;
@@ -227,6 +240,8 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.currentRow = 0;
                     this.currentTick = 0;
                     this.samplesUntilNextTick = 0;
+                    this.patternDelay = 0;
+                    this.breakPending = false;
                     this.isPlaying = true;
                 } else {
                     this.isSequenced = false;
@@ -253,6 +268,8 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.currentOrder = targetOrder % this.songLength;
                     this.currentRow = Math.floor(remainingTicks / this.speed) % 64;
                     this.currentTick = remainingTicks % this.speed;
+                    this.patternDelay = 0;
+                    this.breakPending = false;
                 } else {
                     if (this.trackData) this.currentFrame = msg.frame % this.trackData.length;
                 }
@@ -355,6 +372,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     channel.hasVibrato = false;
                 }
 
+                // --- TICK 0: EFFECTS & PARAMETER MEMORY ---
                 switch (effect) {
                     case 0x01: if (param > 0) channel.portamentoUpSpeed = param; break;
                     case 0x02: if (param > 0) channel.portamentoDownSpeed = param; break;
@@ -386,17 +404,19 @@ class PaulaProcessor extends AudioWorkletProcessor {
                             else this.bpm = param;
                         }
                         break;
+                        
+                    // --- SAFELY CACHED JUMPS ---
                     case 0x0B: 
-                        this.currentOrder = param;
-                        this.currentRow = 0;
-                        this.currentTick = -1; 
+                        this.breakOrder = param;
+                        this.breakRow = 0;
+                        this.breakPending = true;
                         break;
                     case 0x0D: 
-                        const targetRow = ((param >> 4) * 10) + (param & 0x0F);
-                        this.currentRow = targetRow < numRows ? targetRow : 0;
-                        this.currentOrder++;
-                        this.currentTick = -1;
+                        this.breakOrder = this.currentOrder + 1;
+                        this.breakRow = ((param >> 4) * 10) + (param & 0x0F);
+                        this.breakPending = true;
                         break;
+                        
                     case 0x0E:
                         const subEffect = param >> 4;
                         const subParam = param & 0x0F;
@@ -421,9 +441,31 @@ class PaulaProcessor extends AudioWorkletProcessor {
                                 channel.per = Math.min(856, channel.per + subParam);
                             }
                         }
+                        // Pattern Delay (EEx)
+                        else if (subEffect === 0x0E) {
+                            this.patternDelay = subParam;
+                        }
+                        // Pattern Loop (E6x)
+                        else if (subEffect === 0x06) {
+                            if (subParam === 0) {
+                                channel.patternLoopRow = this.currentRow;
+                            } else {
+                                if (channel.patternLoopCount === 0) {
+                                    channel.patternLoopCount = subParam;
+                                } else {
+                                    channel.patternLoopCount--;
+                                }
+                                if (channel.patternLoopCount > 0) {
+                                    this.breakOrder = this.currentOrder;
+                                    this.breakRow = channel.patternLoopRow;
+                                    this.breakPending = true;
+                                }
+                            }
+                        }
                         break;
                 }
             } else {
+                // --- TICK > 0: EFFECTS ---
                 switch (effect) {
                     case 0x00: 
                         if (param > 0 && channel.per > 0) {
@@ -516,13 +558,22 @@ class PaulaProcessor extends AudioWorkletProcessor {
             }
         }
 
+        // --- ROW ADVANCE & PATTERN DELAY LOGIC ---
         this.currentTick++;
-        if (this.currentTick >= this.speed) {
+        if (this.currentTick >= this.speed * (this.patternDelay + 1)) {
             this.currentTick = 0;
-            this.currentRow++;
-            if (this.currentRow >= numRows) {
-                this.currentRow = 0;
-                this.currentOrder++;
+            this.patternDelay = 0;
+            
+            if (this.breakPending) {
+                this.currentOrder = this.breakOrder;
+                this.currentRow = this.breakRow;
+                this.breakPending = false;
+            } else {
+                this.currentRow++;
+                if (this.currentRow >= numRows) {
+                    this.currentRow = 0;
+                    this.currentOrder++;
+                }
             }
         }
     }
@@ -534,12 +585,10 @@ class PaulaProcessor extends AudioWorkletProcessor {
 
         let clockTicksPerSample = this.clock / sampleRate;
         
-        // Konstanten für den analogen "Schmutz"
-        const CROSSTALK_BLEED = 0.04; // 4% Übersprechen
-        const HSYNC_FREQ = 15625.0;   // 15.6 kHz (PAL Agnus)
-        const VBLANK_FREQ = 50.0;     // 50 Hz Brummen
+        const CROSSTALK_BLEED = 0.04;
+        const HSYNC_FREQ = 15625.0; 
+        const VBLANK_FREQ = 50.0;
         
-        // HSYNC/VBLANK Inkrement (Phasenfortschritt pro Sample)
         const hsyncInc = (HSYNC_FREQ * Math.PI * 2) / sampleRate;
         const vblankInc = (VBLANK_FREQ * Math.PI * 2) / sampleRate;
 
@@ -554,9 +603,11 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.samplesUntilNextTick--;
                     if (this.samplesUntilNextTick <= 0) {
                         const overshoot = -this.samplesUntilNextTick; 
+                        
+                        this.processTrackerTick(overshoot);
+                        
                         const samplesPerTick = (2.5 / this.bpm) * sampleRate;
                         this.samplesUntilNextTick += samplesPerTick;
-                        this.processTrackerTick(overshoot);
                     }
                 } else {
                     this.sampleCounter--;
@@ -583,7 +634,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
 
             let mixedL = 0, mixedR = 0;
             
-            // 1. Oszillatoren & Panning berechnen
             for (let c = 0; c < this.numChannels; c++) {
                 let sampleVal = this.channels[c].step(clockTicksPerSample);
                 if (sampleVal !== 0) {
@@ -593,29 +643,22 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 }
             }
             
-            // --- NEU: ANALOG HARDWARE MODELING ---
-            
-            // A) R-2R DAC Sättigung (Soft-Clipping "Crunch")
-            // Die Hyperbeltangens-Funktion simuliert die Widerstands-Toleranzen an den Signalspitzen
+            // Analog Hardware Modeling
             mixedL = Math.tanh(mixedL * 1.15) / 1.05;
             mixedR = Math.tanh(mixedR * 1.15) / 1.05;
             
-            // B) Analoges Stereo-Übersprechen (Crosstalk)
             let bleedL = mixedL * (1.0 - CROSSTALK_BLEED) + mixedR * CROSSTALK_BLEED;
             let bleedR = mixedR * (1.0 - CROSSTALK_BLEED) + mixedL * CROSSTALK_BLEED;
             
-            // C) Amiga Motherboard Noise Floor (Agnus Einstreuung)
             this.hsyncPhase = (this.hsyncPhase + hsyncInc) % (Math.PI * 2);
             this.vblankPhase = (this.vblankPhase + vblankInc) % (Math.PI * 2);
             
-            // 15.6 kHz Zeilenfiepen (amplitudenmoduliert durch 50Hz VBLANK) + statisches Rauschen
             let hwNoise = Math.sin(this.hsyncPhase) * (0.00015 + Math.sin(this.vblankPhase) * 0.00005);
-            hwNoise += (Math.random() * 2 - 1) * 0.0001; // Grundrauschen der OpAmps
+            hwNoise += (Math.random() * 2 - 1) * 0.0001;
             
             bleedL += hwNoise;
             bleedR += hwNoise;
 
-            // 2. Analoge RC- und Butterworth Filterstufe
             let filteredL = this.staticL.process(bleedL);
             let filteredR = this.staticR.process(bleedR);
 
