@@ -1,7 +1,7 @@
 // === js/visuals/visualizer.js ===
 // =========================================================
 // HIGH-PERFORMANCE RETROWAVE VISUALIZER MODULE
-// CRT Phosphor Persistence, Vector Reticle, Dynamic Copperbars
+// Optimized Phosphor Trail Persistence & Clean Copperbar Gradients
 // =========================================================
 
 export function initVisuals(stateGetters, callbacks) {
@@ -87,12 +87,14 @@ export function initVisuals(stateGetters, callbacks) {
         const w = canvas.width;
         
         // Metallischer 3D-Zylinderverlauf
+        // NEU: Äußere Kanten auf soliden Schwarzwert (#000000) gesetzt,
+        // um Farb-Akkumulationen im additiven screen-Mischmodus zu verhindern.
         const grad = ctx.createLinearGradient(0, y, 0, y + height);
-        grad.addColorStop(0.0, 'rgba(0,0,0,0.85)');
+        grad.addColorStop(0.0, '#000000');
         grad.addColorStop(0.18, colorStart);
         grad.addColorStop(0.5, '#ffffff'); // Heller Chrom-Spiegelpunkt in der Mitte
         grad.addColorStop(0.82, colorEnd);
-        grad.addColorStop(1.0, 'rgba(0,0,0,0.85)');
+        grad.addColorStop(1.0, '#000000');
         
         ctx.fillStyle = grad;
         ctx.fillRect(0, y, w, height);
@@ -109,9 +111,10 @@ export function initVisuals(stateGetters, callbacks) {
         const t = (performance.now() - startTime) * 0.001; 
         
         // --- PHOSPHOR TRAIL PERSISTENCE (Motion Blur) ---
-        // Statt clearRect() zeichnen wir ein extrem transparentes schwarzes Rechteck.
-        // Das erzeugt das typisch weiche Nachleuchten alter Monitore!
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.18)'; 
+        // KORREKTUR: Alpha-Wert von 0.18 auf 0.38 angehoben. 
+        // Dies verkürzt die Abklingzeit des Nachleuchtens im Vollbild massiv, 
+        // wodurch die Copperbars extrem knackig und reaktiv bouncen.
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.38)'; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         const isAmiga = document.body.classList.contains('theme-amiga');
