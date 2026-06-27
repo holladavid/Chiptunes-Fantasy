@@ -1,8 +1,7 @@
 // === js/worklets/amiga/paula-exact.js ===
 // ==========================================
 // MOS TECHNOLOGY PAULA 8364 CHIP EMULATION
-// Analog Dirt Edition: Crosstalk, Tanh Saturation, HSYNC Noise
-// Fully synchronized with Pattern Delays, Jumps & XM Logic
+// Analog Dirt Edition: With Full Stereo Width & Volume Column Panning
 // ==========================================
 
 class StaticRCFilter {
@@ -159,13 +158,11 @@ class PaulaProcessor extends AudioWorkletProcessor {
         this.currentTick = 0;
         this.samplesUntilNextTick = 0;
         
-        // Globale Tracker-State Caches für saubere Transitions
         this.patternDelay = 0;
         this.breakPending = false;
         this.breakOrder = 0;
         this.breakRow = 0;
 
-        // Filter und Analog-States
         this.staticL = new StaticRCFilter(sampleRate);
         this.staticR = new StaticRCFilter(sampleRate);
         this.ledL = new AmigaLEDFilter(sampleRate);
@@ -360,19 +357,29 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     }
                 }
 
+                // --- Panning & Volume Übernahmen ---
                 if (sample > 0 && currentSmpObj) {
                     channel.vol = currentSmpObj.baseVolume; 
+                    // NEU: Sample Default Panning (0-255)
+                    if (currentSmpObj.pan !== undefined) {
+                        channel.pan = currentSmpObj.pan / 255.0;
+                    }
                 }
 
                 if (volume !== 0xFF) {
-                    channel.vol = volume; 
+                    if (volume >= 0xC0 && volume <= 0xCF) {
+                        // NEU: Volume Column Panning (C0 - CF = Pan 0 - 15)
+                        channel.pan = (volume - 0xC0) / 15.0;
+                    } else if (volume <= 64) {
+                        channel.vol = volume; 
+                    }
                 }
 
                 if (effect !== 0x04 && effect !== 0x06) {
                     channel.hasVibrato = false;
                 }
 
-                // --- TICK 0: EFFECTS & PARAMETER MEMORY ---
+                // --- TICK 0: EFFECTS ---
                 switch (effect) {
                     case 0x01: if (param > 0) channel.portamentoUpSpeed = param; break;
                     case 0x02: if (param > 0) channel.portamentoDownSpeed = param; break;
@@ -404,8 +411,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                             else this.bpm = param;
                         }
                         break;
-                        
-                    // --- SAFELY CACHED JUMPS ---
                     case 0x0B: 
                         this.breakOrder = param;
                         this.breakRow = 0;
@@ -422,6 +427,9 @@ class PaulaProcessor extends AudioWorkletProcessor {
                         const subParam = param & 0x0F;
                         if (subEffect === 0x00) { 
                             if (this.filterModeState === 0) this.ledFilterOn = (subParam === 0); 
+                        } else if (subEffect === 0x08) { 
+                            // --- NEU: E8x (Set 4-Bit Panning) ---
+                            channel.pan = subParam / 15.0;
                         } else if (subEffect === 0x0A) { 
                             channel.vol = Math.min(64, channel.vol + subParam);
                         } else if (subEffect === 0x0B) { 
@@ -441,11 +449,9 @@ class PaulaProcessor extends AudioWorkletProcessor {
                                 channel.per = Math.min(856, channel.per + subParam);
                             }
                         }
-                        // Pattern Delay (EEx)
                         else if (subEffect === 0x0E) {
                             this.patternDelay = subParam;
                         }
-                        // Pattern Loop (E6x)
                         else if (subEffect === 0x06) {
                             if (subParam === 0) {
                                 channel.patternLoopRow = this.currentRow;
@@ -558,7 +564,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
             }
         }
 
-        // --- ROW ADVANCE & PATTERN DELAY LOGIC ---
         this.currentTick++;
         if (this.currentTick >= this.speed * (this.patternDelay + 1)) {
             this.currentTick = 0;
@@ -603,7 +608,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.samplesUntilNextTick--;
                     if (this.samplesUntilNextTick <= 0) {
                         const overshoot = -this.samplesUntilNextTick; 
-                        
                         this.processTrackerTick(overshoot);
                         
                         const samplesPerTick = (2.5 / this.bpm) * sampleRate;
@@ -643,7 +647,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 }
             }
             
-            // Analog Hardware Modeling
             mixedL = Math.tanh(mixedL * 1.15) / 1.05;
             mixedR = Math.tanh(mixedR * 1.15) / 1.05;
             
