@@ -1,7 +1,7 @@
 // === js/parsers/xm-parser.js ===
 // ==========================================
 // FASTTRACKER II (.XM) COMPACT BINARY PARSER
-// With High-Performance Int8Array Chip RAM Allocation
+// With Ping-Pong Loop Unrolling & Finetune Support
 // ==========================================
 
 export async function loadXmFile(url) {
@@ -32,12 +32,6 @@ export async function loadXmFile(url) {
     let orderTable = new Uint8Array(songLength);
     for(let i=0; i<songLength; i++) orderTable[i] = data[80 + i];
 
-    const amigaPeriods = new Float32Array(97);
-    for(let n=1; n<=96; n++) {
-        amigaPeriods[n] = 428.0 * Math.pow(2.0, (37 - n) / 12.0);
-    }
-
-    // 1. PATTERNS ZUERST PARSEN
     let offset = 60 + headerSize;
     let patterns = [];
 
@@ -92,7 +86,6 @@ export async function loadXmFile(url) {
         offset += patHeaderLen + packedSize;
     }
 
-    // 2. INSTRUMENTE & DELTA-SAMPLES ERST DANACH PARSEN
     let samples = {};
     let loadedSamplesCount = 0;
 
@@ -123,23 +116,27 @@ export async function loadXmFile(url) {
                 let sh = sampleHeaders[s];
                 if (sh.length > 0) {
                     let is16Bit = (sh.type & 16) !== 0;
-                    let isLoop = (sh.type & 3) !== 0;
                     
-                    // === NATIVE 8-BIT CHIP RAM SPEICHERUNG (Int8Array) ===
-                    let byteData = new Int8Array(is16Bit ? sh.length/2 : sh.length);
+                    // --- NEU: LOOP TYPEN KORREKT AUSWERTEN ---
+                    let loopType = sh.type & 3; 
+                    let isLoop = loopType !== 0;
+                    let isPingPong = loopType === 2;
+
+                    let rawLength = is16Bit ? sh.length / 2 : sh.length;
+                    let byteData = new Int8Array(rawLength);
                     let old = 0;
                     
+                    // Delta Decoding
                     if (is16Bit) {
-                        for(let j=0; j<sh.length/2; j++) {
+                        for(let j=0; j<rawLength; j++) {
                             let v = view.getInt16(sDataOffset, true);
                             sDataOffset += 2;
                             old = (old + v) & 0xFFFF;
                             let signed = old < 32768 ? old : old - 65536;
-                            // 16-Bit wird für Paula bitgenau auf 8-Bit quantisiert!
                             byteData[j] = Math.round(signed / 256.0);
                         }
                     } else {
-                        for(let j=0; j<sh.length; j++) {
+                        for(let j=0; j<rawLength; j++) {
                             let v = view.getInt8(sDataOffset);
                             sDataOffset += 1;
                             old = (old + v) & 0xFF;
@@ -148,12 +145,38 @@ export async function loadXmFile(url) {
                         }
                     }
                     
+                    let finalData = byteData;
+                    let lStart = is16Bit ? sh.loopStart / 2 : sh.loopStart;
+                    let lLen = isLoop ? (is16Bit ? sh.loopLen / 2 : sh.loopLen) : 0;
+
+                    // --- PING-PONG UNROLLING (Verhindert das Quietschen!) ---
+                    if (isPingPong && lLen > 0) {
+                        let unrolled = new Int8Array(lStart + lLen * 2);
+                        
+                        // 1. Vorwärts-Teil (Präfix + Vorwärts-Loop) kopieren
+                        for (let j = 0; j < lStart + lLen; j++) {
+                            if (j < byteData.length) unrolled[j] = byteData[j];
+                        }
+                        
+                        // 2. Rückwärts-Teil (Ping-Pong Rücklauf) anhängen
+                        for (let j = 0; j < lLen; j++) {
+                            let srcIdx = lStart + lLen - 1 - j;
+                            if (srcIdx < byteData.length) {
+                                unrolled[lStart + lLen + j] = byteData[srcIdx];
+                            }
+                        }
+                        
+                        finalData = unrolled;
+                        lLen = lLen * 2; // Loop ist jetzt doppelt so lang und verhält sich wie ein Forward-Loop!
+                    }
+
                     samples[`xm_sample_${i}`] = {
-                        data: byteData,
-                        loopStart: is16Bit ? sh.loopStart/2 : sh.loopStart,
-                        loopLen: isLoop ? (is16Bit ? sh.loopLen/2 : sh.loopLen) : 0,
+                        data: finalData,
+                        loopStart: lStart,
+                        loopLen: lLen,
                         baseVolume: sh.vol,
-                        relNote: sh.relNote
+                        relNote: sh.relNote,
+                        finetune: sh.finetune // --- NEU: Finetune an Engine übergeben ---
                     };
                     loadedSamplesCount++;
                 }

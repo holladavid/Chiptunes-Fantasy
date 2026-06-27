@@ -1,7 +1,7 @@
 // === js/worklets/amiga/paula-worklet.js ===
 // ==========================================
 // MOS TECHNOLOGY PAULA 8364 CHIP EMULATION
-// With Sub-Sample Phase Synchronization & Note-On Trigger Resolution
+// With Sub-Sample Phase Sync, XM Finetuning & Ping-Pong Emulation Support
 // ==========================================
 
 class StaticRCFilter {
@@ -288,20 +288,24 @@ class PaulaProcessor extends AudioWorkletProcessor {
             const currentSmpObj = this.samples[smpName];
 
             const isSampleChange = (sample > 0 && sample !== channel.lastPlayedSample);
-            const isPortamento = (effect === 0x03 || effect === 0x05) && (channel.data !== null) && !isSampleChange;
+            const isPortamento = (effect === 0x03 || effect === 0x05) && (channel.data !== null) && 
+                                 (this.seqType === 'XM' ? true : !isSampleChange);
 
             if (this.currentTick === 0) {
                 const hasNote = (period > 0);
 
-                // 1. Zuerst die Frequenz (Periode) für diesen Schritt berechnen
                 if (hasNote) {
                     let calculatedPeriod = period;
                     if (this.seqType !== 'MOD') {
                         if (period !== 0xFFFF && period !== 97) {
                             const relNote = currentSmpObj ? (currentSmpObj.relNote || 0) : 0;
-                            const actualNote = period + relNote;
+                            // --- NEU: FINETUNE EINBERECHNEN (-128 bis 127 = +/- 1 Halbton) ---
+                            const finetune = currentSmpObj ? (currentSmpObj.finetune || 0) : 0;
+                            
+                            const actualNote = period + relNote + (finetune / 128.0);
                             const clampedNote = Math.min(96, Math.max(1, actualNote));
-                            calculatedPeriod = Math.round(428.0 * Math.pow(2.0, (37 - clampedNote) / 12.0));
+                            
+                            calculatedPeriod = Math.round(428.0 * Math.pow(2.0, (49 - clampedNote) / 12.0));
                         }
                     }
 
@@ -314,24 +318,20 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     }
                 }
 
-                // 2. Nun das Sample triggern (Nutzt das aktive Instrument, auch wenn 'sample === 0' ist)
-                if (hasNote && currentSmpObj && currentSmpObj.data && !isPortamento) {
-                    channel.trigger(currentSmpObj.data, currentSmpObj.loopStart, currentSmpObj.loopLen);
-                    
-                    // Sub-Sample Phasen-Synchronisation anwenden
-                    channel.phase = overshoot * (clockTicksPerSample / channel.per);
-                    
+                if (hasNote && currentSmpObj && currentSmpObj.data) {
+                    if (!isPortamento) {
+                        channel.trigger(currentSmpObj.data, currentSmpObj.loopStart, currentSmpObj.loopLen);
+                        channel.phase = overshoot * (clockTicksPerSample / channel.per);
+                    }
                     if (sample > 0) {
                         channel.lastPlayedSample = sample;
                     }
                 }
 
-                // Default-Lautstärke des Instruments laden
                 if (sample > 0 && currentSmpObj) {
                     channel.vol = currentSmpObj.baseVolume; 
                 }
 
-                // Explizite Spurlautstärke anwenden (überschreibt ggf. Default-Volume)
                 if (volume !== 0xFF) {
                     channel.vol = volume; 
                 }
