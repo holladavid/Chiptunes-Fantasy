@@ -1,7 +1,7 @@
 // === js/worklets/amiga/paula-worklet.js ===
 // ==========================================
 // MOS TECHNOLOGY PAULA 8364 CHIP EMULATION
-// Release Candidate: Full Parameter Memory, Effect 0x06 & Fine-Slides
+// With Precise Pattern Break Caching, Pattern Delay & Loop Support
 // ==========================================
 
 class StaticRCFilter {
@@ -54,13 +54,11 @@ class PaulaChannel {
         this.phase = 0;     
         this.activeSample = 1; 
         
-        // Frequenz-Tracking (Amiga & Linear Modus)
         this.targetPeriod = 0;
         this.basePeriod = 428;
         this.currentNote = 0;
         this.targetNote = 0;
         
-        // --- NEU: Parameter Memory für fortlaufende Tracker-Effekte (00-Befehle) ---
         this.portamentoSpeed = 0;
         this.portamentoUpSpeed = 0;
         this.portamentoDownSpeed = 0;
@@ -74,6 +72,10 @@ class PaulaChannel {
         this.hasVibrato = false;
         
         this.lastPlayedSample = 0;
+        
+        // --- NEU: Pattern Loop State ---
+        this.patternLoopRow = 0;
+        this.patternLoopCount = 0;
     }
 
     trigger(data, loopStart, loopLen) {
@@ -156,6 +158,12 @@ class PaulaProcessor extends AudioWorkletProcessor {
         this.currentRow = 0;
         this.currentTick = 0;
         this.samplesUntilNextTick = 0;
+        
+        // --- NEU: Globale Tracker-State Caches für Transitions ---
+        this.patternDelay = 0;
+        this.breakPending = false;
+        this.breakOrder = 0;
+        this.breakRow = 0;
 
         this.staticL = new StaticRCFilter(sampleRate);
         this.staticR = new StaticRCFilter(sampleRate);
@@ -190,12 +198,14 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.channels[i].currentNote = 0;
                     this.channels[i].targetNote = 0;
                     
-                    // Reset Memory
                     this.channels[i].portamentoSpeed = 0;
                     this.channels[i].portamentoUpSpeed = 0;
                     this.channels[i].portamentoDownSpeed = 0;
                     this.channels[i].volSlideSpeed = 0;
                     this.channels[i].sampleOffset = 0;
+                    
+                    this.channels[i].patternLoopRow = 0;
+                    this.channels[i].patternLoopCount = 0;
                     
                     this.channels[i].lastPlayedSample = 0;
                     
@@ -226,6 +236,8 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.currentRow = 0;
                     this.currentTick = 0;
                     this.samplesUntilNextTick = 0;
+                    this.patternDelay = 0;
+                    this.breakPending = false;
                     this.isPlaying = true;
                 } else {
                     this.isSequenced = false;
@@ -252,6 +264,8 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.currentOrder = targetOrder % this.songLength;
                     this.currentRow = Math.floor(remainingTicks / this.speed) % 64;
                     this.currentTick = remainingTicks % this.speed;
+                    this.patternDelay = 0;
+                    this.breakPending = false;
                 } else {
                     if (this.trackData) this.currentFrame = msg.frame % this.trackData.length;
                 }
@@ -332,7 +346,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                         channel.trigger(currentSmpObj.data, currentSmpObj.loopStart, currentSmpObj.loopLen);
                         channel.phase = overshoot * (clockTicksPerSample / channel.per);
                         
-                        // Effect 0x09: Sample Offset (direkt beim Anschlag ausführen)
                         if (effect === 0x09) {
                             if (param > 0) channel.sampleOffset = param * 256;
                             channel.pointer = channel.sampleOffset;
@@ -355,7 +368,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     channel.hasVibrato = false;
                 }
 
-                // --- TICK 0: EFFECTS & PARAMETER MEMORY ---
+                // --- TICK 0: EFFECTS ---
                 switch (effect) {
                     case 0x01: if (param > 0) channel.portamentoUpSpeed = param; break;
                     case 0x02: if (param > 0) channel.portamentoDownSpeed = param; break;
@@ -371,7 +384,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     case 0x0A: 
                         if (param > 0) channel.volSlideSpeed = param; 
                         break;
-                    case 0x06: // NEU: Vibrato + Volume Slide Setzen
+                    case 0x06: 
                         if (param > 0) channel.volSlideSpeed = param;
                         channel.hasVibrato = true;
                         break;
@@ -387,39 +400,62 @@ class PaulaProcessor extends AudioWorkletProcessor {
                             else this.bpm = param;
                         }
                         break;
+                        
+                    // --- NEU: SAFELY CACHED JUMPS ---
                     case 0x0B: 
-                        this.currentOrder = param;
-                        this.currentRow = 0;
-                        this.currentTick = -1; 
+                        this.breakOrder = param;
+                        this.breakRow = 0;
+                        this.breakPending = true;
                         break;
                     case 0x0D: 
-                        const targetRow = ((param >> 4) * 10) + (param & 0x0F);
-                        this.currentRow = targetRow < numRows ? targetRow : 0;
-                        this.currentOrder++;
-                        this.currentTick = -1;
+                        this.breakOrder = this.currentOrder + 1;
+                        this.breakRow = ((param >> 4) * 10) + (param & 0x0F);
+                        this.breakPending = true;
                         break;
+                        
                     case 0x0E:
                         const subEffect = param >> 4;
                         const subParam = param & 0x0F;
                         if (subEffect === 0x00) { 
                             if (this.filterModeState === 0) this.ledFilterOn = (subParam === 0); 
-                        } else if (subEffect === 0x0A) { // Fine Vol Slide Up
+                        } else if (subEffect === 0x0A) { 
                             channel.vol = Math.min(64, channel.vol + subParam);
-                        } else if (subEffect === 0x0B) { // Fine Vol Slide Down
+                        } else if (subEffect === 0x0B) { 
                             channel.vol = Math.max(0, channel.vol - subParam);
-                        } else if (subEffect === 0x01) { // Fine Portamento Up (Pitch Up)
+                        } else if (subEffect === 0x01) { 
                             if (this.seqType === 'XM' && this.linearFreq) {
                                 channel.currentNote = Math.min(96, channel.currentNote + (subParam / 16.0));
                                 channel.per = Math.round(428.0 * Math.pow(2.0, (49 - channel.currentNote) / 12.0));
                             } else if (channel.per > 0) {
                                 channel.per = Math.max(113, channel.per - subParam);
                             }
-                        } else if (subEffect === 0x02) { // Fine Portamento Down (Pitch Down)
+                        } else if (subEffect === 0x02) { 
                             if (this.seqType === 'XM' && this.linearFreq) {
                                 channel.currentNote = Math.max(1, channel.currentNote - (subParam / 16.0));
                                 channel.per = Math.round(428.0 * Math.pow(2.0, (49 - channel.currentNote) / 12.0));
                             } else if (channel.per > 0) {
                                 channel.per = Math.min(856, channel.per + subParam);
+                            }
+                        }
+                        // --- NEU: PATTERN DELAY (EEx) ---
+                        else if (subEffect === 0x0E) {
+                            this.patternDelay = subParam;
+                        }
+                        // --- NEU: PATTERN LOOP (E6x) ---
+                        else if (subEffect === 0x06) {
+                            if (subParam === 0) {
+                                channel.patternLoopRow = this.currentRow;
+                            } else {
+                                if (channel.patternLoopCount === 0) {
+                                    channel.patternLoopCount = subParam;
+                                } else {
+                                    channel.patternLoopCount--;
+                                }
+                                if (channel.patternLoopCount > 0) {
+                                    this.breakOrder = this.currentOrder;
+                                    this.breakRow = channel.patternLoopRow;
+                                    this.breakPending = true;
+                                }
                             }
                         }
                         break;
@@ -441,7 +477,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                             }
                         }
                         break;
-                    case 0x01: // Slide Up (Pitch Up -> Note Up, Period Down)
+                    case 0x01: 
                         if (this.seqType === 'XM' && this.linearFreq) {
                             channel.currentNote = Math.min(96, channel.currentNote + (channel.portamentoUpSpeed / 16.0));
                             channel.per = Math.round(428.0 * Math.pow(2.0, (49 - channel.currentNote) / 12.0));
@@ -449,7 +485,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                             channel.per = Math.max(113, channel.per - channel.portamentoUpSpeed); 
                         }
                         break;
-                    case 0x02: // Slide Down (Pitch Down -> Note Down, Period Up)
+                    case 0x02: 
                         if (this.seqType === 'XM' && this.linearFreq) {
                             channel.currentNote = Math.max(1, channel.currentNote - (channel.portamentoDownSpeed / 16.0));
                             channel.per = Math.round(428.0 * Math.pow(2.0, (49 - channel.currentNote) / 12.0));
@@ -479,7 +515,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                                 }
                             }
                         }
-                        // Fall-through für 0x05 (Volume Slide) in separatem Block
                         if (effect === 0x05) {
                             const slideUp = (channel.volSlideSpeed >> 4) & 0x0F;
                             const slideDown = channel.volSlideSpeed & 0x0F;
@@ -488,7 +523,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                         }
                         break;
                     case 0x04: 
-                    case 0x06: // NEU: Vibrato + Volume Slide
+                    case 0x06: 
                         if (channel.hasVibrato) {
                             channel.vibratoPhase = (channel.vibratoPhase + channel.vibratoSpeed) & 63;
                             const vibSine = Math.sin(channel.vibratoPhase * (Math.PI / 32));
@@ -519,13 +554,22 @@ class PaulaProcessor extends AudioWorkletProcessor {
             }
         }
 
+        // --- ROW ADVANCE & PATTERN DELAY LOGIC ---
         this.currentTick++;
-        if (this.currentTick >= this.speed) {
+        if (this.currentTick >= this.speed * (this.patternDelay + 1)) {
             this.currentTick = 0;
-            this.currentRow++;
-            if (this.currentRow >= numRows) {
-                this.currentRow = 0;
-                this.currentOrder++;
+            this.patternDelay = 0;
+            
+            if (this.breakPending) {
+                this.currentOrder = this.breakOrder;
+                this.currentRow = this.breakRow;
+                this.breakPending = false;
+            } else {
+                this.currentRow++;
+                if (this.currentRow >= numRows) {
+                    this.currentRow = 0;
+                    this.currentOrder++;
+                }
             }
         }
     }
@@ -548,14 +592,19 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.samplesUntilNextTick--;
                     if (this.samplesUntilNextTick <= 0) {
                         const overshoot = -this.samplesUntilNextTick; 
+                        
+                        // --- NEU: Erst den Tick abarbeiten, damit 0x0F sofort wirkt! ---
+                        this.processTrackerTick(overshoot);
+                        
+                        // Danach die Wartedauer mit der ggf. frischen BPM kalkulieren
                         const samplesPerTick = (2.5 / this.bpm) * sampleRate;
                         this.samplesUntilNextTick += samplesPerTick;
-                        this.processTrackerTick(overshoot);
                     }
                 } else {
                     this.sampleCounter--;
                     if (this.sampleCounter <= 0) {
                         this.sampleCounter += sampleRate / 50.0;
+                        
                         let frame = this.trackData[this.currentFrame];
                         if (frame && frame.cmds) {
                             for (let cmd of frame.cmds) {
