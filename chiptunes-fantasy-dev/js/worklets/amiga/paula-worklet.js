@@ -1,7 +1,7 @@
 // === js/worklets/amiga/paula-worklet.js ===
 // ==========================================
 // MOS TECHNOLOGY PAULA 8364 CHIP EMULATION
-// With Sub-Sample Phase Sync, XM Finetuning & Ping-Pong Emulation Support
+// With Linear Frequency Portamento & Key-Off Crash Protection
 // ==========================================
 
 class StaticRCFilter {
@@ -53,18 +53,23 @@ class PaulaChannel {
         this.repLength = 0; 
         this.phase = 0;     
         this.activeSample = 1; 
+        
+        // Frequenz-Tracking (Amiga Modus)
         this.targetPeriod = 0;
-        this.portamentoSpeed = 0;
         this.basePeriod = 428;
         
-        // Panning- & Vibrato-Register
+        // Frequenz-Tracking (Linear Float Modus)
+        this.currentNote = 0;
+        this.targetNote = 0;
+        
+        this.portamentoSpeed = 0;
+        
         this.pan = 0.5;
         this.vibratoSpeed = 0;
         this.vibratoDepth = 0;
         this.vibratoPhase = 0;
         this.hasVibrato = false;
         
-        // Tracking für Instrumentenwechsel
         this.lastPlayedSample = 0;
     }
 
@@ -74,13 +79,8 @@ class PaulaChannel {
         this.phase = 0;
         
         if (loopLen > 2) {
-            if (loopStart >= data.length) {
-                loopStart = 0;
-            }
-            if (loopStart + loopLen > data.length) {
-                loopLen = data.length - loopStart;
-            }
-
+            if (loopStart >= data.length) { loopStart = 0; }
+            if (loopStart + loopLen > data.length) { loopLen = data.length - loopStart; }
             this.length = loopStart + loopLen;
             this.repPointer = loopStart;
             this.repLength = loopLen;
@@ -136,12 +136,12 @@ class PaulaProcessor extends AudioWorkletProcessor {
         
         this.samples = {}; 
         this.isPlaying = false;
-
         this.visualView = new Float32Array(40);
 
-        // Sequenzer Engine Variablen
         this.isSequenced = false;
         this.seqType = 'MOD';
+        this.linearFreq = false;
+        
         this.songLength = 0;
         this.orderTable = null;
         this.patterns = null;
@@ -159,7 +159,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
         this.ledL = new AmigaLEDFilter(sampleRate);
         this.ledR = new AmigaLEDFilter(sampleRate);
         this.ledFilterOn = true; 
-        
         this.filterModeState = 0; 
 
         this.port.onmessage = (e) => {
@@ -170,6 +169,8 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 }
             } else if (msg.type === 'PLAY_TRACK') {
                 const isXM = msg.track && msg.track.type === 'XM';
+                this.linearFreq = msg.track ? (msg.track.linearFreq || false) : false;
+                
                 for (let i = 0; i < 64; i++) {
                     this.channels[i].data = null;
                     this.channels[i].vol = 0;
@@ -180,9 +181,13 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.channels[i].repLength = 0;
                     this.channels[i].phase = 0;
                     this.channels[i].activeSample = 1;
+                    
                     this.channels[i].targetPeriod = 0;
-                    this.channels[i].portamentoSpeed = 0;
                     this.channels[i].basePeriod = 428;
+                    this.channels[i].currentNote = 0;
+                    this.channels[i].targetNote = 0;
+                    this.channels[i].portamentoSpeed = 0;
+                    
                     this.channels[i].lastPlayedSample = 0;
                     
                     if (isXM) {
@@ -244,11 +249,8 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 }
             } else if (msg.type === 'CYCLE_FILTER') {
                 this.filterModeState = (this.filterModeState + 1) % 3;
-                if (this.filterModeState === 1) {
-                    this.ledFilterOn = true; 
-                } else if (this.filterModeState === 2) {
-                    this.ledFilterOn = false; 
-                }
+                if (this.filterModeState === 1) this.ledFilterOn = true; 
+                else if (this.filterModeState === 2) this.ledFilterOn = false; 
             }
         };
     }
@@ -264,9 +266,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
 
         const pattern = patternObj.data;
         const numRows = patternObj.numRows;
-
         const rowOffset = this.currentRow * this.numChannels * 6;
-
         const clockTicksPerSample = this.clock / sampleRate;
 
         for (let ch = 0; ch < this.numChannels; ch++) {
@@ -292,29 +292,34 @@ class PaulaProcessor extends AudioWorkletProcessor {
                                  (this.seqType === 'XM' ? true : !isSampleChange);
 
             if (this.currentTick === 0) {
-                const hasNote = (period > 0);
+                // --- SCHUTZSCHALTUNG: Note 97 = Key-Off! ---
+                const hasNote = (period > 0 && period !== 97);
+                if (period === 97) {
+                    channel.vol = 0; // Note verstummt
+                }
 
                 if (hasNote) {
                     let calculatedPeriod = period;
-                    if (this.seqType !== 'MOD') {
-                        if (period !== 0xFFFF && period !== 97) {
-                            const relNote = currentSmpObj ? (currentSmpObj.relNote || 0) : 0;
-                            // --- NEU: FINETUNE EINBERECHNEN (-128 bis 127 = +/- 1 Halbton) ---
-                            const finetune = currentSmpObj ? (currentSmpObj.finetune || 0) : 0;
-                            
-                            const actualNote = period + relNote + (finetune / 128.0);
-                            const clampedNote = Math.min(96, Math.max(1, actualNote));
-                            
-                            calculatedPeriod = Math.round(428.0 * Math.pow(2.0, (49 - clampedNote) / 12.0));
-                        }
+                    let actualNote = 0;
+
+                    if (this.seqType === 'XM') {
+                        const relNote = currentSmpObj ? (currentSmpObj.relNote || 0) : 0;
+                        const finetune = currentSmpObj ? (currentSmpObj.finetune || 0) : 0;
+                        actualNote = period + relNote + (finetune / 128.0);
+                        const clampedNote = Math.min(96, Math.max(1, actualNote));
+                        calculatedPeriod = Math.round(428.0 * Math.pow(2.0, (49 - clampedNote) / 12.0));
                     }
 
                     if (isPortamento) {
                         channel.targetPeriod = calculatedPeriod;
+                        channel.targetNote = actualNote;
                     } else {
                         channel.per = calculatedPeriod;
                         channel.basePeriod = calculatedPeriod;
                         channel.targetPeriod = 0;
+                        
+                        channel.currentNote = actualNote;
+                        channel.targetNote = 0;
                     }
                 }
 
@@ -363,11 +368,8 @@ class PaulaProcessor extends AudioWorkletProcessor {
                         break;
                     case 0x0F: 
                         if (param > 0) {
-                            if (param < 32) {
-                                this.speed = param;
-                            } else {
-                                this.bpm = param;
-                            }
+                            if (param < 32) this.speed = param;
+                            else this.bpm = param;
                         }
                         break;
                     case 0x0B: 
@@ -383,9 +385,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                         break;
                     case 0x0E:
                         if ((param & 0xF0) === 0x00) { 
-                            if (this.filterModeState === 0) {
-                                this.ledFilterOn = (param & 0x0F) === 0; 
-                            }
+                            if (this.filterModeState === 0) this.ledFilterOn = (param & 0x0F) === 0; 
                         }
                         break;
                 }
@@ -395,55 +395,76 @@ class PaulaProcessor extends AudioWorkletProcessor {
                         if (param > 0 && channel.per > 0) {
                             const arpOffsets = [0, (param >> 4) & 0x0F, param & 0x0F];
                             const currentOffset = arpOffsets[this.currentTick % 3];
-                            const base = (period > 0) ? period : channel.basePeriod;
-                            channel.per = base * Math.pow(0.9438, currentOffset);
+                            
+                            // Lineares XM-Arpeggio
+                            if (this.seqType === 'XM' && this.linearFreq) {
+                                const arpNote = channel.currentNote + currentOffset; 
+                                const clampedNote = Math.min(96, Math.max(1, arpNote));
+                                channel.per = Math.round(428.0 * Math.pow(2.0, (49 - clampedNote) / 12.0));
+                            } else {
+                                const base = (period > 0 && period !== 97) ? period : channel.basePeriod;
+                                channel.per = base * Math.pow(0.9438, currentOffset);
+                            }
                         }
                         break;
                     case 0x01: 
-                        if (channel.per > 0) {
-                            channel.per = Math.max(113, channel.per - param); 
-                        }
+                        if (channel.per > 0) channel.per = Math.max(113, channel.per - param); 
                         break;
                     case 0x02: 
-                        if (channel.per > 0) {
-                            channel.per = Math.min(856, channel.per + param); 
-                        }
+                        if (channel.per > 0) channel.per = Math.min(856, channel.per + param); 
                         break;
                     case 0x03:
                     case 0x05:
-                        if (channel.targetPeriod > 0 && channel.per !== channel.targetPeriod) {
-                            if (channel.per < channel.targetPeriod) {
-                                channel.per = Math.min(channel.targetPeriod, channel.per + channel.portamentoSpeed);
-                            } else {
-                                channel.per = Math.max(channel.targetPeriod, channel.per - channel.portamentoSpeed);
+                        if (this.seqType === 'XM' && this.linearFreq) {
+                            if (channel.targetNote > 0 && channel.currentNote !== channel.targetNote) {
+                                // SlideAmount in Halbtönen/Ticks (FT2 Standard Linear Speed: Parameter / 16.0)
+                                const slideAmount = channel.portamentoSpeed / 16.0;
+                                if (channel.currentNote < channel.targetNote) {
+                                    channel.currentNote = Math.min(channel.targetNote, channel.currentNote + slideAmount);
+                                } else {
+                                    channel.currentNote = Math.max(channel.targetNote, channel.currentNote - slideAmount);
+                                }
+                                const clampedNote = Math.min(96, Math.max(1, channel.currentNote));
+                                channel.per = Math.round(428.0 * Math.pow(2.0, (49 - clampedNote) / 12.0));
+                            }
+                        } else {
+                            if (channel.targetPeriod > 0 && channel.per !== channel.targetPeriod) {
+                                if (channel.per < channel.targetPeriod) {
+                                    channel.per = Math.min(channel.targetPeriod, channel.per + channel.portamentoSpeed);
+                                } else {
+                                    channel.per = Math.max(channel.targetPeriod, channel.per - channel.portamentoSpeed);
+                                }
                             }
                         }
                         if (effect === 0x05 && param > 0) {
                             const slideUp = (param >> 4) & 0x0F;
                             const slideDown = param & 0x0F;
-                            if (slideUp > 0) {
-                                channel.vol = Math.min(64, channel.vol + slideUp);
-                            } else if (slideDown > 0) {
-                                channel.vol = Math.max(0, channel.vol - slideDown);
-                            }
+                            if (slideUp > 0) channel.vol = Math.min(64, channel.vol + slideUp);
+                            else if (slideDown > 0) channel.vol = Math.max(0, channel.vol - slideDown);
                         }
                         break;
                     case 0x04: 
                         if (channel.hasVibrato) {
                             channel.vibratoPhase = (channel.vibratoPhase + channel.vibratoSpeed) & 63;
-                            const vibOffset = Math.sin(channel.vibratoPhase * (Math.PI / 32)) * channel.vibratoDepth * 2.5; 
-                            channel.per = Math.max(113, Math.min(856, Math.round(channel.basePeriod + vibOffset)));
+                            const vibSine = Math.sin(channel.vibratoPhase * (Math.PI / 32));
+                            
+                            // Lineares XM-Vibrato
+                            if (this.seqType === 'XM' && this.linearFreq) {
+                                const vibOffsetNotes = vibSine * (channel.vibratoDepth / 16.0);
+                                const clampedNote = Math.min(96, Math.max(1, channel.currentNote + vibOffsetNotes));
+                                channel.per = Math.round(428.0 * Math.pow(2.0, (49 - clampedNote) / 12.0));
+                            } else {
+                                const vibOffset = vibSine * channel.vibratoDepth * 2.5; 
+                                channel.per = Math.max(113, Math.min(856, Math.round(channel.basePeriod + vibOffset)));
+                            }
                         }
                         break;
                     case 0x0A: 
                         if (param > 0) {
                             const slideUp = (param >> 4) & 0x0F;
                             const slideDown = param & 0x0F;
-                            if (slideUp > 0) {
-                                channel.vol = Math.min(64, channel.vol + slideUp);
-                            } else if (slideDown > 0) {
-                                channel.vol = Math.max(0, channel.vol - slideDown);
-                            }
+                            if (slideUp > 0) channel.vol = Math.min(64, channel.vol + slideUp);
+                            else if (slideDown > 0) channel.vol = Math.max(0, channel.vol - slideDown);
                         }
                         break;
                 }

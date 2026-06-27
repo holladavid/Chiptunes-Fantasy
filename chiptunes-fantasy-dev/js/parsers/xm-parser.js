@@ -1,7 +1,7 @@
 // === js/parsers/xm-parser.js ===
 // ==========================================
 // FASTTRACKER II (.XM) COMPACT BINARY PARSER
-// With Ping-Pong Loop Unrolling & Finetune Support
+// With Ping-Pong Loop Unrolling & Linear Frequency Flag
 // ==========================================
 
 export async function loadXmFile(url) {
@@ -25,6 +25,10 @@ export async function loadXmFile(url) {
     let numChannels = view.getUint16(68, true);
     let numPatterns = view.getUint16(70, true);
     let numInstruments = view.getUint16(72, true);
+    
+    // --- NEU: Linear Frequency Flag auslesen ---
+    let flags = view.getUint16(74, true);
+    let linearFreq = (flags & 1) === 1;
     
     let defaultSpeed = view.getUint16(76, true); 
     let defaultTempo = view.getUint16(78, true);
@@ -117,7 +121,6 @@ export async function loadXmFile(url) {
                 if (sh.length > 0) {
                     let is16Bit = (sh.type & 16) !== 0;
                     
-                    // --- NEU: LOOP TYPEN KORREKT AUSWERTEN ---
                     let loopType = sh.type & 3; 
                     let isLoop = loopType !== 0;
                     let isPingPong = loopType === 2;
@@ -126,7 +129,6 @@ export async function loadXmFile(url) {
                     let byteData = new Int8Array(rawLength);
                     let old = 0;
                     
-                    // Delta Decoding
                     if (is16Bit) {
                         for(let j=0; j<rawLength; j++) {
                             let v = view.getInt16(sDataOffset, true);
@@ -149,25 +151,17 @@ export async function loadXmFile(url) {
                     let lStart = is16Bit ? sh.loopStart / 2 : sh.loopStart;
                     let lLen = isLoop ? (is16Bit ? sh.loopLen / 2 : sh.loopLen) : 0;
 
-                    // --- PING-PONG UNROLLING (Verhindert das Quietschen!) ---
                     if (isPingPong && lLen > 0) {
                         let unrolled = new Int8Array(lStart + lLen * 2);
-                        
-                        // 1. Vorwärts-Teil (Präfix + Vorwärts-Loop) kopieren
                         for (let j = 0; j < lStart + lLen; j++) {
                             if (j < byteData.length) unrolled[j] = byteData[j];
                         }
-                        
-                        // 2. Rückwärts-Teil (Ping-Pong Rücklauf) anhängen
                         for (let j = 0; j < lLen; j++) {
                             let srcIdx = lStart + lLen - 1 - j;
-                            if (srcIdx < byteData.length) {
-                                unrolled[lStart + lLen + j] = byteData[srcIdx];
-                            }
+                            if (srcIdx < byteData.length) unrolled[lStart + lLen + j] = byteData[srcIdx];
                         }
-                        
                         finalData = unrolled;
-                        lLen = lLen * 2; // Loop ist jetzt doppelt so lang und verhält sich wie ein Forward-Loop!
+                        lLen = lLen * 2; 
                     }
 
                     samples[`xm_sample_${i}`] = {
@@ -176,7 +170,7 @@ export async function loadXmFile(url) {
                         loopLen: lLen,
                         baseVolume: sh.vol,
                         relNote: sh.relNote,
-                        finetune: sh.finetune // --- NEU: Finetune an Engine übergeben ---
+                        finetune: sh.finetune 
                     };
                     loadedSamplesCount++;
                 }
@@ -193,6 +187,7 @@ export async function loadXmFile(url) {
     return {
         isSequenced: true,
         type: 'XM',
+        linearFreq: linearFreq, // --- NEU GEBUNDEN ---
         songLength: songLength,
         orderTable: orderTable,
         patterns: patterns,
