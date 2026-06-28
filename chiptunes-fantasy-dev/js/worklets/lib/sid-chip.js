@@ -1,7 +1,7 @@
 // === js/worklets/lib/sid-chip.js ===
 // ==========================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Ultimate Analog Dirt: Resonance Degradation, True Ring-Mod & Correct PWM Polarity
+// Phase 1: MSB-Flanken Sync, ADSR Pipeline Bugs & VCA DC-Leakage (PCM Hack)
 // ==========================================
 
 const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_SUSTAIN = 2, ENV_RELEASE = 3;
@@ -27,7 +27,10 @@ export class SIDChip {
                 decay_period: RATE_COUNTER_PERIOD[0],
                 sustain_level: 0,
                 release_period: RATE_COUNTER_PERIOD[0],
-                wrapped: false
+                
+                // --- PHASE 1: MSB Sync & ADSR Delay ---
+                msbRisingEdge: false,
+                envDelay: 0
             });
         }
         this.cutoff = 30; this.resonance = 0; this.filterMode = 0; this.masterVol = 0;
@@ -42,9 +45,7 @@ export class SIDChip {
         this.updateFilterParameters();
     }
 
-    get temperature() {
-        return this._temperature;
-    }
+    get temperature() { return this._temperature; }
     set temperature(val) {
         this._temperature = val;
         this.updateFilterParameters();
@@ -53,7 +54,6 @@ export class SIDChip {
     updateFilterParameters() {
         let cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
         let norm = cutoffReg / 2047.0;
-        
         let thermalCoefficient = 1.0 - (this._temperature - 55.0) * 0.0035;
         this.activeCutoff = (30.0 + Math.pow(norm, 1.4) * 11500.0) * thermalCoefficient;
         if (this.activeCutoff < 30) this.activeCutoff = 30;
@@ -85,8 +85,13 @@ export class SIDChip {
             let gate = (ch.ctrl & 1) !== 0;
             let prevGate = (prevCtrl & 1) !== 0;
             
-            if (gate && !prevGate) ch.state = ENV_ATTACK;
-            else if (!gate && prevGate) ch.state = ENV_RELEASE;
+            // --- PHASE 1: ADSR Pipeline Delay Bug ---
+            // Wenn das Gate-Bit umschlägt, friert die ADSR-Logik für 1 Zyklus ein, 
+            // während der Zustand verarbeitet wird. Rate-Counter wird NICHT resetet!
+            if (gate !== prevGate) {
+                ch.envDelay = 1;
+                ch.state = gate ? ENV_ATTACK : ENV_RELEASE;
+            }
             ch.prevGate = gate;
 
             if (ch.ctrl & 8) {
@@ -114,6 +119,13 @@ export class SIDChip {
 
     clockEnvelopeOneCycle(v) {
         let ch = this.voices[v];
+
+        // --- PHASE 1: ADSR Delay Bug ---
+        if (ch.envDelay > 0) {
+            ch.envDelay--;
+            return;
+        }
+
         if (ch.state === ENV_SUSTAIN) {
             ch.envelope_counter = ch.sustain_level;
             return;
@@ -170,21 +182,23 @@ export class SIDChip {
 
     synthesizeVoiceOneCycle(v) {
         let ch = this.voices[v];
-        ch.wrapped = false;
 
         if ((ch.ctrl & 8) === 0) {
             let oldAcc = ch.phase;
-            ch.phase = (ch.phase + ch.freq) & 0xFFFFFF;
-            
-            if (ch.phase < oldAcc) {
-                ch.wrapped = true;
-            }
+            let newAcc = (ch.phase + ch.freq) & 0xFFFFFF;
 
+            // --- PHASE 1: MSB Flanken-Sync ---
+            // Der SID synchronisiert nur dann, wenn Bit 23 von 0 auf 1 springt
             let prevIdx = v === 0 ? 2 : v - 1;
             let prevCh = this.voices[prevIdx];
-            if ((ch.ctrl & 2) !== 0 && prevCh.wrapped) {
-                ch.phase = 0; 
+
+            if ((ch.ctrl & 2) !== 0 && prevCh.msbRisingEdge) {
+                newAcc = 0;
             }
+
+            // Flag für die nächste Stimme speichern
+            ch.msbRisingEdge = ((oldAcc & 0x800000) === 0) && ((newAcc & 0x800000) !== 0);
+            ch.phase = newAcc;
 
             let oldStep = (oldAcc >> 19) & 1;
             let newStep = (ch.phase >> 19) & 1;
@@ -192,11 +206,11 @@ export class SIDChip {
                 let bit = ((ch.lfsr >> 22) ^ (ch.lfsr >> 17)) & 1;
                 ch.lfsr = ((ch.lfsr << 1) & 0x7FFFFF) | bit;
             }
+        } else {
+            ch.msbRisingEdge = false;
         }
 
         let phaseFloat = ch.phase * PHASE_SCALE;
-
-        // --- FIX: Echte 23-Bit Ring-Modulation (Das Glöckchen) ---
         let ringMSB = (ch.phase >> 23) & 1;
         if ((ch.ctrl & 4) !== 0) { 
             let prevIdx = v === 0 ? 2 : v - 1;
@@ -208,10 +222,7 @@ export class SIDChip {
         let tri = (ringMSB === 0) ? (phase23 * PHASE23_SCALE) : ((0x7FFFFF - phase23) * PHASE23_SCALE);
         
         let saw = 1.0 - phaseFloat;
-        
-        // --- FIX: Korrekte PWM-Polarität (<= anstatt >) ---
         let pulseHigh = (ch.phase >> 12) <= ch.pw; 
-        
         let noiseHigh = ((ch.lfsr >> 22) & 1) === 1;
 
         let waveOutVal = 0;
@@ -222,6 +233,7 @@ export class SIDChip {
         let hasPulse = (ch.ctrl & 64) !== 0;
         let hasNoise = (ch.ctrl & 128) !== 0;
 
+        // (Phase 2 & 3: Illegal Waveforms und Noise LUTs folgen im nächsten Schritt!)
         if (hasTri && hasSaw && hasPulse) {
             let trisaw = tri * saw * 1.4;
             if (trisaw > 1.0) trisaw = 1.0;
@@ -282,8 +294,7 @@ export class SIDChip {
 
         let filteredSum = 0;
         let unfilteredSum = 0;
-        
-        // --- FIX: Absolute Stummschaltung von Voice 3 ---
+
         const isVoice3Off = (this.filterMode & 128) !== 0;
 
         if (this.regs[23] & 1) filteredSum += voice0; else unfilteredSum += voice0;
@@ -296,12 +307,9 @@ export class SIDChip {
         let g = this.g;
         let q = this.q;
         
-        // --- FIX: Die analoge Filter-Resonanz-Degradation ---
-        // Auf dem echten MOS 6581 bricht die Resonanz bei Grenzfrequenzen unter ~800 Hz drastisch ein.
-        // Das sorgt dafür, dass tiefe Bässe nicht ewig klingeln/surren, sondern satt und tief klingen.
         if (this.activeCutoff < 800.0) {
-            let damp = (800.0 - this.activeCutoff) / 800.0; // 0.0 bis 1.0
-            q += damp * 0.55; // Resonanz abschwächen (Q wird größer)
+            let damp = (800.0 - this.activeCutoff) / 800.0; 
+            q += damp * 0.55; 
         }
 
         let h = filteredSum - this.filterLow;
@@ -329,7 +337,15 @@ export class SIDChip {
 
         let leakage = filteredSum * 0.11;
         let filteredMix = filterOut + leakage;
+        let finalMix = (unfilteredSum + filteredMix) / 3.0;
 
-        this.outputSample = ((unfilteredSum + filteredMix) / 3.0) * this.masterVol;
+        // --- PHASE 1: DIGITAL PCM SAMPLE HACK (Martin Galway) ---
+        // Der 4-Bit Master-Lautstärkeregler des SID ist eigentlich ein VCA-DAC mit starkem DC-Leakage.
+        // Wenn die Voices stumm sind und die CPU dieses Register schnell ändert,
+        // entsteht eine Gleichspannungsschwankung (DC Offset), die als PCM-Tonsignal hörbar wird.
+        // Unser nachgeschalteter DCBlocker im Worklet wandelt diese Stufe in feines 4-Bit Audio um.
+        let dcLeakage = (this.masterVol - 0.5) * 1.5;
+
+        this.outputSample = (finalMix * this.masterVol) + dcLeakage;
     }
 }
