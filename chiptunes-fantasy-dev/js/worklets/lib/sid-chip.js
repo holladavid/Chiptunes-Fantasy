@@ -1,13 +1,14 @@
 // === js/worklets/lib/sid-chip.js ===
 // ==========================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Phase 3: LFSR Noise Physics, 8-Bit DAC & Wire-AND
+// Phase 4: Non-linear DAC Crunch, Asymmetric JFETs & FET-LUT Polynomial
 // ==========================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
 
 const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_SUSTAIN = 2, ENV_RELEASE = 3;
 const RATE_COUNTER_PERIOD = [9, 32, 63, 95, 149, 220, 267, 313, 392, 977, 1954, 3126, 3907, 11720, 19530, 31256];
+const PHASE_SCALE = 1.0 / 16777216.0;
 
 export class SIDChip {
     constructor() {
@@ -50,7 +51,14 @@ export class SIDChip {
         let cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
         let norm = cutoffReg / 2047.0;
         let thermalCoefficient = 1.0 - (this._temperature - 55.0) * 0.0035;
-        this.activeCutoff = (30.0 + Math.pow(norm, 1.4) * 11500.0) * thermalCoefficient;
+
+        // --- PHASE 4: Nichtlineares FET-Polynom (Gemessene Cutoff-Kurve) ---
+        // Statt einem simplen Math.pow nutzen wir ein Polynom 3. Grades, das die reale
+        // analoge Steuerspannungskennlinie der 6581 JFET-Transistoren nachempfindet.
+        // Extrem flacher Anlauf bei tiefen Bässen, exponentieller Schuss in den Höhen!
+        let fetCurve = 30.0 + 250.0 * norm + 8000.0 * (norm * norm) + 8000.0 * (norm * norm * norm);
+        
+        this.activeCutoff = fetCurve * thermalCoefficient;
         if (this.activeCutoff < 30) this.activeCutoff = 30;
         if (this.activeCutoff > 16000) this.activeCutoff = 16000;
 
@@ -86,7 +94,6 @@ export class SIDChip {
             }
             ch.prevGate = gate;
 
-            // --- PHASE 3: Noise Reset über das Test-Bit ---
             if (ch.ctrl & 8) {
                 ch.phase = 0; 
                 ch.lfsr = 0x7FFFFF;
@@ -168,38 +175,25 @@ export class SIDChip {
                 }
             }
         }
-        
         ch.rate_counter--;
     }
 
     synthesizeVoiceOneCycle(v) {
         let ch = this.voices[v];
-        ch.wrapped = false;
 
-        // Wenn das Test-Bit gesetzt ist, friert der Oszillator auf 0 ein
         if ((ch.ctrl & 8) === 0) {
             let oldAcc = ch.phase;
             let newAcc = (ch.phase + ch.freq) & 0xFFFFFF;
 
-            if (newAcc < oldAcc) {
-                ch.wrapped = true;
-            }
-
             let prevIdx = v === 0 ? 2 : v - 1;
             let prevCh = this.voices[prevIdx];
-            if ((ch.ctrl & 2) !== 0 && prevCh.wrapped) {
-                newAcc = 0; 
-            }
+            if ((ch.ctrl & 2) !== 0 && prevCh.msbRisingEdge) newAcc = 0; 
 
             ch.msbRisingEdge = ((oldAcc & 0x800000) === 0) && ((newAcc & 0x800000) !== 0);
             ch.phase = newAcc;
 
-            // --- PHASE 3: LFSR Clocking an Phase-Rising-Edge gebunden ---
-            // Der Zufallsgenerator taktet sich physikalisch immer dann weiter,
-            // wenn Bit 19 des Akkumulators von 0 auf 1 springt.
             let oldStep = oldAcc & 0x080000;
             let newStep = ch.phase & 0x080000;
-            
             if (!oldStep && newStep) {
                 let bit = ((ch.lfsr >> 22) ^ (ch.lfsr >> 17)) & 1;
                 ch.lfsr = ((ch.lfsr << 1) & 0x7FFFFF) | bit;
@@ -208,7 +202,6 @@ export class SIDChip {
             ch.msbRisingEdge = false;
         }
 
-        // Ringmodulation: XOR-Bit ermitteln
         let ringMSB = (ch.phase >> 23) & 1;
         if ((ch.ctrl & 4) !== 0) { 
             let prevIdx = v === 0 ? 2 : v - 1;
@@ -216,13 +209,21 @@ export class SIDChip {
             ringMSB ^= (prevCh.phase >> 23) & 1;
         }
 
-        // --- PHASE 3: Kapselung in externes Waveform-Modul ---
         ch.waveOut8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, ch.pw, ch.lfsr, ringMSB);
         ch.env8Bit = ch.envelope_counter;
 
-        // Bipolare Skalierung (-1.0 bis 1.0) * ADSR-Level
-        let waveOutFloat = (ch.waveOut8Bit / 127.5) - 1.0;
-        return waveOutFloat * (ch.envelope_counter / 255.0);
+        // --- PHASE 4: Nichtlinearer DAC Crunch (D/A Wandler Sättigung) ---
+        // Der 6581 DAC ist fehlerhaft. Die Toleranzen im R-2R-Netzwerk beulen
+        // die Lautstärkekurven in der Mitte leicht aus.
+        let envNorm = ch.env8Bit / 255.0;
+        let waveNorm = ch.waveOut8Bit / 255.0;
+
+        // "Bowing" (Verbiegen) der linearen Kennlinie durch eine Parabel-Funktion
+        let envDac = envNorm + 0.15 * envNorm * (1.0 - envNorm);
+        let waveDac = waveNorm + 0.1 * waveNorm * (1.0 - waveNorm);
+
+        let waveOutFloat = (waveDac * 2.0) - 1.0;
+        return waveOutFloat * envDac;
     }
 
     clock() {
@@ -262,10 +263,16 @@ export class SIDChip {
         this.filterLow = lp;
         
         if (this.useJfetSaturation) {
-            this.filterLow = Math.tanh(lp * 1.05); 
-            this.filterBand = Math.tanh(bp / 3.0) * 3.0; 
+            // --- PHASE 4: Asymmetrisches JFET Clipping ---
+            // Simuliert die ungleichen positiven/negativen Spannungsabfälle des echten Operationsverstärkers.
+            // Positives Signal (oben) clippt hart und früh. Negatives (unten) weich und spät.
+            // Generiert warme, analoge Even-Harmonics.
+            if (bp > 0) {
+                this.filterBand = Math.tanh(bp / 2.0) * 2.0; 
+            } else {
+                this.filterBand = Math.tanh(bp / 3.0) * 3.0; 
+            }
         } else {
-            this.filterLow = lp;
             this.filterBand = bp / (1.0 + Math.abs(bp) * 0.15); 
         }
         
@@ -283,7 +290,6 @@ export class SIDChip {
         let filteredMix = filterOut + leakage;
         let finalMix = (unfilteredSum + filteredMix) / 3.0;
 
-        // VCA DC-Leakage Hack (Martin Galway PCM)
         let dcLeakage = (this.masterVol - 0.5) * 1.5;
         this.outputSample = (finalMix * this.masterVol) + dcLeakage;
     }
