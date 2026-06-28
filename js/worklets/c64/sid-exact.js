@@ -1,7 +1,8 @@
-// === js/worklets/c64/sid-worklet.js ===
+// === js/worklets/c64/sid-exact.js ===
 // =========================================================
 // MOS TECHNOLOGY SID 6581 AUDIO WORKLET PROCESSOR
-// 100% Microsecond Cycle-Exact CIA/VBLANK Interrupt Accuracy
+// High-Fidelity Cycle-Exact Lockstep Mischer & 4-Pole Butterworth Decimation
+// Optimized 1-MHz ZDF Filter Stage
 // =========================================================
 
 import { CPU6502 } from '../lib/cpu6502.js';
@@ -11,8 +12,12 @@ import { DCBlocker } from '../lib/dsp-utils.js';
 class SIDProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.clock = 985248; 
+        this.clock = 985248; // PAL C64 Clock
         this.sid = new SIDChip();
+        
+        // Aktiviere die authentische analoge JFET-Sättigung für den Exact-Core
+        this.sid.useJfetSaturation = true;
+        
         this.cpu = new CPU6502(this.sid);
         this.dcBlock = new DCBlocker();
 
@@ -31,10 +36,18 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.temperature = 55.0;
         this.cpuCyclesRemaining = 0;
         
+        // --- OPTIMIERUNG: Vorberechnete Butterworth-Dämpfungen & Teiler ---
         const fc = 18000.0; 
         this.aaf_g = Math.tan(Math.PI * fc / this.clock);
-        this.aaf_r1 = 1.847759; 
-        this.aaf_r2 = 0.765366; 
+        const r1 = 1.847759; // Damping (1/Q1) für Stage 1
+        const r2 = 0.765366; // Damping (1/Q2) für Stage 2
+        
+        this.aaf_r1 = r1;
+        this.aaf_r2 = r2;
+        
+        // Kehrwert der ZDF-Nenner vorab berechnen, um die 1-MHz-Divisionen komplett zu eliminieren!
+        this.aaf_scale1 = 1.0 / (1.0 + this.aaf_g * (this.aaf_g + r1));
+        this.aaf_scale2 = 1.0 / (1.0 + this.aaf_g * (this.aaf_g + r2));
         
         this.aaf1_l = 0; this.aaf1_b = 0;
         this.aaf2_l = 0; this.aaf2_b = 0;
@@ -51,7 +64,13 @@ class SIDProcessor extends AudioWorkletProcessor {
             }
 
             if (msg.isSidFile) {
+                // --- NEU: Audio-Pop Cleanup ---
+                this.aaf1_l = 0; this.aaf1_b = 0;
+                this.aaf2_l = 0; this.aaf2_b = 0;
+                this.dcBlock = new DCBlocker();
+
                 this.cpu.reset(msg.loadAddress, msg.c64Code);
+
                 this.initAddress = msg.initAddress;
                 this.playAddress = msg.playAddress;
                 this.isIrqRoutine = false; 
@@ -92,7 +111,13 @@ class SIDProcessor extends AudioWorkletProcessor {
             } else if (msg.type === 'RESUME_TRACK') {
                 this.isPlaying = true;
             } else if (msg.type === 'CHANGE_SUBSONG') {
+                // --- NEU: Audio-Pop Cleanup ---
+                this.aaf1_l = 0; this.aaf1_b = 0;
+                this.aaf2_l = 0; this.aaf2_b = 0;
+                this.dcBlock = new DCBlocker();
+
                 this.sid = new SIDChip();
+                this.sid.useJfetSaturation = true;
                 this.sid.temperature = this.temperature;
                 this.cpu.sid = this.sid;
                 
@@ -185,17 +210,17 @@ class SIDProcessor extends AudioWorkletProcessor {
                         this.cpuCyclesRemaining--;
                     }
                     
-                    // 3. 1-MHz SID-Synthese aufrufen
+                    // 3. Taktgenaue Soundchip-Aktualisierung (bei 985.248 Hz)
                     this.sid.clock();
                     let out = this.sid.outputSample;
                     
-                    // 4. Butterworth Decimation
-                    let hp1 = (out - this.aaf1_l - this.aaf_r1 * this.aaf1_b) / (1.0 + this.aaf_g * (this.aaf_g + this.aaf_r1));
+                    // 4. Butterworth Decimation mit vorbereiteter ZDF-Multiplikation (Keine Divisionen!)
+                    let hp1 = (out - this.aaf1_l - this.aaf_r1 * this.aaf1_b) * this.aaf_scale1;
                     let bp1 = this.aaf1_b + this.aaf_g * hp1;
                     this.aaf1_l = this.aaf1_l + this.aaf_g * bp1;
                     this.aaf1_b = bp1;
                     
-                    let hp2 = (this.aaf1_l - this.aaf2_l - this.aaf_r2 * this.aaf2_b) / (1.0 + this.aaf_g * (this.aaf_g + this.aaf_r2));
+                    let hp2 = (this.aaf1_l - this.aaf2_l - this.aaf_r2 * this.aaf2_b) * this.aaf_scale2;
                     let bp2 = this.aaf2_b + this.aaf_g * hp2;
                     this.aaf2_l = this.aaf2_l + this.aaf_g * bp2;
                     this.aaf2_b = bp2;
@@ -238,4 +263,4 @@ class SIDProcessor extends AudioWorkletProcessor {
     }
 }
 
-registerProcessor('sid-processor', SIDProcessor);
+registerProcessor('sid-exact-processor', SIDProcessor);
