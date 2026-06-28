@@ -1,33 +1,40 @@
 // === js/worklets/lib/sid-waveforms.js ===
 // =========================================================
 // MOS 6581 WAVEFORM GENERATOR & BIT-LOGIC
-// Hardware-accurate 8-Bit DAC quantization & Floating DC Bias
+// Phase 5: Analog Wire-Shorts Matrix & Floating DAC Drift
 // =========================================================
 
-export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
+import { PWM_LUT } from './sid-luts.js';
+
+export function calculateWaveform8Bit(ch, ctrl, phase24, pw12, lfsr23, ringMSB) {
     let out = 0xFF; 
     let hasWave = false;
 
-    if (ctrl & 16) {
+    // 1. Die vier Basis-Wellenformen (Hardware-Quantisiert)
+    if (ctrl & 16) { 
+        let bit23 = (phase24 >> 23) & 1;
+        if (ctrl & 4) bit23 ^= ringMSB;
+
         let tri12 = (phase24 >> 11) & 0xFFF;
-        if (ringMSB) tri12 = (~tri12) & 0xFFF;
+        if (bit23) tri12 = (~tri12) & 0xFFF;
+        
         out &= (tri12 >> 4);
         hasWave = true;
     }
 
-    if (ctrl & 32) {
+    if (ctrl & 32) { 
         out &= (phase24 >> 16) & 0xFF;
         hasWave = true;
     }
 
-    if (ctrl & 64) {
+    if (ctrl & 64) { 
         let testPhase = (phase24 >> 12) & 0xFFF;
-        let pulseOut = (testPhase <= pw12) ? 0xFF : 0x00;
-        out &= pulseOut;
+        let effectivePw = PWM_LUT[pw12]; // Asymmetrische PWM LUT!
+        out &= (testPhase <= effectivePw) ? 0xFF : 0x00;
         hasWave = true;
     }
 
-    if (ctrl & 128) {
+    if (ctrl & 128) { 
         let noiseOut = ((lfsr23 & 0x400000) >> 15) | 
                        ((lfsr23 & 0x100000) >> 14) | 
                        ((lfsr23 & 0x010000) >> 11) | 
@@ -40,11 +47,38 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
         hasWave = true;
     }
 
-    // --- PHASE 4: Floating DAC DC-Bias ---
-    // Wenn keine Welle selektiert ist, fällt der originale SID nicht auf absolute Null ab.
-    // Die analogen DAC-Gatter "floaten" und erzeugen eine permanente Restgleichspannung (DC Offset).
-    if (!hasWave) {
-        return 0x18; // Simulierter Leckstrom der offenen Gates
+    // --- PHASE 5: ILLEGAL OPCODES & FLOATING DAC ---
+    // Wenn mehrere Wellen kombiniert werden, entsteht ein physischer Kurzschluss.
+    // Die schwächeren Pull-Up-Widerstände kollabieren, die Amplitude bricht ein
+    // und erzeugt einen spezifischen Gleichspannungs-Sprung (DC-Offset).
+    if (hasWave) {
+        let waveCombine = ctrl & 0x70; // Filtert Tri (16), Saw (32), Pulse (64)
+        
+        if (waveCombine === 0x30) { // Tri + Saw
+            // Amplitude bricht stark ein, Signal driftet nach oben
+            out = (out >> 1) + 0x18; 
+        } 
+        else if (waveCombine === 0x50) { // Tri + Pulse
+            // Dreieck wird vom Puls massiv verzerrt und gestaucht
+            out = (out >> 1) + 0x20;
+        } 
+        else if (waveCombine === 0x60) { // Saw + Pulse
+            out = (out >> 1) + 0x10;
+        } 
+        else if (waveCombine === 0x70) { // Tri + Saw + Pulse
+            // Totaler Kurzschluss: Signal flacht fast komplett ab (extrem leise)
+            out = (out >> 2) + 0x28;
+        }
+
+        // Noise mischt sich auf dem echten Chip anders ein, 
+        // für den Anfang ist ein reines AND mit den geschwächten Wellen aber akkurat genug.
+
+        // Wir merken uns den Pegel für den Moment, in dem die Welle abgeschaltet wird
+        ch.floatingLevel = out;
+    } else {
+        // Floating DAC: Atmet sanft in Richtung 0x18 Leckstrom
+        ch.floatingLevel += (0x18 - ch.floatingLevel) * 0.0002;
+        out = Math.round(ch.floatingLevel);
     }
 
     return out;

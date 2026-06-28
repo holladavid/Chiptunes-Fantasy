@@ -1,10 +1,11 @@
 // === js/worklets/lib/sid-chip.js ===
 // ==========================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Phase 4: Non-linear DAC Crunch, Asymmetric JFETs & FET-LUT Polynomial
+// Holy Grail Edition: 15-Bit Envelope Freeze & LUT Architecture
 // ==========================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
+import { DAC_LUT, CUTOFF_LUT } from './sid-luts.js';
 
 const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_SUSTAIN = 2, ENV_RELEASE = 3;
 const RATE_COUNTER_PERIOD = [9, 32, 63, 95, 149, 220, 267, 313, 392, 977, 1954, 3126, 3907, 11720, 19530, 31256];
@@ -19,14 +20,19 @@ export class SIDChip {
                 freq: 0, pw: 2048, ctrl: 0, env: 0, phase: 0,
                 state: ENV_RELEASE, prevGate: false,
                 waveOut8Bit: 0, env8Bit: 0, lfsr: 0x7FFFFF,
-                rate_counter: 0, exponential_counter: 0, envelope_counter: 0,
+                
+                rate_counter: 0, 
+                exponential_counter: 0, 
+                envelope_counter: 0,
+                
                 attack_period: RATE_COUNTER_PERIOD[0],
                 decay_period: RATE_COUNTER_PERIOD[0],
                 sustain_level: 0,
                 release_period: RATE_COUNTER_PERIOD[0],
+                
                 msbRisingEdge: false,
                 envDelay: 0,
-                wrapped: false
+                floatingLevel: 0
             });
         }
         this.cutoff = 30; this.resonance = 0; this.filterMode = 0; this.masterVol = 0;
@@ -49,16 +55,13 @@ export class SIDChip {
 
     updateFilterParameters() {
         let cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
-        let norm = cutoffReg / 2047.0;
-        let thermalCoefficient = 1.0 - (this._temperature - 55.0) * 0.0035;
-
-        // --- PHASE 4: Nichtlineares FET-Polynom (Gemessene Cutoff-Kurve) ---
-        // Statt einem simplen Math.pow nutzen wir ein Polynom 3. Grades, das die reale
-        // analoge Steuerspannungskennlinie der 6581 JFET-Transistoren nachempfindet.
-        // Extrem flacher Anlauf bei tiefen Bässen, exponentieller Schuss in den Höhen!
-        let fetCurve = 30.0 + 250.0 * norm + 8000.0 * (norm * norm) + 8000.0 * (norm * norm * norm);
         
-        this.activeCutoff = fetCurve * thermalCoefficient;
+        // LUT statt Polynom: Perfekte gemessene Kennlinie
+        let baseCutoff = CUTOFF_LUT[cutoffReg];
+        
+        let thermalCoefficient = 1.0 - (this._temperature - 55.0) * 0.0035;
+        this.activeCutoff = baseCutoff * thermalCoefficient;
+        
         if (this.activeCutoff < 30) this.activeCutoff = 30;
         if (this.activeCutoff > 16000) this.activeCutoff = 16000;
 
@@ -89,15 +92,11 @@ export class SIDChip {
             let prevGate = (prevCtrl & 1) !== 0;
             
             if (gate !== prevGate) {
-                ch.envDelay = 1;
+                ch.envDelay = 1; 
                 ch.state = gate ? ENV_ATTACK : ENV_RELEASE;
+                // ACHTUNG: Rate-Counter und LFSR werden hier BEREITS in Hardware NICHT gelöscht!
             }
             ch.prevGate = gate;
-
-            if (ch.ctrl & 8) {
-                ch.phase = 0; 
-                ch.lfsr = 0x7FFFFF;
-            }
 
             if (reg === base + 5) { 
                 ch.attack_period = RATE_COUNTER_PERIOD[val >> 4];
@@ -106,9 +105,7 @@ export class SIDChip {
                 ch.sustain_level = (val >> 4) | ((val >> 4) << 4);
                 ch.release_period = RATE_COUNTER_PERIOD[val & 15];
             }
-        } else if (reg === 21 || reg === 22) {
-            this.updateFilterParameters();
-        } else if (reg === 23) {
+        } else if (reg === 21 || reg === 22 || reg === 23) {
             this.updateFilterParameters();
         } else if (reg === 24) {
             this.filterMode = val;
@@ -137,8 +134,14 @@ export class SIDChip {
             case ENV_RELEASE: ratePeriod = ch.release_period; break;
         }
 
-        if (ch.rate_counter <= 0) {
-            ch.rate_counter += ratePeriod; 
+        // --- DER ADSR ENVELOPE FREEZE BUG ---
+        // Der Zähler ist ein fortlaufender 15-Bit LFSR-Counter. Wenn die 'ratePeriod' vom Programm 
+        // plötzlich unter den aktuellen Wert von 'rate_counter' gesetzt wird, läuft dieser 
+        // fröhlich bis 32767 hoch, bevor er überläuft. Das friert die Hüllkurve ein!
+        ch.rate_counter = (ch.rate_counter + 1) & 0x7FFF;
+
+        if (ch.rate_counter === ratePeriod) {
+            ch.rate_counter = 0; 
 
             let expPeriod = 1;
             if (ch.state !== ENV_ATTACK) {
@@ -175,23 +178,27 @@ export class SIDChip {
                 }
             }
         }
-        ch.rate_counter--;
     }
 
     synthesizeVoiceOneCycle(v) {
         let ch = this.voices[v];
 
+        // --- DER TEST BIT FIX ---
+        // Bit 3 (Wert 8) stoppt den Phasengenerator und friert den Status ein.
+        // Er wird nicht auf 0 gesetzt, sondern macht auf Knopfdruck dort weiter, wo er war.
         if ((ch.ctrl & 8) === 0) {
             let oldAcc = ch.phase;
             let newAcc = (ch.phase + ch.freq) & 0xFFFFFF;
 
             let prevIdx = v === 0 ? 2 : v - 1;
             let prevCh = this.voices[prevIdx];
+            // Hard Sync
             if ((ch.ctrl & 2) !== 0 && prevCh.msbRisingEdge) newAcc = 0; 
 
             ch.msbRisingEdge = ((oldAcc & 0x800000) === 0) && ((newAcc & 0x800000) !== 0);
             ch.phase = newAcc;
 
+            // LFSR Noise Generator Shift
             let oldStep = oldAcc & 0x080000;
             let newStep = ch.phase & 0x080000;
             if (!oldStep && newStep) {
@@ -202,25 +209,20 @@ export class SIDChip {
             ch.msbRisingEdge = false;
         }
 
-        let ringMSB = (ch.phase >> 23) & 1;
+        let ringMSB = 0;
         if ((ch.ctrl & 4) !== 0) { 
             let prevIdx = v === 0 ? 2 : v - 1;
             let prevCh = this.voices[prevIdx];
-            ringMSB ^= (prevCh.phase >> 23) & 1;
+            ringMSB = (prevCh.phase >> 23) & 1;
         }
 
-        ch.waveOut8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, ch.pw, ch.lfsr, ringMSB);
+        // Hier wird nun auch 'ch' (der Kanal) übergeben, um sich 'floatingLevel' zu merken
+        ch.waveOut8Bit = calculateWaveform8Bit(ch, ch.ctrl, ch.phase, ch.pw, ch.lfsr, ringMSB);
         ch.env8Bit = ch.envelope_counter;
 
-        // --- PHASE 4: Nichtlinearer DAC Crunch (D/A Wandler Sättigung) ---
-        // Der 6581 DAC ist fehlerhaft. Die Toleranzen im R-2R-Netzwerk beulen
-        // die Lautstärkekurven in der Mitte leicht aus.
-        let envNorm = ch.env8Bit / 255.0;
-        let waveNorm = ch.waveOut8Bit / 255.0;
-
-        // "Bowing" (Verbiegen) der linearen Kennlinie durch eine Parabel-Funktion
-        let envDac = envNorm + 0.15 * envNorm * (1.0 - envNorm);
-        let waveDac = waveNorm + 0.1 * waveNorm * (1.0 - waveNorm);
+        // DAC Fehler-Tabelle für Wave und Envelope
+        let envDac = DAC_LUT[ch.env8Bit];
+        let waveDac = DAC_LUT[ch.waveOut8Bit];
 
         let waveOutFloat = (waveDac * 2.0) - 1.0;
         return waveOutFloat * envDac;
@@ -243,8 +245,10 @@ export class SIDChip {
         if (this.regs[23] & 1) filteredSum += voice0; else unfilteredSum += voice0;
         if (this.regs[23] & 2) filteredSum += voice1; else unfilteredSum += voice1;
 
-        if (!isVoice3Off) {
-            if (this.regs[23] & 4) filteredSum += voice2; else unfilteredSum += voice2;
+        if (this.regs[23] & 4) {
+            filteredSum += voice2;
+        } else if (!isVoice3Off) {
+            unfilteredSum += voice2;
         }
 
         let g = this.g;
@@ -260,31 +264,26 @@ export class SIDChip {
         let bp = this.filterBand + g * hp;
         let lp = this.filterLow + g * bp;
         
+        if (bp > 4.0) bp = 4.0; else if (bp < -4.0) bp = -4.0;
+        if (lp > 4.0) lp = 4.0; else if (lp < -4.0) lp = -4.0;
+
         this.filterLow = lp;
-        
-        if (this.useJfetSaturation) {
-            // --- PHASE 4: Asymmetrisches JFET Clipping ---
-            // Simuliert die ungleichen positiven/negativen Spannungsabfälle des echten Operationsverstärkers.
-            // Positives Signal (oben) clippt hart und früh. Negatives (unten) weich und spät.
-            // Generiert warme, analoge Even-Harmonics.
-            if (bp > 0) {
-                this.filterBand = Math.tanh(bp / 2.0) * 2.0; 
-            } else {
-                this.filterBand = Math.tanh(bp / 3.0) * 3.0; 
-            }
-        } else {
-            this.filterBand = bp / (1.0 + Math.abs(bp) * 0.15); 
-        }
-        
-        if (this.filterBand > 4.0) this.filterBand = 4.0;
-        if (this.filterBand < -4.0) this.filterBand = -4.0;
-        if (this.filterLow > 4.0) this.filterLow = 4.0;
-        if (this.filterLow < -4.0) this.filterLow = -4.0;
+        this.filterBand = bp;
 
         let filterOut = 0;
         if (this.filterMode & 16) filterOut += this.filterLow; 
         if (this.filterMode & 32) filterOut += this.filterBand; 
         if (this.filterMode & 64) filterOut += hp; 
+
+        if (this.useJfetSaturation) {
+            let satOut = filterOut;
+            if (satOut > 0) {
+                satOut = Math.tanh(satOut / 1.5) * 1.5; 
+            } else {
+                satOut = Math.tanh(satOut / 4.0) * 4.0;
+            }
+            filterOut = satOut + 0.12 * filterOut * filterOut;
+        }
 
         let leakage = filteredSum * 0.11;
         let filteredMix = filterOut + leakage;
