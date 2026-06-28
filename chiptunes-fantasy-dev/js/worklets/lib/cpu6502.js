@@ -1,7 +1,7 @@
 // === js/worklets/lib/cpu6502.js ===
 // =========================================================
 // 6502 CPU EMULATOR & C64 I/O INTERCEPTOR
-// Fully Restored, Cycle-Exact Timing & Zero Truncations
+// High-Performance Zero-Allocation Edition
 // =========================================================
 
 export class CPU6502 {
@@ -31,7 +31,7 @@ export class CPU6502 {
         this.a = 0; this.x = 0; this.y = 0;
         this.sp = 0xFF; this.p = 0x20;
         this.isIdle = true;
-        this.ciaTimerA = 19583; // CIA-Timer zurücksetzen
+        this.ciaTimerA = 19583;
     }
 
     push(val) {
@@ -54,7 +54,15 @@ export class CPU6502 {
         return (addr1 & 0xFF00) !== (addr2 & 0xFF00);
     }
 
+    // --- OPTIMIERUNG: Fast-Path für RAM-Zugriffe unter $D000 ---
     read(addr) {
+        if (addr < 0xD000) {
+            if (addr === 0x0001) return this.ram[0x0001];
+            return this.ram[addr];
+        }
+        if (addr > 0xDFFF) return this.ram[addr];
+        
+        // I/O Registerbereich ($D000 - $DFFF)
         if (addr === 0xD019) return this.ram[0xD019] | 0x80; 
         if (addr === 0xD012) {
             this.rasterLine = (this.rasterLine + 1) % 263;
@@ -63,7 +71,6 @@ export class CPU6502 {
         if (addr === 0xD011) return 0x1B | ((this.pc >> 8) & 0x80);
         if (addr === 0xDC04 || addr === 0xDC05) return Math.floor(Math.random() * 256);
         if (addr === 0xDC0D || addr === 0xDD0D) return 0x81;
-        if (addr === 0x0001) return this.ram[0x0001];
         
         if (addr === 0xD41B) return this.sid.voices[2].waveOut8Bit || 0;
         if (addr === 0xD41C) return this.sid.voices[2].env8Bit || 0;
@@ -71,16 +78,20 @@ export class CPU6502 {
         return this.ram[addr];
     }
 
+    // --- OPTIMIERUNG: Fast-Path für RAM-Schreibzugriffe unter $D000 ---
     write(addr, val) {
         this.ram[addr] = val;
-        if (addr === 0xD019) {
+        if (addr < 0xD000 || addr > 0xDFFF) return;
+        
+        // I/O Registerbereich
+        if (addr >= 0xD400 && addr <= 0xD41C) {
+            this.sid.writeReg(addr - 0xD400, val);
+        } else if (addr === 0xD019) {
             this.ram[0xD019] &= ~val; 
         } else if (addr === 0xDC04) {
             this.ciaTimerALow = val;
         } else if (addr === 0xDC05) {
             this.ciaTimerA = (val << 8) | this.ciaTimerALow;
-        } else if (addr >= 0xD400 && addr <= 0xD41C) {
-            this.sid.writeReg(addr - 0xD400, val);
         }
     }
 
@@ -97,7 +108,6 @@ export class CPU6502 {
         }
     }
 
-    // === HIER IST DIE REKONSTRUIERTE, INTERRUPT-GENAUE IRQ ROUTINE ===
     irq(addr) {
         if (addr === 0) return;
         this.push(0xFF);
@@ -292,44 +302,84 @@ export class CPU6502 {
         return cycles;
     }
 
+    // --- OPTIMIERUNG: Allokationsfreier, ultraschneller ALU-Befehlsdecoder ---
     handleALU(op) {
         let val = 0;
         let setVal = true;
         let cycles = 2;
 
-        if ([0x69, 0xE9, 0x29, 0x09, 0x49, 0xC9, 0xE0, 0xC0].includes(op)) {
-            val = this.read(this.pc++);
-            cycles = 2;
-        } else if ([0x65, 0xE5, 0x25, 0x05, 0x45, 0xC5, 0xE4, 0xC4, 0x24].includes(op)) {
-            val = this.read(this.zp());
-            cycles = 3;
-        } else if ([0x75, 0xF5, 0x35, 0x15, 0x55, 0xD5].includes(op)) {
-            val = this.read(this.zpX());
-            cycles = 4;
-        } else if ([0x6D, 0xED, 0x2D, 0x0D, 0x4D, 0xCD, 0xEC, 0xCC, 0x2C].includes(op)) {
-            val = this.read(this.abs());
-            cycles = 4;
-        } else if ([0x7D, 0xFD, 0x3D, 0x1D, 0x5D, 0xDD].includes(op)) {
-            let addr = this.abs();
-            let addrX = (addr + this.x) & 0xFFFF;
-            val = this.read(addrX);
-            cycles = 4 + (this.pageCrossed(addr, addrX) ? 1 : 0);
-        } else if ([0x79, 0xF9, 0x39, 0x19, 0x59, 0xD9].includes(op)) {
-            let addr = this.abs();
-            let addrY = (addr + this.y) & 0xFFFF;
-            val = this.read(addrY);
-            cycles = 4 + (this.pageCrossed(addr, addrY) ? 1 : 0);
-        } else if ([0x61, 0xE1, 0x21, 0x01, 0x41, 0xC1].includes(op)) {
-            val = this.read(this.indX());
-            cycles = 6;
-        } else if ([0x71, 0xF1, 0x31, 0x11, 0x51, 0xD1].includes(op)) {
-            let z = this.zp();
-            let addr = this.read(z) | (this.read((z+1)&0xFF) << 8);
-            let addrY = (addr + this.y) & 0xFFFF;
-            val = this.read(addrY);
-            cycles = 5 + (this.pageCrossed(addr, addrY) ? 1 : 0);
-        } else {
-            setVal = false;
+        switch (op) {
+            // Immediate (cycles = 2)
+            case 0x69: case 0xE9: case 0x29: case 0x09:
+            case 0x49: case 0xC9: case 0xE0: case 0xC0:
+                val = this.read(this.pc++);
+                cycles = 2;
+                break;
+
+            // Zero Page (cycles = 3)
+            case 0x65: case 0xE5: case 0x25: case 0x05:
+            case 0x45: case 0xC5: case 0xE4: case 0xC4:
+            case 0x24:
+                val = this.read(this.zp());
+                cycles = 3;
+                break;
+
+            // Zero Page, X (cycles = 4)
+            case 0x75: case 0xF5: case 0x35: case 0x15:
+            case 0x55: case 0xD5:
+                val = this.read(this.zpX());
+                cycles = 4;
+                break;
+
+            // Absolute (cycles = 4)
+            case 0x6D: case 0xED: case 0x2D: case 0x0D:
+            case 0x4D: case 0xCD: case 0xEC: case 0xCC:
+            case 0x2C:
+                val = this.read(this.abs());
+                cycles = 4;
+                break;
+
+            // Absolute, X (cycles = 4 + page cross)
+            case 0x7D: case 0xFD: case 0x3D: case 0x1D:
+            case 0x5D: case 0xDD: {
+                let addr = this.abs();
+                let addrX = (addr + this.x) & 0xFFFF;
+                val = this.read(addrX);
+                cycles = 4 + (this.pageCrossed(addr, addrX) ? 1 : 0);
+                break;
+            }
+
+            // Absolute, Y (cycles = 4 + page cross)
+            case 0x79: case 0xF9: case 0x39: case 0x19:
+            case 0x59: case 0xD9: {
+                let addr = this.abs();
+                let addrY = (addr + this.y) & 0xFFFF;
+                val = this.read(addrY);
+                cycles = 4 + (this.pageCrossed(addr, addrY) ? 1 : 0);
+                break;
+            }
+
+            // Indexed Indirect X (cycles = 6)
+            case 0x61: case 0xE1: case 0x21: case 0x01:
+            case 0x41: case 0xC1:
+                val = this.read(this.indX());
+                cycles = 6;
+                break;
+
+            // Indirect Indexed Y (cycles = 5 + page cross)
+            case 0x71: case 0xF1: case 0x31: case 0x11:
+            case 0x51: case 0xD1: {
+                let z = this.zp();
+                let addr = this.read(z) | (this.read((z+1)&0xFF) << 8);
+                let addrY = (addr + this.y) & 0xFFFF;
+                val = this.read(addrY);
+                cycles = 5 + (this.pageCrossed(addr, addrY) ? 1 : 0);
+                break;
+            }
+
+            default:
+                setVal = false;
+                break;
         }
 
         if (setVal) {
