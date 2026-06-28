@@ -17,7 +17,7 @@ export const SID_SLDB = {
     "wizball": {
         lengths: [625, 163, 10]
     },
-    "greatgianasisters": {
+    "greatgianasisterspsid": {
         lengths: [215, 146, 111, 131, 161, 13, 93, 47]
     },
     "tobeontoppsid": {

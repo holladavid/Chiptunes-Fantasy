@@ -1,7 +1,7 @@
 // === js/worklets/lib/sid-chip.js ===
 // ==========================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// High-Performance Cached 1-MHz Synthesis Edition
+// Fully Accurate Phase Sync, Ring Modulation & Voice 3 Muting
 // ==========================================
 
 const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_SUSTAIN = 2, ENV_RELEASE = 3;
@@ -29,7 +29,10 @@ export class SIDChip {
                 attack_period: RATE_COUNTER_PERIOD[0],
                 decay_period: RATE_COUNTER_PERIOD[0],
                 sustain_level: 0,
-                release_period: RATE_COUNTER_PERIOD[0]
+                release_period: RATE_COUNTER_PERIOD[0],
+                
+                // Tracking für Hard-Synchronization (Bit 1)
+                wrapped: false
             });
         }
         this.cutoff = 30; this.resonance = 0; this.filterMode = 0; this.masterVol = 0;
@@ -53,7 +56,7 @@ export class SIDChip {
         this.updateFilterParameters();
     }
 
-    // Errechnet Filter-Parameter vorab, um die CPU-Intensität im clock() Loop um 99% zu senken!
+    // Errechnet Filter-Parameter vorab, um die CPU-Intensität im clock() Loop um 99% zu senken
     updateFilterParameters() {
         let cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
         let norm = cutoffReg / 2047.0;
@@ -118,7 +121,6 @@ export class SIDChip {
         }
     }
 
-    // --- OPTIMIERUNG: Nutzt vorberechneten ADSR-Cache statt Register-Lookups im 1-MHz-Loop ---
     clockEnvelopeOneCycle(v) {
         let ch = this.voices[v];
         if (ch.state === ENV_SUSTAIN) {
@@ -177,25 +179,45 @@ export class SIDChip {
 
     synthesizeVoiceOneCycle(v) {
         let ch = this.voices[v];
+        ch.wrapped = false;
 
         if ((ch.ctrl & 8) === 0) {
             let oldAcc = ch.phase;
             ch.phase = (ch.phase + ch.freq) & 0xFFFFFF;
-            let newAcc = ch.phase;
+            
+            // Überlauf (Wrap-Around) für Hard-Synchronization detektieren
+            if (ch.phase < oldAcc) {
+                ch.wrapped = true;
+            }
 
+            // Hard-Synchronization (Bit 1) mit der vorherigen Stimme
+            let prevIdx = v === 0 ? 2 : v - 1;
+            let prevCh = this.voices[prevIdx];
+            if ((ch.ctrl & 2) !== 0 && prevCh.wrapped) {
+                ch.phase = 0; // Phase der synchronisierten Stimme nullen
+            }
+
+            // LFSR Noise Shift
             let oldStep = (oldAcc >> 19) & 1;
-            let newStep = (newAcc >> 19) & 1;
-
+            let newStep = (ch.phase >> 19) & 1;
             if (oldStep !== newStep) {
                 let bit = ((ch.lfsr >> 22) ^ (ch.lfsr >> 17)) & 1;
                 ch.lfsr = ((ch.lfsr << 1) & 0x7FFFFF) | bit;
             }
         }
 
-        // --- OPTIMIERUNG: Multiplikation mit reziprokem Teiler statt Division ---
         let phaseFloat = ch.phase * PHASE_SCALE;
 
-        let tri = phaseFloat < 0.5 ? phaseFloat * 2.0 : (1.0 - phaseFloat) * 2.0;
+        // --- NEU: Ring-Modulation (Bit 2) ---
+        // Das MSB des Dreiecks-Oszillators wird mit dem MSB des Träger-Oszillators XOR-verknüpft
+        let ringMSB = (ch.phase >> 23) & 1;
+        if ((ch.ctrl & 4) !== 0) { 
+            let prevIdx = v === 0 ? 2 : v - 1;
+            let prevCh = this.voices[prevIdx];
+            ringMSB ^= (prevCh.phase >> 23) & 1;
+        }
+
+        let tri = (ringMSB === 0) ? phaseFloat * 2.0 : (1.0 - phaseFloat) * 2.0;
         let saw = 1.0 - phaseFloat;
         let pulseHigh = (ch.phase >> 12) > ch.pw; 
         let noiseHigh = ((ch.lfsr >> 22) & 1) === 1;
@@ -269,7 +291,9 @@ export class SIDChip {
         for (let v = 0; v < 3; v++) {
             let voiceOut = this.synthesizeVoiceOneCycle(v);
             
-            if (this.regs[23] & (1 << v)) {
+            let isFiltered = (this.regs[23] & (1 << v)) !== 0;
+
+            if (isFiltered) {
                 // 1-MHz-stabilisierter Bilinearer SVF Solver mit vorbereiteten Koeffizienten
                 let h = voiceOut - this.filterLow;
                 let hp = (h - q * this.filterBand) / (1.0 + g * (g + q));
@@ -296,8 +320,16 @@ export class SIDChip {
                 
                 let leakage = voiceOut * 0.11;
                 voiceOut = filterOut + leakage;
+                mix += voiceOut;
+            } else {
+                // --- NEU: Analoger Voice 3 Off Hardware-Schalter (Mute, Bit 7 in $D418) ---
+                // Blendet die unfiltrierte Modulations-Stimme aus dem Master-Mix aus, damit
+                // LFOs und Pitch-Sweeps auf Voice 3 den Gesamtklang nicht schrill verzerren.
+                const isVoice3Off = (v === 2) && ((this.filterMode & 128) !== 0);
+                if (!isVoice3Off) {
+                    mix += voiceOut;
+                }
             }
-            mix += voiceOut;
         }
 
         this.outputSample = (mix / 3.0) * this.masterVol;

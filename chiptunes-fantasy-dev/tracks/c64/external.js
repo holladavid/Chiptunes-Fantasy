@@ -10,7 +10,7 @@ const mySidFiles = [
     "Monty_on_the_Run.sid",
     "Delta.sid",
     "Wizball.sid",
-    "Great_Giana_Sisters.sid",
+    "Great_Giana_Sisters_PSID.sid",
     "To_Be_on_Top_PSID.sid",
     "Rambo_First_Blood_Part_II.sid",
     "Mega_Apocalypse_PSID.sid",
