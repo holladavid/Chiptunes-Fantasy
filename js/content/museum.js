@@ -7,7 +7,7 @@
 export const systemDescriptions = {
 c64: `
         <!-- === TECHNICAL SPECIFICATION GRID (C64 SID 6581) === -->
-        <div style="border: 2px solid var(--text-color); padding: 8px 12px; margin-bottom: 20px; font-size: calc(var(--font-size-base) * 1.2); background: rgba(0,0,0,0.3); font-family: monospace;">
+        <div style="padding: 8px 12px; margin-bottom: 20px; font-size: calc(var(--font-size-base) * 0.85); background: rgba(0,0,0,0.3); font-family: inherit;">
             <p style="color: var(--highlight-color); margin-bottom: 8px; font-weight: bold; border-bottom: 1px dashed var(--text-color); padding-bottom: 4px;">>>> HARDWARE SPECIFICATIONS:</p>
             <div style="display: grid; grid-template-columns: 140px 1fr; gap: 6px; line-height: 1.4;">
                 <div><strong>Kanäle:</strong></div><div>3 unabhängige Synthesestimmen + 1 routbares analoges VCF</div>
@@ -48,9 +48,9 @@ c64: `
     `,
    amiga: `
         <!-- === TECHNICAL SPECIFICATION GRID (AMIGA MOS PAULA 8364) === -->
-        <div style="padding: 4px 0; margin-bottom: 20px; font-size: calc(var(--font-size-base) * 0.85); background: transparent; font-family: monospace;">
-            <p style="color: var(--highlight-color); margin-bottom: 12px; font-weight: bold; padding-bottom: 4px;">>>> HARDWARE SPECIFICATIONS:</p>
-            <div style="display: grid; grid-template-columns: 140px 1fr; gap: 6px; line-height: 1.4;">
+        <div style="padding: 4px 0; margin-bottom: 20px; font-size: calc(var(--font-size-base) * 1); background: transparent; font-family: inherit;">
+            <p style="color: var(--highlight-color); margin-bottom: 12px; font-weight: bold; border-bottom: 1px dashed var(--text-color); padding-bottom: 4px;">>>> HARDWARE SPECIFICATIONS:</p>
+            <div style="display: grid; grid-template-columns: 140px 1fr; gap: 6px; line-height: 1.4;">                
                 <div><strong>Kanäle:</strong></div><div>4 x ungeteilte DMA-PCM-Kanäle (festes Panning: 2 Links, 2 Rechts)</div>
                 <div><strong>Taktfrequenz:</strong></div><div>3.546.895 Hz (PAL Master Clock / 3.55 MHz)</div>
                 <div><strong>Audioauflösung:</strong></div><div>8-Bit signed PCM (multipliziert mit 6-Bit Vol zu 14-Bit Äquivalenzauflösung)</div>
@@ -87,9 +87,9 @@ c64: `
     `,
     atari: `
         <!-- === TECHNICAL SPECIFICATION GRID (ATARI YM2149F) === -->
-        <div style="padding: 4px 0; margin-bottom: 20px; font-size: calc(var(--font-size-base) * 0.75); background: transparent; font-family: monospace;">
+        <div style="padding: 4px 0; margin-bottom: 20px; font-size: calc(var(--font-size-base) * 1); background: transparent; font-family: inherit;">
             <p style="color: var(--highlight-color); margin-bottom: 8px; bold; border-bottom: 1px dashed var(--text-color); padding-bottom: 4px;">>>> HARDWARE SPECIFICATIONS:</p>
-            <div style="display: grid; grid-template-columns: 140px 1fr; gap: 6px; line-height: 1.4;">
+            <div style="display: grid; grid-template-columns: 140px 1fr; gap: 6px; line-height: 1.4;">               
                 <div><strong>Kanäle:</strong></div><div>3 analoge Hauptkanäle (A, B, C) mit zuschaltbarem Rauschen (kein 4. Kanal)</div>
                 <div><strong>Taktfrequenz:</strong></div><div>2.000.000 Hz (2.0 MHz Master Clock)</div>
                 <div><strong>Wellenformen:</strong></div><div>Rechteck (Kanal A/B/C), Rauschen (zuschaltbar), Ton+Rausch-Mix, 4-Bit Digidrums</div>

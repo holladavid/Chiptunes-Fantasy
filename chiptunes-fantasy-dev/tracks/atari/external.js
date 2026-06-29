@@ -47,10 +47,12 @@ const myYmFiles = [
     'SyntaxTerror_tlb.YM'
 ];
 
+
 // Wir generieren mit .map() automatisch für jeden Namen einen fertigen Track-Eintrag!
 export const externalYmTracks = myYmFiles.map((filename, index) => {
     return {
-        title: `${index + 3}. LOAD ORIGINAL: ${filename}`,
+        // DSP UPGRADE: Index korrigiert von index + 3 auf index + 1, da Style-Tracks entfernt wurden
+        title: `${index + 1}. LOAD ORIGINAL: ${filename}`,
         composerInfo: ``, // Bleibt leer, die app.js übernimmt jetzt!
         generator: function() { return []; },
         loadAsync: async function() {
