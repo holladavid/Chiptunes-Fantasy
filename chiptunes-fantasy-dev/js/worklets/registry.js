@@ -5,7 +5,7 @@
 
 export const workletRegistry = {
     atari: [
-        { id: 'ym-exact', name: 'YM2149 (PolyBLEP Anti-Aliasing)', cpu: 2, file: 'js/worklets/atari/ym-exact.js', processor: 'ym-exact-processor' },
+        { id: 'ym-exact', name: 'YM2149 (2MHz True Lockstep)', cpu: 4, file: 'js/worklets/atari/ym-exact.js', processor: 'ym-exact-processor' },
         { id: 'ym-standard', name: 'YM2149 (Standard)', cpu: 1, file: 'js/worklets/atari/ym-standard.js', processor: 'ym-processor' },
         { id: 'ym-fantasy', name: 'YM2149 (Chiptunes Fantasy)', cpu: 4, file: 'js/worklets/atari/ym-fantasy.js', processor: 'ym-fantasy-processor' },
         { id: 'ym-bladerunner', name: 'YM2149 (Blade Runner Cinematic)', cpu: 4, file: 'js/worklets/atari/ym-bladerunner.js', processor: 'ym-bladerunner-processor' }
