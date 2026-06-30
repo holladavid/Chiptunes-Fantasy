@@ -2,21 +2,15 @@
 // =========================================================
 // YM2149F CORE (CYCLE-EXACT 2MHz, LOG-DAC, TRUE 5-BIT ENV)
 // Studio-Grade Polyphase Sinc-FIR Decimator & Digidrum DAC Injection
-// Final Master: True 32-Step Yamaha D/A Converter Resolution
+// Final Master: Absolute Clock Divider Alignment (No Octave Drops)
 // =========================================================
 
 import { DCBlocker, detectDigidrum, detectDigidrumVoice } from '../lib/dsp-utils.js';
 import { YMVisualizer } from '../lib/ym-visualizer.js';
 
-// =========================================================
-// DSP UPGRADE: TRUE YM2149F 32-STEP LOG-DAC
-// Der Yamaha Chip besitzt (im Gegensatz zum GI AY-3-8910)
-// 32 logarithmische Lautstärkestufen zu je exakt -1.5dB.
-// =========================================================
 const YM_DAC32 = new Float32Array(32);
 YM_DAC32[0] = 0.0;
 for (let i = 1; i < 32; i++) {
-    // -1.5dB pro Stufe Dämpfung, normalisiert auf 1.0 bei Index 31
     YM_DAC32[i] = Math.pow(10, (-1.5 * (31 - i)) / 20.0);
 }
 
@@ -26,15 +20,18 @@ class YMExactProcessor extends AudioWorkletProcessor {
         this.clock = 2000000; 
         this.regs = new Uint8Array(16); 
         
-        this.tickCounter = 0;
-        this.toneCountA = 0; this.toneCountB = 0; this.toneCountC = 0;
+        // Exakte Hardware Clock-Divider Akkumulatoren
+        this.toneDivA = 0; this.toneDivB = 0; this.toneDivC = 0;
+        this.noiseDiv = 0;
+        this.envDiv = 0;
+
         this.toneOutA = 1; this.toneOutB = 1; this.toneOutC = 1;
-        this.noiseCount = 0; this.noiseLfsr = 1; this.noiseOut = 1;
+        this.noiseLfsr = 1; this.noiseOut = 1;
         
-        this.envCount = 0; 
+        this.envStep = 0;   
+        this.envPhase = 0;  
         this.envVol5Bit = 0; 
         this.envHold = true; 
-        this.envDir = 1;
         
         this.digidrums = [];
         this.currentDigidrum = null;
@@ -123,9 +120,11 @@ class YMExactProcessor extends AudioWorkletProcessor {
                         if (r === 13) {
                             if (frame[13] !== 0xFF) {
                                 this.regs[13] = frame[13];
+                                // Hardware Reset: Zähler und Phase nullen + Div sofort auslösen
+                                this.envStep = 0;
+                                this.envPhase = 0;
+                                this.envDiv = 0; 
                                 this.envHold = false;
-                                this.envDir = (frame[13] & 4) ? 1 : -1;
-                                this.envVol5Bit = (frame[13] & 4) ? 0 : 31;
                             }
                         } else {
                             this.regs[r] = frame[r];
@@ -155,53 +154,62 @@ class YMExactProcessor extends AudioWorkletProcessor {
 
                 const mix = this.regs[7];
                 const r8 = this.regs[8], r9 = this.regs[9], r10 = this.regs[10];
+                
                 const shape = this.regs[13] & 0x0F;
-
-                const envCont = (shape & 8) !== 0;
-                const envAlt = (shape & 2) !== 0;
+                const envAttack = (shape & 4) !== 0;
+                const envCont   = (shape & 8) !== 0;
+                const envAlt    = (shape & 2) !== 0;
                 const envHoldFlag = (shape & 1) !== 0;
 
                 for (let c = 0; c < cyclesToRun; c++) {
-                    this.tickCounter++;
-
-                    // 1. TONE & NOISE GENERATORS
-                    if ((this.tickCounter & 15) === 0) {
-                        if (--this.toneCountA <= 0) { this.toneCountA = pA; this.toneOutA ^= 1; }
-                        if (--this.toneCountB <= 0) { this.toneCountB = pB; this.toneOutB ^= 1; }
-                        if (--this.toneCountC <= 0) { this.toneCountC = pC; this.toneOutC ^= 1; }
-                        
-                        if (--this.noiseCount <= 0) {
-                            this.noiseCount = pN;
-                            this.noiseLfsr ^= (((this.noiseLfsr & 1) ^ ((this.noiseLfsr >> 3) & 1)) << 17);
-                            this.noiseLfsr >>= 1;
-                            this.noiseOut = this.noiseLfsr & 1;
-                        }
+                    
+                    // --- 1. TONE GENERATORS (Toggle = 8 * pX) ---
+                    // Dadurch dauert die volle Rechteckwelle exakt 16 * pX Takte!
+                    if (--this.toneDivA <= 0) { this.toneDivA = 8 * pA; this.toneOutA ^= 1; }
+                    if (--this.toneDivB <= 0) { this.toneDivB = 8 * pB; this.toneOutB ^= 1; }
+                    if (--this.toneDivC <= 0) { this.toneDivC = 8 * pC; this.toneOutC ^= 1; }
+                    
+                    // --- 2. NOISE GENERATOR (Shift = 16 * pN) ---
+                    if (--this.noiseDiv <= 0) {
+                        this.noiseDiv = 16 * pN;
+                        this.noiseLfsr ^= (((this.noiseLfsr & 1) ^ ((this.noiseLfsr >> 3) & 1)) << 17);
+                        this.noiseLfsr >>= 1;
+                        this.noiseOut = this.noiseLfsr & 1;
                     }
 
-                    // 2. TRUE 5-BIT ENVELOPE GENERATOR
-                    if ((this.tickCounter & 255) === 0) {
-                        if (--this.envCount <= 0) {
-                            this.envCount = pE;
+                    // --- 3. HARDWARE ENVELOPE (Step = 8 * pE) ---
+                    // Da eine Welle 32 Steps hat: 32 * 8 = 256. Das passt perfekt zur Formel fEnv = fMaster / (256 * pE)!
+                    if (--this.envDiv <= 0) {
+                        this.envDiv = 8 * pE;
+                        
+                        if (!this.envHold) {
+                            this.envStep++;
+                            if (this.envStep > 31) {
+                                this.envStep = 0;
+                                this.envPhase++;
+                                if (!envCont) this.envHold = true;
+                                if (envCont && envHoldFlag) this.envHold = true;
+                            }
                             
-                            if (!this.envHold) {
-                                this.envVol5Bit += this.envDir;
-                                if (this.envVol5Bit < 0 || this.envVol5Bit > 31) {
-                                    if (!envCont) {
-                                        this.envVol5Bit = 0;
-                                        this.envHold = true;
-                                    } else {
-                                        if (envAlt) this.envDir = -this.envDir;
-                                        this.envVol5Bit = (this.envDir > 0) ? 0 : 31;
-                                        if (envHoldFlag) this.envHold = true;
-                                    }
+                            // Pure kombinatorische Volumen-Ermittlung
+                            let eVol = 0;
+                            if (!envCont) {
+                                eVol = (this.envPhase > 0) ? 0 : (envAttack ? this.envStep : (31 - this.envStep));
+                            } else {
+                                if (this.envHold && this.envPhase > 0) {
+                                    let dirUp = envAttack ? !envAlt : envAlt;
+                                    eVol = dirUp ? 31 : 0;
+                                } else {
+                                    let isReversed = envAlt && ((this.envPhase & 1) === 1);
+                                    let dirUp = envAttack ? !isReversed : isReversed;
+                                    eVol = dirUp ? this.envStep : (31 - this.envStep);
                                 }
                             }
+                            this.envVol5Bit = eVol;
                         }
                     }
 
-                    // 3. HARDWARE-ACCURATE VOLUME MAPPING
-                    // Mapping des 4-Bit Registers auf die 5-Bit D/A Struktur:
-                    // Wert 0 = 0. Wert X = (X * 2) + 1.
+                    // --- 4. HARDWARE-ACCURATE VOLUME MAPPING ---
                     let fixVolA = r8 & 0x0F;
                     let vA5 = (r8 & 0x10) ? this.envVol5Bit : (fixVolA === 0 ? 0 : fixVolA * 2 + 1);
                     
@@ -211,14 +219,12 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     let fixVolC = r10 & 0x0F;
                     let vC5 = (r10 & 0x10) ? this.envVol5Bit : (fixVolC === 0 ? 0 : fixVolC * 2 + 1);
 
-                    // 4. DIGIDRUM INJECTION (LOG-DAC COMPRESSION)
+                    // --- 5. DIGIDRUM INJECTION ---
                     if (this.currentDigidrum) {
                         let posInt = Math.floor(this.digiPos);
                         if (posInt < this.currentDigidrum.length) {
                             let floatSample = this.currentDigidrum[posInt];
-                            // Float PCM auf 4-Bit Register Wert (0-15)
                             let dacVal = Math.max(0, Math.min(15, Math.round((floatSample + 1.0) * 7.5)));
-                            // Digidrums unterliegen ebenfalls dem 4-to-5-Bit Mapping der Hardware!
                             let dac5 = dacVal === 0 ? 0 : dacVal * 2 + 1;
                             
                             if (this.currentDrumVoice === 1) vA5 = dac5;
@@ -232,7 +238,7 @@ class YMExactProcessor extends AudioWorkletProcessor {
                         }
                     }
 
-                    // 5. BOOLEAN MIXER
+                    // --- 6. BOOLEAN MIXER ---
                     let outA = 1, outB = 1, outC = 1;
                     if ((mix & 0x01) === 0 && !this.toneOutA) outA = 0;
                     if ((mix & 0x08) === 0 && !this.noiseOut) outA = 0;
@@ -254,7 +260,7 @@ class YMExactProcessor extends AudioWorkletProcessor {
                 }
 
                 // =========================================================
-                // DECIMATION & MOTHERBOARD FILTER
+                // DECIMATION
                 // =========================================================
                 let decimationSum = 0;
                 for (let k = 0; k < this.FIR_TAPS; k++) {
