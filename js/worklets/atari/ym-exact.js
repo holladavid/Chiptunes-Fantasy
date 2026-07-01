@@ -2,7 +2,7 @@
 // =========================================================
 // YM2149F CORE (CYCLE-EXACT 2MHz, LOG-DAC, TRUE 5-BIT ENV)
 // Studio-Grade Polyphase Sinc-FIR Decimator & Digidrum DAC Injection
-// Final Master: Absolute Clock Divider Alignment (No Octave Drops)
+// Final Master: Smart Auto-Release Hijack Locks (Long Samples Fix)
 // =========================================================
 
 import { DCBlocker, detectDigidrum, detectDigidrumVoice } from '../lib/dsp-utils.js';
@@ -20,7 +20,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
         this.clock = 2000000; 
         this.regs = new Uint8Array(16); 
         
-        // Exakte Hardware Clock-Divider Akkumulatoren
         this.toneDivA = 0; this.toneDivB = 0; this.toneDivC = 0;
         this.noiseDiv = 0;
         this.envDiv = 0;
@@ -37,7 +36,10 @@ class YMExactProcessor extends AudioWorkletProcessor {
         this.currentDigidrum = null;
         this.digiPos = 0;
         this.lastDigiTrigger = 0;
-        this.currentDrumVoice = 0;
+        
+        // --- NEU: Smart Hijack Tracking ---
+        this.hijackedVoice = 0;
+        this.hijackReleaseVol = 0; 
         
         this.trackData = null;
         this.currentFrame = 0;
@@ -80,6 +82,8 @@ class YMExactProcessor extends AudioWorkletProcessor {
             this.sampleCounter = 0;
             this.currentDigidrum = null;
             this.lastDigiTrigger = 0;
+            this.hijackedVoice = 0;
+            this.hijackReleaseVol = 0;
             this.isPlaying = true;
             this.ringBuffer.fill(0);
         } else if (msg.type === 'STOP_TRACK') {
@@ -120,7 +124,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
                         if (r === 13) {
                             if (frame[13] !== 0xFF) {
                                 this.regs[13] = frame[13];
-                                // Hardware Reset: Zähler und Phase nullen + Div sofort auslösen
                                 this.envStep = 0;
                                 this.envPhase = 0;
                                 this.envDiv = 0; 
@@ -134,15 +137,30 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     let activeDigiTrigger = detectDigidrum(frame);
                     let activeDigiVoice = detectDigidrumVoice(frame);
 
+                    // --- 1. DIGIDRUM TRIGGER & LOCK ---
                     if (activeDigiTrigger > 0 && activeDigiTrigger !== this.lastDigiTrigger) {
                         if (this.digidrums[activeDigiTrigger - 1]) {
                             this.currentDigidrum = this.digidrums[activeDigiTrigger - 1];
                             this.digiPos = 0;
-                            this.currentDrumVoice = activeDigiVoice;
+                            
+                            // Kanal sperren und Müll-Lautstärke (Drum ID) speichern
+                            if (activeDigiVoice > 0) {
+                                this.hijackedVoice = activeDigiVoice;
+                                if (activeDigiVoice === 1) this.hijackReleaseVol = frame[8];
+                                else if (activeDigiVoice === 2) this.hijackReleaseVol = frame[9];
+                                else if (activeDigiVoice === 3) this.hijackReleaseVol = frame[10];
+                            }
                             this.port.postMessage({ type: 'DEBUG', msg: 'Drum ' + activeDigiTrigger });
                         }
                     }
                     this.lastDigiTrigger = activeDigiTrigger;
+
+                    // --- 2. SMART AUTO-RELEASE ---
+                    // Wenn der Tracker die Lautstärke ändert, will er eine neue Note spielen -> Lock sofort aufheben!
+                    if (this.hijackedVoice === 1 && frame[8] !== this.hijackReleaseVol) this.hijackedVoice = 0;
+                    if (this.hijackedVoice === 2 && frame[9] !== this.hijackReleaseVol) this.hijackedVoice = 0;
+                    if (this.hijackedVoice === 3 && frame[10] !== this.hijackReleaseVol) this.hijackedVoice = 0;
+
                     this.currentFrame = (this.currentFrame + 1) % this.trackData.length;
                 }
 
@@ -163,13 +181,10 @@ class YMExactProcessor extends AudioWorkletProcessor {
 
                 for (let c = 0; c < cyclesToRun; c++) {
                     
-                    // --- 1. TONE GENERATORS (Toggle = 8 * pX) ---
-                    // Dadurch dauert die volle Rechteckwelle exakt 16 * pX Takte!
                     if (--this.toneDivA <= 0) { this.toneDivA = 8 * pA; this.toneOutA ^= 1; }
                     if (--this.toneDivB <= 0) { this.toneDivB = 8 * pB; this.toneOutB ^= 1; }
                     if (--this.toneDivC <= 0) { this.toneDivC = 8 * pC; this.toneOutC ^= 1; }
                     
-                    // --- 2. NOISE GENERATOR (Shift = 16 * pN) ---
                     if (--this.noiseDiv <= 0) {
                         this.noiseDiv = 16 * pN;
                         this.noiseLfsr ^= (((this.noiseLfsr & 1) ^ ((this.noiseLfsr >> 3) & 1)) << 17);
@@ -177,11 +192,8 @@ class YMExactProcessor extends AudioWorkletProcessor {
                         this.noiseOut = this.noiseLfsr & 1;
                     }
 
-                    // --- 3. HARDWARE ENVELOPE (Step = 8 * pE) ---
-                    // Da eine Welle 32 Steps hat: 32 * 8 = 256. Das passt perfekt zur Formel fEnv = fMaster / (256 * pE)!
                     if (--this.envDiv <= 0) {
                         this.envDiv = 8 * pE;
-                        
                         if (!this.envHold) {
                             this.envStep++;
                             if (this.envStep > 31) {
@@ -191,7 +203,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
                                 if (envCont && envHoldFlag) this.envHold = true;
                             }
                             
-                            // Pure kombinatorische Volumen-Ermittlung
                             let eVol = 0;
                             if (!envCont) {
                                 eVol = (this.envPhase > 0) ? 0 : (envAttack ? this.envStep : (31 - this.envStep));
@@ -209,7 +220,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
                         }
                     }
 
-                    // --- 4. HARDWARE-ACCURATE VOLUME MAPPING ---
                     let fixVolA = r8 & 0x0F;
                     let vA5 = (r8 & 0x10) ? this.envVol5Bit : (fixVolA === 0 ? 0 : fixVolA * 2 + 1);
                     
@@ -219,26 +229,42 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     let fixVolC = r10 & 0x0F;
                     let vC5 = (r10 & 0x10) ? this.envVol5Bit : (fixVolC === 0 ? 0 : fixVolC * 2 + 1);
 
-                    // --- 5. DIGIDRUM INJECTION ---
-                    if (this.currentDigidrum) {
+                    // --- 3. DIGIDRUM INJECTION & HIJACK OVERRIDE ---
+                    if (this.hijackedVoice > 0) {
+                        let dac5 = 0; // Default: Silence if sample ends, preventing DC pops
+
+                        if (this.currentDigidrum) {
+                            let posInt = Math.floor(this.digiPos);
+                            if (posInt < this.currentDigidrum.length) {
+                                let floatSample = this.currentDigidrum[posInt];
+                                let dacVal = Math.max(0, Math.min(15, Math.round((floatSample + 1.0) * 7.5)));
+                                dac5 = dacVal === 0 ? 0 : dacVal * 2 + 1;
+                                this.digiPos += (7812.5 / this.clock); 
+                            } else {
+                                // Sample nativ zu Ende -> Freeze auf 0, bis Tracker neue Note spielt
+                                this.currentDigidrum = null;
+                            }
+                        }
+
+                        // Override the YM hardware volume with DAC data or silence
+                        if (this.hijackedVoice === 1) vA5 = dac5;
+                        else if (this.hijackedVoice === 2) vB5 = dac5;
+                        else if (this.hijackedVoice === 3) vC5 = dac5;
+                    } 
+                    // Fallback für alte Global-Drums (sehr selten)
+                    else if (this.currentDigidrum) {
                         let posInt = Math.floor(this.digiPos);
                         if (posInt < this.currentDigidrum.length) {
                             let floatSample = this.currentDigidrum[posInt];
                             let dacVal = Math.max(0, Math.min(15, Math.round((floatSample + 1.0) * 7.5)));
                             let dac5 = dacVal === 0 ? 0 : dacVal * 2 + 1;
-                            
-                            if (this.currentDrumVoice === 1) vA5 = dac5;
-                            else if (this.currentDrumVoice === 2) vB5 = dac5;
-                            else if (this.currentDrumVoice === 3) vC5 = dac5;
-                            else { vA5 = vB5 = vC5 = dac5; }
-                            
+                            vA5 = vB5 = vC5 = dac5;
                             this.digiPos += (7812.5 / this.clock); 
                         } else {
                             this.currentDigidrum = null;
                         }
                     }
 
-                    // --- 6. BOOLEAN MIXER ---
                     let outA = 1, outB = 1, outC = 1;
                     if ((mix & 0x01) === 0 && !this.toneOutA) outA = 0;
                     if ((mix & 0x08) === 0 && !this.noiseOut) outA = 0;
@@ -259,9 +285,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     this.ringIndex = (this.ringIndex + 1) & 511;
                 }
 
-                // =========================================================
-                // DECIMATION
-                // =========================================================
                 let decimationSum = 0;
                 for (let k = 0; k < this.FIR_TAPS; k++) {
                     let readIdx = (this.ringIndex - 1 - k + 512) & 511;
