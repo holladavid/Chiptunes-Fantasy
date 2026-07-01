@@ -589,6 +589,12 @@ body.theme-atari .tab-btn.active {
     100% { background-position: 0% 90%; }
 }
 
+/* Pausiert die Logo-Animation im Pure Audio Mode */
+body.eco-mode #brand-logo,
+body.eco-mode .brand-main {
+    animation-play-state: paused !important;
+}
+
 /* =========================================
    7. CHIP HUD (DSP MATRIX & ANALYZER)
    ========================================= */

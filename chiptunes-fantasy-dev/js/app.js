@@ -740,6 +740,7 @@ async function enableEcoMode() {
     noSleepVideo.play().catch(e => console.warn('iOS Video-Hack blockiert:', e));
     isEcoMode = true;
     document.getElementById('eco-overlay').classList.remove('hidden');
+    document.body.classList.add('eco-mode'); 
     try {
         if ('wakeLock' in navigator) {
             wakeLock = await navigator.wakeLock.request('screen');
@@ -753,6 +754,7 @@ async function enableEcoMode() {
 async function disableEcoMode() {
     isEcoMode = false;
     document.getElementById('eco-overlay').classList.add('hidden');
+    document.body.classList.remove('eco-mode'); 
     if (wakeLock !== null) {
         await wakeLock.release();
         wakeLock = null;
