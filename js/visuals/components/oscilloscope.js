@@ -62,12 +62,12 @@ export class Oscilloscope {
 
         // =========================================================
         // --- 1. PHOSPHOR DECAY (Das Trägheits-Nachleuchten) ---
-        // Wir faden den alten Puffer nur um 16% ab. Ältere Wellenzüge 
-        // bleiben als zarter, abklingender Schweif auf dem Schirm kleben.
+        // GFX FIX: Lösch-Alpha auf 0.28 erhöht. Der Schweif verblasst schneller 
+        // und gibt den Blick auf die Copperbars im Hintergrund frei.
         // =========================================================
-        offCtx.fillStyle = 'rgba(0, 0, 0, 0.16)'; 
+        offCtx.fillStyle = 'rgba(0, 0, 0, 0.28)'; 
         offCtx.fillRect(0, 0, offW, offH);
-
+        
         // --- 2. VECTOR PATH BERECHNEN ---
         offCtx.beginPath();
         let isFirst = true;
@@ -94,10 +94,10 @@ export class Oscilloscope {
         // --- 3. MULTI-PASS CRT GLOW & CHROMATIC BLOOMING ---
         // =========================================================
         if (!isFirst) {
-            // Pass 1: Breites, zartes Lichtbluten auf dem Phosphor (Glow)
+            // Pass 1: Breites Lichtbluten (Glow) -> Deckkraft auf 0.18 gesenkt
             offCtx.lineWidth = 6.0;
             offCtx.strokeStyle = lineColor;
-            offCtx.globalAlpha = 0.28;
+            offCtx.globalAlpha = 0.18;
             offCtx.shadowColor = lineColor;
             offCtx.shadowBlur = 8;
             offCtx.stroke();
