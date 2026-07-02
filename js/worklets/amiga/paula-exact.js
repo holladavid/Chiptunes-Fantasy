@@ -687,7 +687,9 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 // Headroom-Korrektur: Wenn mehr als 4 Kanäle aktiv sind, 
                 // müssen wir den Mix dämpfen, damit der Operationsverstärker nicht clippt.
                 if (this.numChannels > 4) {
-                    let mixAtten = 4.0 / this.numChannels;
+                    // DSP FIX: RMS-Näherung (Quadratwurzel) statt linearer Dämpfung!
+                    // Das erhält die Lautheit der XM-Files, ohne den Op-Amp zu zerstören.
+                    let mixAtten = Math.sqrt(4.0 / this.numChannels);
                     rawL *= mixAtten;
                     rawR *= mixAtten;
                 }
