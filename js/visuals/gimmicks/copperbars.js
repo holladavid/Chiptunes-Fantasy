@@ -1,19 +1,19 @@
 // === js/visuals/gimmicks/copperbars.js ===
 // =========================================================
 // REAL-TIME COPPERBARS (RASTERBARS) COMPONENT
-// Smooth Asymmetric Envelope Followers & Organic Lissajous Flight
+// Pseudo-3D Z-Buffer Sorting (Helix Orbit) & Depth Shading
 // =========================================================
 
 export class Copperbars {
     constructor() {
         this.sinTimes = [0.6, 0.85, 0.7, 0.95];
         this.sinOffsets = [0.0, 2.0, 4.0, 1.5];
-        this.baseThickness = [160, 120, 90, 70]; 
+        
+        // GFX UPGRADE: Knackiges Amiga-Mittelmaß (nicht zu dick, nicht zu dünn)
+        this.baseThickness = [100, 80, 60, 45]; 
+        
         this.heightWeights = [0.25, 0.28, 0.20, 0.22];
-        
         this.colorCache = {};
-        
-        // GFX UPGRADE: Speicher für die Envelope Follower
         this.smoothedVols = [0, 0, 0, 0];
     }
 
@@ -27,7 +27,7 @@ export class Copperbars {
         return rgb;
     }
 
-    drawCopperbar(ctx, w, y, height, volume, hexStart, hexEnd, scanlineHeight, colorBitShift) {
+    drawCopperbar(ctx, w, y, height, volume, hexStart, hexEnd, scanlineHeight, colorBitShift, z) {
         if (volume <= 0.01) return;
         
         const cS = this.hexToRgb(hexStart);
@@ -37,6 +37,13 @@ export class Copperbars {
         
         const steps = Math.max(1, Math.floor(height / scanlineHeight));
         
+        // =========================================================
+        // GFX UPGRADE: 3D DEPTH SHADING
+        // Je weiter der Balken im Hintergrund liegt (z < 0), 
+        // desto dunkler faden wir seine RGB-Werte ab (bis zu 35% Abdunklung).
+        // =========================================================
+        const depthFactor = 0.82 + (z * 0.18); // Bereich von 0.64 (hinten) bis 1.00 (vorne)
+
         for(let i = 0; i <= steps; i++) {
             let t = i / steps; 
             let r, g, b;
@@ -63,6 +70,12 @@ export class Copperbars {
                 b = cE[2] + (cBlk[2] - cE[2]) * n;
             }
             
+            // Tiefen-Dämpfung auf die RGB-Kanäle anwenden
+            r *= depthFactor;
+            g *= depthFactor;
+            b *= depthFactor;
+
+            // 12-Bit/9-Bit/6-Bit Hardware Quantisierung & DAC-Doubling
             let mask = (0xFF >> colorBitShift) << colorBitShift;
             let r_q = (r | 0) & mask; r_q |= (r_q >> (8 - colorBitShift));
             let g_q = (g | 0) & mask; g_q |= (g_q >> (8 - colorBitShift));
@@ -98,14 +111,17 @@ export class Copperbars {
             colorBitShift = 6;  
         }
 
+        // =========================================================
+        // DSP UPGRADE: VIRTUAL 3D HELIX CALCULATOR
+        // Wir sammeln alle Balken, berechnen ihre Y-Position (Sinus) 
+        // und ihre Z-Tiefe (Cosinus) und sortieren sie.
+        // =========================================================
+        const barsToDraw = [];
+
         for (let c = 0; c < numBars; c++) {
             const rawVol = channelVolumes[c] || 0;
             
-            // =========================================================
-            // GFX UPGRADE: ASYMMETRIC ENVELOPE FOLLOWER
-            // Fängt scharfe Tracker-Transienten ein und glättet sie.
-            // Attack = extrem schnell (0.4), Decay = wunderbar weich (0.05)
-            // =========================================================
+            // Asymmetrischer Envelope Follower
             if (rawVol > this.smoothedVols[c]) {
                 this.smoothedVols[c] += (rawVol - this.smoothedVols[c]) * 0.4;
             } else {
@@ -113,24 +129,36 @@ export class Copperbars {
             }
             
             const smoothVol = this.smoothedVols[c];
+            const punch = smoothVol * 40; // Puls skaliert an die neue Dicke
             
-            // Das "Atmen" der Balken basiert jetzt auf der seidigen Lautstärke
-            const punch = smoothVol * 60; 
-            
-            // =========================================================
-            // GFX UPGRADE: ORGANIC LISSAJOUS FLIGHT PATH
-            // Die Y-Position ist nun von der Lautstärke entkoppelt.
-            // Stattdessen kombinieren wir Sinus und Cosinus, was den 
-            // Balken eine fast lebendige, atmende Flugbahn verleiht.
-            // =========================================================
             const amplitude = height * this.heightWeights[c];
+            const angle = t * this.sinTimes[c] + this.sinOffsets[c];
             
+            // Y-Achse (Höhe) = Sinus-Welle
             let yCenter = (height / 2);
-            yCenter += Math.sin(t * this.sinTimes[c] + this.sinOffsets[c]) * amplitude;
-            // Die Lissajous-Komponente (asynchrones Wackeln für Lebendigkeit)
-            yCenter += Math.cos(t * this.sinTimes[c] * 1.37) * (amplitude * 0.25);
+            yCenter += Math.sin(angle) * amplitude;
+            yCenter += Math.cos(angle * 1.37) * (amplitude * 0.25); // Lissajous-Drift
             
-            this.drawCopperbar(ctx, width, yCenter - (this.baseThickness[c] + punch) / 2, this.baseThickness[c] + punch, smoothVol, pals[c][0], pals[c][1], scanlineHeight, colorBitShift);
+            // Z-Achse (Tiefe) = Cosinus-Welle
+            const zDepth = Math.cos(angle);
+
+            barsToDraw.push({
+                y: yCenter,
+                h: this.baseThickness[c] + punch,
+                vol: smoothVol,
+                z: zDepth,
+                pal: pals[c]
+            });
         }
+
+        // --- PAINTER'S ALGORITHM (1D Z-Buffer) ---
+        // Sortiert die Balken aufsteigend nach Z (Weit hinten wird zuerst gezeichnet,
+        // weit vorne wird zuletzt gezeichnet und überdeckt die hinteren Balken opak!)
+        barsToDraw.sort((a, b) => a.z - b.z);
+
+        // Rendern im sortierten Z-Index
+        barsToDraw.forEach(bar => {
+            this.drawCopperbar(ctx, width, bar.y - bar.h / 2, bar.h, bar.vol, bar.pal[0], bar.pal[1], scanlineHeight, colorBitShift, bar.z);
+        });
     }
 }
