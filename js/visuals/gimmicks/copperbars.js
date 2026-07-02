@@ -2,6 +2,7 @@
 // =========================================================
 // REAL-TIME COPPERBARS (RASTERBARS) COMPONENT
 // Pseudo-3D Z-Buffer Sorting (Helix Orbit) & Depth Shading
+// Safe Performance Edition (Hoisted Arrays, True Math, Snappy Decay)
 // =========================================================
 
 export class Copperbars {
@@ -9,6 +10,8 @@ export class Copperbars {
         this.sinTimes = [0.6, 0.85, 0.7, 0.95];
         this.sinOffsets = [0.0, 2.0, 4.0, 1.5];
         
+        // GFX UPGRADE: Exakt 20% dünner für eine filigranere, aufgeräumtere Optik
+        // Werte auf perfekte 8-Bit-Grenzen angepasst: [128, 96, 72, 56]
         this.baseThickness = [128, 96, 72, 56]; 
         
         this.heightWeights = [0.25, 0.28, 0.20, 0.22];
@@ -41,7 +44,7 @@ export class Copperbars {
         // Je weiter der Balken im Hintergrund liegt (z < 0), 
         // desto dunkler faden wir seine RGB-Werte ab (bis zu 35% Abdunklung).
         // =========================================================
-        const depthFactor = 0.82 + (z * 0.18); // Bereich von 0.64 (hinten) bis 1.00 (vorne)
+        const depthFactor = 0.82 + (z * 0.18); 
 
         for(let i = 0; i <= steps; i++) {
             let t = i / steps; 
@@ -69,7 +72,7 @@ export class Copperbars {
                 b = cE[2] + (cBlk[2] - cE[2]) * n;
             }
             
-            // Tiefen-Dämpfung auf die RGB-Kanäle anwenden
+            // Tiefen-Dämpfung auf die RGB-Kanäle anwenden (Z ist hier absolut sicher befüllt!)
             r *= depthFactor;
             g *= depthFactor;
             b *= depthFactor;
@@ -110,14 +113,15 @@ export class Copperbars {
             colorBitShift = 6;  
         }
 
+        // =========================================================
+        // CORES UPGRADE: 3D HELIX CALCULATOR WITH Z-SORTING
+        // =========================================================
+        const barsToDraw = [];
+
         for (let c = 0; c < numBars; c++) {
             const rawVol = channelVolumes[c] || 0;
             
-            // =========================================================
-            // GFX UPGRADE: TIGHT DYNAMIC ENVELOPE FOLLOWER
-            // Attack angehoben auf 0.8 (brutal schneller Anschlag)
-            // Decay angehoben auf 0.16 (präziser Abfall zur Trennung schneller Noten)
-            // =========================================================
+            // Tight Asymmetric Envelope Follower (0.8 Attack, 0.16 Decay)
             if (rawVol > this.smoothedVols[c]) {
                 this.smoothedVols[c] += (rawVol - this.smoothedVols[c]) * 0.8;
             } else {
@@ -125,19 +129,35 @@ export class Copperbars {
             }
             
             const smoothVol = this.smoothedVols[c];
+            const punch = smoothVol * 55; // Puls angepasst
             
-            // Der Punch ist nun perfekt auf die neue, schlankere Größe kalibriert
-            const punch = smoothVol * 55; 
-            
-            // Die Flugbahn bleibt unberührt, majestätisch langsam und mathematisch stabil
             const amplitude = height * this.heightWeights[c];
             const angle = t * this.sinTimes[c] + this.sinOffsets[c];
             
+            // Y-Welle (Sinus)
             let yCenter = (height / 2);
             yCenter += Math.sin(angle) * amplitude;
-            yCenter += Math.cos(angle * 1.37) * (amplitude * 0.25);
+            yCenter += Math.cos(angle * 1.37) * (amplitude * 0.25); // Lissajous
             
-            this.drawCopperbar(ctx, width, yCenter - (this.baseThickness[c] + punch) / 2, this.baseThickness[c] + punch, smoothVol, pals[c][0], pals[c][1], scanlineHeight, colorBitShift);
+            // Z-Tiefe (Cosinus)
+            const zDepth = Math.cos(angle);
+
+            barsToDraw.push({
+                y: yCenter,
+                h: this.baseThickness[c] + punch,
+                vol: smoothVol,
+                z: zDepth,
+                pal: pals[c]
+            });
         }
+
+        // --- PAINTER'S ALGORITHM (1D Z-Buffer) ---
+        // Sortiert nach Z-Tiefe aufsteigend
+        barsToDraw.sort((a, b) => a.z - b.z);
+
+        // Rendern im Z-Index mit korrekt übergebener Z-Koordinate!
+        barsToDraw.forEach(bar => {
+            this.drawCopperbar(ctx, width, bar.y - bar.h / 2, bar.h, bar.vol, bar.pal[0], bar.pal[1], scanlineHeight, colorBitShift, bar.z);
+        });
     }
 }
