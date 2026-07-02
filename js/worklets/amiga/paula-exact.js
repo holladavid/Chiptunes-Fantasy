@@ -669,14 +669,28 @@ class PaulaProcessor extends AudioWorkletProcessor {
             // =========================================================
             for (let os = 0; os < this.OVERSAMPLING; os++) {
                 
-                let smp0 = this.channels[0].step(clockTicksPerSample);
-                let smp1 = this.channels[1].step(clockTicksPerSample);
-                let smp2 = this.channels[2].step(clockTicksPerSample);
-                let smp3 = this.channels[3].step(clockTicksPerSample);
+                let rawL = 0;
+                let rawR = 0;
                 
-                // Hardware Panning (0&3 = Left, 1&2 = Right)
-                let rawL = smp0 + smp3;
-                let rawR = smp1 + smp2;
+                // Amiga OctaMED-Style Software Mixing:
+                // Alle virtuellen Tracker-Kanäle werden ausgelesen und
+                // physikalisch auf die 4 Hardware-Pins gemappt (L-R-R-L).
+                for (let c = 0; c < this.numChannels; c++) {
+                    let smp = this.channels[c].step(clockTicksPerSample);
+                    if (smp !== 0) {
+                        let panMod = c % 4;
+                        if (panMod === 0 || panMod === 3) rawL += smp; // Paula Channel 0 & 3 (Left)
+                        else rawR += smp;                              // Paula Channel 1 & 2 (Right)
+                    }
+                }
+                
+                // Headroom-Korrektur: Wenn mehr als 4 Kanäle aktiv sind, 
+                // müssen wir den Mix dämpfen, damit der Operationsverstärker nicht clippt.
+                if (this.numChannels > 4) {
+                    let mixAtten = 4.0 / this.numChannels;
+                    rawL *= mixAtten;
+                    rawR *= mixAtten;
+                }
                 
                 let bleedL = rawL * (1.0 - CROSSTALK_BLEED) + rawR * CROSSTALK_BLEED;
                 let bleedR = rawR * (1.0 - CROSSTALK_BLEED) + rawL * CROSSTALK_BLEED;
@@ -698,7 +712,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 this.ringBufferR[this.ringIndex] = filteredR;
                 this.ringIndex = (this.ringIndex + 1) & 511;
             }
-            
+
             // =========================================================
             // SINC-FIR DECIMATION (48 kHz Output)
             // =========================================================
