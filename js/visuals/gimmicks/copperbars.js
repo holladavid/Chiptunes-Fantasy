@@ -9,8 +9,7 @@ export class Copperbars {
         this.sinTimes = [0.6, 0.85, 0.7, 0.95];
         this.sinOffsets = [0.0, 2.0, 4.0, 1.5];
         
-        // GFX UPGRADE: Knackiges Amiga-Mittelmaß (nicht zu dick, nicht zu dünn)
-        this.baseThickness = [100, 80, 60, 45]; 
+        this.baseThickness = [128, 96, 72, 56]; 
         
         this.heightWeights = [0.25, 0.28, 0.20, 0.22];
         this.colorCache = {};
@@ -111,54 +110,34 @@ export class Copperbars {
             colorBitShift = 6;  
         }
 
-        // =========================================================
-        // DSP UPGRADE: VIRTUAL 3D HELIX CALCULATOR
-        // Wir sammeln alle Balken, berechnen ihre Y-Position (Sinus) 
-        // und ihre Z-Tiefe (Cosinus) und sortieren sie.
-        // =========================================================
-        const barsToDraw = [];
-
         for (let c = 0; c < numBars; c++) {
             const rawVol = channelVolumes[c] || 0;
             
-            // Asymmetrischer Envelope Follower
+            // =========================================================
+            // GFX UPGRADE: TIGHT DYNAMIC ENVELOPE FOLLOWER
+            // Attack angehoben auf 0.8 (brutal schneller Anschlag)
+            // Decay angehoben auf 0.16 (präziser Abfall zur Trennung schneller Noten)
+            // =========================================================
             if (rawVol > this.smoothedVols[c]) {
-                this.smoothedVols[c] += (rawVol - this.smoothedVols[c]) * 0.4;
+                this.smoothedVols[c] += (rawVol - this.smoothedVols[c]) * 0.8;
             } else {
-                this.smoothedVols[c] += (rawVol - this.smoothedVols[c]) * 0.05;
+                this.smoothedVols[c] += (rawVol - this.smoothedVols[c]) * 0.16;
             }
             
             const smoothVol = this.smoothedVols[c];
-            const punch = smoothVol * 40; // Puls skaliert an die neue Dicke
             
+            // Der Punch ist nun perfekt auf die neue, schlankere Größe kalibriert
+            const punch = smoothVol * 55; 
+            
+            // Die Flugbahn bleibt unberührt, majestätisch langsam und mathematisch stabil
             const amplitude = height * this.heightWeights[c];
             const angle = t * this.sinTimes[c] + this.sinOffsets[c];
             
-            // Y-Achse (Höhe) = Sinus-Welle
             let yCenter = (height / 2);
             yCenter += Math.sin(angle) * amplitude;
-            yCenter += Math.cos(angle * 1.37) * (amplitude * 0.25); // Lissajous-Drift
+            yCenter += Math.cos(angle * 1.37) * (amplitude * 0.25);
             
-            // Z-Achse (Tiefe) = Cosinus-Welle
-            const zDepth = Math.cos(angle);
-
-            barsToDraw.push({
-                y: yCenter,
-                h: this.baseThickness[c] + punch,
-                vol: smoothVol,
-                z: zDepth,
-                pal: pals[c]
-            });
+            this.drawCopperbar(ctx, width, yCenter - (this.baseThickness[c] + punch) / 2, this.baseThickness[c] + punch, smoothVol, pals[c][0], pals[c][1], scanlineHeight, colorBitShift);
         }
-
-        // --- PAINTER'S ALGORITHM (1D Z-Buffer) ---
-        // Sortiert die Balken aufsteigend nach Z (Weit hinten wird zuerst gezeichnet,
-        // weit vorne wird zuletzt gezeichnet und überdeckt die hinteren Balken opak!)
-        barsToDraw.sort((a, b) => a.z - b.z);
-
-        // Rendern im sortierten Z-Index
-        barsToDraw.forEach(bar => {
-            this.drawCopperbar(ctx, width, bar.y - bar.h / 2, bar.h, bar.vol, bar.pal[0], bar.pal[1], scanlineHeight, colorBitShift, bar.z);
-        });
     }
 }
