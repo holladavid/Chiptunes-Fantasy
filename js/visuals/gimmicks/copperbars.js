@@ -7,10 +7,10 @@
 
 export class Copperbars {
     constructor() {
-        // Filigranes Amiga-Mittelmaß (20% dünner)
-        this.baseThickness = [128, 96, 72, 56]; 
+        // GFX UPGRADE: Nochmals deutlich (ca. 30%) dünner für eine filigranere Ribbon-Optik
+        // Werte proportional verringert auf: [90, 68, 50, 40]
+        this.baseThickness = [90, 68, 50, 40]; 
         
-        // Die Amplituden-Auslenkung leicht vereinheitlicht für symmetrischen Orbit
         this.heightWeights = [0.24, 0.24, 0.24, 0.24];
         this.colorCache = {};
         this.smoothedVols = [0, 0, 0, 0];
@@ -124,7 +124,10 @@ export class Copperbars {
             }
             
             const smoothVol = this.smoothedVols[c];
-            const punch = smoothVol * 55; 
+            
+            // GFX UPGRADE: Puls proportional um ca. 30% gedrosselt (von 55 auf 40)
+            // Dadurch bleibt das Aufblähen der dünneren Bänder extrem edel und harmonisch
+            const punch = smoothVol * 40; 
             
             const amplitude = height * this.heightWeights[c];
             
