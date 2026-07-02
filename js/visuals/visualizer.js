@@ -24,6 +24,10 @@ export function initVisuals(stateGetters, callbacks) {
     if (logo) {
         logo.addEventListener('click', () => {
             showGimmick = !showGimmick;
+            // GFX FIX: Wenn Gimmick aus, Oszillograph leeren um Sprung-Artefakte zu verhindern
+            if (!showGimmick) {
+                oscHistory.fill(NaN);
+            }
             logo.style.filter = 'brightness(2.0)';
             setTimeout(() => logo.style.filter = '', 100);
         });
@@ -172,87 +176,91 @@ export function initVisuals(stateGetters, callbacks) {
         ctx.globalCompositeOperation = "source-over";
 
         // Oscilloscope Line
-        const currentOscValue = stateGetters.getCurrentOscValue();
-        const trackData = stateGetters.getTrackData();
-        const trackLength = trackData ? (trackData.length || 0) : 0;
-        
-        oscHistory[oscIndex] = (trackLength === 0) ? 0 : currentOscValue;
-        oscIndex = (oscIndex + 1) % historyLength; 
-
-        ctx.beginPath();
-        ctx.lineWidth = 2.5;
-        ctx.strokeStyle = lineColor;
-        
-        ctx.shadowColor = lineColor;
-        ctx.shadowBlur = 10;
-
-        let isFirstPoint = true;
-        for (let x = 0; x < historyLength; x++) {
-            const actualIndex = (oscIndex + x) % historyLength; 
-            const val = oscHistory[actualIndex];
+        if (!showGimmick) {
+            const currentOscValue = stateGetters.getCurrentOscValue();
+            const trackData = stateGetters.getTrackData();
+            const trackLength = trackData ? (trackData.length || 0) : 0;
             
-            if (!isNaN(val)) {
-                const y = (canvas.height / 2) - (val * (canvas.height * 0.42)); 
-                if (isFirstPoint) {
-                    ctx.moveTo(x, y);
-                    isFirstPoint = false;
-                } else {
-                    ctx.lineTo(x, y);
+            oscHistory[oscIndex] = (trackLength === 0) ? 0 : currentOscValue;
+            oscIndex = (oscIndex + 1) % historyLength; 
+
+            ctx.beginPath();
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = lineColor;
+            
+            ctx.shadowColor = lineColor;
+            ctx.shadowBlur = 10;
+
+            let isFirstPoint = true;
+            for (let x = 0; x < historyLength; x++) {
+                const actualIndex = (oscIndex + x) % historyLength; 
+                const val = oscHistory[actualIndex];
+                
+                if (!isNaN(val)) {
+                    const y = (canvas.height / 2) - (val * (canvas.height * 0.42)); 
+                    if (isFirstPoint) {
+                        ctx.moveTo(x, y);
+                        isFirstPoint = false;
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
                 }
             }
-        }
-        
-        if (!isFirstPoint) {
-            ctx.stroke();
-        }
-        ctx.shadowBlur = 0; 
-
+            
+            if (!isFirstPoint) {
+                ctx.stroke();
+            }
+            ctx.shadowBlur = 0; 
+     }
+    
         // FFT Analyzer
-        const activeAnalyser = stateGetters.getAnalyserNode();
-        const isPlaying = stateGetters.getIsPlaying();
-        const audioCtx = stateGetters.getAudioContext();
+        if (!showGimmick) {
+            const activeAnalyser = stateGetters.getAnalyserNode();
+            const isPlaying = stateGetters.getIsPlaying();
+            const audioCtx = stateGetters.getAudioContext();
 
-        if (activeAnalyser && isPlaying && audioCtx) {
-            const bufferLength = activeAnalyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-            activeAnalyser.getByteFrequencyData(dataArray);
-            
-            const barWidth = (canvas.width / barCount) - 2;
-            let x = 0;
-            
-            const hzPerBin = audioCtx.sampleRate / activeAnalyser.fftSize;
-            const minBin = Math.max(1, Math.floor(50 / hzPerBin)); 
-            const maxBin = Math.floor(12000 / hzPerBin); 
-            let lastEndBin = minBin;
-            
-            for (let i = 0; i < barCount; i++) {
-                const startBin = lastEndBin;
-                let endBin = Math.floor(minBin * Math.pow(maxBin / minBin, (i + 1) / barCount));
-                if (endBin <= startBin) endBin = startBin + 1;
-                lastEndBin = endBin;
+            if (activeAnalyser && isPlaying && audioCtx) {
+                const bufferLength = activeAnalyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+                activeAnalyser.getByteFrequencyData(dataArray);
                 
-                let sum = 0;
-                for (let b = startBin; b < endBin; b++) sum += dataArray[b];
-                const avg = sum / (endBin - startBin);
+                const barWidth = (canvas.width / barCount) - 2;
+                let x = 0;
                 
-                const heightBoost = 1.0 + (i / barCount) * 0.6;
-                const barHeight = ((avg * heightBoost) / 255.0) * (canvas.height * 0.38);
+                const hzPerBin = audioCtx.sampleRate / activeAnalyser.fftSize;
+                const minBin = Math.max(1, Math.floor(50 / hzPerBin)); 
+                const maxBin = Math.floor(12000 / hzPerBin); 
+                let lastEndBin = minBin;
                 
-                if (barHeight > peaks[i]) peaks[i] = barHeight; 
-                else { peaks[i] -= 1.2; if (peaks[i] < 0) peaks[i] = 0; }
-                
-                ctx.fillStyle = lineColor; 
-                ctx.globalAlpha = 0.6;
-                ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-                
-                if (peaks[i] > 2) {
-                    ctx.globalAlpha = 1.0; 
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(x, canvas.height - peaks[i] - 3, barWidth, 2);
+                for (let i = 0; i < barCount; i++) {
+                    const startBin = lastEndBin;
+                    let endBin = Math.floor(minBin * Math.pow(maxBin / minBin, (i + 1) / barCount));
+                    if (endBin <= startBin) endBin = startBin + 1;
+                    lastEndBin = endBin;
+                    
+                    let sum = 0;
+                    for (let b = startBin; b < endBin; b++) sum += dataArray[b];
+                    const avg = sum / (endBin - startBin);
+                    
+                    const heightBoost = 1.0 + (i / barCount) * 0.6;
+                    const barHeight = ((avg * heightBoost) / 255.0) * (canvas.height * 0.38);
+                    
+                    if (barHeight > peaks[i]) peaks[i] = barHeight; 
+                    else { peaks[i] -= 1.2; if (peaks[i] < 0) peaks[i] = 0; }
+                    
+                    ctx.fillStyle = lineColor; 
+                    ctx.globalAlpha = 0.6;
+                    ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                    
+                    if (peaks[i] > 2) {
+                        ctx.globalAlpha = 1.0; 
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(x, canvas.height - peaks[i] - 3, barWidth, 2);
+                    }
+                    x += barWidth + 2;
                 }
-                x += barWidth + 2;
+                ctx.globalAlpha = 1.0;
             }
-            ctx.globalAlpha = 1.0;
         }
 
         hudCounter++;
