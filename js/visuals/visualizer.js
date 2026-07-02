@@ -1,8 +1,12 @@
 // === js/visuals/visualizer.js ===
 // =========================================================
 // HIGH-PERFORMANCE RETROWAVE VISUALIZER MODULE
-// Optimized Phosphor Trail, Clean Copperbars & Demoscene Gimmicks
+// Optimized Phosphor Trail, Clean Copperbars & Refactored Gimmicks
 // =========================================================
+
+import { C64Starfield } from './gimmicks/starfield-c64.js';
+import { AmigaCube } from './gimmicks/cube-amiga.js';
+import { AtariBobs } from './gimmicks/bobs-atari.js';
 
 export function initVisuals(stateGetters, callbacks) {
     const canvas = document.getElementById('demo-canvas');
@@ -14,36 +18,21 @@ export function initVisuals(stateGetters, callbacks) {
     let oscHistory = new Float32Array(historyLength).fill(NaN);
     let oscIndex = 0;
 
-    // --- EASTER EGG STATE ---
+    // --- INTERACTIVE GIMMICK STATE & TOGGLE ---
     let showGimmick = false;
     const logo = document.getElementById('brand-logo');
     if (logo) {
         logo.addEventListener('click', () => {
             showGimmick = !showGimmick;
-            // Visuelles Feedback beim Klicken
             logo.style.filter = 'brightness(2.0)';
             setTimeout(() => logo.style.filter = '', 100);
         });
     }
 
-    // --- C64 STARFIELD DATA ---
-    const numStars = 150;
-    const stars = Array.from({ length: numStars }, () => ({
-        x: (Math.random() - 0.5) * 2000,
-        y: (Math.random() - 0.5) * 2000,
-        z: Math.random() * 1000 + 10
-    }));
-
-    // --- AMIGA CUBE DATA ---
-    const cubeVertices = [
-        [-1, -1, -1], [ 1, -1, -1], [ 1,  1, -1], [-1,  1, -1],
-        [-1, -1,  1], [ 1, -1,  1], [ 1,  1,  1], [-1,  1,  1]
-    ];
-    const cubeEdges = [
-        [0,1], [1,2], [2,3], [3,0], // Hinten
-        [4,5], [5,6], [6,7], [7,4], // Vorne
-        [0,4], [1,5], [2,6], [3,7]  // Verbindungen
-    ];
+    // Instanziierung der gekapselten Demoscene-Effekte
+    const starfield = new C64Starfield();
+    const cube = new AmigaCube();
+    const bobs = new AtariBobs();
 
     function resizeCanvas() {
         const clientWidth = canvas.clientWidth;
@@ -126,116 +115,6 @@ export function initVisuals(stateGetters, callbacks) {
         ctx.fillRect(0, y, w, height);
     }
 
-    // =========================================================
-    // THE DEMOSCENE GIMMICKS
-    // =========================================================
-
-    function renderC64Starfield(t, volume) {
-        const cx = canvas.width / 2;
-        const cy = canvas.height / 2;
-        // Warp Speed basiert auf der Gesamtlautstärke
-        const speed = 2 + (volume * 15); 
-        
-        ctx.fillStyle = '#6c5eb5'; // C64 Hellblau
-        
-        stars.forEach(star => {
-            star.z -= speed;
-            if (star.z <= 1) {
-                star.z = 1000;
-                star.x = (Math.random() - 0.5) * 2000;
-                star.y = (Math.random() - 0.5) * 2000;
-            }
-            
-            // 3D zu 2D Projektion
-            const px = cx + (star.x / star.z) * 500;
-            const py = cy + (star.y / star.z) * 500;
-            
-            if (px >= 0 && px <= canvas.width && py >= 0 && py <= canvas.height) {
-                const size = Math.max(1, (1000 - star.z) / 200);
-                // Je näher, desto weißer
-                ctx.fillStyle = star.z < 300 ? '#ffffff' : '#6c5eb5';
-                ctx.fillRect(px, py, size, size);
-            }
-        });
-    }
-
-    function renderAmigaCube(t, bassVolume) {
-        const cx = canvas.width / 2;
-        const cy = canvas.height / 2;
-        
-        // Rotation Angles
-        const rx = t * 0.8;
-        const ry = t * 1.2;
-        const rz = t * 0.5;
-        
-        // Der Würfel pulsiert im Takt des Basses (Kanal 0)
-        const scale = 80 + (bassVolume * 100);
-        
-        const projected = [];
-        
-        // 3D Rotations-Matrix
-        cubeVertices.forEach(v => {
-            let x = v[0], y = v[1], z = v[2];
-            
-            // Rot X
-            let y1 = y * Math.cos(rx) - z * Math.sin(rx);
-            let z1 = y * Math.sin(rx) + z * Math.cos(rx);
-            // Rot Y
-            let x2 = x * Math.cos(ry) + z1 * Math.sin(ry);
-            let z2 = -x * Math.sin(ry) + z1 * Math.cos(ry);
-            // Rot Z
-            let x3 = x2 * Math.cos(rz) - y1 * Math.sin(rz);
-            let y3 = x2 * Math.sin(rz) + y1 * Math.cos(rz);
-            
-            // Projection
-            const fov = 400;
-            const zOff = z2 + 4; // Abstand zur Kamera
-            const px = cx + (x3 * fov) / zOff * (scale / 100);
-            const py = cy + (y3 * fov) / zOff * (scale / 100);
-            projected.push({x: px, y: py});
-        });
-        
-        ctx.strokeStyle = '#ff8800'; // Amiga Orange
-        ctx.lineWidth = 3;
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        
-        cubeEdges.forEach(edge => {
-            const p1 = projected[edge[0]];
-            const p2 = projected[edge[1]];
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-        });
-        
-        ctx.stroke();
-    }
-
-    function renderAtariBobs(t, volume) {
-        const cx = canvas.width / 2;
-        const cy = canvas.height / 2;
-        const numBobs = 40;
-        
-        // Das Muster weitet sich bei lauten Tönen aus
-        const radius = (canvas.height * 0.25) + (volume * 100);
-        
-        ctx.fillStyle = '#55ff55'; // Atari ST Grün
-        
-        for (let i = 0; i < numBobs; i++) {
-            // Lissajous Figuren-Mathematik
-            const phase = i * 0.15;
-            const x = cx + Math.sin(t * 1.5 + phase) * radius * 1.5;
-            const y = cy + Math.sin(t * 2.3 + phase) * Math.cos(t * 1.1 + phase) * radius;
-            
-            // Dicker "Bob" (Pixel-Block)
-            const size = 8 + Math.sin(t * 3 + phase) * 4;
-            ctx.fillRect(x - size/2, y - size/2, size, size);
-        }
-    }
-
-    // =========================================================
-    // MAIN RENDER LOOP
-    // =========================================================
-
     function draw() {
         if (stateGetters.getEcoMode()) {
             callbacks.updateTimelineUI(); 
@@ -245,7 +124,7 @@ export function initVisuals(stateGetters, callbacks) {
 
         const t = (performance.now() - startTime) * 0.001; 
         
-        // Background
+        // Background Trail
         ctx.fillStyle = 'rgba(0, 0, 0, 0.38)'; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
@@ -261,11 +140,11 @@ export function initVisuals(stateGetters, callbacks) {
         for (let i=0; i<4; i++) totalVol += channelVolumes[i] || 0;
         const avgVol = totalVol / 4.0;
 
-        // --- EASTER EGG RENDER INJECTION ---
+        // --- INTERACTIVE EASTER EGG INJECTION ---
         if (showGimmick) {
-            if (isC64) renderC64Starfield(t, avgVol);
-            else if (isAmiga) renderAmigaCube(t, channelVolumes[0] || 0); // Reagiert primär auf Kanal 0 (oft Bass/Kick)
-            else if (isAtari) renderAtariBobs(t, avgVol);
+            if (isC64) starfield.render(ctx, canvas.width, canvas.height, t, avgVol);
+            else if (isAmiga) cube.render(ctx, canvas.width, canvas.height, t, channelVolumes[0] || 0);
+            else if (isAtari) bobs.render(ctx, canvas.width, canvas.height, t, avgVol);
         }
 
         // Copperbars
