@@ -6,8 +6,8 @@ No MP3s, no pre-rendered streams — just pure mathematical real-time synthesis 
 
 ---
 
-> **🎉 MILESTONE REACHED: VERSION 1.0.0 [First Cycle]**  
-> We have officially hit **Version 1.0.0**! The big three sound chips (MOS SID 6581, MOS Paula 8364, and Yamaha YM2149F) have been fully realized. All platforms now run on custom-crafted, highly accurate, hardware-emulating DSP cores featuring true 1MHz/2MHz locksteps, Zero-Order Hold (ZOH) oversampling, analog-modeled filter cascades, and raw DAC resistance tables.
+> **🎉 MILESTONE REACHED: VERSION 1.0.1 [First Cycle]**  
+> We have officially hit **Version 1.0.1**! The big three sound chips (MOS SID 6581, MOS Paula 8364, and Yamaha YM2149F) have been fully realized. All platforms now run on custom-crafted, highly accurate, hardware-emulating DSP cores featuring true 1MHz/2MHz locksteps, Zero-Order Hold (ZOH) oversampling, analog-modeled filter cascades, and raw DAC resistance tables.
 
 ---
 
