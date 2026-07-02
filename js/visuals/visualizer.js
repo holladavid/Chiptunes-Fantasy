@@ -36,7 +36,7 @@ export function initVisuals(stateGetters, callbacks) {
     const cube = new AmigaCube();
     const bobs = new AtariBobs();
     const fft = new FftAnalyzer();
-    const osc = new Oscilloscope(canvas.width);
+    const osc = new Oscilloscope(canvas.width, canvas.height);
     const coppers = new Copperbars();
 
     function resizeCanvas() {
@@ -55,7 +55,7 @@ export function initVisuals(stateGetters, callbacks) {
         if (canvas.width !== newWidth || canvas.height !== newHeight) {
             canvas.width = newWidth; 
             canvas.height = newHeight;
-            osc.resize(newWidth); // Oszilloskop-Datenpuffer anpassen
+            osc.resize(newWidth, newHeight); // Oszilloskop-Datenpuffer anpassen
         }
     }
     

@@ -1,17 +1,23 @@
 // === js/visuals/components/oscilloscope.js ===
 // =========================================================
 // REAL-TIME CRT VECTOR OSCILLOSCOPE COMPONENT
-// Encapsulates history buffers, index-shift resizing, and rendering
-// High-End Analog Beam Intensity Simulation (Phosphor Saturation)
+// Physical Modeling: Offscreen Phosphor Accumulation Buffer,
+// Multi-Pass Tube Blooming, Thermal Jitter, and Exponential Decay Trails
 // =========================================================
 
 export class Oscilloscope {
-    constructor(width) {
-        this.oscHistory = new Float32Array(width).fill(NaN);
+    constructor(width, height) {
+        // Dedizierter Offscreen-Puffer, um das Phosphor-Nachleuchten zu akkumulieren
+        this.offscreen = document.createElement('canvas');
+        this.offscreenCtx = this.offscreen.getContext('2d');
+        
+        this.oscHistory = null;
         this.oscIndex = 0;
+        
+        this.resize(width, height);
     }
 
-    resize(newWidth) {
+    resize(newWidth, newHeight) {
         const oldHistory = this.oscHistory;
         const oldLen = oldHistory ? oldHistory.length : 0;
         this.oscHistory = new Float32Array(newWidth).fill(NaN);
@@ -26,10 +32,20 @@ export class Oscilloscope {
             }
             this.oscIndex = copyLen % newWidth;
         }
+
+        // Offscreen-Puffer anpassen
+        this.offscreen.width = newWidth;
+        this.offscreen.height = newHeight;
+        
+        // Initial schwarz fluten
+        this.offscreenCtx.fillStyle = '#000000';
+        this.offscreenCtx.fillRect(0, 0, newWidth, newHeight);
     }
 
     clear() {
-        this.oscHistory.fill(NaN);
+        if (this.oscHistory) this.oscHistory.fill(NaN);
+        this.offscreenCtx.fillStyle = '#000000';
+        this.offscreenCtx.fillRect(0, 0, this.offscreen.width, this.offscreen.height);
     }
 
     render(ctx, width, height, stateGetters, lineColor) {
@@ -40,91 +56,75 @@ export class Oscilloscope {
         this.oscHistory[this.oscIndex] = (trackLength === 0) ? 0 : currentOscValue;
         this.oscIndex = (this.oscIndex + 1) % width;
 
-        // --- 1. KOORDINATEN VORBERECHNEN (Vermeidet doppelte Berechnungen) ---
-        const yCoords = new Float32Array(width);
+        const offCtx = this.offscreenCtx;
+        const offW = this.offscreen.width;
+        const offH = this.offscreen.height;
+
+        // =========================================================
+        // --- 1. PHOSPHOR DECAY (Das Trägheits-Nachleuchten) ---
+        // Wir faden den alten Puffer nur um 16% ab. Ältere Wellenzüge 
+        // bleiben als zarter, abklingender Schweif auf dem Schirm kleben.
+        // =========================================================
+        offCtx.fillStyle = 'rgba(0, 0, 0, 0.16)'; 
+        offCtx.fillRect(0, 0, offW, offH);
+
+        // --- 2. VECTOR PATH BERECHNEN ---
+        offCtx.beginPath();
+        let isFirst = true;
         for (let x = 0; x < width; x++) {
             const actualIndex = (this.oscIndex + x) % width;
             const val = this.oscHistory[actualIndex];
-            yCoords[x] = isNaN(val) ? NaN : (height / 2) - (val * (height * 0.42));
-        }
-
-        // =========================================================
-        // --- 2. LAYER 1: DER GLOW (Hintergrund-Glow via 48kHz Filter) ---
-        // =========================================================
-        ctx.beginPath();
-        ctx.lineWidth = 4.0;
-        ctx.strokeStyle = lineColor;
-        ctx.globalAlpha = 0.25; // Zarter Hintergrund-Glow
-        ctx.shadowColor = lineColor;
-        ctx.shadowBlur = 10;    // Der warme Röhren-Glow
-        
-        let isFirst = true;
-        for (let x = 0; x < width; x++) {
-            const y = yCoords[x];
-            if (!isNaN(y)) {
+            
+            if (!isNaN(val)) {
+                const y = (offH / 2) - (val * (offH * 0.42));
+                
+                // Thermisches Rauschen (Deflection Jitter) der analogen Platten simulieren
+                const jitter = (Math.random() - 0.5) * 0.6;
+                
                 if (isFirst) {
-                    ctx.moveTo(x, y);
+                    offCtx.moveTo(x, y + jitter);
                     isFirst = false;
                 } else {
-                    ctx.lineTo(x, y);
+                    offCtx.lineTo(x, y + jitter);
                 }
             }
         }
-        if (!isFirst) ctx.stroke();
-        
-        // Schatten und Opazität für den performance-kritischen Core-Loop resetten
-        ctx.shadowBlur = 0;
-        ctx.globalAlpha = 1.0;
 
         // =========================================================
-        // --- 3. LAYER 2: DER ANALOGE STRAHLKERN (Segment-Faltung) ---
+        // --- 3. MULTI-PASS CRT GLOW & CHROMATIC BLOOMING ---
         // =========================================================
-        let lastX = -1;
-        let lastY = NaN;
+        if (!isFirst) {
+            // Pass 1: Breites, zartes Lichtbluten auf dem Phosphor (Glow)
+            offCtx.lineWidth = 6.0;
+            offCtx.strokeStyle = lineColor;
+            offCtx.globalAlpha = 0.28;
+            offCtx.shadowColor = lineColor;
+            offCtx.shadowBlur = 8;
+            offCtx.stroke();
 
-        for (let x = 0; x < width; x++) {
-            const y = yCoords[x];
-            if (isNaN(y)) {
-                lastX = -1;
-                lastY = NaN;
-                continue;
-            }
+            // Pass 2: Mittlerer, farbintensiver Strahlkern
+            offCtx.lineWidth = 3.0;
+            offCtx.strokeStyle = lineColor;
+            offCtx.globalAlpha = 0.65;
+            offCtx.shadowBlur = 0; // Schatten für Performance ausschalten
+            offCtx.stroke();
 
-            if (lastX !== -1 && !isNaN(lastY)) {
-                // Steigung (Geschwindigkeit des Elektronenstrahls) berechnen
-                const dy = Math.abs(y - lastY);
-                
-                // Normalisieren (Volle Dämpfung bei 45 Pixeln vertikalem Sprung)
-                const speedFactor = Math.min(1.0, dy / 45.0);
-                
-                // Linienstärke schrumpft bei hoher Geschwindigkeit (bis auf 1.0px)
-                const widthFactor = 2.8 - (speedFactor * 1.8); 
-                
-                // Leuchtkraft schrumpft bei hoher Geschwindigkeit (bis auf 35% Alpha)
-                const alphaFactor = 1.0 - (speedFactor * 0.65);
-                
-                ctx.lineWidth = widthFactor;
-                ctx.globalAlpha = alphaFactor;
-                
-                // Sättigungs-Effekt: Bei extrem langsamen Bewegungen (Peaks/Flats) 
-                // brennt sich der Strahl weiß glühend in die Netzhaut
-                if (speedFactor < 0.12) {
-                    ctx.strokeStyle = '#ffffff'; 
-                } else {
-                    ctx.strokeStyle = lineColor;
-                }
+            // Pass 3: Hauchdünner, gleißend weißer Heißpunkt (Sättigung)
+            offCtx.lineWidth = 1.2;
+            offCtx.strokeStyle = '#ffffff';
+            offCtx.globalAlpha = 0.95;
+            offCtx.stroke();
 
-                ctx.beginPath();
-                ctx.moveTo(lastX, lastY);
-                ctx.lineTo(x, y);
-                ctx.stroke();
-            }
-
-            lastX = x;
-            lastY = y;
+            offCtx.globalAlpha = 1.0;
         }
 
-        // Context-State aufräumen
-        ctx.globalAlpha = 1.0;
+        // =========================================================
+        // --- 4. HARDWARE COMPOSITE BLITTING ---
+        // Wir kopieren den High-Res-Puffer im "screen" Modus auf das Hauptcanvas.
+        // Dadurch verschmelzen die glühenden Schweife wunderschön mit den Copperbars!
+        // =========================================================
+        ctx.globalCompositeOperation = "screen";
+        ctx.drawImage(this.offscreen, 0, 0, width, height);
+        ctx.globalCompositeOperation = "source-over";
     }
 }
