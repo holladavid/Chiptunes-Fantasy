@@ -282,6 +282,15 @@ body.theme-c64 .tab-btn.active {
     transform: translateY(1px);
 }
 
+/* =========================================
+   THEME 2: AMIGA SPECIFIC PLAYLIST OVERRIDES
+   ========================================= */
+body.theme-amiga #tracklist li {
+    color: var(--panel-text); /* Amiga Orange (#ff8800) */
+    
+    /* GFX FIX: Dieselbe gut sichtbare, feine weiße Linie wie bei C64 & Atari! */
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.15); 
+}
 /* --- THEME 2: AMIGA REGENBOGEN ACCENTS --- */
 body.theme-amiga .tab-btn {
     background: #0a0a0a;
@@ -1069,13 +1078,16 @@ body.eco-mode .brand-main {
         padding: 14px 0; 
         font-size: calc(var(--font-size-base) * 1.3); 
     }
+
     /* Tracklist Touch-Friendly machen & Höhe limitieren */
     #tracklist {
         max-height: 250px; 
     }
     
     #tracklist li {
-        padding: 10px 5px; 
+        /* UI FIX: Breiteres horizontales Padding für komfortable Daumen-Steuerung
+           auf allen Mobilgeräten (C64, Amiga & Atari gleich!) */
+        padding: 10px 12px; /* Vorher: 10px 5px */
         margin-bottom: 2px;
     }
     
