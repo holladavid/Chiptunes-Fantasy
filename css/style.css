@@ -438,13 +438,13 @@ body.theme-atari .tab-btn.active {
    ACTIVE TRACK (Inverted Selection)
 ========================================= */
 .active-track {
-    /* GFX UPGRADE: Historisch korrekte "Inverted Colors" (wie bei DOS / Amiga Workbench) */
+    /* GFX FIX: Echte Invertierung der Panel-Farben! */
     background: var(--panel-text) !important;
-    color: var(--bg-color) !important; 
+    color: var(--fg-color) !important; /* <-- HIER FIXEN: Von --bg-color zu --fg-color */
     font-weight: bold;
     border-bottom-color: transparent !important;
     box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
-    animation: none !important; /* Tötet das moderne Pulsieren */
+    animation: none !important; 
     text-shadow: none !important;
 }
 
@@ -1051,7 +1051,7 @@ body.eco-mode .brand-main {
            den nötigen Puffer zum UI-Feld darunter! */
         margin-bottom: 8px; 
     }
-    
+
     /* Play/Pause bleibt doppelt so breit wie die restlichen Tasten */
     #playback-bar #btn-prev, 
     #playback-bar #btn-next,
