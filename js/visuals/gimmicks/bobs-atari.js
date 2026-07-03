@@ -1,20 +1,14 @@
 // === js/visuals/gimmicks/bobs-atari.js ===
 // =========================================================
 // CLASSIC LISSAJOUS METAL-BOB CHAIN (ATARI ST BLITTER GIMMICK)
-// Features: Pre-rendered 3D sphere sprites (Blitter-emulation),
-// multi-phase Lissajous trajectory, and audio-reactive scale pumping.
+// Features: Pure mathematical choreography (music-independent),
+// pre-rendered 3D sphere sprites, and dynamically morphing orbits.
 // =========================================================
 
 export class AtariBobs {
     constructor() {
         this.numBobs = 45;
-        
-        // =========================================================
-        // GFX UPGRADE: PRE-RENDERED 3D BOB SPRITE (Blitter Emulation)
-        // Wir zeichnen die schattierte Chrom-Kugel ein einziges Mal im Speicher, 
-        // um das teure Echtzeit-Gradient-Rendering in der Schleife zu umgehen!
-        // =========================================================
-        this.bobSize = 32; // Basis-Auflösung des Sprites
+        this.bobSize = 32; 
         this.bobCanvas = document.createElement('canvas');
         this.bobCanvas.width = this.bobSize;
         this.bobCanvas.height = this.bobSize;
@@ -22,17 +16,15 @@ export class AtariBobs {
         
         const cx = this.bobSize / 2;
         const cy = this.bobSize / 2;
-        
-        // Der Glanzpunkt (Highlight) wird nach oben links verschoben für echten 3D-Effekt
         const hx = cx - 5;
         const hy = cy - 5;
         
         const grad = bCtx.createRadialGradient(hx, hy, 1, cx, cy, this.bobSize / 2);
-        grad.addColorStop(0.0, '#ffffff');           // Weißer Heißpunkt (Specular Highlight)
-        grad.addColorStop(0.2, '#99ff99');           // Pastell-Glanz
-        grad.addColorStop(0.55, '#33ff33');          // Atari ST Giftgrün (Base)
-        grad.addColorStop(0.85, '#005500');          // Dunkelgrüner Schatten (Ambient)
-        grad.addColorStop(1.0, 'rgba(0, 10, 0, 0)'); // Alpha-Maske (Transparenter Rand)
+        grad.addColorStop(0.0, '#ffffff');           
+        grad.addColorStop(0.2, '#99ff99');           
+        grad.addColorStop(0.55, '#33ff33');          
+        grad.addColorStop(0.85, '#005500');          
+        grad.addColorStop(1.0, 'rgba(0, 10, 0, 0)'); 
         
         bCtx.fillStyle = grad;
         bCtx.beginPath();
@@ -40,26 +32,26 @@ export class AtariBobs {
         bCtx.fill();
     }
 
-render(ctx, width, height, t, volume) {
+    render(ctx, width, height, t) {
         const cx = width / 2;
         const cy = height / 2;
         
-        const radius = (height * 0.24) + (volume * 80);
+        // CHOREOGRAPHIE UPGRADE: Morphing Lissajous
+        // Radien für X und Y atmen unabhängig voneinander über die Zeit (t)
+        // Dadurch verändert der Schwarm laufend fließend seine Form!
+        const radiusX = (width * 0.25) * (1.0 + Math.sin(t * 0.4) * 0.25);
+        const radiusY = (height * 0.3) * (1.0 + Math.cos(t * 0.5) * 0.2);
         
-        // =========================================================
-        // GFX FIX: NAHTLOSE KREIS-VERTEILUNG (360 Grad / Kugelanzahl)
-        // Das garantiert, dass die letzte Kugel nahtlos an die erste anschließt.
-        // =========================================================
         const phaseStep = (Math.PI * 2) / this.numBobs;
         
         for (let i = 0; i < this.numBobs; i++) {
-            // Jede Kugel bekommt ihren mathematisch perfekten Platz in der Kette
             const phase = i * phaseStep;
-            const x = cx + Math.sin(t * 1.4 + phase) * radius * 1.5;
-            const y = cy + Math.sin(t * 2.1 + phase) * Math.cos(t * 1.1 + phase) * radius;
             
-            const baseSize = 12 + Math.sin(t * 3.5 + phase) * 5;
-            const size = baseSize + (volume * 15);
+            const x = cx + Math.sin(t * 1.4 + phase) * radiusX;
+            const y = cy + Math.sin(t * 2.1 + phase) * Math.cos(t * 1.1 + phase) * radiusY;
+            
+            // Pulsierende Größe auf Basis der eigenen Position in der Welle
+            const size = 16 + Math.sin(t * 3.5 + phase) * 8;
             
             ctx.drawImage(this.bobCanvas, x - size / 2, y - size / 2, size, size);
         }
