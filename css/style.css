@@ -385,33 +385,73 @@ body.theme-atari .tab-btn.active {
     padding: 8px 5px;
 }
 
-/* Playlist */
+/* =========================================
+   TRACKLIST (Retro File-Selector Terminal)
+========================================= */
 #tracklist {
     list-style: none;
     flex-grow: 1;
     overflow-y: auto;
-    font-size: var(--font-size-base);
-    line-height: 1.8;
+    font-size: calc(var(--font-size-base) * 0.9); /* Minimal kleiner, passend für Listen */
+    line-height: 1.4;
+    
+    /* GFX UPGRADE: Physisch versenkter Terminal-Screen */
+    background: rgba(0, 0, 0, 0.25); 
+    border: 2px solid rgba(0, 0, 0, 0.4);
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6), 1px 1px 0 rgba(255,255,255,0.05);
+    padding: 8px;
 }
+
 #tracklist li {
     color: var(--panel-text); 
-    padding: 4px 8px; /* Etwas mehr Luft zum Atmen */
+    padding: 6px 8px;
     cursor: pointer;
-    transition: background 0.2s, color 0.2s;
-    border-left: 4px solid transparent; /* Platzhalter für den Tracker-Balken */
+    /* GFX UPGRADE: Harte Schnitte statt weicher Web-Fades */
+    transition: none; 
+    border-bottom: 1px dashed rgba(0, 0, 0, 0.15); /* Dezente Trennlinien */
+    
+    /* Zwingt lange Namen auf eine Zeile und schneidet sie mit '...' ab */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#tracklist li:last-child {
+    border-bottom: none;
+}
+
+/* Der unsichtbare Cursor-Platzhalter für jede Zeile */
+#tracklist li::before {
+    content: "> ";
+    opacity: 0; 
+    font-weight: bold;
 }
 
 #tracklist li:hover {
-    background: rgba(255, 255, 255, 0.1); 
+    background: rgba(255, 255, 255, 0.08); 
     color: var(--highlight-color);      
 }
+#tracklist li:hover::before {
+    opacity: 0.5; /* Zeigt den Cursor als Hover-Preview an */
+}
 
-/* Der neue, edle Selektions-Effekt (Tracker Style) */
+/* =========================================
+   ACTIVE TRACK (Inverted Selection)
+========================================= */
 .active-track {
-    background: rgba(0, 0, 0, 0.15); /* Subtiler dunkler Balken */
-    border-left: 4px solid var(--highlight-color) !important; /* Retro Akzent-Linie links */
-    font-weight: normal; /* Keine fetten, unleserlichen Pixel mehr */
-    animation: pulse-text 1.2s infinite alternate ease-in-out;
+    /* GFX UPGRADE: Historisch korrekte "Inverted Colors" (wie bei DOS / Amiga Workbench) */
+    background: var(--panel-text) !important;
+    color: var(--bg-color) !important; 
+    font-weight: bold;
+    border-bottom-color: transparent !important;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+    animation: none !important; /* Tötet das moderne Pulsieren */
+    text-shadow: none !important;
+}
+
+/* Der blinkende Hardware-Cursor für die aktive Zeile */
+.active-track::before {
+    opacity: 1 !important;
+    animation: c64-blink 1s steps(2, start) infinite; /* Verwendet unsere 8-Bit Animation aus dem Bootscreen */
 }
 
 /* Die Schrift pulsiert nun zwischen Weiß (Glow) und der Themenfarbe */
@@ -1006,6 +1046,10 @@ body.eco-mode .brand-main {
         flex: 1 1 100%; 
         width: 100%; 
         justify-content: flex-start; 
+        
+        /* UI FIX: Wenn der Slider umbricht, schaffen wir hier 
+           den nötigen Puffer zum UI-Feld darunter! */
+        margin-bottom: 8px; 
     }
     
     /* Play/Pause bleibt doppelt so breit wie die restlichen Tasten */
