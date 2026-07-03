@@ -472,35 +472,43 @@ body.theme-atari .tab-btn.active {
     line-height: 1; /* Bereinigt theme-abhängige Schriftüberhänge */
 }
 
-.timeline-control input[type="range"], 
-.volume-control input[type="range"] {
+/* =========================================
+   HARDWARE SLIDERS (Timeline, Volume, Temp)
+========================================= */
+input[type="range"] {
     flex-grow: 1;
     -webkit-appearance: none;
-    background: rgba(0, 0, 0, 0.4); /* Dunkle, edle Schiene */
-    border: 1px solid var(--panel-text);
-    height: 12px;
+    
+    /* GFX FIX: Rand entfernt! Stattdessen eine tiefe, in das Gehäuse gefräste Hardware-Rille */
+    background: rgba(0, 0, 0, 0.4); 
+    border: none;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8), inset 0 -1px 0 rgba(255, 255, 255, 0.05); 
+    height: 10px;
     outline: none;
     cursor: pointer;
+    border-radius: 0;
 }
 
-/* Der Schieberegler (Thumb) im fetten Block-Design */
-.timeline-control input[type="range"]::-webkit-slider-thumb,
-.volume-control input[type="range"]::-webkit-slider-thumb {
+/* Der Schieberegler (Thumb) als physischer Hardware-Fader */
+input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 14px;
-    height: 20px;
+    width: 16px;
+    height: 22px; /* Höher als die Rille, damit er greifbar wirkt */
     background: var(--panel-text);
     border: none;
     cursor: pointer;
+    /* 3D-Drop-Shadow für den Knopf, damit er über der Rille schwebt + Lichtkante */
+    box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5), inset 1px 1px 0px rgba(255, 255, 255, 0.25);
 }
-.timeline-control input[type="range"]::-moz-range-thumb,
-.volume-control input[type="range"]::-moz-range-thumb {
-    width: 14px;
-    height: 20px;
+
+input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 22px;
     background: var(--panel-text);
     border: none;
     cursor: pointer;
     border-radius: 0;
+    box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5), inset 1px 1px 0px rgba(255, 255, 255, 0.25);
 }
 
 /* =========================================
