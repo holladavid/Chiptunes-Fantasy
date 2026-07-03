@@ -459,18 +459,35 @@ function setTheme(themeName) {
     renderCoreSelector(activeSystem);
 }
 
+// === js/app.js (Auszug) ===
+
 function renderCoreSelector(system) {
     const select = document.getElementById('core-selector');
     select.innerHTML = '';
-    workletRegistry[system].forEach((core, index) => {
+    
+    const cores = workletRegistry[system];
+    
+    // Maximale Länge für das Padding ermitteln
+    const maxLen = Math.max(...cores.map(c => c.name.length));
+
+    cores.forEach((core, index) => {
         const opt = document.createElement('option');
         opt.value = index;
+        
         let cpuLoad = core.cpu || 1;
         let meter = '';
         for (let i = 1; i <= 4; i++) {
-            meter += (i <= cpuLoad) ? '■' : '□';
+            // UI FIX: Reine ASCII-Zeichen, um Font-Fallback-Bugs (unterschiedliche Breiten) zu verhindern
+            meter += (i <= cpuLoad) ? '#' : '-';
         }
-        opt.text = `${core.name} • CPU:${meter}`;
+        
+        // UI FIX: Sichtbare Punkte (Dot-Leader) statt unsichtbarer Leerzeichen.
+        // Das garantiert 100% Ausrichtung, da Browser sichtbare Zeichen nicht kollabieren.
+        const padCount = maxLen - core.name.length + 3;
+        const padding = '.'.repeat(padCount);
+        
+        // Erst Name, dann Punkte, dann CPU-Last
+        opt.text = `${core.name} ${padding} CPU:[${meter}]`;
         select.appendChild(opt);
     });
 }
