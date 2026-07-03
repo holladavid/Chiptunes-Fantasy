@@ -6,8 +6,8 @@ No MP3s, no pre-rendered streams — just pure mathematical real-time synthesis 
 
 ---
 
-> **🎉 MILESTONE REACHED: VERSION 1.0.1 [First Cycle]**  
-> We have officially hit **Version 1.0.1**! The big three sound chips (MOS SID 6581, MOS Paula 8364, and Yamaha YM2149F) have been fully realized. All platforms now run on custom-crafted, highly accurate, hardware-emulating DSP cores featuring true 1MHz/2MHz locksteps, Zero-Order Hold (ZOH) oversampling, analog-modeled filter cascades, and raw DAC resistance tables.
+> **🎉 MILESTONE REACHED: VERSION 1.1.0 [The Demoscene Visuals Update]**  
+> We have officially hit **Version 1.1.0**! After perfecting the audio DSP cores in v1.0, we have completely overhauled the visual engine. The app now features a highly modular, component-based ES6 rendering pipeline bringing physical CRT modeling, segmented VFD analyzers, 3D Glenz vectors, and interactive demoscene easter eggs right into your browser.
 
 ---
 
@@ -15,6 +15,20 @@ No MP3s, no pre-rendered streams — just pure mathematical real-time synthesis 
 This project is a love letter to the audio wizards of the 80s and 90s — legends like Jochen Hippel (Mad Max), Rob Hubbard, Chris Hülsbeck, Martin Galway, and Jeroen Tel. They didn't just compose music; they hacked the hardware. They abused CPU timers, manipulated pulse widths, and wrote their own assembly drivers to make simple programmable sound generators sound like entire orchestras.
 
 *Chiptunes-Fantasy* makes these genius programming tricks tangible. We don't just play the music; we expose the guts of the hardware in real-time, honoring the artists, explaining the physics, and educating the nerds.
+
+## 📺 Demoscene Visuals & UX
+
+*   **C64 Cold Boot:** The app launches with a mathematically authentic, pixel-perfect Commodore 64 basic CRT cold-boot sequence.
+*   **Interactive Demoscene Easter Eggs:** Click the main logo to swap the clinical lab-scope for real-time, system-specific 3D demoscene effects:
+    *   *Amiga:* A rotating 3D "Glenz" glass vector cube featuring real-time backface culling, Z-centroid Painter's Algorithm, and audio-reactive blooming outlines.
+    *   *Atari ST:* A swarm of pre-rendered, 3D-shaded metallic spheres (Blitter Bobs) weaving through endless Lissajous knots that pulse to the beat.
+    *   *C64:* A 3D parallax starfield with velocity-based motion blur streaks quantized strictly to the original 16-color Commodore VIC-II palette.
+*   **Physical CRT Oscilloscope:** Simulates an authentic cathode-ray tube using an offscreen accumulation buffer for true exponential phosphor decay. The beam features dynamic intensity modulation, electromagnetic flares, and throws glowing, cooling phosphor sparks across the screen on sharp audio transients.
+*   **Segmented VFD Analyzer:** A system-themed, tri-color Vacuum Fluorescent Display spectrum analyzer. Features a studio-grade "Peak Hold" logic that perfectly snaps to the physical LED grid gaps.
+*   **3D Helix Copperbars:** Rasterbars orbit each other using true 3D Z-buffer sorting and depth shading. Features historic scanline quantization and color banding (12-bit Amiga OCS, 9-bit Atari ST, chunky 16-color C64).
+*   **Tactile Hardware UI:** Volume and timeline sliders are designed as deeply recessed, shadow-milled hardware grooves. The track selector mimics an authentic 90s DOS/Tracker terminal with inverted-color block selection and a blinking hardware cursor.
+*   **DSP Debug HUD:** A real-time debugger showing register matrices, custom state LEDs (like the Amiga power-filter LED or YM Digidrum activity), and sparkline mini-scopes per channel.
+*   **Pure Audio (ECO) Mode:** Completely halts the Canvas loop, pauses all CSS animations, and locks the screen wake state to save battery on mobile devices while continuing pure AudioWorklet synthesis.
 
 ## 🎛️ Core Emulation Features
 
@@ -40,14 +54,8 @@ This project is a love letter to the audio wizards of the 80s and 90s — legend
 *   **Combinational Envelope Logic:** Renders the 5-bit envelope without artificial "flat-spot" loop delays at the peaks and troughs.
 *   **Atari ST Motherboard RC Filter:** Simulates the thin, biting frequency response of the Atari ST's physical output stage.
 
-### 📺 Visuals & UX
-*   **CRT Vector Oscilloscope:** An analog-looking vector wave with customizable phosphor trail persistence and glowing cathode-ray tube shadow bloom.
-*   **Vector Grid Reticle:** A dashed scope grid to mimic retro hardware oscilloscopes and lab equipment.
-*   **DSP Debug HUD:** A real-time debugger showing register matrices, custom state LEDs (like the Amiga power-filter LED or YM Digidrum activity), and sparkline mini-scopes per channel.
-*   **Pure Audio (ECO) Mode:** Halts the WebGL/Canvas loop and locks the screen wake state to save battery on mobile devices while continuing pure AudioWorklet synthesis.
-
 ## 🏗️ Architecture
-The engine is highly modular. You can easily plug in new hardware simulator cores or add new binary parsers.
+The engine is highly modular. Visual elements are decoupled into clean ES6 classes and you can easily plug in new hardware simulator cores or add new binary parsers.
 
 ```mermaid
 graph TD
