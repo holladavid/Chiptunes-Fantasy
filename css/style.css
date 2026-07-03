@@ -343,32 +343,46 @@ body.theme-atari .tab-btn.active {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 25px; /* HIER IST DER EXTRA-ABSTAND ZUR TRACKLISTE! */
+    margin-bottom: 25px;
     font-size: calc(var(--font-size-base) * 0.8);
     color: var(--panel-text);
 }
+
 .core-control select {
     flex-grow: 1;
-    background-color: var(--bg-color); /* Dunkler Hintergrund */
-    color: var(--highlight-color);     /* KLARES WEISS für maximalen Kontrast! */
-    border: 2px solid var(--panel-text); /* Fetter Rand wie bei den Buttons */
-    padding: 6px;
+    /* GFX UPGRADE: Physische, in das Gehäuse gefräste LCD-Display Rille */
+    background-color: rgba(0, 0, 0, 0.4); 
+    border: none;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+    color: var(--highlight-color);     
+    padding: 8px 12px;
     font-family: inherit;
     font-size: inherit;
     outline: none;
     cursor: pointer;
     transition: all 0.1s;
+    
+    /* GFX UPGRADE: Native OS-Pfeile ausblenden und eigenen Retro-Pfeil (SVG) setzen */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%23ffffff" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px;
+    padding-right: 35px;
 }
 
 .core-control select:hover, .core-control select:focus {
-    border-color: var(--highlight-color);
+    /* Leichter Glow-Effekt an der unteren Kante bei Interaktion */
+    color: #ffffff;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8), inset 0 -1px 0 rgba(255, 255, 255, 0.15);
 }
 
-/* Die aufgeklappte Liste ebenfalls lesbar machen */
 .core-control select option {
-    background-color: var(--bg-color);
+    background-color: var(--bg-color); /* Ausgeklappt bleibt es im Theme-Design */
     color: var(--highlight-color); 
-    padding: 5px;
+    padding: 8px 5px;
 }
 
 /* Playlist */
