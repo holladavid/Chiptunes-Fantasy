@@ -350,6 +350,11 @@ body.theme-atari .tab-btn.active {
 
 .core-control select {
     flex-grow: 1;
+     /* UI FIX: Verhindert, dass lange Texte den Bildschirm auf Handys sprengen! */
+    min-width: 0; 
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
     /* GFX UPGRADE: Physische, in das Gehäuse gefräste LCD-Display Rille */
     background-color: rgba(0, 0, 0, 0.4); 
     border: none;
