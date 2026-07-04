@@ -6,8 +6,8 @@ No MP3s, no pre-rendered streams — just pure mathematical real-time synthesis 
 
 ---
 
-> **🎉 MILESTONE REACHED: VERSION 1.1.0 [The Demoscene Visuals Update]**  
-> We have officially hit **Version 1.1.0**! After perfecting the audio DSP cores in v1.0, we have completely overhauled the visual engine. The app now features a highly modular, component-based ES6 rendering pipeline bringing physical CRT modeling, segmented VFD analyzers, 3D Glenz vectors, and interactive demoscene easter eggs right into your browser.
+> **🎉 MILESTONE REACHED: VERSION 1.1.1 [The Fine-Tuning Cycle]**  
+> We have officially hit **Version 1.1.1**! Following the visual overhaul in v1.1, this patch cycle brings mathematically perfect 3D phase-staggered helix-coppers, smooth RGB phosphor-blending on the oscilloscope, authentic 12-bit Amiga tab styling, and massive contrast and touch-spacing usability upgrades for our veteran sceners.
 
 ---
 

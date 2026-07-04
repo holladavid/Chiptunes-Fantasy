@@ -481,9 +481,8 @@ function renderCoreSelector(system) {
             meter += (i <= cpuLoad) ? '#' : '-';
         }
         
-        // UI FIX: Sichtbare Punkte (Dot-Leader) statt unsichtbarer Leerzeichen.
-        // Das garantiert 100% Ausrichtung, da Browser sichtbare Zeichen nicht kollabieren.
-        const padCount = maxLen - core.name.length + 3;
+        // damit auf kleinen Handys-Screens mehr vom Core-Namen sichtbar bleibt.
+        const padCount = maxLen - core.name.length + 1;
         const padding = '.'.repeat(padCount);
         
         // Erst Name, dann Punkte, dann CPU-Last
