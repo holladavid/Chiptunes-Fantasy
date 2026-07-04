@@ -2,7 +2,7 @@
 // =========================================================
 // DEMOSCENE-SEQUENCER (DSS) / THE "SCENE-DJ"
 // Zero-Allocation Orchestrator for Dynamic Visual Choreographies
-// Includes Tension-Meter Integration & Real-Time Climax Holds
+// Includes System-Themed "LIMIT BREAK" Tension Meter
 // =========================================================
 
 const Z_ORDER = {
@@ -14,8 +14,6 @@ const Z_ORDER = {
 
 const MIN_BUILDUP_TIME = 0.5;
 const TRANSITION_TIME = 1.5; 
-
-// Der Schwellenwert für die integrierte Energie (das "Fass", das überlaufen muss)
 const TENSION_MAX = 20.0; 
 
 export class SceneDJ {
@@ -38,8 +36,8 @@ export class SceneDJ {
         
         this.energyStateTimer = 0.0;
         this.currentEnergyState = 'Playing'; 
+        this.rawEnergyState = 'Playing';
 
-        // --- NEU: Tension Meter & Smart Climax Lock ---
         this.tension = 0.0;
         this.climaxTimer = 0.0;
         this.isClimaxLocked = false;
@@ -76,6 +74,7 @@ export class SceneDJ {
         this.activeDSEs.sort((a, b) => Z_ORDER[a.placementType] - Z_ORDER[b.placementType]);
         
         this.currentEnergyState = 'Playing';
+        this.rawEnergyState = 'Playing';
         this.energyStateTimer = 0.0;
         this.tension = 0.0;
         this.isClimaxLocked = false;
@@ -125,62 +124,46 @@ export class SceneDJ {
         const energy = this.masterEnergy[0];
         const pulse = this.transientPulse[0];
         
-        // 1. Raw State aus dem Echtzeit-Pegel
         let rawState = 'Playing';
         if (energy > 0.60 && pulse > 0.4) {
             rawState = 'Climax';
         } else if (energy > 0.45) {
             rawState = 'Buildup';
         }
-
+        
+        this.rawEnergyState = rawState;
         let targetEnergyState = this.currentEnergyState;
 
-        // 2. Integration (Tension) & Lock-Logik
         if (rawState === 'Playing') {
-            // Track macht gerade Pause -> Climax rigoros beenden, Spannung schnell abbauen
             this.isClimaxLocked = false;
             this.tension = Math.max(0.0, this.tension - (dt * 5.0)); 
-            
-            if (this.energyStateTimer > MIN_BUILDUP_TIME) {
-                targetEnergyState = 'Playing';
-            }
+            if (this.energyStateTimer > MIN_BUILDUP_TIME) targetEnergyState = 'Playing';
         } else {
-            // Track ist laut (Buildup oder Echtzeit-Climax)
             if (rawState === 'Climax') {
-                // Der Track ist von sich aus auf Climax-Niveau!
                 this.isClimaxLocked = true;
-                this.climaxTimer = 0.0; // Reset Hold-Timer! Solange es knallt, tickt die Uhr nicht!
-                this.tension = 0.0;     // Spannung entlädt sich
-                
+                this.climaxTimer = 0.0; 
+                this.tension = 0.0;     
                 this.currentClimaxHoldTime = this.activeDSEs.length > 0 
-                    ? Math.max(...this.activeDSEs.map(d => d.climaxHoldTime || 10.0)) 
-                    : 10.0;
+                    ? Math.max(...this.activeDSEs.map(d => d.climaxHoldTime || 10.0)) : 10.0;
             } else if (rawState === 'Buildup') {
                 if (!this.isClimaxLocked) {
-                    // Wir sind im Buildup: Energie und Transienten stauen sich auf
-                    // Pulse wird stärker gewichtet als rohe Lautstärke
                     let power = (energy * 0.5) + (pulse * 2.0); 
                     this.tension += power * dt;
 
-                    // Ist das Fass voll?
                     if (this.tension >= TENSION_MAX) {
                         this.isClimaxLocked = true;
                         this.climaxTimer = 0.0;
-                        this.tension = 0.0; // Reset nach Entladung
-                        
+                        this.tension = 0.0; 
                         this.currentClimaxHoldTime = this.activeDSEs.length > 0 
-                            ? Math.max(...this.activeDSEs.map(d => d.climaxHoldTime || 10.0)) 
-                            : 10.0;
+                            ? Math.max(...this.activeDSEs.map(d => d.climaxHoldTime || 10.0)) : 10.0;
                     } else if (this.currentEnergyState === 'Playing' && this.energyStateTimer > MIN_BUILDUP_TIME) {
                         targetEnergyState = 'Buildup';
                     }
                 }
             }
 
-            // Auswertung des Locks
             if (this.isClimaxLocked) {
                 targetEnergyState = 'Climax';
-                // Nur wenn der Track WIEDER im Buildup ist, fängt die "Hold-Time" (Nachbrenn-Zeit) an zu laufen
                 if (rawState === 'Buildup') {
                     this.climaxTimer += dt;
                     if (this.climaxTimer >= this.currentClimaxHoldTime) {
@@ -194,13 +177,11 @@ export class SceneDJ {
             }
         }
 
-        // 3. Globalen State übernehmen
         if (this.currentEnergyState !== targetEnergyState) {
             this.currentEnergyState = targetEnergyState;
             this.energyStateTimer = 0.0;
         }
 
-        // 4. DSE-spezifische Updates
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
             dse.stateTime += dt;
@@ -227,9 +208,7 @@ export class SceneDJ {
 
     render(ctx, width, height, t, channelVolumes) {
         let dt = 0.016; 
-        if (this.lastTime !== 0) {
-            dt = t - this.lastTime;
-        }
+        if (this.lastTime !== 0) dt = t - this.lastTime;
         this.lastTime = t;
 
         this.analyzeEnergy(channelVolumes, dt);
@@ -241,71 +220,109 @@ export class SceneDJ {
         }
 
         // =========================================================
-        // TEMPORARY DEBUG HUD (Energy, State & Timers)
+        // LIMIT BREAK TENSION METER (System-Themed)
         // =========================================================
-        const padding = 15;
-        const lineH = 20;
-        const activeTextCount = this.activeDSEs.length;
-        
-        const boxH = 110 + (activeTextCount * lineH);
-        const boxW = 260;
-        const boxX = 15;
-        const boxY = height - boxH - 15;
+        const w = 240;
+        const h = 18;
+        const x = 20;
+        const y = height - h - 20;
 
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1;
+        let pct = this.tension / TENSION_MAX;
+        let isFlashing = false;
 
-        ctx.fillRect(boxX, boxY, boxW, boxH);
-        ctx.strokeRect(boxX, boxY, boxW, boxH);
-
-        ctx.font = '12px "VT323", monospace';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-
-        let textY = boxY + padding;
-
-        if (this.currentEnergyState === 'Climax') ctx.fillStyle = '#ff3333';
-        else if (this.currentEnergyState === 'Buildup') ctx.fillStyle = '#ffff33';
-        else ctx.fillStyle = '#33ff33';
-
-        // Anzeige des Haupt-States UND der aktuellen Timer (Climax-Hold vs Tension Meter)
-        let timerInfo = "";
-        if (this.isClimaxLocked) {
-            timerInfo = `(HOLD: ${(this.currentClimaxHoldTime - this.climaxTimer).toFixed(1)}s)`;
-        } else if (this.currentEnergyState === 'Buildup') {
-            let pct = Math.floor((this.tension / TENSION_MAX) * 100);
-            timerInfo = `(TENSION: ${pct}%)`;
+        // Prozent-Kalkulation & Flashing-Logik
+        if (this.currentEnergyState === 'Climax') {
+            if (this.rawEnergyState === 'Climax') {
+                pct = 1.0;
+                isFlashing = (performance.now() % 150 < 75); // Schnelles Blinken
+            } else if (this.isClimaxLocked) {
+                // Balken läuft sanft rückwärts ab (Hold-Time)
+                pct = Math.max(0.0, 1.0 - (this.climaxTimer / this.currentClimaxHoldTime));
+                isFlashing = (pct > 0.85) && (performance.now() % 300 < 150); // Langsames Blinken
+            }
         }
-        
-        ctx.fillText(`DJ STATE : [ ${this.currentEnergyState.toUpperCase()} ] ${timerInfo}`, boxX + 10, textY);
-        
-        textY += lineH;
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(`ENERGY   : ${this.masterEnergy[0].toFixed(3)}`, boxX + 10, textY);
-        ctx.fillStyle = '#444444';
-        ctx.fillRect(boxX + 90, textY + 2, 150, 8);
-        ctx.fillStyle = '#ffff33'; 
-        ctx.fillRect(boxX + 90, textY + 2, Math.min(1.0, this.masterEnergy[0]) * 150, 8);
+        pct = Math.max(0, Math.min(1.0, pct));
 
-        textY += lineH;
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(`PULSE    : ${this.transientPulse[0].toFixed(3)}`, boxX + 10, textY);
-        ctx.fillStyle = '#444444';
-        ctx.fillRect(boxX + 90, textY + 2, 150, 8);
-        ctx.fillStyle = '#ff3333'; 
-        ctx.fillRect(boxX + 90, textY + 2, Math.min(1.0, this.transientPulse[0]) * 150, 8);
+        // System-Weiche für das Rendern
+        if (this.currentSystem === 'c64') {
+            // --- C64 STYLE: Klobige Segmente, original VIC-II Palette ---
+            ctx.fillStyle = '#352879'; // Dark Blue Border
+            ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+            ctx.fillStyle = '#000000'; // Inner Bg
+            ctx.fillRect(x, y, w, h);
 
-        textY += lineH + 10;
-        ctx.fillStyle = '#6c5eb5'; 
-        ctx.fillText(`ACTIVE DSE CLASSES:`, boxX + 10, textY);
+            let segCount = 20;
+            let gap = 2;
+            let segW = (w / segCount) - gap;
+            let activeSegs = Math.floor(pct * segCount);
 
-        ctx.fillStyle = '#ffffff';
-        for (let i = 0; i < this.activeDSEs.length; i++) {
-            textY += lineH;
-            let dse = this.activeDSEs[i];
-            let className = dse.constructor.name;
-            ctx.fillText(`> ${className} [${dse.state}]`, boxX + 10, textY);
+            for (let i = 0; i < activeSegs; i++) {
+                // Von Hellblau zu Weiß zu Hellrot
+                ctx.fillStyle = i > 15 ? '#ff8a8a' : (i > 10 ? '#ffffff' : '#6c5eb5');
+                if (isFlashing) ctx.fillStyle = '#ffffff';
+                ctx.fillRect(x + 1 + i * (segW + gap), y + 2, segW, h - 4);
+            }
+
+            ctx.font = '10px "Press Start 2P", monospace';
+            ctx.fillStyle = isFlashing ? '#ffffff' : '#6c5eb5';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText("LIMIT BREAK", x, y - 6);
+
+        } else if (this.currentSystem === 'amiga') {
+            // --- AMIGA STYLE: ProTracker 3D-Bevel mit Copper-Gradient ---
+            ctx.fillStyle = '#ffffff'; // Top/Left Highlight
+            ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+            ctx.fillStyle = '#000000'; // Bottom/Right Shadow
+            ctx.fillRect(x - 1, y - 1, w + 3, h + 3);
+            ctx.fillStyle = '#aaaaaa'; // Base Bevel
+            ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+            ctx.fillStyle = '#000000'; // Inner Track
+            ctx.fillRect(x, y, w, h);
+
+            if (pct > 0) {
+                let grad = ctx.createLinearGradient(x, y, x + w, y);
+                grad.addColorStop(0.0, '#002288');
+                grad.addColorStop(0.5, '#ff8800'); // Amiga Orange
+                grad.addColorStop(1.0, '#ff0000');
+                
+                ctx.fillStyle = isFlashing ? '#ffffff' : grad;
+                ctx.fillRect(x + 1, y + 1, (w - 2) * pct, h - 2);
+            }
+
+            ctx.font = '18px "VT323", monospace';
+            ctx.fillStyle = isFlashing ? '#ffffff' : '#ff8800';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            // Kleiner 1px Drop-Shadow für den klassischen Amiga-Text-Look
+            ctx.shadowColor = '#000000';
+            ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1;
+            ctx.fillText("SYSTEM OVERDRIVE", x, y - 4);
+            ctx.shadowColor = 'transparent';
+
+        } else {
+            // --- ATARI ST STYLE: Hartscharfer Neon-Rahmen (Delta Force Style) ---
+            ctx.strokeStyle = '#55ff55';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(x - 1, y - 1, w + 2, h + 2);
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(x, y, w, h);
+
+            if (pct > 0) {
+                let grad = ctx.createLinearGradient(x, y, x + w, y);
+                grad.addColorStop(0.0, '#00aa00');
+                grad.addColorStop(0.6, '#ffff33');
+                grad.addColorStop(1.0, '#ff3333');
+                
+                ctx.fillStyle = isFlashing ? '#ff3333' : grad;
+                ctx.fillRect(x, y, w * pct, h);
+            }
+
+            ctx.font = '18px "VT323", monospace';
+            ctx.fillStyle = isFlashing ? '#ff3333' : '#55ff55';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText("TENSION LEVEL", x, y - 4);
         }
     }
 }
