@@ -12,6 +12,8 @@ export class C64Starfield {
             y: (Math.random() - 0.5) * 2000,
             z: Math.random() * 1000 + 10
         }));
+
+        this.smoothedWarp = 2.0;
     }
 
     resize(width, height) {}
@@ -20,20 +22,23 @@ export class C64Starfield {
         if (state === 'Idle') return;
 
         let globalAlpha = 1.0;
-        let warpSpeed = 2 + (metrics.energy[0] * 16); 
+        let targetWarp = 2 + (metrics.energy[0] * 16); 
 
         if (state === 'Starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
-            warpSpeed *= globalAlpha;
+            targetWarp *= globalAlpha;
         } else if (state === 'Stopping') {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
-            warpSpeed *= globalAlpha;
+            targetWarp *= globalAlpha;
         } else if (state === 'Buildup') {
-            warpSpeed *= 1.5;
+            targetWarp *= 1.5;
         } else if (state === 'Climax') {
-            warpSpeed *= 2.5 + (metrics.pulse[0] * 2.0); // Transienten-Warp
+            targetWarp *= 2.5 + (metrics.pulse[0] * 2.0); 
             globalAlpha = 0.8 + (metrics.pulse[0] * 0.2);
         }
+
+        // Warp-Speed sanft glätten, um harte Längen-Sprünge der Sterne zu verhindern
+        this.smoothedWarp += (targetWarp - this.smoothedWarp) * 0.1;
 
         ctx.globalAlpha = globalAlpha;
         ctx.lineCap = 'square'; 
@@ -46,7 +51,7 @@ export class C64Starfield {
             let star = this.stars[i];
             const prevZ = star.z;
             
-            star.z -= warpSpeed;
+            star.z -= this.smoothedWarp;
             if (star.z <= 6) {
                 star.z = 1000;
                 star.x = (Math.random() - 0.5) * 2000;
@@ -60,11 +65,11 @@ export class C64Starfield {
             const prevPx = Math.floor(cx + (star.x / prevZ) * fov);
             const prevPy = Math.floor(cy + (star.y / prevZ) * fov);
 
-            let starColor = '#444444'; // VIC-II #11
-            if (curZ < 200) starColor = '#ffffff'; // #01
-            else if (curZ < 400) starColor = '#b5b5b5'; // #15
-            else if (curZ < 650) starColor = '#6c5eb5'; // #14
-            else if (curZ < 850) starColor = '#7a7a7a'; // #12
+            let starColor = '#444444'; 
+            if (curZ < 200) starColor = '#ffffff'; 
+            else if (curZ < 400) starColor = '#b5b5b5'; 
+            else if (curZ < 650) starColor = '#6c5eb5'; 
+            else if (curZ < 850) starColor = '#7a7a7a'; 
 
             ctx.strokeStyle = starColor;
             ctx.fillStyle = starColor;

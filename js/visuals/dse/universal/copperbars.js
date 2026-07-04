@@ -10,16 +10,20 @@ export class Copperbars {
         this.heightWeights = [0.24, 0.24, 0.24, 0.24];
         this.colorCache = {};
         
-        // Zero-Allocation Z-Sorting Array
         this.barsToDraw = [
             { y: 0, h: 0, vol: 0, z: 0, pal: null },
             { y: 0, h: 0, vol: 0, z: 0, pal: null },
             { y: 0, h: 0, vol: 0, z: 0, pal: null },
             { y: 0, h: 0, vol: 0, z: 0, pal: null }
         ];
+
+        // NEU: Für flüssige State-Übergänge
+        this.lastT = 0;
+        this.internalT = 0;
+        this.smoothedSpeed = 1.0;
     }
 
-    hexToRgb(hex) {
+    hexToRgb(hex) { /* ... bleibt identisch ... */ 
         if (this.colorCache[hex]) return this.colorCache[hex];
         const r = parseInt(hex.substring(1, 3), 16);
         const g = parseInt(hex.substring(3, 5), 16);
@@ -30,47 +34,20 @@ export class Copperbars {
     }
 
     drawCopperbar(ctx, w, y, height, volume, hexStart, hexEnd, scanlineHeight, colorBitShift, z, globalAlpha) {
+        /* ... bleibt komplett identisch ... */
         if (volume <= 0.01 || height <= 0 || globalAlpha <= 0.01) return;
-        
-        const cS = this.hexToRgb(hexStart);
-        const cE = this.hexToRgb(hexEnd);
-        const cBlk = [0, 0, 0];
-        const cWht = [255, 255, 255];
-        
+        const cS = this.hexToRgb(hexStart), cE = this.hexToRgb(hexEnd), cBlk = [0, 0, 0], cWht = [255, 255, 255];
         const steps = Math.max(1, Math.floor(height / scanlineHeight));
         const depthFactor = 0.82 + (z * 0.18); 
-
         ctx.globalAlpha = globalAlpha;
 
         for(let i = 0; i <= steps; i++) {
-            let t = i / steps; 
-            let r, g, b;
-            
-            if (t < 0.18) {
-                let n = t / 0.18;
-                r = cBlk[0] + (cS[0] - cBlk[0]) * n;
-                g = cBlk[1] + (cS[1] - cBlk[1]) * n;
-                b = cBlk[2] + (cBlk[2] - cBlk[2]) * n; 
-            } else if (t < 0.5) {
-                let n = (t - 0.18) / 0.32;
-                r = cS[0] + (cWht[0] - cS[0]) * n;
-                g = cS[1] + (cWht[1] - cS[1]) * n;
-                b = cS[2] + (cWht[2] - cS[2]) * n;
-            } else if (t < 0.82) {
-                let n = (t - 0.5) / 0.32;
-                r = cWht[0] + (cE[0] - cWht[0]) * n;
-                g = cWht[1] + (cE[1] - cWht[1]) * n;
-                b = cWht[2] + (cE[2] - cWht[2]) * n;
-            } else {
-                let n = (t - 0.82) / 0.18;
-                r = cE[0] + (cBlk[0] - cE[0]) * n;
-                g = cE[1] + (cBlk[1] - cE[1]) * n;
-                b = cE[2] + (cBlk[2] - cE[2]) * n;
-            }
-            
-            r *= depthFactor;
-            g *= depthFactor;
-            b *= depthFactor;
+            let t = i / steps; let r, g, b;
+            if (t < 0.18) { let n = t / 0.18; r = cBlk[0] + (cS[0] - cBlk[0]) * n; g = cBlk[1] + (cS[1] - cBlk[1]) * n; b = cBlk[2] + (cBlk[2] - cBlk[2]) * n; } 
+            else if (t < 0.5) { let n = (t - 0.18) / 0.32; r = cS[0] + (cWht[0] - cS[0]) * n; g = cS[1] + (cWht[1] - cS[1]) * n; b = cS[2] + (cWht[2] - cS[2]) * n; } 
+            else if (t < 0.82) { let n = (t - 0.5) / 0.32; r = cWht[0] + (cE[0] - cWht[0]) * n; g = cWht[1] + (cE[1] - cWht[1]) * n; b = cWht[2] + (cE[2] - cWht[2]) * n; } 
+            else { let n = (t - 0.82) / 0.18; r = cE[0] + (cBlk[0] - cE[0]) * n; g = cE[1] + (cBlk[1] - cE[1]) * n; b = cE[2] + (cBlk[2] - cE[2]) * n; }
+            r *= depthFactor; g *= depthFactor; b *= depthFactor;
 
             let mask = (0xFF >> colorBitShift) << colorBitShift;
             let r_q = (r | 0) & mask; r_q |= (r_q >> (8 - colorBitShift));
@@ -78,8 +55,7 @@ export class Copperbars {
             let b_q = (b | 0) & mask; b_q |= (b_q >> (8 - colorBitShift));
             
             ctx.fillStyle = `rgb(${r_q}, ${g_q}, ${b_q})`;
-            let drawY = Math.floor(y + i * scanlineHeight);
-            ctx.fillRect(0, drawY, w, scanlineHeight);
+            ctx.fillRect(0, Math.floor(y + i * scanlineHeight), w, scanlineHeight);
         }
         ctx.globalAlpha = 1.0; 
     }
@@ -87,7 +63,10 @@ export class Copperbars {
     resize(width, height) {}
 
     render(ctx, width, height, t, state, stateTime, metrics) {
-        if (state === 'Idle') return;
+        if (state === 'Idle') { this.lastT = t; return; }
+
+        let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
+        this.lastT = t;
 
         const isAmiga = document.body.classList.contains('theme-amiga');
         const isAtari = document.body.classList.contains('theme-atari');
@@ -101,14 +80,11 @@ export class Copperbars {
             isAmiga ? ['#111111', '#888888'] : []
         ];
 
-        let scanlineHeight = 4;
-        let colorBitShift = 4; 
-        
-        if (isAtari) colorBitShift = 5; 
-        else if (isC64) { scanlineHeight = 8; colorBitShift = 6; }
+        let scanlineHeight = isC64 ? 8 : 4;
+        let colorBitShift = isAtari ? 5 : (isC64 ? 6 : 4);
 
         let globalAlpha = 1.0;
-        let speedMultiplier = 1.0;
+        let targetSpeed = 1.0;
         let amplitudeMultiplier = 1.0;
 
         if (state === 'Starting') {
@@ -118,20 +94,27 @@ export class Copperbars {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
             amplitudeMultiplier = globalAlpha;
         } else if (state === 'Buildup') {
-            speedMultiplier = 1.5;
+            targetSpeed = 1.5;
         } else if (state === 'Climax') {
-            speedMultiplier = 2.0; 
+            targetSpeed = 2.0; 
             globalAlpha = 0.8 + (metrics.pulse[0] * 0.2); 
         }
 
-        const baseSpeed = 0.55 * speedMultiplier; 
+        // =========================================================
+        // MATHEMATISCHER FIX: Smooth Integration
+        // Verhindert Phasen-Sprüngen bei schnellen State-Wechseln
+        // =========================================================
+        this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * 0.05;
+        this.internalT += dt * this.smoothedSpeed;
+
+        const baseSpeed = 0.55; 
         const phaseStep = (Math.PI * 2) / numBars; 
 
         for (let c = 0; c < numBars; c++) {
             const smoothVol = metrics.smooth[c]; 
             const punch = smoothVol * 40; 
             const amplitude = (height * this.heightWeights[c]) * amplitudeMultiplier;
-            const angle = (t * baseSpeed) + (c * phaseStep);
+            const angle = (this.internalT * baseSpeed) + (c * phaseStep);
             
             let yCenter = (height / 2);
             yCenter += Math.sin(angle) * amplitude;

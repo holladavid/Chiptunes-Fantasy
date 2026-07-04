@@ -20,20 +20,26 @@ export class AmigaCube {
             { idxs: [5, 1, 2, 6], baseColor: [0, 204, 255] }
         ];
 
-        // Zero-Allocation Pre-Arrays
         this.rotated = Array(8).fill(null).map(() => ({x: 0, y: 0, z: 0}));
         this.projected = Array(8).fill(null).map(() => ({x: 0, y: 0}));
         this.facesToDraw = Array(6).fill(null).map(() => ({idxs: null, r: 0, g: 0, b: 0, z: 0, isBackface: false}));
+
+        this.lastT = 0;
+        this.internalT = 0;
+        this.smoothedSpeed = 1.0;
     }
 
     resize(width, height) {}
 
     render(ctx, width, height, t, state, stateTime, metrics) {
-        if (state === 'Idle') return;
+        if (state === 'Idle') { this.lastT = t; return; }
+        
+        let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
+        this.lastT = t;
 
         let globalAlpha = 1.0;
         let scaleMultiplier = 1.0;
-        let speedMultiplier = 1.0;
+        let targetSpeed = 1.0;
 
         if (state === 'Starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
@@ -42,25 +48,27 @@ export class AmigaCube {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
             scaleMultiplier = globalAlpha;
         } else if (state === 'Buildup') {
-            speedMultiplier = 1.5;
+            targetSpeed = 1.5;
         } else if (state === 'Climax') {
-            speedMultiplier = 2.5;
-            scaleMultiplier = 1.0 + (metrics.pulse[0] * 0.4); // Wobbelt aggressiv zum Beat
+            targetSpeed = 2.5;
+            scaleMultiplier = 1.0 + (metrics.pulse[0] * 0.4); 
             globalAlpha = 0.8 + (metrics.pulse[0] * 0.2);
         }
+
+        this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * 0.05;
+        this.internalT += dt * this.smoothedSpeed;
 
         ctx.globalAlpha = globalAlpha;
 
         const cx = width / 2;
         const cy = height / 2;
         
-        const rx = t * 0.8 * speedMultiplier;
-        const ry = t * 1.2 * speedMultiplier;
-        const rz = t * 0.5 * speedMultiplier;
+        const rx = this.internalT * 0.8;
+        const ry = this.internalT * 1.2;
+        const rz = this.internalT * 0.5;
         
-        const scale = (110 + Math.sin(t * 0.75) * 20) * scaleMultiplier;
+        const scale = (110 + Math.sin(this.internalT * 0.75) * 20) * scaleMultiplier;
         
-        // 1. Rotation
         for (let i = 0; i < 8; i++) {
             let x = this.cubeVertices[i][0], y = this.cubeVertices[i][1], z = this.cubeVertices[i][2];
             let y1 = y * Math.cos(rx) - z * Math.sin(rx);
@@ -69,11 +77,9 @@ export class AmigaCube {
             let z2 = -x * Math.sin(ry) + z1 * Math.cos(ry);
             let x3 = x2 * Math.cos(rz) - y1 * Math.sin(rz);
             let y3 = x2 * Math.sin(rz) + y1 * Math.cos(rz);
-            
             this.rotated[i].x = x3; this.rotated[i].y = y3; this.rotated[i].z = z2;
         }
 
-        // 2. Projektion
         const fov = 400;
         for (let i = 0; i < 8; i++) {
             const zOff = this.rotated[i].z + 4.0; 
@@ -81,7 +87,6 @@ export class AmigaCube {
             this.projected[i].y = cy + (this.rotated[i].y * fov) / zOff * (scale / 100);
         }
 
-        // 3. Shading & Culling
         const lx = 0.5, ly = -0.5, lz = -0.7;
         const lLen = Math.sqrt(lx*lx + ly*ly + lz*lz);
         const nlx = lx / lLen, nly = ly / lLen, nlz = lz / lLen;
@@ -108,18 +113,15 @@ export class AmigaCube {
             const vLen = Math.sqrt(p0.x*p0.x + p0.y*p0.y + (p0.z + 4.0)*(p0.z + 4.0));
             const nvx = p0.x / vLen, nvy = p0.y / vLen, nvz = (p0.z + 4.0) / vLen;
 
-            const dotCull = nx * nvx + ny * nvy + nz * nvz;
-            
             let f = this.facesToDraw[i];
             f.idxs = idxs;
             f.r = Math.round(faceDef.baseColor[0] * brightness);
             f.g = Math.round(faceDef.baseColor[1] * brightness);
             f.b = Math.round(faceDef.baseColor[2] * brightness);
             f.z = zCentroid;
-            f.isBackface = (dotCull >= 0);
+            f.isBackface = (nx * nvx + ny * nvy + nz * nvz >= 0);
         }
 
-        // 4. In-Place Sort & Draw
         this.facesToDraw.sort((a, b) => b.z - a.z);
 
         for (let i = 0; i < 6; i++) {
@@ -147,7 +149,6 @@ export class AmigaCube {
                 ctx.stroke();
             }
         }
-
         ctx.globalAlpha = 1.0;
     }
 }

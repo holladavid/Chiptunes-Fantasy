@@ -9,7 +9,6 @@ export class AtariBobs {
         this.numBobs = 45;
         this.bobSize = 32; 
         
-        // Pre-Rendered Sprite (Zero-Allocation on execution)
         this.bobCanvas = document.createElement('canvas');
         this.bobCanvas.width = this.bobSize;
         this.bobCanvas.height = this.bobSize;
@@ -28,15 +27,22 @@ export class AtariBobs {
         bCtx.beginPath();
         bCtx.arc(cx, cy, this.bobSize / 2, 0, Math.PI * 2);
         bCtx.fill();
+
+        this.lastT = 0;
+        this.internalT = 0;
+        this.smoothedSpeed = 1.0;
     }
 
     resize(width, height) {}
 
     render(ctx, width, height, t, state, stateTime, metrics) {
-        if (state === 'Idle') return;
+        if (state === 'Idle') { this.lastT = t; return; }
+
+        let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
+        this.lastT = t;
 
         let globalAlpha = 1.0;
-        let speedMultiplier = 1.0;
+        let targetSpeed = 1.0;
         let scaleMultiplier = 1.0;
 
         if (state === 'Starting') {
@@ -46,30 +52,31 @@ export class AtariBobs {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
             scaleMultiplier = globalAlpha;
         } else if (state === 'Buildup') {
-            speedMultiplier = 1.5;
+            targetSpeed = 1.5;
         } else if (state === 'Climax') {
-            speedMultiplier = 2.0;
+            targetSpeed = 2.0;
             globalAlpha = 0.8 + (metrics.pulse[0] * 0.2);
-            scaleMultiplier = 1.0 + (metrics.pulse[0] * 0.5); // Die Bobs werden dicker beim Beat
+            scaleMultiplier = 1.0 + (metrics.pulse[0] * 0.5); 
         }
+
+        this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * 0.05;
+        this.internalT += dt * this.smoothedSpeed;
 
         ctx.globalAlpha = globalAlpha;
 
         const cx = width / 2;
         const cy = height / 2;
         
-        const radiusX = (width * 0.25) * (1.0 + Math.sin(t * 0.4) * 0.25) * scaleMultiplier;
-        const radiusY = (height * 0.3) * (1.0 + Math.cos(t * 0.5) * 0.2) * scaleMultiplier;
+        const radiusX = (width * 0.25) * (1.0 + Math.sin(this.internalT * 0.4) * 0.25) * scaleMultiplier;
+        const radiusY = (height * 0.3) * (1.0 + Math.cos(this.internalT * 0.5) * 0.2) * scaleMultiplier;
         
         const phaseStep = (Math.PI * 2) / this.numBobs;
         
         for (let i = 0; i < this.numBobs; i++) {
             const phase = i * phaseStep;
-            
-            const x = cx + Math.sin(t * 1.4 * speedMultiplier + phase) * radiusX;
-            const y = cy + Math.sin(t * 2.1 * speedMultiplier + phase) * Math.cos(t * 1.1 * speedMultiplier + phase) * radiusY;
-            
-            const size = (16 + Math.sin(t * 3.5 + phase) * 8) * scaleMultiplier;
+            const x = cx + Math.sin(this.internalT * 1.4 + phase) * radiusX;
+            const y = cy + Math.sin(this.internalT * 2.1 + phase) * Math.cos(this.internalT * 1.1 + phase) * radiusY;
+            const size = (16 + Math.sin(this.internalT * 3.5 + phase) * 8) * scaleMultiplier;
             
             ctx.drawImage(this.bobCanvas, x - size / 2, y - size / 2, size, size);
         }

@@ -70,7 +70,6 @@ export class SceneDJ {
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
             if (!dse.computerType.includes(newSystem) && !dse.computerType.includes('all')) {
-                // Wir setzen sie sofort auf Idle, um visuelle Glitches bei Core-Resets zu vermeiden
                 dse.state = 'Idle';
                 dse.stateTime = 0.0;
                 this.activeDSEs.splice(i, 1);
@@ -78,19 +77,17 @@ export class SceneDJ {
         }
 
         // 2. Passende DSEs für das neue System finden und starten
-        // (Vorerst starten wir das erste passende Gimmick, das wir finden)
         for (let i = 0; i < this.registeredDSEs.length; i++) {
             let dse = this.registeredDSEs[i];
             if ((dse.computerType.includes(newSystem) || dse.computerType.includes('all')) && dse.state === 'Idle') {
                 dse.state = 'Starting';
                 dse.stateTime = 0.0;
                 this.activeDSEs.push(dse);
-                
-                // Active-Array sofort nach Z-Order sortieren
-                this.activeDSEs.sort((a, b) => Z_ORDER[a.placementType] - Z_ORDER[b.placementType]);
-                break; // In v1.2.0 nur ein Gimmick pro System
             }
         }
+        
+        // 3. Active-Array nach dem Einfügen aller Elemente nach Z-Order sortieren
+        this.activeDSEs.sort((a, b) => Z_ORDER[a.placementType] - Z_ORDER[b.placementType]);
         
         // Reset Energy State
         this.currentEnergyState = 'Playing';
