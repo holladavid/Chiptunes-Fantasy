@@ -209,7 +209,7 @@ export class SceneDJ {
         }
     }
 
-    /**
+/**
      * Haupt-Render-Schleife. Wird von visualizer.js aufgerufen.
      */
     render(ctx, width, height, t, channelVolumes) {
@@ -230,5 +230,44 @@ export class SceneDJ {
             // Unified DSE Render Call
             dse.render(ctx, width, height, t, dse.state, dse.stateTime, this.metrics);
         }
+
+        // =========================================================
+        // TEMPORARY DEBUG HUD (Energy & State)
+        // =========================================================
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        
+        // Kasten oben links
+        ctx.fillRect(10, 10, 240, 80);
+        ctx.strokeRect(10, 10, 240, 80);
+
+        ctx.font = '12px "VT323", monospace';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+
+        // State-Text Farbe abhängig von der Intensität
+        if (this.currentEnergyState === 'Climax') ctx.fillStyle = '#ff3333';
+        else if (this.currentEnergyState === 'Buildup') ctx.fillStyle = '#ffff33';
+        else ctx.fillStyle = '#33ff33';
+
+        ctx.fillText(`DJ STATE : [ ${this.currentEnergyState.toUpperCase()} ]`, 20, 20);
+
+        // RMS Energy Bar
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(`ENERGY   : ${this.masterEnergy[0].toFixed(3)}`, 20, 40);
+        ctx.fillStyle = '#444444';
+        ctx.fillRect(110, 42, 120, 8);
+        ctx.fillStyle = '#ffff33'; // Gelb für RMS
+        ctx.fillRect(110, 42, Math.min(1.0, this.masterEnergy[0]) * 120, 8);
+
+        // Transient Pulse Bar
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(`PULSE    : ${this.transientPulse[0].toFixed(3)}`, 20, 60);
+        ctx.fillStyle = '#444444';
+        ctx.fillRect(110, 62, 120, 8);
+        ctx.fillStyle = '#ff3333'; // Rot für Transienten (Kick/Snare)
+        ctx.fillRect(110, 62, Math.min(1.0, this.transientPulse[0]) * 120, 8);
+        // =========================================================
     }
 }
