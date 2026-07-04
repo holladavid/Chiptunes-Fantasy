@@ -2,6 +2,7 @@
 // =========================================================
 // DEMOSCENE-SEQUENCER (DSS) / THE "SCENE-DJ"
 // Zero-Allocation Orchestrator for Dynamic Visual Choreographies
+// Includes Tension-Meter Integration & Real-Time Climax Holds
 // =========================================================
 
 const Z_ORDER = {
@@ -13,6 +14,9 @@ const Z_ORDER = {
 
 const MIN_BUILDUP_TIME = 0.5;
 const TRANSITION_TIME = 1.5; 
+
+// Der Schwellenwert für die integrierte Energie (das "Fass", das überlaufen muss)
+const TENSION_MAX = 20.0; 
 
 export class SceneDJ {
     constructor() {
@@ -35,8 +39,8 @@ export class SceneDJ {
         this.energyStateTimer = 0.0;
         this.currentEnergyState = 'Playing'; 
 
-        // --- NEU: Climax Lock & Auto-Trigger Timer ---
-        this.buildupTimer = 0.0;
+        // --- NEU: Tension Meter & Smart Climax Lock ---
+        this.tension = 0.0;
         this.climaxTimer = 0.0;
         this.isClimaxLocked = false;
         this.currentClimaxHoldTime = 10.0;
@@ -71,10 +75,9 @@ export class SceneDJ {
         
         this.activeDSEs.sort((a, b) => Z_ORDER[a.placementType] - Z_ORDER[b.placementType]);
         
-        // Reset System State
         this.currentEnergyState = 'Playing';
         this.energyStateTimer = 0.0;
-        this.buildupTimer = 0.0;
+        this.tension = 0.0;
         this.isClimaxLocked = false;
     }
 
@@ -122,9 +125,8 @@ export class SceneDJ {
         const energy = this.masterEnergy[0];
         const pulse = this.transientPulse[0];
         
-        // 1. Raw State aus dem aktuellen Audio-Frame ermitteln
+        // 1. Raw State aus dem Echtzeit-Pegel
         let rawState = 'Playing';
-        // Wir senken die Climax-Schwelle minimal, damit er öfter von Natur aus feuert
         if (energy > 0.60 && pulse > 0.4) {
             rawState = 'Climax';
         } else if (energy > 0.45) {
@@ -133,64 +135,72 @@ export class SceneDJ {
 
         let targetEnergyState = this.currentEnergyState;
 
-        // 2. Climax Lock & 30s Auto-Trigger Logik
+        // 2. Integration (Tension) & Lock-Logik
         if (rawState === 'Playing') {
-            // Fällt der Track in ein ruhiges Break, heben wir den Climax SOFORT auf
+            // Track macht gerade Pause -> Climax rigoros beenden, Spannung schnell abbauen
             this.isClimaxLocked = false;
-            this.buildupTimer = 0.0;
+            this.tension = Math.max(0.0, this.tension - (dt * 5.0)); 
+            
             if (this.energyStateTimer > MIN_BUILDUP_TIME) {
                 targetEnergyState = 'Playing';
             }
         } else {
-            // Wir sind in einem energetischen Bereich
-            if (rawState === 'Climax' && !this.isClimaxLocked) {
-                // Natürlicher Climax getriggert!
+            // Track ist laut (Buildup oder Echtzeit-Climax)
+            if (rawState === 'Climax') {
+                // Der Track ist von sich aus auf Climax-Niveau!
                 this.isClimaxLocked = true;
-                this.climaxTimer = 0.0;
+                this.climaxTimer = 0.0; // Reset Hold-Timer! Solange es knallt, tickt die Uhr nicht!
+                this.tension = 0.0;     // Spannung entlädt sich
+                
                 this.currentClimaxHoldTime = this.activeDSEs.length > 0 
                     ? Math.max(...this.activeDSEs.map(d => d.climaxHoldTime || 10.0)) 
                     : 10.0;
-            } else if (rawState === 'Buildup' && !this.isClimaxLocked) {
-                // Wir sind im Buildup -> Zähler für den Auto-Climax erhöhen
-                this.buildupTimer += dt;
-                
-                // Nach 30 Sekunden ununterbrochenem Buildup -> Forced Climax!
-                if (this.buildupTimer >= 30.0) {
-                    this.isClimaxLocked = true;
-                    this.climaxTimer = 0.0;
-                    this.currentClimaxHoldTime = this.activeDSEs.length > 0 
-                        ? Math.max(...this.activeDSEs.map(d => d.climaxHoldTime || 10.0)) 
-                        : 10.0;
-                }
-                
-                if (this.currentEnergyState === 'Playing' && this.energyStateTimer > MIN_BUILDUP_TIME) {
-                    targetEnergyState = 'Buildup';
+            } else if (rawState === 'Buildup') {
+                if (!this.isClimaxLocked) {
+                    // Wir sind im Buildup: Energie und Transienten stauen sich auf
+                    // Pulse wird stärker gewichtet als rohe Lautstärke
+                    let power = (energy * 0.5) + (pulse * 2.0); 
+                    this.tension += power * dt;
+
+                    // Ist das Fass voll?
+                    if (this.tension >= TENSION_MAX) {
+                        this.isClimaxLocked = true;
+                        this.climaxTimer = 0.0;
+                        this.tension = 0.0; // Reset nach Entladung
+                        
+                        this.currentClimaxHoldTime = this.activeDSEs.length > 0 
+                            ? Math.max(...this.activeDSEs.map(d => d.climaxHoldTime || 10.0)) 
+                            : 10.0;
+                    } else if (this.currentEnergyState === 'Playing' && this.energyStateTimer > MIN_BUILDUP_TIME) {
+                        targetEnergyState = 'Buildup';
+                    }
                 }
             }
 
-            // Wenn der Climax gelockt ist, überschreibt er alles!
+            // Auswertung des Locks
             if (this.isClimaxLocked) {
                 targetEnergyState = 'Climax';
-                this.climaxTimer += dt;
-                
-                // Hold-Time abgelaufen? Zurück in den Buildup.
-                if (this.climaxTimer >= this.currentClimaxHoldTime) {
-                    this.isClimaxLocked = false;
-                    this.buildupTimer = 0.0; // Reset für die nächsten 30s
-                    targetEnergyState = 'Buildup';
+                // Nur wenn der Track WIEDER im Buildup ist, fängt die "Hold-Time" (Nachbrenn-Zeit) an zu laufen
+                if (rawState === 'Buildup') {
+                    this.climaxTimer += dt;
+                    if (this.climaxTimer >= this.currentClimaxHoldTime) {
+                        this.isClimaxLocked = false;
+                        this.tension = 0.0;
+                        targetEnergyState = 'Buildup';
+                    }
                 }
             } else {
-                if (targetEnergyState === 'Climax') targetEnergyState = 'Buildup'; // Sanfter Fallback
+                if (targetEnergyState === 'Climax') targetEnergyState = 'Buildup';
             }
         }
 
-        // 3. Globalen State übernehmen, falls er sich geändert hat
+        // 3. Globalen State übernehmen
         if (this.currentEnergyState !== targetEnergyState) {
             this.currentEnergyState = targetEnergyState;
             this.energyStateTimer = 0.0;
         }
 
-        // 4. DSE-spezifische State-Machine Updates
+        // 4. DSE-spezifische Updates
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
             dse.stateTime += dt;
@@ -237,7 +247,6 @@ export class SceneDJ {
         const lineH = 20;
         const activeTextCount = this.activeDSEs.length;
         
-        // Etwas mehr Höhe für die Timer-Informationen
         const boxH = 110 + (activeTextCount * lineH);
         const boxW = 260;
         const boxX = 15;
@@ -260,12 +269,13 @@ export class SceneDJ {
         else if (this.currentEnergyState === 'Buildup') ctx.fillStyle = '#ffff33';
         else ctx.fillStyle = '#33ff33';
 
-        // Anzeige des Haupt-States UND der aktuellen Timer (Climax-Hold vs 30s Countdown)
+        // Anzeige des Haupt-States UND der aktuellen Timer (Climax-Hold vs Tension Meter)
         let timerInfo = "";
         if (this.isClimaxLocked) {
             timerInfo = `(HOLD: ${(this.currentClimaxHoldTime - this.climaxTimer).toFixed(1)}s)`;
         } else if (this.currentEnergyState === 'Buildup') {
-            timerInfo = `(AUTO: ${(30.0 - this.buildupTimer).toFixed(1)}s)`;
+            let pct = Math.floor((this.tension / TENSION_MAX) * 100);
+            timerInfo = `(TENSION: ${pct}%)`;
         }
         
         ctx.fillText(`DJ STATE : [ ${this.currentEnergyState.toUpperCase()} ] ${timerInfo}`, boxX + 10, textY);
