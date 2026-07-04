@@ -1,15 +1,13 @@
 // === js/visuals/visualizer.js ===
 // =========================================================
 // HIGH-PERFORMANCE RETROWAVE VISUALIZER MODULE
-// Modular Component Orchestration & Low-Latency Timing
+// Modulare DJ-Orchestrierung & Core UI Trennung (v1.2.0)
 // =========================================================
 
-import { C64Starfield } from './gimmicks/starfield-c64.js';
-import { AmigaCube } from './gimmicks/cube-amiga.js';
-import { AtariBobs } from './gimmicks/bobs-atari.js';
+import { SceneDJ } from './scene-dj.js';
+import { dseRegistry } from './dse/registry.js';
 import { FftAnalyzer } from './components/fft-analyzer.js';
 import { Oscilloscope } from './components/oscilloscope.js';
-import { Copperbars } from './gimmicks/copperbars.js';
 
 export function initVisuals(stateGetters, callbacks) {
     const canvas = document.getElementById('demo-canvas');
@@ -17,27 +15,34 @@ export function initVisuals(stateGetters, callbacks) {
 
     const ctx = canvas.getContext('2d', { alpha: false }); 
 
-    // --- INTERACTIVE GIMMICK STATE & TOGGLE ---
     let showGimmick = false;
     const logo = document.getElementById('brand-logo');
     if (logo) {
         logo.addEventListener('click', () => {
             showGimmick = !showGimmick;
-            if (!showGimmick) {
-                osc.clear(); // Oszilloskop-Datenpuffer beim Umschalten leeren
-            }
+            if (!showGimmick) osc.clear();
             logo.style.filter = 'brightness(2.0)';
             setTimeout(() => logo.style.filter = '', 100);
         });
     }
 
-    // Instanziierung aller gekapselten GFX- und DSP-Komponenten
-    const starfield = new C64Starfield();
-    const cube = new AmigaCube();
-    const bobs = new AtariBobs();
+    // =========================================================
+    // INITIALISIERUNG SCENE-DJ & DSE AUTO-REGISTRATION
+    // =========================================================
+    const dss = new SceneDJ();
+    
+    dseRegistry.forEach(DseClass => {
+        try {
+            const effectInstance = new DseClass();
+            dss.registerDSE(effectInstance);
+        } catch (err) {
+            console.error(`[SCENE-DJ] Failed to register DSE: ${DseClass.name}`, err);
+        }
+    });
+
+    // Core UI (Vom DJ unabhängig)
     const fft = new FftAnalyzer();
     const osc = new Oscilloscope(canvas.width, canvas.height);
-    const coppers = new Copperbars();
 
     function resizeCanvas() {
         const clientWidth = canvas.clientWidth;
@@ -55,7 +60,8 @@ export function initVisuals(stateGetters, callbacks) {
         if (canvas.width !== newWidth || canvas.height !== newHeight) {
             canvas.width = newWidth; 
             canvas.height = newHeight;
-            osc.resize(newWidth, newHeight); // Oszilloskop-Datenpuffer anpassen
+            osc.resize(newWidth, newHeight); 
+            dss.resize(newWidth, newHeight); // Resize ans DSE-Ökosystem leiten
         }
     }
     
@@ -98,7 +104,6 @@ export function initVisuals(stateGetters, callbacks) {
 
         const t = (performance.now() - startTime) * 0.001; 
         
-        // GFX FIX: Hard 50Hz CRT Clear (Keine Glow-Spur / Motion Blur mehr)
         ctx.fillStyle = '#000000'; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
@@ -107,37 +112,21 @@ export function initVisuals(stateGetters, callbacks) {
         const isC64 = document.body.classList.contains('theme-c64');
         const lineColor = isAtari ? '#55ff55' : isAmiga ? '#ff8800' : '#6c5eb5';
         
-        // Rasterlinien ebenfalls ausblenden, wenn das Gimmick läuft!
-        if (!showGimmick) {
-            drawReticle(); 
+        // DSS System-Sync (Meldet dem DJ, wenn der Tab gewechselt wurde)
+        const currentSystem = isAtari ? 'atari' : (isAmiga ? 'amiga' : 'c64');
+        if (dss.currentSystem !== currentSystem) {
+            dss.forceSystemChange(currentSystem);
         }
 
         const channelVolumes = stateGetters.getChannelVolumes ? stateGetters.getChannelVolumes() : [0, 0, 0, 0];
-        let totalVol = 0;
-        for (let i=0; i<4; i++) totalVol += channelVolumes[i] || 0;
-        const avgVol = totalVol / 4.0;
 
-        // --- 1. EASTER EGG INJECTION ---
+        // --- RENDER ROUTING ---
         if (showGimmick) {
-            if (isC64) {
-                // C64: Sternenfeld ganz im Hintergrund, Rasterbars davor!
-                starfield.render(ctx, canvas.width, canvas.height, t, avgVol);
-                coppers.render(ctx, canvas.width, canvas.height, t, channelVolumes);
-            } else {
-                // Amiga/Atari ST: Rasterbars ganz hinten im Hintergrund, 
-                // die Vektorgrafiken (Cube / Bobs) davor im Vordergrund!
-                coppers.render(ctx, canvas.width, canvas.height, t, channelVolumes);
-                
-                if (isAmiga) {
-                    cube.render(ctx, canvas.width, canvas.height, t, channelVolumes[0] || 0);
-                } else if (isAtari) {
-                    bobs.render(ctx, canvas.width, canvas.height, t, avgVol);
-                }
-            }
-        }
-        
-        // --- 3. STANDARD CHANNELS (Nur aktiv wenn Gimmick aus) ---
-        if (!showGimmick) {
+            // Scene-DJ übergibt an DSEs
+            dss.render(ctx, canvas.width, canvas.height, t, channelVolumes);
+        } else {
+            // Core UI Modus (Lab-Scope)
+            drawReticle(); 
             osc.render(ctx, canvas.width, canvas.height, stateGetters, lineColor);
             fft.render(ctx, canvas.width, canvas.height, stateGetters, lineColor);
         }

@@ -1,19 +1,22 @@
-// === js/visuals/gimmicks/copperbars.js ===
-// =========================================================
-// REAL-TIME COPPERBARS (RASTERBARS) COMPONENT
-// Pseudo-3D Z-Buffer Sorting (Helix Orbit) & Depth Shading
-// Symmetrical Phase-Staggering (Non-Clumping DNA Helix)
-// =========================================================
+// === js/visuals/dse/universal/copperbars.js ===
 
 export class Copperbars {
     constructor() {
-        // GFX UPGRADE: Nochmals deutlich (ca. 30%) dünner für eine filigranere Ribbon-Optik
-        // Werte proportional verringert auf: [90, 68, 50, 40]
-        this.baseThickness = [90, 68, 50, 40]; 
+        this.name = '3D Helix Copperbars';
+        this.computerType = ['all']; 
+        this.placementType = 'floor';
         
+        this.baseThickness = [90, 68, 50, 40]; 
         this.heightWeights = [0.24, 0.24, 0.24, 0.24];
         this.colorCache = {};
-        this.smoothedVols = [0, 0, 0, 0];
+        
+        // Zero-Allocation Z-Sorting Array
+        this.barsToDraw = [
+            { y: 0, h: 0, vol: 0, z: 0, pal: null },
+            { y: 0, h: 0, vol: 0, z: 0, pal: null },
+            { y: 0, h: 0, vol: 0, z: 0, pal: null },
+            { y: 0, h: 0, vol: 0, z: 0, pal: null }
+        ];
     }
 
     hexToRgb(hex) {
@@ -26,8 +29,8 @@ export class Copperbars {
         return rgb;
     }
 
-    drawCopperbar(ctx, w, y, height, volume, hexStart, hexEnd, scanlineHeight, colorBitShift, z) {
-        if (volume <= 0.01) return;
+    drawCopperbar(ctx, w, y, height, volume, hexStart, hexEnd, scanlineHeight, colorBitShift, z, globalAlpha) {
+        if (volume <= 0.01 || height <= 0 || globalAlpha <= 0.01) return;
         
         const cS = this.hexToRgb(hexStart);
         const cE = this.hexToRgb(hexEnd);
@@ -36,6 +39,8 @@ export class Copperbars {
         
         const steps = Math.max(1, Math.floor(height / scanlineHeight));
         const depthFactor = 0.82 + (z * 0.18); 
+
+        ctx.globalAlpha = globalAlpha;
 
         for(let i = 0; i <= steps; i++) {
             let t = i / steps; 
@@ -73,13 +78,17 @@ export class Copperbars {
             let b_q = (b | 0) & mask; b_q |= (b_q >> (8 - colorBitShift));
             
             ctx.fillStyle = `rgb(${r_q}, ${g_q}, ${b_q})`;
-            
             let drawY = Math.floor(y + i * scanlineHeight);
             ctx.fillRect(0, drawY, w, scanlineHeight);
         }
+        ctx.globalAlpha = 1.0; 
     }
 
-    render(ctx, width, height, t, channelVolumes) {
+    resize(width, height) {}
+
+    render(ctx, width, height, t, state, stateTime, metrics) {
+        if (state === 'Idle') return;
+
         const isAmiga = document.body.classList.contains('theme-amiga');
         const isAtari = document.body.classList.contains('theme-atari');
         const isC64 = document.body.classList.contains('theme-c64');
@@ -95,70 +104,53 @@ export class Copperbars {
         let scanlineHeight = 4;
         let colorBitShift = 4; 
         
-        if (isAtari) {
-            colorBitShift = 5; 
-        } else if (isC64) {
-            scanlineHeight = 8; 
-            colorBitShift = 6;  
+        if (isAtari) colorBitShift = 5; 
+        else if (isC64) { scanlineHeight = 8; colorBitShift = 6; }
+
+        let globalAlpha = 1.0;
+        let speedMultiplier = 1.0;
+        let amplitudeMultiplier = 1.0;
+
+        if (state === 'Starting') {
+            globalAlpha = Math.min(1.0, stateTime / 1.5);
+            amplitudeMultiplier = globalAlpha;
+        } else if (state === 'Stopping') {
+            globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
+            amplitudeMultiplier = globalAlpha;
+        } else if (state === 'Buildup') {
+            speedMultiplier = 1.5;
+        } else if (state === 'Climax') {
+            speedMultiplier = 2.0; 
+            globalAlpha = 0.8 + (metrics.pulse[0] * 0.2); 
         }
 
-        // =========================================================
-        // DSP UPGRADE: SYMMETRICAL PHASE STAGGERING
-        // Wir takten alle Balken mit exakt derselben majestätischen Geschwindigkeit (0.55).
-        // Der Winkelabstand wird dynamisch geteilt (90° bei Amiga, 120° bei Atari/C64).
-        // Dadurch umkreisen sich die Balken in perfekter Symmetrie ohne Klumpenbildung!
-        // =========================================================
-        const baseSpeed = 0.55; 
-        const phaseStep = (Math.PI * 2) / numBars; // Dynamische Kreisaufteilung
-
-        const barsToDraw = [];
+        const baseSpeed = 0.55 * speedMultiplier; 
+        const phaseStep = (Math.PI * 2) / numBars; 
 
         for (let c = 0; c < numBars; c++) {
-            const rawVol = channelVolumes[c] || 0;
-            
-            // Tight Asymmetric Envelope Follower
-            if (rawVol > this.smoothedVols[c]) {
-                this.smoothedVols[c] += (rawVol - this.smoothedVols[c]) * 0.8;
-            } else {
-                this.smoothedVols[c] += (rawVol - this.smoothedVols[c]) * 0.16;
-            }
-            
-            const smoothVol = this.smoothedVols[c];
-            
-            // GFX UPGRADE: Puls proportional um ca. 30% gedrosselt (von 55 auf 40)
-            // Dadurch bleibt das Aufblähen der dünneren Bänder extrem edel und harmonisch
+            const smoothVol = metrics.smooth[c]; 
             const punch = smoothVol * 40; 
-            
-            const amplitude = height * this.heightWeights[c];
-            
-            // Die Phase ist nun mathematisch exakt aufgeteilt
+            const amplitude = (height * this.heightWeights[c]) * amplitudeMultiplier;
             const angle = (t * baseSpeed) + (c * phaseStep);
             
-            // Y-Welle (Sinus)
             let yCenter = (height / 2);
             yCenter += Math.sin(angle) * amplitude;
-            
-            // Ein Hauch asynchrone Z-Drift, die die perfekte Helix-Symmetrie nicht stört
             yCenter += Math.cos(angle * 1.5) * (amplitude * 0.12);
             
-            // Z-Tiefe (Cosinus)
-            const zDepth = Math.cos(angle);
-
-            barsToDraw.push({
-                y: yCenter,
-                h: this.baseThickness[c] + punch,
-                vol: smoothVol,
-                z: zDepth,
-                pal: pals[c]
-            });
+            let bar = this.barsToDraw[c];
+            bar.y = yCenter;
+            bar.h = this.baseThickness[c] + punch;
+            bar.vol = smoothVol;
+            bar.z = Math.cos(angle);
+            bar.pal = pals[c];
         }
 
-        // Painter's Algorithm (Z-Sorting)
-        barsToDraw.sort((a, b) => a.z - b.z);
+        let activeSlice = this.barsToDraw.slice(0, numBars);
+        activeSlice.sort((a, b) => a.z - b.z);
 
-        // Rendern im Z-Index
-        barsToDraw.forEach(bar => {
-            this.drawCopperbar(ctx, width, bar.y - bar.h / 2, bar.h, bar.vol, bar.pal[0], bar.pal[1], scanlineHeight, colorBitShift, bar.z);
-        });
+        for (let i = 0; i < numBars; i++) {
+            let bar = activeSlice[i];
+            this.drawCopperbar(ctx, width, bar.y - bar.h / 2, bar.h, bar.vol, bar.pal[0], bar.pal[1], scanlineHeight, colorBitShift, bar.z, globalAlpha);
+        }
     }
 }
