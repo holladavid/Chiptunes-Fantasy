@@ -5,6 +5,7 @@ export class AtariBobs {
         this.name = 'Atari Lissajous Bobs';
         this.computerType = ['atari'];
         this.placementType = 'foreground';
+        this.climaxHoldTime = 10.0; // 10 Sekunden fette Bobs
 
         this.numBobs = 45;
         this.bobSize = 32; 

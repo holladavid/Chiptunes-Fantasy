@@ -5,6 +5,7 @@ export class Copperbars {
         this.name = '3D Helix Copperbars';
         this.computerType = ['all']; 
         this.placementType = 'floor';
+        this.climaxHoldTime = 12.0; // 12 Sekunden Hold für die Copperbars
         
         this.baseThickness = [90, 68, 50, 40]; 
         this.heightWeights = [0.24, 0.24, 0.24, 0.24];

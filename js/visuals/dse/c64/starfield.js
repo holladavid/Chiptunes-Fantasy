@@ -5,7 +5,8 @@ export class C64Starfield {
         this.name = 'C64 Warp Starfield';
         this.computerType = ['c64'];
         this.placementType = 'background';
-        
+        this.climaxHoldTime = 8.0; // Der extreme Warp ist anstrengend für die Augen, 8s reichen
+
         this.numStars = 150;
         this.stars = Array.from({ length: this.numStars }, () => ({
             x: (Math.random() - 0.5) * 2000,

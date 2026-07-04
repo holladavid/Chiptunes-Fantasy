@@ -2,10 +2,8 @@
 // =========================================================
 // DEMOSCENE-SEQUENCER (DSS) / THE "SCENE-DJ"
 // Zero-Allocation Orchestrator for Dynamic Visual Choreographies
-// Includes Transient Detection, RMS Energy Tracking & State Machine
 // =========================================================
 
-// Z-Order Map für aufeinanderfolgendes Rendern ohne Allokationen
 const Z_ORDER = {
     'background': 0,
     'floor': 1,
@@ -13,60 +11,46 @@ const Z_ORDER = {
     'overlay': 3
 };
 
-// Hysterese-Zeiten (in Sekunden), um visuelles Flackern zu verhindern
-const MIN_CLIMAX_TIME = 0.5;
 const MIN_BUILDUP_TIME = 0.5;
-const TRANSITION_TIME = 1.5; // Dauer für Starting/Stopping
+const TRANSITION_TIME = 1.5; 
 
 export class SceneDJ {
     constructor() {
-        // =========================================================
-        // ZERO-ALLOCATION MEMORY (DSP Metrics)
-        // =========================================================
         this.channelSmooth = new Float32Array(4);
         this.channelPeaks = new Float32Array(4);
         this.masterEnergy = new Float32Array(1);
         this.transientPulse = new Float32Array(1);
 
-        // Pre-allocated metrics object passed to DSE render() calls
         this.metrics = {
             energy: this.masterEnergy,
             pulse: this.transientPulse,
             smooth: this.channelSmooth
         };
 
-        // =========================================================
-        // POOLS & STATE
-        // =========================================================
         this.registeredDSEs = [];
         this.activeDSEs = [];
         this.currentSystem = null;
         this.lastTime = 0;
         
-        // Timer für die Hysterese der Intensitäts-States
         this.energyStateTimer = 0.0;
-        this.currentEnergyState = 'Playing'; // 'Playing', 'Buildup', 'Climax'
+        this.currentEnergyState = 'Playing'; 
+
+        // --- NEU: Climax Lock & Auto-Trigger Timer ---
+        this.buildupTimer = 0.0;
+        this.climaxTimer = 0.0;
+        this.isClimaxLocked = false;
+        this.currentClimaxHoldTime = 10.0;
     }
 
-    /**
-     * Registriert ein neues Demo-Scene-Element (DSE).
-     * @param {Object} dse - Das zu registrierende DSE
-     */
     registerDSE(dse) {
-        // Initiale State-Variablen an das DSE hängen, falls nicht vorhanden
         dse.state = 'Idle';
         dse.stateTime = 0.0;
         this.registeredDSEs.push(dse);
     }
 
-    /**
-     * Wird von visualizer.js bei einem Systemwechsel (Tab-Klick) aufgerufen.
-     * @param {String} newSystem - z.B. 'c64', 'amiga', 'atari'
-     */
     forceSystemChange(newSystem) {
         this.currentSystem = newSystem;
 
-        // 1. Inkompatible aktive DSEs stoppen
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
             if (!dse.computerType.includes(newSystem) && !dse.computerType.includes('all')) {
@@ -76,7 +60,6 @@ export class SceneDJ {
             }
         }
 
-        // 2. Passende DSEs für das neue System finden und starten
         for (let i = 0; i < this.registeredDSEs.length; i++) {
             let dse = this.registeredDSEs[i];
             if ((dse.computerType.includes(newSystem) || dse.computerType.includes('all')) && dse.state === 'Idle') {
@@ -86,17 +69,15 @@ export class SceneDJ {
             }
         }
         
-        // 3. Active-Array nach dem Einfügen aller Elemente nach Z-Order sortieren
         this.activeDSEs.sort((a, b) => Z_ORDER[a.placementType] - Z_ORDER[b.placementType]);
         
-        // Reset Energy State
+        // Reset System State
         this.currentEnergyState = 'Playing';
         this.energyStateTimer = 0.0;
+        this.buildupTimer = 0.0;
+        this.isClimaxLocked = false;
     }
 
-    /**
-     * Leitet Window-Resize-Events an alle DSEs (aktiv & idle) weiter.
-     */
     resize(width, height) {
         for (let i = 0; i < this.registeredDSEs.length; i++) {
             if (typeof this.registeredDSEs[i].resize === 'function') {
@@ -105,9 +86,6 @@ export class SceneDJ {
         }
     }
 
-    /**
-     * Analysiert die Audio-Energie ohne Garbage Collection.
-     */
     analyzeEnergy(channelVolumes, dt) {
         let totalEnergy = 0.0;
         let maxPulse = 0.0;
@@ -115,89 +93,120 @@ export class SceneDJ {
         for (let i = 0; i < 4; i++) {
             let rawVol = channelVolumes[i] || 0.0;
 
-            // 1. Envelope Follower (IIR Filter)
-            // Schneller Attack, langsamer Decay
             if (rawVol > this.channelSmooth[i]) {
-                this.channelSmooth[i] += (rawVol - this.channelSmooth[i]) * 0.8; // Attack
+                this.channelSmooth[i] += (rawVol - this.channelSmooth[i]) * 0.8; 
             } else {
-                this.channelSmooth[i] += (rawVol - this.channelSmooth[i]) * 0.15; // Decay
+                this.channelSmooth[i] += (rawVol - this.channelSmooth[i]) * 0.15; 
             }
 
-            // 2. Peak Detection (Transienten)
             if (rawVol > this.channelPeaks[i]) {
                 this.channelPeaks[i] = rawVol;
             } else {
-                this.channelPeaks[i] -= 0.5 * dt; // Gravity
+                this.channelPeaks[i] -= 0.5 * dt; 
                 if (this.channelPeaks[i] < 0) this.channelPeaks[i] = 0;
             }
 
-            // Transient Pulse: Distanz vom Smooth zum Peak
             let pulse = this.channelPeaks[i] - this.channelSmooth[i];
             if (pulse > maxPulse) maxPulse = pulse;
 
             totalEnergy += this.channelSmooth[i];
         }
 
-        // Master RMS Näherung & Pulse Normalisierung
         this.masterEnergy[0] = totalEnergy / 4.0;
         this.transientPulse[0] = maxPulse > 0.0 ? maxPulse : 0.0;
     }
 
-    /**
-     * Steuert die State-Machines der aktiven DSEs.
-     */
     updateStateMachines(dt) {
-        // 1. Globale Energie-Einstufung (Mit Hysterese)
         this.energyStateTimer += dt;
         
         const energy = this.masterEnergy[0];
         const pulse = this.transientPulse[0];
         
-        let targetEnergyState = 'Playing';
-        if (energy > 0.65 && pulse > 0.4) {
-            targetEnergyState = 'Climax';
+        // 1. Raw State aus dem aktuellen Audio-Frame ermitteln
+        let rawState = 'Playing';
+        // Wir senken die Climax-Schwelle minimal, damit er öfter von Natur aus feuert
+        if (energy > 0.60 && pulse > 0.4) {
+            rawState = 'Climax';
         } else if (energy > 0.45) {
-            targetEnergyState = 'Buildup';
+            rawState = 'Buildup';
         }
 
-        // Hysterese-Logik: States dürfen nur abgewertet werden, wenn die Mindestzeit abgelaufen ist
-        if (targetEnergyState === 'Climax') {
-            this.currentEnergyState = 'Climax';
-            this.energyStateTimer = 0.0;
-        } else if (targetEnergyState === 'Buildup') {
-            if (this.currentEnergyState !== 'Climax' || this.energyStateTimer > MIN_CLIMAX_TIME) {
-                this.currentEnergyState = 'Buildup';
-                this.energyStateTimer = 0.0;
+        let targetEnergyState = this.currentEnergyState;
+
+        // 2. Climax Lock & 30s Auto-Trigger Logik
+        if (rawState === 'Playing') {
+            // Fällt der Track in ein ruhiges Break, heben wir den Climax SOFORT auf
+            this.isClimaxLocked = false;
+            this.buildupTimer = 0.0;
+            if (this.energyStateTimer > MIN_BUILDUP_TIME) {
+                targetEnergyState = 'Playing';
             }
         } else {
-            // Target is 'Playing'
-            if ((this.currentEnergyState === 'Climax' && this.energyStateTimer > MIN_CLIMAX_TIME) ||
-                (this.currentEnergyState === 'Buildup' && this.energyStateTimer > MIN_BUILDUP_TIME) ||
-                this.currentEnergyState === 'Playing') {
-                this.currentEnergyState = 'Playing';
+            // Wir sind in einem energetischen Bereich
+            if (rawState === 'Climax' && !this.isClimaxLocked) {
+                // Natürlicher Climax getriggert!
+                this.isClimaxLocked = true;
+                this.climaxTimer = 0.0;
+                this.currentClimaxHoldTime = this.activeDSEs.length > 0 
+                    ? Math.max(...this.activeDSEs.map(d => d.climaxHoldTime || 10.0)) 
+                    : 10.0;
+            } else if (rawState === 'Buildup' && !this.isClimaxLocked) {
+                // Wir sind im Buildup -> Zähler für den Auto-Climax erhöhen
+                this.buildupTimer += dt;
+                
+                // Nach 30 Sekunden ununterbrochenem Buildup -> Forced Climax!
+                if (this.buildupTimer >= 30.0) {
+                    this.isClimaxLocked = true;
+                    this.climaxTimer = 0.0;
+                    this.currentClimaxHoldTime = this.activeDSEs.length > 0 
+                        ? Math.max(...this.activeDSEs.map(d => d.climaxHoldTime || 10.0)) 
+                        : 10.0;
+                }
+                
+                if (this.currentEnergyState === 'Playing' && this.energyStateTimer > MIN_BUILDUP_TIME) {
+                    targetEnergyState = 'Buildup';
+                }
+            }
+
+            // Wenn der Climax gelockt ist, überschreibt er alles!
+            if (this.isClimaxLocked) {
+                targetEnergyState = 'Climax';
+                this.climaxTimer += dt;
+                
+                // Hold-Time abgelaufen? Zurück in den Buildup.
+                if (this.climaxTimer >= this.currentClimaxHoldTime) {
+                    this.isClimaxLocked = false;
+                    this.buildupTimer = 0.0; // Reset für die nächsten 30s
+                    targetEnergyState = 'Buildup';
+                }
+            } else {
+                if (targetEnergyState === 'Climax') targetEnergyState = 'Buildup'; // Sanfter Fallback
             }
         }
 
-        // 2. DSE-spezifische State-Machine Updates
+        // 3. Globalen State übernehmen, falls er sich geändert hat
+        if (this.currentEnergyState !== targetEnergyState) {
+            this.currentEnergyState = targetEnergyState;
+            this.energyStateTimer = 0.0;
+        }
+
+        // 4. DSE-spezifische State-Machine Updates
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
             dse.stateTime += dt;
 
-            // Transition: Starting -> Active Energy State
             if (dse.state === 'Starting' && dse.stateTime >= TRANSITION_TIME) {
                 dse.state = this.currentEnergyState;
                 dse.stateTime = 0.0;
             }
             
-            // Sync Energy State wenn wir bereits spielen
             if (dse.state === 'Playing' || dse.state === 'Buildup' || dse.state === 'Climax') {
                 if (dse.state !== this.currentEnergyState) {
                     dse.state = this.currentEnergyState;
-                    dse.stateTime = 0.0; // Reset timer for the specific energy state
+                    dse.stateTime = 0.0; 
                 }
             }
 
-            // Transition: Stopping -> Idle (Aus dem aktiven Pool entfernen)
             if (dse.state === 'Stopping' && dse.stateTime >= TRANSITION_TIME) {
                 dse.state = 'Idle';
                 dse.stateTime = 0.0;
@@ -206,40 +215,33 @@ export class SceneDJ {
         }
     }
 
-/**
-     * Haupt-Render-Schleife. Wird von visualizer.js aufgerufen.
-     */
     render(ctx, width, height, t, channelVolumes) {
-        // Delta Time berechnen (in Sekunden)
-        let dt = 0.016; // Fallback (60fps)
+        let dt = 0.016; 
         if (this.lastTime !== 0) {
             dt = t - this.lastTime;
         }
         this.lastTime = t;
 
-        // 1. Analyse & Orchestrierung
         this.analyzeEnergy(channelVolumes, dt);
         this.updateStateMachines(dt);
 
-        // 2. Z-Order Rendering (activeDSEs sind bereits beim Insert sortiert!)
         for (let i = 0; i < this.activeDSEs.length; i++) {
             let dse = this.activeDSEs[i];
-            // Unified DSE Render Call
             dse.render(ctx, width, height, t, dse.state, dse.stateTime, this.metrics);
         }
 
-// =========================================================
-        // TEMPORARY DEBUG HUD (Energy, State & Active Classes)
+        // =========================================================
+        // TEMPORARY DEBUG HUD (Energy, State & Timers)
         // =========================================================
         const padding = 15;
         const lineH = 20;
         const activeTextCount = this.activeDSEs.length;
         
-        // Dynamische Box-Höhe basierend auf der Anzahl der aktiven DSEs
-        const boxH = 90 + (activeTextCount * lineH);
+        // Etwas mehr Höhe für die Timer-Informationen
+        const boxH = 110 + (activeTextCount * lineH);
         const boxW = 260;
         const boxX = 15;
-        const boxY = height - boxH - 15; // Links unten, mit 15px Abstand zum Rand
+        const boxY = height - boxH - 15;
 
         ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
         ctx.strokeStyle = '#ffffff';
@@ -254,15 +256,21 @@ export class SceneDJ {
 
         let textY = boxY + padding;
 
-        // State-Text Farbe abhängig von der Intensität
         if (this.currentEnergyState === 'Climax') ctx.fillStyle = '#ff3333';
         else if (this.currentEnergyState === 'Buildup') ctx.fillStyle = '#ffff33';
         else ctx.fillStyle = '#33ff33';
 
-        ctx.fillText(`DJ STATE : [ ${this.currentEnergyState.toUpperCase()} ]`, boxX + 10, textY);
+        // Anzeige des Haupt-States UND der aktuellen Timer (Climax-Hold vs 30s Countdown)
+        let timerInfo = "";
+        if (this.isClimaxLocked) {
+            timerInfo = `(HOLD: ${(this.currentClimaxHoldTime - this.climaxTimer).toFixed(1)}s)`;
+        } else if (this.currentEnergyState === 'Buildup') {
+            timerInfo = `(AUTO: ${(30.0 - this.buildupTimer).toFixed(1)}s)`;
+        }
+        
+        ctx.fillText(`DJ STATE : [ ${this.currentEnergyState.toUpperCase()} ] ${timerInfo}`, boxX + 10, textY);
         
         textY += lineH;
-        // RMS Energy Bar
         ctx.fillStyle = '#ffffff';
         ctx.fillText(`ENERGY   : ${this.masterEnergy[0].toFixed(3)}`, boxX + 10, textY);
         ctx.fillStyle = '#444444';
@@ -271,7 +279,6 @@ export class SceneDJ {
         ctx.fillRect(boxX + 90, textY + 2, Math.min(1.0, this.masterEnergy[0]) * 150, 8);
 
         textY += lineH;
-        // Transient Pulse Bar
         ctx.fillStyle = '#ffffff';
         ctx.fillText(`PULSE    : ${this.transientPulse[0].toFixed(3)}`, boxX + 10, textY);
         ctx.fillStyle = '#444444';
@@ -279,20 +286,16 @@ export class SceneDJ {
         ctx.fillStyle = '#ff3333'; 
         ctx.fillRect(boxX + 90, textY + 2, Math.min(1.0, this.transientPulse[0]) * 150, 8);
 
-        textY += lineH;
-        // Anzeige der instanziierten DSE-Klassen
-        ctx.fillStyle = '#6c5eb5'; // C64 Blau für die Trennung
+        textY += lineH + 10;
+        ctx.fillStyle = '#6c5eb5'; 
         ctx.fillText(`ACTIVE DSE CLASSES:`, boxX + 10, textY);
 
         ctx.fillStyle = '#ffffff';
         for (let i = 0; i < this.activeDSEs.length; i++) {
             textY += lineH;
             let dse = this.activeDSEs[i];
-            let className = dse.constructor.name; // Greift den echten ES6 Klassennamen ab
-            
-            // Wir zeigen auch den individuellen internen State des Elements
+            let className = dse.constructor.name;
             ctx.fillText(`> ${className} [${dse.state}]`, boxX + 10, textY);
         }
-        // =========================================================
     }
 }
