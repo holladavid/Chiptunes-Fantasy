@@ -2,7 +2,7 @@
 // =========================================================
 // DEMOSCENE-SEQUENCER (DSS) / THE "SCENE-DJ"
 // Zero-Allocation Orchestrator for Dynamic Visual Choreographies
-// Includes System-Themed "LIMIT BREAK" Tension Meter
+// Includes System-Themed Limit Break & Overdrive Fill-Rates
 // =========================================================
 
 const Z_ORDER = {
@@ -124,48 +124,55 @@ export class SceneDJ {
         const energy = this.masterEnergy[0];
         const pulse = this.transientPulse[0];
         
-        let rawState = 'Playing';
-        if (energy > 0.60 && pulse > 0.4) {
-            rawState = 'Climax';
-        } else if (energy > 0.45) {
-            rawState = 'Buildup';
-        }
+        let isOverdrive = (energy > 0.60 && pulse > 0.4);
+        let isBuildup = (energy > 0.45);
         
-        this.rawEnergyState = rawState;
+        this.rawEnergyState = isOverdrive ? 'Overdrive' : (isBuildup ? 'Buildup' : 'Playing');
         let targetEnergyState = this.currentEnergyState;
 
-        if (rawState === 'Playing') {
+        // --- TENSION & LOCK LOGIK ---
+        if (!isBuildup && !isOverdrive) {
+            // Track macht Pause -> Sofortiger Spannungsabbau
             this.isClimaxLocked = false;
-            this.tension = Math.max(0.0, this.tension - (dt * 5.0)); 
+            this.tension = Math.max(0.0, this.tension - (dt * 10.0)); // Fällt schnell ab
             if (this.energyStateTimer > MIN_BUILDUP_TIME) targetEnergyState = 'Playing';
         } else {
-            if (rawState === 'Climax') {
-                this.isClimaxLocked = true;
-                this.climaxTimer = 0.0; 
-                this.tension = 0.0;     
-                this.currentClimaxHoldTime = this.activeDSEs.length > 0 
-                    ? Math.max(...this.activeDSEs.map(d => d.climaxHoldTime || 10.0)) : 10.0;
-            } else if (rawState === 'Buildup') {
-                if (!this.isClimaxLocked) {
-                    let power = (energy * 0.5) + (pulse * 2.0); 
-                    this.tension += power * dt;
+            // Wir stauen Energie auf!
+            if (!this.isClimaxLocked) {
+                let power = (energy * 0.5) + (pulse * 2.0); 
+                
+                // Multiplikator: Bei "Crazy" Fills laden wir massiv schneller auf
+                if (isOverdrive) {
+                    power *= 4.0; 
+                }
 
-                    if (this.tension >= TENSION_MAX) {
-                        this.isClimaxLocked = true;
-                        this.climaxTimer = 0.0;
-                        this.tension = 0.0; 
-                        this.currentClimaxHoldTime = this.activeDSEs.length > 0 
-                            ? Math.max(...this.activeDSEs.map(d => d.climaxHoldTime || 10.0)) : 10.0;
-                    } else if (this.currentEnergyState === 'Playing' && this.energyStateTimer > MIN_BUILDUP_TIME) {
-                        targetEnergyState = 'Buildup';
-                    }
+                this.tension += power * dt;
+
+                // Limit Break erreicht!
+                if (this.tension >= TENSION_MAX) {
+                    this.tension = TENSION_MAX;
+                    this.isClimaxLocked = true;
+                    this.climaxTimer = 0.0; 
+                    this.currentClimaxHoldTime = this.activeDSEs.length > 0 
+                        ? Math.max(...this.activeDSEs.map(d => d.climaxHoldTime || 10.0)) : 10.0;
+                } else if (this.currentEnergyState === 'Playing' && this.energyStateTimer > MIN_BUILDUP_TIME) {
+                    targetEnergyState = 'Buildup';
                 }
             }
 
+            // Wenn wir im Climax-Mode sind
             if (this.isClimaxLocked) {
                 targetEnergyState = 'Climax';
-                if (rawState === 'Buildup') {
+                
+                if (isOverdrive) {
+                    // Der Track rastet komplett aus -> Halt den Balken oben, pausiere den Timer!
+                    this.climaxTimer = 0.0;
+                    this.tension = TENSION_MAX;
+                } else {
+                    // Track ist wieder "normal" -> Timer läuft rückwärts ab
                     this.climaxTimer += dt;
+                    this.tension = TENSION_MAX * Math.max(0.0, 1.0 - (this.climaxTimer / this.currentClimaxHoldTime));
+
                     if (this.climaxTimer >= this.currentClimaxHoldTime) {
                         this.isClimaxLocked = false;
                         this.tension = 0.0;
@@ -230,25 +237,20 @@ export class SceneDJ {
         let pct = this.tension / TENSION_MAX;
         let isFlashing = false;
 
-        // Prozent-Kalkulation & Flashing-Logik
         if (this.currentEnergyState === 'Climax') {
-            if (this.rawEnergyState === 'Climax') {
-                pct = 1.0;
-                isFlashing = (performance.now() % 150 < 75); // Schnelles Blinken
+            if (this.rawEnergyState === 'Overdrive') {
+                isFlashing = (performance.now() % 150 < 75); 
             } else if (this.isClimaxLocked) {
-                // Balken läuft sanft rückwärts ab (Hold-Time)
-                pct = Math.max(0.0, 1.0 - (this.climaxTimer / this.currentClimaxHoldTime));
-                isFlashing = (pct > 0.85) && (performance.now() % 300 < 150); // Langsames Blinken
+                isFlashing = (pct > 0.85) && (performance.now() % 300 < 150); 
             }
         }
         pct = Math.max(0, Math.min(1.0, pct));
 
-        // System-Weiche für das Rendern
         if (this.currentSystem === 'c64') {
             // --- C64 STYLE: Klobige Segmente, original VIC-II Palette ---
-            ctx.fillStyle = '#352879'; // Dark Blue Border
+            ctx.fillStyle = '#352879'; 
             ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
-            ctx.fillStyle = '#000000'; // Inner Bg
+            ctx.fillStyle = '#000000'; 
             ctx.fillRect(x, y, w, h);
 
             let segCount = 20;
@@ -257,7 +259,6 @@ export class SceneDJ {
             let activeSegs = Math.floor(pct * segCount);
 
             for (let i = 0; i < activeSegs; i++) {
-                // Von Hellblau zu Weiß zu Hellrot
                 ctx.fillStyle = i > 15 ? '#ff8a8a' : (i > 10 ? '#ffffff' : '#6c5eb5');
                 if (isFlashing) ctx.fillStyle = '#ffffff';
                 ctx.fillRect(x + 1 + i * (segW + gap), y + 2, segW, h - 4);
@@ -271,19 +272,19 @@ export class SceneDJ {
 
         } else if (this.currentSystem === 'amiga') {
             // --- AMIGA STYLE: ProTracker 3D-Bevel mit Copper-Gradient ---
-            ctx.fillStyle = '#ffffff'; // Top/Left Highlight
+            ctx.fillStyle = '#ffffff'; 
             ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
-            ctx.fillStyle = '#000000'; // Bottom/Right Shadow
+            ctx.fillStyle = '#000000'; 
             ctx.fillRect(x - 1, y - 1, w + 3, h + 3);
-            ctx.fillStyle = '#aaaaaa'; // Base Bevel
+            ctx.fillStyle = '#aaaaaa'; 
             ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
-            ctx.fillStyle = '#000000'; // Inner Track
+            ctx.fillStyle = '#000000'; 
             ctx.fillRect(x, y, w, h);
 
             if (pct > 0) {
                 let grad = ctx.createLinearGradient(x, y, x + w, y);
                 grad.addColorStop(0.0, '#002288');
-                grad.addColorStop(0.5, '#ff8800'); // Amiga Orange
+                grad.addColorStop(0.5, '#ff8800'); 
                 grad.addColorStop(1.0, '#ff0000');
                 
                 ctx.fillStyle = isFlashing ? '#ffffff' : grad;
@@ -294,14 +295,13 @@ export class SceneDJ {
             ctx.fillStyle = isFlashing ? '#ffffff' : '#ff8800';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'bottom';
-            // Kleiner 1px Drop-Shadow für den klassischen Amiga-Text-Look
             ctx.shadowColor = '#000000';
             ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1;
             ctx.fillText("SYSTEM OVERDRIVE", x, y - 4);
             ctx.shadowColor = 'transparent';
 
         } else {
-            // --- ATARI ST STYLE: Hartscharfer Neon-Rahmen (Delta Force Style) ---
+            // --- ATARI ST STYLE: Hardware-getreuer, klobiger 16-Color VU-Meter ---
             ctx.strokeStyle = '#55ff55';
             ctx.lineWidth = 1.5;
             ctx.strokeRect(x - 1, y - 1, w + 2, h + 2);
@@ -309,13 +309,22 @@ export class SceneDJ {
             ctx.fillRect(x, y, w, h);
 
             if (pct > 0) {
-                let grad = ctx.createLinearGradient(x, y, x + w, y);
-                grad.addColorStop(0.0, '#00aa00');
-                grad.addColorStop(0.6, '#ffff33');
-                grad.addColorStop(1.0, '#ff3333');
-                
-                ctx.fillStyle = isFlashing ? '#ff3333' : grad;
-                ctx.fillRect(x, y, w * pct, h);
+                let segCount = 24;
+                let gap = 2;
+                let segW = (w / segCount) - gap;
+                let activeSegs = Math.floor(pct * segCount);
+
+                for (let i = 0; i < activeSegs; i++) {
+                    // Strenge Atari-16-Farben-Auswahl ohne weiche Übergänge
+                    let color = '#55ff55'; // ST Grün
+                    if (i > 18) color = '#ff3333'; // ST Rot
+                    else if (i > 13) color = '#ffff33'; // ST Gelb
+                    
+                    if (isFlashing) color = '#ffffff'; 
+                    
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x + 1 + i * (segW + gap), y + 2, segW, h - 4);
+                }
             }
 
             ctx.font = '18px "VT323", monospace';
