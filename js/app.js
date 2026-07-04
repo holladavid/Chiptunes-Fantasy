@@ -2,7 +2,7 @@
 // =========================================================================
 //                  CHIPTUNES FANTASY - MAIN APP CONTROLLER
 // =========================================================================
-
+import { FullscreenUI } from './ui/fullscreen-ui.js';
 import { trackRegistry } from '../tracks/index.js';
 import { systemDescriptions } from './content/museum.js'; 
 import { chipCheatSheets } from './content/cheatsheets.js'; 
@@ -22,6 +22,7 @@ import {
     getSidNode 
 } from './audio/audio-controller.js';
 
+let fsUI = null;
 let currentOscValue = 0; 
 let currentChipRegs = null; 
 let activeSystem = 'atari';
@@ -125,6 +126,13 @@ function initApp() {
         }
 
         setTheme('theme-c64');
+        
+        // Initialisiert das Fullscreen Overlay
+        fsUI = new FullscreenUI({
+            onTogglePlay: () => document.getElementById('btn-play').click(),
+            onPrev: () => document.getElementById('btn-prev').click(),
+            onNext: () => document.getElementById('btn-next').click()
+        });   
     });
 }
 
@@ -323,7 +331,12 @@ function changeC64Subsong(subsongId) {
 
         let meta = trackData.metadata;
         currentScrollerText = `+++ BOOM! SWITCHED TO SUBSONG ${subsongId} OF ${meta.songs} +++ NOW PLAYING: ${meta.name.toUpperCase()} (TRACK ${subsongId}) BY ${meta.author.toUpperCase()} +++ `;
+
+        if (fsUI) {
+            fsUI.updateTrack(`${meta.name.toUpperCase()} [SUB ${subsongId}/${meta.songs}]`);
+        }
     }    
+
 }
 
 function startPlayback() {
@@ -358,6 +371,8 @@ function startPlayback() {
             });
         }
     }
+
+    if (fsUI) fsUI.updatePlayState(true);  
 }
 
 function resumePlayback() {
@@ -372,6 +387,8 @@ function resumePlayback() {
     if (activeSystem === 'amiga' && paulaNode) paulaNode.port.postMessage({ type: 'RESUME_TRACK' });
     else if (activeSystem === 'c64' && sidNode) sidNode.port.postMessage({ type: 'RESUME_TRACK' });
     else if (ymNode) ymNode.port.postMessage({ type: 'RESUME_TRACK' });
+
+    if (fsUI) fsUI.updatePlayState(true);
 }
 
 function stopPlayback() {
@@ -385,6 +402,8 @@ function stopPlayback() {
     if (ymNode) ymNode.port.postMessage({ type: 'STOP_TRACK' });
     if (paulaNode) paulaNode.port.postMessage({ type: 'STOP_TRACK' });
     if (sidNode) sidNode.port.postMessage({ type: 'STOP_TRACK' });
+
+    if (fsUI) fsUI.updatePlayState(false);
 }
 
 function setTheme(themeName) {
@@ -671,6 +690,9 @@ async function selectAndPlayTrack(index, system) {
         trackData = selectedSong.generator();
         startPlayback();
     }
+
+    if (fsUI) fsUI.updateTrack(selectedSong.title);
+
 }
 
 function enterPseudoFullscreen(visualZone) {

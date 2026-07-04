@@ -908,56 +908,110 @@ body.eco-mode .brand-main {
 }
 
 /* =========================================
-   FULLSCREEN BUTTON & OVERRIDES
+   FULLSCREEN UI BAR (Unobtrusive)
 ========================================= */
-#btn-fullscreen {
+#fs-ui-bar {
     position: absolute;
     bottom: 15px;
     right: 15px;
-    z-index: 12; /* Liegt über dem Canvas, aber unter dem HUD */
+    z-index: 12; /* Unter dem HUD, über dem Canvas */
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    opacity: 0.3; /* Demoszene-Fokus: Sehr dezent im Normalzustand */
+    transition: opacity 0.4s ease;
+}
+
+#fs-ui-bar:hover {
+    opacity: 1.0; /* Voller Kontrast bei Interaktion */
+}
+
+/* Fadet das komplette Panel stufenlos aus, wenn die Maus stillsteht */
+#visual-zone.no-cursor #fs-ui-bar {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#fs-playback-controls {
+    display: none; /* Im Fenster-Modus unsichtbar */
+    align-items: center;
+    gap: 15px;
+}
+
+/* CSS-Magie: Player-Controls nur im echten Vollbild aktivieren */
+#visual-zone:fullscreen #fs-playback-controls { display: flex; }
+#visual-zone:-webkit-full-screen #fs-playback-controls { display: flex; }
+#visual-zone.pseudo-fullscreen #fs-playback-controls { display: flex; }
+
+.fs-track-info {
+    font-family: var(--font-main);
+    font-size: calc(var(--font-size-base) * 0.8);
+    color: var(--highlight-color);
+    text-shadow: 1px 1px 0px #000; /* Lesbarkeit über hellen Effekten garantieren */
+    max-width: 350px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+    letter-spacing: 1px;
+}
+
+.fs-controls {
+    display: flex;
+    gap: 5px;
+}
+
+.fs-controls button, #btn-fullscreen {
     background: rgba(0, 0, 0, 0.6);
     border: 1px solid var(--text-color);
     color: var(--highlight-color);
     padding: 6px 12px;
     font-family: var(--font-main);
-    font-size: 10px; /* Winziges, crisp-nerdiges Font-Scale */
+    font-size: 10px;
     cursor: pointer;
     transition: all 0.1s;
     outline: none;
 }
 
-#btn-fullscreen:hover {
+.fs-controls button:hover, #btn-fullscreen:hover {
     background: var(--text-color);
     color: #000;
     border-color: var(--highlight-color);
 }
 
 /* Erzwingt, dass die Visualisierungs-Zone im Vollbildmodus den ganzen Screen füllt */
-#visual-zone:fullscreen {
-    width: 100% !important;
-    height: 100% !important;
-}
-#visual-zone:-webkit-full-screen {
-    width: 100% !important;
-    height: 100% !important;
-}
+#visual-zone:fullscreen { width: 100% !important; height: 100% !important; }
+#visual-zone:-webkit-full-screen { width: 100% !important; height: 100% !important; }
+
 /* Pseudo-Fullscreen Fallback für iOS / iPhone */
 #visual-zone.pseudo-fullscreen {
     position: fixed !important;
-    inset: 0 !important; /* Setzt Top, Right, Bottom, Left auf 0 */
+    inset: 0 !important; 
     width: 100% !important;
     height: 100% !important;
     max-width: none !important;
     max-height: none !important;
-    z-index: 999999 !important; /* Zwingt sich über Safari-UI-Artefakte */
+    z-index: 999999 !important; 
     margin: 0 !important;
     border-radius: 0 !important;
 }
-/* Sichert, dass der Button auch im iOS-Vollbild anklickbar bleibt (Safari Addressbar Puffer) */
-#visual-zone.pseudo-fullscreen #btn-fullscreen {
-    bottom: calc(20px + env(safe-area-inset-bottom)) !important;
-    right: calc(20px + env(safe-area-inset-right)) !important;
+
+/* Mobile Safe Area Anpassung für das UI-Panel */
+@media (max-width: 800px) {
+    .fs-track-info {
+        display: none; /* Text auf kleinen Handys ausblenden, um den Limit-Bar nicht zu verdecken */
+    }
+    #visual-zone.pseudo-fullscreen #fs-ui-bar {
+        bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+        right: calc(15px + env(safe-area-inset-right)) !important;
+    }
 }
+
+/* Blendet den nativen OS-Cursor aus */
+#visual-zone.no-cursor { cursor: none !important; }
+#visual-zone.no-cursor * { cursor: none !important; }
+
+
 /* =========================================
    SUBSONG DISPLAY TIMELINE OVERLAY
 ========================================= */
