@@ -231,43 +231,71 @@ export class SceneDJ {
             dse.render(ctx, width, height, t, dse.state, dse.stateTime, this.metrics);
         }
 
+// =========================================================
+        // TEMPORARY DEBUG HUD (Energy, State & Active Classes)
         // =========================================================
-        // TEMPORARY DEBUG HUD (Energy & State)
-        // =========================================================
+        const padding = 15;
+        const lineH = 20;
+        const activeTextCount = this.activeDSEs.length;
+        
+        // Dynamische Box-Höhe basierend auf der Anzahl der aktiven DSEs
+        const boxH = 90 + (activeTextCount * lineH);
+        const boxW = 260;
+        const boxX = 15;
+        const boxY = height - boxH - 15; // Links unten, mit 15px Abstand zum Rand
+
         ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 1;
-        
-        // Kasten oben links
-        ctx.fillRect(10, 10, 240, 80);
-        ctx.strokeRect(10, 10, 240, 80);
+
+        ctx.fillRect(boxX, boxY, boxW, boxH);
+        ctx.strokeRect(boxX, boxY, boxW, boxH);
 
         ctx.font = '12px "VT323", monospace';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
+
+        let textY = boxY + padding;
 
         // State-Text Farbe abhängig von der Intensität
         if (this.currentEnergyState === 'Climax') ctx.fillStyle = '#ff3333';
         else if (this.currentEnergyState === 'Buildup') ctx.fillStyle = '#ffff33';
         else ctx.fillStyle = '#33ff33';
 
-        ctx.fillText(`DJ STATE : [ ${this.currentEnergyState.toUpperCase()} ]`, 20, 20);
-
+        ctx.fillText(`DJ STATE : [ ${this.currentEnergyState.toUpperCase()} ]`, boxX + 10, textY);
+        
+        textY += lineH;
         // RMS Energy Bar
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(`ENERGY   : ${this.masterEnergy[0].toFixed(3)}`, 20, 40);
+        ctx.fillText(`ENERGY   : ${this.masterEnergy[0].toFixed(3)}`, boxX + 10, textY);
         ctx.fillStyle = '#444444';
-        ctx.fillRect(110, 42, 120, 8);
-        ctx.fillStyle = '#ffff33'; // Gelb für RMS
-        ctx.fillRect(110, 42, Math.min(1.0, this.masterEnergy[0]) * 120, 8);
+        ctx.fillRect(boxX + 90, textY + 2, 150, 8);
+        ctx.fillStyle = '#ffff33'; 
+        ctx.fillRect(boxX + 90, textY + 2, Math.min(1.0, this.masterEnergy[0]) * 150, 8);
 
+        textY += lineH;
         // Transient Pulse Bar
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(`PULSE    : ${this.transientPulse[0].toFixed(3)}`, 20, 60);
+        ctx.fillText(`PULSE    : ${this.transientPulse[0].toFixed(3)}`, boxX + 10, textY);
         ctx.fillStyle = '#444444';
-        ctx.fillRect(110, 62, 120, 8);
-        ctx.fillStyle = '#ff3333'; // Rot für Transienten (Kick/Snare)
-        ctx.fillRect(110, 62, Math.min(1.0, this.transientPulse[0]) * 120, 8);
+        ctx.fillRect(boxX + 90, textY + 2, 150, 8);
+        ctx.fillStyle = '#ff3333'; 
+        ctx.fillRect(boxX + 90, textY + 2, Math.min(1.0, this.transientPulse[0]) * 150, 8);
+
+        textY += lineH;
+        // Anzeige der instanziierten DSE-Klassen
+        ctx.fillStyle = '#6c5eb5'; // C64 Blau für die Trennung
+        ctx.fillText(`ACTIVE DSE CLASSES:`, boxX + 10, textY);
+
+        ctx.fillStyle = '#ffffff';
+        for (let i = 0; i < this.activeDSEs.length; i++) {
+            textY += lineH;
+            let dse = this.activeDSEs[i];
+            let className = dse.constructor.name; // Greift den echten ES6 Klassennamen ab
+            
+            // Wir zeigen auch den individuellen internen State des Elements
+            ctx.fillText(`> ${className} [${dse.state}]`, boxX + 10, textY);
+        }
         // =========================================================
     }
 }
