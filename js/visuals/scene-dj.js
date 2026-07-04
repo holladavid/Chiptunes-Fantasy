@@ -2,7 +2,7 @@
 // =========================================================
 // DEMOSCENE-SEQUENCER (DSS) / THE "SCENE-DJ"
 // Zero-Allocation Orchestrator for Dynamic Visual Choreographies
-// Includes Reactive Demoscene-Style Limit Break Animations
+// Includes Reactive Demoscene-Style Limit Break Animations (Borderless)
 // =========================================================
 
 const Z_ORDER = {
@@ -16,7 +16,6 @@ const MIN_BUILDUP_TIME = 0.5;
 const TRANSITION_TIME = 1.5; 
 const TENSION_MAX = 20.0; 
 
-// Zero-Allocation Farbtabellen für Effekte
 const C64_COLS = ['#352879', '#6c5eb5', '#b5b5b5', '#ffffff', '#ff8a8a', '#ffff33'];
 
 export class SceneDJ {
@@ -219,7 +218,7 @@ export class SceneDJ {
         }
 
         // =========================================================
-        // LIMIT BREAK ANIMATION & TENSION METER
+        // LIMIT BREAK ANIMATION & TENSION METER (Borderless)
         // =========================================================
         const w = 240;
         const h = 18;
@@ -228,21 +227,19 @@ export class SceneDJ {
 
         let pct = this.tension / TENSION_MAX;
         
-        // Die Animations-Intensität wird auf 1.0 gelockt, solange der Climax-State (inkl. Hold) aktiv ist!
         let animIntensity = (this.currentEnergyState === 'Climax') ? 1.0 : pct;
         let isFlashing = (animIntensity >= 1.0 && (performance.now() % 150 < 75));
 
         pct = Math.max(0, Math.min(1.0, pct));
 
         if (this.currentSystem === 'c64') {
-            // --- C64 STYLE: Rasterbar Border Animation ---
+            // --- C64 STYLE: Rasterbar Animation (Background) ---
             if (animIntensity > 0.05) {
                 let borderThick = Math.floor(2 + animIntensity * 6);
                 let numStripes = 6;
                 let stripeH = (h + borderThick * 2) / numStripes;
                 for (let i = 0; i < numStripes; i++) {
                     let colIdx = Math.floor((t * (5 + animIntensity * 15) + i) % 4);
-                    // Flashy Colors im Climax
                     if (animIntensity >= 1.0 && Math.random() > 0.5) colIdx = 3 + Math.floor(Math.random() * 3); 
                     
                     ctx.fillStyle = C64_COLS[colIdx];
@@ -250,9 +247,7 @@ export class SceneDJ {
                 }
             }
 
-            // Base Bar
-            ctx.fillStyle = '#352879'; 
-            ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+            // Base Bar (Borderless)
             ctx.fillStyle = '#000000'; 
             ctx.fillRect(x, y, w, h);
 
@@ -264,8 +259,14 @@ export class SceneDJ {
             for (let i = 0; i < activeSegs; i++) {
                 ctx.fillStyle = i > 15 ? '#ff8a8a' : (i > 10 ? '#ffffff' : '#6c5eb5');
                 if (isFlashing) ctx.fillStyle = '#ffffff';
-                ctx.fillRect(x + 1 + i * (segW + gap), y + 2, segW, h - 4);
+                ctx.fillRect(x + i * (segW + gap), y, segW, h); // Angepasst für Rahmenlosigkeit
             }
+
+            ctx.font = '10px "Press Start 2P", monospace';
+            ctx.fillStyle = isFlashing ? '#ffffff' : '#6c5eb5';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText("LIMIT BREAK", x, y - 6);
 
         } else if (this.currentSystem === 'amiga') {
             // --- AMIGA STYLE: Hardware Copper Sweep & Bobs ---
@@ -274,7 +275,6 @@ export class SceneDJ {
                 let sweepPos = (Math.sin(sweepSpeed) * 0.5 + 0.5) * w;
                 let glowAlpha = 0.2 + animIntensity * 0.5;
                 
-                // Zero-Allocation Specular Highlights
                 ctx.globalCompositeOperation = 'screen';
                 ctx.fillStyle = `rgba(255, 255, 255, ${glowAlpha})`;
                 ctx.fillRect(x + sweepPos - 15, y - 4, 30, h + 8);
@@ -282,7 +282,6 @@ export class SceneDJ {
                 ctx.fillRect(x + sweepPos - 5, y - 4, 10, h + 8);
                 ctx.globalCompositeOperation = 'source-over';
                 
-                // Hardware Sprites im Climax (Bouncing)
                 if (animIntensity >= 1.0) {
                     let bY = y + h/2 + Math.sin(t * 20) * 8;
                     ctx.fillStyle = '#ffffff';
@@ -291,13 +290,7 @@ export class SceneDJ {
                 }
             }
 
-            // Base Bar
-            ctx.fillStyle = '#ffffff'; 
-            ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
-            ctx.fillStyle = '#000000'; 
-            ctx.fillRect(x - 1, y - 1, w + 3, h + 3);
-            ctx.fillStyle = '#aaaaaa'; 
-            ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+            // Base Bar (Borderless)
             ctx.fillStyle = '#000000'; 
             ctx.fillRect(x, y, w, h);
 
@@ -308,8 +301,17 @@ export class SceneDJ {
                 grad.addColorStop(1.0, '#ff0000');
                 
                 ctx.fillStyle = isFlashing ? '#ffffff' : grad;
-                ctx.fillRect(x + 1, y + 1, (w - 2) * pct, h - 2);
+                ctx.fillRect(x, y, w * pct, h); // Angepasst für Rahmenlosigkeit
             }
+
+            ctx.font = '18px "VT323", monospace';
+            ctx.fillStyle = isFlashing ? '#ffffff' : '#ff8800';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            ctx.shadowColor = '#000000';
+            ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1;
+            ctx.fillText("SYSTEM OVERDRIVE", x, y - 4);
+            ctx.shadowColor = 'transparent';
 
         } else {
             // --- ATARI ST STYLE: Vector Static Sparks ---
@@ -318,7 +320,7 @@ export class SceneDJ {
                 ctx.lineWidth = 1.5;
                 
                 let numSparks = Math.floor(animIntensity * 12);
-                if (animIntensity >= 1.0) numSparks = 25; // Overdrive Sparks
+                if (animIntensity >= 1.0) numSparks = 25; 
                 
                 ctx.beginPath();
                 for(let i=0; i < numSparks; i++) {
@@ -338,10 +340,7 @@ export class SceneDJ {
                 ctx.stroke();
             }
 
-            // Base Bar
-            ctx.strokeStyle = '#55ff55';
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(x - 1, y - 1, w + 2, h + 2);
+            // Base Bar (Borderless)
             ctx.fillStyle = '#000000';
             ctx.fillRect(x, y, w, h);
 
@@ -359,9 +358,15 @@ export class SceneDJ {
                     if (isFlashing) color = '#ffffff'; 
                     
                     ctx.fillStyle = color;
-                    ctx.fillRect(x + 1 + i * (segW + gap), y + 2, segW, h - 4);
+                    ctx.fillRect(x + i * (segW + gap), y, segW, h); // Angepasst für Rahmenlosigkeit
                 }
             }
+
+            ctx.font = '18px "VT323", monospace';
+            ctx.fillStyle = isFlashing ? '#ff3333' : '#55ff55';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText("TENSION LEVEL", x, y - 4);
         }
     }
 }
