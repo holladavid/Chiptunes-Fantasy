@@ -2,7 +2,7 @@
 // =========================================================================
 //                  CHIPTUNES FANTASY - MAIN APP CONTROLLER
 // =========================================================================
-
+import { FullscreenUI } from './ui/fullscreen-ui.js';
 import { trackRegistry } from '../tracks/index.js';
 import { systemDescriptions } from './content/museum.js'; 
 import { chipCheatSheets } from './content/cheatsheets.js'; 
@@ -22,6 +22,7 @@ import {
     getSidNode 
 } from './audio/audio-controller.js';
 
+let fsUI = null;
 let currentOscValue = 0; 
 let currentChipRegs = null; 
 let activeSystem = 'atari';
@@ -36,6 +37,7 @@ let isEcoMode = false;
 let isUserDragging = false; 
 let currentSubsongIndex = 1; 
 let channelVolumes = new Float32Array(4);
+let playRequestToken = 0; // NEU: Async Race Condition Schutz
 
 // Cursor-Hiding Inaktivitäts-Timer
 let mouseIdleTimer = null;
@@ -125,6 +127,13 @@ function initApp() {
         }
 
         setTheme('theme-c64');
+        
+        // Initialisiert das Fullscreen Overlay
+        fsUI = new FullscreenUI({
+            onTogglePlay: () => document.getElementById('btn-play').click(),
+            onPrev: () => document.getElementById('btn-prev').click(),
+            onNext: () => document.getElementById('btn-next').click()
+        });   
     });
 }
 
@@ -190,10 +199,26 @@ function handleWorkletMessage(e) {
     if (e.data && e.data.constructor && e.data.constructor.name === 'Float32Array') {
         const view = e.data;
         const systemId = view[0];
+
+        // =========================================================
+        // ARCHITEKTUR FIX: Cross-System Message Filtering
+        // Ignoriert veraltete Nachrichten von inaktiven Cores.
+        // Verhindert Geister-Track-Wechsel beim schnellen Tab-Umschalten!
+        // =========================================================
+        const systemMapping = {
+            0: 'c64',
+            1: 'amiga',
+            2: 'atari'
+        };
+
+        if (systemMapping[systemId] !== activeSystem) {
+            return; // Nachricht verwerfen, da sie von einem im Hintergrund stoppenden Core kommt
+        }
+
         const isPlayingVal = view[1] === 1;
         const frameVal = view[2];
         currentOscValue = view[3];
-
+        
         if (!currentChipRegs) {
             currentChipRegs = new Uint8Array(32);
         }
@@ -267,7 +292,6 @@ function handleWorkletMessage(e) {
         currentChipRegs = e.data.regs; 
     }
 
-    // --- NEU RESTAURIERT: Globaler Digidrum-Trigger für die ST-Debugger LED ---
     if (e.data.type === 'DEBUG') {
         if (isEcoMode) return; 
 
@@ -323,7 +347,12 @@ function changeC64Subsong(subsongId) {
 
         let meta = trackData.metadata;
         currentScrollerText = `+++ BOOM! SWITCHED TO SUBSONG ${subsongId} OF ${meta.songs} +++ NOW PLAYING: ${meta.name.toUpperCase()} (TRACK ${subsongId}) BY ${meta.author.toUpperCase()} +++ `;
+
+        if (fsUI) {
+            fsUI.updateTrack(`${meta.name.toUpperCase()} [SUB ${subsongId}/${meta.songs}]`);
+        }
     }    
+
 }
 
 function startPlayback() {
@@ -358,6 +387,8 @@ function startPlayback() {
             });
         }
     }
+
+    if (fsUI) fsUI.updatePlayState(true);  
 }
 
 function resumePlayback() {
@@ -372,6 +403,8 @@ function resumePlayback() {
     if (activeSystem === 'amiga' && paulaNode) paulaNode.port.postMessage({ type: 'RESUME_TRACK' });
     else if (activeSystem === 'c64' && sidNode) sidNode.port.postMessage({ type: 'RESUME_TRACK' });
     else if (ymNode) ymNode.port.postMessage({ type: 'RESUME_TRACK' });
+
+    if (fsUI) fsUI.updatePlayState(true);
 }
 
 function stopPlayback() {
@@ -385,9 +418,17 @@ function stopPlayback() {
     if (ymNode) ymNode.port.postMessage({ type: 'STOP_TRACK' });
     if (paulaNode) paulaNode.port.postMessage({ type: 'STOP_TRACK' });
     if (sidNode) sidNode.port.postMessage({ type: 'STOP_TRACK' });
+
+    // =========================================================
+    // FIX: Allokationsfreies Zurücksetzen der Volume-Spuren bei Pause
+    // =========================================================
+    if (fsUI) fsUI.updatePlayState(false);
+    channelVolumes.fill(0); 
 }
 
 function setTheme(themeName) {
+    playRequestToken++; // NEU: Bricht alle noch im Hintergrund ladenden Tracks sofort ab!
+
     document.body.className = themeName;
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach(tab => {
@@ -509,6 +550,12 @@ function renderTracklist(system) {
 async function selectAndPlayTrack(index, system) {
     lastTrackChangeTime = performance.now();
 
+    // =========================================================
+    // ASYNC RACE CONDITION PROTECTION
+    // =========================================================
+    playRequestToken++;
+    const myToken = playRequestToken;
+
     if (getAudioContext() && getAudioContext().state === 'suspended') {
         resumeAudioContext().catch(e => console.log("AudioContext resume blockiert:", e));
     }
@@ -545,6 +592,15 @@ async function selectAndPlayTrack(index, system) {
         try {
             let parsedFile = await selectedSong.loadAsync();
             
+            // =========================================================
+            // TOKEN CHECK: Hat der User den Tab gewechselt oder 
+            // einen anderen Track geklickt, während wir geladen haben?
+            // =========================================================
+            if (myToken !== playRequestToken) {
+                console.warn("[SYSTEM] Veralteter Async-Ladevorgang durch User-Interaktion abgebrochen.");
+                return; // ABBRUCH! Keine Ghost-Playbacks mehr!
+            }
+
             if (isC64System) {
                 trackData = parsedFile; 
                 currentSubsongIndex = parsedFile.startSong || 1; 
@@ -671,6 +727,9 @@ async function selectAndPlayTrack(index, system) {
         trackData = selectedSong.generator();
         startPlayback();
     }
+
+    if (fsUI) fsUI.updateTrack(selectedSong.title);
+
 }
 
 function enterPseudoFullscreen(visualZone) {
@@ -744,16 +803,10 @@ function handleFullscreenChange() {
     window.dispatchEvent(new Event('resize'));
 }
 
-const noSleepVideo = document.createElement('video');
-noSleepVideo.setAttribute('playsinline', '');
-noSleepVideo.setAttribute('muted', '');
-noSleepVideo.setAttribute('loop', '');
-noSleepVideo.src = 'data:video/mp4;base64,AAAAHGZ0eXBtcDQyAAAAAG1wNDJpc29tYXZjMQAAAz5tb292AAAAbG12aGQAAAAA/8f/3v/H/+QAAALuAAAC7gABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAGGlvZHMAAAAAE//H/+QAAALuAAAC7gABAAAAAAABAAAAMXRyYWsAAABcdGtoZAAAAAD/x//e/8f/5AAAAAEAAAAAAAAC7gAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAgAAAAIAAAAgZWR0cwAAABBlbHN0AAAAAQAAAu4AAAAAAAEAAAAAAixtZGlhAAAAIG1kaGQAAAAA/8f/3v/H/+QAAALuAAAC7gABAAAAAAAxAAAAAAAvaGRscgAAAAAAAAAAdmlkZQAAAAAAAAAAAAAAAFZpZGVvSGFuZGxlcgAAAAIcbWluZgAAABR2bWhkAAAAAQAAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAcRzdGJsAAAAp3N0c2QAAAAAAAAAAQAAAJNhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAgACAEgAAABIAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAR//8AAAAxYXZjQwH0AAr/4QAZZ/QACq608AUBzgAAAwAABgAAAwivDxgXoAAAAQAAABhzdHRzAAAAAAAAAAEAAAABAAAC7gAAAABzdHNzAAAAAAAAAAEAAAABAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAABAAAAHHN0c3oAAAAAAAAAAAAAAAEAAAAeAAAAFHN0Y28AAAAAAAAAAQAAADAAAAA0dWR0YQAAACxtZXRhAAAAAAAAAABoZGxyAAAAAAAAAABtZGlyYXBwbAAAAAAAAAAAAAAA';
-
 let wakeLock = null;
 
 async function enableEcoMode() {
-    noSleepVideo.play().catch(e => console.warn('iOS Video-Hack blockiert:', e));
+    // noSleepVideo.play() gelöscht!
     isEcoMode = true;
     document.getElementById('eco-overlay').classList.remove('hidden');
     document.body.classList.add('eco-mode'); 
@@ -775,7 +828,7 @@ async function disableEcoMode() {
         await wakeLock.release();
         wakeLock = null;
     }
-    noSleepVideo.pause();
+    // noSleepVideo.pause() gelöscht!
     window.dispatchEvent(new Event('resize'));
 }
 

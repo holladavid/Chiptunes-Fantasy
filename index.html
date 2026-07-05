@@ -77,9 +77,21 @@
                     <button id="btn-eco-off">WAKE UP</button>
                 </div>
             </div>
-            <!-- NEU: Der Fullscreen-Button Overlay -->
-            <button id="btn-fullscreen" title="Toggle Fullscreen">[ ⛶ ]</button>
+
+            <!-- FULLSCREEN UI BAR (Neu: Kapselt Track-Info, Controls & Fullscreen-Button) -->
+            <div id="fs-ui-bar">
+                <div id="fs-playback-controls">
+                    <div class="fs-track-info" id="fs-track-info">NO TRACK LOADED</div>
+                    <div class="fs-controls">
+                        <button id="fs-btn-prev">|&lt;</button>
+                        <button id="fs-btn-play">&gt;</button>
+                        <button id="fs-btn-next">&gt;|</button>
+                    </div>
+                </div>
+                <button id="btn-fullscreen" title="Toggle Fullscreen">[ ⛶ ]</button>
+            </div>
             
+            <div class="scanlines"></div> <!-- CRT Monitor Effekt -->            
             <div class="scanlines"></div> <!-- CRT Monitor Effekt -->
         </div>
         

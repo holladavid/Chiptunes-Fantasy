@@ -654,6 +654,48 @@ input[type="range"]::-moz-range-thumb {
     /* Ein intensiver, theme-basierter Glow, der sich ins Canvas einbrennt */
     text-shadow: 0 0 10px var(--text-color), 2px 2px 0px #000000;
 }
+/* =========================================
+   BRANDING LOGO DEMO MODE ACTIVE GLOW
+========================================= */
+#brand-logo.demo-mode-active::before {
+    content: '';
+    position: absolute;
+    top: -30px;
+    left: -30px;
+    width: calc(100% + 60px);
+    height: calc(100% + 60px);
+    z-index: -1;
+    filter: blur(20px);
+    pointer-events: none;
+    border-radius: 50%;
+    /* Atmet organisch, während das Logo über die 'float-logo' Animation gleitet */
+    animation: pulse-glow 2.5s ease-in-out infinite alternate;
+    transition: background 0.5s ease;
+}
+
+/* System-spezifische, dezente Farbanpassungen */
+body.theme-c64 #brand-logo.demo-mode-active::before {
+    background: radial-gradient(circle, rgba(108, 94, 181, 0.45) 0%, transparent 70%);
+}
+
+body.theme-amiga #brand-logo.demo-mode-active::before {
+    background: radial-gradient(circle, rgba(255, 136, 0, 0.35) 0%, transparent 70%);
+}
+
+body.theme-atari #brand-logo.demo-mode-active::before {
+    background: radial-gradient(circle, rgba(85, 255, 85, 0.4) 0%, transparent 70%);
+}
+
+@keyframes pulse-glow {
+    0% {
+        transform: scale(0.85);
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(1.15);
+        opacity: 0.95;
+    }
+}
 
 @keyframes float-logo {
     0%   { transform: translateY(0px) rotate(0deg); }
@@ -908,56 +950,110 @@ body.eco-mode .brand-main {
 }
 
 /* =========================================
-   FULLSCREEN BUTTON & OVERRIDES
+   FULLSCREEN UI BAR (Unobtrusive)
 ========================================= */
-#btn-fullscreen {
+#fs-ui-bar {
     position: absolute;
     bottom: 15px;
     right: 15px;
-    z-index: 12; /* Liegt über dem Canvas, aber unter dem HUD */
+    z-index: 12; /* Unter dem HUD, über dem Canvas */
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    opacity: 0.3; /* Demoszene-Fokus: Sehr dezent im Normalzustand */
+    transition: opacity 0.4s ease;
+}
+
+#fs-ui-bar:hover {
+    opacity: 1.0; /* Voller Kontrast bei Interaktion */
+}
+
+/* Fadet das komplette Panel stufenlos aus, wenn die Maus stillsteht */
+#visual-zone.no-cursor #fs-ui-bar {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#fs-playback-controls {
+    display: none; /* Im Fenster-Modus unsichtbar */
+    align-items: center;
+    gap: 15px;
+}
+
+/* CSS-Magie: Player-Controls nur im echten Vollbild aktivieren */
+#visual-zone:fullscreen #fs-playback-controls { display: flex; }
+#visual-zone:-webkit-full-screen #fs-playback-controls { display: flex; }
+#visual-zone.pseudo-fullscreen #fs-playback-controls { display: flex; }
+
+.fs-track-info {
+    font-family: var(--font-main);
+    font-size: calc(var(--font-size-base) * 0.8);
+    color: var(--highlight-color);
+    text-shadow: 1px 1px 0px #000; /* Lesbarkeit über hellen Effekten garantieren */
+    max-width: 350px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+    letter-spacing: 1px;
+}
+
+.fs-controls {
+    display: flex;
+    gap: 5px;
+}
+
+.fs-controls button, #btn-fullscreen {
     background: rgba(0, 0, 0, 0.6);
     border: 1px solid var(--text-color);
     color: var(--highlight-color);
     padding: 6px 12px;
     font-family: var(--font-main);
-    font-size: 10px; /* Winziges, crisp-nerdiges Font-Scale */
+    font-size: 10px;
     cursor: pointer;
     transition: all 0.1s;
     outline: none;
 }
 
-#btn-fullscreen:hover {
+.fs-controls button:hover, #btn-fullscreen:hover {
     background: var(--text-color);
     color: #000;
     border-color: var(--highlight-color);
 }
 
 /* Erzwingt, dass die Visualisierungs-Zone im Vollbildmodus den ganzen Screen füllt */
-#visual-zone:fullscreen {
-    width: 100% !important;
-    height: 100% !important;
-}
-#visual-zone:-webkit-full-screen {
-    width: 100% !important;
-    height: 100% !important;
-}
+#visual-zone:fullscreen { width: 100% !important; height: 100% !important; }
+#visual-zone:-webkit-full-screen { width: 100% !important; height: 100% !important; }
+
 /* Pseudo-Fullscreen Fallback für iOS / iPhone */
 #visual-zone.pseudo-fullscreen {
     position: fixed !important;
-    inset: 0 !important; /* Setzt Top, Right, Bottom, Left auf 0 */
+    inset: 0 !important; 
     width: 100% !important;
     height: 100% !important;
     max-width: none !important;
     max-height: none !important;
-    z-index: 999999 !important; /* Zwingt sich über Safari-UI-Artefakte */
+    z-index: 999999 !important; 
     margin: 0 !important;
     border-radius: 0 !important;
 }
-/* Sichert, dass der Button auch im iOS-Vollbild anklickbar bleibt (Safari Addressbar Puffer) */
-#visual-zone.pseudo-fullscreen #btn-fullscreen {
-    bottom: calc(20px + env(safe-area-inset-bottom)) !important;
-    right: calc(20px + env(safe-area-inset-right)) !important;
+
+/* Mobile Safe Area Anpassung für das UI-Panel */
+@media (max-width: 800px) {
+    .fs-track-info {
+        display: none; /* Text auf kleinen Handys ausblenden, um den Limit-Bar nicht zu verdecken */
+    }
+    #visual-zone.pseudo-fullscreen #fs-ui-bar {
+        bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+        right: calc(15px + env(safe-area-inset-right)) !important;
+    }
 }
+
+/* Blendet den nativen OS-Cursor aus */
+#visual-zone.no-cursor { cursor: none !important; }
+#visual-zone.no-cursor * { cursor: none !important; }
+
+
 /* =========================================
    SUBSONG DISPLAY TIMELINE OVERLAY
 ========================================= */
