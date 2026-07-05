@@ -2,16 +2,14 @@
 // =========================================================
 // DEMO-SCENE-ELEMENT: TENSION LIMIT BAR
 // System-Themed reactive tension visualization (Borderless, No-Text)
+// Includes zero-tension auto-fade mechanism
 // =========================================================
 
 const C64_COLS = ['#352879', '#6c5eb5', '#b5b5b5', '#ffffff', '#ff8a8a', '#ffff33'];
 
 export class LimitBar {
     constructor() {
-        this.name = 'Tension Limit Bar';
-        this.computerType = ['all'];
-        this.placementType = 'overlay'; // Liegt ganz oben drüber
-        this.climaxHoldTime = 0.0; // UI-Element braucht keinen eigenen Hold
+        this.displayAlpha = 0.0; // NEU: Steuert das Ein/Ausblenden bei leerem Barometer
     }
 
     resize(width, height) {}
@@ -19,26 +17,9 @@ export class LimitBar {
     render(ctx, width, height, t, state, stateTime, metrics) {
         if (state === 'idle') return;
 
-        // Alpha-Blending für das UI Overlay selbst
-        let globalAlpha = 1.0;
-        if (state === 'starting') {
-            globalAlpha = Math.min(1.0, stateTime / 1.5);
-        } else if (state === 'stopping') {
-            globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
-        }
-        ctx.globalAlpha = globalAlpha;
-
-        const w = 240;
-        const h = 18;
-        const x = 20;
-        const y = height - h - 20;
-
         let pct = metrics.tensionPct;
         let isFlashing = false;
 
-        // =========================================================
-        // MATHEMATISCHER FIX: animIntensity deklarieren!
-        // =========================================================
         let animIntensity = (state === 'climax') ? 1.0 : pct;
 
         if (state === 'climax') {
@@ -52,8 +33,36 @@ export class LimitBar {
         }
         pct = Math.max(0, Math.min(1.0, pct));
 
+        // =========================================================
+        // ZERO-TENSION FADE OUT
+        // Ist das Fass leer, wird der Balken sanft ausgeblendet!
+        // =========================================================
+        let isActive = (pct > 0.001 || state === 'climax' || metrics.isClimaxLocked);
+        let targetAlpha = isActive ? 1.0 : 0.0;
+        
+        this.displayAlpha += (targetAlpha - this.displayAlpha) * 0.1;
+
+        let globalAlpha = 1.0;
+        if (state === 'starting') {
+            globalAlpha = Math.min(1.0, stateTime / 1.5);
+        } else if (state === 'stopping') {
+            globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
+        }
+        
+        // Multipliziere den Fade mit dem Start/Stop-State
+        globalAlpha *= this.displayAlpha;
+
+        // Wenn der Balken unsichtbar ist, brechen wir den teuren Render-Code ab!
+        if (globalAlpha <= 0.01) return;
+
+        ctx.globalAlpha = globalAlpha;
+
+        const w = 240;
+        const h = 18;
+        const x = 20;
+        const y = height - h - 20;
+
         if (metrics.system === 'c64') {
-            // --- C64 STYLE ---
             if (animIntensity > 0.05) {
                 let borderThick = Math.floor(2 + animIntensity * 6);
                 let numStripes = 6;
@@ -82,7 +91,6 @@ export class LimitBar {
             }
 
         } else if (metrics.system === 'amiga') {
-            // --- AMIGA STYLE ---
             if (animIntensity > 0.05) {
                 let sweepSpeed = t * (2 + animIntensity * 8);
                 let sweepPos = (Math.sin(sweepSpeed) * 0.5 + 0.5) * w;
@@ -117,7 +125,6 @@ export class LimitBar {
             }
 
         } else {
-            // --- ATARI ST STYLE ---
             if (animIntensity > 0.05) {
                 ctx.strokeStyle = animIntensity >= 1.0 ? '#ffffff' : '#55ff55';
                 ctx.lineWidth = 1.5;
@@ -164,7 +171,6 @@ export class LimitBar {
                 }
             }
         }
-
         ctx.globalAlpha = 1.0;
     }
 }
