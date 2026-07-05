@@ -37,6 +37,7 @@ let isEcoMode = false;
 let isUserDragging = false; 
 let currentSubsongIndex = 1; 
 let channelVolumes = new Float32Array(4);
+let playRequestToken = 0; // NEU: Async Race Condition Schutz
 
 // Cursor-Hiding Inaktivitäts-Timer
 let mouseIdleTimer = null;
@@ -198,10 +199,26 @@ function handleWorkletMessage(e) {
     if (e.data && e.data.constructor && e.data.constructor.name === 'Float32Array') {
         const view = e.data;
         const systemId = view[0];
+
+        // =========================================================
+        // ARCHITEKTUR FIX: Cross-System Message Filtering
+        // Ignoriert veraltete Nachrichten von inaktiven Cores.
+        // Verhindert Geister-Track-Wechsel beim schnellen Tab-Umschalten!
+        // =========================================================
+        const systemMapping = {
+            0: 'c64',
+            1: 'amiga',
+            2: 'atari'
+        };
+
+        if (systemMapping[systemId] !== activeSystem) {
+            return; // Nachricht verwerfen, da sie von einem im Hintergrund stoppenden Core kommt
+        }
+
         const isPlayingVal = view[1] === 1;
         const frameVal = view[2];
         currentOscValue = view[3];
-
+        
         if (!currentChipRegs) {
             currentChipRegs = new Uint8Array(32);
         }
@@ -275,7 +292,6 @@ function handleWorkletMessage(e) {
         currentChipRegs = e.data.regs; 
     }
 
-    // --- NEU RESTAURIERT: Globaler Digidrum-Trigger für die ST-Debugger LED ---
     if (e.data.type === 'DEBUG') {
         if (isEcoMode) return; 
 
@@ -411,6 +427,8 @@ function stopPlayback() {
 }
 
 function setTheme(themeName) {
+    playRequestToken++; // NEU: Bricht alle noch im Hintergrund ladenden Tracks sofort ab!
+
     document.body.className = themeName;
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach(tab => {
@@ -532,6 +550,12 @@ function renderTracklist(system) {
 async function selectAndPlayTrack(index, system) {
     lastTrackChangeTime = performance.now();
 
+    // =========================================================
+    // ASYNC RACE CONDITION PROTECTION
+    // =========================================================
+    playRequestToken++;
+    const myToken = playRequestToken;
+
     if (getAudioContext() && getAudioContext().state === 'suspended') {
         resumeAudioContext().catch(e => console.log("AudioContext resume blockiert:", e));
     }
@@ -568,6 +592,15 @@ async function selectAndPlayTrack(index, system) {
         try {
             let parsedFile = await selectedSong.loadAsync();
             
+            // =========================================================
+            // TOKEN CHECK: Hat der User den Tab gewechselt oder 
+            // einen anderen Track geklickt, während wir geladen haben?
+            // =========================================================
+            if (myToken !== playRequestToken) {
+                console.warn("[SYSTEM] Veralteter Async-Ladevorgang durch User-Interaktion abgebrochen.");
+                return; // ABBRUCH! Keine Ghost-Playbacks mehr!
+            }
+
             if (isC64System) {
                 trackData = parsedFile; 
                 currentSubsongIndex = parsedFile.startSong || 1; 
