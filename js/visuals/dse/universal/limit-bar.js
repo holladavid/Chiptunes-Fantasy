@@ -1,15 +1,19 @@
 // === js/visuals/dse/universal/limit-bar.js ===
 // =========================================================
 // DEMO-SCENE-ELEMENT: TENSION LIMIT BAR
-// System-Themed reactive tension visualization (Borderless, No-Text)
-// Includes zero-tension auto-fade mechanism
+// System-Themed reactive tension visualization (Borderless, No-Bg, No-Text)
+// Animations dynamically wrap the active fill-level.
 // =========================================================
 
 const C64_COLS = ['#352879', '#6c5eb5', '#b5b5b5', '#ffffff', '#ff8a8a', '#ffff33'];
 
 export class LimitBar {
     constructor() {
-        this.displayAlpha = 0.0; // NEU: Steuert das Ein/Ausblenden bei leerem Barometer
+        this.name = 'Tension Limit Bar';
+        this.computerType = ['all'];
+        this.placementType = 'overlay'; 
+        this.climaxHoldTime = 0.0; 
+        this.displayAlpha = 0.0; 
     }
 
     resize(width, height) {}
@@ -33,10 +37,6 @@ export class LimitBar {
         }
         pct = Math.max(0, Math.min(1.0, pct));
 
-        // =========================================================
-        // ZERO-TENSION FADE OUT
-        // Ist das Fass leer, wird der Balken sanft ausgeblendet!
-        // =========================================================
         let isActive = (pct > 0.001 || state === 'climax' || metrics.isClimaxLocked);
         let targetAlpha = isActive ? 1.0 : 0.0;
         
@@ -49,10 +49,8 @@ export class LimitBar {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
         }
         
-        // Multipliziere den Fade mit dem Start/Stop-State
         globalAlpha *= this.displayAlpha;
 
-        // Wenn der Balken unsichtbar ist, brechen wir den teuren Render-Code ab!
         if (globalAlpha <= 0.01) return;
 
         ctx.globalAlpha = globalAlpha;
@@ -63,7 +61,16 @@ export class LimitBar {
         const y = height - h - 20;
 
         if (metrics.system === 'c64') {
-            if (animIntensity > 0.05) {
+            // --- C64 STYLE ---
+            let segCount = 20;
+            let gap = 2;
+            let segW = (w / segCount) - gap;
+            let activeSegs = Math.floor(pct * segCount);
+            
+            // Berechne die exakte Breite der gefüllten Segmente
+            let activeW = activeSegs > 0 ? (activeSegs * (segW + gap) - gap) : 0;
+
+            if (animIntensity > 0.05 && activeW > 0) {
                 let borderThick = Math.floor(2 + animIntensity * 6);
                 let numStripes = 6;
                 let stripeH = (h + borderThick * 2) / numStripes;
@@ -72,18 +79,12 @@ export class LimitBar {
                     if (animIntensity >= 1.0 && Math.random() > 0.5) colIdx = 3 + Math.floor(Math.random() * 3); 
                     
                     ctx.fillStyle = C64_COLS[colIdx];
-                    ctx.fillRect(x - borderThick, Math.floor(y - borderThick + i * stripeH), w + borderThick * 2, Math.ceil(stripeH));
+                    // Hintergrund der Animation umspannt nur den aktiven Balken!
+                    ctx.fillRect(x - borderThick, Math.floor(y - borderThick + i * stripeH), activeW + borderThick * 2, Math.ceil(stripeH));
                 }
             }
 
-            ctx.fillStyle = '#000000'; 
-            ctx.fillRect(x, y, w, h);
-
-            let segCount = 20;
-            let gap = 2;
-            let segW = (w / segCount) - gap;
-            let activeSegs = Math.floor(pct * segCount);
-
+            // Keine schwarze Base-Bar mehr! Nur die aktiven Segmente zeichnen.
             for (let i = 0; i < activeSegs; i++) {
                 ctx.fillStyle = i > 15 ? '#ff8a8a' : (i > 10 ? '#ffffff' : '#6c5eb5');
                 if (isFlashing) ctx.fillStyle = '#ffffff';
@@ -91,9 +92,13 @@ export class LimitBar {
             }
 
         } else if (metrics.system === 'amiga') {
-            if (animIntensity > 0.05) {
+            // --- AMIGA STYLE ---
+            let activeW = w * pct;
+
+            if (animIntensity > 0.05 && activeW > 0) {
                 let sweepSpeed = t * (2 + animIntensity * 8);
-                let sweepPos = (Math.sin(sweepSpeed) * 0.5 + 0.5) * w;
+                // Sweep pendelt nur innerhalb der aktiven Füllung
+                let sweepPos = (Math.sin(sweepSpeed) * 0.5 + 0.5) * activeW;
                 let glowAlpha = 0.2 + animIntensity * 0.5;
                 
                 ctx.globalCompositeOperation = 'screen';
@@ -107,25 +112,31 @@ export class LimitBar {
                     let bY = y + h/2 + Math.sin(t * 20) * 8;
                     ctx.fillStyle = '#ffffff';
                     ctx.fillRect(x - 8, Math.floor(bY) - 3, 6, 6);
-                    ctx.fillRect(x + w + 2, Math.floor(bY) - 3, 6, 6);
+                    // Rechter Bob heftet sich direkt an das Ende der Füllung!
+                    ctx.fillRect(x + activeW + 2, Math.floor(bY) - 3, 6, 6);
                 }
             }
 
-            ctx.fillStyle = '#000000'; 
-            ctx.fillRect(x, y, w, h);
-
             if (pct > 0) {
-                let grad = ctx.createLinearGradient(x, y, x + w, y);
+                let grad = ctx.createLinearGradient(x, y, x + activeW, y);
                 grad.addColorStop(0.0, '#002288');
                 grad.addColorStop(0.5, '#ff8800'); 
                 grad.addColorStop(1.0, '#ff0000');
                 
                 ctx.fillStyle = isFlashing ? '#ffffff' : grad;
-                ctx.fillRect(x, y, w * pct, h); 
+                ctx.fillRect(x, y, activeW, h); 
             }
 
         } else {
-            if (animIntensity > 0.05) {
+            // --- ATARI ST STYLE ---
+            let segCount = 24;
+            let gap = 2;
+            let segW = (w / segCount) - gap;
+            let activeSegs = Math.floor(pct * segCount);
+            
+            let activeW = activeSegs > 0 ? (activeSegs * (segW + gap) - gap) : 0;
+
+            if (animIntensity > 0.05 && activeW > 0) {
                 ctx.strokeStyle = animIntensity >= 1.0 ? '#ffffff' : '#55ff55';
                 ctx.lineWidth = 1.5;
                 
@@ -139,10 +150,11 @@ export class LimitBar {
                     let offset = (Math.random() - 0.5) * (10 + animIntensity * 15);
                     let sparkLen = Math.random() * 10 * animIntensity;
                     
-                    if (edge === 0) { sx = x + Math.random() * w; sy = y - 4; dx = sx + offset; dy = sy - sparkLen; } 
-                    else if (edge === 1) { sx = x + Math.random() * w; sy = y + h + 4; dx = sx + offset; dy = sy + sparkLen; } 
+                    // Sparks entstehen nur entlang der aktiven Bounding-Box
+                    if (edge === 0) { sx = x + Math.random() * activeW; sy = y - 4; dx = sx + offset; dy = sy - sparkLen; } 
+                    else if (edge === 1) { sx = x + Math.random() * activeW; sy = y + h + 4; dx = sx + offset; dy = sy + sparkLen; } 
                     else if (edge === 2) { sx = x - 4; sy = y + Math.random() * h; dx = sx - sparkLen; dy = sy + offset; } 
-                    else { sx = x + w + 4; sy = y + Math.random() * h; dx = sx + sparkLen; dy = sy + offset; } 
+                    else { sx = x + activeW + 4; sy = y + Math.random() * h; dx = sx + sparkLen; dy = sy + offset; } 
                     
                     ctx.moveTo(sx, sy);
                     ctx.lineTo(dx, dy);
@@ -150,15 +162,7 @@ export class LimitBar {
                 ctx.stroke();
             }
 
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(x, y, w, h);
-
-            if (pct > 0) {
-                let segCount = 24;
-                let gap = 2;
-                let segW = (w / segCount) - gap;
-                let activeSegs = Math.floor(pct * segCount);
-
+            if (activeSegs > 0) {
                 for (let i = 0; i < activeSegs; i++) {
                     let color = '#55ff55'; 
                     if (i > 18) color = '#ff3333'; 
