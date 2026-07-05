@@ -2,11 +2,15 @@
 // =========================================================
 // DEMO-SCENE-ELEMENT: REAL-TIME COPPERBARS (RASTERBARS)
 // Pseudo-3D Z-Buffer Sorting (Helix Orbit) & Depth Shading
-// Refactored with Continuous Math Smoothing (No Jumping)
+// Refactored for True Metallic Cylinder Shading (No Black Edges)
 // =========================================================
 
 export class Copperbars {
     constructor() {
+        this.name = '3D Helix Copperbars';
+        this.computerType = ['all']; 
+        this.placementType = 'floor';
+        
         this.baseThickness = [65, 50, 38, 28]; 
         this.heightWeights = [0.24, 0.24, 0.24, 0.24];
         this.colorCache = {};
@@ -20,9 +24,6 @@ export class Copperbars {
 
         this.sortedBars = Array(4).fill(null);
         
-        // =========================================================
-        // ZERO-JUMP SMOOTHING AKKUMULATOREN
-        // =========================================================
         this.lastT = 0;
         this.internalT = 0;
         this.smoothedSpeed = 1.0;
@@ -44,40 +45,44 @@ export class Copperbars {
     drawCopperbar(ctx, w, y, height, volume, hexStart, hexEnd, scanlineHeight, colorBitShift, z, globalAlpha) {
         if (volume <= 0.01 || height <= 0 || globalAlpha <= 0.01) return;
         
-        const cS = this.hexToRgb(hexStart);
-        const cE = this.hexToRgb(hexEnd);
-        const cBlk = [0, 0, 0];
-        const cWht = [255, 255, 255];
+        const cS = this.hexToRgb(hexStart); // Dark Base Color
+        const cE = this.hexToRgb(hexEnd);   // Light Base Color
+        const cWht = [255, 255, 255];       // Specular Highlight
         
         const steps = Math.max(1, Math.floor(height / scanlineHeight));
         const depthFactor = 0.82 + (z * 0.18); 
 
         ctx.globalAlpha = globalAlpha;
 
+        // =========================================================
+        // TRUE METALLIC CYLINDER SHADING (No Black Edges)
+        // Die Ränder enden hart auf der dunklen Grundfarbe (cS). 
+        // Das Specular Highlight (Weiß) liegt leicht asymmetrisch bei 40%.
+        // =========================================================
         for(let i = 0; i <= steps; i++) {
             let t = i / steps; 
             let r, g, b;
             
-            if (t < 0.18) {
-                let n = t / 0.18;
-                r = cBlk[0] + (cS[0] - cBlk[0]) * n;
-                g = cBlk[1] + (cS[1] - cBlk[1]) * n;
-                b = cBlk[2] + (cBlk[2] - cBlk[2]) * n; 
-            } else if (t < 0.5) {
-                let n = (t - 0.18) / 0.32;
-                r = cS[0] + (cWht[0] - cS[0]) * n;
-                g = cS[1] + (cWht[1] - cS[1]) * n;
-                b = cS[2] + (cWht[2] - cS[2]) * n;
-            } else if (t < 0.82) {
-                let n = (t - 0.5) / 0.32;
+            if (t < 0.2) {
+                let n = t / 0.2;
+                r = cS[0] + (cE[0] - cS[0]) * n;
+                g = cS[1] + (cE[1] - cS[1]) * n;
+                b = cS[2] + (cE[2] - cS[2]) * n; 
+            } else if (t < 0.4) {
+                let n = (t - 0.2) / 0.2;
+                r = cE[0] + (cWht[0] - cE[0]) * n;
+                g = cE[1] + (cWht[1] - cE[1]) * n;
+                b = cE[2] + (cWht[2] - cE[2]) * n;
+            } else if (t < 0.6) {
+                let n = (t - 0.4) / 0.2;
                 r = cWht[0] + (cE[0] - cWht[0]) * n;
                 g = cWht[1] + (cE[1] - cWht[1]) * n;
                 b = cWht[2] + (cE[2] - cWht[2]) * n;
             } else {
-                let n = (t - 0.82) / 0.18;
-                r = cE[0] + (cBlk[0] - cE[0]) * n;
-                g = cE[1] + (cBlk[1] - cE[1]) * n;
-                b = cE[2] + (cBlk[2] - cE[2]) * n;
+                let n = (t - 0.6) / 0.4;
+                r = cE[0] + (cS[0] - cE[0]) * n;
+                g = cE[1] + (cS[1] - cE[1]) * n;
+                b = cE[2] + (cS[2] - cE[2]) * n;
             }
             
             r *= depthFactor;
@@ -113,7 +118,8 @@ export class Copperbars {
             isAtari ? ['#003300', '#00aa00'] : isAmiga ? ['#000066', '#0055ff'] : ['#201a60', '#6c5eb5'],
             isAtari ? ['#333300', '#aaaa00'] : isAmiga ? ['#663300', '#ff8800'] : ['#660033', '#ff00aa'],
             isAtari ? ['#003333', '#00aaaa'] : isAmiga ? ['#330066', '#aa00ff'] : ['#333333', '#aaaaaa'],
-            isAmiga ? ['#111111', '#888888'] : []
+            // Grau auf #222 angehoben, damit auch diese Spur kein absolutes Schwarz an der Kante erzeugt
+            isAmiga ? ['#222222', '#999999'] : [] 
         ];
 
         let scanlineHeight = isC64 ? 8 : 4;
@@ -140,14 +146,9 @@ export class Copperbars {
             targetAmplitude = 1.1;   
             targetPunch = 45.0;      
             globalAlpha = 0.85 + (metrics.pulse[0] * 0.15); 
-            targetTwist = 15.0 * metrics.pulse[0]; // Twist reagiert auf den Beat
+            targetTwist = 15.0 * metrics.pulse[0]; 
         }
 
-        // =========================================================
-        // CONTINUOUS MATH SMOOTHING
-        // Alle Modifikatoren werden sanft übergeblendet.
-        // Keine Sprünge bei harten State-Wechseln mehr!
-        // =========================================================
         this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * 0.05;
         this.smoothedAmplitude += (targetAmplitude - this.smoothedAmplitude) * 0.05;
         this.smoothedPunch += (targetPunch - this.smoothedPunch) * 0.1;
@@ -156,7 +157,6 @@ export class Copperbars {
         this.internalT += dt * this.smoothedSpeed;
 
         const baseSpeed = 0.55; 
-        // Phasenabstand MUSS symmetrisch bleiben, sonst gibt es Rückwärts-Glitscher!
         const phaseStep = (Math.PI * 2) / numBars; 
 
         for (let c = 0; c < numBars; c++) {
@@ -168,8 +168,6 @@ export class Copperbars {
             let yCenter = (height / 2);
             yCenter += Math.sin(angle) * amplitude;
             
-            // Standard Helix Wobble + sanft eingeblendeter Twist
-            // Keine if/else-Weiche = Keine mathematischen Klippen-Sprünge!
             yCenter += Math.cos(angle * 1.5) * (amplitude * 0.12);
             yCenter += Math.sin(t * 6.0 + c * 2.0) * this.smoothedTwist;
             
