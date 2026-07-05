@@ -2,7 +2,7 @@
 // =========================================================
 // DEMOSCENE-SEQUENCER (DSS) / THE "SCENE-DJ"
 // Zero-Allocation Orchestrator for Dynamic Visual Choreographies
-// Aligned States: idle -> playing -> buildup -> climax (v1.2.0)
+// Bulletproof Lifecycle Routing & Rebuild-Strategy (v1.2.0)
 // =========================================================
 
 const Z_ORDER = {
@@ -63,32 +63,25 @@ export class SceneDJ {
     forceSystemChange(newSystem) {
         this.currentSystem = newSystem;
 
-        // 1. Systemfremde DSEs hart aus dem aktiven Pool werfen
-        for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
-            let dse = this.activeDSEs[i];
-            
-            if (dse.metadata.triggerProbability === 1.0 && dse.metadata.computerType.includes('all')) {
-                continue; 
-            }
+        // =========================================================
+        // ARCHITEKTUR FIX: Arrays immer komplett neu bauen
+        // Verhindert Duplikate, tote Zeiger und zerschossene Z-Order!
+        // =========================================================
+        this.activeDSEs = [];
 
-            if (!dse.metadata.computerType.includes(newSystem) && !dse.metadata.computerType.includes('all')) {
-                dse.state = 'idle';
-                this.activeDSEs.splice(i, 1);
-            }
-        }
-
-        // 2. Systemgetreue DSEs in den Pool laden (schlafend)
         for (let i = 0; i < this.registeredDSEs.length; i++) {
             let dse = this.registeredDSEs[i];
+            
             if (dse.metadata.computerType.includes(newSystem) || dse.metadata.computerType.includes('all')) {
-                if (!this.activeDSEs.includes(dse)) {
-                    dse.state = 'idle';
-                    dse.stateTime = 0.0;
-                    this.activeDSEs.push(dse);
-                }
+                this.activeDSEs.push(dse);
+            } else {
+                // Systemfremde Effekte hart schlafen legen
+                dse.state = 'idle';
+                dse.stateTime = 0.0;
             }
         }
         
+        // Frisches Z-Sorting
         this.activeDSEs.sort((a, b) => Z_ORDER[a.metadata.placementType] - Z_ORDER[b.metadata.placementType]);
         
         this.currentEnergyState = 'idle';
@@ -144,21 +137,16 @@ export class SceneDJ {
         const energy = this.masterEnergy[0];
         const pulse = this.transientPulse[0];
         
-        // =========================================================
-        // SYSTEM-SPEZIFISCHES FEINTUNING (UPDATE v1.2.0)
-        // Drosselt die Empfindlichkeit für C64 und Amiga weiter,
-        // um epische Spannungsaufbauten zu garantieren.
-        // =========================================================
-        let buildupThreshold = 0.40;    // Amiga Default (Erhöht von 0.38)
-        let overdriveThreshold = 0.58;   // Amiga Default (Erhöht von 0.55)
+        let buildupThreshold = 0.40;    
+        let overdriveThreshold = 0.58;   
         let pulseThreshold = 0.35;       
-        let accumulationSpeed = 0.75;    // Amiga Füllrate gedrosselt (von 1.0)
+        let accumulationSpeed = 0.75;    
 
         if (this.currentSystem === 'c64') {
-            buildupThreshold = 0.40;     // Amiga Niveau angeglichen (von 0.32)
+            buildupThreshold = 0.40;     
             overdriveThreshold = 0.58;   
             pulseThreshold = 0.30;       
-            accumulationSpeed = 0.45;    // Füllrate gedrosselt (von 0.60)
+            accumulationSpeed = 0.45;    
         } else if (this.currentSystem === 'atari') {
             buildupThreshold = 0.26;     
             overdriveThreshold = 0.44;   
@@ -244,12 +232,16 @@ export class SceneDJ {
                     dse.stateTime = 0.0;
                 }
             } else {
-                if (dse.state === 'idle' || dse.state === 'stopping') {
+                if (dse.state === 'idle') {
                     dse.state = 'starting';
                     dse.stateTime = 0.0;
                 } else if (dse.state === 'starting' && dse.stateTime >= TRANSITION_TIME) {
                     dse.state = this.currentEnergyState;
                     dse.stateTime = 0.0;
+                } else if (dse.state === 'stopping') {
+                    // Falls Musik schnell wieder gestartet wird: Weiche Umkehr!
+                    dse.state = 'starting';
+                    dse.stateTime = Math.max(0.0, TRANSITION_TIME - dse.stateTime);
                 } else if (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax') {
                     if (dse.state !== this.currentEnergyState) {
                         dse.state = this.currentEnergyState;
