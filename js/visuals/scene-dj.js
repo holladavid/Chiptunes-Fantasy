@@ -62,26 +62,47 @@ export class SceneDJ {
 
     forceSystemChange(newSystem) {
         this.currentSystem = newSystem;
+        let filledPlacements = new Set();
 
-        // =========================================================
-        // ARCHITEKTUR FIX: Arrays immer komplett neu bauen
-        // Verhindert Duplikate, tote Zeiger und zerschossene Z-Order!
-        // =========================================================
-        this.activeDSEs = [];
+        // 1. Inkompatible stoppen, permanent geschützte Overlays behalten
+        for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
+            let dse = this.activeDSEs[i];
+            
+            if (dse.metadata.triggerProbability === 1.0 && dse.metadata.computerType.includes('all')) {
+                filledPlacements.add(dse.metadata.placementType);
+                continue; 
+            }
 
+            if (!dse.metadata.computerType.includes(newSystem) && !dse.metadata.computerType.includes('all')) {
+                dse.state = 'idle';
+                this.activeDSEs.splice(i, 1);
+            }
+        }
+
+        // 2. Verfügbare, kompatible und schlafende DSEs nach Layern sortieren
+        let available = { 'background': [], 'floor': [], 'foreground': [], 'overlay': [] };
+        
         for (let i = 0; i < this.registeredDSEs.length; i++) {
             let dse = this.registeredDSEs[i];
-            
-            if (dse.metadata.computerType.includes(newSystem) || dse.metadata.computerType.includes('all')) {
-                this.activeDSEs.push(dse);
-            } else {
-                // Systemfremde Effekte hart schlafen legen
-                dse.state = 'idle';
-                dse.stateTime = 0.0;
+            if (dse.state === 'idle' && (dse.metadata.computerType.includes(newSystem) || dse.metadata.computerType.includes('all'))) {
+                available[dse.metadata.placementType].push(dse);
+            }
+        }
+
+        // 3. THE DJ SLOT MACHINE: Wähle maximal EIN Gimmick pro freiem Layer!
+        const layers = ['background', 'floor', 'foreground', 'overlay'];
+        for (let layer of layers) {
+            if (!filledPlacements.has(layer) && available[layer].length > 0) {
+                let candidates = available[layer];
+                // Zufällige Auswahl (v2.0.0 Vorbereitung!)
+                let chosenDSE = candidates[Math.floor(Math.random() * candidates.length)];
+                
+                chosenDSE.state = 'idle';
+                this.activeDSEs.push(chosenDSE);
             }
         }
         
-        // Frisches Z-Sorting
+        // Z-Order für Rendering garantieren
         this.activeDSEs.sort((a, b) => Z_ORDER[a.metadata.placementType] - Z_ORDER[b.metadata.placementType]);
         
         this.currentEnergyState = 'idle';
