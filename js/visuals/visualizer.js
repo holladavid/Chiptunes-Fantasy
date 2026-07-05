@@ -15,6 +15,30 @@ export function initVisuals(stateGetters, callbacks) {
 
     const ctx = canvas.getContext('2d', { alpha: false }); 
 
+    // =========================================================
+    // INITIALISIERUNG SCENE-DJ (Zuerst deklarieren!)
+    // =========================================================
+    const dss = new SceneDJ();
+
+    // =========================================================
+    // AUTO-REGISTER ALL DEMO-SCENE-ELEMENTS WITH METADATA CONTRACT
+    // =========================================================
+    dseRegistry.forEach(entry => {
+        try {
+            const effectInstance = new entry.Class();
+            // Dem Renderer seine konsolidierten Metadaten anhängen
+            effectInstance.metadata = entry.metadata; 
+            dss.registerDSE(effectInstance);
+        } catch (err) {
+            console.error(`[SCENE-DJ] Failed to register DSE: ${entry.Class.name}`, err);
+        }
+    });
+
+    // Core UI (Vom DJ unabhängig)
+    const fft = new FftAnalyzer();
+    const osc = new Oscilloscope(canvas.width, canvas.height);
+
+    // --- INTERACTIVE GIMMICK STATE & TOGGLE ---
     let showGimmick = false;
     const logo = document.getElementById('brand-logo');
     if (logo) {
@@ -25,24 +49,6 @@ export function initVisuals(stateGetters, callbacks) {
             setTimeout(() => logo.style.filter = '', 100);
         });
     }
-
-    // =========================================================
-    // INITIALISIERUNG SCENE-DJ & DSE AUTO-REGISTRATION
-    // =========================================================
-    const dss = new SceneDJ();
-    
-    dseRegistry.forEach(DseClass => {
-        try {
-            const effectInstance = new DseClass();
-            dss.registerDSE(effectInstance);
-        } catch (err) {
-            console.error(`[SCENE-DJ] Failed to register DSE: ${DseClass.name}`, err);
-        }
-    });
-
-    // Core UI (Vom DJ unabhängig)
-    const fft = new FftAnalyzer();
-    const osc = new Oscilloscope(canvas.width, canvas.height);
 
     function resizeCanvas() {
         const clientWidth = canvas.clientWidth;
@@ -65,6 +71,7 @@ export function initVisuals(stateGetters, callbacks) {
         }
     }
     
+    // Initialer Resize (Nachdem dss deklariert wurde!)
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
     

@@ -2,11 +2,6 @@
 
 export class AmigaCube {
     constructor() {
-        this.name = 'Amiga Glenz Cube';
-        this.computerType = ['amiga'];
-        this.placementType = 'foreground';
-        this.climaxHoldTime = 15.0; // Der wobbelnde Cube darf ruhig 15s abgehen
-
         this.cubeVertices = [
             [-1, -1, -1], [ 1, -1, -1], [ 1,  1, -1], [-1,  1, -1],
             [-1, -1,  1], [ 1, -1,  1], [ 1,  1,  1], [-1,  1,  1]
