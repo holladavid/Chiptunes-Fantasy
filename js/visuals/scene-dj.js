@@ -2,7 +2,7 @@
 // =========================================================
 // DEMOSCENE-SEQUENCER (DSS) / THE "SCENE-DJ"
 // Zero-Allocation Orchestrator for Dynamic Visual Choreographies
-// Includes Reactive Demoscene-Style Limit Break Animations (Borderless)
+// Refactored: Rendering extracted to dedicated DSEs
 // =========================================================
 
 const Z_ORDER = {
@@ -16,8 +16,6 @@ const MIN_BUILDUP_TIME = 0.5;
 const TRANSITION_TIME = 1.5; 
 const TENSION_MAX = 20.0; 
 
-const C64_COLS = ['#352879', '#6c5eb5', '#b5b5b5', '#ffffff', '#ff8a8a', '#ffff33'];
-
 export class SceneDJ {
     constructor() {
         this.channelSmooth = new Float32Array(4);
@@ -28,7 +26,14 @@ export class SceneDJ {
         this.metrics = {
             energy: this.masterEnergy,
             pulse: this.transientPulse,
-            smooth: this.channelSmooth
+            smooth: this.channelSmooth,
+            // Erweiterte dynamische Metriken (werden in render() aktualisiert)
+            tensionPct: 0.0,
+            isClimaxLocked: false,
+            climaxTimer: 0.0,
+            climaxHoldTime: 0.0,
+            rawEnergyState: 'Playing',
+            system: 'c64'
         };
 
         this.registeredDSEs = [];
@@ -212,161 +217,18 @@ export class SceneDJ {
         this.analyzeEnergy(channelVolumes, dt);
         this.updateStateMachines(dt);
 
+        // Populate dynamic metrics for DSEs
+        this.metrics.tensionPct = this.tension / TENSION_MAX;
+        this.metrics.isClimaxLocked = this.isClimaxLocked;
+        this.metrics.climaxTimer = this.climaxTimer;
+        this.metrics.climaxHoldTime = this.currentClimaxHoldTime;
+        this.metrics.rawEnergyState = this.rawEnergyState;
+        this.metrics.system = this.currentSystem;
+
+        // Render all active DSEs (Z-Order handled during insertion)
         for (let i = 0; i < this.activeDSEs.length; i++) {
             let dse = this.activeDSEs[i];
             dse.render(ctx, width, height, t, dse.state, dse.stateTime, this.metrics);
-        }
-
-        // =========================================================
-        // LIMIT BREAK ANIMATION & TENSION METER (Borderless)
-        // =========================================================
-        const w = 240;
-        const h = 18;
-        const x = 20;
-        const y = height - h - 20;
-
-        let pct = this.tension / TENSION_MAX;
-        
-        let animIntensity = (this.currentEnergyState === 'Climax') ? 1.0 : pct;
-        let isFlashing = (animIntensity >= 1.0 && (performance.now() % 150 < 75));
-
-        pct = Math.max(0, Math.min(1.0, pct));
-
-        if (this.currentSystem === 'c64') {
-            // --- C64 STYLE: Rasterbar Animation (Background) ---
-            if (animIntensity > 0.05) {
-                let borderThick = Math.floor(2 + animIntensity * 6);
-                let numStripes = 6;
-                let stripeH = (h + borderThick * 2) / numStripes;
-                for (let i = 0; i < numStripes; i++) {
-                    let colIdx = Math.floor((t * (5 + animIntensity * 15) + i) % 4);
-                    if (animIntensity >= 1.0 && Math.random() > 0.5) colIdx = 3 + Math.floor(Math.random() * 3); 
-                    
-                    ctx.fillStyle = C64_COLS[colIdx];
-                    ctx.fillRect(x - borderThick, Math.floor(y - borderThick + i * stripeH), w + borderThick * 2, Math.ceil(stripeH));
-                }
-            }
-
-            // Base Bar (Borderless)
-            ctx.fillStyle = '#000000'; 
-            ctx.fillRect(x, y, w, h);
-
-            let segCount = 20;
-            let gap = 2;
-            let segW = (w / segCount) - gap;
-            let activeSegs = Math.floor(pct * segCount);
-
-            for (let i = 0; i < activeSegs; i++) {
-                ctx.fillStyle = i > 15 ? '#ff8a8a' : (i > 10 ? '#ffffff' : '#6c5eb5');
-                if (isFlashing) ctx.fillStyle = '#ffffff';
-                ctx.fillRect(x + i * (segW + gap), y, segW, h); // Angepasst für Rahmenlosigkeit
-            }
-
-            ctx.font = '10px "Press Start 2P", monospace';
-            ctx.fillStyle = isFlashing ? '#ffffff' : '#6c5eb5';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'bottom';
-            ctx.fillText("LIMIT BREAK", x, y - 6);
-
-        } else if (this.currentSystem === 'amiga') {
-            // --- AMIGA STYLE: Hardware Copper Sweep & Bobs ---
-            if (animIntensity > 0.05) {
-                let sweepSpeed = t * (2 + animIntensity * 8);
-                let sweepPos = (Math.sin(sweepSpeed) * 0.5 + 0.5) * w;
-                let glowAlpha = 0.2 + animIntensity * 0.5;
-                
-                ctx.globalCompositeOperation = 'screen';
-                ctx.fillStyle = `rgba(255, 255, 255, ${glowAlpha})`;
-                ctx.fillRect(x + sweepPos - 15, y - 4, 30, h + 8);
-                ctx.fillStyle = `rgba(255, 255, 255, ${glowAlpha * 1.5})`;
-                ctx.fillRect(x + sweepPos - 5, y - 4, 10, h + 8);
-                ctx.globalCompositeOperation = 'source-over';
-                
-                if (animIntensity >= 1.0) {
-                    let bY = y + h/2 + Math.sin(t * 20) * 8;
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(x - 8, Math.floor(bY) - 3, 6, 6);
-                    ctx.fillRect(x + w + 2, Math.floor(bY) - 3, 6, 6);
-                }
-            }
-
-            // Base Bar (Borderless)
-            ctx.fillStyle = '#000000'; 
-            ctx.fillRect(x, y, w, h);
-
-            if (pct > 0) {
-                let grad = ctx.createLinearGradient(x, y, x + w, y);
-                grad.addColorStop(0.0, '#002288');
-                grad.addColorStop(0.5, '#ff8800'); 
-                grad.addColorStop(1.0, '#ff0000');
-                
-                ctx.fillStyle = isFlashing ? '#ffffff' : grad;
-                ctx.fillRect(x, y, w * pct, h); // Angepasst für Rahmenlosigkeit
-            }
-
-            ctx.font = '18px "VT323", monospace';
-            ctx.fillStyle = isFlashing ? '#ffffff' : '#ff8800';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'bottom';
-            ctx.shadowColor = '#000000';
-            ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1;
-            ctx.fillText("SYSTEM OVERDRIVE", x, y - 4);
-            ctx.shadowColor = 'transparent';
-
-        } else {
-            // --- ATARI ST STYLE: Vector Static Sparks ---
-            if (animIntensity > 0.05) {
-                ctx.strokeStyle = animIntensity >= 1.0 ? '#ffffff' : '#55ff55';
-                ctx.lineWidth = 1.5;
-                
-                let numSparks = Math.floor(animIntensity * 12);
-                if (animIntensity >= 1.0) numSparks = 25; 
-                
-                ctx.beginPath();
-                for(let i=0; i < numSparks; i++) {
-                    let edge = Math.floor(Math.random() * 4);
-                    let sx, sy, dx, dy;
-                    let offset = (Math.random() - 0.5) * (10 + animIntensity * 15);
-                    let sparkLen = Math.random() * 10 * animIntensity;
-                    
-                    if (edge === 0) { sx = x + Math.random() * w; sy = y - 4; dx = sx + offset; dy = sy - sparkLen; } 
-                    else if (edge === 1) { sx = x + Math.random() * w; sy = y + h + 4; dx = sx + offset; dy = sy + sparkLen; } 
-                    else if (edge === 2) { sx = x - 4; sy = y + Math.random() * h; dx = sx - sparkLen; dy = sy + offset; } 
-                    else { sx = x + w + 4; sy = y + Math.random() * h; dx = sx + sparkLen; dy = sy + offset; } 
-                    
-                    ctx.moveTo(sx, sy);
-                    ctx.lineTo(dx, dy);
-                }
-                ctx.stroke();
-            }
-
-            // Base Bar (Borderless)
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(x, y, w, h);
-
-            if (pct > 0) {
-                let segCount = 24;
-                let gap = 2;
-                let segW = (w / segCount) - gap;
-                let activeSegs = Math.floor(pct * segCount);
-
-                for (let i = 0; i < activeSegs; i++) {
-                    let color = '#55ff55'; 
-                    if (i > 18) color = '#ff3333'; 
-                    else if (i > 13) color = '#ffff33'; 
-                    
-                    if (isFlashing) color = '#ffffff'; 
-                    
-                    ctx.fillStyle = color;
-                    ctx.fillRect(x + i * (segW + gap), y, segW, h); // Angepasst für Rahmenlosigkeit
-                }
-            }
-
-            ctx.font = '18px "VT323", monospace';
-            ctx.fillStyle = isFlashing ? '#ff3333' : '#55ff55';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'bottom';
-            ctx.fillText("TENSION LEVEL", x, y - 4);
         }
     }
 }
