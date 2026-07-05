@@ -151,19 +151,20 @@ export class SceneDJ {
     // gegen eine Alternative auf demselben Layer ausgetauscht wird.
     // =========================================================
     manageDynamicSwaps(dt) {
-        if (this.currentEnergyState !== 'playing') return; // Niemals während Buildup/Climax tauschen!
+        // Erlaubt Swaps im 'playing' UND 'buildup' State. Nur Climax wird blockiert!
+        if (this.currentEnergyState === 'climax') return; 
 
         let layerFilled = { 'background': false, 'floor': false, 'foreground': false, 'overlay': false };
 
         for (let i = 0; i < this.activeDSEs.length; i++) {
             let dse = this.activeDSEs[i];
             
-            if (dse._markedForRemoval) continue; // Wird bereits ausgewechselt
+            if (dse._markedForRemoval) continue; 
             
             layerFilled[dse.metadata.placementType] = true;
 
-            // Ist die Mindestlaufzeit abgelaufen?
-            if (dse.state === 'playing' && dse.metadata.minPlayTime !== Infinity && dse.stateTime >= dse.metadata.minPlayTime) {
+            // Prüft, ob das Element lange genug im Bild ist (15s)
+            if ((dse.state === 'playing' || dse.state === 'buildup') && dse.metadata.minPlayTime !== Infinity && dse.stateTime >= dse.metadata.minPlayTime) {
                 
                 let altExists = this.registeredDSEs.some(alt => 
                     alt !== dse && 
@@ -172,10 +173,9 @@ export class SceneDJ {
                 );
 
                 if (altExists) {
-                    // 2% Chance pro Sekunde, dass das Gimmick gewechselt wird
                     if (Math.random() < 0.02 * dt) {
-                        dse._markedForRemoval = true; // Markiere zum Ausfaden
-                        layerFilled[dse.metadata.placementType] = false; // Layer ist sofort frei für den Nachfolger
+                        dse._markedForRemoval = true; 
+                        layerFilled[dse.metadata.placementType] = false; 
                     }
                 }
             }

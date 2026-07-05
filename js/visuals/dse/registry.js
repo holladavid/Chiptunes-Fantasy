@@ -7,7 +7,7 @@
 
 import { LimitBar } from './universal/limit-bar.js';
 import { Copperbars } from './universal/copperbars.js';
-import { RetroSunset } from './universal/retro-sunset.js'; // NEU
+import { RetroSunset } from './universal/retro-sunset.js';
 import { C64Starfield } from './c64/starfield.js';
 import { AmigaCube } from './amiga/glenz-cube.js';
 import { AtariBobs } from './atari/lissajous-bobs.js';
@@ -19,7 +19,7 @@ function defineDSE(DseClass, customMetadata) {
         placementType: 'foreground',            
         energyLevel: ['idle', 'quiet', 'medium', 'crazy'],
         triggerProbability: 0.5,                
-        minPlayTime: 5.0,                       
+        minPlayTime: 15.0, // Erhöht auf 15s für stabile Szenen
         climaxHoldTime: 10.0                    
     };
 
@@ -49,15 +49,15 @@ export const dseRegistry = [
         placementType: 'background',
         computerType: ['c64'],
         triggerProbability: 0.7,
-        minPlayTime: 8.0,
+        minPlayTime: 15.0,
         climaxHoldTime: 8.0
     }),
     
     defineDSE(RetroSunset, {
         placementType: 'background',
         computerType: ['all'],
-        triggerProbability: 0.8, // Etwas höher gewichtet als Starfield
-        minPlayTime: 12.0,
+        triggerProbability: 0.8, 
+        minPlayTime: 15.0,
         climaxHoldTime: 12.0
     }),
 
@@ -66,7 +66,7 @@ export const dseRegistry = [
         placementType: 'floor',
         computerType: ['all'],
         triggerProbability: 0.8,
-        minPlayTime: 8.0,
+        minPlayTime: 15.0,
         climaxHoldTime: 12.0
     }),
     
@@ -75,7 +75,7 @@ export const dseRegistry = [
         placementType: 'foreground',
         computerType: ['amiga'],
         triggerProbability: 0.7,
-        minPlayTime: 10.0,
+        minPlayTime: 15.0,
         climaxHoldTime: 15.0
     }),
     
@@ -83,7 +83,7 @@ export const dseRegistry = [
         placementType: 'foreground',
         computerType: ['atari'],
         triggerProbability: 0.7,
-        minPlayTime: 10.0,
+        minPlayTime: 15.0,
         climaxHoldTime: 10.0
     })
 ];
