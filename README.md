@@ -1,82 +1,79 @@
+---
+
 # Chiptunes Fantasy
 
-The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator. Built with 100% vanilla HTML5, CSS3, and modern Web Audio API. 
+### The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator
+**Version 1.2.0-beta [The Scene-DJ Cycle]**
 
-No MP3s, no pre-rendered streams — just pure mathematical real-time synthesis running asynchronously inside low-latency AudioWorklets.
-
----
-
-> **🎉 MILESTONE REACHED: VERSION 1.1.1 [The Fine-Tuning Cycle]**  
-> We have officially hit **Version 1.1.1**! Following the visual overhaul in v1.1, this patch cycle brings mathematically perfect 3D phase-staggered helix-coppers, smooth RGB phosphor-blending on the oscilloscope, authentic 12-bit Amiga tab styling, and massive contrast and touch-spacing usability upgrades for our veteran sceners.
+Built with 100% vanilla HTML5, CSS3, and modern Web Audio API. No MP3s, no pre-rendered streams — just pure mathematical real-time synthesis running asynchronously inside low-latency AudioWorklets.
 
 ---
 
-## 🚀 The Vision & Tribute
-This project is a love letter to the audio wizards of the 80s and 90s — legends like Jochen Hippel (Mad Max), Rob Hubbard, Chris Hülsbeck, Martin Galway, and Jeroen Tel. They didn't just compose music; they hacked the hardware. They abused CPU timers, manipulated pulse widths, and wrote their own assembly drivers to make simple programmable sound generators sound like entire orchestras.
+## 🚀 The Vision & Philosophy
 
-*Chiptunes-Fantasy* makes these genius programming tricks tangible. We don't just play the music; we expose the guts of the hardware in real-time, honoring the artists, explaining the physics, and educating the nerds.
+*Chiptunes-Fantasy* exposes the guts of retro-computing hardware in real-time, explaining the physics, honoring the coders of the 80s/90s, and educating the curious. 
 
-## 📺 Demoscene Visuals & UX
+### The Dual-Constraint Design Philosophy (v1.2.0+)
+1. **Bare-Metal Fidelity Per Element:** Each individual **Demo-Scene-Element (DSE)** is engineered to strictly fit the visual and performance boundaries of its target retro platform. If it's a C64 element, it strictly adheres to the 16-color VIC-II palette and chunky pixel scrolling. If it's Atari ST, it respects the 16-color 9-bit palette steps and sharp raster interrupt bands.
+2. **Modern Composited Power:** While each individual element is authentic, the *Demoscene-Sequencer* is allowed to stack, crossfade, and swap these layers dynamically. This modern multi-layer orchestration is designed to leverage modern CPU/GPU capabilities to create a seamless, high-fidelity experience that wouldn't have been possible on a single physical machine.
 
-*   **C64 Cold Boot:** The app launches with a mathematically authentic, pixel-perfect Commodore 64 basic CRT cold-boot sequence.
-*   **Interactive Demoscene Easter Eggs:** Click the main logo to swap the clinical lab-scope for real-time, system-specific 3D demoscene effects:
-    *   *Amiga:* A rotating 3D "Glenz" glass vector cube featuring real-time backface culling, Z-centroid Painter's Algorithm, and audio-reactive blooming outlines.
-    *   *Atari ST:* A swarm of pre-rendered, 3D-shaded metallic spheres (Blitter Bobs) weaving through endless Lissajous knots that pulse to the beat.
-    *   *C64:* A 3D parallax starfield with velocity-based motion blur streaks quantized strictly to the original 16-color Commodore VIC-II palette.
-*   **Physical CRT Oscilloscope:** Simulates an authentic cathode-ray tube using an offscreen accumulation buffer for true exponential phosphor decay. The beam features dynamic intensity modulation, electromagnetic flares, and throws glowing, cooling phosphor sparks across the screen on sharp audio transients.
-*   **Segmented VFD Analyzer:** A system-themed, tri-color Vacuum Fluorescent Display spectrum analyzer. Features a studio-grade "Peak Hold" logic that perfectly snaps to the physical LED grid gaps.
-*   **3D Helix Copperbars:** Rasterbars orbit each other using true 3D Z-buffer sorting and depth shading. Features historic scanline quantization and color banding (12-bit Amiga OCS, 9-bit Atari ST, chunky 16-color C64).
-*   **Tactile Hardware UI:** Volume and timeline sliders are designed as deeply recessed, shadow-milled hardware grooves. The track selector mimics an authentic 90s DOS/Tracker terminal with inverted-color block selection and a blinking hardware cursor.
-*   **DSP Debug HUD:** A real-time debugger showing register matrices, custom state LEDs (like the Amiga power-filter LED or YM Digidrum activity), and sparkline mini-scopes per channel.
-*   **Pure Audio (ECO) Mode:** Completely halts the Canvas loop, pauses all CSS animations, and locks the screen wake state to save battery on mobile devices while continuing pure AudioWorklet synthesis.
+---
 
-## 🎛️ Core Emulation Features
+## 📺 Demoscene Orchestration (The Scene-DJ Engine)
 
-### 💻 Commodore 64 (MOS SID 6581)
-*   **1MHz Cycle-Exact Lockstep Core:** The 6502 CPU, SID registers, and CIA/VBLANK IRQ timers execute in perfect chronological synchronicity on a clock-by-clock basis (985248 Hz PAL).
-*   **255-Tap Polyphase Sinc-FIR Decimator:** Custom windowed Sinc downsampling replaces naive averaging, eliminating high-frequency foldback aliasing on hard-sync leads and preserving raw high-end brilliance.
-*   **Asymmetric JFET Filter Saturation:** Modeling the non-linear triode region of the original 6581 VCF feedback path for that warm, resonant "Wizball-Growl".
-*   **Sustain-Drop & Pipeline Delay:** True hardware envelope emulation replicating the 1-cycle pipeline freeze on gate toggles and the infamous sustain target-miss bug.
-*   **True Analog Wire-AND:** Simulates the pull-down transistor resistance on the 12-bit digital bus when combining waveforms, bringing back the dirty, iconic crunch of mixed states (essential for *Maniacs of Noise* tracks).
-*   **Thermal Cutoff Drift:** Live physical modeling of the analog filter temperature drift, manually adjustable via the UI temperature slider.
+With the **v1.2.0-beta** milestone, we introduce the foundational **Demoscene-Sequencer (DSS)**, which takes visual control away from hardcoded rendering loops and introduces rule-based, dynamic orchestrations.
 
-### 🐨 Commodore Amiga (MOS Paula 8364)
-*   **192kHz (4x) Oversampled ZOH DAC:** Samples are rendered as raw analog stair-steps (Zero-Order Hold) at 192 kHz. This preserves the high-frequency mirror images (the legendary "Amiga Shimmer") in the ultrasonic domain before filtering, preventing digital foldback.
-*   **Sinc-FIR Decimation:** Smoothly and cleanly downsamples the internal 192 kHz high-res stream to 48 kHz for the audio destination.
-*   **High-Res Analog Filter Chain:** The 6dB RC lowpass (4.42 kHz) and the 12dB Butterworth LED filter (3.09 kHz) are calculated directly in the 192 kHz domain to accurately smooth the physical ZOH stair-steps.
-*   **100% Hard-Panning & Crosstalk:** Rejects modern software panning commands to enforce the brutal hardware-wired L-R-R-L panning configuration, softened only by a 3.5% inductive motherboard crosstalk.
-*   **DMA Word Alignment:** Replicates Paula's 16-bit DMA memory fetches by strictly masking all loop boundaries and sample offsets to even byte boundaries (`& ~1`).
+### 1. The Demoscene-Sequencer (DSS) / "Scene-DJ"
+The `SceneDJ` acts as a pure, render-free logical coordinator. It analyzes real-time audio streams (RMS energy and transients) and dynamically manages the lifecycle states of active visual elements. 
+*   **Weighted Roulette Selection:** Instead of absolute probabilities, the DJ uses a relative weighting system (`weight`) to roll for the next visual theme. 
+*   **Crossfade Swapping:** When swapping elements, the outgoing element smoothly fades out (`stopping`), while the incoming alternative fades in (`starting`) simultaneously over a 1.5-second window.
+*   **Play-Safe Hysteresis:** The DJ monitors the minimum playtime (`minPlayTime`, standard 15s) of active DSEs. It also protects high-energy sections, only allowing swaps during calm (`playing` or `buildup`) phases.
+*   **Wake-Up Rolls:** When unpausing the player (`idle` $\to$ active), the DJ instantly discards non-permanent elements and rolls a fresh visual canvas.
 
-### 🦎 Atari ST (Yamaha YM2149F)
-*   **2MHz True Lockstep Core:** Cycle-accurate execution of the Tone (toggle every 8*TP), Noise (shift every 16*NP), and Envelope (step every 8*EP) generators on a 2.0 MHz clock.
-*   **32-Step Logarithmic DAC:** Fully emulates the YM2149F's internal 32-step DAC ladder (-1.5dB per step) by translating 4-bit register volume to 5-bit DAC via `(v * 2) + 1` for smoother volume sweeps and authentic "Zipper-Noise".
-*   **Zero-Click Hijack Isolation:** Captures PCM Digidrums and completely isolates them from the volume registers to prevent 50Hz DC-popping, holding the DAC state on completion.
-*   **Combinational Envelope Logic:** Renders the 5-bit envelope without artificial "flat-spot" loop delays at the peaks and troughs.
-*   **Atari ST Motherboard RC Filter:** Simulates the thin, biting frequency response of the Atari ST's physical output stage.
+### 2. Demo-Scene-Element (DSE) & Centralized Registry
+All demoscene visual effects are decoupled into highly encapsulated classes under `js/visuals/dse/` and registered inside `js/visuals/dse/registry.js`. 
+Every DSE implements a strict state-machine contract:
+*   `idle`: Deep sleep state (0% CPU footprint, early returns in loops).
+*   `starting`: Transparent fade-in.
+*   `playing`: Normal base behavior.
+*   `buildup`: Fast-paced, expanded orbital amplitude.
+*   `climax`: Peak intensity (strobe effects, physics distortion, beat-throbbing).
+*   `stopping`: Transparent fade-out.
 
-## 🏗️ Architecture
-The engine is highly modular. Visual elements are decoupled into clean ES6 classes and you can easily plug in new hardware simulator cores or add new binary parsers.
+### 3. Integrated Tension Meter (Limit Break)
+Represented by the borderless, highly-reactive `LimitBar` DSE (which is automatically locked via `minPlayTime: Infinity`). It faddishly appears only when music tension is present.
+*   **The Math:** Accumulates tension via `power = (energy * 0.5) + (pulse * 2.0)`. During high-energy `Overdrive` frames, accumulation is boosted `4x` (Atari ST gets an additional `1.5x` boost, C64 `1.2x` boost).
+*   **The Lock:** Once `tension` hits maximum, it locks into `climax` and holds. The hold timer only ticks down when the track falls back to `buildup`, visually draining the bar backwards while keeping the surrounding DSE animations at maximum intensity.
+*   **System-Themed Visuals:** 
+    *   *C64*: Blocky, chunky VIC-II segmented layout framed by moving rasterbars.
+    *   *Amiga*: Workbench 2.0-style 3D bevels with smooth horizontal Copper-gradients.
+    *   *Atari ST*: Authentic sharp-pixel, 16-color VU-meter layout with neon-vector glitches.
 
-```mermaid
-graph TD
-    subgraph UI [1. User Interface & Controls]
-        A[Playlists, Volume, Custom Sliders & Museum]
-    end
+---
 
-    subgraph PARSE [2. Binary Decoders]
-        B[Parsers for raw .sid, .ym, .mod and .xm files]
-    end
+## 🎛️ Core Chip Factsheet (Simplified)
 
-    subgraph SYNTH [3. Real-Time Synthesis]
-        C[Low-latency AudioWorklets: SID, Paula & YM Cores]
-    end
+### MOS Technology SID 6581 (Commodore 64)
+*   **Lockstep Core:** 1MHz cycle-exact synchronization between the CPU, registers, and CIA/VBLANK timers.
+*   **Decimation:** 255-Tap Polyphase Sinc-FIR decimator preventing high-frequency foldback.
+*   **Analog Anomalies:** Asymmetric JFET filter saturation, thermal cutoff drift manual slider, and true silicon Wire-AND logic for combined wave states.
 
-    subgraph VIS [4. Visual Feedback & GFX]
-        D[FFT Spectrum, CRT Oscilloscope & live DSP HUD]
-    end
+### MOS Paula 8364 (Amiga 500)
+*   **ZOH oversampling:** 192kHz (4x) oversampled Zero-Order Hold DAC reproducing the physical "Amiga Shimmer".
+*   **Filters:** 6dB RC lowpass (4.42 kHz) and 12dB Butterworth LED filter (3.09 kHz).
+*   **Stereo Separation:** Hard L-R-R-L panning mitigated by 3.5% inductive motherboard crosstalk.
 
-    %% Signal & Data Flow
-    A -->|User Selection| B
-    B -->|Register Frames| C
-    C ==>|16-Bit Audio Signal| Speaker((🔊 Speaker))
-    C -.->|Wave & Metric Dumps| D
+### Yamaha YM2149F (Atari ST)
+*   **Clock lockstep:** 2MHz execution of Tone, Noise, and Envelope generators.
+*   **Logarithmic DAC:** True 32-step logarithmic DAC ladders (`(v * 2) + 1` mapping).
+*   **Digital Tricks:** Zero-click PCM Digidrum isolation, discrete 5-bit hardware envelope loop-logic.
+
+---
+
+## 📺 Tactile Hardware UI & GFX
+
+*   **Cathode-Ray Oscilloscope:** Phosphor-accumulation buffer simulating genuine CRT electron beam glow, electromagnetic flares, and transient spark particles.
+*   **VFD Spectrum Analyzer:** Vacuum Fluorescent Display with grid-snapped peak-hold gravity calculations.
+*   **Subdued Fullscreen Remote:** A highly-unobtrusive DOM-overlay overlaying the canvas in fullscreen mode (`opacity: 0.3` on hover, faddishly disappearing completely when the mouse is idle).
+
+---
