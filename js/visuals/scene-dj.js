@@ -63,6 +63,7 @@ export class SceneDJ {
     forceSystemChange(newSystem) {
         this.currentSystem = newSystem;
 
+        // 1. Systemfremde DSEs hart aus dem aktiven Pool werfen
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
             
@@ -72,17 +73,19 @@ export class SceneDJ {
 
             if (!dse.metadata.computerType.includes(newSystem) && !dse.metadata.computerType.includes('all')) {
                 dse.state = 'idle';
-                dse.stateTime = 0.0;
                 this.activeDSEs.splice(i, 1);
             }
         }
 
+        // 2. Systemgetreue DSEs in den Pool laden (schlafend)
         for (let i = 0; i < this.registeredDSEs.length; i++) {
             let dse = this.registeredDSEs[i];
-            if ((dse.metadata.computerType.includes(newSystem) || dse.metadata.computerType.includes('all')) && dse.state === 'idle') {
-                dse.state = 'starting';
-                dse.stateTime = 0.0;
-                this.activeDSEs.push(dse);
+            if (dse.metadata.computerType.includes(newSystem) || dse.metadata.computerType.includes('all')) {
+                if (!this.activeDSEs.includes(dse)) {
+                    dse.state = 'idle';
+                    dse.stateTime = 0.0;
+                    this.activeDSEs.push(dse);
+                }
             }
         }
         
@@ -107,6 +110,8 @@ export class SceneDJ {
         let totalEnergy = 0.0;
         let maxPulse = 0.0;
 
+        let numActiveChannels = (this.currentSystem === 'c64' || this.currentSystem === 'atari') ? 3 : 4;
+
         for (let i = 0; i < 4; i++) {
             let rawVol = channelVolumes[i] || 0.0;
 
@@ -129,36 +134,61 @@ export class SceneDJ {
             totalEnergy += this.channelSmooth[i];
         }
 
-        this.masterEnergy[0] = totalEnergy / 4.0;
+        this.masterEnergy[0] = totalEnergy / numActiveChannels;
         this.transientPulse[0] = maxPulse > 0.0 ? maxPulse : 0.0;
     }
 
-    updateStateMachines(dt) {
+    updateStateMachines(dt, isPlaying) {
         this.energyStateTimer += dt;
         
         const energy = this.masterEnergy[0];
         const pulse = this.transientPulse[0];
         
-        let isOverdrive = (energy > 0.60 && pulse > 0.4);
-        let isBuildup = (energy > 0.45);
+        // =========================================================
+        // SYSTEM-SPEZIFISCHES FEINTUNING (UPDATE v1.2.0)
+        // Drosselt die Empfindlichkeit für C64 und Amiga weiter,
+        // um epische Spannungsaufbauten zu garantieren.
+        // =========================================================
+        let buildupThreshold = 0.40;    // Amiga Default (Erhöht von 0.38)
+        let overdriveThreshold = 0.58;   // Amiga Default (Erhöht von 0.55)
+        let pulseThreshold = 0.35;       
+        let accumulationSpeed = 0.75;    // Amiga Füllrate gedrosselt (von 1.0)
+
+        if (this.currentSystem === 'c64') {
+            buildupThreshold = 0.40;     // Amiga Niveau angeglichen (von 0.32)
+            overdriveThreshold = 0.58;   
+            pulseThreshold = 0.30;       
+            accumulationSpeed = 0.45;    // Füllrate gedrosselt (von 0.60)
+        } else if (this.currentSystem === 'atari') {
+            buildupThreshold = 0.26;     
+            overdriveThreshold = 0.44;   
+            pulseThreshold = 0.22;       
+            accumulationSpeed = 1.5;     
+        }
+
+        let isOverdrive = (energy > overdriveThreshold && pulse > pulseThreshold);
+        let isBuildup = (energy > buildupThreshold);
         
-        this.rawEnergyState = isOverdrive ? 'Overdrive' : (isBuildup ? 'Buildup' : 'Playing');
+        this.rawEnergyState = isOverdrive ? 'climax' : (isBuildup ? 'buildup' : 'playing');
         let targetEnergyState = this.currentEnergyState;
 
         // --- TENSION & LOCK LOGIK ---
-        if (!isBuildup && !isOverdrive) {
+        if (!isPlaying) {
+            this.isClimaxLocked = false;
+            this.tension = Math.max(0.0, this.tension - (dt * 15.0)); 
+            targetEnergyState = 'idle';
+        } else if (!isBuildup && !isOverdrive) {
             this.isClimaxLocked = false;
             this.tension = Math.max(0.0, this.tension - (dt * 10.0)); 
-            
             if (this.energyStateTimer > MIN_BUILDUP_TIME) {
-                targetEnergyState = 'Playing';
+                targetEnergyState = 'playing';
             }
         } else {
             if (!this.isClimaxLocked) {
                 let power = (energy * 0.5) + (pulse * 2.0); 
                 if (isOverdrive) power *= 4.0; 
 
-                this.tension += power * dt;
+                this.tension += power * accumulationSpeed * dt;
 
                 if (this.tension >= TENSION_MAX) {
                     this.tension = TENSION_MAX;
@@ -167,13 +197,13 @@ export class SceneDJ {
                     
                     this.currentClimaxHoldTime = this.activeDSEs.length > 0 
                         ? Math.max(...this.activeDSEs.map(d => d.metadata.climaxHoldTime || 10.0)) : 10.0;
-                } else if (this.currentEnergyState === 'Playing' && this.energyStateTimer > MIN_BUILDUP_TIME) {
-                    targetEnergyState = 'Buildup';
+                } else if (this.currentEnergyState === 'playing' && this.energyStateTimer > MIN_BUILDUP_TIME) {
+                    targetEnergyState = 'buildup';
                 }
             }
 
             if (this.isClimaxLocked) {
-                targetEnergyState = 'Climax';
+                targetEnergyState = 'climax';
                 
                 if (isOverdrive) {
                     this.climaxTimer = 0.0;
@@ -185,7 +215,7 @@ export class SceneDJ {
                     if (this.climaxTimer >= this.currentClimaxHoldTime) {
                         this.isClimaxLocked = false;
                         this.tension = 0.0;
-                        targetEnergyState = 'Buildup';
+                        targetEnergyState = 'buildup';
                     }
                 }
             } else {
@@ -198,42 +228,48 @@ export class SceneDJ {
             this.energyStateTimer = 0.0;
         }
 
-        for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
+        // =========================================================
+        // KUGELSICHERES DSE STATE ROUTING
+        // =========================================================
+        for (let i = 0; i < this.activeDSEs.length; i++) {
             let dse = this.activeDSEs[i];
             dse.stateTime += dt;
 
-            if (dse.state === 'starting' && dse.stateTime >= TRANSITION_TIME) {
-                dse.state = this.currentEnergyState;
-                dse.stateTime = 0.0;
-            }
-            
-            if (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax') {
-                if (this.currentEnergyState === 'idle') {
+            if (this.currentEnergyState === 'idle') {
+                if (dse.state !== 'idle' && dse.state !== 'stopping') {
                     dse.state = 'stopping';
                     dse.stateTime = 0.0;
-                } else if (dse.state !== this.currentEnergyState) {
-                    dse.state = this.currentEnergyState;
-                    dse.stateTime = 0.0; 
-                }
-            }
-
-            if (dse.state === 'stopping' && dse.stateTime >= TRANSITION_TIME) {
-                if (dse.stateTime >= dse.metadata.minPlayTime || dse.metadata.minPlayTime === Infinity) {
-                    dse.state = 'Idle';
+                } else if (dse.state === 'stopping' && dse.stateTime >= TRANSITION_TIME) {
+                    dse.state = 'idle'; 
                     dse.stateTime = 0.0;
-                    this.activeDSEs.splice(i, 1);
+                }
+            } else {
+                if (dse.state === 'idle' || dse.state === 'stopping') {
+                    dse.state = 'starting';
+                    dse.stateTime = 0.0;
+                } else if (dse.state === 'starting' && dse.stateTime >= TRANSITION_TIME) {
+                    dse.state = this.currentEnergyState;
+                    dse.stateTime = 0.0;
+                } else if (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax') {
+                    if (dse.state !== this.currentEnergyState) {
+                        dse.state = this.currentEnergyState;
+                        dse.stateTime = 0.0; 
+                    }
                 }
             }
         }
     }
 
-    render(ctx, width, height, t, channelVolumes) {
+    render(ctx, width, height, t, channelVolumes, isPlaying) {
         let dt = 0.016; 
-        if (this.lastTime !== 0) dt = t - this.lastTime;
+        if (this.lastTime !== 0) {
+            dt = t - this.lastTime;
+            if (dt > 0.1) dt = 0.016; 
+        }
         this.lastTime = t;
 
         this.analyzeEnergy(channelVolumes, dt);
-        this.updateStateMachines(dt);
+        this.updateStateMachines(dt, isPlaying);
 
         this.metrics.tensionPct = this.tension / TENSION_MAX;
         this.metrics.isClimaxLocked = this.isClimaxLocked;
