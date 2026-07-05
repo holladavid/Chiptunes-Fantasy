@@ -9,6 +9,9 @@ import { dseRegistry } from './dse/registry.js';
 import { FftAnalyzer } from './components/fft-analyzer.js';
 import { Oscilloscope } from './components/oscilloscope.js';
 
+// NEU: Statisches, prä-allozierte Null-Array zur Vermeidung von Heap-Garbages bei Inaktivität
+const zeroVolumes = new Float32Array(4);
+
 export function initVisuals(stateGetters, callbacks) {
     const canvas = document.getElementById('demo-canvas');
     if (!canvas) return;
@@ -119,20 +122,23 @@ export function initVisuals(stateGetters, callbacks) {
         const isC64 = document.body.classList.contains('theme-c64');
         const lineColor = isAtari ? '#55ff55' : isAmiga ? '#ff8800' : '#6c5eb5';
         
-        // DSS System-Sync (Meldet dem DJ, wenn der Tab gewechselt wurde)
         const currentSystem = isAtari ? 'atari' : (isAmiga ? 'amiga' : 'c64');
         if (dss.currentSystem !== currentSystem) {
             dss.forceSystemChange(currentSystem);
         }
 
-        const channelVolumes = stateGetters.getChannelVolumes ? stateGetters.getChannelVolumes() : [0, 0, 0, 0];
+        // =========================================================
+        // FIX: Sicheres Ausblenden bei Pause (Kein Einfrieren mehr!)
+        // =========================================================
+        const isPlaying = stateGetters.getIsPlaying();
+        const channelVolumes = (isPlaying && stateGetters.getChannelVolumes) 
+            ? stateGetters.getChannelVolumes() 
+            : zeroVolumes;
 
         // --- RENDER ROUTING ---
         if (showGimmick) {
-            // Scene-DJ übergibt an DSEs
             dss.render(ctx, canvas.width, canvas.height, t, channelVolumes);
         } else {
-            // Core UI Modus (Lab-Scope)
             drawReticle(); 
             osc.render(ctx, canvas.width, canvas.height, stateGetters, lineColor);
             fft.render(ctx, canvas.width, canvas.height, stateGetters, lineColor);

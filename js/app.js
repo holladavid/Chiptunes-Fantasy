@@ -403,7 +403,11 @@ function stopPlayback() {
     if (paulaNode) paulaNode.port.postMessage({ type: 'STOP_TRACK' });
     if (sidNode) sidNode.port.postMessage({ type: 'STOP_TRACK' });
 
+    // =========================================================
+    // FIX: Allokationsfreies Zurücksetzen der Volume-Spuren bei Pause
+    // =========================================================
     if (fsUI) fsUI.updatePlayState(false);
+    channelVolumes.fill(0); 
 }
 
 function setTheme(themeName) {
