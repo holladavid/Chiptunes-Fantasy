@@ -48,6 +48,10 @@ export function initVisuals(stateGetters, callbacks) {
         logo.addEventListener('click', () => {
             showGimmick = !showGimmick;
             if (!showGimmick) osc.clear();
+            
+            // NEU: Klassenzuweisung für den systemgetreuen Glow
+            logo.classList.toggle('demo-mode-active', showGimmick);
+            
             logo.style.filter = 'brightness(2.0)';
             setTimeout(() => logo.style.filter = '', 100);
         });
