@@ -162,65 +162,62 @@ export class RetroSunset {
     }
 
     // =========================================================
-    // ATARI ST: HIGH-RES 16-COLOR RASTER TRICKS & DITHERING
+    // ATARI ST: HORIZONTAL RASTER LINES & 16-COLOR PALETTE
     // =========================================================
     drawAtari(ctx, w, h, horizon) {
-        // 1. Sky: Raster Interrupt Bands (Klassische 16-Farben Limitierung)
-        const skyColors = ['#000022', '#110033', '#220044', '#440022', '#660000', '#882200', '#aa4400', '#cc6600'];
-        let bandH = horizon / skyColors.length;
-        for (let i = 0; i < skyColors.length; i++) {
+        const skyColors = ['#000033', '#220033', '#440022', '#660011', '#880000', '#aa2200', '#cc4400', '#ff6600'];
+        let skyBands = skyColors.length;
+        let bandH = horizon / skyBands;
+        for (let i = 0; i < skyBands; i++) {
             ctx.fillStyle = skyColors[i];
             ctx.fillRect(0, Math.floor(i * bandH), w, Math.ceil(bandH));
         }
 
         let sx = w / 2, sy = horizon - 25;
         let sunR = 45 + (this.sunPulse * 15);
-
-        // 2. High-Res Sun
+        
         ctx.fillStyle = '#ffaa00'; 
         ctx.beginPath(); ctx.arc(sx, sy, sunR, 0, Math.PI * 2); ctx.fill();
         
         ctx.fillStyle = '#ffff55'; 
         ctx.beginPath(); ctx.arc(sx, sy, sunR * 0.7, 0, Math.PI * 2); ctx.fill();
         
-        // 3. Fake Transparenz: Klassisches horizontales Linien-Dithering
+        // FIX: Mathematisch exaktes Dithering innerhalb des Kreises (Satz des Pythagoras)
         ctx.fillStyle = '#cc6600'; 
         for (let y = sy - sunR; y < sy + sunR; y += 4) {
-            ctx.fillRect(sx - sunR, Math.floor(y), sunR * 2, 2);
+            let dy = y - sy;
+            let dx = Math.sqrt((sunR * sunR) - (dy * dy)); // Sehnenlänge berechnen
+            if (dx > 0) {
+                ctx.fillRect(sx - dx, Math.floor(y), dx * 2, 2);
+            }
         }
 
-        // 4. Water Base
         ctx.fillStyle = '#000022';
         ctx.fillRect(0, horizon, w, h - horizon);
 
-        // 5. Water Reflections: High-Res Horizontal Sine Displacement
-        let waterSpeed = this.waterT * 5;
-        let distortion = 2 + this.smoothedDistortion * 8; // Heftige Verzerrung bei Beats
-
-        for (let y = horizon + 2; y < h; y += 4) {
+        let waterSpeed = this.waterT * 25;
+        for (let y = horizon + 2; y < h; y += (y - horizon) * 0.15 + 4) {
             let depth = (y - horizon) / (h - horizon);
+            let thickness = Math.max(1, Math.floor(depth * 5));
             
-            // X-Offset Berechnung für die horizontale Wellenbrechung
-            let xOffset = Math.sin(y * 0.2 + waterSpeed) * distortion;
-            xOffset += Math.cos(y * 0.05 - waterSpeed * 0.5) * (distortion * 2.0 * depth);
-            
-            // Raster-Wellen in ST Cyan / Blau
-            ctx.fillStyle = (Math.floor(y) % 8 === 0) ? '#0033aa' : '#0055ff';
-            ctx.fillRect(0, Math.floor(y), w, 2);
+            let speed = waterSpeed * (0.5 + depth * 1.5);
+            let offset = speed % 40;
 
-            // Sonnen-Reflexion auf dem Wasser (zerbricht an den Wellen)
-            let reflectW = sunR * (1.0 - depth * 0.5);
-            if (y < horizon + 100) {
-                ctx.fillStyle = '#ffff55';
-                if (Math.sin(y * 0.5 + waterSpeed * 2) > -0.2) {
-                    ctx.fillRect(sx - reflectW/2 + xOffset, Math.floor(y), reflectW, 2);
+            for (let x = -40; x < w; x += 40) {
+                if (Math.abs(x + offset - sx) < sunR * (1.0 - depth*0.5) && y < horizon + 80) {
+                    ctx.fillStyle = '#ffff55'; 
+                } else {
+                    ctx.fillStyle = (Math.floor(y) % 3 === 0) ? '#0044aa' : '#0077ff'; 
                 }
-            }
-
-            // 6. CPU Overload Raster-Glitches (Exklusiv im Climax!)
-            if (this.smoothedDistortion > 4.0 && Math.random() > 0.88) {
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, Math.floor(y), w, 1); // Gestochen scharfe, 1px weiße Blitze
+                
+                let dashWidth = 20 + depth * 20;
+                
+                if (this.smoothedDistortion > 3.0 && Math.random() > 0.7) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, y, w, 2);
+                } else {
+                    ctx.fillRect(x + offset, Math.floor(y), dashWidth, thickness);
+                }
             }
         }
     }
