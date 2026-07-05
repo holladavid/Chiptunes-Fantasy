@@ -146,42 +146,57 @@ export class SceneDJ {
     }
 
     // =========================================================
-    // DYNAMIC SWAP MANAGER
-    // Würfelt bei abgelaufener minPlayTime, ob ein Effekt sanft 
-    // gegen eine Alternative auf demselben Layer ausgetauscht wird.
+    // DYNAMIC SWAP MANAGER (v1.2.0 - Smart Retry Logic)
     // =========================================================
     manageDynamicSwaps(dt) {
-        // Erlaubt Swaps im 'playing' UND 'buildup' State. Nur Climax wird blockiert!
+        // Swaps sind nur im 'playing' und 'buildup' erlaubt. 'climax' blockiert den Wechsel!
         if (this.currentEnergyState === 'climax') return; 
 
         let layerFilled = { 'background': false, 'floor': false, 'foreground': false, 'overlay': false };
 
         for (let i = 0; i < this.activeDSEs.length; i++) {
             let dse = this.activeDSEs[i];
-            
             if (dse._markedForRemoval) continue; 
             
             layerFilled[dse.metadata.placementType] = true;
 
-            // Prüft, ob das Element lange genug im Bild ist (15s)
-            if ((dse.state === 'playing' || dse.state === 'buildup') && dse.metadata.minPlayTime !== Infinity && dse.stateTime >= dse.metadata.minPlayTime) {
-                
-                let altExists = this.registeredDSEs.some(alt => 
-                    alt !== dse && 
-                    alt.metadata.placementType === dse.metadata.placementType &&
-                    (alt.metadata.computerType.includes(this.currentSystem) || alt.metadata.computerType.includes('all'))
-                );
+            // Ist die Mindestlaufzeit erreicht?
+            if ((dse.state === 'playing' || dse.state === 'buildup') && dse.metadata.minPlayTime !== Infinity) {
+                if (dse.stateTime >= dse.metadata.minPlayTime) {
+                    
+                    // Wahrscheinlichkeit steigt, je länger der Effekt überfällig ist
+                    let overTime = dse.stateTime - dse.metadata.minPlayTime;
+                    let swapChance = overTime * 0.1 * dt; 
 
-                if (altExists) {
-                    if (Math.random() < 0.02 * dt) {
-                        dse._markedForRemoval = true; 
-                        layerFilled[dse.metadata.placementType] = false; 
+                    if (Math.random() < swapChance) {
+                        // Alle Kandidaten für den Layer sammeln (INKLUSIVE dem aktuellen DSE!)
+                        let candidates = this.registeredDSEs.filter(d => 
+                            (d.state === 'idle' || d === dse) && 
+                            !d._markedForRemoval &&
+                            d.metadata.placementType === dse.metadata.placementType &&
+                            (d.metadata.computerType.includes(this.currentSystem) || d.metadata.computerType.includes('all'))
+                        );
+
+                        if (candidates.length > 0) {
+                            let chosen = candidates[Math.floor(Math.random() * candidates.length)];
+                            
+                            if (chosen === dse) {
+                                // DJ hat gewürfelt und behält denselben Effekt!
+                                // Timer um 5s zurücksetzen (oder auf minPlayTime - 5s kappen), 
+                                // damit der nächste Wurf deutlich schneller passiert.
+                                dse.stateTime = Math.max(0, dse.metadata.minPlayTime - 5.0);
+                            } else {
+                                // Echter Crossfade! Aktuelles Element zum Abschuss freigeben.
+                                dse._markedForRemoval = true; 
+                                layerFilled[dse.metadata.placementType] = false; 
+                            }
+                        }
                     }
                 }
             }
         }
 
-        // Freigewordene Layer mit neuen DSEs auffüllen
+        // Freigewordene Layer mit den neugewählten DSEs auffüllen
         const layers = ['background', 'floor', 'foreground', 'overlay'];
         for (let layer of layers) {
             if (!layerFilled[layer]) {
