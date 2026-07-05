@@ -2,7 +2,7 @@
 // =========================================================
 // DEMOSCENE-SEQUENCER (DSS) / THE "SCENE-DJ"
 // Zero-Allocation Orchestrator for Dynamic Visual Choreographies
-// Bulletproof Lifecycle Routing & Rebuild-Strategy (v1.2.0)
+// V2.0 Ready: Dynamic Crossfade Swapping & Tension Logic
 // =========================================================
 
 const Z_ORDER = {
@@ -53,6 +53,7 @@ export class SceneDJ {
     registerDSE(dse) {
         dse.state = 'idle';
         dse.stateTime = 0.0;
+        dse._markedForRemoval = false; // NEU: Crossfade Flag
         if (!dse.metadata) {
             console.warn(`[SCENE-DJ] Registered element ${dse.constructor.name} is missing a metadata contract!`);
             dse.metadata = { name: dse.constructor.name, minPlayTime: 5.0, triggerProbability: 0.5, climaxHoldTime: 10.0 };
@@ -62,47 +63,39 @@ export class SceneDJ {
 
     forceSystemChange(newSystem) {
         this.currentSystem = newSystem;
-        let filledPlacements = new Set();
 
-        // 1. Inkompatible stoppen, permanent geschützte Overlays behalten
+        // 1. Markiere inkompatible DSEs für einen sauberen Crossfade-Ausstieg
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
-            
-            if (dse.metadata.triggerProbability === 1.0 && dse.metadata.computerType.includes('all')) {
-                filledPlacements.add(dse.metadata.placementType);
-                continue; 
-            }
+            if (dse.metadata.triggerProbability === 1.0 && dse.metadata.computerType.includes('all')) continue; 
 
             if (!dse.metadata.computerType.includes(newSystem) && !dse.metadata.computerType.includes('all')) {
-                dse.state = 'idle';
-                this.activeDSEs.splice(i, 1);
+                dse._markedForRemoval = true; 
             }
         }
 
-        // 2. Verfügbare, kompatible und schlafende DSEs nach Layern sortieren
-        let available = { 'background': [], 'floor': [], 'foreground': [], 'overlay': [] };
-        
-        for (let i = 0; i < this.registeredDSEs.length; i++) {
-            let dse = this.registeredDSEs[i];
-            if (dse.state === 'idle' && (dse.metadata.computerType.includes(newSystem) || dse.metadata.computerType.includes('all'))) {
-                available[dse.metadata.placementType].push(dse);
-            }
-        }
-
-        // 3. THE DJ SLOT MACHINE: Wähle maximal EIN Gimmick pro freiem Layer!
+        // 2. Fülle sofort die leeren (oder zu leerenden) Slot-Ebenen
         const layers = ['background', 'floor', 'foreground', 'overlay'];
+        const filledLayers = new Set(this.activeDSEs.filter(d => !d._markedForRemoval).map(d => d.metadata.placementType));
+
         for (let layer of layers) {
-            if (!filledPlacements.has(layer) && available[layer].length > 0) {
-                let candidates = available[layer];
-                // Zufällige Auswahl (v2.0.0 Vorbereitung!)
-                let chosenDSE = candidates[Math.floor(Math.random() * candidates.length)];
-                
-                chosenDSE.state = 'idle';
-                this.activeDSEs.push(chosenDSE);
+            if (!filledLayers.has(layer)) {
+                let candidates = this.registeredDSEs.filter(d => 
+                    d.state === 'idle' && 
+                    d.metadata.placementType === layer &&
+                    (d.metadata.computerType.includes(newSystem) || d.metadata.computerType.includes('all'))
+                );
+
+                if (candidates.length > 0) {
+                    let chosen = candidates[Math.floor(Math.random() * candidates.length)];
+                    chosen.state = 'starting';
+                    chosen.stateTime = 0.0;
+                    chosen._markedForRemoval = false;
+                    this.activeDSEs.push(chosen);
+                }
             }
         }
         
-        // Z-Order für Rendering garantieren
         this.activeDSEs.sort((a, b) => Z_ORDER[a.metadata.placementType] - Z_ORDER[b.metadata.placementType]);
         
         this.currentEnergyState = 'idle';
@@ -152,6 +145,67 @@ export class SceneDJ {
         this.transientPulse[0] = maxPulse > 0.0 ? maxPulse : 0.0;
     }
 
+    // =========================================================
+    // DYNAMIC SWAP MANAGER
+    // Würfelt bei abgelaufener minPlayTime, ob ein Effekt sanft 
+    // gegen eine Alternative auf demselben Layer ausgetauscht wird.
+    // =========================================================
+    manageDynamicSwaps(dt) {
+        if (this.currentEnergyState !== 'playing') return; // Niemals während Buildup/Climax tauschen!
+
+        let layerFilled = { 'background': false, 'floor': false, 'foreground': false, 'overlay': false };
+
+        for (let i = 0; i < this.activeDSEs.length; i++) {
+            let dse = this.activeDSEs[i];
+            
+            if (dse._markedForRemoval) continue; // Wird bereits ausgewechselt
+            
+            layerFilled[dse.metadata.placementType] = true;
+
+            // Ist die Mindestlaufzeit abgelaufen?
+            if (dse.state === 'playing' && dse.metadata.minPlayTime !== Infinity && dse.stateTime >= dse.metadata.minPlayTime) {
+                
+                let altExists = this.registeredDSEs.some(alt => 
+                    alt !== dse && 
+                    alt.metadata.placementType === dse.metadata.placementType &&
+                    (alt.metadata.computerType.includes(this.currentSystem) || alt.metadata.computerType.includes('all'))
+                );
+
+                if (altExists) {
+                    // 2% Chance pro Sekunde, dass das Gimmick gewechselt wird
+                    if (Math.random() < 0.02 * dt) {
+                        dse._markedForRemoval = true; // Markiere zum Ausfaden
+                        layerFilled[dse.metadata.placementType] = false; // Layer ist sofort frei für den Nachfolger
+                    }
+                }
+            }
+        }
+
+        // Freigewordene Layer mit neuen DSEs auffüllen
+        const layers = ['background', 'floor', 'foreground', 'overlay'];
+        for (let layer of layers) {
+            if (!layerFilled[layer]) {
+                let candidates = this.registeredDSEs.filter(d => 
+                    d.state === 'idle' && 
+                    !d._markedForRemoval &&
+                    d.metadata.placementType === layer &&
+                    (d.metadata.computerType.includes(this.currentSystem) || d.metadata.computerType.includes('all'))
+                );
+
+                if (candidates.length > 0) {
+                    let chosen = candidates[Math.floor(Math.random() * candidates.length)];
+                    chosen.state = 'starting';
+                    chosen.stateTime = 0.0;
+                    chosen._markedForRemoval = false;
+                    this.activeDSEs.push(chosen);
+                    
+                    this.activeDSEs.sort((a, b) => Z_ORDER[a.metadata.placementType] - Z_ORDER[b.metadata.placementType]);
+                    layerFilled[layer] = true; 
+                }
+            }
+        }
+    }
+
     updateStateMachines(dt, isPlaying) {
         this.energyStateTimer += dt;
         
@@ -181,7 +235,6 @@ export class SceneDJ {
         this.rawEnergyState = isOverdrive ? 'climax' : (isBuildup ? 'buildup' : 'playing');
         let targetEnergyState = this.currentEnergyState;
 
-        // --- TENSION & LOCK LOGIK ---
         if (!isPlaying) {
             this.isClimaxLocked = false;
             this.tension = Math.max(0.0, this.tension - (dt * 15.0)); 
@@ -189,9 +242,7 @@ export class SceneDJ {
         } else if (!isBuildup && !isOverdrive) {
             this.isClimaxLocked = false;
             this.tension = Math.max(0.0, this.tension - (dt * 10.0)); 
-            if (this.energyStateTimer > MIN_BUILDUP_TIME) {
-                targetEnergyState = 'playing';
-            }
+            if (this.energyStateTimer > MIN_BUILDUP_TIME) targetEnergyState = 'playing';
         } else {
             if (!this.isClimaxLocked) {
                 let power = (energy * 0.5) + (pulse * 2.0); 
@@ -203,7 +254,6 @@ export class SceneDJ {
                     this.tension = TENSION_MAX;
                     this.isClimaxLocked = true;
                     this.climaxTimer = 0.0; 
-                    
                     this.currentClimaxHoldTime = this.activeDSEs.length > 0 
                         ? Math.max(...this.activeDSEs.map(d => d.metadata.climaxHoldTime || 10.0)) : 10.0;
                 } else if (this.currentEnergyState === 'playing' && this.energyStateTimer > MIN_BUILDUP_TIME) {
@@ -213,14 +263,12 @@ export class SceneDJ {
 
             if (this.isClimaxLocked) {
                 targetEnergyState = 'climax';
-                
                 if (isOverdrive) {
                     this.climaxTimer = 0.0;
                     this.tension = TENSION_MAX;
                 } else {
                     this.climaxTimer += dt;
                     this.tension = TENSION_MAX * Math.max(0.0, 1.0 - (this.climaxTimer / this.currentClimaxHoldTime));
-
                     if (this.climaxTimer >= this.currentClimaxHoldTime) {
                         this.isClimaxLocked = false;
                         this.tension = 0.0;
@@ -238,12 +286,27 @@ export class SceneDJ {
         }
 
         // =========================================================
-        // KUGELSICHERES DSE STATE ROUTING
+        // KUGELSICHERES DSE STATE ROUTING & CROSSFADES
         // =========================================================
-        for (let i = 0; i < this.activeDSEs.length; i++) {
+        for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
             dse.stateTime += dt;
 
+            // 1. Crossfade Swap-Out Handler
+            if (dse._markedForRemoval) {
+                if (dse.state !== 'stopping') {
+                    dse.state = 'stopping';
+                    dse.stateTime = 0.0;
+                } else if (dse.stateTime >= TRANSITION_TIME) {
+                    dse.state = 'idle';
+                    dse.stateTime = 0.0;
+                    dse._markedForRemoval = false;
+                    this.activeDSEs.splice(i, 1); // Element ist komplett unsichtbar und wird gelöscht
+                }
+                continue; // Überspringt die normale Musik-Logik für dieses Element!
+            }
+
+            // 2. Normale Musik-Logik
             if (this.currentEnergyState === 'idle') {
                 if (dse.state !== 'idle' && dse.state !== 'stopping') {
                     dse.state = 'stopping';
@@ -253,16 +316,12 @@ export class SceneDJ {
                     dse.stateTime = 0.0;
                 }
             } else {
-                if (dse.state === 'idle') {
+                if (dse.state === 'idle' || dse.state === 'stopping') {
                     dse.state = 'starting';
-                    dse.stateTime = 0.0;
+                    dse.stateTime = dse.state === 'stopping' ? Math.max(0.0, TRANSITION_TIME - dse.stateTime) : 0.0;
                 } else if (dse.state === 'starting' && dse.stateTime >= TRANSITION_TIME) {
                     dse.state = this.currentEnergyState;
                     dse.stateTime = 0.0;
-                } else if (dse.state === 'stopping') {
-                    // Falls Musik schnell wieder gestartet wird: Weiche Umkehr!
-                    dse.state = 'starting';
-                    dse.stateTime = Math.max(0.0, TRANSITION_TIME - dse.stateTime);
                 } else if (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax') {
                     if (dse.state !== this.currentEnergyState) {
                         dse.state = this.currentEnergyState;
@@ -282,6 +341,12 @@ export class SceneDJ {
         this.lastTime = t;
 
         this.analyzeEnergy(channelVolumes, dt);
+        
+        // NEU: Dynamic Swapping aufrufen, BEVOR wir die States updaten!
+        if (isPlaying) {
+            this.manageDynamicSwaps(dt);
+        }
+        
         this.updateStateMachines(dt, isPlaying);
 
         this.metrics.tensionPct = this.tension / TENSION_MAX;
