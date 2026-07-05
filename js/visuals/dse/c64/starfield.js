@@ -15,20 +15,20 @@ export class C64Starfield {
     resize(width, height) {}
 
     render(ctx, width, height, t, state, stateTime, metrics) {
-        if (state === 'Idle') return;
+        if (state === 'idle') return;
 
         let globalAlpha = 1.0;
         let targetWarp = 2 + (metrics.energy[0] * 16); 
 
-        if (state === 'Starting') {
+        if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
             targetWarp *= globalAlpha;
-        } else if (state === 'Stopping') {
+        } else if (state === 'stopping') {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
             targetWarp *= globalAlpha;
-        } else if (state === 'Buildup') {
+        } else if (state === 'buildup') {
             targetWarp *= 1.5;
-        } else if (state === 'Climax') {
+        } else if (state === 'climax') {
             targetWarp *= 2.5 + (metrics.pulse[0] * 2.0); 
             globalAlpha = 0.8 + (metrics.pulse[0] * 0.2);
         }

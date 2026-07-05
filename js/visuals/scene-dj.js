@@ -2,7 +2,7 @@
 // =========================================================
 // DEMOSCENE-SEQUENCER (DSS) / THE "SCENE-DJ"
 // Zero-Allocation Orchestrator for Dynamic Visual Choreographies
-// Includes Reactive Demoscene-Style Limit Break Animations (Borderless)
+// Aligned States: idle -> playing -> buildup -> climax (v1.2.0)
 // =========================================================
 
 const Z_ORDER = {
@@ -31,7 +31,7 @@ export class SceneDJ {
             isClimaxLocked: false,
             climaxTimer: 0.0,
             climaxHoldTime: 0.0,
-            rawEnergyState: 'Playing',
+            rawEnergyState: 'playing',
             system: 'c64'
         };
 
@@ -41,8 +41,8 @@ export class SceneDJ {
         this.lastTime = 0;
         
         this.energyStateTimer = 0.0;
-        this.currentEnergyState = 'Playing'; 
-        this.rawEnergyState = 'Playing';
+        this.currentEnergyState = 'idle'; 
+        this.rawEnergyState = 'playing';
 
         this.tension = 0.0;
         this.climaxTimer = 0.0;
@@ -51,7 +51,7 @@ export class SceneDJ {
     }
 
     registerDSE(dse) {
-        dse.state = 'Idle';
+        dse.state = 'idle';
         dse.stateTime = 0.0;
         if (!dse.metadata) {
             console.warn(`[SCENE-DJ] Registered element ${dse.constructor.name} is missing a metadata contract!`);
@@ -71,7 +71,7 @@ export class SceneDJ {
             }
 
             if (!dse.metadata.computerType.includes(newSystem) && !dse.metadata.computerType.includes('all')) {
-                dse.state = 'Idle';
+                dse.state = 'idle';
                 dse.stateTime = 0.0;
                 this.activeDSEs.splice(i, 1);
             }
@@ -79,8 +79,8 @@ export class SceneDJ {
 
         for (let i = 0; i < this.registeredDSEs.length; i++) {
             let dse = this.registeredDSEs[i];
-            if ((dse.metadata.computerType.includes(newSystem) || dse.metadata.computerType.includes('all')) && dse.state === 'Idle') {
-                dse.state = 'Starting';
+            if ((dse.metadata.computerType.includes(newSystem) || dse.metadata.computerType.includes('all')) && dse.state === 'idle') {
+                dse.state = 'starting';
                 dse.stateTime = 0.0;
                 this.activeDSEs.push(dse);
             }
@@ -88,8 +88,8 @@ export class SceneDJ {
         
         this.activeDSEs.sort((a, b) => Z_ORDER[a.metadata.placementType] - Z_ORDER[b.metadata.placementType]);
         
-        this.currentEnergyState = 'Playing';
-        this.rawEnergyState = 'Playing';
+        this.currentEnergyState = 'idle';
+        this.rawEnergyState = 'playing';
         this.energyStateTimer = 0.0;
         this.tension = 0.0;
         this.isClimaxLocked = false;
@@ -139,7 +139,6 @@ export class SceneDJ {
         const energy = this.masterEnergy[0];
         const pulse = this.transientPulse[0];
         
-        // 1. Raw State aus dem Echtzeit-Pegel
         let isOverdrive = (energy > 0.60 && pulse > 0.4);
         let isBuildup = (energy > 0.45);
         
@@ -148,7 +147,6 @@ export class SceneDJ {
 
         // --- TENSION & LOCK LOGIK ---
         if (!isBuildup && !isOverdrive) {
-            // Track macht Pause -> Sofortiger Spannungsabbau
             this.isClimaxLocked = false;
             this.tension = Math.max(0.0, this.tension - (dt * 10.0)); 
             
@@ -156,18 +154,12 @@ export class SceneDJ {
                 targetEnergyState = 'Playing';
             }
         } else {
-            // Track ist laut
             if (!this.isClimaxLocked) {
                 let power = (energy * 0.5) + (pulse * 2.0); 
-                
-                // Multiplikator bei "Crazy" Overdrive-Fills
-                if (isOverdrive) {
-                    power *= 4.0; 
-                }
+                if (isOverdrive) power *= 4.0; 
 
                 this.tension += power * dt;
 
-                // Limit Break erreicht?
                 if (this.tension >= TENSION_MAX) {
                     this.tension = TENSION_MAX;
                     this.isClimaxLocked = true;
@@ -180,7 +172,6 @@ export class SceneDJ {
                 }
             }
 
-            // Wenn wir im Climax-Mode sind
             if (this.isClimaxLocked) {
                 targetEnergyState = 'Climax';
                 
@@ -198,34 +189,35 @@ export class SceneDJ {
                     }
                 }
             } else {
-                if (targetEnergyState === 'Climax') targetEnergyState = 'Buildup';
+                if (targetEnergyState === 'climax') targetEnergyState = 'buildup';
             }
         }
 
-        // Globalen State übernehmen
         if (this.currentEnergyState !== targetEnergyState) {
             this.currentEnergyState = targetEnergyState;
             this.energyStateTimer = 0.0;
         }
 
-        // DSE-spezifische Updates
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
             dse.stateTime += dt;
 
-            if (dse.state === 'Starting' && dse.stateTime >= TRANSITION_TIME) {
+            if (dse.state === 'starting' && dse.stateTime >= TRANSITION_TIME) {
                 dse.state = this.currentEnergyState;
                 dse.stateTime = 0.0;
             }
             
-            if (dse.state === 'Playing' || dse.state === 'Buildup' || dse.state === 'Climax') {
-                if (dse.state !== this.currentEnergyState) {
+            if (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax') {
+                if (this.currentEnergyState === 'idle') {
+                    dse.state = 'stopping';
+                    dse.stateTime = 0.0;
+                } else if (dse.state !== this.currentEnergyState) {
                     dse.state = this.currentEnergyState;
                     dse.stateTime = 0.0; 
                 }
             }
 
-            if (dse.state === 'Stopping' && dse.stateTime >= TRANSITION_TIME) {
+            if (dse.state === 'stopping' && dse.stateTime >= TRANSITION_TIME) {
                 if (dse.stateTime >= dse.metadata.minPlayTime || dse.metadata.minPlayTime === Infinity) {
                     dse.state = 'Idle';
                     dse.stateTime = 0.0;
@@ -243,7 +235,6 @@ export class SceneDJ {
         this.analyzeEnergy(channelVolumes, dt);
         this.updateStateMachines(dt);
 
-        // Populate dynamic metrics for DSEs
         this.metrics.tensionPct = this.tension / TENSION_MAX;
         this.metrics.isClimaxLocked = this.isClimaxLocked;
         this.metrics.climaxTimer = this.climaxTimer;

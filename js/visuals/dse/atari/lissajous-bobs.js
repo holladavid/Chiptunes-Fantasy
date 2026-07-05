@@ -32,7 +32,7 @@ export class AtariBobs {
     resize(width, height) {}
 
     render(ctx, width, height, t, state, stateTime, metrics) {
-        if (state === 'Idle') { this.lastT = t; return; }
+        if (state === 'idle') { this.lastT = t; return; }
 
         let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
         this.lastT = t;
@@ -41,15 +41,15 @@ export class AtariBobs {
         let targetSpeed = 1.0;
         let scaleMultiplier = 1.0;
 
-        if (state === 'Starting') {
+        if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
             scaleMultiplier = globalAlpha;
-        } else if (state === 'Stopping') {
+        } else if (state === 'stopping') {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
             scaleMultiplier = globalAlpha;
-        } else if (state === 'Buildup') {
+        } else if (state === 'buildup') {
             targetSpeed = 1.5;
-        } else if (state === 'Climax') {
+        } else if (state === 'climax') {
             targetSpeed = 2.0;
             globalAlpha = 0.8 + (metrics.pulse[0] * 0.2);
             scaleMultiplier = 1.0 + (metrics.pulse[0] * 0.5); 

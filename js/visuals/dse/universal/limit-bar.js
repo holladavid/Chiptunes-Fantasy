@@ -17,13 +17,13 @@ export class LimitBar {
     resize(width, height) {}
 
     render(ctx, width, height, t, state, stateTime, metrics) {
-        if (state === 'Idle') return;
+        if (state === 'idle') return;
 
         // Alpha-Blending für das UI Overlay selbst
         let globalAlpha = 1.0;
-        if (state === 'Starting') {
+        if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
-        } else if (state === 'Stopping') {
+        } else if (state === 'stopping') {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
         }
         ctx.globalAlpha = globalAlpha;
@@ -34,15 +34,18 @@ export class LimitBar {
         const y = height - h - 20;
 
         let pct = metrics.tensionPct;
-        
-        let animIntensity = (state === 'Climax') ? 1.0 : pct;
         let isFlashing = false;
 
-        if (state === 'Climax') {
-            if (metrics.rawEnergyState === 'Overdrive') {
+        // =========================================================
+        // MATHEMATISCHER FIX: animIntensity deklarieren!
+        // =========================================================
+        let animIntensity = (state === 'climax') ? 1.0 : pct;
+
+        if (state === 'climax') {
+            if (metrics.rawEnergyState === 'climax') {
+                pct = 1.0;
                 isFlashing = (performance.now() % 150 < 75); 
             } else if (metrics.isClimaxLocked) {
-                // Balken läuft sanft rückwärts ab (Hold-Time)
                 pct = Math.max(0.0, 1.0 - (metrics.climaxTimer / metrics.climaxHoldTime));
                 isFlashing = (pct > 0.85) && (performance.now() % 300 < 150); 
             }

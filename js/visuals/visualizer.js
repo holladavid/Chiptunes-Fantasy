@@ -137,7 +137,8 @@ export function initVisuals(stateGetters, callbacks) {
 
         // --- RENDER ROUTING ---
         if (showGimmick) {
-            dss.render(ctx, canvas.width, canvas.height, t, channelVolumes);
+            // Scene-DJ übergibt an DSEs (Nun mit isPlaying Parameter)
+            dss.render(ctx, canvas.width, canvas.height, t, channelVolumes, isPlaying);
         } else {
             drawReticle(); 
             osc.render(ctx, canvas.width, canvas.height, stateGetters, lineColor);
