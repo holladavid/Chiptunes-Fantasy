@@ -2,7 +2,7 @@
 // =========================================================
 // DEMO-SCENE-ELEMENT: REAL-TIME COPPERBARS (RASTERBARS)
 // Pseudo-3D Z-Buffer Sorting (Helix Orbit) & Depth Shading
-// Refactored for DSS v1.2.0 State-Machine Interface
+// Refactored with Continuous Math Smoothing (No Jumping)
 // =========================================================
 
 export class Copperbars {
@@ -11,7 +11,6 @@ export class Copperbars {
         this.heightWeights = [0.24, 0.24, 0.24, 0.24];
         this.colorCache = {};
         
-        // Zero-Allocation Buffer Objects
         this.barsToDraw = [
             { y: 0, h: 0, vol: 0, z: 0, pal: null },
             { y: 0, h: 0, vol: 0, z: 0, pal: null },
@@ -20,9 +19,16 @@ export class Copperbars {
         ];
 
         this.sortedBars = Array(4).fill(null);
+        
+        // =========================================================
+        // ZERO-JUMP SMOOTHING AKKUMULATOREN
+        // =========================================================
         this.lastT = 0;
         this.internalT = 0;
         this.smoothedSpeed = 1.0;
+        this.smoothedAmplitude = 0.85;
+        this.smoothedPunch = 25.0;
+        this.smoothedTwist = 0.0;
     }
 
     hexToRgb(hex) {
@@ -113,56 +119,59 @@ export class Copperbars {
         let scanlineHeight = isC64 ? 8 : 4;
         let colorBitShift = isAtari ? 5 : (isC64 ? 6 : 4);
 
-        // =========================================================
-        // TUNING UPDATE: Elegante, dezentere Climax-Ausschläge
-        // =========================================================
         let globalAlpha = 1.0;
         let targetSpeed = 1.0;
-        let amplitudeMultiplier = 0.85; 
-        let punchMultiplier = 25.0;    
-        let phaseStepMultiplier = 1.0;  
-        let twistAmplitude = 0.0;       
+        let targetAmplitude = 0.85; 
+        let targetPunch = 25.0;    
+        let targetTwist = 0.0;       
 
         if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
-            amplitudeMultiplier = globalAlpha * 0.85;
+            targetAmplitude = globalAlpha * 0.85;
         } else if (state === 'stopping') {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
-            amplitudeMultiplier = globalAlpha * 0.85;
+            targetAmplitude = globalAlpha * 0.85;
         } else if (state === 'buildup') {
             targetSpeed = 1.4;
-            amplitudeMultiplier = 1.0;   // Nicht mehr zu weit spreizen
-            punchMultiplier = 35.0;      
-            phaseStepMultiplier = 1.15;  
+            targetAmplitude = 1.0;   
+            targetPunch = 35.0;      
         } else if (state === 'climax') {
-            targetSpeed = 1.8;           // Ruhigere Höchstgeschwindigkeit (vorher 2.2)
-            amplitudeMultiplier = 1.1;   // Moderater Orbit (vorher 1.3)
-            punchMultiplier = 45.0;      // Verdeckt nicht mehr den Screen (vorher 75.0)
-            phaseStepMultiplier = 1.3;   // Edlere Spreizung
-            globalAlpha = 0.85 + (metrics.pulse[0] * 0.15); // Sanfteres Stroben
-            twistAmplitude = 15.0 * metrics.pulse[0]; // Twist leicht gezähmt
+            targetSpeed = 1.8;           
+            targetAmplitude = 1.1;   
+            targetPunch = 45.0;      
+            globalAlpha = 0.85 + (metrics.pulse[0] * 0.15); 
+            targetTwist = 15.0 * metrics.pulse[0]; // Twist reagiert auf den Beat
         }
 
+        // =========================================================
+        // CONTINUOUS MATH SMOOTHING
+        // Alle Modifikatoren werden sanft übergeblendet.
+        // Keine Sprünge bei harten State-Wechseln mehr!
+        // =========================================================
         this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * 0.05;
+        this.smoothedAmplitude += (targetAmplitude - this.smoothedAmplitude) * 0.05;
+        this.smoothedPunch += (targetPunch - this.smoothedPunch) * 0.1;
+        this.smoothedTwist += (targetTwist - this.smoothedTwist) * 0.15;
+
         this.internalT += dt * this.smoothedSpeed;
 
         const baseSpeed = 0.55; 
-        const phaseStep = ((Math.PI * 2) / numBars) * phaseStepMultiplier; 
+        // Phasenabstand MUSS symmetrisch bleiben, sonst gibt es Rückwärts-Glitscher!
+        const phaseStep = (Math.PI * 2) / numBars; 
 
         for (let c = 0; c < numBars; c++) {
             const smoothVol = metrics.smooth[c]; 
-            const punch = smoothVol * punchMultiplier; 
-            const amplitude = (height * this.heightWeights[c]) * amplitudeMultiplier;
+            const punch = smoothVol * this.smoothedPunch; 
+            const amplitude = (height * this.heightWeights[c]) * this.smoothedAmplitude;
             const angle = (this.internalT * baseSpeed) + (c * phaseStep);
             
             let yCenter = (height / 2);
             yCenter += Math.sin(angle) * amplitude;
             
-            if (twistAmplitude > 0) {
-                yCenter += Math.sin(t * 6.0 + c * 2.0) * twistAmplitude;
-            } else {
-                yCenter += Math.cos(angle * 1.5) * (amplitude * 0.12);
-            }
+            // Standard Helix Wobble + sanft eingeblendeter Twist
+            // Keine if/else-Weiche = Keine mathematischen Klippen-Sprünge!
+            yCenter += Math.cos(angle * 1.5) * (amplitude * 0.12);
+            yCenter += Math.sin(t * 6.0 + c * 2.0) * this.smoothedTwist;
             
             let bar = this.barsToDraw[c];
             bar.y = yCenter;
