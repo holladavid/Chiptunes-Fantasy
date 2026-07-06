@@ -2,7 +2,7 @@
 // =========================================================
 // DEMOSCENE-SEQUENCER (DSS) / THE "SCENE-DJ"
 // Zero-Allocation Orchestrator for Dynamic Visual Choreographies
-// V1.2.0-beta.3: Dynamic Weight Penalties & Black Screen Revival
+// V1.2.0-beta.3: Pure Tension, Groove Env, Penalties & Black-Screen Protection
 // =========================================================
 
 const Z_ORDER = {
@@ -51,6 +51,8 @@ export class SceneDJ {
         this.climaxTimer = 0.0;
         this.isClimaxLocked = false;
         this.currentClimaxHoldTime = 10.0;
+        
+        this.beatCooldown = 0.0; 
     }
 
     registerDSE(dse) {
@@ -61,12 +63,16 @@ export class SceneDJ {
             console.warn(`[SCENE-DJ] Registered element ${dse.constructor.name} is missing a metadata contract!`);
             dse.metadata = { name: dse.constructor.name, minPlayTime: 5.0, weight: 10, climaxHoldTime: 10.0 };
         }
-        // NEU: Initiales Laufzeit-Gewicht zuweisen
+        // Initiales Laufzeit-Gewicht zuweisen
         dse.currentWeight = dse.metadata.weight || 10.0;
         this.registeredDSEs.push(dse);
     }
 
-    // Setzt die Gewichte aller Effekte einer bestimmten Ebene auf ihre Metadaten-Basis zurück
+    // =========================================================
+    // WEIGHT RESET
+    // Setzt die Wahrscheinlichkeiten aller DSEs einer Ebene zurück,
+    // nachdem erfolgreich ein neues DSE für den Layer gezogen wurde.
+    // =========================================================
     resetWeightsForLayer(layer) {
         for (let d of this.registeredDSEs) {
             if (d.metadata.placementType === layer) {
@@ -78,7 +84,6 @@ export class SceneDJ {
     selectWeightedDSE(candidates) {
         if (candidates.length === 0) return null;
         let totalWeight = 0.0;
-        // Greift nun auf currentWeight zu (inklusive Penalty-Abzügen)
         for (let i = 0; i < candidates.length; i++) totalWeight += candidates[i].currentWeight;
         
         const roll = Math.random() * totalWeight;
@@ -110,7 +115,7 @@ export class SceneDJ {
                 );
 
                 if (candidates.length > 0) {
-                    this.resetWeightsForLayer(layer); // Layer wurde frisch belegt -> Resette die Gewichte für künftige Swaps
+                    this.resetWeightsForLayer(layer); 
                     let chosen = this.selectWeightedDSE(candidates);
                     chosen.state = initialState;
                     chosen.stateTime = 0.0;
@@ -121,7 +126,8 @@ export class SceneDJ {
         }
 
         // =========================================================
-        // BLACK SCREEN PROTECTION: REVIVAL BUG GEFIXT
+        // BLACK SCREEN PROTECTION
+        // Verhindert, dass alle Rendering-Layer transparent sind.
         // =========================================================
         let nonVoidCount = 0;
         let activeNonOverlays = this.activeDSEs.filter(d => d.metadata.placementType !== 'overlay' && !d._markedForRemoval);
@@ -133,8 +139,6 @@ export class SceneDJ {
         if (activeNonOverlays.length > 0 && nonVoidCount === 0) {
             let dseToReplace = activeNonOverlays[Math.floor(Math.random() * activeNonOverlays.length)];
             
-            // FIX: Wir verzichten hier absichtlich auf "d.state === 'idle'"!
-            // Falls das echte DSE gerade ausfadet ('stopping'), wird es gefunden und wiederbelebt!
             let realCandidates = this.registeredDSEs.filter(d => 
                 !d.metadata.isVoid && 
                 d.metadata.placementType === dseToReplace.metadata.placementType &&
@@ -142,24 +146,19 @@ export class SceneDJ {
             );
 
             if (realCandidates.length > 0) {
-                // Verwerfe das Void Element
                 let idx = this.activeDSEs.indexOf(dseToReplace);
                 if (idx !== -1) {
                     dseToReplace.state = 'idle';
                     dseToReplace.stateTime = 0.0;
                     this.activeDSEs.splice(idx, 1);
                 }
-
                 this.resetWeightsForLayer(dseToReplace.metadata.placementType);
                 let chosen = this.selectWeightedDSE(realCandidates);
                 chosen.state = initialState;
                 chosen.stateTime = 0.0;
                 chosen._markedForRemoval = false;
                 
-                // Falls das DSE schon im Array war (z.B. weil es 'stopping' war), nicht doppelt pushen!
-                if (!this.activeDSEs.includes(chosen)) {
-                    this.activeDSEs.push(chosen);
-                }
+                if (!this.activeDSEs.includes(chosen)) this.activeDSEs.push(chosen);
             }
         }
 
@@ -185,6 +184,15 @@ export class SceneDJ {
         this.beatEnvelope[0] = 0.0; 
     }
 
+    resetTension() {
+        this.tension = 0.0;
+        this.isClimaxLocked = false;
+        this.climaxTimer = 0.0;
+        this.energyStateTimer = 0.0;
+        this.beatEnvelope[0] = 0.0;
+        this.currentEnergyState = 'idle'; 
+    }
+
     resize(width, height) {
         for (let i = 0; i < this.registeredDSEs.length; i++) {
             if (typeof this.registeredDSEs[i].resize === 'function') this.registeredDSEs[i].resize(width, height);
@@ -198,22 +206,21 @@ export class SceneDJ {
 
         for (let i = 0; i < 4; i++) {
             let rawVol = channelVolumes[i] || 0.0;
-            if (rawVol > this.channelSmooth[i]) this.channelSmooth[i] += (rawVol - this.channelSmooth[i]) * 0.8; 
-            else this.channelSmooth[i] += (rawVol - this.channelSmooth[i]) * 0.15; 
 
-            if (rawVol > this.channelPeaks[i]) this.channelPeaks[i] = rawVol;
-            else {
-                this.channelPeaks[i] -= 0.5 * dt; 
-                if (this.channelPeaks[i] < 0) this.channelPeaks[i] = 0;
+            let instantPulse = Math.max(0.0, rawVol - this.channelSmooth[i]);
+            if (instantPulse > maxPulse) maxPulse = instantPulse;
+
+            if (rawVol > this.channelSmooth[i]) {
+                this.channelSmooth[i] += (rawVol - this.channelSmooth[i]) * (dt * 20.0); 
+            } else {
+                this.channelSmooth[i] += (rawVol - this.channelSmooth[i]) * (dt * 6.0); 
             }
 
-            let pulse = this.channelPeaks[i] - this.channelSmooth[i];
-            if (pulse > maxPulse) maxPulse = pulse;
             totalEnergy += this.channelSmooth[i];
         }
 
         this.masterEnergy[0] = totalEnergy / numActiveChannels;
-        this.transientPulse[0] = maxPulse > 0.0 ? maxPulse : 0.0;
+        this.transientPulse[0] = maxPulse; 
     }
 
     manageDynamicSwaps(dt) {
@@ -240,13 +247,14 @@ export class SceneDJ {
                         if (candidates.length > 0) {
                             let chosen = this.selectWeightedDSE(candidates);
                             if (chosen === dse) {
-                                // NEU: PENALTY FÜR WIEDERHOLUNG!
-                                // Zieht 5s von der Laufzeit ab (schnellerer Re-Roll)
+                                // =========================================================
+                                // PENALTY SYSTEM: DSE wurde erneut gezogen!
+                                // Gewicht halbieren und Timer abkürzen, um nächsten Roll zu erzwingen
+                                // =========================================================
                                 dse.stateTime = Math.max(0, dse.metadata.minPlayTime - 5.0);
-                                // Halbiert die Chance, beim nächsten Mal wieder gezogen zu werden
                                 dse.currentWeight = Math.max(1.0, dse.currentWeight * 0.5);
                             } else {
-                                // Echter Crossfade Swap
+                                // Neues DSE! Ausfaden lassen
                                 dse._markedForRemoval = true; 
                                 swapOccurred = true;
                             }
@@ -255,7 +263,7 @@ export class SceneDJ {
                 }
             }
         }
-        if (swapOccurred) this.fillEmptyLayers('starting');
+        if (swapOccurred) this.fillEmptyLayers('starting'); // fillEmptyLayers resettet die Layer-Gewichte!
     }
 
     updateStateMachines(dt, isPlaying) {
@@ -265,20 +273,20 @@ export class SceneDJ {
         const pulse = this.transientPulse[0];
         
         let buildupThreshold = 0.40;    
-        let overdriveThreshold = 0.58;   
-        let pulseThreshold = 0.35;       
+        let overdriveThreshold = 0.60;   
+        let pulseThreshold = 0.55;       
         let accumulationSpeed = 0.75;    
 
         if (this.currentSystem === 'c64') {
             buildupThreshold = 0.40;     
-            overdriveThreshold = 0.58;   
-            pulseThreshold = 0.30;       
+            overdriveThreshold = 0.60;   
+            pulseThreshold = 0.50;       
             accumulationSpeed = 0.45;    
         } else if (this.currentSystem === 'atari') {
             buildupThreshold = 0.35;     
-            overdriveThreshold = 0.66;   
-            pulseThreshold = 0.48;       
-            accumulationSpeed = 0.12;    
+            overdriveThreshold = 0.55;   
+            pulseThreshold = 0.45;       
+            accumulationSpeed = 0.15;    
         }
 
         let isOverdrive = (energy > overdriveThreshold && pulse > pulseThreshold);
@@ -286,55 +294,72 @@ export class SceneDJ {
         
         this.rawEnergyState = isOverdrive ? 'climax' : (isBuildup ? 'buildup' : 'playing');
 
-        let beatThreshold = pulseThreshold * 0.7; 
-        if (isPlaying && pulse > beatThreshold) {
+        this.beatCooldown -= dt;
+        let beatThreshold = pulseThreshold * 0.65; 
+        
+        if (isPlaying && pulse > beatThreshold && this.beatCooldown <= 0.0) {
             this.beatEnvelope[0] = 1.0; 
+            this.beatCooldown = 0.12; 
         } else {
-            this.beatEnvelope[0] *= Math.max(0.0, 1.0 - (dt * 12.0)); 
+            this.beatEnvelope[0] *= Math.exp(-dt * 15.0); 
         }
         if (!isPlaying) this.beatEnvelope[0] = 0.0;
 
-        let targetEnergyState = this.currentEnergyState;
-        let desiredState = 'playing';
-        
-        if (!isPlaying) desiredState = 'idle';
-        else if (this.isClimaxLocked) desiredState = 'climax';
-        else if (isBuildup || isOverdrive) desiredState = 'buildup';
+        let baseState = 'playing';
+        if (!isPlaying) baseState = 'idle';
+        else if (isBuildup || isOverdrive) baseState = 'buildup';
 
-        if (desiredState === 'idle') {
+        let targetEnergyState = this.currentEnergyState;
+
+        // 1. Idle & Wake-up
+        if (baseState === 'idle') {
             this.isClimaxLocked = false;
             this.tension = Math.max(0.0, this.tension - (dt * 15.0)); 
             targetEnergyState = 'idle';
-        } else if (this.currentEnergyState === 'idle') targetEnergyState = desiredState;
-        else if (this.energyStateTimer > MIN_BUILDUP_TIME) targetEnergyState = desiredState;
+        } else if (this.currentEnergyState === 'idle') {
+            targetEnergyState = baseState;
+        } else {
+            // 2. Track läuft - Spannung aufbauen (NUR wenn nicht im Climax!)
+            if (!this.isClimaxLocked) {
+                if (baseState === 'playing') {
+                    this.tension = Math.max(0.0, this.tension - (dt * 10.0)); 
+                    if (this.energyStateTimer > MIN_BUILDUP_TIME) targetEnergyState = 'playing';
+                } else { 
+                    let power = (energy * 0.5) + (pulse * 2.0); 
+                    if (isOverdrive) power *= 6.0; 
 
-        if (isPlaying && !this.isClimaxLocked) {
-            let power = (energy * 0.5) + (pulse * 2.0); 
-            if (isOverdrive) power *= 6.0; 
-            this.tension += power * accumulationSpeed * dt;
+                    this.tension += power * accumulationSpeed * dt;
 
-            if (this.tension >= TENSION_MAX) {
-                this.tension = TENSION_MAX;
-                this.isClimaxLocked = true;
-                this.climaxTimer = 0.0; 
-                this.currentClimaxHoldTime = this.activeDSEs.length > 0 ? Math.max(...this.activeDSEs.map(d => d.metadata.climaxHoldTime || 10.0)) : 10.0;
-                targetEnergyState = 'climax';
-            }
-        }
-
-        if (this.isClimaxLocked && isPlaying) {
-            targetEnergyState = 'climax';
-            if (!isOverdrive) {
-                this.climaxTimer += dt;
-                this.tension = TENSION_MAX * Math.max(0.0, 1.0 - (this.climaxTimer / this.currentClimaxHoldTime));
-                if (this.climaxTimer >= this.currentClimaxHoldTime) {
-                    this.isClimaxLocked = false;
-                    this.tension = 0.0;
-                    targetEnergyState = 'buildup';
+                    if (this.tension >= TENSION_MAX) {
+                        this.tension = TENSION_MAX;
+                        this.isClimaxLocked = true;
+                        this.climaxTimer = 0.0; 
+                        this.currentClimaxHoldTime = this.activeDSEs.length > 0 
+                            ? Math.max(...this.activeDSEs.map(d => d.metadata.climaxHoldTime || 10.0)) : 10.0;
+                        targetEnergyState = 'climax'; 
+                    } else if (this.currentEnergyState === 'playing' && this.energyStateTimer > MIN_BUILDUP_TIME) {
+                        targetEnergyState = 'buildup';
+                    }
                 }
-            } else {
-                this.climaxTimer = 0.0;
-                this.tension = TENSION_MAX;
+            }
+
+            // 3. Climax-Lock Verarbeitung
+            if (this.isClimaxLocked) {
+                targetEnergyState = 'climax';
+                
+                if (isOverdrive) {
+                    this.climaxTimer = 0.0;
+                    this.tension = TENSION_MAX;
+                } else {
+                    this.climaxTimer += dt;
+                    this.tension = TENSION_MAX * Math.max(0.0, 1.0 - (this.climaxTimer / this.currentClimaxHoldTime));
+
+                    if (this.climaxTimer >= this.currentClimaxHoldTime) {
+                        this.isClimaxLocked = false;
+                        this.tension = 0.0;
+                        targetEnergyState = baseState; 
+                    }
+                }
             }
         }
 
@@ -350,6 +375,7 @@ export class SceneDJ {
                 }
                 this.fillEmptyLayers('starting');
             }
+
             this.currentEnergyState = targetEnergyState;
             this.energyStateTimer = 0.0;
         }
@@ -357,6 +383,7 @@ export class SceneDJ {
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
             dse.stateTime += dt;
+
             if (dse._markedForRemoval) {
                 if (dse.state !== 'stopping') { dse.state = 'stopping'; dse.stateTime = 0.0; } 
                 else if (dse.stateTime >= TRANSITION_TIME) { dse.state = 'idle'; dse.stateTime = 0.0; dse._markedForRemoval = false; this.activeDSEs.splice(i, 1); }
@@ -381,12 +408,7 @@ export class SceneDJ {
         this.lastTime = t;
 
         if (this.currentSessionId !== sessionId) {
-            this.tension = 0.0;
-            this.isClimaxLocked = false;
-            this.climaxTimer = 0.0;
-            this.energyStateTimer = 0.0;
-            this.beatEnvelope[0] = 0.0;
-            this.currentEnergyState = 'idle'; 
+            this.resetTension();
             this.currentSessionId = sessionId;
         }
 
