@@ -2,7 +2,7 @@
 // =========================================================
 // DEMOSCENE-SEQUENCER (DSS) / THE "SCENE-DJ"
 // Zero-Allocation Orchestrator for Dynamic Visual Choreographies
-// Aligned States: idle -> playing -> buildup -> climax (v1.2.0)
+// V1.2.0: Pure Tension-Meter Routing (No Direct Overdrive Jumps)
 // =========================================================
 
 const Z_ORDER = {
@@ -274,10 +274,10 @@ export class SceneDJ {
             pulseThreshold = 0.30;       
             accumulationSpeed = 0.45;    
         } else if (this.currentSystem === 'atari') {
-            buildupThreshold = 0.26;     
-            overdriveThreshold = 0.44;   
-            pulseThreshold = 0.22;       
-            accumulationSpeed = 1.5;     
+            buildupThreshold = 0.35;     
+            overdriveThreshold = 0.66;   
+            pulseThreshold = 0.48;       
+            accumulationSpeed = 0.12;    
         }
 
         let isOverdrive = (energy > overdriveThreshold && pulse > pulseThreshold);
@@ -286,33 +286,28 @@ export class SceneDJ {
         this.rawEnergyState = isOverdrive ? 'climax' : (isBuildup ? 'buildup' : 'playing');
 
         // =========================================================
-        // MATHEMATISCHER FIX: Bestimme den gewünschten Echtzeit-State
+        // DEBOUNCING & IMMEDIATE WAKE-UP ROUTING
+        // WICHTIG: Kein direkter Bypass mehr für Overdrive! 
+        // Der Climax wird ausschließlich über den Lock gesteuert.
         // =========================================================
         let desiredState = 'playing';
         if (!isPlaying) {
             desiredState = 'idle';
-        } else if (isOverdrive || this.isClimaxLocked) {
+        } else if (this.isClimaxLocked) {
             desiredState = 'climax';
-        } else if (isBuildup) {
+        } else if (isBuildup || isOverdrive) {
             desiredState = 'buildup';
         }
 
         let targetEnergyState = this.currentEnergyState;
 
-        // =========================================================
-        // DEBOUNCING & IMMEDIATE WAKE-UP ROUTING
-        // =========================================================
         if (desiredState === 'idle') {
-            // Bei Pause sofort auf idle schalten
             this.isClimaxLocked = false;
             this.tension = Math.max(0.0, this.tension - (dt * 15.0)); 
             targetEnergyState = 'idle';
         } else if (this.currentEnergyState === 'idle') {
-            // AUSNAHME: Wenn wir aufwachen, schalten wir SOFORT ohne Trägheit 
-            // auf den gewünschten Zielzustand um, um Latenz-Black-Screens zu verhindern!
             targetEnergyState = desiredState;
         } else {
-            // Im laufenden Betrieb schützt das Debounce (0.5s) vor hektischem Flackern
             if (this.energyStateTimer > MIN_BUILDUP_TIME) {
                 targetEnergyState = desiredState;
             }
@@ -321,10 +316,14 @@ export class SceneDJ {
         // --- TENSION-METER AUFBAU ---
         if (isPlaying && !this.isClimaxLocked) {
             let power = (energy * 0.5) + (pulse * 2.0); 
-            if (isOverdrive) power *= 4.0; 
+            
+            // ARCHITEKTUR-UPDATE: Massive Erhöhung der Füllrate bei extremer Dynamik,
+            // anstelle eines sofortigen, harten State-Wechsels.
+            if (isOverdrive) power *= 6.0; 
 
             this.tension += power * accumulationSpeed * dt;
 
+            // Trigger Climax nur wenn das Fass übergelaufen ist
             if (this.tension >= TENSION_MAX) {
                 this.tension = TENSION_MAX;
                 this.isClimaxLocked = true;
@@ -339,6 +338,7 @@ export class SceneDJ {
         // --- CLIMAX-HOLD TIMER ---
         if (this.isClimaxLocked && isPlaying) {
             targetEnergyState = 'climax';
+            
             if (!isOverdrive) {
                 this.climaxTimer += dt;
                 this.tension = TENSION_MAX * Math.max(0.0, 1.0 - (this.climaxTimer / this.currentClimaxHoldTime));
@@ -349,12 +349,13 @@ export class SceneDJ {
                     targetEnergyState = 'buildup';
                 }
             } else {
+                // Solange der Track massiv feuert (Overdrive), pausiert der Hold-Timer
                 this.climaxTimer = 0.0;
                 this.tension = TENSION_MAX;
             }
         }
 
-        // --- WAKE-UP ROULLETE TRIGGERN ---
+        // --- WAKE-UP ROULETTE TRIGGERN ---
         if (this.currentEnergyState !== targetEnergyState) {
             if (this.currentEnergyState === 'idle' && targetEnergyState !== 'idle') {
                 for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
