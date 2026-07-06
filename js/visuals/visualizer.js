@@ -139,10 +139,13 @@ export function initVisuals(stateGetters, callbacks) {
             ? stateGetters.getChannelVolumes() 
             : zeroVolumes;
 
+         // NEU: Session ID aus der App-Logik abfragen
+        const sessionId = stateGetters.getPlaybackSessionId ? stateGetters.getPlaybackSessionId() : 0;
+
         // --- RENDER ROUTING ---
         if (showGimmick) {
-            // WICHTIG: isPlaying als 6. Parameter mitgeben!
-            dss.render(ctx, canvas.width, canvas.height, t, channelVolumes, isPlaying);
+            // NEU: sessionId als Parameter an den DJ durchreichen!
+            dss.render(ctx, canvas.width, canvas.height, t, channelVolumes, isPlaying, sessionId);
         } else {
             drawReticle(); 
             osc.render(ctx, canvas.width, canvas.height, stateGetters, lineColor);

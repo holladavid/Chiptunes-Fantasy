@@ -1,18 +1,14 @@
 // === js/visuals/dse/universal/limit-bar.js ===
 // =========================================================
 // DEMO-SCENE-ELEMENT: TENSION LIMIT BAR
-// System-Themed reactive tension visualization (Borderless, No-Bg, No-Text)
-// Animations dynamically wrap the active fill-level.
+// System-Themed reactive tension visualization (Borderless, No-Text)
+// Includes precision color mapping for Tension state milestones.
 // =========================================================
 
 const C64_COLS = ['#352879', '#6c5eb5', '#b5b5b5', '#ffffff', '#ff8a8a', '#ffff33'];
 
 export class LimitBar {
     constructor() {
-        this.name = 'Tension Limit Bar';
-        this.computerType = ['all'];
-        this.placementType = 'overlay'; 
-        this.climaxHoldTime = 0.0; 
         this.displayAlpha = 0.0; 
     }
 
@@ -29,11 +25,11 @@ export class LimitBar {
         if (state === 'climax') {
             if (metrics.rawEnergyState === 'climax') {
                 pct = 1.0;
-                isFlashing = (performance.now() % 150 < 75); 
             } else if (metrics.isClimaxLocked) {
                 pct = Math.max(0.0, 1.0 - (metrics.climaxTimer / metrics.climaxHoldTime));
-                isFlashing = (pct > 0.85) && (performance.now() % 300 < 150); 
             }
+            // Micro-Dynamics: Strobe-Flashing ist 100% synchron zur Kick-Drum
+            isFlashing = (metrics.beat[0] > 0.5);
         }
         pct = Math.max(0, Math.min(1.0, pct));
 
@@ -50,9 +46,7 @@ export class LimitBar {
         }
         
         globalAlpha *= this.displayAlpha;
-
         if (globalAlpha <= 0.01) return;
-
         ctx.globalAlpha = globalAlpha;
 
         const w = 240;
@@ -66,8 +60,6 @@ export class LimitBar {
             let gap = 2;
             let segW = (w / segCount) - gap;
             let activeSegs = Math.floor(pct * segCount);
-            
-            // Berechne die exakte Breite der gefüllten Segmente
             let activeW = activeSegs > 0 ? (activeSegs * (segW + gap) - gap) : 0;
 
             if (animIntensity > 0.05 && activeW > 0) {
@@ -76,18 +68,24 @@ export class LimitBar {
                 let stripeH = (h + borderThick * 2) / numStripes;
                 for (let i = 0; i < numStripes; i++) {
                     let colIdx = Math.floor((t * (5 + animIntensity * 15) + i) % 4);
-                    if (animIntensity >= 1.0 && Math.random() > 0.5) colIdx = 3 + Math.floor(Math.random() * 3); 
+                    // Flackert rot/gelb bei extremem Beat!
+                    if (animIntensity >= 1.0 && metrics.beat[0] > 0.3) colIdx = 4 + Math.floor(Math.random() * 2); 
                     
                     ctx.fillStyle = C64_COLS[colIdx];
-                    // Hintergrund der Animation umspannt nur den aktiven Balken!
                     ctx.fillRect(x - borderThick, Math.floor(y - borderThick + i * stripeH), activeW + borderThick * 2, Math.ceil(stripeH));
                 }
             }
 
-            // Keine schwarze Base-Bar mehr! Nur die aktiven Segmente zeichnen.
             for (let i = 0; i < activeSegs; i++) {
-                ctx.fillStyle = i > 15 ? '#ff8a8a' : (i > 10 ? '#ffffff' : '#6c5eb5');
-                if (isFlashing) ctx.fillStyle = '#ffffff';
+                // Präzise Zuweisung anhand des Fortschritts:
+                // 0-45% = Blau, 50-90% = Weiß, 95-100% = Rot
+                let color = '#6c5eb5'; 
+                if (i >= 19) color = '#ff8a8a';      // Das absolute Climax-Segment (100%)
+                else if (i >= 10) color = '#ffffff'; // Die Tension Build-Up Phase (ab 50%)
+                
+                if (isFlashing) color = '#ffffff';
+                
+                ctx.fillStyle = color;
                 ctx.fillRect(x + i * (segW + gap), y, segW, h); 
             }
 
@@ -97,7 +95,6 @@ export class LimitBar {
 
             if (animIntensity > 0.05 && activeW > 0) {
                 let sweepSpeed = t * (2 + animIntensity * 8);
-                // Sweep pendelt nur innerhalb der aktiven Füllung
                 let sweepPos = (Math.sin(sweepSpeed) * 0.5 + 0.5) * activeW;
                 let glowAlpha = 0.2 + animIntensity * 0.5;
                 
@@ -112,16 +109,17 @@ export class LimitBar {
                     let bY = y + h/2 + Math.sin(t * 20) * 8;
                     ctx.fillStyle = '#ffffff';
                     ctx.fillRect(x - 8, Math.floor(bY) - 3, 6, 6);
-                    // Rechter Bob heftet sich direkt an das Ende der Füllung!
                     ctx.fillRect(x + activeW + 2, Math.floor(bY) - 3, 6, 6);
                 }
             }
 
             if (pct > 0) {
+                // Harte Color-Stops für präzise Meilensteine
                 let grad = ctx.createLinearGradient(x, y, x + activeW, y);
-                grad.addColorStop(0.0, '#002288');
-                grad.addColorStop(0.5, '#ff8800'); 
-                grad.addColorStop(1.0, '#ff0000');
+                grad.addColorStop(0.0, '#0055ff'); // Blau
+                grad.addColorStop(0.5, '#ff8800'); // Orange (50%)
+                grad.addColorStop(0.95, '#ff8800'); // Hält Orange bis kurz vor Schluss
+                grad.addColorStop(1.0, '#ff0000'); // Rot beim Climax-Hit
                 
                 ctx.fillStyle = isFlashing ? '#ffffff' : grad;
                 ctx.fillRect(x, y, activeW, h); 
@@ -133,7 +131,6 @@ export class LimitBar {
             let gap = 2;
             let segW = (w / segCount) - gap;
             let activeSegs = Math.floor(pct * segCount);
-            
             let activeW = activeSegs > 0 ? (activeSegs * (segW + gap) - gap) : 0;
 
             if (animIntensity > 0.05 && activeW > 0) {
@@ -150,7 +147,6 @@ export class LimitBar {
                     let offset = (Math.random() - 0.5) * (10 + animIntensity * 15);
                     let sparkLen = Math.random() * 10 * animIntensity;
                     
-                    // Sparks entstehen nur entlang der aktiven Bounding-Box
                     if (edge === 0) { sx = x + Math.random() * activeW; sy = y - 4; dx = sx + offset; dy = sy - sparkLen; } 
                     else if (edge === 1) { sx = x + Math.random() * activeW; sy = y + h + 4; dx = sx + offset; dy = sy + sparkLen; } 
                     else if (edge === 2) { sx = x - 4; sy = y + Math.random() * h; dx = sx - sparkLen; dy = sy + offset; } 
@@ -164,9 +160,10 @@ export class LimitBar {
 
             if (activeSegs > 0) {
                 for (let i = 0; i < activeSegs; i++) {
-                    let color = '#55ff55'; 
-                    if (i > 18) color = '#ff3333'; 
-                    else if (i > 13) color = '#ffff33'; 
+                    // Präzise Zuweisung anhand des Fortschritts:
+                    let color = '#55ff55'; // 0-50% = Grün
+                    if (i >= 23) color = '#ff3333';      // Das absolute Climax-Segment (100%)
+                    else if (i >= 12) color = '#ffff33'; // Die Tension Build-Up Phase (ab 50%)
                     
                     if (isFlashing) color = '#ffffff'; 
                     

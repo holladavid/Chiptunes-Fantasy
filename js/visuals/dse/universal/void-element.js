@@ -1,11 +1,11 @@
-// === js/visuals/dse/universal/void-floor.js ===
+// === js/visuals/dse/universal/void-element.js ===
 // =========================================================
-// DEMO-SCENE-ELEMENT: VOID FLOOR (PLACEHOLDER)
-// Strictly does nothing. Serves as a zero-CPU placeholder 
-// for the floor layer to let background scenarios shine.
+// DEMO-SCENE-ELEMENT: UNIVERSAL VOID PLACEHOLDER
+// Acts as a transparent, zero-CPU placeholder for any layer.
+// Used to clear specific layers (background, floor, foreground).
 // =========================================================
 
-export class VoidFloor {
+export class VoidElement {
     constructor() {}
 
     resize(width, height) {}

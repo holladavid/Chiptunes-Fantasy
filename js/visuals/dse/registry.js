@@ -7,7 +7,7 @@
 
 import { LimitBar } from './universal/limit-bar.js';
 import { Copperbars } from './universal/copperbars.js';
-import { VoidFloor } from './universal/void-floor.js'; // NEU
+import { VoidElement } from './universal/void-element.js'; // NEU: Universeller Platzhalter
 import { RetroSunset } from './universal/retro-sunset.js';
 import { Starfield } from './universal/starfield.js'; 
 import { AmigaCube } from './amiga/glenz-cube.js';
@@ -19,9 +19,10 @@ function defineDSE(DseClass, customMetadata) {
         computerType: ['all'],                  
         placementType: 'foreground',            
         energyLevel: ['idle', 'playing', 'buildup', 'climax'],
-        weight: 10,                             // NEU: Relatives Gewicht (Standard 10)
+        weight: 10,                             
         minPlayTime: 15.0,                      
-        climaxHoldTime: 10.0                    
+        climaxHoldTime: 10.0,
+        isVoid: false // NEU: Standardmäßig ist ein Element sichtbar (kein Void)
     };
 
     const metadata = { ...defaults, ...customMetadata };
@@ -29,11 +30,8 @@ function defineDSE(DseClass, customMetadata) {
     if (!Array.isArray(metadata.computerType)) throw new Error(`[DSE Schema] ${metadata.name}: 'computerType' must be an Array.`);
     const validPlacements = ['background', 'floor', 'foreground', 'overlay'];
     if (!validPlacements.includes(metadata.placementType)) throw new Error(`[DSE Schema] ${metadata.name}: Invalid placementType.`);
-    
-    // Validierung für das relative Gewicht
-    if (typeof metadata.weight !== 'number' || metadata.weight <= 0) {
-        throw new Error(`[DSE Schema] ${metadata.name}: 'weight' must be a positive Number.`);
-    }
+    if (typeof metadata.isVoid !== 'boolean') throw new Error(`[DSE Schema] ${metadata.name}: 'isVoid' must be a Boolean.`);
+    if (typeof metadata.weight !== 'number' || metadata.weight <= 0) throw new Error(`[DSE Schema] ${metadata.name}: 'weight' must be a positive Number.`);
 
     return { Class: DseClass, metadata: metadata };
 }
@@ -44,16 +42,16 @@ export const dseRegistry = [
     defineDSE(LimitBar, {
         placementType: 'overlay',
         computerType: ['all'],
-        weight: 1,                // Da einziges Element auf Overlay, ist das Gewicht egal
-        minPlayTime: Infinity,    // Wird niemals wegrotiert (Permanentes Schloss!)
+        weight: 1,                
+        minPlayTime: Infinity,    
         climaxHoldTime: 0.0
     }),
 
-    // --- BACKGROUNDS ---
+    // --- BACKGROUNDS (Tauschen sich nun gegenseitig aus!) ---
     defineDSE(Starfield, {
         placementType: 'background',
         computerType: ['all'], 
-        weight: 7,               // Etwas seltener als der Sunset
+        weight: 7,               
         minPlayTime: 15.0,
         climaxHoldTime: 8.0
     }),
@@ -61,29 +59,41 @@ export const dseRegistry = [
     defineDSE(RetroSunset, {
         placementType: 'background',
         computerType: ['all'],
-        weight: 10,              // Höheres Gewicht = Taucht häufiger auf
+        weight: 10,              
         minPlayTime: 15.0,
         climaxHoldTime: 12.0
+    }),
+
+    defineDSE(VoidElement, {
+        name: 'VoidBackground', // Weist der universellen Klasse einen spezifischen Namen zu
+        placementType: 'background',
+        computerType: ['all'],
+        weight: 5,              // Geringeres Gewicht = seltener als echte Grafik-Hintergründe
+        minPlayTime: 15.0,
+        climaxHoldTime: 0.0,
+        isVoid: true            // Als Void-Element markiert
     }),
 
     // --- FLOORS (Tauschen sich nun gegenseitig aus!) ---
     defineDSE(Copperbars, {
         placementType: 'floor',
         computerType: ['all'],
-        weight: 8,               // 50/50 Chance gegen den leeren VoidFloor
+        weight: 8,               
         minPlayTime: 15.0,
         climaxHoldTime: 12.0
     }),
 
-    defineDSE(VoidFloor, {
+    defineDSE(VoidElement, {
+        name: 'VoidFloor',
         placementType: 'floor',
         computerType: ['all'],
-        weight: 8,               // Gleiches Gewicht = Gleiche Chance wie Copperbars
+        weight: 8,               
         minPlayTime: 15.0,
-        climaxHoldTime: 0.0
+        climaxHoldTime: 0.0,
+        isVoid: true
     }),
     
-    // --- FOREGROUNDS ---
+    // --- FOREGROUNDS (Tauschen sich nun gegenseitig aus!) ---
     defineDSE(AmigaCube, {
         placementType: 'foreground',
         computerType: ['amiga'],
@@ -98,5 +108,15 @@ export const dseRegistry = [
         weight: 10,
         minPlayTime: 15.0,
         climaxHoldTime: 10.0
+    }),
+
+    defineDSE(VoidElement, {
+        name: 'VoidForeground',
+        placementType: 'foreground',
+        computerType: ['all'],
+        weight: 5,               
+        minPlayTime: 15.0,
+        climaxHoldTime: 0.0,
+        isVoid: true
     })
 ];

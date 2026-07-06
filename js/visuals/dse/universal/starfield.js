@@ -10,7 +10,7 @@ export class Starfield {
         this.computerType = ['all'];
         this.placementType = 'background';
         
-        this.numStars = 200; // Erhöht für einen dichteren Raum
+        this.numStars = 200; 
         this.stars = Array.from({ length: this.numStars }, () => ({
             x: (Math.random() - 0.5) * 2500,
             y: (Math.random() - 0.5) * 2500,
@@ -30,7 +30,8 @@ export class Starfield {
         this.lastT = t;
 
         let globalAlpha = 1.0;
-        let targetWarp = 2 + (metrics.energy[0] * 12); 
+        let targetWarp = 2.0; 
+        let beatWarp = 0.0;
 
         if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
@@ -39,36 +40,42 @@ export class Starfield {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
             targetWarp *= globalAlpha;
         } else if (state === 'buildup') {
-            targetWarp *= 1.8;
+            targetWarp = 2.8;              // Geringerer Schub (vorher 3.6)
+            beatWarp = 0.4;                // Subtiles Zucken bei Kicks
         } else if (state === 'climax') {
-            targetWarp *= 3.0 + (metrics.pulse[0] * 2.5); 
-            globalAlpha = 0.8 + (metrics.pulse[0] * 0.2);
+            targetWarp = 5.5; 
+            globalAlpha = 0.8 + (metrics.beat[0] * 0.2); 
+            beatWarp = 6.0;                // Hyperspeed-Einspritzung!
         }
-
         this.smoothedWarp += (targetWarp - this.smoothedWarp) * 0.1;
+        
+        // Micro-Dynamics: Smoothed Base Warp + Instant Beat Punch
+        let activeWarp = this.smoothedWarp + (metrics.beat[0] * beatWarp);
 
         ctx.globalAlpha = globalAlpha;
 
         if (metrics.system === 'c64') {
-            this.drawC64(ctx, width, height);
+            this.drawC64(ctx, width, height, activeWarp);
         } else if (metrics.system === 'amiga') {
-            this.drawAmiga(ctx, width, height);
+            this.drawAmiga(ctx, width, height, activeWarp);
         } else {
-            this.drawAtari(ctx, width, height);
+            this.drawAtari(ctx, width, height, activeWarp);
         }
 
         ctx.globalAlpha = 1.0;
     }
 
-    drawC64(ctx, w, h) {
-        ctx.lineCap = 'square'; // Chunky
+    drawC64(ctx, w, h, activeWarp) {
+        ctx.lineCap = 'square'; 
         const cx = w / 2; const cy = h / 2; const fov = 400; 
 
         for (let i = 0; i < this.numStars; i++) {
             let star = this.stars[i];
             const prevZ = star.z;
             
-            star.z -= this.smoothedWarp;
+            // Subtraktion mit dem berechneten, beat-reaktiven Warp
+            star.z -= activeWarp;
+            
             if (star.z <= 6) {
                 star.z = 1000; star.x = (Math.random() - 0.5) * 2500; star.y = (Math.random() - 0.5) * 2500;
                 continue; 
@@ -87,9 +94,12 @@ export class Starfield {
             else if (curZ < 900) starColor = '#7a7a7a'; 
 
             ctx.strokeStyle = starColor; ctx.fillStyle = starColor;
-            const distance = Math.sqrt((px-prevPx)**2 + (py-prevPy)**2);
+            const dx = px - prevPx;
+            const dy = py - prevPy;
+            // Schnelle Distanzberechnung ohne Math.sqrt im Hot-Path
+            const distSq = dx*dx + dy*dy;
 
-            if (distance > 3.0) {
+            if (distSq > 9.0) {
                 ctx.lineWidth = Math.max(2, Math.floor((1000 - curZ) / 250));
                 ctx.beginPath(); ctx.moveTo(prevPx, prevPy); ctx.lineTo(px, py); ctx.stroke();
             } else {
@@ -99,36 +109,34 @@ export class Starfield {
         }
     }
 
-    drawAmiga(ctx, w, h) {
-        ctx.lineCap = 'round'; // Weich
-        ctx.globalCompositeOperation = 'screen'; // Subtiles Überstrahlen (Glow)
+    drawAmiga(ctx, w, h, activeWarp) {
+        ctx.lineCap = 'round'; 
+        ctx.globalCompositeOperation = 'screen'; 
         const cx = w / 2; const cy = h / 2; const fov = 400; 
 
         for (let i = 0; i < this.numStars; i++) {
             let star = this.stars[i];
             const prevZ = star.z;
             
-            star.z -= this.smoothedWarp;
+            star.z -= activeWarp;
             if (star.z <= 6) {
                 star.z = 1000; star.x = (Math.random() - 0.5) * 2500; star.y = (Math.random() - 0.5) * 2500;
                 continue; 
             }
 
             const curZ = star.z;
-            const px = cx + (star.x / curZ) * fov; // Kein Math.floor! Sub-Pixel rendering
+            const px = cx + (star.x / curZ) * fov; 
             const py = cy + (star.y / curZ) * fov;
             const prevPx = cx + (star.x / prevZ) * fov;
             const prevPy = cy + (star.y / prevZ) * fov;
 
-            // Sanftes, mathematisches Verblassen der Helligkeit durch Alpha (rgba)
             let brightness = Math.max(0.1, 1.0 - (curZ / 1000));
-            // Amiga Stars haben oft einen leichten Kupfer/Blau/Weiß-Touch
             let starColor = `rgba(${150 + brightness*105}, ${200 + brightness*55}, 255, ${brightness})`; 
 
             ctx.strokeStyle = starColor; ctx.fillStyle = starColor;
-            const distance = Math.sqrt((px-prevPx)**2 + (py-prevPy)**2);
+            const distSq = (px-prevPx)**2 + (py-prevPy)**2;
 
-            if (distance > 2.0) {
+            if (distSq > 4.0) {
                 ctx.lineWidth = 1.0 + brightness * 2.5;
                 ctx.beginPath(); ctx.moveTo(prevPx, prevPy); ctx.lineTo(px, py); ctx.stroke();
             } else {
@@ -139,15 +147,15 @@ export class Starfield {
         ctx.globalCompositeOperation = 'source-over';
     }
 
-    drawAtari(ctx, w, h) {
-        ctx.lineCap = 'butt'; // Scharf, keine überstehenden Enden
+    drawAtari(ctx, w, h, activeWarp) {
+        ctx.lineCap = 'butt'; 
         const cx = w / 2; const cy = h / 2; const fov = 400; 
 
         for (let i = 0; i < this.numStars; i++) {
             let star = this.stars[i];
             const prevZ = star.z;
             
-            star.z -= this.smoothedWarp;
+            star.z -= activeWarp;
             if (star.z <= 6) {
                 star.z = 1000; star.x = (Math.random() - 0.5) * 2500; star.y = (Math.random() - 0.5) * 2500;
                 continue; 
@@ -159,17 +167,15 @@ export class Starfield {
             const prevPx = Math.floor(cx + (star.x / prevZ) * fov);
             const prevPy = Math.floor(cy + (star.y / prevZ) * fov);
 
-            // Strikte Atari 16-Color Palette ohne Alpha-Dithering
             let starColor = '#002244'; 
             if (curZ < 250) starColor = '#ffffff'; 
-            else if (curZ < 500) starColor = '#55ffff'; // Neon Cyan
-            else if (curZ < 750) starColor = '#0055aa'; // Mid Blue
+            else if (curZ < 500) starColor = '#55ffff'; 
+            else if (curZ < 750) starColor = '#0055aa'; 
 
             ctx.strokeStyle = starColor; ctx.fillStyle = starColor;
-            const distance = Math.sqrt((px-prevPx)**2 + (py-prevPy)**2);
+            const distSq = (px-prevPx)**2 + (py-prevPy)**2;
 
-            // Atari Vektor-Linien sind immer 1 Pixel oder 2 Pixel dick (scharf)
-            if (distance > 3.0) {
+            if (distSq > 9.0) {
                 ctx.lineWidth = curZ < 400 ? 2 : 1;
                 ctx.beginPath(); ctx.moveTo(prevPx, prevPy); ctx.lineTo(px, py); ctx.stroke();
             } else {

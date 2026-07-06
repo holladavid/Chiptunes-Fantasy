@@ -38,6 +38,7 @@ let isUserDragging = false;
 let currentSubsongIndex = 1; 
 let channelVolumes = new Float32Array(4);
 let playRequestToken = 0; // NEU: Async Race Condition Schutz
+let playbackSessionId = 0; // NEU: Unidirectional State Sync für den Scene-DJ
 
 // Cursor-Hiding Inaktivitäts-Timer
 let mouseIdleTimer = null;
@@ -97,7 +98,9 @@ function initApp() {
             getTrackData: () => trackData,
             getAnalyserNode: getAnalyserNode,  
             getIsPlaying: () => isPlaying,
-            getAudioContext: getAudioContext  
+            getAudioContext: getAudioContext,
+            // NEU: Session ID an die visuelle Pipeline übergeben
+            getPlaybackSessionId: () => playbackSessionId 
         }, {
             updateTimelineUI: () => updateTimelineUI(),
             updateChipHUD: () => updateChipHUD({
@@ -323,6 +326,7 @@ function handleWorkletMessage(e) {
 function changeC64Subsong(subsongId) {
     const sidNode = getSidNode();
     if (activeSystem === 'c64' && trackData && trackData.isSidFile && sidNode) { 
+        playbackSessionId++; // NEU: Informiert das Rendering-System über einen Wechsel
         sidNode.port.postMessage({ 
             type: 'CHANGE_SUBSONG', 
             frame: subsongId,
@@ -555,6 +559,8 @@ async function selectAndPlayTrack(index, system) {
     // =========================================================
     playRequestToken++;
     const myToken = playRequestToken;
+
+    playbackSessionId++; // NEU: Informiert das Rendering-System über einen Trackwechsel
 
     if (getAudioContext() && getAudioContext().state === 'suspended') {
         resumeAudioContext().catch(e => console.log("AudioContext resume blockiert:", e));

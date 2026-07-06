@@ -2,7 +2,7 @@
 // =========================================================
 // YM2149F CORE (CYCLE-EXACT 2MHz, LOG-DAC, TRUE 5-BIT ENV)
 // Studio-Grade Polyphase Sinc-FIR Decimator & Digidrum DAC Injection
-// Final Master: Smart Auto-Release Hijack Locks (Long Samples Fix)
+// Final Master: True 8-Bit Linear PCM Simulation for Digidrums
 // =========================================================
 
 import { DCBlocker, detectDigidrum, detectDigidrumVoice } from '../lib/dsp-utils.js';
@@ -37,7 +37,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
         this.digiPos = 0;
         this.lastDigiTrigger = 0;
         
-        // --- NEU: Smart Hijack Tracking ---
         this.hijackedVoice = 0;
         this.hijackReleaseVol = 0; 
         
@@ -69,33 +68,35 @@ class YMExactProcessor extends AudioWorkletProcessor {
 
         this.dcBlock = new DCBlocker();
         this.outLp = 0;
+        this.fadeVol = 0.0;
         
-        this.port.onmessage = this.handleMessage.bind(this);
-    }
-
-    handleMessage(event) {
-        const msg = event.data;
-        if (msg.type === 'PLAY_TRACK') {
-            this.trackData = msg.track;
-            this.digidrums = msg.digidrums || []; 
-            this.currentFrame = 0;
-            this.sampleCounter = 0;
-            this.currentDigidrum = null;
-            this.lastDigiTrigger = 0;
-            this.hijackedVoice = 0;
-            this.hijackReleaseVol = 0;
-            this.isPlaying = true;
-            this.ringBuffer.fill(0);
-        } else if (msg.type === 'STOP_TRACK') {
-            this.isPlaying = false;
-        } else if (msg.type === 'RESUME_TRACK') {
-            this.isPlaying = true; 
-        } else if (msg.type === 'SEEK_TRACK') {
-            if (this.trackData) {
-                this.currentFrame = msg.frame % this.trackData.length;
-                this.currentDigidrum = null; 
+        this.port.onmessage = (event) => {
+            const msg = event.data;
+            if (msg.type === 'PLAY_TRACK') {
+                this.trackData = msg.track;
+                this.digidrums = msg.digidrums || []; 
+                this.currentFrame = 0;
+                this.sampleCounter = 0;
+                this.currentDigidrum = null;
+                this.lastDigiTrigger = 0;
+                this.hijackedVoice = 0;
+                this.hijackReleaseVol = 0;
+                this.isPlaying = true;
+                
+                this.ringBuffer.fill(0);
+                this.outLp = 0;
+                this.dcBlock = new DCBlocker();
+            } else if (msg.type === 'STOP_TRACK') {
+                this.isPlaying = false;
+            } else if (msg.type === 'RESUME_TRACK') {
+                this.isPlaying = true; 
+            } else if (msg.type === 'SEEK_TRACK') {
+                if (this.trackData) {
+                    this.currentFrame = msg.frame % this.trackData.length;
+                    this.currentDigidrum = null; 
+                }
             }
-        }
+        };
     }
 
     process(inputs, outputs) {
@@ -104,15 +105,25 @@ class YMExactProcessor extends AudioWorkletProcessor {
         let currentVisualValue = 0;
 
         for (let i = 0; i < outL.length; i++) {
-            if (!this.isPlaying) {
-                outL[i] = 0; if (outR) outR[i] = 0;
+            
+            // Anti-Pop Glide Envelope
+            if (this.isPlaying) {
+                this.fadeVol = Math.min(1.0, this.fadeVol + 0.002);
+            } else {
+                this.fadeVol = Math.max(0.0, this.fadeVol - 0.002);
+            }
+
+            if (this.fadeVol === 0.0) {
+                let idleSample = this.dcBlock.process(0);
+                outL[i] = idleSample; if (outR) outR[i] = idleSample;
                 continue; 
             }
 
-            let cyclesToRun = 0;
-            if (this.trackData) {
+            let decimationSum = 0;
+
+            if (this.isPlaying && this.trackData && this.trackData.length > 0) {
                 this.cycleAccumulator += this.clock / sampleRate;
-                cyclesToRun = Math.floor(this.cycleAccumulator);
+                let cyclesToRun = Math.floor(this.cycleAccumulator);
                 this.cycleAccumulator -= cyclesToRun;
 
                 this.sampleCounter--;
@@ -121,42 +132,38 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     
                     let frame = this.trackData[this.currentFrame];
                     for(let r=0; r<16; r++) {
+                        let val = frame[r];
                         if (r === 13) {
-                            if (frame[13] !== 0xFF) {
-                                this.regs[13] = frame[13];
+                            if (val !== 0xFF) {
+                                this.regs[13] = val;
                                 this.envStep = 0;
                                 this.envPhase = 0;
                                 this.envDiv = 0; 
                                 this.envHold = false;
                             }
                         } else {
-                            this.regs[r] = frame[r];
+                            this.regs[r] = val;
                         }
                     }
                     
                     let activeDigiTrigger = detectDigidrum(frame);
                     let activeDigiVoice = detectDigidrumVoice(frame);
 
-                    // --- 1. DIGIDRUM TRIGGER & LOCK ---
                     if (activeDigiTrigger > 0 && activeDigiTrigger !== this.lastDigiTrigger) {
                         if (this.digidrums[activeDigiTrigger - 1]) {
                             this.currentDigidrum = this.digidrums[activeDigiTrigger - 1];
                             this.digiPos = 0;
                             
-                            // Kanal sperren und Müll-Lautstärke (Drum ID) speichern
                             if (activeDigiVoice > 0) {
                                 this.hijackedVoice = activeDigiVoice;
                                 if (activeDigiVoice === 1) this.hijackReleaseVol = frame[8];
                                 else if (activeDigiVoice === 2) this.hijackReleaseVol = frame[9];
                                 else if (activeDigiVoice === 3) this.hijackReleaseVol = frame[10];
                             }
-                            this.port.postMessage({ type: 'DEBUG', msg: 'Drum ' + activeDigiTrigger });
                         }
                     }
                     this.lastDigiTrigger = activeDigiTrigger;
 
-                    // --- 2. SMART AUTO-RELEASE ---
-                    // Wenn der Tracker die Lautstärke ändert, will er eine neue Note spielen -> Lock sofort aufheben!
                     if (this.hijackedVoice === 1 && frame[8] !== this.hijackReleaseVol) this.hijackedVoice = 0;
                     if (this.hijackedVoice === 2 && frame[9] !== this.hijackReleaseVol) this.hijackedVoice = 0;
                     if (this.hijackedVoice === 3 && frame[10] !== this.hijackReleaseVol) this.hijackedVoice = 0;
@@ -229,42 +236,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     let fixVolC = r10 & 0x0F;
                     let vC5 = (r10 & 0x10) ? this.envVol5Bit : (fixVolC === 0 ? 0 : fixVolC * 2 + 1);
 
-                    // --- 3. DIGIDRUM INJECTION & HIJACK OVERRIDE ---
-                    if (this.hijackedVoice > 0) {
-                        let dac5 = 0; // Default: Silence if sample ends, preventing DC pops
-
-                        if (this.currentDigidrum) {
-                            let posInt = Math.floor(this.digiPos);
-                            if (posInt < this.currentDigidrum.length) {
-                                let floatSample = this.currentDigidrum[posInt];
-                                let dacVal = Math.max(0, Math.min(15, Math.round((floatSample + 1.0) * 7.5)));
-                                dac5 = dacVal === 0 ? 0 : dacVal * 2 + 1;
-                                this.digiPos += (7812.5 / this.clock); 
-                            } else {
-                                // Sample nativ zu Ende -> Freeze auf 0, bis Tracker neue Note spielt
-                                this.currentDigidrum = null;
-                            }
-                        }
-
-                        // Override the YM hardware volume with DAC data or silence
-                        if (this.hijackedVoice === 1) vA5 = dac5;
-                        else if (this.hijackedVoice === 2) vB5 = dac5;
-                        else if (this.hijackedVoice === 3) vC5 = dac5;
-                    } 
-                    // Fallback für alte Global-Drums (sehr selten)
-                    else if (this.currentDigidrum) {
-                        let posInt = Math.floor(this.digiPos);
-                        if (posInt < this.currentDigidrum.length) {
-                            let floatSample = this.currentDigidrum[posInt];
-                            let dacVal = Math.max(0, Math.min(15, Math.round((floatSample + 1.0) * 7.5)));
-                            let dac5 = dacVal === 0 ? 0 : dacVal * 2 + 1;
-                            vA5 = vB5 = vC5 = dac5;
-                            this.digiPos += (7812.5 / this.clock); 
-                        } else {
-                            this.currentDigidrum = null;
-                        }
-                    }
-
                     let outA = 1, outB = 1, outC = 1;
                     if ((mix & 0x01) === 0 && !this.toneOutA) outA = 0;
                     if ((mix & 0x08) === 0 && !this.noiseOut) outA = 0;
@@ -275,29 +246,68 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     if ((mix & 0x04) === 0 && !this.toneOutC) outC = 0;
                     if ((mix & 0x20) === 0 && !this.noiseOut) outC = 0;
 
-                    let mixedSample = (outA * YM_DAC32[vA5] + outB * YM_DAC32[vB5] + outC * YM_DAC32[vC5]) / 3.0;
+                    let ampA = YM_DAC32[vA5];
+                    let ampB = YM_DAC32[vB5];
+                    let ampC = YM_DAC32[vC5];
 
-                    this.volA = YM_DAC32[vA5];
-                    this.volB = YM_DAC32[vB5];
-                    this.volC = YM_DAC32[vC5];
+                    // =========================================================
+                    // TRUE 8-BIT LINEAR PCM SIMULATION (Mad Max Hack)
+                    // Umgeht den kratzigen logarithmischen 4-Bit Wandler und 
+                    // speist das 8-Bit Digidrum-Sample linear in die Spur ein!
+                    // =========================================================
+                    let hasDigi = false;
+                    let digiAmp = 0.0;
+
+                    if (this.currentDigidrum) {
+                        let posInt = Math.floor(this.digiPos);
+                        if (posInt < this.currentDigidrum.length) {
+                            let floatSample = this.currentDigidrum[posInt]; // Bereich: -1.0 bis +1.0
+                            
+                            // Map von Bipolar (-1 bis 1) auf Unipolar (0 bis 1)
+                            digiAmp = (floatSample + 1.0) * 0.5;
+                            hasDigi = true;
+                            
+                            this.digiPos += (7812.5 / this.clock); 
+                        } else {
+                            this.currentDigidrum = null;
+                        }
+                    }
+
+                    if (hasDigi) {
+                        // Wenn der Tracker die Spur hijouckt, zwingen wir das Tone-Gate 
+                        // auf 1.0 (damit die Frequenz den Drum nicht zerhackt) und 
+                        // schreiben die saubere lineare Amplitude direkt in den Mixer.
+                        if (this.hijackedVoice === 1) { ampA = digiAmp; outA = 1.0; }
+                        else if (this.hijackedVoice === 2) { ampB = digiAmp; outB = 1.0; }
+                        else if (this.hijackedVoice === 3) { ampC = digiAmp; outC = 1.0; }
+                        else { 
+                            ampA = ampB = ampC = digiAmp; 
+                            outA = outB = outC = 1.0; 
+                        }
+                    }
+
+                    let mixedSample = (outA * ampA + outB * ampB + outC * ampC) / 3.0;
+
+                    this.volA = ampA;
+                    this.volB = ampB;
+                    this.volC = ampC;
 
                     this.ringBuffer[this.ringIndex] = mixedSample;
                     this.ringIndex = (this.ringIndex + 1) & 511;
                 }
 
-                let decimationSum = 0;
                 for (let k = 0; k < this.FIR_TAPS; k++) {
                     let readIdx = (this.ringIndex - 1 - k + 512) & 511;
                     decimationSum += this.ringBuffer[readIdx] * this.firKernel[k];
                 }
-
-                this.outLp += 0.45 * (decimationSum - this.outLp);
-                let finalSample = this.dcBlock.process(this.outLp);
-
-                outL[i] = finalSample;
-                if (outR) outR[i] = finalSample;
-                if (i === 0) currentVisualValue = finalSample;
             }
+
+            this.outLp += 0.45 * (decimationSum - this.outLp);
+            let finalSample = this.dcBlock.process(this.outLp) * this.fadeVol;
+
+            outL[i] = finalSample;
+            if (outR) outR[i] = finalSample;
+            if (i === 0) currentVisualValue = finalSample;
         }
 
         this.visualizer.update(this.isPlaying, this.currentFrame, currentVisualValue, this.regs, this.volA, this.volB, this.volC);

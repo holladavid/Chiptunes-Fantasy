@@ -2,16 +2,10 @@
 // =========================================================
 // DEMOSCENE-SEQUENCER (DSS) / THE "SCENE-DJ"
 // Zero-Allocation Orchestrator for Dynamic Visual Choreographies
-// Aligned States: idle -> playing -> buildup -> climax (v1.2.0)
+// V1.2.0: Added Macro (Tension) & Micro (Beat Envelope) Routing
 // =========================================================
 
-const Z_ORDER = {
-    'background': 0,
-    'floor': 1,
-    'foreground': 2,
-    'overlay': 3
-};
-
+const Z_ORDER = { 'background': 0, 'floor': 1, 'foreground': 2, 'overlay': 3 };
 const MIN_BUILDUP_TIME = 0.5;
 const TRANSITION_TIME = 1.5; 
 const TENSION_MAX = 20.0; 
@@ -22,10 +16,12 @@ export class SceneDJ {
         this.channelPeaks = new Float32Array(4);
         this.masterEnergy = new Float32Array(1);
         this.transientPulse = new Float32Array(1);
+        this.beatEnvelope = new Float32Array(1); // NEU: Exponentieller Beat-Decay
 
         this.metrics = {
             energy: this.masterEnergy,
             pulse: this.transientPulse,
+            beat: this.beatEnvelope,     // NEU: Wird an die DSEs durchgereicht
             smooth: this.channelSmooth,
             tensionPct: 0.0,
             isClimaxLocked: false,
@@ -48,6 +44,9 @@ export class SceneDJ {
         this.climaxTimer = 0.0;
         this.isClimaxLocked = false;
         this.currentClimaxHoldTime = 10.0;
+                
+        // NEU: Session Tracker für den On-Track-Change Sync
+        this.currentSessionId = -1;
     }
 
     registerDSE(dse) {
@@ -61,40 +60,12 @@ export class SceneDJ {
         this.registeredDSEs.push(dse);
     }
 
-    // =========================================================
-    // MATHEMATISCHE ROULETTE-WHEEL AUSWAHL (Zero-Allocation)
-    // =========================================================
-    selectWeightedDSE(candidates) {
-        if (candidates.length === 0) return null;
-        
-        let totalWeight = 0.0;
-        for (let i = 0; i < candidates.length; i++) {
-            totalWeight += candidates[i].metadata.weight || 10.0;
-        }
-
-        const roll = Math.random() * totalWeight;
-        let runningSum = 0.0;
-
-        for (let i = 0; i < candidates.length; i++) {
-            runningSum += candidates[i].metadata.weight || 10.0;
-            if (roll <= runningSum) {
-                return candidates[i];
-            }
-        }
-        return candidates[0]; // Fallback
-    }
-
-    // =========================================================
-    // ZENTRALE SLOT-MASCHINE
-    // =========================================================
     fillEmptyLayers(initialState = 'starting') {
         let layerFilled = { 'background': false, 'floor': false, 'foreground': false, 'overlay': false };
 
         for (let i = 0; i < this.activeDSEs.length; i++) {
             let dse = this.activeDSEs[i];
-            if (!dse._markedForRemoval) {
-                layerFilled[dse.metadata.placementType] = true;
-            }
+            if (!dse._markedForRemoval) layerFilled[dse.metadata.placementType] = true;
         }
 
         const layers = ['background', 'floor', 'foreground', 'overlay'];
@@ -119,69 +90,62 @@ export class SceneDJ {
         this.activeDSEs.sort((a, b) => Z_ORDER[a.metadata.placementType] - Z_ORDER[b.metadata.placementType]);
     }
 
+    selectWeightedDSE(candidates) {
+        if (candidates.length === 0) return null;
+        let totalWeight = 0.0;
+        for (let i = 0; i < candidates.length; i++) totalWeight += candidates[i].metadata.weight || 10.0;
+        const roll = Math.random() * totalWeight;
+        let runningSum = 0.0;
+        for (let i = 0; i < candidates.length; i++) {
+            runningSum += candidates[i].metadata.weight || 10.0;
+            if (roll <= runningSum) return candidates[i];
+        }
+        return candidates[0]; 
+    }
+
     forceSystemChange(newSystem) {
         this.currentSystem = newSystem;
-
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
-            
-            // Lock über 'minPlayTime === Infinity' statt unsauberer Probability-Prüfung
-            if (dse.metadata.minPlayTime === Infinity && dse.metadata.computerType.includes('all')) {
-                continue; 
-            }
-
+            if (dse.metadata.minPlayTime === Infinity && dse.metadata.computerType.includes('all')) continue; 
             if (!dse.metadata.computerType.includes(newSystem) && !dse.metadata.computerType.includes('all')) {
                 dse.state = 'idle';
                 this.activeDSEs.splice(i, 1);
             }
         }
-
         this.fillEmptyLayers('idle');
-        
         this.currentEnergyState = 'idle';
         this.rawEnergyState = 'playing';
         this.energyStateTimer = 0.0;
         this.tension = 0.0;
         this.isClimaxLocked = false;
+        this.beatEnvelope[0] = 0.0; // Reset Beat Envelope
     }
 
-    // =========================================================
-    // FIX: Die wiederhergestellte resize() Methode!
-    // Reicht Resize-Events an das DSE-Netzwerk weiter
-    // =========================================================
     resize(width, height) {
         for (let i = 0; i < this.registeredDSEs.length; i++) {
-            if (typeof this.registeredDSEs[i].resize === 'function') {
-                this.registeredDSEs[i].resize(width, height);
-            }
+            if (typeof this.registeredDSEs[i].resize === 'function') this.registeredDSEs[i].resize(width, height);
         }
     }
 
     analyzeEnergy(channelVolumes, dt) {
         let totalEnergy = 0.0;
         let maxPulse = 0.0;
-
         let numActiveChannels = (this.currentSystem === 'c64' || this.currentSystem === 'atari') ? 3 : 4;
 
         for (let i = 0; i < 4; i++) {
             let rawVol = channelVolumes[i] || 0.0;
+            if (rawVol > this.channelSmooth[i]) this.channelSmooth[i] += (rawVol - this.channelSmooth[i]) * 0.8; 
+            else this.channelSmooth[i] += (rawVol - this.channelSmooth[i]) * 0.15; 
 
-            if (rawVol > this.channelSmooth[i]) {
-                this.channelSmooth[i] += (rawVol - this.channelSmooth[i]) * 0.8; 
-            } else {
-                this.channelSmooth[i] += (rawVol - this.channelSmooth[i]) * 0.15; 
-            }
-
-            if (rawVol > this.channelPeaks[i]) {
-                this.channelPeaks[i] = rawVol;
-            } else {
+            if (rawVol > this.channelPeaks[i]) this.channelPeaks[i] = rawVol;
+            else {
                 this.channelPeaks[i] -= 0.5 * dt; 
                 if (this.channelPeaks[i] < 0) this.channelPeaks[i] = 0;
             }
 
             let pulse = this.channelPeaks[i] - this.channelSmooth[i];
             if (pulse > maxPulse) maxPulse = pulse;
-
             totalEnergy += this.channelSmooth[i];
         }
 
@@ -197,46 +161,29 @@ export class SceneDJ {
             let dse = this.activeDSEs[i];
             if (dse._markedForRemoval) continue; 
 
-            // Ist die Mindestlaufzeit abgelaufen?
             if ((dse.state === 'playing' || dse.state === 'buildup') && dse.metadata.minPlayTime !== Infinity) {
                 if (dse.stateTime >= dse.metadata.minPlayTime) {
-                    
-                    let altExists = this.registeredDSEs.some(alt => 
-                        alt !== dse && 
-                        alt.metadata.placementType === dse.metadata.placementType &&
-                        (alt.metadata.computerType.includes(this.currentSystem) || alt.metadata.computerType.includes('all'))
-                    );
+                    let overTime = dse.stateTime - dse.metadata.minPlayTime;
+                    let swapChance = overTime * 0.1 * dt; 
 
-                    if (altExists) {
-                        let overTime = dse.stateTime - dse.metadata.minPlayTime;
-                        let swapChance = overTime * 0.1 * dt; 
+                    if (Math.random() < swapChance) {
+                        let candidates = this.registeredDSEs.filter(alt => 
+                            (alt.state === 'idle' || alt === dse) && 
+                            !alt._markedForRemoval &&
+                            alt.metadata.placementType === dse.metadata.placementType &&
+                            (alt.metadata.computerType.includes(this.currentSystem) || alt.metadata.computerType.includes('all'))
+                        );
 
-                        if (Math.random() < swapChance) {
-                            let candidates = this.registeredDSEs.filter(alt => 
-                                (alt.state === 'idle' || alt === dse) && 
-                                !alt._markedForRemoval &&
-                                alt.metadata.placementType === dse.metadata.placementType &&
-                                (alt.metadata.computerType.includes(this.currentSystem) || alt.metadata.computerType.includes('all'))
-                            );
-
-                            if (candidates.length > 0) {
-                                let chosen = candidates[Math.floor(Math.random() * candidates.length)];
-                                if (chosen === dse) {
-                                    dse.stateTime = Math.max(0, dse.metadata.minPlayTime - 5.0);
-                                } else {
-                                    dse._markedForRemoval = true; 
-                                    swapOccurred = true;
-                                }
-                            }
+                        if (candidates.length > 0) {
+                            let chosen = this.selectWeightedDSE(candidates);
+                            if (chosen === dse) dse.stateTime = Math.max(0, dse.metadata.minPlayTime - 5.0);
+                            else { dse._markedForRemoval = true; swapOccurred = true; }
                         }
                     }
                 }
             }
         }
-
-        if (swapOccurred) {
-            this.fillEmptyLayers('starting');
-        }
+        if (swapOccurred) this.fillEmptyLayers('starting');
     }
 
     updateStateMachines(dt, isPlaying) {
@@ -256,70 +203,74 @@ export class SceneDJ {
             pulseThreshold = 0.30;       
             accumulationSpeed = 0.45;    
         } else if (this.currentSystem === 'atari') {
-            buildupThreshold = 0.26;     
-            overdriveThreshold = 0.44;   
-            pulseThreshold = 0.22;       
-            accumulationSpeed = 1.5;     
+            buildupThreshold = 0.35;     
+            overdriveThreshold = 0.66;   
+            pulseThreshold = 0.48;       
+            accumulationSpeed = 0.12;    
         }
 
         let isOverdrive = (energy > overdriveThreshold && pulse > pulseThreshold);
         let isBuildup = (energy > buildupThreshold);
         
         this.rawEnergyState = isOverdrive ? 'climax' : (isBuildup ? 'buildup' : 'playing');
-        let targetEnergyState = this.currentEnergyState;
 
-        // --- TENSION & LOCK LOGIK ---
-        if (!isPlaying) {
+        // =========================================================
+        // MICRO-DYNAMICS: BEAT ENVELOPE GENERATOR
+        // Fängt harte Transienten ein und fadet exponentiell aus.
+        // =========================================================
+        let beatThreshold = pulseThreshold * 0.7; // Reagiert etwas früher auf Drums als der Overdrive State
+        if (isPlaying && pulse > beatThreshold) {
+            this.beatEnvelope[0] = 1.0; // Snap to max punch
+        } else {
+            // Exponentieller Decay (fällt in ca. 120ms ab, perfekt für Kicks/Snares)
+            this.beatEnvelope[0] *= Math.max(0.0, 1.0 - (dt * 12.0)); 
+        }
+        if (!isPlaying) this.beatEnvelope[0] = 0.0;
+
+        let targetEnergyState = this.currentEnergyState;
+        let desiredState = 'playing';
+        
+        if (!isPlaying) desiredState = 'idle';
+        else if (this.isClimaxLocked) desiredState = 'climax';
+        else if (isBuildup || isOverdrive) desiredState = 'buildup';
+
+        if (desiredState === 'idle') {
             this.isClimaxLocked = false;
             this.tension = Math.max(0.0, this.tension - (dt * 15.0)); 
             targetEnergyState = 'idle';
-        } else if (!isBuildup && !isOverdrive) {
-            this.isClimaxLocked = false;
-            this.tension = Math.max(0.0, this.tension - (dt * 10.0)); 
-            if (this.energyStateTimer > MIN_BUILDUP_TIME) {
-                targetEnergyState = 'playing';
-            }
-        } else {
-            if (!this.isClimaxLocked) {
-                let power = (energy * 0.5) + (pulse * 2.0); 
-                if (isOverdrive) power *= 4.0; 
+        } else if (this.currentEnergyState === 'idle') targetEnergyState = desiredState;
+        else if (this.energyStateTimer > MIN_BUILDUP_TIME) targetEnergyState = desiredState;
 
-                this.tension += power * accumulationSpeed * dt;
+        if (isPlaying && !this.isClimaxLocked) {
+            let power = (energy * 0.5) + (pulse * 2.0); 
+            if (isOverdrive) power *= 6.0; 
+            this.tension += power * accumulationSpeed * dt;
 
-                if (this.tension >= TENSION_MAX) {
-                    this.tension = TENSION_MAX;
-                    this.isClimaxLocked = true;
-                    this.climaxTimer = 0.0; 
-                    
-                    this.currentClimaxHoldTime = this.activeDSEs.length > 0 
-                        ? Math.max(...this.activeDSEs.map(d => d.metadata.climaxHoldTime || 10.0)) : 10.0;
-                } else if (this.currentEnergyState === 'playing' && this.energyStateTimer > MIN_BUILDUP_TIME) {
-                    targetEnergyState = 'buildup';
-                }
-            }
-
-            if (this.isClimaxLocked) {
+            if (this.tension >= TENSION_MAX) {
+                this.tension = TENSION_MAX;
+                this.isClimaxLocked = true;
+                this.climaxTimer = 0.0; 
+                this.currentClimaxHoldTime = this.activeDSEs.length > 0 ? Math.max(...this.activeDSEs.map(d => d.metadata.climaxHoldTime || 10.0)) : 10.0;
                 targetEnergyState = 'climax';
-                if (isOverdrive) {
-                    this.climaxTimer = 0.0;
-                    this.tension = TENSION_MAX;
-                } else {
-                    this.climaxTimer += dt;
-                    this.tension = TENSION_MAX * Math.max(0.0, 1.0 - (this.climaxTimer / this.currentClimaxHoldTime));
-                    if (this.climaxTimer >= this.currentClimaxHoldTime) {
-                        this.isClimaxLocked = false;
-                        this.tension = 0.0;
-                        targetEnergyState = 'buildup';
-                    }
-                }
-            } else {
-                if (targetEnergyState === 'climax') targetEnergyState = 'buildup';
             }
         }
 
-        // =========================================================
-        // WAKE-UP ROLL 
-        // =========================================================
+        if (this.isClimaxLocked && isPlaying) {
+            targetEnergyState = 'climax';
+            if (!isOverdrive) {
+                this.climaxTimer += dt;
+                this.tension = TENSION_MAX * Math.max(0.0, 1.0 - (this.climaxTimer / this.currentClimaxHoldTime));
+                if (this.climaxTimer >= this.currentClimaxHoldTime) {
+                    this.isClimaxLocked = false;
+                    this.tension = 0.0;
+                    targetEnergyState = 'buildup';
+                }
+            } else {
+                this.climaxTimer = 0.0;
+                this.tension = TENSION_MAX;
+            }
+        }
+
         if (this.currentEnergyState !== targetEnergyState) {
             if (this.currentEnergyState === 'idle' && targetEnergyState !== 'idle') {
                 for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
@@ -332,63 +283,53 @@ export class SceneDJ {
                 }
                 this.fillEmptyLayers('starting');
             }
-
             this.currentEnergyState = targetEnergyState;
             this.energyStateTimer = 0.0;
         }
 
-        // =========================================================
-        // KUGELSICHERES DSE STATE ROUTING
-        // =========================================================
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
             dse.stateTime += dt;
-
             if (dse._markedForRemoval) {
-                if (dse.state !== 'stopping') {
-                    dse.state = 'stopping';
-                    dse.stateTime = 0.0;
-                } else if (dse.stateTime >= TRANSITION_TIME) {
-                    dse.state = 'idle';
-                    dse.stateTime = 0.0;
-                    dse._markedForRemoval = false;
-                    this.activeDSEs.splice(i, 1); 
-                }
+                if (dse.state !== 'stopping') { dse.state = 'stopping'; dse.stateTime = 0.0; } 
+                else if (dse.stateTime >= TRANSITION_TIME) { dse.state = 'idle'; dse.stateTime = 0.0; dse._markedForRemoval = false; this.activeDSEs.splice(i, 1); }
                 continue; 
             }
-
             if (this.currentEnergyState === 'idle') {
-                if (dse.state !== 'idle' && dse.state !== 'stopping') {
-                    dse.state = 'stopping';
-                    dse.stateTime = 0.0;
-                } else if (dse.state === 'stopping' && dse.stateTime >= TRANSITION_TIME) {
-                    dse.state = 'idle'; 
-                    dse.stateTime = 0.0;
-                }
+                if (dse.state !== 'idle' && dse.state !== 'stopping') { dse.state = 'stopping'; dse.stateTime = 0.0; } 
+                else if (dse.state === 'stopping' && dse.stateTime >= TRANSITION_TIME) { dse.state = 'idle'; dse.stateTime = 0.0; }
             } else {
-                if (dse.state === 'idle' || dse.state === 'stopping') {
-                    dse.state = 'starting';
-                    dse.stateTime = dse.state === 'stopping' ? Math.max(0.0, TRANSITION_TIME - dse.stateTime) : 0.0;
-                } else if (dse.state === 'starting' && dse.stateTime >= TRANSITION_TIME) {
-                    dse.state = this.currentEnergyState;
-                    dse.stateTime = 0.0;
-                } else if (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax') {
-                    if (dse.state !== this.currentEnergyState) {
-                        dse.state = this.currentEnergyState;
-                        dse.stateTime = 0.0; 
-                    }
+                if (dse.state === 'idle' || dse.state === 'stopping') { dse.state = 'starting'; dse.stateTime = dse.state === 'stopping' ? Math.max(0.0, TRANSITION_TIME - dse.stateTime) : 0.0; } 
+                else if (dse.state === 'starting' && dse.stateTime >= TRANSITION_TIME) { dse.state = this.currentEnergyState; dse.stateTime = 0.0; } 
+                else if (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax') {
+                    if (dse.state !== this.currentEnergyState) { dse.state = this.currentEnergyState; dse.stateTime = 0.0; }
                 }
             }
         }
     }
 
-    render(ctx, width, height, t, channelVolumes, isPlaying) {
+render(ctx, width, height, t, channelVolumes, isPlaying, sessionId) {
         let dt = 0.016; 
         if (this.lastTime !== 0) {
             dt = t - this.lastTime;
             if (dt > 0.1) dt = 0.016; 
         }
         this.lastTime = t;
+
+        // =========================================================
+        // UNIDIRECTIONAL STATE SYNC (On-Track Change Eventing)
+        // Hat app.js eine neue Playback-Session gestartet?
+        // =========================================================
+        if (this.currentSessionId !== sessionId) {
+            this.tension = 0.0;
+            this.isClimaxLocked = false;
+            this.climaxTimer = 0.0;
+            this.energyStateTimer = 0.0;
+            this.beatEnvelope[0] = 0.0;
+            this.currentEnergyState = 'idle'; // Zwingt den sofortigen Wake-Up Roll!
+            
+            this.currentSessionId = sessionId;
+        }
 
         this.analyzeEnergy(channelVolumes, dt);
         

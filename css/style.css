@@ -1239,3 +1239,26 @@ body.eco-mode .brand-main {
 #visual-zone.no-cursor * {
     cursor: none !important;
 }
+/* =========================================
+   AMIGA HUD POWER LED UPGRADE (Touch Friendly)
+========================================= */
+#amiga-led-pwr {
+    /* Vergrößert die Trefferfläche massiv auf 16x16 Pixel */
+    width: 16px !important;
+    height: 16px !important;
+    border-width: 2px !important;
+    cursor: pointer;
+    
+    /* Sanfter Feder-Effekt für taktiles Feedback */
+    transition: transform 0.1s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* Vergrößert sich dezent beim Drüberfahren (Hover) */
+#amiga-led-pwr:hover {
+    transform: scale(1.18);
+}
+
+/* Federt elastisch zusammen beim Klicken (Active) */
+#amiga-led-pwr:active {
+    transform: scale(0.85);
+}
