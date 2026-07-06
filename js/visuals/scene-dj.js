@@ -2,7 +2,7 @@
 // =========================================================
 // DEMOSCENE-SEQUENCER (DSS) / THE "SCENE-DJ"
 // Zero-Allocation Orchestrator for Dynamic Visual Choreographies
-// V2.0 Ready: Rebuilt with Black-Screen Protection (v1.2.0)
+// Aligned States: idle -> playing -> buildup -> climax (v1.2.0)
 // =========================================================
 
 const Z_ORDER = {
@@ -61,30 +61,6 @@ export class SceneDJ {
         this.registeredDSEs.push(dse);
     }
 
-    selectWeightedDSE(candidates) {
-        if (candidates.length === 0) return null;
-        
-        let totalWeight = 0.0;
-        for (let i = 0; i < candidates.length; i++) {
-            totalWeight += candidates[i].metadata.weight || 10.0;
-        }
-
-        const roll = Math.random() * totalWeight;
-        let runningSum = 0.0;
-
-        for (let i = 0; i < candidates.length; i++) {
-            runningSum += candidates[i].metadata.weight || 10.0;
-            if (roll <= runningSum) {
-                return candidates[i];
-            }
-        }
-        return candidates[0]; // Fallback
-    }
-
-    // =========================================================
-    // SLOT-MASCHINE MIT INTEGRIERTER BLACK-SCREEN PROTECTION
-    // Garantiert, dass niemals alle Ebenen gleichzeitig leer gefegt sind.
-    // =========================================================
     fillEmptyLayers(initialState = 'starting') {
         let layerFilled = { 'background': false, 'floor': false, 'foreground': false, 'overlay': false };
 
@@ -117,8 +93,6 @@ export class SceneDJ {
 
         // =========================================================
         // BLACK SCREEN PROTECTION
-        // Falls alle aktiven Nicht-Overlay Ebenen auf "Void" gefallen sind,
-        // zwingen wir eine zufällige Ebene zur Wahl eines echten GFX-Effekts!
         // =========================================================
         let nonVoidCount = 0;
         let activeNonOverlays = this.activeDSEs.filter(d => d.metadata.placementType !== 'overlay' && !d._markedForRemoval);
@@ -130,20 +104,16 @@ export class SceneDJ {
         }
 
         if (activeNonOverlays.length > 0 && nonVoidCount === 0) {
-            // Wähle eine zufällige aktive Ebene aus, die wir überschreiben
             let dseToReplace = activeNonOverlays[Math.floor(Math.random() * activeNonOverlays.length)];
-            
-            // Suche echte, nicht-leere Alternativen für dieses Placement
             let realCandidates = this.registeredDSEs.filter(d => 
                 d.state === 'idle' && 
                 !d._markedForRemoval &&
-                !d.metadata.isVoid && // Erfordert echtes GFX
+                !d.metadata.isVoid && 
                 d.metadata.placementType === dseToReplace.metadata.placementType &&
                 (d.metadata.computerType.includes(this.currentSystem) || d.metadata.computerType.includes('all'))
             );
 
             if (realCandidates.length > 0) {
-                // Lösche das Void-Element sofort aus dem aktiven Verzeichnis
                 let idx = this.activeDSEs.indexOf(dseToReplace);
                 if (idx !== -1) {
                     dseToReplace.state = 'idle';
@@ -151,7 +121,6 @@ export class SceneDJ {
                     this.activeDSEs.splice(idx, 1);
                 }
 
-                // Ziehe eine echte GFX-Karte
                 let chosen = this.selectWeightedDSE(realCandidates);
                 chosen.state = initialState;
                 chosen.stateTime = 0.0;
@@ -160,8 +129,27 @@ export class SceneDJ {
             }
         }
 
-        // Finales Z-Sorting
         this.activeDSEs.sort((a, b) => Z_ORDER[a.metadata.placementType] - Z_ORDER[b.metadata.placementType]);
+    }
+
+    selectWeightedDSE(candidates) {
+        if (candidates.length === 0) return null;
+        
+        let totalWeight = 0.0;
+        for (let i = 0; i < candidates.length; i++) {
+            totalWeight += candidates[i].metadata.weight || 10.0;
+        }
+
+        const roll = Math.random() * totalWeight;
+        let runningSum = 0.0;
+
+        for (let i = 0; i < candidates.length; i++) {
+            runningSum += candidates[i].metadata.weight || 10.0;
+            if (roll <= runningSum) {
+                return candidates[i];
+            }
+        }
+        return candidates[0]; 
     }
 
     forceSystemChange(newSystem) {
@@ -296,60 +284,77 @@ export class SceneDJ {
         let isBuildup = (energy > buildupThreshold);
         
         this.rawEnergyState = isOverdrive ? 'climax' : (isBuildup ? 'buildup' : 'playing');
+
+        // =========================================================
+        // MATHEMATISCHER FIX: Bestimme den gewünschten Echtzeit-State
+        // =========================================================
+        let desiredState = 'playing';
+        if (!isPlaying) {
+            desiredState = 'idle';
+        } else if (isOverdrive || this.isClimaxLocked) {
+            desiredState = 'climax';
+        } else if (isBuildup) {
+            desiredState = 'buildup';
+        }
+
         let targetEnergyState = this.currentEnergyState;
 
-        // --- TENSION & LOCK LOGIK ---
-        if (!isPlaying) {
+        // =========================================================
+        // DEBOUNCING & IMMEDIATE WAKE-UP ROUTING
+        // =========================================================
+        if (desiredState === 'idle') {
+            // Bei Pause sofort auf idle schalten
             this.isClimaxLocked = false;
             this.tension = Math.max(0.0, this.tension - (dt * 15.0)); 
             targetEnergyState = 'idle';
-        } else if (!isBuildup && !isOverdrive) {
-            this.isClimaxLocked = false;
-            this.tension = Math.max(0.0, this.tension - (dt * 10.0)); 
-            if (this.energyStateTimer > MIN_BUILDUP_TIME) {
-                targetEnergyState = 'playing';
-            }
+        } else if (this.currentEnergyState === 'idle') {
+            // AUSNAHME: Wenn wir aufwachen, schalten wir SOFORT ohne Trägheit 
+            // auf den gewünschten Zielzustand um, um Latenz-Black-Screens zu verhindern!
+            targetEnergyState = desiredState;
         } else {
-            if (!this.isClimaxLocked) {
-                let power = (energy * 0.5) + (pulse * 2.0); 
-                if (isOverdrive) power *= 4.0; 
-
-                this.tension += power * accumulationSpeed * dt;
-
-                if (this.tension >= TENSION_MAX) {
-                    this.tension = TENSION_MAX;
-                    this.isClimaxLocked = true;
-                    this.climaxTimer = 0.0; 
-                    
-                    this.currentClimaxHoldTime = this.activeDSEs.length > 0 
-                        ? Math.max(...this.activeDSEs.map(d => d.metadata.climaxHoldTime || 10.0)) : 10.0;
-                } else if (this.currentEnergyState === 'playing' && this.energyStateTimer > MIN_BUILDUP_TIME) {
-                    targetEnergyState = 'buildup';
-                }
-            }
-
-            if (this.isClimaxLocked) {
-                targetEnergyState = 'climax';
-                if (isOverdrive) {
-                    this.climaxTimer = 0.0;
-                    this.tension = TENSION_MAX;
-                } else {
-                    this.climaxTimer += dt;
-                    this.tension = TENSION_MAX * Math.max(0.0, 1.0 - (this.climaxTimer / this.currentClimaxHoldTime));
-                    if (this.climaxTimer >= this.currentClimaxHoldTime) {
-                        this.isClimaxLocked = false;
-                        this.tension = 0.0;
-                        targetEnergyState = 'buildup';
-                    }
-                }
-            } else {
-                if (targetEnergyState === 'climax') targetEnergyState = 'buildup';
+            // Im laufenden Betrieb schützt das Debounce (0.5s) vor hektischem Flackern
+            if (this.energyStateTimer > MIN_BUILDUP_TIME) {
+                targetEnergyState = desiredState;
             }
         }
 
-        // =========================================================
-        // WAKE-UP ROLL 
-        // =========================================================
+        // --- TENSION-METER AUFBAU ---
+        if (isPlaying && !this.isClimaxLocked) {
+            let power = (energy * 0.5) + (pulse * 2.0); 
+            if (isOverdrive) power *= 4.0; 
+
+            this.tension += power * accumulationSpeed * dt;
+
+            if (this.tension >= TENSION_MAX) {
+                this.tension = TENSION_MAX;
+                this.isClimaxLocked = true;
+                this.climaxTimer = 0.0; 
+                
+                this.currentClimaxHoldTime = this.activeDSEs.length > 0 
+                    ? Math.max(...this.activeDSEs.map(d => d.metadata.climaxHoldTime || 10.0)) : 10.0;
+                targetEnergyState = 'climax';
+            }
+        }
+
+        // --- CLIMAX-HOLD TIMER ---
+        if (this.isClimaxLocked && isPlaying) {
+            targetEnergyState = 'climax';
+            if (!isOverdrive) {
+                this.climaxTimer += dt;
+                this.tension = TENSION_MAX * Math.max(0.0, 1.0 - (this.climaxTimer / this.currentClimaxHoldTime));
+
+                if (this.climaxTimer >= this.currentClimaxHoldTime) {
+                    this.isClimaxLocked = false;
+                    this.tension = 0.0;
+                    targetEnergyState = 'buildup';
+                }
+            } else {
+                this.climaxTimer = 0.0;
+                this.tension = TENSION_MAX;
+            }
+        }
+
+        // --- WAKE-UP ROULLETE TRIGGERN ---
         if (this.currentEnergyState !== targetEnergyState) {
             if (this.currentEnergyState === 'idle' && targetEnergyState !== 'idle') {
                 for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
