@@ -1,7 +1,6 @@
 // === js/visuals/dse/amiga/glenz-cube.js ===
 export class AmigaCube {
     constructor() {
-        this.name = 'Amiga Glenz Cube'; this.computerType = ['amiga']; this.placementType = 'foreground';
         this.cubeVertices = [[-1, -1, -1], [ 1, -1, -1], [ 1,  1, -1], [-1,  1, -1], [-1, -1,  1], [ 1, -1,  1], [ 1,  1,  1], [-1,  1,  1]];
         this.cubeFacesDef = [
             { idxs: [4, 5, 6, 7], baseColor: [255, 102, 0] }, { idxs: [1, 0, 3, 2], baseColor: [255, 102, 0] },
@@ -24,8 +23,6 @@ export class AmigaCube {
         let globalAlpha = 1.0;
         let scaleMultiplier = 1.0;
         let targetSpeed = 1.0;
-        
-        // BEAT DYNAMICS
         let beatScale = 0.0;
 
         if (state === 'starting') {
@@ -35,12 +32,12 @@ export class AmigaCube {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
             scaleMultiplier = globalAlpha;
         } else if (state === 'buildup') {
-            targetSpeed = 1.5;
-            beatScale = 10.0; // Cube hüpft leicht
+            targetSpeed = 1.2; // Smoother Anstieg
+            beatScale = 5.0;   // Fast unmerkliches Atmen
         } else if (state === 'climax') {
-            targetSpeed = 2.5;
-            beatScale = 25.0; // Cube pumpt massiv auf Beats!
-            globalAlpha = 0.8 + (metrics.beat[0] * 0.2); // Perfekt im Takt
+            targetSpeed = 2.5; // Schnelle Drehung
+            beatScale = 30.0;  // Gewaltige Sprünge (Crazy Jumping ist hier gewollt)
+            globalAlpha = 0.8 + (metrics.beat[0] * 0.2); 
         }
 
         this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * 0.05;
@@ -50,8 +47,6 @@ export class AmigaCube {
 
         const cx = width / 2; const cy = height / 2;
         const rx = this.internalT * 0.8; const ry = this.internalT * 1.2; const rz = this.internalT * 0.5;
-        
-        // Konstantes Sinus-Atmen (Macro) + Beat Pulsieren (Micro)
         const scale = (110 + Math.sin(this.internalT * 0.75) * 20) * scaleMultiplier + (metrics.beat[0] * beatScale);
         
         for (let i = 0; i < 8; i++) {
@@ -74,8 +69,8 @@ export class AmigaCube {
 
         for (let i = 0; i < 6; i++) {
             const faceDef = this.cubeFacesDef[i]; const idxs = faceDef.idxs;
-            const p0 = this.rotated[idxs[0]], p1 = this.rotated[idxs[1]], p2 = this.rotated[idxs[2]], p3 = this.rotated[idxs[3]];
-            const zCentroid = (p0.z + p1.z + p2.z + p3.z) / 4.0;
+            const p0 = this.rotated[idxs[0]], p1 = this.rotated[idxs[1]], p2 = this.rotated[idxs[2]];
+            const zCentroid = (p0.z + p1.z + p2.z + this.rotated[idxs[3]].z) / 4.0;
             const abX = p1.x - p0.x, abY = p1.y - p0.y, abZ = p1.z - p0.z;
             const acX = p2.x - p0.x, acY = p2.y - p0.y, acZ = p2.z - p0.z;
 

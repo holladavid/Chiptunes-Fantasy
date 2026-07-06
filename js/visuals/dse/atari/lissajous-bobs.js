@@ -1,7 +1,6 @@
 // === js/visuals/dse/atari/lissajous-bobs.js ===
 export class AtariBobs {
     constructor() {
-        this.name = 'Atari Lissajous Bobs'; this.computerType = ['atari']; this.placementType = 'foreground';
         this.numBobs = 45; this.bobSize = 32; 
         this.bobCanvas = document.createElement('canvas'); this.bobCanvas.width = this.bobSize; this.bobCanvas.height = this.bobSize;
         const bCtx = this.bobCanvas.getContext('2d');
@@ -22,7 +21,6 @@ export class AtariBobs {
         let globalAlpha = 1.0;
         let targetSpeed = 1.0;
         let scaleMultiplier = 1.0;
-        
         let beatScale = 0.0;
 
         if (state === 'starting') {
@@ -32,12 +30,12 @@ export class AtariBobs {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
             scaleMultiplier = globalAlpha;
         } else if (state === 'buildup') {
-            targetSpeed = 1.5;
-            beatScale = 4.0;
+            targetSpeed = 1.2; // Smooth 
+            beatScale = 2.0;   // Minimales Beat-Wabern
         } else if (state === 'climax') {
-            targetSpeed = 2.0;
-            globalAlpha = 0.8 + (metrics.beat[0] * 0.2); // Flackert bei Snare Hits
-            beatScale = 12.0; 
+            targetSpeed = 2.2; 
+            globalAlpha = 0.8 + (metrics.beat[0] * 0.2); 
+            beatScale = 14.0;  // Harte Sprünge im Climax
         }
 
         this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * 0.05;
@@ -54,7 +52,6 @@ export class AtariBobs {
             const x = cx + Math.sin(this.internalT * 1.4 + phase) * radiusX;
             const y = cy + Math.sin(this.internalT * 2.1 + phase) * Math.cos(this.internalT * 1.1 + phase) * radiusY;
             
-            // Jeder Bob poppt im perfekten Millisekunden-Takt auf
             const size = (16 + Math.sin(this.internalT * 3.5 + phase) * 8) * scaleMultiplier + (metrics.beat[0] * beatScale);
             
             ctx.drawImage(this.bobCanvas, x - size / 2, y - size / 2, size, size);

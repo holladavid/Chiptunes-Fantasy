@@ -40,14 +40,13 @@ export class Starfield {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
             targetWarp *= globalAlpha;
         } else if (state === 'buildup') {
-            targetWarp = 3.6;
-            beatWarp = 1.0; 
+            targetWarp = 2.8;              // Geringerer Schub (vorher 3.6)
+            beatWarp = 0.4;                // Subtiles Zucken bei Kicks
         } else if (state === 'climax') {
-            targetWarp = 5.0; 
+            targetWarp = 5.5; 
             globalAlpha = 0.8 + (metrics.beat[0] * 0.2); 
-            beatWarp = 5.0; 
+            beatWarp = 6.0;                // Hyperspeed-Einspritzung!
         }
-
         this.smoothedWarp += (targetWarp - this.smoothedWarp) * 0.1;
         
         // Micro-Dynamics: Smoothed Base Warp + Instant Beat Punch

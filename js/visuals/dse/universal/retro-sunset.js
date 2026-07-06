@@ -21,13 +21,13 @@ export class RetroSunset {
         } else if (state === 'stopping') {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
         } else if (state === 'buildup') {
-            targetSpeed = 1.5;
-            targetWaveSpeed = 2.5;         
-            beatIntensity = 0.3; // Sanftes Pochen der Sonne
+            targetSpeed = 1.2;             // Sanfter (vorher 1.5)
+            targetWaveSpeed = 1.5;         // Sanfter (vorher 2.5)
+            beatIntensity = 0.1;           // Kaum wahrnehmbares Pumpen
         } else if (state === 'climax') {
-            targetSpeed = 2.0;
+            targetSpeed = 2.2;
             targetWaveSpeed = 5.0;         
-            beatIntensity = 1.0; // Maximaler optischer Pump-Effekt
+            beatIntensity = 1.0;           // Volle Härte
         }
 
         this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * 0.05;
