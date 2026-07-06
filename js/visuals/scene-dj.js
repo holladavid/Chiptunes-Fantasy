@@ -44,6 +44,9 @@ export class SceneDJ {
         this.climaxTimer = 0.0;
         this.isClimaxLocked = false;
         this.currentClimaxHoldTime = 10.0;
+                
+        // NEU: Session Tracker für den On-Track-Change Sync
+        this.currentSessionId = -1;
     }
 
     registerDSE(dse) {
@@ -305,13 +308,35 @@ export class SceneDJ {
         }
     }
 
-    render(ctx, width, height, t, channelVolumes, isPlaying) {
+render(ctx, width, height, t, channelVolumes, isPlaying, sessionId) {
         let dt = 0.016; 
-        if (this.lastTime !== 0) { dt = t - this.lastTime; if (dt > 0.1) dt = 0.016; }
+        if (this.lastTime !== 0) {
+            dt = t - this.lastTime;
+            if (dt > 0.1) dt = 0.016; 
+        }
         this.lastTime = t;
 
+        // =========================================================
+        // UNIDIRECTIONAL STATE SYNC (On-Track Change Eventing)
+        // Hat app.js eine neue Playback-Session gestartet?
+        // =========================================================
+        if (this.currentSessionId !== sessionId) {
+            this.tension = 0.0;
+            this.isClimaxLocked = false;
+            this.climaxTimer = 0.0;
+            this.energyStateTimer = 0.0;
+            this.beatEnvelope[0] = 0.0;
+            this.currentEnergyState = 'idle'; // Zwingt den sofortigen Wake-Up Roll!
+            
+            this.currentSessionId = sessionId;
+        }
+
         this.analyzeEnergy(channelVolumes, dt);
-        if (isPlaying) this.manageDynamicSwaps(dt);
+        
+        if (isPlaying) {
+            this.manageDynamicSwaps(dt);
+        }
+        
         this.updateStateMachines(dt, isPlaying);
 
         this.metrics.tensionPct = this.tension / TENSION_MAX;
