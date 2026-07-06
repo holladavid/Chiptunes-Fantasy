@@ -2,7 +2,7 @@
 // =========================================================
 // DEMOSCENE-SEQUENCER (DSS) / THE "SCENE-DJ"
 // Zero-Allocation Orchestrator for Dynamic Visual Choreographies
-// Aligned States: idle -> playing -> buildup -> climax (v1.2.0)
+// V2.0 Ready: Rebuilt with Black-Screen Protection (v1.2.0)
 // =========================================================
 
 const Z_ORDER = {
@@ -61,9 +61,6 @@ export class SceneDJ {
         this.registeredDSEs.push(dse);
     }
 
-    // =========================================================
-    // MATHEMATISCHE ROULETTE-WHEEL AUSWAHL (Zero-Allocation)
-    // =========================================================
     selectWeightedDSE(candidates) {
         if (candidates.length === 0) return null;
         
@@ -85,7 +82,8 @@ export class SceneDJ {
     }
 
     // =========================================================
-    // ZENTRALE SLOT-MASCHINE
+    // SLOT-MASCHINE MIT INTEGRIERTER BLACK-SCREEN PROTECTION
+    // Garantiert, dass niemals alle Ebenen gleichzeitig leer gefegt sind.
     // =========================================================
     fillEmptyLayers(initialState = 'starting') {
         let layerFilled = { 'background': false, 'floor': false, 'foreground': false, 'overlay': false };
@@ -116,6 +114,53 @@ export class SceneDJ {
                 }
             }
         }
+
+        // =========================================================
+        // BLACK SCREEN PROTECTION
+        // Falls alle aktiven Nicht-Overlay Ebenen auf "Void" gefallen sind,
+        // zwingen wir eine zufällige Ebene zur Wahl eines echten GFX-Effekts!
+        // =========================================================
+        let nonVoidCount = 0;
+        let activeNonOverlays = this.activeDSEs.filter(d => d.metadata.placementType !== 'overlay' && !d._markedForRemoval);
+
+        for (let i = 0; i < activeNonOverlays.length; i++) {
+            if (!activeNonOverlays[i].metadata.isVoid) {
+                nonVoidCount++;
+            }
+        }
+
+        if (activeNonOverlays.length > 0 && nonVoidCount === 0) {
+            // Wähle eine zufällige aktive Ebene aus, die wir überschreiben
+            let dseToReplace = activeNonOverlays[Math.floor(Math.random() * activeNonOverlays.length)];
+            
+            // Suche echte, nicht-leere Alternativen für dieses Placement
+            let realCandidates = this.registeredDSEs.filter(d => 
+                d.state === 'idle' && 
+                !d._markedForRemoval &&
+                !d.metadata.isVoid && // Erfordert echtes GFX
+                d.metadata.placementType === dseToReplace.metadata.placementType &&
+                (d.metadata.computerType.includes(this.currentSystem) || d.metadata.computerType.includes('all'))
+            );
+
+            if (realCandidates.length > 0) {
+                // Lösche das Void-Element sofort aus dem aktiven Verzeichnis
+                let idx = this.activeDSEs.indexOf(dseToReplace);
+                if (idx !== -1) {
+                    dseToReplace.state = 'idle';
+                    dseToReplace.stateTime = 0.0;
+                    this.activeDSEs.splice(idx, 1);
+                }
+
+                // Ziehe eine echte GFX-Karte
+                let chosen = this.selectWeightedDSE(realCandidates);
+                chosen.state = initialState;
+                chosen.stateTime = 0.0;
+                chosen._markedForRemoval = false;
+                this.activeDSEs.push(chosen);
+            }
+        }
+
+        // Finales Z-Sorting
         this.activeDSEs.sort((a, b) => Z_ORDER[a.metadata.placementType] - Z_ORDER[b.metadata.placementType]);
     }
 
@@ -125,7 +170,6 @@ export class SceneDJ {
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
             
-            // Lock über 'minPlayTime === Infinity' statt unsauberer Probability-Prüfung
             if (dse.metadata.minPlayTime === Infinity && dse.metadata.computerType.includes('all')) {
                 continue; 
             }
@@ -145,10 +189,6 @@ export class SceneDJ {
         this.isClimaxLocked = false;
     }
 
-    // =========================================================
-    // FIX: Die wiederhergestellte resize() Methode!
-    // Reicht Resize-Events an das DSE-Netzwerk weiter
-    // =========================================================
     resize(width, height) {
         for (let i = 0; i < this.registeredDSEs.length; i++) {
             if (typeof this.registeredDSEs[i].resize === 'function') {
@@ -197,36 +237,26 @@ export class SceneDJ {
             let dse = this.activeDSEs[i];
             if (dse._markedForRemoval) continue; 
 
-            // Ist die Mindestlaufzeit abgelaufen?
             if ((dse.state === 'playing' || dse.state === 'buildup') && dse.metadata.minPlayTime !== Infinity) {
                 if (dse.stateTime >= dse.metadata.minPlayTime) {
-                    
-                    let altExists = this.registeredDSEs.some(alt => 
-                        alt !== dse && 
-                        alt.metadata.placementType === dse.metadata.placementType &&
-                        (alt.metadata.computerType.includes(this.currentSystem) || alt.metadata.computerType.includes('all'))
-                    );
+                    let overTime = dse.stateTime - dse.metadata.minPlayTime;
+                    let swapChance = overTime * 0.1 * dt; 
 
-                    if (altExists) {
-                        let overTime = dse.stateTime - dse.metadata.minPlayTime;
-                        let swapChance = overTime * 0.1 * dt; 
+                    if (Math.random() < swapChance) {
+                        let candidates = this.registeredDSEs.filter(alt => 
+                            (alt.state === 'idle' || alt === dse) && 
+                            !alt._markedForRemoval &&
+                            alt.metadata.placementType === dse.metadata.placementType &&
+                            (alt.metadata.computerType.includes(this.currentSystem) || alt.metadata.computerType.includes('all'))
+                        );
 
-                        if (Math.random() < swapChance) {
-                            let candidates = this.registeredDSEs.filter(alt => 
-                                (alt.state === 'idle' || alt === dse) && 
-                                !alt._markedForRemoval &&
-                                alt.metadata.placementType === dse.metadata.placementType &&
-                                (alt.metadata.computerType.includes(this.currentSystem) || alt.metadata.computerType.includes('all'))
-                            );
-
-                            if (candidates.length > 0) {
-                                let chosen = candidates[Math.floor(Math.random() * candidates.length)];
-                                if (chosen === dse) {
-                                    dse.stateTime = Math.max(0, dse.metadata.minPlayTime - 5.0);
-                                } else {
-                                    dse._markedForRemoval = true; 
-                                    swapOccurred = true;
-                                }
+                        if (candidates.length > 0) {
+                            let chosen = this.selectWeightedDSE(candidates);
+                            if (chosen === dse) {
+                                dse.stateTime = Math.max(0, dse.metadata.minPlayTime - 5.0);
+                            } else {
+                                dse._markedForRemoval = true; 
+                                swapOccurred = true;
                             }
                         }
                     }
