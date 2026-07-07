@@ -1,4 +1,10 @@
 // === js/visuals/dj/setlist-manager.js ===
+// =========================================================
+// SCENE-DJ SKILL: SETLIST MANAGER
+// Verwaltet die DSE-Registry, das Roulette-Wheel (Swapping)
+// und die Black-Screen Schutzschaltung.
+// =========================================================
+
 export class SetlistManager {
     constructor() {
         this.registeredDSEs = [];
@@ -23,6 +29,7 @@ export class SetlistManager {
         if (candidates.length === 0) return null;
         let totalWeight = 0.0;
         for (let c of candidates) totalWeight += c.currentWeight;
+        
         const roll = Math.random() * totalWeight;
         let runningSum = 0.0;
         for (let c of candidates) {
@@ -68,7 +75,6 @@ export class SetlistManager {
                 !d.metadata.isVoid && d.metadata.placementType === dseToReplace.metadata.placementType &&
                 (d.metadata.computerType.includes(info.system) || d.metadata.computerType.includes('all'))
             );
-            
             if (realCandidates.length > 0) {
                 let idx = stageManager.activeDSEs.indexOf(dseToReplace);
                 if (idx !== -1) {
@@ -97,15 +103,22 @@ export class SetlistManager {
     }
 
     manageSwaps(stageManager, info, macroState, dt) {
-        if (macroState === 'climax') return;
+        // =========================================================
+        // SWAPPING NUN AUCH IM CLIMAX ERLAUBT!
+        // Wirft den künstlichen "Climax-Lockout" für Swaps raus.
+        // =========================================================
         let swapOccurred = false;
 
         for (let dse of stageManager.activeDSEs) {
             if (dse._markedForRemoval) continue;
-            if ((dse.state === 'playing' || dse.state === 'buildup') && dse.metadata.minPlayTime !== Infinity) {
+            
+            // Evaluierung nun in ALLEN 3 aktiven States möglich
+            if ((dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax') && dse.metadata.minPlayTime !== Infinity) {
                 if (dse.stateTime >= dse.metadata.minPlayTime) {
                     let overTime = dse.stateTime - dse.metadata.minPlayTime;
-                    if (Math.random() < overTime * 0.1 * dt) {
+                    let swapChance = overTime * 0.1 * dt; 
+
+                    if (Math.random() < swapChance) {
                         let candidates = this.registeredDSEs.filter(alt => 
                             (alt.state === 'idle' || alt === dse) && !alt._markedForRemoval &&
                             alt.metadata.placementType === dse.metadata.placementType &&
