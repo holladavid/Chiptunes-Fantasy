@@ -729,6 +729,8 @@ body.eco-mode .brand-main {
     color: var(--highlight-color);
     pointer-events: auto; 
     z-index: 15; 
+    /* NEU: Ermöglicht das weiche Ein- und Ausfaden */
+    transition: opacity 0.4s ease; 
 }
 
 /* NEU: Der geschrumpfte Zustand! */
@@ -1261,4 +1263,14 @@ body.eco-mode .brand-main {
 /* Federt elastisch zusammen beim Klicken (Active) */
 #amiga-led-pwr:active {
     transform: scale(0.85);
+}
+
+/* =========================================
+   FULLSCREEN HUD AUTO-FADE LOGIC
+========================================= */
+/* Blendet das eingeklappte (collapsed) HUD im Vollbild bei Inaktivität komplett aus.
+   Sobald geklickt oder die Maus bewegt wird, fadet es sofort wieder ein! */
+#visual-zone.no-cursor #chip-hud.collapsed {
+    opacity: 0;
+    pointer-events: none;
 }

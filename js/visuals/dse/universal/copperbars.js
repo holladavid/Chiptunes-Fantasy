@@ -1,11 +1,12 @@
 // === js/visuals/dse/universal/copperbars.js ===
+// =========================================================
+// DEMO-SCENE-ELEMENT: REAL-TIME COPPERBARS (RASTERBARS)
+// Pseudo-3D Z-Buffer Sorting (Helix Orbit) & Depth Shading
+// Refactored with strict continuous math to prevent Y-axis jumps
+// =========================================================
+
 export class Copperbars {
     constructor() {
-        this.name = '3D Helix Copperbars';
-        this.computerType = ['all']; 
-        this.placementType = 'floor';
-        
-        // NOCHMALS DÜNNER: Elegantes Ribbon-Design
         this.baseThickness = [52, 40, 30, 22]; 
         this.heightWeights = [0.24, 0.24, 0.24, 0.24];
         this.colorCache = {};
@@ -19,10 +20,13 @@ export class Copperbars {
 
         this.sortedBars = Array(4).fill(null);
         
+        // Zero-Allocation Akkumulatoren für Continuous Math
         this.lastT = 0;
         this.internalT = 0;
         this.smoothedSpeed = 1.0;
         this.smoothedAmplitude = 0.85;
+        this.smoothedTwist = 0.0;
+        this.smoothedBeatPunch = 0.0;
     }
 
     hexToRgb(hex) {
@@ -38,27 +42,53 @@ export class Copperbars {
     drawCopperbar(ctx, w, y, height, volume, hexStart, hexEnd, scanlineHeight, colorBitShift, z, globalAlpha) {
         if (volume <= 0.01 || height <= 0 || globalAlpha <= 0.01) return;
         
-        const cS = this.hexToRgb(hexStart), cE = this.hexToRgb(hexEnd), cWht = [255, 255, 255];
+        const cS = this.hexToRgb(hexStart);
+        const cE = this.hexToRgb(hexEnd);
+        const cWht = [255, 255, 255];
+        
         const steps = Math.max(1, Math.floor(height / scanlineHeight));
         const depthFactor = 0.82 + (z * 0.18); 
 
         ctx.globalAlpha = globalAlpha;
 
         for(let i = 0; i <= steps; i++) {
-            let t = i / steps; let r, g, b;
+            let t = i / steps; 
+            let r, g, b;
             
-            if (t < 0.2) { let n = t / 0.2; r = cS[0] + (cE[0] - cS[0]) * n; g = cS[1] + (cE[1] - cS[1]) * n; b = cS[2] + (cE[2] - cS[2]) * n; } 
-            else if (t < 0.4) { let n = (t - 0.2) / 0.2; r = cE[0] + (cWht[0] - cE[0]) * n; g = cE[1] + (cWht[1] - cE[1]) * n; b = cE[2] + (cWht[2] - cE[2]) * n; } 
-            else if (t < 0.6) { let n = (t - 0.4) / 0.2; r = cWht[0] + (cE[0] - cWht[0]) * n; g = cWht[1] + (cE[1] - cWht[1]) * n; b = cWht[2] + (cE[2] - cWht[2]) * n; } 
-            else { let n = (t - 0.6) / 0.4; r = cE[0] + (cS[0] - cE[0]) * n; g = cE[1] + (cS[1] - cE[1]) * n; b = cE[2] + (cS[2] - cE[2]) * n; }
+            if (t < 0.2) {
+                let n = t / 0.2;
+                r = cS[0] + (cE[0] - cS[0]) * n;
+                g = cS[1] + (cE[1] - cS[1]) * n;
+                b = cS[2] + (cE[2] - cS[2]) * n; 
+            } else if (t < 0.4) {
+                let n = (t - 0.2) / 0.2;
+                r = cE[0] + (cWht[0] - cE[0]) * n;
+                g = cE[1] + (cWht[1] - cE[1]) * n;
+                b = cE[2] + (cWht[2] - cE[2]) * n;
+            } else if (t < 0.6) {
+                let n = (t - 0.4) / 0.2;
+                r = cWht[0] + (cE[0] - cWht[0]) * n;
+                g = cWht[1] + (cE[1] - cWht[1]) * n;
+                b = cWht[2] + (cE[2] - cWht[2]) * n;
+            } else {
+                let n = (t - 0.6) / 0.4;
+                r = cE[0] + (cS[0] - cE[0]) * n;
+                g = cE[1] + (cS[1] - cE[1]) * n;
+                b = cE[2] + (cS[2] - cE[2]) * n;
+            }
             
-            r *= depthFactor; g *= depthFactor; b *= depthFactor;
+            r *= depthFactor;
+            g *= depthFactor;
+            b *= depthFactor;
 
             let mask = (0xFF >> colorBitShift) << colorBitShift;
-            let r_q = (r | 0) & mask; r_q |= (r_q >> (8 - colorBitShift)); let g_q = (g | 0) & mask; g_q |= (g_q >> (8 - colorBitShift)); let b_q = (b | 0) & mask; b_q |= (b_q >> (8 - colorBitShift));
+            let r_q = (r | 0) & mask; r_q |= (r_q >> (8 - colorBitShift));
+            let g_q = (g | 0) & mask; g_q |= (g_q >> (8 - colorBitShift));
+            let b_q = (b | 0) & mask; b_q |= (b_q >> (8 - colorBitShift));
             
             ctx.fillStyle = `rgb(${r_q}, ${g_q}, ${b_q})`;
-            ctx.fillRect(0, Math.floor(y + i * scanlineHeight), w, scanlineHeight);
+            let drawY = Math.floor(y + i * scanlineHeight);
+            ctx.fillRect(0, drawY, w, scanlineHeight);
         }
         ctx.globalAlpha = 1.0; 
     }
@@ -71,9 +101,9 @@ export class Copperbars {
         let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
         this.lastT = t;
 
-        const isAmiga = document.body.classList.contains('theme-amiga');
-        const isAtari = document.body.classList.contains('theme-atari');
-        const isC64 = document.body.classList.contains('theme-c64');
+        const isAmiga = metrics.system === 'amiga';
+        const isAtari = metrics.system === 'atari';
+        const isC64 = metrics.system === 'c64';
         
         const numBars = isAmiga ? 4 : 3;
         const pals = [
@@ -89,11 +119,10 @@ export class Copperbars {
         let globalAlpha = 1.0;
         let targetSpeed = 1.0;
         let targetAmplitude = 0.85; 
-        let phaseStepMultiplier = 1.0;  
 
         let punchBase = 15.0; 
-        let beatPunch = 0.0;
-        let twistIntensity = 0.0;
+        let targetBeatPunch = 0.0;
+        let targetTwist = 0.0;
 
         if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
@@ -102,29 +131,35 @@ export class Copperbars {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
             targetAmplitude = globalAlpha * 0.85;
         } else if (state === 'buildup') {
-            targetSpeed = 1.2;           // Sehr sanfter Anstieg (vorher 1.4)
-            targetAmplitude = 0.95;      // Sanfte Ausdehnung
-            phaseStepMultiplier = 1.05;  // Leichtes Auffächern
-            beatPunch = 8.0;             // Nur sanftes, elegantes Pochen, kein Springen!
+            targetSpeed = 1.2;           
+            targetAmplitude = 0.95;      
+            targetBeatPunch = 8.0;             
         } else if (state === 'climax') {
             targetSpeed = 1.8;           
             targetAmplitude = 1.1;   
-            phaseStepMultiplier = 1.3;   
-            beatPunch = 35.0;            // Hier darf es heftig zucken!
+            targetBeatPunch = 35.0;            
             globalAlpha = 0.85 + (metrics.beat[0] * 0.15); 
-            twistIntensity = 18.0;       // Extreme Wellen-Verwindung nur im Climax
+            targetTwist = 18.0; 
         }
 
-        this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * 0.05;
-        this.smoothedAmplitude += (targetAmplitude - this.smoothedAmplitude) * 0.05;
+        // =========================================================
+        // CONTINUOUS MATH SMOOTHING
+        // Alle Modifikatoren werden framerate-unabhängig geglättet.
+        // =========================================================
+        this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * Math.min(1.0, dt * 5.0);
+        this.smoothedAmplitude += (targetAmplitude - this.smoothedAmplitude) * Math.min(1.0, dt * 5.0);
+        this.smoothedBeatPunch += (targetBeatPunch - this.smoothedBeatPunch) * Math.min(1.0, dt * 10.0);
+        this.smoothedTwist += (targetTwist - this.smoothedTwist) * Math.min(1.0, dt * 8.0);
+
         this.internalT += dt * this.smoothedSpeed;
 
         const baseSpeed = 0.55; 
-        const phaseStep = ((Math.PI * 2) / numBars) * phaseStepMultiplier; 
+        // FIX: Der Abstandswinkel MUSS statisch sein, sonst "teleportieren" die Balken vertikal!
+        const phaseStep = (Math.PI * 2) / numBars; 
 
         for (let c = 0; c < numBars; c++) {
             const smoothVol = metrics.smooth[c]; 
-            const punch = (smoothVol * punchBase) + (metrics.beat[0] * beatPunch); 
+            const punch = (smoothVol * punchBase) + (metrics.beat[0] * this.smoothedBeatPunch); 
             
             const amplitude = (height * this.heightWeights[c]) * this.smoothedAmplitude;
             const angle = (this.internalT * baseSpeed) + (c * phaseStep);
@@ -132,10 +167,13 @@ export class Copperbars {
             let yCenter = (height / 2);
             yCenter += Math.sin(angle) * amplitude;
             
-            if (twistIntensity > 0) {
-                yCenter += Math.sin(t * 6.0 + c * 2.0) * (twistIntensity * metrics.beat[0]);
-            } else {
-                yCenter += Math.cos(angle * 1.5) * (amplitude * 0.12);
+            // 1. Permanentes Wobbeln (erzeugt die 3D Helix-Brechung)
+            yCenter += Math.cos(angle * 1.5) * (amplitude * 0.12);
+            
+            // 2. Additiver Twist: Fließt sanft im Climax mit ein, 
+            // ohne die vorherige Grundbewegung hart abzuschneiden!
+            if (this.smoothedTwist > 0.01) {
+                yCenter += Math.sin(this.internalT * 6.0 + c * 2.0) * (this.smoothedTwist * metrics.beat[0]);
             }
             
             let bar = this.barsToDraw[c];
