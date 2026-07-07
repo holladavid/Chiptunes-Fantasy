@@ -2,6 +2,7 @@
 // =========================================================
 // DEMOSCENE-SEQUENCER (DSS) / THE "SCENE-DJ"
 // Modular ECS-Pattern Refactoring (v1.2.0)
+// Includes the critical Getters for visualizer.js sync
 // =========================================================
 
 import { TrackMonitor } from './dj/track-monitor.js';
@@ -17,13 +18,21 @@ export class SceneDJ {
         this.stage = new StageManager();
         this.lastTime = 0;
 
-        // Wrapper-Objekt für Abwärtskompatibilität des alten DSE-Render-Interfaces
+        // Wrapper-Objekt für Abwärtskompatibilität des DSE-Interfaces
         this.metricsWrapper = {
             tensionPct: 0.0,
             isClimaxLocked: false,
             climaxTimer: 0.0,
             climaxHoldTime: 0.0
         };
+    }
+
+    // =========================================================
+    // FIX: Die lebenswichtige Schnittstelle für die visualizer.js
+    // Verhindert, dass der DJ in jedem Frame einen System-Reset macht!
+    // =========================================================
+    get currentSystem() {
+        return this.monitor.info.system;
     }
 
     registerDSE(dse) {
@@ -45,10 +54,13 @@ export class SceneDJ {
 
     render(ctx, width, height, t, channelVolumes, isPlaying, sessionId) {
         let dt = 0.016; 
-        if (this.lastTime !== 0) { dt = t - this.lastTime; if (dt > 0.1) dt = 0.016; }
+        if (this.lastTime !== 0) { 
+            dt = t - this.lastTime; 
+            if (dt > 0.1) dt = 0.016; 
+        }
         this.lastTime = t;
 
-        // Unidirectional State Sync
+        // Unidirectional State Sync (Neues Lied gewählt)
         if (this.monitor.info.sessionId !== sessionId) {
             this.tension.reset();
             this.monitor.info.sessionId = sessionId;

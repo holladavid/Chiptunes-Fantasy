@@ -8,7 +8,7 @@ export class SetlistManager {
         dse.state = 'idle';
         dse.stateTime = 0.0;
         dse._markedForRemoval = false;
-        if (!dse.metadata) dse.metadata = { name: dse.constructor.name, minPlayTime: 5.0, weight: 10, climaxHoldTime: 10.0 };
+        if (!dse.metadata) dse.metadata = { name: dse.constructor.name, minPlayTime: 5.0, weight: 10, climaxHoldTime: 10.0, isVoid: false };
         dse.currentWeight = dse.metadata.weight || 10.0;
         this.registeredDSEs.push(dse);
     }
@@ -34,7 +34,9 @@ export class SetlistManager {
 
     fillEmptyLayers(stageManager, info, initialState = 'starting') {
         let layerFilled = { 'background': false, 'floor': false, 'foreground': false, 'overlay': false };
-        for (let dse of stageManager.activeDSEs) if (!dse._markedForRemoval) layerFilled[dse.metadata.placementType] = true;
+        for (let dse of stageManager.activeDSEs) {
+            if (!dse._markedForRemoval) layerFilled[dse.metadata.placementType] = true;
+        }
 
         const layers = ['background', 'floor', 'foreground', 'overlay'];
         for (let layer of layers) {
@@ -44,6 +46,7 @@ export class SetlistManager {
                     d.metadata.placementType === layer &&
                     (d.metadata.computerType.includes(info.system) || d.metadata.computerType.includes('all'))
                 );
+                
                 if (candidates.length > 0) {
                     this.resetWeightsForLayer(layer);
                     let chosen = this.selectWeightedDSE(candidates);
@@ -65,6 +68,7 @@ export class SetlistManager {
                 !d.metadata.isVoid && d.metadata.placementType === dseToReplace.metadata.placementType &&
                 (d.metadata.computerType.includes(info.system) || d.metadata.computerType.includes('all'))
             );
+            
             if (realCandidates.length > 0) {
                 let idx = stageManager.activeDSEs.indexOf(dseToReplace);
                 if (idx !== -1) {
