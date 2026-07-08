@@ -38,8 +38,11 @@ export class LimitBar {
         if (globalAlpha <= 0.01) return;
         ctx.globalAlpha = globalAlpha;
 
-        const w = 240; const h = 18;
-        const x = 20; const y = height - h - 20;
+        // PROPORTIONS-FIX: Viel eleganterer, schmalerer Hardware-Balken!
+        const w = Math.floor(width * 0.75);
+        const h = Math.max(4, Math.floor(height * 0.025)); // Nur noch ca. 4-6 Pixel hoch
+        const x = Math.floor((width - w) / 2);
+        const y = height - h - Math.floor(height * 0.06);  // Etwas mehr Luft nach unten
 
         if (metrics.system === 'c64') {
             // --- STRICT C64 PALETTE BINDING ---

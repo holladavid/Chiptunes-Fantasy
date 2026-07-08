@@ -34,9 +34,11 @@ export class AmigaCube {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
             scaleMultiplier = globalAlpha;
         } else if (state === 'buildup') {
-            targetSpeed = 1.2; beatScale = 5.0;
+            targetSpeed = 1.2; 
+            beatScale = 2.0;  // PROPORTIONS-FIX: Vorher 5.0
         } else if (state === 'climax') {
-            targetSpeed = 2.5; beatScale = 30.0; 
+            targetSpeed = 2.5; 
+            beatScale = 12.0; // PROPORTIONS-FIX: Vorher 30.0 (hätte den Cube riesig gemacht!)
             globalAlpha = 0.8 + (metrics.beat[0] * 0.2); 
         }
 
@@ -47,8 +49,10 @@ export class AmigaCube {
 
         const cx = width / 2; const cy = height / 2;
         const rx = this.internalT * 0.8; const ry = this.internalT * 1.2; const rz = this.internalT * 0.5;
-        const scale = (110 + Math.sin(this.internalT * 0.75) * 20) * scaleMultiplier + (metrics.beat[0] * beatScale);
         
+        // PROPORTIONS-FIX: Basis-Skalierung halbiert (von 110 auf 55, Schwingung von 20 auf 10)
+        const scale = (55 + Math.sin(this.internalT * 0.75) * 10) * scaleMultiplier + (metrics.beat[0] * beatScale);        
+
         for (let i = 0; i < 8; i++) {
             let x = this.cubeVertices[i][0], y = this.cubeVertices[i][1], z = this.cubeVertices[i][2];
             let y1 = y * Math.cos(rx) - z * Math.sin(rx); let z1 = y * Math.sin(rx) + z * Math.cos(rx);
