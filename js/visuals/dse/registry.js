@@ -13,6 +13,7 @@ import { Starfield } from './universal/starfield.js';
 import { AmigaCube } from './amiga/glenz-cube.js';
 import { AtariBobs } from './atari/lissajous-bobs.js';
 import { ChunkyPlasma } from './c64/chunky-plasma.js';
+import { KefrensCheckerboard } from './amiga/kefrens-checkerboard.js';
 
 function defineDSE(DseClass, customMetadata) {
     const defaults = {
@@ -90,6 +91,14 @@ export const dseRegistry = [
         weight: 8,               
         minPlayTime: 15.0,
         climaxHoldTime: 12.0
+    }),
+        
+    defineDSE(KefrensCheckerboard, {
+        placementType: 'floor',
+        computerType: ['amiga'], // Streng auf Amiga limitiert
+        weight: 12,              // Hohe Gewichtung (Erscheint häufig!)
+        minPlayTime: 12.0,
+        climaxHoldTime: 15.0
     }),
 
     defineDSE(VoidElement, {
