@@ -62,3 +62,10 @@ export function quantizeAtari9Bit(r, g, b) {
         Math.round(b / 255 * 7) * 36
     ];
 }
+
+// Historische vertikale Auflösungen (Scanlines)
+export const SYSTEM_RESOLUTIONS = {
+    'c64': 200,    // 320x200 (NTSC/PAL Hires)
+    'atari': 200,  // 320x200 (Low-Res, 16-Color)
+    'amiga': 256   // 320x256 (PAL Standard Low-Res)
+};

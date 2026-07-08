@@ -12,7 +12,7 @@ export class ChunkyPlasma {
         this.name = 'C64 Chunky Plasma';
         
         // Die Blockgröße simuliert die grobe Multicolor-Auflösung des C64
-        this.blockSize = 16; 
+        this.blockSize = 8; 
         
         // Wir definieren einen "Hot"-Farbverlauf als geschlossenen Ring (Color Cycling)
         // 6: Dunkelblau, 4: Lila, 2: Rot, 10: Hellrot, 8: Orange, 7: Gelb, 1: Weiß

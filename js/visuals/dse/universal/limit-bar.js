@@ -38,8 +38,11 @@ export class LimitBar {
         if (globalAlpha <= 0.01) return;
         ctx.globalAlpha = globalAlpha;
 
-        const w = 240; const h = 18;
-        const x = 20; const y = height - h - 20;
+        // --- NEU: DYNAMISCHE RETRO-SKALIERUNG ---
+        const w = Math.floor(width * 0.75);
+        const h = Math.floor(height * 0.05); // ca. 10-12 Retro-Pixel hoch
+        const x = Math.floor((width - w) / 2);
+        const y = height - h - Math.floor(height * 0.05);
 
         if (metrics.system === 'c64') {
             // --- STRICT C64 PALETTE BINDING ---
