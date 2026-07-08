@@ -1,4 +1,6 @@
 // === js/visuals/dse/amiga/glenz-cube.js ===
+import { quantizeAmiga12Bit } from '../../utils/hardware-constraints.js';
+
 export class AmigaCube {
     constructor() {
         this.cubeVertices = [[-1, -1, -1], [ 1, -1, -1], [ 1,  1, -1], [-1,  1, -1], [-1, -1,  1], [ 1, -1,  1], [ 1,  1,  1], [-1,  1,  1]];
@@ -32,11 +34,9 @@ export class AmigaCube {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
             scaleMultiplier = globalAlpha;
         } else if (state === 'buildup') {
-            targetSpeed = 1.2; // Smoother Anstieg
-            beatScale = 5.0;   // Fast unmerkliches Atmen
+            targetSpeed = 1.2; beatScale = 5.0;
         } else if (state === 'climax') {
-            targetSpeed = 2.5; // Schnelle Drehung
-            beatScale = 30.0;  // Gewaltige Sprünge (Crazy Jumping ist hier gewollt)
+            targetSpeed = 2.5; beatScale = 30.0; 
             globalAlpha = 0.8 + (metrics.beat[0] * 0.2); 
         }
 
@@ -71,6 +71,7 @@ export class AmigaCube {
             const faceDef = this.cubeFacesDef[i]; const idxs = faceDef.idxs;
             const p0 = this.rotated[idxs[0]], p1 = this.rotated[idxs[1]], p2 = this.rotated[idxs[2]];
             const zCentroid = (p0.z + p1.z + p2.z + this.rotated[idxs[3]].z) / 4.0;
+            
             const abX = p1.x - p0.x, abY = p1.y - p0.y, abZ = p1.z - p0.z;
             const acX = p2.x - p0.x, acY = p2.y - p0.y, acZ = p2.z - p0.z;
 
@@ -79,11 +80,20 @@ export class AmigaCube {
 
             const dotLight = nx * nlx + ny * nly + nz * nlz;
             const brightness = 0.35 + 0.65 * Math.max(0.0, -dotLight);
+            
             const vLen = Math.sqrt(p0.x*p0.x + p0.y*p0.y + (p0.z + 4.0)*(p0.z + 4.0));
             const nvx = p0.x / vLen, nvy = p0.y / vLen, nvz = (p0.z + 4.0) / vLen;
 
+            // --- STRICT AMIGA 12-BIT QUANTIZATION FOR SHADING ---
+            let rawR = Math.round(faceDef.baseColor[0] * brightness);
+            let rawG = Math.round(faceDef.baseColor[1] * brightness);
+            let rawB = Math.round(faceDef.baseColor[2] * brightness);
+            let qColor = quantizeAmiga12Bit(rawR, rawG, rawB);
+
             let f = this.facesToDraw[i];
-            f.idxs = idxs; f.r = Math.round(faceDef.baseColor[0] * brightness); f.g = Math.round(faceDef.baseColor[1] * brightness); f.b = Math.round(faceDef.baseColor[2] * brightness); f.z = zCentroid;
+            f.idxs = idxs; 
+            f.r = qColor[0]; f.g = qColor[1]; f.b = qColor[2]; 
+            f.z = zCentroid;
             f.isBackface = (nx * nvx + ny * nvy + nz * nvz >= 0);
         }
 
