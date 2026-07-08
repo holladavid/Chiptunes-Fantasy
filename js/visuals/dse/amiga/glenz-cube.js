@@ -57,7 +57,7 @@ export class AmigaCube {
             this.rotated[i].x = x3; this.rotated[i].y = y3; this.rotated[i].z = z2;
         }
 
-        const fov = 400;
+        const fov = Math.min(width, height) * 1.5;
         for (let i = 0; i < 8; i++) {
             const zOff = this.rotated[i].z + 4.0; 
             this.projected[i].x = cx + (this.rotated[i].x * fov) / zOff * (scale / 100);
@@ -108,7 +108,7 @@ export class AmigaCube {
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)'; ctx.lineWidth = 1.0; ctx.stroke();
             } else {
                 ctx.fillStyle = `rgba(${face.r}, ${face.g}, ${face.b}, 0.65)`; ctx.fill();
-                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.8; ctx.stroke();
+                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.0; ctx.stroke();
             }
         }
         ctx.globalAlpha = 1.0;

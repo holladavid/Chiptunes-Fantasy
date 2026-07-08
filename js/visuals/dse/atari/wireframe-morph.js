@@ -103,7 +103,7 @@ export class WireframeMorph {
         }
 
         // 2. 3D-Rotation und Perspektiven-Projektion anwenden
-        const fov = 400;
+        const fov = minDim * 1.2;
         const sinX = Math.sin(rx), cosX = Math.cos(rx);
         const sinY = Math.sin(ry), cosY = Math.cos(ry);
         const sinZ = Math.sin(rz), cosZ = Math.cos(rz);
@@ -141,7 +141,7 @@ export class WireframeMorph {
         
         ctx.strokeStyle = rgbToHex(qColor[0], qColor[1], qColor[2]);
         // Liniendicke pulsiert leicht zum Takt
-        ctx.lineWidth = 1.0 + Math.floor(beat * 2.0); 
+        ctx.lineWidth = 1.0 + Math.floor(beat * 1.0); 
         
         // Forciert harte Kanten ohne weiche Interpolationen an den Ecken
         ctx.lineCap = 'butt';

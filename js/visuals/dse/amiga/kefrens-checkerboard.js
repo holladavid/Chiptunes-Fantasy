@@ -46,7 +46,7 @@ export class KefrensCheckerboard {
             targetSpeed = 3.5; 
             targetSway = 2.5; 
             // Die Kamera wird beim Kickdrum-Einschlag massiv nach unten gedrückt!
-            beatBump = metrics.beat[0] * 25.0; 
+            beatBump = metrics.beat[0] * 10.0; 
         }
 
         this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * Math.min(1.0, dt * 5.0);
@@ -56,7 +56,7 @@ export class KefrensCheckerboard {
         ctx.globalAlpha = globalAlpha;
 
         const horizon = Math.floor(height * 0.55);
-        const scanH = 4; // Typische Amiga 200p Scanline-Dicke
+        const scanH = 1; // Typische Amiga 200p Scanline-Dicke
         
         // Kamera-Setup
         const fov = 160;
@@ -64,7 +64,7 @@ export class KefrensCheckerboard {
         const tileH = 60;
         
         // Kamera-Höhe (Y) mit Beat-Erschütterung
-        const camH = 50.0 - beatBump; 
+        const camH = 35.0 - beatBump; 
         
         // Seitliches Wanken (Sway)
         const swayOffset = Math.sin(this.internalT * 0.8) * 150 * this.smoothedSway;

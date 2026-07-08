@@ -58,7 +58,7 @@ export class Starfield {
 
     drawC64(ctx, w, h, activeWarp) {
         ctx.lineCap = 'square'; 
-        const cx = w / 2; const cy = h / 2; const fov = 400; 
+        const cx = w / 2; const cy = h / 2; const fov = Math.min(w, h) * 1.5;
 
         for (let i = 0; i < this.numStars; i++) {
             let star = this.stars[i];
@@ -87,7 +87,7 @@ export class Starfield {
             const distSq = (px-prevPx)**2 + (py-prevPy)**2;
 
             if (distSq > 9.0) {
-                ctx.lineWidth = Math.max(2, Math.floor((1000 - curZ) / 250));
+                ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(prevPx, prevPy); ctx.lineTo(px, py); ctx.stroke();
             } else {
                 const size = Math.max(2, Math.floor((1000 - curZ) / 200));
@@ -99,7 +99,7 @@ export class Starfield {
     drawAmiga(ctx, w, h, activeWarp) {
         ctx.lineCap = 'round'; 
         ctx.globalCompositeOperation = 'screen'; 
-        const cx = w / 2; const cy = h / 2; const fov = 400; 
+        const cx = w / 2; const cy = h / 2; const fov = Math.min(w, h) * 1.5;
 
         for (let i = 0; i < this.numStars; i++) {
             let star = this.stars[i];
@@ -138,7 +138,7 @@ export class Starfield {
 
     drawAtari(ctx, w, h, activeWarp) {
         ctx.lineCap = 'butt'; 
-        const cx = w / 2; const cy = h / 2; const fov = 400; 
+        const cx = w / 2; const cy = h / 2; const fov = Math.min(w, h) * 1.5; 
 
         for (let i = 0; i < this.numStars; i++) {
             let star = this.stars[i];
@@ -164,7 +164,7 @@ export class Starfield {
             const distSq = (px-prevPx)**2 + (py-prevPy)**2;
 
             if (distSq > 9.0) {
-                ctx.lineWidth = curZ < 400 ? 2 : 1;
+                ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(prevPx, prevPy); ctx.lineTo(px, py); ctx.stroke();
             } else {
                 const size = curZ < 400 ? 2 : 1;

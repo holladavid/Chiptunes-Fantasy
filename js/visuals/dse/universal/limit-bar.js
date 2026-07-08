@@ -38,11 +38,8 @@ export class LimitBar {
         if (globalAlpha <= 0.01) return;
         ctx.globalAlpha = globalAlpha;
 
-        // --- NEU: DYNAMISCHE RETRO-SKALIERUNG ---
-        const w = Math.floor(width * 0.75);
-        const h = Math.floor(height * 0.05); // ca. 10-12 Retro-Pixel hoch
-        const x = Math.floor((width - w) / 2);
-        const y = height - h - Math.floor(height * 0.05);
+        const w = 240; const h = 18;
+        const x = 20; const y = height - h - 20;
 
         if (metrics.system === 'c64') {
             // --- STRICT C64 PALETTE BINDING ---
@@ -52,7 +49,8 @@ export class LimitBar {
             let activeW = activeSegs > 0 ? (activeSegs * (segW + gap) - gap) : 0;
 
             if (animIntensity > 0.05 && activeW > 0) {
-                let borderThick = Math.floor(2 + animIntensity * 6);
+                // PROPORTIONS-FIX: Dünnere Rahmen für 200p
+                let borderThick = Math.floor(1 + animIntensity * 2); 
                 let numStripes = 6;
                 let stripeH = (h + borderThick * 2) / numStripes;
                 
@@ -90,16 +88,16 @@ export class LimitBar {
                 
                 ctx.globalCompositeOperation = 'screen';
                 ctx.fillStyle = `rgba(255, 255, 255, ${glowAlpha})`;
-                ctx.fillRect(x + sweepPos - 15, y - 4, 30, h + 8);
-                ctx.fillStyle = `rgba(255, 255, 255, ${glowAlpha * 1.5})`;
-                ctx.fillRect(x + sweepPos - 5, y - 4, 10, h + 8);
+                // PROPORTIONS-FIX: Schmalerer Glow
+                ctx.fillRect(x + sweepPos - 5, y - 2, 10, h + 4);
                 ctx.globalCompositeOperation = 'source-over';
                 
                 if (animIntensity >= 1.0) {
-                    let bY = y + h/2 + Math.sin(t * 20) * 8;
+                    let bY = y + h/2 + Math.sin(t * 20) * 4;
                     ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(x - 8, Math.floor(bY) - 3, 6, 6);
-                    ctx.fillRect(x + activeW + 2, Math.floor(bY) - 3, 6, 6);
+                    // PROPORTIONS-FIX: Kleinere Peak-Sparks
+                    ctx.fillRect(x - 4, Math.floor(bY) - 1, 2, 2);
+                    ctx.fillRect(x + activeW + 2, Math.floor(bY) - 1, 2, 2);
                 }
             }
 
@@ -132,7 +130,7 @@ export class LimitBar {
 
             if (animIntensity > 0.05 && activeW > 0) {
                 ctx.strokeStyle = animIntensity >= 1.0 ? '#ffffff' : cGreen;
-                ctx.lineWidth = 1.5;
+                ctx.lineWidth = 1; // PROPORTIONS-FIX: 1 Pixel für harte Atari-Linien
                 
                 let numSparks = Math.floor(animIntensity * 12);
                 if (animIntensity >= 1.0) numSparks = 25; 
@@ -141,8 +139,9 @@ export class LimitBar {
                 for(let i=0; i < numSparks; i++) {
                     let edge = Math.floor(Math.random() * 4);
                     let sx, sy, dx, dy;
-                    let offset = (Math.random() - 0.5) * (10 + animIntensity * 15);
-                    let sparkLen = Math.random() * 10 * animIntensity;
+                    // PROPORTIONS-FIX: Kürzere Funken
+                    let offset = (Math.random() - 0.5) * (4 + animIntensity * 5);
+                    let sparkLen = Math.random() * 4 * animIntensity;
                     
                     if (edge === 0) { sx = x + Math.random() * activeW; sy = y - 4; dx = sx + offset; dy = sy - sparkLen; } 
                     else if (edge === 1) { sx = x + Math.random() * activeW; sy = y + h + 4; dx = sx + offset; dy = sy + sparkLen; } 

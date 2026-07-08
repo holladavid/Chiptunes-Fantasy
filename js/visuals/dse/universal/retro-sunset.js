@@ -67,31 +67,28 @@ export class RetroSunset {
         ctx.fillStyle = colYellow; ctx.fillRect(0, horizon * 0.85, w, horizon * 0.15); 
 
         ctx.fillStyle = colWhite;
-        let sunR = 40 + (sunPulse * 20); 
-        let sx = w / 2, sy = horizon - 20;
-        for (let y = -sunR; y < sunR; y += 8) {
-            for (let x = -sunR; x < sunR; x += 8) {
-                if (x*x + y*y < sunR*sunR) ctx.fillRect(sx + x, sy + y, 8, 8);
+        let sunR = 25 + (sunPulse * 10); // PROPORTIONS-FIX
+        let sx = w / 2, sy = horizon - 15;
+        for (let y = -sunR; y < sunR; y += 4) { // 4px Blöcke statt 8px
+            for (let x = -sunR; x < sunR; x += 4) {
+                if (x*x + y*y < sunR*sunR) ctx.fillRect(sx + x, sy + y, 4, 4);
             }
         }
-
         ctx.fillStyle = colDarkBlue; ctx.fillRect(0, horizon, w, h - horizon);
 
-        let waveSpeed = this.waterT * 25; 
-        for (let y = horizon; y < h; y += 8) {
+        let waveSpeed = this.waterT * 10; 
+        for (let y = horizon; y < h; y += 4) { // Dichter gestaffelt
             let offset = (waveSpeed + y * 2) % 40;
             for (let x = 0; x < w; x += 40) {
-                if (Math.abs((x - offset) - w / 2) < sunR * 0.8 && y > horizon + 16) {
+                if (Math.abs((x - offset) - w / 2) < sunR * 0.8 && y > horizon + 8) {
                     let isBright = (beatDistortion > 2.0) ? (Math.random() > 0.4) : (Math.random() > 0.2);
                     ctx.fillStyle = isBright ? colYellow : colLightRed;
-                } else {
-                    ctx.fillStyle = colLightBlue; 
-                }
-                ctx.fillRect(x - offset, y + 2, 20, 4);
+                } else ctx.fillStyle = colLightBlue; 
+                ctx.fillRect(x - offset, y + 1, 10, 2); // Schmalere Wasserlinien
             }
         }
     }
-
+    
     drawAmiga(ctx, w, h, horizon, sunPulse, beatDistortion) {
         // STRICT 12-BIT AMIGA QUANTIZATION
         let skyGrad = ctx.createLinearGradient(0, 0, 0, horizon);
@@ -101,7 +98,7 @@ export class RetroSunset {
         skyGrad.addColorStop(1.0, rgbToHex(...quantizeAmiga12Bit(255, 255, 0)));
         ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, w, horizon);
 
-        let sunR = 50 + (sunPulse * 30);
+        let sunR = 30 + (sunPulse * 15); // PROPORTIONS-FIX
         let sx = w / 2, sy = horizon - 10;
         
         const sunGlow = quantizeAmiga12Bit(255, 255, 0);
@@ -114,12 +111,14 @@ export class RetroSunset {
         ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(0, 0, 34)); ctx.fillRect(0, horizon, w, h - horizon);
 
         ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 136, 0));
-        let distortion = 3 + (beatDistortion * 2.5); 
-        for (let y = horizon; y < h; y += 3) {
-            let depth = (y - horizon) / (h - horizon); let waveWidth = 40 + (depth * 100);
+        let distortion = 1 + (beatDistortion * 1.5); 
+        // 1-Pixel exakte Wasserzeilen!
+        for (let y = horizon; y < h; y += 1) {
+            let depth = (y - horizon) / (h - horizon); 
+            let waveWidth = 15 + (depth * 50); // Schmaleres Wasser
             let xOffset = Math.sin((y * 0.1) + (this.waterT * 3.0)) * distortion;
             ctx.globalAlpha = Math.max(0, 1.0 - (depth * 1.5));
-            ctx.fillRect(sx - (waveWidth / 2) + xOffset, y, waveWidth, 2);
+            ctx.fillRect(sx - (waveWidth / 2) + xOffset, y, waveWidth, 1);
         }
         ctx.globalAlpha = 1.0;
     }
@@ -137,7 +136,7 @@ export class RetroSunset {
         }
 
         let sx = w / 2, sy = horizon - 25;
-        let sunR = 45 + (sunPulse * 15);
+        let sunR = 25 + (sunPulse * 10);        
         ctx.fillStyle = rgbToHex(...quantizeAtari9Bit(255, 170, 0)); ctx.beginPath(); ctx.arc(sx, sy, sunR, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = rgbToHex(...quantizeAtari9Bit(255, 255, 85)); ctx.beginPath(); ctx.arc(sx, sy, sunR * 0.7, 0, Math.PI * 2); ctx.fill();
         
@@ -157,21 +156,21 @@ export class RetroSunset {
         const cGlitch = rgbToHex(...quantizeAtari9Bit(255, 255, 255));
         const cSunRef = rgbToHex(...quantizeAtari9Bit(255, 255, 85));
 
-        for (let y = horizon + 2; y < h; y += (y - horizon) * 0.15 + 4) {
+        for (let y = horizon + 2; y < h; y += (y - horizon) * 0.15 + 2) {
             let depth = (y - horizon) / (h - horizon);
-            let thickness = Math.max(1, Math.floor(depth * 5));
+            let thickness = Math.max(1, Math.floor(depth * 2)); // Dünneres Wasser
             let speed = waterSpeed * (0.5 + depth * 1.5);
             let offset = speed % 40;
 
             for (let x = -40; x < w; x += 40) {
-                if (Math.abs(x + offset - sx) < sunR * (1.0 - depth*0.5) && y < horizon + 80) ctx.fillStyle = cSunRef; 
+                if (Math.abs(x + offset - sx) < sunR * (1.0 - depth*0.5) && y < horizon + 40) ctx.fillStyle = cSunRef; 
                 else ctx.fillStyle = (Math.floor(y) % 3 === 0) ? cWater1 : cWater2; 
                 
-                let dashWidth = 20 + depth * 20;
+                let dashWidth = 8 + depth * 15; // Kürzere Reflexionen
                 let xDistort = Math.sin(y * 0.2 + waterSpeed) * distortion;
                 
                 if (beatDistortion > 2.0 && Math.random() > 0.7) {
-                    ctx.fillStyle = cGlitch; ctx.fillRect(0, y, w, 2);
+                    ctx.fillStyle = cGlitch; ctx.fillRect(0, y, w, 1); // Glitch auf 1px
                 } else {
                     ctx.fillRect(x + offset + xDistort, Math.floor(y), dashWidth, thickness);
                 }

@@ -3,7 +3,8 @@ import { getNearestC64Color, quantizeAmiga12Bit, quantizeAtari9Bit, rgbToHex } f
 
 export class Copperbars {
     constructor() {
-        this.baseThickness = [52, 40, 30, 22]; 
+        // PROPORTIONS-FIX: Balkendicke für 200p angepasst!
+        this.baseThickness = [22, 16, 12, 8]; 
         this.heightWeights = [0.24, 0.24, 0.24, 0.24];
         this.colorCache = {};
         
@@ -102,15 +103,12 @@ export class Copperbars {
             system === 'amiga' ? ['#222222', '#999999'] : [] 
         ];
 
-        let scanlineHeight = system === 'c64' ? 8 : 4;
+        // PROPORTIONS-FIX: 1 Pixel für 16-Bit, 2 Pixel für 8-Bit
+        let scanlineHeight = system === 'c64' ? 2 : 1; 
 
-        let globalAlpha = 1.0;
-        let targetSpeed = 1.0;
-        let targetAmplitude = 0.85; 
-
-        let punchBase = 15.0; 
-        let targetBeatPunch = 0.0;
-        let targetTwist = 0.0;
+        let globalAlpha = 1.0; let targetSpeed = 1.0; let targetAmplitude = 0.85; 
+        let punchBase = 6.0; // PROPORTIONS-FIX
+        let targetBeatPunch = 0.0; let targetTwist = 0.0;
 
         if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
@@ -119,11 +117,11 @@ export class Copperbars {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
             targetAmplitude = globalAlpha * 0.85;
         } else if (state === 'buildup') {
-            targetSpeed = 1.2; targetAmplitude = 0.95; targetBeatPunch = 8.0;             
+            targetSpeed = 1.2; targetAmplitude = 0.95; targetBeatPunch = 3.0;             
         } else if (state === 'climax') {
-            targetSpeed = 1.8; targetAmplitude = 1.1; targetBeatPunch = 35.0;            
+            targetSpeed = 1.8; targetAmplitude = 1.1; targetBeatPunch = 12.0;            
             globalAlpha = 0.85 + (metrics.beat[0] * 0.15); 
-            targetTwist = 18.0; 
+            targetTwist = 8.0; 
         }
 
         this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * Math.min(1.0, dt * 5.0);

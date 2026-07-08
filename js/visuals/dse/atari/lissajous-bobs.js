@@ -8,17 +8,15 @@ export class AtariBobs {
         this.placementType = 'foreground';
         
         this.numBobs = 45; 
-        this.bobSize = 48; 
+        this.bobSize = 16; // PROPORTIONS-FIX: Von 48 auf 16 geschrumpft!
         this.bobCanvas = document.createElement('canvas'); 
         this.bobCanvas.width = this.bobSize; 
         this.bobCanvas.height = this.bobSize;
         const bCtx = this.bobCanvas.getContext('2d');
         
-        const cx = this.bobSize / 2; 
-        const cy = this.bobSize / 2;
-        
-        const grad = bCtx.createRadialGradient(cx - 7, cy - 7, 1, cx, cy, this.bobSize / 2);
-        
+        const cx = this.bobSize / 2; const cy = this.bobSize / 2;
+        const grad = bCtx.createRadialGradient(cx - 2, cy - 2, 1, cx, cy, this.bobSize / 2); // Glanzpunkt angepasst
+                
         // --- STRICT ATARI 9-BIT QUANTIZATION ---
         const c1 = rgbToHex(...quantizeAtari9Bit(255, 255, 255));
         const c2 = rgbToHex(...quantizeAtari9Bit(153, 255, 153));
@@ -74,7 +72,7 @@ export class AtariBobs {
         const radiusX = (minDim * 0.38) * (1.0 + Math.sin(this.internalT * 0.4) * 0.25) * scaleMultiplier;
         const radiusY = (minDim * 0.28) * (1.0 + Math.cos(this.internalT * 0.5) * 0.2) * scaleMultiplier;
         
-        const baseBobSize = 6.0 + minDim * 0.022; 
+        const baseBobSize = 3.0 + minDim * 0.03; // PROPORTIONS-FIX
         const phaseStep = (Math.PI * 2) / this.numBobs;
         
         for (let i = 0; i < this.numBobs; i++) {
@@ -83,8 +81,10 @@ export class AtariBobs {
             const y = cy + Math.sin(this.internalT * 2.1 + phase) * Math.cos(this.internalT * 1.1 + phase) * radiusY;
             const size = (baseBobSize + Math.sin(this.internalT * 3.5 + phase) * (baseBobSize * 0.4)) * scaleMultiplier + (metrics.beat[0] * beatScale);
             
-            ctx.drawImage(this.bobCanvas, x - size / 2, y - size / 2, size, size);
+            // PROPORTIONS-FIX: Math.floor verhindert weiches Sub-Pixel-Blurring!
+            ctx.drawImage(this.bobCanvas, Math.floor(x - size / 2), Math.floor(y - size / 2), Math.floor(size), Math.floor(size));
         }
+        
         ctx.globalAlpha = 1.0;
     }
 }
