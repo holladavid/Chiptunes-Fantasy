@@ -14,6 +14,7 @@ import { AmigaCube } from './amiga/glenz-cube.js';
 import { AtariBobs } from './atari/lissajous-bobs.js';
 import { ChunkyPlasma } from './c64/chunky-plasma.js';
 import { KefrensCheckerboard } from './amiga/kefrens-checkerboard.js';
+import { WireframeMorph } from './atari/wireframe-morph.js';
 
 function defineDSE(DseClass, customMetadata) {
     const defaults = {
@@ -120,6 +121,15 @@ export const dseRegistry = [
         climaxHoldTime: 15.0
     }),
     
+    // NEU: Der klassische Atari ST Wireframe Morph
+    defineDSE(WireframeMorph, {
+        placementType: 'foreground',
+        computerType: ['atari'], // Exklusiv für den ST!
+        weight: 12,              // Hohe Präsenz
+        minPlayTime: 12.0,
+        climaxHoldTime: 15.0
+    }),
+
     defineDSE(AtariBobs, {
         placementType: 'foreground',
         computerType: ['atari'],
