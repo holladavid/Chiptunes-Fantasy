@@ -1,91 +1,69 @@
 === All relevant source and documentation files with content ===
 
-===== ./README.md =====
+===== Path: ./README.md =====
 
 # Chiptunes Fantasy
 
-The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator. Built with 100% vanilla HTML5, CSS3, and modern Web Audio API. 
+### The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator
+**Version 1.2.0 [The Scene-DJ Cycle]**
 
-No MP3s, no pre-rendered streams — just pure mathematical real-time synthesis running asynchronously inside low-latency AudioWorklets.
-
----
-
-> **🎉 MILESTONE REACHED: VERSION 1.1.1 [The Fine-Tuning Cycle]**  
-> We have officially hit **Version 1.1.1**! Following the visual overhaul in v1.1, this patch cycle brings mathematically perfect 3D phase-staggered helix-coppers, smooth RGB phosphor-blending on the oscilloscope, authentic 12-bit Amiga tab styling, and massive contrast and touch-spacing usability upgrades for our veteran sceners.
+Built with 100% vanilla HTML5, CSS3, and modern Web Audio API. No MP3s, no pre-rendered streams — just pure mathematical real-time synthesis running asynchronously inside low-latency AudioWorklets.
 
 ---
 
-## 🚀 The Vision & Tribute
-This project is a love letter to the audio wizards of the 80s and 90s — legends like Jochen Hippel (Mad Max), Rob Hubbard, Chris Hülsbeck, Martin Galway, and Jeroen Tel. They didn't just compose music; they hacked the hardware. They abused CPU timers, manipulated pulse widths, and wrote their own assembly drivers to make simple programmable sound generators sound like entire orchestras.
+## 🚀 The Vision & Philosophy
 
-*Chiptunes-Fantasy* makes these genius programming tricks tangible. We don't just play the music; we expose the guts of the hardware in real-time, honoring the artists, explaining the physics, and educating the nerds.
+*Chiptunes-Fantasy* exposes the guts of retro-computing hardware in real-time, explaining the physics, honoring the coders of the 80s/90s, and educating the curious. 
 
-## 📺 Demoscene Visuals & UX
+### The Dual-Constraint Design Philosophy
+1. **Bare-Metal Fidelity Per Element:** Each individual **Demo-Scene-Element (DSE)** is engineered to strictly fit the visual and performance boundaries of its target retro platform (e.g., adhering strictly to the 16-color VIC-II palette or Atari ST raster limits).
+2. **Modern Composited Power:** While each individual element is authentic, the *Demoscene-Sequencer* stacks, crossfades, and swaps these layers dynamically. This modern orchestration leverages CPU/GPU capabilities to create a seamless, high-fidelity experience that wouldn't have been possible on a single physical machine.
 
-*   **C64 Cold Boot:** The app launches with a mathematically authentic, pixel-perfect Commodore 64 basic CRT cold-boot sequence.
-*   **Interactive Demoscene Easter Eggs:** Click the main logo to swap the clinical lab-scope for real-time, system-specific 3D demoscene effects:
-    *   *Amiga:* A rotating 3D "Glenz" glass vector cube featuring real-time backface culling, Z-centroid Painter's Algorithm, and audio-reactive blooming outlines.
-    *   *Atari ST:* A swarm of pre-rendered, 3D-shaded metallic spheres (Blitter Bobs) weaving through endless Lissajous knots that pulse to the beat.
-    *   *C64:* A 3D parallax starfield with velocity-based motion blur streaks quantized strictly to the original 16-color Commodore VIC-II palette.
-*   **Physical CRT Oscilloscope:** Simulates an authentic cathode-ray tube using an offscreen accumulation buffer for true exponential phosphor decay. The beam features dynamic intensity modulation, electromagnetic flares, and throws glowing, cooling phosphor sparks across the screen on sharp audio transients.
-*   **Segmented VFD Analyzer:** A system-themed, tri-color Vacuum Fluorescent Display spectrum analyzer. Features a studio-grade "Peak Hold" logic that perfectly snaps to the physical LED grid gaps.
-*   **3D Helix Copperbars:** Rasterbars orbit each other using true 3D Z-buffer sorting and depth shading. Features historic scanline quantization and color banding (12-bit Amiga OCS, 9-bit Atari ST, chunky 16-color C64).
-*   **Tactile Hardware UI:** Volume and timeline sliders are designed as deeply recessed, shadow-milled hardware grooves. The track selector mimics an authentic 90s DOS/Tracker terminal with inverted-color block selection and a blinking hardware cursor.
-*   **DSP Debug HUD:** A real-time debugger showing register matrices, custom state LEDs (like the Amiga power-filter LED or YM Digidrum activity), and sparkline mini-scopes per channel.
-*   **Pure Audio (ECO) Mode:** Completely halts the Canvas loop, pauses all CSS animations, and locks the screen wake state to save battery on mobile devices while continuing pure AudioWorklet synthesis.
+---
 
-## 🎛️ Core Emulation Features
+## 📺 Demoscene Orchestration (The Scene-DJ Engine)
 
-### 💻 Commodore 64 (MOS SID 6581)
-*   **1MHz Cycle-Exact Lockstep Core:** The 6502 CPU, SID registers, and CIA/VBLANK IRQ timers execute in perfect chronological synchronicity on a clock-by-clock basis (985248 Hz PAL).
-*   **255-Tap Polyphase Sinc-FIR Decimator:** Custom windowed Sinc downsampling replaces naive averaging, eliminating high-frequency foldback aliasing on hard-sync leads and preserving raw high-end brilliance.
-*   **Asymmetric JFET Filter Saturation:** Modeling the non-linear triode region of the original 6581 VCF feedback path for that warm, resonant "Wizball-Growl".
-*   **Sustain-Drop & Pipeline Delay:** True hardware envelope emulation replicating the 1-cycle pipeline freeze on gate toggles and the infamous sustain target-miss bug.
-*   **True Analog Wire-AND:** Simulates the pull-down transistor resistance on the 12-bit digital bus when combining waveforms, bringing back the dirty, iconic crunch of mixed states (essential for *Maniacs of Noise* tracks).
-*   **Thermal Cutoff Drift:** Live physical modeling of the analog filter temperature drift, manually adjustable via the UI temperature slider.
+With the **v1.2.0** milestone, we introduced the **Demoscene-Sequencer (DSS)**, which takes visual control away from hardcoded rendering loops and introduces rule-based, dynamic orchestrations using an Entity-Component-System (ECS) architecture.
 
-### 🐨 Commodore Amiga (MOS Paula 8364)
-*   **192kHz (4x) Oversampled ZOH DAC:** Samples are rendered as raw analog stair-steps (Zero-Order Hold) at 192 kHz. This preserves the high-frequency mirror images (the legendary "Amiga Shimmer") in the ultrasonic domain before filtering, preventing digital foldback.
-*   **Sinc-FIR Decimation:** Smoothly and cleanly downsamples the internal 192 kHz high-res stream to 48 kHz for the audio destination.
-*   **High-Res Analog Filter Chain:** The 6dB RC lowpass (4.42 kHz) and the 12dB Butterworth LED filter (3.09 kHz) are calculated directly in the 192 kHz domain to accurately smooth the physical ZOH stair-steps.
-*   **100% Hard-Panning & Crosstalk:** Rejects modern software panning commands to enforce the brutal hardware-wired L-R-R-L panning configuration, softened only by a 3.5% inductive motherboard crosstalk.
-*   **DMA Word Alignment:** Replicates Paula's 16-bit DMA memory fetches by strictly masking all loop boundaries and sample offsets to even byte boundaries (`& ~1`).
+### 1. The Modular Scene-DJ (ECS Architecture)
+The `SceneDJ` acts as a pure, render-free logical coordinator, relying on Unidirectional State Syncing (`playbackSessionId`) to manage audio context. Its logic is split into highly specialized zero-allocation skills:
+*   **TrackMonitor:** Translates raw channel volumes into filtered DSP metrics (`masterEnergy`, `transientPulse`, and an exponential `beatEnvelope`).
+*   **TensionManager (Macro-Dynamics):** Evaluates track progression (`idle`, `playing`, `buildup`, `climax`) based on a simulated tension accumulator rather than hardcoded timers.
+*   **SetlistManager (Crate Digger):** Uses a weighted roulette-wheel algorithm (`metadata.weight`) to dynamically swap DSEs. It enforces a *Black-Screen Protection* protocol via `VoidElement` placeholders.
+*   **StageManager:** Manages flawless visual crossfades (`starting` -> `stopping`) and exact Z-Order placement (`background`, `floor`, `foreground`, `overlay`).
 
-### 🦎 Atari ST (Yamaha YM2149F)
-*   **2MHz True Lockstep Core:** Cycle-accurate execution of the Tone (toggle every 8*TP), Noise (shift every 16*NP), and Envelope (step every 8*EP) generators on a 2.0 MHz clock.
-*   **32-Step Logarithmic DAC:** Fully emulates the YM2149F's internal 32-step DAC ladder (-1.5dB per step) by translating 4-bit register volume to 5-bit DAC via `(v * 2) + 1` for smoother volume sweeps and authentic "Zipper-Noise".
-*   **Zero-Click Hijack Isolation:** Captures PCM Digidrums and completely isolates them from the volume registers to prevent 50Hz DC-popping, holding the DAC state on completion.
-*   **Combinational Envelope Logic:** Renders the 5-bit envelope without artificial "flat-spot" loop delays at the peaks and troughs.
-*   **Atari ST Motherboard RC Filter:** Simulates the thin, biting frequency response of the Atari ST's physical output stage.
+### 2. Demo-Scene-Element (DSE) Arsenal
+Visual effects are fully decoupled classes inside `js/visuals/dse/` and registered via a strict schema-validated contract (`registry.js`).
+*   **LimitBar (Tension Meter):** A borderless, system-themed gauge that accumulates RMS tension and visually locks into an overdrive state during the track's climax, flashing exactly to the kick-drum beat.
+*   **Retro Sunset:** An *IK+* inspired, system-accurate background (C64 chunky pixels, Amiga copper-sine waves, Atari ST 16-color dithering & raster lines).
+*   **Universal Starfield:** The classic warp starfield, now universally available with system-specific rendering logic (sharp vector dots vs. soft sub-pixel glow).
+*   **Legacy DSEs:** Helix Copperbars, Amiga Glenz Cube, and Atari Lissajous Bobs updated with micro-dynamic beat responsiveness and continuous math smoothing.
 
-## 🏗️ Architecture
-The engine is highly modular. Visual elements are decoupled into clean ES6 classes and you can easily plug in new hardware simulator cores or add new binary parsers.
+---
 
-```mermaid
-graph TD
-    subgraph UI [1. User Interface & Controls]
-        A[Playlists, Volume, Custom Sliders & Museum]
-    end
+## 🔮 Roadmap: Looking ahead to v1.3.0 [The Visual Expansion]
 
-    subgraph PARSE [2. Binary Decoders]
-        B[Parsers for raw .sid, .ym, .mod and .xm files]
-    end
+With the bulletproof ECS architecture and zero-allocation Scene-DJ established in v1.2.0, the upcoming **v1.3.0** release cycle will focus entirely on **content generation and visual expansion**. 
 
-    subgraph SYNTH [3. Real-Time Synthesis]
-        C[Low-latency AudioWorklets: SID, Paula & YM Cores]
-    end
+Expect a massive influx of new, hardware-authentic Demo-Scene-Elements (DSEs) across all placement layers — think C64 Plasma effects, Amiga Moiré patterns, Atari 3D Vector worlds, and parallax scrollers. We will also further refine the Scene-DJ's orchestration logic to direct these new visual actors with even greater musical precision, fully utilizing the newly created plug-and-play DSE registry.
 
-    subgraph VIS [4. Visual Feedback & GFX]
-        D[FFT Spectrum, CRT Oscilloscope & live DSP HUD]
-    end
+---
 
-    %% Signal & Data Flow
-    A -->|User Selection| B
-    B -->|Register Frames| C
-    C ==>|16-Bit Audio Signal| Speaker((🔊 Speaker))
-    C -.->|Wave & Metric Dumps| D
+## 🎛️ Core Chip Factsheet
 
-===== ./css/style.css =====
+*   **MOS Technology SID 6581 (Commodore 64):** 1MHz cycle-exact lockstep. Features a 255-Tap Polyphase Sinc-FIR decimator, asymmetric JFET filter saturation, and true silicon Wire-AND logic.
+*   **MOS Paula 8364 (Amiga 500):** 192kHz (4x) oversampled Zero-Order Hold DAC reproducing the physical "Amiga Shimmer". Authentic 6dB RC and 12dB Butterworth LED filtering.
+*   **Yamaha YM2149F (Atari ST):** 2MHz lockstep. True 32-step logarithmic DAC ladders. Features **True 8-Bit Linear PCM Simulation** that bypasses the log-DAC for Jochen Hippel-style high-fidelity digidrum injection.
+
+---
+
+## 📺 Tactile Hardware UI & GFX
+
+*   **Unobtrusive Fullscreen UI:** A sleek, DOM-based overlay for playback controls and track metadata that faddishly disappears alongside the mouse cursor to maintain demoscene focus.
+*   **Interactive HUD:** A highly detailed DSP matrix debugger featuring tactile, skeuomorphic interactive LEDs (like the enlarged Amiga Power Filter bypass) that auto-fades in fullscreen mode.
+*   **Logo Breathing Glow:** The main logo emits a system-colored CSS radial glow indicating the active demoscene status.
+
+===== Path: ./css/style.css =====
 
 /* =========================================
    1. GLOBALE VARIABLEN & THEMES
@@ -743,6 +721,48 @@ input[type="range"]::-moz-range-thumb {
     /* Ein intensiver, theme-basierter Glow, der sich ins Canvas einbrennt */
     text-shadow: 0 0 10px var(--text-color), 2px 2px 0px #000000;
 }
+/* =========================================
+   BRANDING LOGO DEMO MODE ACTIVE GLOW
+========================================= */
+#brand-logo.demo-mode-active::before {
+    content: '';
+    position: absolute;
+    top: -30px;
+    left: -30px;
+    width: calc(100% + 60px);
+    height: calc(100% + 60px);
+    z-index: -1;
+    filter: blur(20px);
+    pointer-events: none;
+    border-radius: 50%;
+    /* Atmet organisch, während das Logo über die 'float-logo' Animation gleitet */
+    animation: pulse-glow 2.5s ease-in-out infinite alternate;
+    transition: background 0.5s ease;
+}
+
+/* System-spezifische, dezente Farbanpassungen */
+body.theme-c64 #brand-logo.demo-mode-active::before {
+    background: radial-gradient(circle, rgba(108, 94, 181, 0.45) 0%, transparent 70%);
+}
+
+body.theme-amiga #brand-logo.demo-mode-active::before {
+    background: radial-gradient(circle, rgba(255, 136, 0, 0.35) 0%, transparent 70%);
+}
+
+body.theme-atari #brand-logo.demo-mode-active::before {
+    background: radial-gradient(circle, rgba(85, 255, 85, 0.4) 0%, transparent 70%);
+}
+
+@keyframes pulse-glow {
+    0% {
+        transform: scale(0.85);
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(1.15);
+        opacity: 0.95;
+    }
+}
 
 @keyframes float-logo {
     0%   { transform: translateY(0px) rotate(0deg); }
@@ -776,6 +796,8 @@ body.eco-mode .brand-main {
     color: var(--highlight-color);
     pointer-events: auto; 
     z-index: 15; 
+    /* NEU: Ermöglicht das weiche Ein- und Ausfaden */
+    transition: opacity 0.4s ease; 
 }
 
 /* NEU: Der geschrumpfte Zustand! */
@@ -997,56 +1019,110 @@ body.eco-mode .brand-main {
 }
 
 /* =========================================
-   FULLSCREEN BUTTON & OVERRIDES
+   FULLSCREEN UI BAR (Unobtrusive)
 ========================================= */
-#btn-fullscreen {
+#fs-ui-bar {
     position: absolute;
     bottom: 15px;
     right: 15px;
-    z-index: 12; /* Liegt über dem Canvas, aber unter dem HUD */
+    z-index: 12; /* Unter dem HUD, über dem Canvas */
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    opacity: 0.3; /* Demoszene-Fokus: Sehr dezent im Normalzustand */
+    transition: opacity 0.4s ease;
+}
+
+#fs-ui-bar:hover {
+    opacity: 1.0; /* Voller Kontrast bei Interaktion */
+}
+
+/* Fadet das komplette Panel stufenlos aus, wenn die Maus stillsteht */
+#visual-zone.no-cursor #fs-ui-bar {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#fs-playback-controls {
+    display: none; /* Im Fenster-Modus unsichtbar */
+    align-items: center;
+    gap: 15px;
+}
+
+/* CSS-Magie: Player-Controls nur im echten Vollbild aktivieren */
+#visual-zone:fullscreen #fs-playback-controls { display: flex; }
+#visual-zone:-webkit-full-screen #fs-playback-controls { display: flex; }
+#visual-zone.pseudo-fullscreen #fs-playback-controls { display: flex; }
+
+.fs-track-info {
+    font-family: var(--font-main);
+    font-size: calc(var(--font-size-base) * 0.8);
+    color: var(--highlight-color);
+    text-shadow: 1px 1px 0px #000; /* Lesbarkeit über hellen Effekten garantieren */
+    max-width: 350px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+    letter-spacing: 1px;
+}
+
+.fs-controls {
+    display: flex;
+    gap: 5px;
+}
+
+.fs-controls button, #btn-fullscreen {
     background: rgba(0, 0, 0, 0.6);
     border: 1px solid var(--text-color);
     color: var(--highlight-color);
     padding: 6px 12px;
     font-family: var(--font-main);
-    font-size: 10px; /* Winziges, crisp-nerdiges Font-Scale */
+    font-size: 10px;
     cursor: pointer;
     transition: all 0.1s;
     outline: none;
 }
 
-#btn-fullscreen:hover {
+.fs-controls button:hover, #btn-fullscreen:hover {
     background: var(--text-color);
     color: #000;
     border-color: var(--highlight-color);
 }
 
 /* Erzwingt, dass die Visualisierungs-Zone im Vollbildmodus den ganzen Screen füllt */
-#visual-zone:fullscreen {
-    width: 100% !important;
-    height: 100% !important;
-}
-#visual-zone:-webkit-full-screen {
-    width: 100% !important;
-    height: 100% !important;
-}
+#visual-zone:fullscreen { width: 100% !important; height: 100% !important; }
+#visual-zone:-webkit-full-screen { width: 100% !important; height: 100% !important; }
+
 /* Pseudo-Fullscreen Fallback für iOS / iPhone */
 #visual-zone.pseudo-fullscreen {
     position: fixed !important;
-    inset: 0 !important; /* Setzt Top, Right, Bottom, Left auf 0 */
+    inset: 0 !important; 
     width: 100% !important;
     height: 100% !important;
     max-width: none !important;
     max-height: none !important;
-    z-index: 999999 !important; /* Zwingt sich über Safari-UI-Artefakte */
+    z-index: 999999 !important; 
     margin: 0 !important;
     border-radius: 0 !important;
 }
-/* Sichert, dass der Button auch im iOS-Vollbild anklickbar bleibt (Safari Addressbar Puffer) */
-#visual-zone.pseudo-fullscreen #btn-fullscreen {
-    bottom: calc(20px + env(safe-area-inset-bottom)) !important;
-    right: calc(20px + env(safe-area-inset-right)) !important;
+
+/* Mobile Safe Area Anpassung für das UI-Panel */
+@media (max-width: 800px) {
+    .fs-track-info {
+        display: none; /* Text auf kleinen Handys ausblenden, um den Limit-Bar nicht zu verdecken */
+    }
+    #visual-zone.pseudo-fullscreen #fs-ui-bar {
+        bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+        right: calc(15px + env(safe-area-inset-right)) !important;
+    }
 }
+
+/* Blendet den nativen OS-Cursor aus */
+#visual-zone.no-cursor { cursor: none !important; }
+#visual-zone.no-cursor * { cursor: none !important; }
+
+
 /* =========================================
    SUBSONG DISPLAY TIMELINE OVERLAY
 ========================================= */
@@ -1232,8 +1308,41 @@ body.eco-mode .brand-main {
 #visual-zone.no-cursor * {
     cursor: none !important;
 }
+/* =========================================
+   AMIGA HUD POWER LED UPGRADE (Touch Friendly)
+========================================= */
+#amiga-led-pwr {
+    /* Vergrößert die Trefferfläche massiv auf 16x16 Pixel */
+    width: 16px !important;
+    height: 16px !important;
+    border-width: 2px !important;
+    cursor: pointer;
+    
+    /* Sanfter Feder-Effekt für taktiles Feedback */
+    transition: transform 0.1s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
 
-===== ./doc/PrePrompt.md =====
+/* Vergrößert sich dezent beim Drüberfahren (Hover) */
+#amiga-led-pwr:hover {
+    transform: scale(1.18);
+}
+
+/* Federt elastisch zusammen beim Klicken (Active) */
+#amiga-led-pwr:active {
+    transform: scale(0.85);
+}
+
+/* =========================================
+   FULLSCREEN HUD AUTO-FADE LOGIC
+========================================= */
+/* Blendet das eingeklappte (collapsed) HUD im Vollbild bei Inaktivität komplett aus.
+   Sobald geklickt oder die Maus bewegt wird, fadet es sofort wieder ein! */
+#visual-zone.no-cursor #chip-hud.collapsed {
+    opacity: 0;
+    pointer-events: none;
+}
+
+===== Path: ./doc/PrePrompt.md =====
 
 **System-Rolle & Kontext:**
 Du bist ein Senior Web Audio Engineer, DSP-Spezialist (Digital Signal Processing) und ein Veteran der 8-Bit/16-Bit Demoszene. Wir entwickeln gemeinsam eine Web-Anwendung namens **"Chiptunes Fantasy"**. 
@@ -1269,7 +1378,245 @@ Wir sind aktuell dabei, das Projekt weiter auszubauen (z.B. Integration des Amig
 
 
 
-===== ./doc/v1.2.0-planning-prompt.md =====
+===== Path: ./doc/concepts/audio_visual_pipeline.md =====
+
+Here is the completely revised and expanded **Technical Specification** for `v1.2.0`. It now fully documents the ECS (Entity-Component-System) architecture, the zero-allocation data models, the separated DJ skills, and features the brand-new chapter detailing all DSEs and their precise reactions to macro/micro dynamics.
+
+Save this document as `doc/Technical_spec.md`.
+
+***
+
+```markdown
+# 💾 TECHNICAL SPECIFICATION: AUDIO-VISUAL PIPELINE & SCENE-DJ ARCHITECTURE
+**Version:** 1.2.0 (Modular ECS-Pattern Revision)
+
+This document outlines the architectural blueprint of the Chiptunes Fantasy real-time audio-visual pipeline. To maintain strict separation of concerns and guarantee 60FPS performance on low-end devices, the system decouples audio emulation, DSP analysis, scene orchestration, and rendering into distinct, zero-allocation modules.
+
+---
+
+## 1. The Audio-Visual Pipeline
+
+The core rendering loop utilizes a **Unidirectional Data Flow**. State changes propagate strictly from the application layer down to the visual layer. The `SceneDJ` acts as a facade, coordinating data between specialized sub-modules ("Skills") without executing rendering code itself.
+
+```mermaid
+graph TD
+    subgraph Audio Engine [1. Audio & Emulation Layer]
+        A[Binary Parsers: YM, SID, MOD] -->|Frames| B(AudioWorklet Core)
+        B ==>|48kHz PCM Audio| Speaker((Speaker))
+        B -.->|Raw Channel Volumes & dt| C[visualizer.js]
+        A -.->|playbackSessionId| C
+    end
+
+    subgraph Instrumentation [2. Track Instrumentation Layer]
+        C -->|Raw Data| D[TrackMonitor]
+        D -->|Mutates in place| E[(TrackInfo)]
+        D -->|Mutates in place| F[(TrackDynamics)]
+    end
+
+    subgraph Scene DJ [3. Scene-DJ Orchestrator]
+        E & F --> G[SceneDJ Facade]
+        
+        G <-->|1. Calculate Tension & Macro State| H[TensionManager]
+        G <-->|2. Evaluate Playtime & Roll Swaps| I[SetlistManager]
+        G <-->|3. Update Lifecycles & Z-Order| J[StageManager]
+    end
+
+    subgraph DSE Presentation [4. DSE Rendering Layer]
+        J -->|Dispatch Render Call with Metrics| K[Active DSE Pool]
+        K -->|Draws| L[HTML5 Canvas]
+    end
+
+    style B fill:#352879,stroke:#6c5eb5,color:#fff
+    style D fill:#aa4400,stroke:#ff8800,color:#fff
+    style G fill:#005500,stroke:#55ff55,color:#fff
+    style K fill:#222,stroke:#fff,color:#fff
+```
+
+---
+
+## 2. Track Instrumentation (`TrackMonitor`)
+
+The `TrackMonitor` serves as the bridge between the raw audio output and the visual orchestrator. Its sole responsibility is to translate raw `channelVolumes` and app state into two highly structured, **zero-allocation data classes**.
+
+### 2.1. `TrackInfo` (Static Context)
+Contains metadata about the currently playing song. 
+*   `system` (String): The active hardware tab (`'c64'`, `'amiga'`, `'atari'`).
+*   `sessionId` (Number): A monotonically increasing ID. When this changes, the DJ executes a hard reset on tension accumulators (Unidirectional State Syncing).
+*   `isPlaying` (Boolean): Global playback state driving the "Instant Wake-Up" or "Soft Sleep" transitions.
+
+### 2.2. `TrackDynamics` (Real-Time Metrics)
+Updated every frame (60Hz). Contains the heavily filtered DSP metrics utilized by the DSEs.
+*   `masterEnergy` (Float): The RMS moving average of all active channels.
+*   `transientPulse` (Float): True rising-edge delta measuring instantaneous drum hits (`max(0, raw - smooth)`).
+*   `beatEnvelope` (Float): An exponential decay curve (`0.0 -> 1.0`). Triggers instantly on severe transients and decays smoothly. Used for Micro-Dynamics.
+*   `rawEnergyState` (String): The instantaneous, debounced threshold evaluation (`'playing'`, `'buildup'`, `'climax'`).
+
+---
+
+## 3. The Scene-DJ (Coordinator & Skills)
+
+The `SceneDJ` delegates all logic to specialized "Skills" (Sub-Modules).
+
+### Skill 1: `TensionManager` (Macro-Dynamics)
+Reads the crowd and builds suspense using a mathematical accumulator (`tension`).
+*   **Logic:** Integrates `masterEnergy` and `transientPulse` over time. If the track hits an overdrive threshold, accumulation is multiplied by `4x` or `6x`. 
+*   **The Climax Lock:** Once `tension >= 20.0`, the state locks into `climax`. The hold timer only drains when the track's real-time energy falls below overdrive thresholds, ensuring visually rewarding drops.
+*   **Debouncing:** Implements a `0.5s` `MIN_BUILDUP_TIME` to prevent chaotic visual flickering between `playing` and `buildup` states.
+
+### Skill 2: `SetlistManager` (Crate Digger / Swapping)
+Responsible for variety and aesthetic coherence.
+*   **Weighted Roulette Selection:** Uses `metadata.weight` to randomly select elements for a specific layer.
+*   **Dynamic Weight Penalties:** If the roulette re-selects the currently active DSE, its `weight` is halved and its `stateTime` is reduced by 5s to force faster re-rolls, preventing visual stagnation.
+*   **Black-Screen Protection:** Evaluates the active pool. If all non-overlay layers resolve to `isVoid === true`, it forces a re-roll of one layer to a physical GFX element to ensure the canvas is never completely empty.
+
+### Skill 3: `StageManager` (Lifecycle & Crossfades)
+The stage technician managing the active visual pool.
+*   **State Machine:** Routes DSEs smoothly through `idle` $\to$ `starting` (1.5s) $\to$ `[macroState]` $\to$ `stopping` (1.5s) $\to$ `idle`.
+*   **Instant Wake-Up:** Bypasses debouncing when transitioning from a stopped (`idle`) state to playback, triggering an immediate visual fade-in and a fresh DSE roulette roll.
+*   **Z-Order Sorting:** Enforces strict rendering order (`background` $\to$ `floor` $\to$ `foreground` $\to$ `overlay`).
+
+---
+
+## 4. DSE Metadata Contract
+
+Visual effects are decoupled classes registered inside `dse/registry.js`. The `defineDSE` wrapper validates the schema at compile time.
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `name` | `String` | Human-readable class identifier. |
+| `computerType` | `Array` | Hardware compatibility (`['c64']`, `['amiga']`, `['atari']`, `['all']`). |
+| `placementType` | `String` | Z-Order assignment (`background`, `floor`, `foreground`, `overlay`). |
+| `weight` | `Number` | Relative probability weight for the Roulette-Wheel selection. |
+| `minPlayTime` | `Number` | Minimum seconds the DSE must run before it can be swapped. `Infinity` creates a permanent lock (used for the LimitBar). |
+| `climaxHoldTime`| `Number` | The duration (in seconds) the DSE requests to stay in climax after track energy drops. The DJ uses `Math.max()` of all active DSEs. |
+| `isVoid` | `Boolean` | Flags a zero-CPU transparent placeholder used for screen clearing. |
+
+---
+
+## 5. DSE Arsenal & Reactivity Mapping
+
+Demo-Scene-Elements are designed to react to **Macro-Dynamics** (the overall `state` string managing base speed and pattern complexity) and **Micro-Dynamics** (the `metrics.beat[0]` float managing instantaneous scale, thickness, or strobing). All spatial modifiers are wrapped in "Continuous Math" low-pass interpolators to prevent visual teleportation during state transitions.
+
+### 5.1. `LimitBar` (Overlay)
+*   **Function:** Borderless tension accumulation meter.
+*   **Macro-Reaction:** Bar width is mapped precisely to `tensionPct`. Color milestones change based on segment position (50% warning, 100% climax).
+*   **Micro-Reaction:** At 100% Climax, the white strobe-flashing of the segments is tied exactly to `metrics.beat[0] > 0.5`.
+*   **System Styling:** C64 chunky blocks & rasterbars; Amiga 3D-bevels & copper-sweeps; Atari ST 16-color neon segments & vector sparks. Auto-fades to `opacity: 0` during `idle` or `0.0` tension.
+
+### 5.2. `RetroSunset` (Background)
+*   **Function:** IK+ inspired landscape.
+*   **Macro-Reaction (`state`):** Controls the base target speed of the scrolling water waves and base distortion amplitude.
+*   **Micro-Reaction (`beat`):** In `buildup`/`climax` states, the size of the Sun and the X-axis distortion of the water lines expand instantaneously with the beat envelope.
+*   **System Styling:** C64 chunky pixel blocks; Amiga copper sky gradients and sub-pixel sine-waves; Atari ST strict 16-color raster bands and horizontal sine displacement.
+
+### 5.3. `Starfield` (Background)
+*   **Function:** Universal 3D warp starfield.
+*   **Macro-Reaction (`state`):** Adjusts the base Z-axis warp velocity (`smoothedWarp`).
+*   **Micro-Reaction (`beat`):** Injects instantaneous warp-speed boosts (`beatWarp`) directly into the Z-axis math on heavy drum transients.
+*   **System Styling:** C64 `square` line-caps; Amiga `round` caps with `rgba` depth-fading and `screen` glow; Atari ST `butt` caps with rigid 16-color palette clamping.
+
+### 5.4. `Copperbars` (Floor)
+*   **Function:** 3D Helix rasterbars.
+*   **Macro-Reaction (`state`):** Scales the orbital `targetAmplitude` and rotation `targetSpeed`. Transitions unlock new behavioral patterns.
+*   **Micro-Reaction (`beat`):** The `punch` (thickness of the bars) breathes exactly with the beat envelope. During the `climax` state, a vertical sine-wave distortion (`twistAmplitude`) is unlocked and driven exclusively by the beat transient.
+
+### 5.5. `AmigaCube` / `AtariBobs` (Foreground)
+*   **Function:** Central 3D focal points (Glenz Vector Cube / Pre-rendered Lissajous Sprites).
+*   **Macro-Reaction (`state`):** Increases target orbital or rotational speeds.
+*   **Micro-Reaction (`beat`):** Modulates the `scaleMultiplier` causing the 3D objects to physically inflate and bounce to the kick drum.
+*   **Special:** `AtariBobs` features strict aspect-ratio preservation, mapping its X/Y radii to `Math.min(width, height)` to prevent squishing on mobile screens.
+
+### 5.6. `VoidElement` (Floor / Background / Foreground)
+*   **Function:** A structural placeholder returning empty render passes.
+*   **Usage:** Allows the DJ's Roulette-Wheel to periodically clear specific Z-layers (e.g., hiding the Copperbars) to let the background elements breathe. Secured by the DJ's Black-Screen Protection to ensure the screen never goes completely blank.
+```
+
+***
+
+
+
+===== Path: ./doc/concepts/beat_tension_separation.md =====
+
+By strictly separating **Macro-Dynamics (Tension/State)** from **Micro-Dynamics (Real-time Beat)**, we give DSE creators a incredibly powerful and clean toolset. 
+
+Currently, DSEs are misusing `metrics.pulse[0]` (which fluctuates wildly frame-by-frame) and applying their own internal smoothing/lerping to react to beats. This leads to inconsistent visual pumping across different effects.
+
+Here is the architectural plan to implement a centralized, zero-allocation **Beat Detector & Envelope** into the `SceneDJ`, and how we will route it to the DSEs.
+
+---
+
+### 📝 Implementation Plan: The "Beat & Tension" Separation
+
+#### 1. The Core Concept
+*   **Tension (Macro):** Represents the song's structural progression (`playing` -> `buildup` -> `climax`). This will control the **"What and How Fast"** (e.g., base rotation speed, spawning rates, unlocking new movement patterns like the Copperbar-Twist or Atari CPU-Glitches).
+*   **Beat (Micro):** A brand new, perfectly shaped exponential decay envelope (0.0 to 1.0). This will control the **"Instantaneous Punch"** (e.g., the scale of the Amiga Cube, the glow of the sunset, the thickness of the Copperbars).
+
+#### 2. Phase 1: Expanding the `SceneDJ` Metrics (Zero-Allocation)
+We will introduce a dedicated Beat Detector inside the DJ's `analyzeEnergy` function.
+*   Allocate a new metric: `this.beatEnvelope = new Float32Array(1);`
+*   **Trigger Logic:** If `transientPulse[0]` crosses a certain system-specific threshold (meaning a kick or snare hit), we snap `beatEnvelope[0] = 1.0` instantly.
+*   **Decay Logic:** On frames without a hard transient, we smoothly decay the envelope using a frame-rate independent multiplier (e.g., `beatEnvelope[0] *= Math.max(0, 1.0 - (dt * 12.0))`).
+*   **Routing:** We expose this to the DSEs by adding `beat: this.beatEnvelope` to the `this.metrics` payload.
+
+#### 3. Phase 2: Updating the DSEs (Refactoring existing logic)
+We will go through our existing DSEs and strip out their custom pulse-smoothing hacks, replacing them with the centralized `metrics.beat[0]`.
+
+*   **`Copperbars`:** 
+    *   *Tension:* Drives the base speed and unlocks the `twist` math.
+    *   *Beat:* Replaces the direct `pulse` connection. `metrics.beat[0]` will drive the instant thickness (`punch`) and the intensity of the twist, ensuring they pump flawlessly in sync.
+*   **`AmigaCube`:** 
+    *   *Tension:* Controls rotation speed (`rx`, `ry`, `rz`).
+    *   *Beat:* Bound directly to the `scaleMultiplier`, causing the cube to perfectly bounce to the kick drum without needing internal smoothing accumulators.
+*   **`RetroSunset`:**
+    *   *Tension:* Controls the speed of the water waves and the overall sky alpha.
+    *   *Beat:* Bound to `this.sunPulse`. The sun will pump, and the water reflections will scatter exactly on the beat.
+*   **`LimitBar`:**
+    *   *Beat:* We can replace the `performance.now() % 150` strobe flashing in the Climax state. Instead, the borders will flash purely based on `metrics.beat[0] > 0.5`, tying the visuals directly to the audio track rather than a static timer!
+
+#### 4. The Architectural Benefit
+By doing this, any future developer writing a new DSE doesn't need to write complex audio-reaction math. If they want an element to blink or bounce to the music, they literally just multiply their size or opacity by `metrics.beat[0]`. If they want their effect to spin faster during a drop, they check `state === 'climax'`. It makes the DSE template incredibly clean.
+
+---
+
+
+
+
+===== Path: ./doc/release_howto.md =====
+
+# 📦 Chiptunes Fantasy - Release Workflow
+
+This document outlines the standard operating procedure (SOP) for preparing and publishing a new release (or beta milestone) for the Chiptunes Fantasy repository on GitHub.
+
+## 1. Version Bumping
+Before committing the final release branch, update the user-facing version numbers:
+*   **Boot Screen:** Open `index.html` and update the `<p class="boot-header">` (e.g., `**** CHIPTUNES FANTASY V1.2.0-BETA.2 ****`).
+*   *(Optional but recommended)* Update the version tag in the `README.md` header.
+
+## 2. Update Documentation
+Ensure the `README.md` accurately reflects the current state of the architecture:
+*   Add short summaries for new visual Demo-Scene-Elements (DSEs).
+*   Document any fundamental changes to the AudioWorklet DSP pipelines (e.g., Anti-Aliasing upgrades, Filter routing).
+*   Keep the core hardware factsheets condensed and punchy.
+
+## 3. GitHub Pull Request (PR) Format
+When merging the `dev` branch into `main`, format the PR description to provide a clear technical audit trail.
+*   **Title:** `feat: vX.X.X Release Title`
+*   **Description Blocks:**
+    *   **🏗️ Architectural Changes:** Changes to the `SceneDJ`, Registry, or State Machine.
+    *   **✨ New Features & Visuals:** New DSEs, UI tweaks, or CSS styling.
+    *   **🐛 Audio & DSP Fixes:** Worklet optimizations, memory-leak patches, or playback logic fixes.
+
+## 4. GitHub Release Notes
+Create a new Tag (e.g., `v1.2.0-beta.2`) and draft the release notes. These should be end-user friendly but retain the signature "nerdy" charm of the project.
+*   **Highlights:** Bullet points of what the user can *see* and *hear*.
+*   **Under the Hood:** Explanations of DSP magic, zero-allocation optimizations, and API usage (e.g., Screen Wake Lock).
+*   **How to test:** A quick tip on which track showcases the new features best.
+
+## 5. Final Commit
+Always use the conventional commit format for the release trigger:
+`chore(release): prepare vX.X.X release documentation and bump version`
+
+===== Path: ./doc/v1.2.0-planning-prompt.md =====
 
 # 💾 SYSTEM CONTEXT & PRE-PROMPT: CHIPTUNES FANTASY
 **Current State: v1.1.1 | Target State: v1.2.0 (The Scene-DJ Refactoring)**
@@ -1343,7 +1690,91 @@ A new orchestrator class (`js/visuals/scene-dj.js`) that takes control away from
 **Directive for the AI:** 
 Acknowledge these rules, architecture, and goals. Wait for my command to start refactoring the first component into the new DSE standard.
 
-===== ./index.html =====
+===== Path: ./doc/v1.2.0-scene-dj-dse-metadata-spec.md =====
+
+Hier ist die aktualisierte und bereinigte Spezifikation der Version 1.2.0 als Markdown-Dokument. 
+
+Sie dokumentiert nun das vollendete **DSE-Metadaten-Schema** mit dem neuen, kleingeschriebenen State-Modell, die Funktionsweise des zentralen Metadaten-Vertrags (`defineDSE`) sowie die endgültige logische Funktionsweise des **Scene-DJs als reinen, renderfreien Orchestrator**.
+
+---
+
+# 💾 TECHNISCHE SPEZIFIKATION: SCENE-DJ & DSE UNIFIED ARCHITECTURE (v1.2.0)
+
+Dieses Dokument beschreibt die Laufzeit-Architektur des **Demoscene-Sequencers (DSS / Scene-DJ)** und das konsolidierte Datenmodell der **Demo-Scene-Elements (DSE)**. Das System erzwingt eine strikte Trennung von Logik (Audio-Analyse, State-Steuerung) und Darstellung (GFX-Rendering).
+
+---
+
+## 1. Das Unified State-Modell
+
+Um die Steuerung des Demoszene-Bildschirms zu vereinheitlichen, nutzen alle Systemkomponenten (Scene-DJ und alle DSE-Gimmicks) eine durchgängig kleingeschriebene Nomenklatur.
+
+```text
+               ┌─────── [isPlaying = false] ──────┐
+               │                                  ▼
+┌───────┐   ┌──┴────┐   ┌─────────┐   ┌─────────┐   ┌──────────┐
+│ idle  │ ─►│starting│─►│ playing │ ─►│ buildup │ ─►│  climax  │
+└───────┘   └───────┘   └─────────┘   └─────────┘   └──────────┘
+    ▲                                                    │
+    └─────────────────── stopping ◄──────────────────────┘
+```
+
+### Die Zustände im Detail:
+*   **`idle`**: Ruhezustand. Tritt ein, wenn kein Track geladen ist oder die Wiedergabe pausiert wird (`isPlaying = false`). Alle Rechenoperationen der DSEs werden sofort abgebrochen, um CPU/GPU-Ressourcen auf Mobilgeräten zu schonen.
+*   **`starting`**: Transition-State. Das Element wird geladen und fadet über die Dauer von 1.5 Sekunden sanft ein (Alpha-Blend / Skalierung).
+*   **`playing`**: Die Grund-Choreographie. Der Track läuft auf normalem, melodiösem Niveau.
+*   **`buildup`**: Spannung aufbauend. Der Song zieht im Pegel an. Die Phasen-Akkumulatoren der DSEs beschleunigen sich für eine dynamischere Wiedergabe.
+*   **`climax`**: Die Apotheose (Der Drop). Maximaler RMS-Pegel kombiniert mit harten Transienten. Die Effekte laufen mit Höchstgeschwindigkeit, flackern rhythmisch im Takt der Drums oder wobbeln über reaktive Skalierungen.
+*   **`stopping`**: Transition-State. Wird ausgelöst, wenn ein Tab-Wechsel stattfindet oder die Wiedergabe pausiert wird. Das Element fadet über 1.5 Sekunden weich aus, bevor es sich schlafen legt (`idle`).
+
+---
+
+## 2. Konsolidierter Metadaten-Vertrag (`registry.js`)
+
+Alle steuernden Parameter der DSE-Gimmicks sind in der Datei `js/visuals/dse/registry.js` als **Single Source of Truth** gebündelt. Eine vertragliche Hilfsfunktion (`defineDSE`) validiert die Daten zur Entwicklungszeit und verhindert fehlerhafte Parameterstrukturen (Contract Enforcement).
+
+### Das Metadaten-Schema:
+*   `name` (`String`): Eindeutiger Name des Elements (z. B. `'Amiga Glenz Cube'`).
+*   `computerType` (`Array`): Bestimmt die System-Kompatibilität (`['c64']`, `['amiga']`, `['atari']`, `['all']`).
+*   `placementType` (`String`): Definiert die Z-Order beim Rendern (`'background'`, `'floor'`, `'foreground'`, `'overlay'`).
+*   `triggerProbability` (`Number`, `0.0` bis `1.0`): Priorität bei der Auswahl durch den DJ. Ein Wert von `1.0` (100%) schützt das Element vor dem dynamischen Wegrotieren (z. B. für den `LimitBar` deklariert).
+*   `minPlayTime` (`Number`): Mindestspielzeit in Sekunden. Verhindert visuelles Zappeln bei schnellen Wechseln. Kann auf `Infinity` gesetzt werden (z. B. für Overlays).
+*   `climaxHoldTime` (`Number`): Die Nachbrennzeit (in Sekunden) für den `climax`-State des jeweiligen Elements.
+
+---
+
+## 3. Der Scene-DJ als reiner Orchestrator
+
+Der `SceneDJ` fungiert als reiner Dirigent und ist **vollständig frei von Rendering-Code**. Seine Aufgaben beschränken sich auf:
+
+1. **Audio-Analyse:** Transformation der rohen Lautstärken in geglättete Pegel (`channelSmooth`) und Transienten-Ausschläge (`transientPulse`) ohne Garbage-Collection-Heap-Garbages.
+2. **State-Maschinen steuern:** Auswertung des Wiedergabe-Status (`isPlaying`), Berechnen der Hysterese und Weiterleitung der globalen States an die DSEs.
+3. **Zentrierter Metriken-Schnittpunkt:** Der DJ befüllt ein persistentes `metrics`-Objekt in jedem Frame mit seinen Berechnungsergebnissen:
+   ```javascript
+   this.metrics.tensionPct = this.tension / TENSION_MAX;
+   this.metrics.isClimaxLocked = this.isClimaxLocked;
+   this.metrics.climaxTimer = this.climaxTimer;
+   this.metrics.climaxHoldTime = this.currentClimaxHoldTime;
+   this.metrics.rawEnergyState = this.rawEnergyState;
+   this.metrics.system = this.currentSystem;
+   ```
+4. **Z-Order Delegation:** Der DJ sortiert die DSEs einmalig beim Systemwechsel und ruft in jedem Frame lediglich die standardisierte `render()`-Methode der aktiven DSE-Instanzen auf. Das eigentliche Zeichnen des Limit-Balkens wurde vollständig in das `LimitBar` DSE ausgelagert.
+
+---
+
+## 4. Mathematische Tension- & Lock-Logik
+
+Die Steuerung des Climax-Zustands basiert auf einem audio-reaktiven Spannungsbarometer:
+
+* **Abbau (Quiet Parts):** Ist kein Track aktiv (`isPlaying === false`), wird die Spannung sofort abgebaut ($\text{tension} \to 0.0$) und der DJ steuert `'idle'` an.
+* **Tension-Integration (Buildup):** Ist der Track im `'buildup'`-Bereich, füllt sich die Tension kontinuierlich basierend auf Pegel und Transienten:
+  $$\text{power} = (\text{energy} \cdot 0.5) + (\text{pulse} \cdot 2.0)$$
+* **Overdrive-Beschleunigung:** Ist der Track extrem laut und drum-lastig ($\text{rawEnergyState} = \text{'climax'}$), füllt sich das Barometer **viermal so schnell** ($\text{power} \cdot 4.0$), bis die Barriere von $\text{tension} \ge 20.0$ erreicht ist und der Climax zündet.
+* **Hold-Timer-Freeze:** Solange der Track im Overdrive bleibt, verharrt der Hold-Timer bei `0.0`. Erst wenn die Energie abflacht, fängt die Hold-Time an herunterzuticken. Der Limit-Balken läuft visuell rückwärts leer, während die umliegenden DSE-Animationen (Blitze, Rasterbars, Bobs) bis zum Ende auf maximaler Stufe gelockt bleiben.
+
+---
+f
+
+===== Path: ./index.html =====
 
 <!DOCTYPE html>
 <html lang="de">
@@ -1372,7 +1803,7 @@ Acknowledge these rules, architecture, and goals. Wait for my command to start r
 
     <div id="boot-screen">
         <div class="boot-box">
-            <p class="boot-header">**** CHIPTUNES FANTASY V1.1.1 ****</p>
+            <p class="boot-header">**** CHIPTUNES FANTASY V1.2.0 ****</p>
             <p class="boot-subheader">64K RAM SYSTEM  38911 BASIC BYTES FREE</p>
             <div class="boot-logs">
                 <p>EMU CORES LOADED: OK</p>
@@ -1424,9 +1855,21 @@ Acknowledge these rules, architecture, and goals. Wait for my command to start r
                     <button id="btn-eco-off">WAKE UP</button>
                 </div>
             </div>
-            <!-- NEU: Der Fullscreen-Button Overlay -->
-            <button id="btn-fullscreen" title="Toggle Fullscreen">[ ⛶ ]</button>
+
+            <!-- FULLSCREEN UI BAR (Neu: Kapselt Track-Info, Controls & Fullscreen-Button) -->
+            <div id="fs-ui-bar">
+                <div id="fs-playback-controls">
+                    <div class="fs-track-info" id="fs-track-info">NO TRACK LOADED</div>
+                    <div class="fs-controls">
+                        <button id="fs-btn-prev">|&lt;</button>
+                        <button id="fs-btn-play">&gt;</button>
+                        <button id="fs-btn-next">&gt;|</button>
+                    </div>
+                </div>
+                <button id="btn-fullscreen" title="Toggle Fullscreen">[ ⛶ ]</button>
+            </div>
             
+            <div class="scanlines"></div> <!-- CRT Monitor Effekt -->            
             <div class="scanlines"></div> <!-- CRT Monitor Effekt -->
         </div>
         
@@ -1504,13 +1947,13 @@ Acknowledge these rules, architecture, and goals. Wait for my command to start r
 </body>
 </html>
 
-===== ./js/app.js =====
+===== Path: ./js/app.js =====
 
 // === js/app.js ===
 // =========================================================================
 //                  CHIPTUNES FANTASY - MAIN APP CONTROLLER
 // =========================================================================
-
+import { FullscreenUI } from './ui/fullscreen-ui.js';
 import { trackRegistry } from '../tracks/index.js';
 import { systemDescriptions } from './content/museum.js'; 
 import { chipCheatSheets } from './content/cheatsheets.js'; 
@@ -1530,6 +1973,7 @@ import {
     getSidNode 
 } from './audio/audio-controller.js';
 
+let fsUI = null;
 let currentOscValue = 0; 
 let currentChipRegs = null; 
 let activeSystem = 'atari';
@@ -1544,6 +1988,8 @@ let isEcoMode = false;
 let isUserDragging = false; 
 let currentSubsongIndex = 1; 
 let channelVolumes = new Float32Array(4);
+let playRequestToken = 0; // NEU: Async Race Condition Schutz
+let playbackSessionId = 0; // NEU: Unidirectional State Sync für den Scene-DJ
 
 // Cursor-Hiding Inaktivitäts-Timer
 let mouseIdleTimer = null;
@@ -1603,7 +2049,9 @@ function initApp() {
             getTrackData: () => trackData,
             getAnalyserNode: getAnalyserNode,  
             getIsPlaying: () => isPlaying,
-            getAudioContext: getAudioContext  
+            getAudioContext: getAudioContext,
+            // NEU: Session ID an die visuelle Pipeline übergeben
+            getPlaybackSessionId: () => playbackSessionId 
         }, {
             updateTimelineUI: () => updateTimelineUI(),
             updateChipHUD: () => updateChipHUD({
@@ -1633,6 +2081,13 @@ function initApp() {
         }
 
         setTheme('theme-c64');
+        
+        // Initialisiert das Fullscreen Overlay
+        fsUI = new FullscreenUI({
+            onTogglePlay: () => document.getElementById('btn-play').click(),
+            onPrev: () => document.getElementById('btn-prev').click(),
+            onNext: () => document.getElementById('btn-next').click()
+        });   
     });
 }
 
@@ -1698,10 +2153,26 @@ function handleWorkletMessage(e) {
     if (e.data && e.data.constructor && e.data.constructor.name === 'Float32Array') {
         const view = e.data;
         const systemId = view[0];
+
+        // =========================================================
+        // ARCHITEKTUR FIX: Cross-System Message Filtering
+        // Ignoriert veraltete Nachrichten von inaktiven Cores.
+        // Verhindert Geister-Track-Wechsel beim schnellen Tab-Umschalten!
+        // =========================================================
+        const systemMapping = {
+            0: 'c64',
+            1: 'amiga',
+            2: 'atari'
+        };
+
+        if (systemMapping[systemId] !== activeSystem) {
+            return; // Nachricht verwerfen, da sie von einem im Hintergrund stoppenden Core kommt
+        }
+
         const isPlayingVal = view[1] === 1;
         const frameVal = view[2];
         currentOscValue = view[3];
-
+        
         if (!currentChipRegs) {
             currentChipRegs = new Uint8Array(32);
         }
@@ -1775,7 +2246,6 @@ function handleWorkletMessage(e) {
         currentChipRegs = e.data.regs; 
     }
 
-    // --- NEU RESTAURIERT: Globaler Digidrum-Trigger für die ST-Debugger LED ---
     if (e.data.type === 'DEBUG') {
         if (isEcoMode) return; 
 
@@ -1807,6 +2277,7 @@ function handleWorkletMessage(e) {
 function changeC64Subsong(subsongId) {
     const sidNode = getSidNode();
     if (activeSystem === 'c64' && trackData && trackData.isSidFile && sidNode) { 
+        playbackSessionId++; // NEU: Informiert das Rendering-System über einen Wechsel
         sidNode.port.postMessage({ 
             type: 'CHANGE_SUBSONG', 
             frame: subsongId,
@@ -1831,7 +2302,12 @@ function changeC64Subsong(subsongId) {
 
         let meta = trackData.metadata;
         currentScrollerText = `+++ BOOM! SWITCHED TO SUBSONG ${subsongId} OF ${meta.songs} +++ NOW PLAYING: ${meta.name.toUpperCase()} (TRACK ${subsongId}) BY ${meta.author.toUpperCase()} +++ `;
+
+        if (fsUI) {
+            fsUI.updateTrack(`${meta.name.toUpperCase()} [SUB ${subsongId}/${meta.songs}]`);
+        }
     }    
+
 }
 
 function startPlayback() {
@@ -1866,6 +2342,8 @@ function startPlayback() {
             });
         }
     }
+
+    if (fsUI) fsUI.updatePlayState(true);  
 }
 
 function resumePlayback() {
@@ -1880,6 +2358,8 @@ function resumePlayback() {
     if (activeSystem === 'amiga' && paulaNode) paulaNode.port.postMessage({ type: 'RESUME_TRACK' });
     else if (activeSystem === 'c64' && sidNode) sidNode.port.postMessage({ type: 'RESUME_TRACK' });
     else if (ymNode) ymNode.port.postMessage({ type: 'RESUME_TRACK' });
+
+    if (fsUI) fsUI.updatePlayState(true);
 }
 
 function stopPlayback() {
@@ -1893,9 +2373,17 @@ function stopPlayback() {
     if (ymNode) ymNode.port.postMessage({ type: 'STOP_TRACK' });
     if (paulaNode) paulaNode.port.postMessage({ type: 'STOP_TRACK' });
     if (sidNode) sidNode.port.postMessage({ type: 'STOP_TRACK' });
+
+    // =========================================================
+    // FIX: Allokationsfreies Zurücksetzen der Volume-Spuren bei Pause
+    // =========================================================
+    if (fsUI) fsUI.updatePlayState(false);
+    channelVolumes.fill(0); 
 }
 
 function setTheme(themeName) {
+    playRequestToken++; // NEU: Bricht alle noch im Hintergrund ladenden Tracks sofort ab!
+
     document.body.className = themeName;
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach(tab => {
@@ -2017,6 +2505,14 @@ function renderTracklist(system) {
 async function selectAndPlayTrack(index, system) {
     lastTrackChangeTime = performance.now();
 
+    // =========================================================
+    // ASYNC RACE CONDITION PROTECTION
+    // =========================================================
+    playRequestToken++;
+    const myToken = playRequestToken;
+
+    playbackSessionId++; // NEU: Informiert das Rendering-System über einen Trackwechsel
+
     if (getAudioContext() && getAudioContext().state === 'suspended') {
         resumeAudioContext().catch(e => console.log("AudioContext resume blockiert:", e));
     }
@@ -2053,6 +2549,15 @@ async function selectAndPlayTrack(index, system) {
         try {
             let parsedFile = await selectedSong.loadAsync();
             
+            // =========================================================
+            // TOKEN CHECK: Hat der User den Tab gewechselt oder 
+            // einen anderen Track geklickt, während wir geladen haben?
+            // =========================================================
+            if (myToken !== playRequestToken) {
+                console.warn("[SYSTEM] Veralteter Async-Ladevorgang durch User-Interaktion abgebrochen.");
+                return; // ABBRUCH! Keine Ghost-Playbacks mehr!
+            }
+
             if (isC64System) {
                 trackData = parsedFile; 
                 currentSubsongIndex = parsedFile.startSong || 1; 
@@ -2179,6 +2684,9 @@ async function selectAndPlayTrack(index, system) {
         trackData = selectedSong.generator();
         startPlayback();
     }
+
+    if (fsUI) fsUI.updateTrack(selectedSong.title);
+
 }
 
 function enterPseudoFullscreen(visualZone) {
@@ -2252,16 +2760,10 @@ function handleFullscreenChange() {
     window.dispatchEvent(new Event('resize'));
 }
 
-const noSleepVideo = document.createElement('video');
-noSleepVideo.setAttribute('playsinline', '');
-noSleepVideo.setAttribute('muted', '');
-noSleepVideo.setAttribute('loop', '');
-noSleepVideo.src = 'data:video/mp4;base64,AAAAHGZ0eXBtcDQyAAAAAG1wNDJpc29tYXZjMQAAAz5tb292AAAAbG12aGQAAAAA/8f/3v/H/+QAAALuAAAC7gABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAGGlvZHMAAAAAE//H/+QAAALuAAAC7gABAAAAAAABAAAAMXRyYWsAAABcdGtoZAAAAAD/x//e/8f/5AAAAAEAAAAAAAAC7gAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAgAAAAIAAAAgZWR0cwAAABBlbHN0AAAAAQAAAu4AAAAAAAEAAAAAAixtZGlhAAAAIG1kaGQAAAAA/8f/3v/H/+QAAALuAAAC7gABAAAAAAAxAAAAAAAvaGRscgAAAAAAAAAAdmlkZQAAAAAAAAAAAAAAAFZpZGVvSGFuZGxlcgAAAAIcbWluZgAAABR2bWhkAAAAAQAAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAcRzdGJsAAAAp3N0c2QAAAAAAAAAAQAAAJNhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAgACAEgAAABIAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAR//8AAAAxYXZjQwH0AAr/4QAZZ/QACq608AUBzgAAAwAABgAAAwivDxgXoAAAAQAAABhzdHRzAAAAAAAAAAEAAAABAAAC7gAAAABzdHNzAAAAAAAAAAEAAAABAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAABAAAAHHN0c3oAAAAAAAAAAAAAAAEAAAAeAAAAFHN0Y28AAAAAAAAAAQAAADAAAAA0dWR0YQAAACxtZXRhAAAAAAAAAABoZGxyAAAAAAAAAABtZGlyYXBwbAAAAAAAAAAAAAAA';
-
 let wakeLock = null;
 
 async function enableEcoMode() {
-    noSleepVideo.play().catch(e => console.warn('iOS Video-Hack blockiert:', e));
+    // noSleepVideo.play() gelöscht!
     isEcoMode = true;
     document.getElementById('eco-overlay').classList.remove('hidden');
     document.body.classList.add('eco-mode'); 
@@ -2283,7 +2785,7 @@ async function disableEcoMode() {
         await wakeLock.release();
         wakeLock = null;
     }
-    noSleepVideo.pause();
+    // noSleepVideo.pause() gelöscht!
     window.dispatchEvent(new Event('resize'));
 }
 
@@ -2389,7 +2891,7 @@ document.getElementById('btn-fullscreen').addEventListener('click', toggleFullsc
 document.addEventListener('fullscreenchange', handleFullscreenChange);
 document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
-===== ./js/audio/audio-controller.js =====
+===== Path: ./js/audio/audio-controller.js =====
 
 // === js/audio/audio-controller.js ===
 // =========================================================
@@ -2482,7 +2984,7 @@ export async function resumeAudioContext() {
     }
 }
 
-===== ./js/content/cheatsheets.js =====
+===== Path: ./js/content/cheatsheets.js =====
 
 // === js/content/cheatsheets.js ===
 // ==========================================
@@ -2523,7 +3025,7 @@ export const chipCheatSheets = {
     `
 };
 
-===== ./js/content/museum.js =====
+===== Path: ./js/content/museum.js =====
 
 // === js/content/museum.js ===
 // ==========================================
@@ -2653,7 +3155,7 @@ c64: `
     `
 };
 
-===== ./js/content/songlengths.js =====
+===== Path: ./js/content/songlengths.js =====
 
 // === js/content/songlengths.js ===
 // =========================================================
@@ -2686,7 +3188,7 @@ export const SID_SLDB = {
     "myth": { lengths: [282, 120, 120, 120, 120] }
 };
 
-===== ./js/parsers/hipc-parser.js =====
+===== Path: ./js/parsers/hipc-parser.js =====
 
 // ==========================================
 // HIPPEL-COSO (HIPC) BINARY FILE PARSER & INTERPRETER
@@ -2848,7 +3350,7 @@ export async function loadHipcFile(url) {
     };
 }
 
-===== ./js/parsers/mod-parser.js =====
+===== Path: ./js/parsers/mod-parser.js =====
 
 // === js/parsers/mod-parser.js ===
 // ==========================================
@@ -2990,7 +3492,7 @@ export async function loadModFile(url) {
     };
 }
 
-===== ./js/parsers/sid-parser.js =====
+===== Path: ./js/parsers/sid-parser.js =====
 
 // ==========================================
 // C64 SID (PSID/RSID) BINARY FILE PARSER
@@ -3107,7 +3609,7 @@ function readString(data, offset, maxLength) {
     return str.trim();
 }
 
-===== ./js/parsers/xm-parser.js =====
+===== Path: ./js/parsers/xm-parser.js =====
 
 // === js/parsers/xm-parser.js ===
 // ==========================================
@@ -3324,7 +3826,7 @@ export async function loadXmFile(url) {
     };
 }
 
-===== ./js/parsers/ym-parser.js =====
+===== Path: ./js/parsers/ym-parser.js =====
 
 // ==========================================
 // YM BINARY FILE PARSER (YM3b / YM5! / YM6!)
@@ -3432,7 +3934,44 @@ export async function loadYmFile(url) {
     };
 }
 
-===== ./js/ui/hud-debugger.js =====
+===== Path: ./js/ui/fullscreen-ui.js =====
+
+// === js/ui/fullscreen-ui.js ===
+// =========================================================
+// FULLSCREEN OVERLAY UI MANAGER
+// Encapsulates playback controls and track info rendering 
+// decoupled from the main app.js state machine.
+// =========================================================
+
+export class FullscreenUI {
+    constructor(callbacks) {
+        this.trackInfo = document.getElementById('fs-track-info');
+        this.btnPlay = document.getElementById('fs-btn-play');
+        this.btnPrev = document.getElementById('fs-btn-prev');
+        this.btnNext = document.getElementById('fs-btn-next');
+        
+        // WICHTIG: stopPropagation verhindert, dass ein Klick auf "Pause" 
+        // gleichzeitig das Easteregg-Gimmick (Logo-Klick-Event-Listener auf dem Container) umschaltet!
+        if (this.btnPlay) this.btnPlay.addEventListener('click', (e) => { e.stopPropagation(); callbacks.onTogglePlay(); });
+        if (this.btnPrev) this.btnPrev.addEventListener('click', (e) => { e.stopPropagation(); callbacks.onPrev(); });
+        if (this.btnNext) this.btnNext.addEventListener('click', (e) => { e.stopPropagation(); callbacks.onNext(); });
+    }
+
+    updateTrack(title) {
+        if (this.trackInfo) {
+            this.trackInfo.innerText = title;
+        }
+    }
+
+    updatePlayState(isPlaying) {
+        if (this.btnPlay) {
+            // Tracker-typische Play/Pause ASCII Symbole
+            this.btnPlay.innerText = isPlaying ? '||' : '>';
+        }
+    }
+}
+
+===== Path: ./js/ui/hud-debugger.js =====
 
 // === js/ui/hud-debugger.js ===
 // =========================================================
@@ -3924,7 +4463,7 @@ export function updateChipHUD(stateGetters) {
     }
 }
 
-===== ./js/visuals/components/fft-analyzer.js =====
+===== Path: ./js/visuals/components/fft-analyzer.js =====
 
 // === js/visuals/components/fft-analyzer.js ===
 // =========================================================
@@ -4049,7 +4588,7 @@ export class FftAnalyzer {
     }
 }
 
-===== ./js/visuals/components/oscilloscope.js =====
+===== Path: ./js/visuals/components/oscilloscope.js =====
 
 // === js/visuals/components/oscilloscope.js ===
 // =========================================================
@@ -4270,86 +4809,820 @@ export class Oscilloscope {
     }
 }
 
-===== ./js/visuals/gimmicks/bobs-atari.js =====
+===== Path: ./js/visuals/dj/setlist-manager.js =====
 
-// === js/visuals/gimmicks/bobs-atari.js ===
+// === js/visuals/dj/setlist-manager.js ===
 // =========================================================
-// CLASSIC LISSAJOUS METAL-BOB CHAIN (ATARI ST BLITTER GIMMICK)
-// Features: Pure mathematical choreography (music-independent),
-// pre-rendered 3D sphere sprites, and dynamically morphing orbits.
+// SCENE-DJ SKILL: SETLIST MANAGER
+// Verwaltet die DSE-Registry, das Roulette-Wheel (Swapping)
+// und die Black-Screen Schutzschaltung.
 // =========================================================
 
-export class AtariBobs {
+export class SetlistManager {
     constructor() {
-        this.numBobs = 45;
-        this.bobSize = 32; 
-        this.bobCanvas = document.createElement('canvas');
-        this.bobCanvas.width = this.bobSize;
-        this.bobCanvas.height = this.bobSize;
-        const bCtx = this.bobCanvas.getContext('2d');
-        
-        const cx = this.bobSize / 2;
-        const cy = this.bobSize / 2;
-        const hx = cx - 5;
-        const hy = cy - 5;
-        
-        const grad = bCtx.createRadialGradient(hx, hy, 1, cx, cy, this.bobSize / 2);
-        grad.addColorStop(0.0, '#ffffff');           
-        grad.addColorStop(0.2, '#99ff99');           
-        grad.addColorStop(0.55, '#33ff33');          
-        grad.addColorStop(0.85, '#005500');          
-        grad.addColorStop(1.0, 'rgba(0, 10, 0, 0)'); 
-        
-        bCtx.fillStyle = grad;
-        bCtx.beginPath();
-        bCtx.arc(cx, cy, this.bobSize / 2, 0, Math.PI * 2);
-        bCtx.fill();
+        this.registeredDSEs = [];
     }
 
-    render(ctx, width, height, t) {
-        const cx = width / 2;
-        const cy = height / 2;
+    registerDSE(dse) {
+        dse.state = 'idle';
+        dse.stateTime = 0.0;
+        dse._markedForRemoval = false;
+        if (!dse.metadata) dse.metadata = { name: dse.constructor.name, minPlayTime: 5.0, weight: 10, climaxHoldTime: 10.0, isVoid: false };
+        dse.currentWeight = dse.metadata.weight || 10.0;
+        this.registeredDSEs.push(dse);
+    }
+
+    resetWeightsForLayer(layer) {
+        for (let d of this.registeredDSEs) {
+            if (d.metadata.placementType === layer) d.currentWeight = d.metadata.weight || 10.0;
+        }
+    }
+
+    selectWeightedDSE(candidates) {
+        if (candidates.length === 0) return null;
+        let totalWeight = 0.0;
+        for (let c of candidates) totalWeight += c.currentWeight;
         
-        // CHOREOGRAPHIE UPGRADE: Morphing Lissajous
-        // Radien für X und Y atmen unabhängig voneinander über die Zeit (t)
-        // Dadurch verändert der Schwarm laufend fließend seine Form!
-        const radiusX = (width * 0.25) * (1.0 + Math.sin(t * 0.4) * 0.25);
-        const radiusY = (height * 0.3) * (1.0 + Math.cos(t * 0.5) * 0.2);
-        
-        const phaseStep = (Math.PI * 2) / this.numBobs;
-        
-        for (let i = 0; i < this.numBobs; i++) {
-            const phase = i * phaseStep;
+        const roll = Math.random() * totalWeight;
+        let runningSum = 0.0;
+        for (let c of candidates) {
+            runningSum += c.currentWeight;
+            if (roll <= runningSum) return c;
+        }
+        return candidates[0];
+    }
+
+    fillEmptyLayers(stageManager, info, initialState = 'starting') {
+        let layerFilled = { 'background': false, 'floor': false, 'foreground': false, 'overlay': false };
+        for (let dse of stageManager.activeDSEs) {
+            if (!dse._markedForRemoval) layerFilled[dse.metadata.placementType] = true;
+        }
+
+        const layers = ['background', 'floor', 'foreground', 'overlay'];
+        for (let layer of layers) {
+            if (!layerFilled[layer]) {
+                let candidates = this.registeredDSEs.filter(d => 
+                    d.state === 'idle' && !d._markedForRemoval &&
+                    d.metadata.placementType === layer &&
+                    (d.metadata.computerType.includes(info.system) || d.metadata.computerType.includes('all'))
+                );
+                
+                if (candidates.length > 0) {
+                    this.resetWeightsForLayer(layer);
+                    let chosen = this.selectWeightedDSE(candidates);
+                    chosen.state = initialState;
+                    chosen.stateTime = 0.0;
+                    chosen._markedForRemoval = false;
+                    stageManager.activeDSEs.push(chosen);
+                }
+            }
+        }
+
+        let nonVoidCount = 0;
+        let activeNonOverlays = stageManager.activeDSEs.filter(d => d.metadata.placementType !== 'overlay' && !d._markedForRemoval);
+        for (let d of activeNonOverlays) if (!d.metadata.isVoid) nonVoidCount++;
+
+        if (activeNonOverlays.length > 0 && nonVoidCount === 0) {
+            let dseToReplace = activeNonOverlays[Math.floor(Math.random() * activeNonOverlays.length)];
+            let realCandidates = this.registeredDSEs.filter(d => 
+                !d.metadata.isVoid && d.metadata.placementType === dseToReplace.metadata.placementType &&
+                (d.metadata.computerType.includes(info.system) || d.metadata.computerType.includes('all'))
+            );
+            if (realCandidates.length > 0) {
+                let idx = stageManager.activeDSEs.indexOf(dseToReplace);
+                if (idx !== -1) {
+                    dseToReplace.state = 'idle'; dseToReplace.stateTime = 0.0;
+                    stageManager.activeDSEs.splice(idx, 1);
+                }
+                this.resetWeightsForLayer(dseToReplace.metadata.placementType);
+                let chosen = this.selectWeightedDSE(realCandidates);
+                chosen.state = initialState; chosen.stateTime = 0.0; chosen._markedForRemoval = false;
+                if (!stageManager.activeDSEs.includes(chosen)) stageManager.activeDSEs.push(chosen);
+            }
+        }
+        stageManager.sortZOrder();
+    }
+
+    forceSystemChange(stageManager, info) {
+        for (let i = stageManager.activeDSEs.length - 1; i >= 0; i--) {
+            let dse = stageManager.activeDSEs[i];
+            if (dse.metadata.minPlayTime === Infinity && dse.metadata.computerType.includes('all')) continue; 
+            if (!dse.metadata.computerType.includes(info.system) && !dse.metadata.computerType.includes('all')) {
+                dse.state = 'idle';
+                stageManager.activeDSEs.splice(i, 1);
+            }
+        }
+        this.fillEmptyLayers(stageManager, info, 'idle');
+    }
+
+    manageSwaps(stageManager, info, macroState, dt) {
+        // =========================================================
+        // SWAPPING NUN AUCH IM CLIMAX ERLAUBT!
+        // Wirft den künstlichen "Climax-Lockout" für Swaps raus.
+        // =========================================================
+        let swapOccurred = false;
+
+        for (let dse of stageManager.activeDSEs) {
+            if (dse._markedForRemoval) continue;
             
-            const x = cx + Math.sin(t * 1.4 + phase) * radiusX;
-            const y = cy + Math.sin(t * 2.1 + phase) * Math.cos(t * 1.1 + phase) * radiusY;
-            
-            // Pulsierende Größe auf Basis der eigenen Position in der Welle
-            const size = 16 + Math.sin(t * 3.5 + phase) * 8;
-            
-            ctx.drawImage(this.bobCanvas, x - size / 2, y - size / 2, size, size);
+            // Evaluierung nun in ALLEN 3 aktiven States möglich
+            if ((dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax') && dse.metadata.minPlayTime !== Infinity) {
+                if (dse.stateTime >= dse.metadata.minPlayTime) {
+                    let overTime = dse.stateTime - dse.metadata.minPlayTime;
+                    let swapChance = overTime * 0.1 * dt; 
+
+                    if (Math.random() < swapChance) {
+                        let candidates = this.registeredDSEs.filter(alt => 
+                            (alt.state === 'idle' || alt === dse) && !alt._markedForRemoval &&
+                            alt.metadata.placementType === dse.metadata.placementType &&
+                            (alt.metadata.computerType.includes(info.system) || alt.metadata.computerType.includes('all'))
+                        );
+                        if (candidates.length > 0) {
+                            let chosen = this.selectWeightedDSE(candidates);
+                            if (chosen === dse) {
+                                dse.stateTime = Math.max(0, dse.metadata.minPlayTime - 5.0);
+                                dse.currentWeight = Math.max(1.0, dse.currentWeight * 0.5);
+                            } else {
+                                dse._markedForRemoval = true;
+                                swapOccurred = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (swapOccurred) this.fillEmptyLayers(stageManager, info, 'starting');
+    }
+}
+
+===== Path: ./js/visuals/dj/stage-manager.js =====
+
+// === js/visuals/dj/stage-manager.js ===
+const TRANSITION_TIME = 1.5;
+const Z_ORDER = { 'background': 0, 'floor': 1, 'foreground': 2, 'overlay': 3 };
+
+export class StageManager {
+    constructor() {
+        this.activeDSEs = [];
+    }
+
+    sortZOrder() {
+        this.activeDSEs.sort((a, b) => Z_ORDER[a.metadata.placementType] - Z_ORDER[b.metadata.placementType]);
+    }
+
+    getMaxClimaxHoldTime() {
+        if (this.activeDSEs.length === 0) return 10.0;
+        return Math.max(...this.activeDSEs.map(d => d.metadata.climaxHoldTime || 10.0));
+    }
+
+    clearNonPermanentDSEs() {
+        for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
+            let dse = this.activeDSEs[i];
+            if (dse.metadata.minPlayTime !== Infinity) {
+                dse.state = 'idle';
+                dse.stateTime = 0.0;
+                dse._markedForRemoval = false;
+                this.activeDSEs.splice(i, 1);
+            }
+        }
+    }
+
+    updateCrossfades(macroState, dt) {
+        for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
+            let dse = this.activeDSEs[i];
+            dse.stateTime += dt;
+
+            // 1. Crossfade Ausstieg (Element wird durch den SetlistManager wegrotiert)
+            if (dse._markedForRemoval) {
+                if (dse.state !== 'stopping') { 
+                    dse.state = 'stopping'; 
+                    dse.stateTime = 0.0; 
+                } else if (dse.stateTime >= TRANSITION_TIME) {
+                    dse.state = 'idle'; 
+                    dse.stateTime = 0.0; 
+                    dse._markedForRemoval = false;
+                    this.activeDSEs.splice(i, 1); 
+                }
+                continue; 
+            }
+
+            // 2. Normale State Machine Steuerung
+            if (macroState === 'idle') {
+                // Musik pausiert: Alles weich ausfaden
+                if (dse.state !== 'idle' && dse.state !== 'stopping') { 
+                    dse.state = 'stopping'; 
+                    dse.stateTime = 0.0; 
+                } else if (dse.state === 'stopping' && dse.stateTime >= TRANSITION_TIME) { 
+                    dse.state = 'idle'; 
+                    dse.stateTime = 0.0; 
+                }
+            } else {
+                // Musik läuft
+                if (dse.state === 'idle' || dse.state === 'stopping') { 
+                    // Sanfter Einstieg (Wenn es gerade ausgefadet ist, wird die Zeit für einen fließenden Umkehreffekt invertiert)
+                    dse.state = 'starting'; 
+                    dse.stateTime = dse.state === 'stopping' ? Math.max(0.0, TRANSITION_TIME - dse.stateTime) : 0.0; 
+                } else if (dse.state === 'starting' && dse.stateTime >= TRANSITION_TIME) { 
+                    // Intro beendet -> Ab in den aktiven Modus! (Hier wird die Zeit zum Zählen der Lebensdauer resettet)
+                    dse.state = macroState; 
+                    dse.stateTime = 0.0; 
+                } else if (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax') {
+                    // ARCHITEKTUR-FIX: Wenn der DJ die Intensität ändert, passt sich das DSE an,
+                    // ABER der Timer (stateTime) darf NICHT zurückgesetzt werden!
+                    if (dse.state !== macroState) { 
+                        dse.state = macroState; 
+                    }
+                }
+            }
+        }
+    }
+
+    renderAll(ctx, width, height, t, dynamics, info, metricsWrapper) {
+        metricsWrapper.energy = dynamics.masterEnergy;
+        metricsWrapper.pulse = dynamics.transientPulse;
+        metricsWrapper.beat = dynamics.beatEnvelope;
+        metricsWrapper.smooth = dynamics.channelSmooth;
+        metricsWrapper.rawEnergyState = dynamics.rawEnergyState;
+        metricsWrapper.system = info.system;
+
+        for (let i = 0; i < this.activeDSEs.length; i++) {
+            let dse = this.activeDSEs[i];
+            dse.render(ctx, width, height, t, dse.state, dse.stateTime, metricsWrapper);
         }
     }
 }
 
-===== ./js/visuals/gimmicks/copperbars.js =====
+===== Path: ./js/visuals/dj/tension-manager.js =====
 
-// === js/visuals/gimmicks/copperbars.js ===
+// === js/visuals/dj/tension-manager.js ===
 // =========================================================
-// REAL-TIME COPPERBARS (RASTERBARS) COMPONENT
+// SCENE-DJ SKILL: TENSION MANAGER
+// Interpretiert die Audio-Dynamik, steuert die Tension-Integration
+// und feuert die globalen State-Machine Statusänderungen.
+// Pure Tension Routing: KEIN direkter Climax-Sprung mehr!
+// =========================================================
+
+const MIN_BUILDUP_TIME = 0.5;
+export const TENSION_MAX = 20.0;
+
+export class TensionManager {
+    constructor() {
+        this.tension = 0.0;
+        this.climaxTimer = 0.0;
+        this.isClimaxLocked = false;
+        this.currentClimaxHoldTime = 10.0;
+        this.macroState = 'idle';
+        this.energyStateTimer = 0.0;
+    }
+
+    reset() {
+        this.tension = 0.0;
+        this.climaxTimer = 0.0;
+        this.isClimaxLocked = false;
+        this.energyStateTimer = 0.0;
+        this.macroState = 'idle';
+    }
+
+    update(dynamics, info, stageManager, dt) {
+        this.energyStateTimer += dt;
+        
+        const energy = dynamics.masterEnergy[0];
+        const pulse = dynamics.transientPulse[0];
+        const rawState = dynamics.rawEnergyState;
+
+        let accumulationSpeed = 0.75;
+        if (info.system === 'c64') accumulationSpeed = 0.45;
+        else if (info.system === 'atari') accumulationSpeed = 0.15;
+
+        let targetState = this.macroState;
+
+        if (!info.isPlaying) {
+            this.isClimaxLocked = false;
+            this.tension = Math.max(0.0, this.tension - (dt * 15.0));
+            targetState = 'idle';
+        } else {
+            let isOverdrive = (rawState === 'climax');
+            let isBuildup = (rawState === 'buildup');
+
+            // 1. TENSION-AUFBAU (Kein Direct-Trigger Bypass mehr!)
+            if (!this.isClimaxLocked) {
+                if (isBuildup || isOverdrive) {
+                    let power = (energy * 0.5) + (pulse * 2.0);
+                    
+                    // Moderater Boost bei extremen Drums (vorher 6.0)
+                    if (isOverdrive) power *= 3.5; 
+                    
+                    this.tension += power * accumulationSpeed * dt;
+                    
+                    if (this.tension >= TENSION_MAX) {
+                        this.tension = TENSION_MAX;
+                        this.isClimaxLocked = true;
+                        this.climaxTimer = 0.0;
+                        this.currentClimaxHoldTime = stageManager.getMaxClimaxHoldTime();
+                    }
+                } else {
+                    // Track ist ruhig ('playing') -> Spannung baut sich sanft ab
+                    this.tension = Math.max(0.0, this.tension - (dt * 10.0));
+                }
+            }
+
+            // 2. STATE TARGETING & DEBOUNCING
+            if (this.macroState === 'idle') {
+                // INSTANT WAKE-UP
+                targetState = this.isClimaxLocked ? 'climax' : ((isBuildup || isOverdrive) ? 'buildup' : 'playing');
+            } else if (this.isClimaxLocked) {
+                targetState = 'climax';
+                
+                // Hold-Timer läuft rückwärts, wenn der physikalische Track-Overdrive abgeklungen ist
+                if (!isOverdrive) {
+                    this.climaxTimer += dt;
+                    this.tension = TENSION_MAX * Math.max(0.0, 1.0 - (this.climaxTimer / this.currentClimaxHoldTime));
+                    
+                    if (this.climaxTimer >= this.currentClimaxHoldTime) {
+                        this.isClimaxLocked = false;
+                        this.tension = 0.0;
+                        targetState = (isBuildup || isOverdrive) ? 'buildup' : 'playing';
+                    }
+                } else {
+                    // Solange der Track massiv feuert, pausiert der Hold-Timer
+                    this.climaxTimer = 0.0;
+                    this.tension = TENSION_MAX;
+                }
+            } else {
+                // Debouncing für flüssige Übergänge zwischen Playing und Buildup
+                if (isBuildup || isOverdrive) {
+                    if (this.macroState === 'playing' && this.energyStateTimer > MIN_BUILDUP_TIME) {
+                        targetState = 'buildup';
+                    }
+                } else {
+                    if (this.macroState === 'buildup' && this.energyStateTimer > MIN_BUILDUP_TIME) {
+                        targetState = 'playing';
+                    } else if (this.macroState !== 'buildup') {
+                        targetState = 'playing'; 
+                    }
+                }
+            }
+        }
+
+        // 3. WAKE-UP EVENT SIGNALISIEREN
+        let didWakeUp = false;
+        if (this.macroState !== targetState) {
+            if (this.macroState === 'idle' && targetState !== 'idle') {
+                stageManager.clearNonPermanentDSEs();
+                didWakeUp = true;
+            }
+            this.macroState = targetState;
+            this.energyStateTimer = 0.0;
+        }
+        return didWakeUp;
+    }
+}
+
+===== Path: ./js/visuals/dj/track-monitor.js =====
+
+// === js/visuals/dj/track-monitor.js ===
+export class TrackInfo {
+    constructor() {
+        this.system = 'c64';
+        this.sessionId = -1;
+        this.isPlaying = false;
+    }
+}
+
+export class TrackDynamics {
+    constructor() {
+        this.masterEnergy = new Float32Array(1);
+        this.transientPulse = new Float32Array(1);
+        this.beatEnvelope = new Float32Array(1);
+        this.channelSmooth = new Float32Array(4);
+        this.channelPeaks = new Float32Array(4);
+        this.rawEnergyState = 'playing';
+        this.beatCooldown = 0.0;
+    }
+}
+
+export class TrackMonitor {
+    constructor() {
+        this.info = new TrackInfo();
+        this.dynamics = new TrackDynamics();
+    }
+
+    update(channelVolumes, dt) {
+        let totalEnergy = 0.0;
+        let maxPulse = 0.0;
+        let numActiveChannels = (this.info.system === 'c64' || this.info.system === 'atari') ? 3 : 4;
+
+        for (let i = 0; i < 4; i++) {
+            let rawVol = channelVolumes[i] || 0.0;
+            let smooth = this.dynamics.channelSmooth;
+            let peaks = this.dynamics.channelPeaks;
+
+            let instantPulse = Math.max(0.0, rawVol - smooth[i]);
+            if (instantPulse > maxPulse) maxPulse = instantPulse;
+
+            if (rawVol > smooth[i]) smooth[i] += (rawVol - smooth[i]) * (dt * 20.0);
+            else smooth[i] += (rawVol - smooth[i]) * (dt * 6.0);
+
+            totalEnergy += smooth[i];
+        }
+
+        this.dynamics.masterEnergy[0] = totalEnergy / numActiveChannels;
+        this.dynamics.transientPulse[0] = maxPulse;
+
+        const energy = this.dynamics.masterEnergy[0];
+        const pulse = this.dynamics.transientPulse[0];
+        
+        let buildupThresh = 0.40, overdriveThresh = 0.58, pulseThresh = 0.35;
+        if (this.info.system === 'c64') { buildupThresh = 0.40; overdriveThresh = 0.60; pulseThresh = 0.50; } 
+        else if (this.info.system === 'atari') { buildupThresh = 0.35; overdriveThresh = 0.66; pulseThresh = 0.48; }
+
+        let isOverdrive = (energy > overdriveThresh && pulse > pulseThresh);
+        let isBuildup = (energy > buildupThresh);
+        this.dynamics.rawEnergyState = isOverdrive ? 'climax' : (isBuildup ? 'buildup' : 'playing');
+
+        this.dynamics.beatCooldown -= dt;
+        let beatThresh = pulseThresh * 0.65;
+        if (this.info.isPlaying && pulse > beatThresh && this.dynamics.beatCooldown <= 0.0) {
+            this.dynamics.beatEnvelope[0] = 1.0;
+            this.dynamics.beatCooldown = 0.12;
+        } else {
+            this.dynamics.beatEnvelope[0] *= Math.exp(-dt * 15.0);
+        }
+        if (!this.info.isPlaying) this.dynamics.beatEnvelope[0] = 0.0;
+    }
+}
+
+===== Path: ./js/visuals/dse/amiga/glenz-cube.js =====
+
+// === js/visuals/dse/amiga/glenz-cube.js ===
+export class AmigaCube {
+    constructor() {
+        this.cubeVertices = [[-1, -1, -1], [ 1, -1, -1], [ 1,  1, -1], [-1,  1, -1], [-1, -1,  1], [ 1, -1,  1], [ 1,  1,  1], [-1,  1,  1]];
+        this.cubeFacesDef = [
+            { idxs: [4, 5, 6, 7], baseColor: [255, 102, 0] }, { idxs: [1, 0, 3, 2], baseColor: [255, 102, 0] },
+            { idxs: [3, 2, 6, 7], baseColor: [0, 68, 170] }, { idxs: [1, 5, 4, 0], baseColor: [0, 68, 170] },
+            { idxs: [0, 4, 7, 3], baseColor: [0, 204, 255] }, { idxs: [5, 1, 2, 6], baseColor: [0, 204, 255] }
+        ];
+        this.rotated = Array(8).fill(null).map(() => ({x: 0, y: 0, z: 0}));
+        this.projected = Array(8).fill(null).map(() => ({x: 0, y: 0}));
+        this.facesToDraw = Array(6).fill(null).map(() => ({idxs: null, r: 0, g: 0, b: 0, z: 0, isBackface: false}));
+        this.lastT = 0; this.internalT = 0; this.smoothedSpeed = 1.0;
+    }
+
+    resize(width, height) {}
+
+    render(ctx, width, height, t, state, stateTime, metrics) {
+        if (state === 'idle') { this.lastT = t; return; }
+        let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
+        this.lastT = t;
+
+        let globalAlpha = 1.0;
+        let scaleMultiplier = 1.0;
+        let targetSpeed = 1.0;
+        let beatScale = 0.0;
+
+        if (state === 'starting') {
+            globalAlpha = Math.min(1.0, stateTime / 1.5);
+            scaleMultiplier = globalAlpha;
+        } else if (state === 'stopping') {
+            globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
+            scaleMultiplier = globalAlpha;
+        } else if (state === 'buildup') {
+            targetSpeed = 1.2; // Smoother Anstieg
+            beatScale = 5.0;   // Fast unmerkliches Atmen
+        } else if (state === 'climax') {
+            targetSpeed = 2.5; // Schnelle Drehung
+            beatScale = 30.0;  // Gewaltige Sprünge (Crazy Jumping ist hier gewollt)
+            globalAlpha = 0.8 + (metrics.beat[0] * 0.2); 
+        }
+
+        this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * 0.05;
+        this.internalT += dt * this.smoothedSpeed;
+
+        ctx.globalAlpha = globalAlpha;
+
+        const cx = width / 2; const cy = height / 2;
+        const rx = this.internalT * 0.8; const ry = this.internalT * 1.2; const rz = this.internalT * 0.5;
+        const scale = (110 + Math.sin(this.internalT * 0.75) * 20) * scaleMultiplier + (metrics.beat[0] * beatScale);
+        
+        for (let i = 0; i < 8; i++) {
+            let x = this.cubeVertices[i][0], y = this.cubeVertices[i][1], z = this.cubeVertices[i][2];
+            let y1 = y * Math.cos(rx) - z * Math.sin(rx); let z1 = y * Math.sin(rx) + z * Math.cos(rx);
+            let x2 = x * Math.cos(ry) + z1 * Math.sin(ry); let z2 = -x * Math.sin(ry) + z1 * Math.cos(ry);
+            let x3 = x2 * Math.cos(rz) - y1 * Math.sin(rz); let y3 = x2 * Math.sin(rz) + y1 * Math.cos(rz);
+            this.rotated[i].x = x3; this.rotated[i].y = y3; this.rotated[i].z = z2;
+        }
+
+        const fov = 400;
+        for (let i = 0; i < 8; i++) {
+            const zOff = this.rotated[i].z + 4.0; 
+            this.projected[i].x = cx + (this.rotated[i].x * fov) / zOff * (scale / 100);
+            this.projected[i].y = cy + (this.rotated[i].y * fov) / zOff * (scale / 100);
+        }
+
+        const lx = 0.5, ly = -0.5, lz = -0.7;
+        const lLen = Math.sqrt(lx*lx + ly*ly + lz*lz); const nlx = lx / lLen, nly = ly / lLen, nlz = lz / lLen;
+
+        for (let i = 0; i < 6; i++) {
+            const faceDef = this.cubeFacesDef[i]; const idxs = faceDef.idxs;
+            const p0 = this.rotated[idxs[0]], p1 = this.rotated[idxs[1]], p2 = this.rotated[idxs[2]];
+            const zCentroid = (p0.z + p1.z + p2.z + this.rotated[idxs[3]].z) / 4.0;
+            const abX = p1.x - p0.x, abY = p1.y - p0.y, abZ = p1.z - p0.z;
+            const acX = p2.x - p0.x, acY = p2.y - p0.y, acZ = p2.z - p0.z;
+
+            let nx = abY * acZ - abZ * acY; let ny = abZ * acX - abX * acZ; let nz = abX * acY - abY * acX;
+            const len = Math.sqrt(nx*nx + ny*ny + nz*nz); if (len > 0) { nx /= len; ny /= len; nz /= len; }
+
+            const dotLight = nx * nlx + ny * nly + nz * nlz;
+            const brightness = 0.35 + 0.65 * Math.max(0.0, -dotLight);
+            const vLen = Math.sqrt(p0.x*p0.x + p0.y*p0.y + (p0.z + 4.0)*(p0.z + 4.0));
+            const nvx = p0.x / vLen, nvy = p0.y / vLen, nvz = (p0.z + 4.0) / vLen;
+
+            let f = this.facesToDraw[i];
+            f.idxs = idxs; f.r = Math.round(faceDef.baseColor[0] * brightness); f.g = Math.round(faceDef.baseColor[1] * brightness); f.b = Math.round(faceDef.baseColor[2] * brightness); f.z = zCentroid;
+            f.isBackface = (nx * nvx + ny * nvy + nz * nvz >= 0);
+        }
+
+        this.facesToDraw.sort((a, b) => b.z - a.z);
+
+        for (let i = 0; i < 6; i++) {
+            let face = this.facesToDraw[i]; let idxs = face.idxs;
+            ctx.beginPath(); ctx.moveTo(this.projected[idxs[0]].x, this.projected[idxs[0]].y); ctx.lineTo(this.projected[idxs[1]].x, this.projected[idxs[1]].y); ctx.lineTo(this.projected[idxs[2]].x, this.projected[idxs[2]].y); ctx.lineTo(this.projected[idxs[3]].x, this.projected[idxs[3]].y); ctx.closePath();
+
+            if (face.isBackface) {
+                ctx.fillStyle = `rgba(${face.r * 0.4}, ${face.g * 0.4}, ${face.b * 0.4}, 0.28)`; ctx.fill();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)'; ctx.lineWidth = 1.0; ctx.stroke();
+            } else {
+                ctx.fillStyle = `rgba(${face.r}, ${face.g}, ${face.b}, 0.65)`; ctx.fill();
+                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.8; ctx.stroke();
+            }
+        }
+        ctx.globalAlpha = 1.0;
+    }
+}
+
+===== Path: ./js/visuals/dse/atari/lissajous-bobs.js =====
+
+// === js/visuals/dse/atari/lissajous-bobs.js ===
+// =========================================================
+// CLASSIC LISSAJOUS METAL-BOB CHAIN (ATARI ST GIMMICK)
+// Refactored with strict Aspect-Ratio & High-DPI Scaling (v1.2.0)
+// =========================================================
+
+export class AtariBobs {
+    constructor() {
+        this.name = 'Atari Lissajous Bobs'; 
+        this.computerType = ['atari']; 
+        this.placementType = 'foreground';
+        
+        this.numBobs = 45; 
+        
+        // Vergrößert auf 48px für knackscharfe Texturen auf 4K/Retina-Displays
+        this.bobSize = 48; 
+        this.bobCanvas = document.createElement('canvas'); 
+        this.bobCanvas.width = this.bobSize; 
+        this.bobCanvas.height = this.bobSize;
+        const bCtx = this.bobCanvas.getContext('2d');
+        
+        const cx = this.bobSize / 2; 
+        const cy = this.bobSize / 2;
+        
+        // Radial-Gradient auf die neue Texturgröße angepasst
+        const grad = bCtx.createRadialGradient(cx - 7, cy - 7, 1, cx, cy, this.bobSize / 2);
+        grad.addColorStop(0.0, '#ffffff'); 
+        grad.addColorStop(0.2, '#99ff99'); 
+        grad.addColorStop(0.55, '#33ff33'); 
+        grad.addColorStop(0.85, '#005500'); 
+        grad.addColorStop(1.0, 'rgba(0, 10, 0, 0)'); 
+        
+        bCtx.fillStyle = grad; 
+        bCtx.beginPath(); 
+        bCtx.arc(cx, cy, this.bobSize / 2, 0, Math.PI * 2); 
+        bCtx.fill();
+        
+        this.lastT = 0; 
+        this.internalT = 0; 
+        this.smoothedSpeed = 1.0;
+    }
+
+    resize(width, height) {}
+
+    render(ctx, width, height, t, state, stateTime, metrics) {
+        if (state === 'idle') { this.lastT = t; return; }
+        let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
+        this.lastT = t;
+
+        let globalAlpha = 1.0;
+        let targetSpeed = 1.0;
+        let scaleMultiplier = 1.0;
+        let beatScale = 0.0;
+
+        if (state === 'starting') {
+            globalAlpha = Math.min(1.0, stateTime / 1.5);
+            scaleMultiplier = globalAlpha;
+        } else if (state === 'stopping') {
+            globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
+            scaleMultiplier = globalAlpha;
+        } else if (state === 'buildup') {
+            targetSpeed = 1.2; 
+            beatScale = 2.0;   
+        } else if (state === 'climax') {
+            targetSpeed = 2.0;
+            globalAlpha = 0.8 + (metrics.beat[0] * 0.2); 
+            beatScale = 12.0;  
+        }
+
+        this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * 0.05;
+        this.internalT += dt * this.smoothedSpeed;
+
+        ctx.globalAlpha = globalAlpha;
+        const cx = width / 2; 
+        const cy = height / 2;
+        
+        // =========================================================
+        // MATHEMATISCHER FIX: Aspect-Ratio Preservation
+        // Berechnet beide Radien relativ zur KLEINSTEN Bildschirmseite (minDim).
+        // Verhindert das Zerquetschen auf Handys und das Strecken im Widescreen!
+        // =========================================================
+        const minDim = Math.min(width, height);
+        
+        // Perfekt austarierte, proportionale Orbits (kein Herausrutschen aus dem Screen)
+        const radiusX = (minDim * 0.38) * (1.0 + Math.sin(this.internalT * 0.4) * 0.25) * scaleMultiplier;
+        const radiusY = (minDim * 0.28) * (1.0 + Math.cos(this.internalT * 0.5) * 0.2) * scaleMultiplier;
+        
+        // Proportionale Skalierung der Sprite-Größe an die Bildschirmauflösung
+        const baseBobSize = 6.0 + minDim * 0.022; 
+        const phaseStep = (Math.PI * 2) / this.numBobs;
+        
+        for (let i = 0; i < this.numBobs; i++) {
+            const phase = i * phaseStep;
+            const x = cx + Math.sin(this.internalT * 1.4 + phase) * radiusX;
+            const y = cy + Math.sin(this.internalT * 2.1 + phase) * Math.cos(this.internalT * 1.1 + phase) * radiusY;
+            
+            const size = (baseBobSize + Math.sin(this.internalT * 3.5 + phase) * (baseBobSize * 0.4)) * scaleMultiplier + (metrics.beat[0] * beatScale);
+            
+            ctx.drawImage(this.bobCanvas, x - size / 2, y - size / 2, size, size);
+        }
+        ctx.globalAlpha = 1.0;
+    }
+}
+
+===== Path: ./js/visuals/dse/registry.js =====
+
+// === js/visuals/dse/registry.js ===
+// =========================================================
+// DEMO-SCENE-ELEMENT (DSE) REGISTRY & METADATA SCHEMAS
+// Centralized configuration file acting as a single source 
+// of truth for all orchestration, limits, and weights.
+// =========================================================
+
+import { LimitBar } from './universal/limit-bar.js';
+import { Copperbars } from './universal/copperbars.js';
+import { VoidElement } from './universal/void-element.js'; // NEU: Universeller Platzhalter
+import { RetroSunset } from './universal/retro-sunset.js';
+import { Starfield } from './universal/starfield.js'; 
+import { AmigaCube } from './amiga/glenz-cube.js';
+import { AtariBobs } from './atari/lissajous-bobs.js';
+
+function defineDSE(DseClass, customMetadata) {
+    const defaults = {
+        name: DseClass.name,
+        computerType: ['all'],                  
+        placementType: 'foreground',            
+        energyLevel: ['idle', 'playing', 'buildup', 'climax'],
+        weight: 10,                             
+        minPlayTime: 15.0,                      
+        climaxHoldTime: 10.0,
+        isVoid: false // NEU: Standardmäßig ist ein Element sichtbar (kein Void)
+    };
+
+    const metadata = { ...defaults, ...customMetadata };
+
+    if (!Array.isArray(metadata.computerType)) throw new Error(`[DSE Schema] ${metadata.name}: 'computerType' must be an Array.`);
+    const validPlacements = ['background', 'floor', 'foreground', 'overlay'];
+    if (!validPlacements.includes(metadata.placementType)) throw new Error(`[DSE Schema] ${metadata.name}: Invalid placementType.`);
+    if (typeof metadata.isVoid !== 'boolean') throw new Error(`[DSE Schema] ${metadata.name}: 'isVoid' must be a Boolean.`);
+    if (typeof metadata.weight !== 'number' || metadata.weight <= 0) throw new Error(`[DSE Schema] ${metadata.name}: 'weight' must be a positive Number.`);
+
+    return { Class: DseClass, metadata: metadata };
+}
+
+export const dseRegistry = [
+    
+    // --- OVERLAYS ---
+    defineDSE(LimitBar, {
+        placementType: 'overlay',
+        computerType: ['all'],
+        weight: 1,                
+        minPlayTime: Infinity,    
+        climaxHoldTime: 0.0
+    }),
+
+    // --- BACKGROUNDS (Tauschen sich nun gegenseitig aus!) ---
+    defineDSE(Starfield, {
+        placementType: 'background',
+        computerType: ['all'], 
+        weight: 7,               
+        minPlayTime: 15.0,
+        climaxHoldTime: 8.0
+    }),
+    
+    defineDSE(RetroSunset, {
+        placementType: 'background',
+        computerType: ['all'],
+        weight: 10,              
+        minPlayTime: 15.0,
+        climaxHoldTime: 12.0
+    }),
+
+    defineDSE(VoidElement, {
+        name: 'VoidBackground', // Weist der universellen Klasse einen spezifischen Namen zu
+        placementType: 'background',
+        computerType: ['all'],
+        weight: 5,              // Geringeres Gewicht = seltener als echte Grafik-Hintergründe
+        minPlayTime: 15.0,
+        climaxHoldTime: 0.0,
+        isVoid: true            // Als Void-Element markiert
+    }),
+
+    // --- FLOORS (Tauschen sich nun gegenseitig aus!) ---
+    defineDSE(Copperbars, {
+        placementType: 'floor',
+        computerType: ['all'],
+        weight: 8,               
+        minPlayTime: 15.0,
+        climaxHoldTime: 12.0
+    }),
+
+    defineDSE(VoidElement, {
+        name: 'VoidFloor',
+        placementType: 'floor',
+        computerType: ['all'],
+        weight: 8,               
+        minPlayTime: 15.0,
+        climaxHoldTime: 0.0,
+        isVoid: true
+    }),
+    
+    // --- FOREGROUNDS (Tauschen sich nun gegenseitig aus!) ---
+    defineDSE(AmigaCube, {
+        placementType: 'foreground',
+        computerType: ['amiga'],
+        weight: 10,
+        minPlayTime: 15.0,
+        climaxHoldTime: 15.0
+    }),
+    
+    defineDSE(AtariBobs, {
+        placementType: 'foreground',
+        computerType: ['atari'],
+        weight: 10,
+        minPlayTime: 15.0,
+        climaxHoldTime: 10.0
+    }),
+
+    defineDSE(VoidElement, {
+        name: 'VoidForeground',
+        placementType: 'foreground',
+        computerType: ['all'],
+        weight: 5,               
+        minPlayTime: 15.0,
+        climaxHoldTime: 0.0,
+        isVoid: true
+    })
+];
+
+===== Path: ./js/visuals/dse/universal/copperbars.js =====
+
+// === js/visuals/dse/universal/copperbars.js ===
+// =========================================================
+// DEMO-SCENE-ELEMENT: REAL-TIME COPPERBARS (RASTERBARS)
 // Pseudo-3D Z-Buffer Sorting (Helix Orbit) & Depth Shading
-// Symmetrical Phase-Staggering (Non-Clumping DNA Helix)
+// Refactored with strict continuous math to prevent Y-axis jumps
 // =========================================================
 
 export class Copperbars {
     constructor() {
-        // GFX UPGRADE: Nochmals deutlich (ca. 30%) dünner für eine filigranere Ribbon-Optik
-        // Werte proportional verringert auf: [90, 68, 50, 40]
-        this.baseThickness = [90, 68, 50, 40]; 
-        
+        this.baseThickness = [52, 40, 30, 22]; 
         this.heightWeights = [0.24, 0.24, 0.24, 0.24];
         this.colorCache = {};
-        this.smoothedVols = [0, 0, 0, 0];
+        
+        this.barsToDraw = [
+            { y: 0, h: 0, vol: 0, z: 0, pal: null },
+            { y: 0, h: 0, vol: 0, z: 0, pal: null },
+            { y: 0, h: 0, vol: 0, z: 0, pal: null },
+            { y: 0, h: 0, vol: 0, z: 0, pal: null }
+        ];
+
+        this.sortedBars = Array(4).fill(null);
+        
+        // Zero-Allocation Akkumulatoren für Continuous Math
+        this.lastT = 0;
+        this.internalT = 0;
+        this.smoothedSpeed = 1.0;
+        this.smoothedAmplitude = 0.85;
+        this.smoothedTwist = 0.0;
+        this.smoothedBeatPunch = 0.0;
     }
 
     hexToRgb(hex) {
@@ -4362,41 +5635,42 @@ export class Copperbars {
         return rgb;
     }
 
-    drawCopperbar(ctx, w, y, height, volume, hexStart, hexEnd, scanlineHeight, colorBitShift, z) {
-        if (volume <= 0.01) return;
+    drawCopperbar(ctx, w, y, height, volume, hexStart, hexEnd, scanlineHeight, colorBitShift, z, globalAlpha) {
+        if (volume <= 0.01 || height <= 0 || globalAlpha <= 0.01) return;
         
         const cS = this.hexToRgb(hexStart);
         const cE = this.hexToRgb(hexEnd);
-        const cBlk = [0, 0, 0];
         const cWht = [255, 255, 255];
         
         const steps = Math.max(1, Math.floor(height / scanlineHeight));
         const depthFactor = 0.82 + (z * 0.18); 
 
+        ctx.globalAlpha = globalAlpha;
+
         for(let i = 0; i <= steps; i++) {
             let t = i / steps; 
             let r, g, b;
             
-            if (t < 0.18) {
-                let n = t / 0.18;
-                r = cBlk[0] + (cS[0] - cBlk[0]) * n;
-                g = cBlk[1] + (cS[1] - cBlk[1]) * n;
-                b = cBlk[2] + (cBlk[2] - cBlk[2]) * n; 
-            } else if (t < 0.5) {
-                let n = (t - 0.18) / 0.32;
-                r = cS[0] + (cWht[0] - cS[0]) * n;
-                g = cS[1] + (cWht[1] - cS[1]) * n;
-                b = cS[2] + (cWht[2] - cS[2]) * n;
-            } else if (t < 0.82) {
-                let n = (t - 0.5) / 0.32;
+            if (t < 0.2) {
+                let n = t / 0.2;
+                r = cS[0] + (cE[0] - cS[0]) * n;
+                g = cS[1] + (cE[1] - cS[1]) * n;
+                b = cS[2] + (cE[2] - cS[2]) * n; 
+            } else if (t < 0.4) {
+                let n = (t - 0.2) / 0.2;
+                r = cE[0] + (cWht[0] - cE[0]) * n;
+                g = cE[1] + (cWht[1] - cE[1]) * n;
+                b = cE[2] + (cWht[2] - cE[2]) * n;
+            } else if (t < 0.6) {
+                let n = (t - 0.4) / 0.2;
                 r = cWht[0] + (cE[0] - cWht[0]) * n;
                 g = cWht[1] + (cE[1] - cWht[1]) * n;
                 b = cWht[2] + (cE[2] - cWht[2]) * n;
             } else {
-                let n = (t - 0.82) / 0.18;
-                r = cE[0] + (cBlk[0] - cE[0]) * n;
-                g = cE[1] + (cBlk[1] - cE[1]) * n;
-                b = cE[2] + (cBlk[2] - cE[2]) * n;
+                let n = (t - 0.6) / 0.4;
+                r = cE[0] + (cS[0] - cE[0]) * n;
+                g = cE[1] + (cS[1] - cE[1]) * n;
+                b = cE[2] + (cS[2] - cE[2]) * n;
             }
             
             r *= depthFactor;
@@ -4409,333 +5683,763 @@ export class Copperbars {
             let b_q = (b | 0) & mask; b_q |= (b_q >> (8 - colorBitShift));
             
             ctx.fillStyle = `rgb(${r_q}, ${g_q}, ${b_q})`;
-            
             let drawY = Math.floor(y + i * scanlineHeight);
             ctx.fillRect(0, drawY, w, scanlineHeight);
         }
+        ctx.globalAlpha = 1.0; 
     }
 
-    render(ctx, width, height, t, channelVolumes) {
-        const isAmiga = document.body.classList.contains('theme-amiga');
-        const isAtari = document.body.classList.contains('theme-atari');
-        const isC64 = document.body.classList.contains('theme-c64');
+    resize(width, height) {}
+
+    render(ctx, width, height, t, state, stateTime, metrics) {
+        if (state === 'idle') { this.lastT = t; return; }
+
+        let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
+        this.lastT = t;
+
+        const isAmiga = metrics.system === 'amiga';
+        const isAtari = metrics.system === 'atari';
+        const isC64 = metrics.system === 'c64';
         
         const numBars = isAmiga ? 4 : 3;
         const pals = [
             isAtari ? ['#003300', '#00aa00'] : isAmiga ? ['#000066', '#0055ff'] : ['#201a60', '#6c5eb5'],
             isAtari ? ['#333300', '#aaaa00'] : isAmiga ? ['#663300', '#ff8800'] : ['#660033', '#ff00aa'],
             isAtari ? ['#003333', '#00aaaa'] : isAmiga ? ['#330066', '#aa00ff'] : ['#333333', '#aaaaaa'],
-            isAmiga ? ['#111111', '#888888'] : []
+            isAmiga ? ['#222222', '#999999'] : [] 
         ];
 
-        let scanlineHeight = 4;
-        let colorBitShift = 4; 
-        
-        if (isAtari) {
-            colorBitShift = 5; 
-        } else if (isC64) {
-            scanlineHeight = 8; 
-            colorBitShift = 6;  
+        let scanlineHeight = isC64 ? 8 : 4;
+        let colorBitShift = isAtari ? 5 : (isC64 ? 6 : 4);
+
+        let globalAlpha = 1.0;
+        let targetSpeed = 1.0;
+        let targetAmplitude = 0.85; 
+
+        let punchBase = 15.0; 
+        let targetBeatPunch = 0.0;
+        let targetTwist = 0.0;
+
+        if (state === 'starting') {
+            globalAlpha = Math.min(1.0, stateTime / 1.5);
+            targetAmplitude = globalAlpha * 0.85;
+        } else if (state === 'stopping') {
+            globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
+            targetAmplitude = globalAlpha * 0.85;
+        } else if (state === 'buildup') {
+            targetSpeed = 1.2;           
+            targetAmplitude = 0.95;      
+            targetBeatPunch = 8.0;             
+        } else if (state === 'climax') {
+            targetSpeed = 1.8;           
+            targetAmplitude = 1.1;   
+            targetBeatPunch = 35.0;            
+            globalAlpha = 0.85 + (metrics.beat[0] * 0.15); 
+            targetTwist = 18.0; 
         }
 
         // =========================================================
-        // DSP UPGRADE: SYMMETRICAL PHASE STAGGERING
-        // Wir takten alle Balken mit exakt derselben majestätischen Geschwindigkeit (0.55).
-        // Der Winkelabstand wird dynamisch geteilt (90° bei Amiga, 120° bei Atari/C64).
-        // Dadurch umkreisen sich die Balken in perfekter Symmetrie ohne Klumpenbildung!
+        // CONTINUOUS MATH SMOOTHING
+        // Alle Modifikatoren werden framerate-unabhängig geglättet.
         // =========================================================
-        const baseSpeed = 0.55; 
-        const phaseStep = (Math.PI * 2) / numBars; // Dynamische Kreisaufteilung
+        this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * Math.min(1.0, dt * 5.0);
+        this.smoothedAmplitude += (targetAmplitude - this.smoothedAmplitude) * Math.min(1.0, dt * 5.0);
+        this.smoothedBeatPunch += (targetBeatPunch - this.smoothedBeatPunch) * Math.min(1.0, dt * 10.0);
+        this.smoothedTwist += (targetTwist - this.smoothedTwist) * Math.min(1.0, dt * 8.0);
 
-        const barsToDraw = [];
+        this.internalT += dt * this.smoothedSpeed;
+
+        const baseSpeed = 0.55; 
+        // FIX: Der Abstandswinkel MUSS statisch sein, sonst "teleportieren" die Balken vertikal!
+        const phaseStep = (Math.PI * 2) / numBars; 
 
         for (let c = 0; c < numBars; c++) {
-            const rawVol = channelVolumes[c] || 0;
+            const smoothVol = metrics.smooth[c]; 
+            const punch = (smoothVol * punchBase) + (metrics.beat[0] * this.smoothedBeatPunch); 
             
-            // Tight Asymmetric Envelope Follower
-            if (rawVol > this.smoothedVols[c]) {
-                this.smoothedVols[c] += (rawVol - this.smoothedVols[c]) * 0.8;
-            } else {
-                this.smoothedVols[c] += (rawVol - this.smoothedVols[c]) * 0.16;
-            }
+            const amplitude = (height * this.heightWeights[c]) * this.smoothedAmplitude;
+            const angle = (this.internalT * baseSpeed) + (c * phaseStep);
             
-            const smoothVol = this.smoothedVols[c];
-            
-            // GFX UPGRADE: Puls proportional um ca. 30% gedrosselt (von 55 auf 40)
-            // Dadurch bleibt das Aufblähen der dünneren Bänder extrem edel und harmonisch
-            const punch = smoothVol * 40; 
-            
-            const amplitude = height * this.heightWeights[c];
-            
-            // Die Phase ist nun mathematisch exakt aufgeteilt
-            const angle = (t * baseSpeed) + (c * phaseStep);
-            
-            // Y-Welle (Sinus)
             let yCenter = (height / 2);
             yCenter += Math.sin(angle) * amplitude;
             
-            // Ein Hauch asynchrone Z-Drift, die die perfekte Helix-Symmetrie nicht stört
+            // 1. Permanentes Wobbeln (erzeugt die 3D Helix-Brechung)
             yCenter += Math.cos(angle * 1.5) * (amplitude * 0.12);
             
-            // Z-Tiefe (Cosinus)
-            const zDepth = Math.cos(angle);
-
-            barsToDraw.push({
-                y: yCenter,
-                h: this.baseThickness[c] + punch,
-                vol: smoothVol,
-                z: zDepth,
-                pal: pals[c]
-            });
+            // 2. Additiver Twist: Fließt sanft im Climax mit ein, 
+            // ohne die vorherige Grundbewegung hart abzuschneiden!
+            if (this.smoothedTwist > 0.01) {
+                yCenter += Math.sin(this.internalT * 6.0 + c * 2.0) * (this.smoothedTwist * metrics.beat[0]);
+            }
+            
+            let bar = this.barsToDraw[c];
+            bar.y = yCenter; bar.h = this.baseThickness[c] + punch; bar.vol = smoothVol; bar.z = Math.cos(angle); bar.pal = pals[c];
         }
 
-        // Painter's Algorithm (Z-Sorting)
-        barsToDraw.sort((a, b) => a.z - b.z);
-
-        // Rendern im Z-Index
-        barsToDraw.forEach(bar => {
-            this.drawCopperbar(ctx, width, bar.y - bar.h / 2, bar.h, bar.vol, bar.pal[0], bar.pal[1], scanlineHeight, colorBitShift, bar.z);
-        });
+        for (let i = 0; i < numBars; i++) this.sortedBars[i] = this.barsToDraw[i];
+        for (let i = 0; i < numBars - 1; i++) {
+            for (let j = 0; j < numBars - i - 1; j++) {
+                if (this.sortedBars[j].z > this.sortedBars[j + 1].z) {
+                    let temp = this.sortedBars[j]; this.sortedBars[j] = this.sortedBars[j + 1]; this.sortedBars[j + 1] = temp;
+                }
+            }
+        }
+        for (let i = 0; i < numBars; i++) {
+            let bar = this.sortedBars[i];
+            this.drawCopperbar(ctx, width, bar.y - bar.h / 2, bar.h, bar.vol, bar.pal[0], bar.pal[1], scanlineHeight, colorBitShift, bar.z, globalAlpha);
+        }
     }
 }
 
-===== ./js/visuals/gimmicks/cube-amiga.js =====
+===== Path: ./js/visuals/dse/universal/limit-bar.js =====
 
-// === js/visuals/gimmicks/cube-amiga.js ===
+// === js/visuals/dse/universal/limit-bar.js ===
 // =========================================================
-// ROTATING SOLID 3D GLENZ-VECTOR CUBE (PHENOMENA STYLE)
-// Features: Pure mathematical choreography (music-independent),
-// 3D perspective projection, Z-Centroid Sorting, and Flat-Shading.
+// DEMO-SCENE-ELEMENT: TENSION LIMIT BAR
+// System-Themed reactive tension visualization (Borderless, No-Text)
+// Includes precision color mapping for Tension state milestones.
 // =========================================================
 
-export class AmigaCube {
+const C64_COLS = ['#352879', '#6c5eb5', '#b5b5b5', '#ffffff', '#ff8a8a', '#ffff33'];
+
+export class LimitBar {
     constructor() {
-        this.cubeVertices = [
-            [-1, -1, -1], [ 1, -1, -1], [ 1,  1, -1], [-1,  1, -1],
-            [-1, -1,  1], [ 1, -1,  1], [ 1,  1,  1], [-1,  1,  1]
-        ];
-
-        this.cubeFaces = [
-            { idxs: [4, 5, 6, 7], baseColor: [255, 102, 0] },
-            { idxs: [1, 0, 3, 2], baseColor: [255, 102, 0] },
-            { idxs: [3, 2, 6, 7], baseColor: [0, 68, 170] },
-            { idxs: [1, 5, 4, 0], baseColor: [0, 68, 170] },
-            { idxs: [0, 4, 7, 3], baseColor: [0, 204, 255] },
-            { idxs: [5, 1, 2, 6], baseColor: [0, 204, 255] }
-        ];
+        this.displayAlpha = 0.0; 
     }
 
-    render(ctx, width, height, t) {
-        const cx = width / 2;
-        const cy = height / 2;
+    resize(width, height) {}
+
+    render(ctx, width, height, t, state, stateTime, metrics) {
+        if (state === 'idle') return;
+
+        let pct = metrics.tensionPct;
+        let isFlashing = false;
+
+        let animIntensity = (state === 'climax') ? 1.0 : pct;
+
+        if (state === 'climax') {
+            if (metrics.rawEnergyState === 'climax') {
+                pct = 1.0;
+            } else if (metrics.isClimaxLocked) {
+                pct = Math.max(0.0, 1.0 - (metrics.climaxTimer / metrics.climaxHoldTime));
+            }
+            // Micro-Dynamics: Strobe-Flashing ist 100% synchron zur Kick-Drum
+            isFlashing = (metrics.beat[0] > 0.5);
+        }
+        pct = Math.max(0, Math.min(1.0, pct));
+
+        let isActive = (pct > 0.001 || state === 'climax' || metrics.isClimaxLocked);
+        let targetAlpha = isActive ? 1.0 : 0.0;
         
-        // Konstante, seidenweiche Rotation
-        const rx = t * 0.8;
-        const ry = t * 1.2;
-        const rz = t * 0.5;
+        this.displayAlpha += (targetAlpha - this.displayAlpha) * 0.1;
+
+        let globalAlpha = 1.0;
+        if (state === 'starting') {
+            globalAlpha = Math.min(1.0, stateTime / 1.5);
+        } else if (state === 'stopping') {
+            globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
+        }
         
-        // CHOREOGRAPHIE UPGRADE: Majestätisches, musik-unabhängiges Atmen
-        // Der Würfel pulsiert langsam und organisch durch eine Sinuswelle
-        const scale = 110 + Math.sin(t * 0.75) * 20;
-        
-        const rotated = [];
-        this.cubeVertices.forEach(v => {
-            let x = v[0], y = v[1], z = v[2];
-            
-            let y1 = y * Math.cos(rx) - z * Math.sin(rx);
-            let z1 = y * Math.sin(rx) + z * Math.cos(rx);
-            let x2 = x * Math.cos(ry) + z1 * Math.sin(ry);
-            let z2 = -x * Math.sin(ry) + z1 * Math.cos(ry);
-            let x3 = x2 * Math.cos(rz) - y1 * Math.sin(rz);
-            let y3 = x2 * Math.sin(rz) + y1 * Math.cos(rz);
-            
-            rotated.push({ x: x3, y: y3, z: z2 });
-        });
+        globalAlpha *= this.displayAlpha;
+        if (globalAlpha <= 0.01) return;
+        ctx.globalAlpha = globalAlpha;
 
-        const projected = [];
-        rotated.forEach(v => {
-            const fov = 400;
-            const zOff = v.z + 4.0; 
-            const px = cx + (v.x * fov) / zOff * (scale / 100);
-            const py = cy + (v.y * fov) / zOff * (scale / 100);
-            projected.push({ x: px, y: py });
-        });
+        const w = 240;
+        const h = 18;
+        const x = 20;
+        const y = height - h - 20;
 
-        const lx = 0.5, ly = -0.5, lz = -0.7;
-        const lLen = Math.sqrt(lx*lx + ly*ly + lz*lz);
-        const nlx = lx / lLen, nly = ly / lLen, nlz = lz / lLen;
+        if (metrics.system === 'c64') {
+            // --- C64 STYLE ---
+            let segCount = 20;
+            let gap = 2;
+            let segW = (w / segCount) - gap;
+            let activeSegs = Math.floor(pct * segCount);
+            let activeW = activeSegs > 0 ? (activeSegs * (segW + gap) - gap) : 0;
 
-        const facesToDraw = [];
-        this.cubeFaces.forEach(face => {
-            const idxs = face.idxs;
-            const zCentroid = (rotated[idxs[0]].z + rotated[idxs[1]].z + rotated[idxs[2]].z + rotated[idxs[3]].z) / 4.0;
-            
-            const p0 = rotated[idxs[0]];
-            const p1 = rotated[idxs[1]];
-            const p2 = rotated[idxs[2]];
+            if (animIntensity > 0.05 && activeW > 0) {
+                let borderThick = Math.floor(2 + animIntensity * 6);
+                let numStripes = 6;
+                let stripeH = (h + borderThick * 2) / numStripes;
+                for (let i = 0; i < numStripes; i++) {
+                    let colIdx = Math.floor((t * (5 + animIntensity * 15) + i) % 4);
+                    // Flackert rot/gelb bei extremem Beat!
+                    if (animIntensity >= 1.0 && metrics.beat[0] > 0.3) colIdx = 4 + Math.floor(Math.random() * 2); 
+                    
+                    ctx.fillStyle = C64_COLS[colIdx];
+                    ctx.fillRect(x - borderThick, Math.floor(y - borderThick + i * stripeH), activeW + borderThick * 2, Math.ceil(stripeH));
+                }
+            }
 
-            const abX = p1.x - p0.x, abY = p1.y - p0.y, abZ = p1.z - p0.z;
-            const acX = p2.x - p0.x, acY = p2.y - p0.y, acZ = p2.z - p0.z;
+            for (let i = 0; i < activeSegs; i++) {
+                // Präzise Zuweisung anhand des Fortschritts:
+                // 0-45% = Blau, 50-90% = Weiß, 95-100% = Rot
+                let color = '#6c5eb5'; 
+                if (i >= 19) color = '#ff8a8a';      // Das absolute Climax-Segment (100%)
+                else if (i >= 10) color = '#ffffff'; // Die Tension Build-Up Phase (ab 50%)
+                
+                if (isFlashing) color = '#ffffff';
+                
+                ctx.fillStyle = color;
+                ctx.fillRect(x + i * (segW + gap), y, segW, h); 
+            }
 
-            let nx = abY * acZ - abZ * acY;
-            let ny = abZ * acX - abX * acZ;
-            let nz = abX * acY - abY * acX;
+        } else if (metrics.system === 'amiga') {
+            // --- AMIGA STYLE ---
+            let activeW = w * pct;
 
-            const len = Math.sqrt(nx*nx + ny*ny + nz*nz);
-            if (len > 0) { nx /= len; ny /= len; nz /= len; }
+            if (animIntensity > 0.05 && activeW > 0) {
+                let sweepSpeed = t * (2 + animIntensity * 8);
+                let sweepPos = (Math.sin(sweepSpeed) * 0.5 + 0.5) * activeW;
+                let glowAlpha = 0.2 + animIntensity * 0.5;
+                
+                ctx.globalCompositeOperation = 'screen';
+                ctx.fillStyle = `rgba(255, 255, 255, ${glowAlpha})`;
+                ctx.fillRect(x + sweepPos - 15, y - 4, 30, h + 8);
+                ctx.fillStyle = `rgba(255, 255, 255, ${glowAlpha * 1.5})`;
+                ctx.fillRect(x + sweepPos - 5, y - 4, 10, h + 8);
+                ctx.globalCompositeOperation = 'source-over';
+                
+                if (animIntensity >= 1.0) {
+                    let bY = y + h/2 + Math.sin(t * 20) * 8;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(x - 8, Math.floor(bY) - 3, 6, 6);
+                    ctx.fillRect(x + activeW + 2, Math.floor(bY) - 3, 6, 6);
+                }
+            }
 
-            const dotLight = nx * nlx + ny * nly + nz * nlz;
-            const brightness = 0.35 + 0.65 * Math.max(0.0, -dotLight);
+            if (pct > 0) {
+                // Harte Color-Stops für präzise Meilensteine
+                let grad = ctx.createLinearGradient(x, y, x + activeW, y);
+                grad.addColorStop(0.0, '#0055ff'); // Blau
+                grad.addColorStop(0.5, '#ff8800'); // Orange (50%)
+                grad.addColorStop(0.95, '#ff8800'); // Hält Orange bis kurz vor Schluss
+                grad.addColorStop(1.0, '#ff0000'); // Rot beim Climax-Hit
+                
+                ctx.fillStyle = isFlashing ? '#ffffff' : grad;
+                ctx.fillRect(x, y, activeW, h); 
+            }
 
-            const vx = p0.x, vy = p0.y, vz = p0.z + 4.0;
-            const vLen = Math.sqrt(vx*vx + vy*vy + vz*vz);
-            const nvx = vx / vLen, nvy = vy / vLen, nvz = vz / vLen;
+        } else {
+            // --- ATARI ST STYLE ---
+            let segCount = 24;
+            let gap = 2;
+            let segW = (w / segCount) - gap;
+            let activeSegs = Math.floor(pct * segCount);
+            let activeW = activeSegs > 0 ? (activeSegs * (segW + gap) - gap) : 0;
 
-            const dotCull = nx * nvx + ny * nvy + nz * nvz;
-            const isBackface = (dotCull >= 0);
-
-            facesToDraw.push({
-                idxs: idxs,
-                r: Math.round(face.baseColor[0] * brightness),
-                g: Math.round(face.baseColor[1] * brightness),
-                b: Math.round(face.baseColor[2] * brightness),
-                z: zCentroid,
-                isBackface: isBackface
-            });
-        });
-
-        facesToDraw.sort((a, b) => b.z - a.z);
-
-        facesToDraw.forEach(face => {
-            const idxs = face.idxs;
-
-            ctx.beginPath();
-            ctx.moveTo(projected[idxs[0]].x, projected[idxs[0]].y);
-            ctx.lineTo(projected[idxs[1]].x, projected[idxs[1]].y);
-            ctx.lineTo(projected[idxs[2]].x, projected[idxs[2]].y);
-            ctx.lineTo(projected[idxs[3]].x, projected[idxs[3]].y);
-            ctx.closePath();
-
-            if (face.isBackface) {
-                ctx.fillStyle = `rgba(${face.r * 0.4}, ${face.g * 0.4}, ${face.b * 0.4}, 0.28)`;
-                ctx.fill();
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-                ctx.lineWidth = 1.0;
-                ctx.stroke();
-            } else {
-                ctx.fillStyle = `rgba(${face.r}, ${face.g}, ${face.b}, 0.65)`;
-                ctx.fill();
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 1.8; // Konstante Vektordicke für saubere Optik
+            if (animIntensity > 0.05 && activeW > 0) {
+                ctx.strokeStyle = animIntensity >= 1.0 ? '#ffffff' : '#55ff55';
+                ctx.lineWidth = 1.5;
+                
+                let numSparks = Math.floor(animIntensity * 12);
+                if (animIntensity >= 1.0) numSparks = 25; 
+                
+                ctx.beginPath();
+                for(let i=0; i < numSparks; i++) {
+                    let edge = Math.floor(Math.random() * 4);
+                    let sx, sy, dx, dy;
+                    let offset = (Math.random() - 0.5) * (10 + animIntensity * 15);
+                    let sparkLen = Math.random() * 10 * animIntensity;
+                    
+                    if (edge === 0) { sx = x + Math.random() * activeW; sy = y - 4; dx = sx + offset; dy = sy - sparkLen; } 
+                    else if (edge === 1) { sx = x + Math.random() * activeW; sy = y + h + 4; dx = sx + offset; dy = sy + sparkLen; } 
+                    else if (edge === 2) { sx = x - 4; sy = y + Math.random() * h; dx = sx - sparkLen; dy = sy + offset; } 
+                    else { sx = x + activeW + 4; sy = y + Math.random() * h; dx = sx + sparkLen; dy = sy + offset; } 
+                    
+                    ctx.moveTo(sx, sy);
+                    ctx.lineTo(dx, dy);
+                }
                 ctx.stroke();
             }
-        });
+
+            if (activeSegs > 0) {
+                for (let i = 0; i < activeSegs; i++) {
+                    // Präzise Zuweisung anhand des Fortschritts:
+                    let color = '#55ff55'; // 0-50% = Grün
+                    if (i >= 23) color = '#ff3333';      // Das absolute Climax-Segment (100%)
+                    else if (i >= 12) color = '#ffff33'; // Die Tension Build-Up Phase (ab 50%)
+                    
+                    if (isFlashing) color = '#ffffff'; 
+                    
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x + i * (segW + gap), y, segW, h); 
+                }
+            }
+        }
+        ctx.globalAlpha = 1.0;
     }
 }
 
-===== ./js/visuals/gimmicks/starfield-c64.js =====
+===== Path: ./js/visuals/dse/universal/retro-sunset.js =====
 
-// === js/visuals/gimmicks/starfield-c64.js ===
-// =========================================================
-// CLASSIC 3D WARP STARFIELD (C64 CRACKTRO GIMMICK)
-// Features: Mathematical motion-blur streaks, strict 16-color VIC-II 
-// palette mapping, and integer coordinate raster-snapping.
-// =========================================================
-
-export class C64Starfield {
+// === js/visuals/dse/universal/retro-sunset.js ===
+export class RetroSunset {
     constructor() {
-        this.numStars = 150;
-        // 3D-Koordinaten der Sterne im Raum
-        this.stars = Array.from({ length: this.numStars }, () => ({
-            x: (Math.random() - 0.5) * 2000,
-            y: (Math.random() - 0.5) * 2000,
-            z: Math.random() * 1000 + 10
-        }));
+        this.internalT = 0; this.waterT = 0; 
+        this.smoothedSpeed = 1.0; this.smoothedWaveSpeed = 1.0; this.lastT = 0;
+    }
+    resize(width, height) {}
+    render(ctx, width, height, t, state, stateTime, metrics) {
+        if (state === 'idle') { this.lastT = t; return; }
+        let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
+        this.lastT = t;
+
+        let globalAlpha = 1.0;
+        let targetSpeed = 1.0;
+        let targetWaveSpeed = 1.0;
+        
+        let beatIntensity = 0.0; // Control micro-dynamics per state
+
+        if (state === 'starting') {
+            globalAlpha = Math.min(1.0, stateTime / 1.5);
+        } else if (state === 'stopping') {
+            globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
+        } else if (state === 'buildup') {
+            targetSpeed = 1.2;             // Sanfter (vorher 1.5)
+            targetWaveSpeed = 1.5;         // Sanfter (vorher 2.5)
+            beatIntensity = 0.1;           // Kaum wahrnehmbares Pumpen
+        } else if (state === 'climax') {
+            targetSpeed = 2.2;
+            targetWaveSpeed = 5.0;         
+            beatIntensity = 1.0;           // Volle Härte
+        }
+
+        this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * 0.05;
+        this.smoothedWaveSpeed += (targetWaveSpeed - this.smoothedWaveSpeed) * 0.05;
+        
+        this.internalT += dt * this.smoothedSpeed;
+        this.waterT += dt * this.smoothedWaveSpeed;
+
+        // Micro-Dynamics: Sofortige Weitergabe aus dem Beat-Envelope!
+        let activeSunPulse = metrics.beat[0] * beatIntensity;
+        let activeBeatDistortion = metrics.beat[0] * beatIntensity * 4.0;
+
+        ctx.globalAlpha = globalAlpha;
+        const horizon = height * 0.55; 
+
+        if (metrics.system === 'c64') this.drawC64(ctx, width, height, horizon, activeSunPulse, activeBeatDistortion);
+        else if (metrics.system === 'amiga') this.drawAmiga(ctx, width, height, horizon, activeSunPulse, activeBeatDistortion);
+        else this.drawAtari(ctx, width, height, horizon, activeSunPulse, activeBeatDistortion);
+
+        ctx.globalAlpha = 1.0;
     }
 
-    render(ctx, width, height, t, volume) {
-        const cx = width / 2;
-        const cy = height / 2;
-        
-        // Warp-Geschwindigkeit koppelt weich und dynamisch an die Lautstärke
-        const speed = 2 + (volume * 16); 
-        const fov = 400; // Projektions-Brennweite
-        
-        ctx.lineCap = 'square'; // Harte, blockige Enden für die Streaks
+    drawC64(ctx, w, h, horizon, sunPulse, beatDistortion) {
+        ctx.fillStyle = '#352879'; ctx.fillRect(0, 0, w, horizon * 0.3); 
+        ctx.fillStyle = '#8b4943'; ctx.fillRect(0, horizon * 0.3, w, horizon * 0.3); 
+        ctx.fillStyle = '#ff8a8a'; ctx.fillRect(0, horizon * 0.6, w, horizon * 0.25); 
+        ctx.fillStyle = '#ffff33'; ctx.fillRect(0, horizon * 0.85, w, horizon * 0.15); 
 
-        this.stars.forEach(star => {
-            // Merken der Z-Tiefe vor dem Update
+        ctx.fillStyle = '#ffffff';
+        let sunR = 40 + (sunPulse * 20); // Syncs directly to Kick drum
+        let sx = w / 2, sy = horizon - 20;
+        for (let y = -sunR; y < sunR; y += 8) {
+            for (let x = -sunR; x < sunR; x += 8) {
+                if (x*x + y*y < sunR*sunR) ctx.fillRect(sx + x, sy + y, 8, 8);
+            }
+        }
+
+        ctx.fillStyle = '#352879'; ctx.fillRect(0, horizon, w, h - horizon);
+
+        let waveSpeed = this.waterT * 25; 
+        for (let y = horizon; y < h; y += 8) {
+            let offset = (waveSpeed + y * 2) % 40;
+            for (let x = 0; x < w; x += 40) {
+                if (Math.abs((x - offset) - w / 2) < sunR * 0.8 && y > horizon + 16) {
+                    let isBright = (beatDistortion > 2.0) ? (Math.random() > 0.4) : (Math.random() > 0.2);
+                    ctx.fillStyle = isBright ? '#ffff33' : '#ff8a8a';
+                } else {
+                    ctx.fillStyle = '#6c5eb5'; 
+                }
+                ctx.fillRect(x - offset, y + 2, 20, 4);
+            }
+        }
+    }
+
+    drawAmiga(ctx, w, h, horizon, sunPulse, beatDistortion) {
+        let skyGrad = ctx.createLinearGradient(0, 0, 0, horizon);
+        skyGrad.addColorStop(0.0, '#000044'); skyGrad.addColorStop(0.4, '#aa0044'); skyGrad.addColorStop(0.8, '#ff4400'); skyGrad.addColorStop(1.0, '#ffff00');
+        ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, w, horizon);
+
+        let sunR = 50 + (sunPulse * 30);
+        let sx = w / 2, sy = horizon - 10;
+        
+        ctx.beginPath(); ctx.arc(sx, sy, sunR + 15 + (sunPulse * 10), 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 0, ${0.3 + sunPulse * 0.2})`; ctx.fill();
+
+        ctx.beginPath(); ctx.arc(sx, sy, sunR, 0, Math.PI * 2); ctx.fillStyle = '#ffffff'; ctx.fill();
+
+        ctx.fillStyle = '#000022'; ctx.fillRect(0, horizon, w, h - horizon);
+
+        ctx.fillStyle = '#ff8800';
+        let distortion = 3 + (beatDistortion * 2.5); // Wasser verzerrt sich synchron zum Beat!
+        for (let y = horizon; y < h; y += 3) {
+            let depth = (y - horizon) / (h - horizon); let waveWidth = 40 + (depth * 100);
+            let xOffset = Math.sin((y * 0.1) + (this.waterT * 3.0)) * distortion;
+            ctx.globalAlpha = Math.max(0, 1.0 - (depth * 1.5));
+            ctx.fillRect(sx - (waveWidth / 2) + xOffset, y, waveWidth, 2);
+        }
+        ctx.globalAlpha = 1.0;
+    }
+
+    drawAtari(ctx, w, h, horizon, sunPulse, beatDistortion) {
+        const skyColors = ['#000033', '#220033', '#440022', '#660011', '#880000', '#aa2200', '#cc4400', '#ff6600'];
+        let bandH = horizon / skyColors.length;
+        for (let i = 0; i < skyColors.length; i++) { ctx.fillStyle = skyColors[i]; ctx.fillRect(0, Math.floor(i * bandH), w, Math.ceil(bandH)); }
+
+        let sx = w / 2, sy = horizon - 25;
+        let sunR = 45 + (sunPulse * 15);
+        ctx.fillStyle = '#ffaa00'; ctx.beginPath(); ctx.arc(sx, sy, sunR, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ffff55'; ctx.beginPath(); ctx.arc(sx, sy, sunR * 0.7, 0, Math.PI * 2); ctx.fill();
+        
+        ctx.fillStyle = '#cc6600'; 
+        for (let y = sy - sunR; y < sy + sunR; y += 4) {
+            let dy = y - sy; let dx = Math.sqrt((sunR * sunR) - (dy * dy));
+            if (dx > 0) ctx.fillRect(sx - dx, Math.floor(y), dx * 2, 2);
+        }
+
+        ctx.fillStyle = '#000022'; ctx.fillRect(0, horizon, w, h - horizon);
+
+        let waterSpeed = this.waterT * 25;
+        let distortion = 2 + (beatDistortion * 2.0); 
+
+        for (let y = horizon + 2; y < h; y += (y - horizon) * 0.15 + 4) {
+            let depth = (y - horizon) / (h - horizon);
+            let thickness = Math.max(1, Math.floor(depth * 5));
+            let speed = waterSpeed * (0.5 + depth * 1.5);
+            let offset = speed % 40;
+
+            for (let x = -40; x < w; x += 40) {
+                if (Math.abs(x + offset - sx) < sunR * (1.0 - depth*0.5) && y < horizon + 80) ctx.fillStyle = '#ffff55'; 
+                else ctx.fillStyle = (Math.floor(y) % 3 === 0) ? '#0044aa' : '#0077ff'; 
+                
+                let dashWidth = 20 + depth * 20;
+                let xDistort = Math.sin(y * 0.2 + waterSpeed) * distortion;
+                
+                // Beat-Glitches
+                if (beatDistortion > 2.0 && Math.random() > 0.7) {
+                    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, y, w, 2);
+                } else {
+                    ctx.fillRect(x + offset + xDistort, Math.floor(y), dashWidth, thickness);
+                }
+            }
+        }
+    }
+}
+
+===== Path: ./js/visuals/dse/universal/starfield.js =====
+
+// === js/visuals/dse/universal/starfield.js ===
+// =========================================================
+// DEMO-SCENE-ELEMENT: UNIVERSAL 3D WARP STARFIELD
+// System-Themed Background Scenario (C64 Chunky, Amiga Glow, Atari Sharp)
+// =========================================================
+
+export class Starfield {
+    constructor() {
+        this.name = 'Universal 3D Starfield';
+        this.computerType = ['all'];
+        this.placementType = 'background';
+        
+        this.numStars = 200; 
+        this.stars = Array.from({ length: this.numStars }, () => ({
+            x: (Math.random() - 0.5) * 2500,
+            y: (Math.random() - 0.5) * 2500,
+            z: Math.random() * 1000 + 10
+        }));
+
+        this.smoothedWarp = 2.0;
+        this.lastT = 0;
+    }
+
+    resize(width, height) {}
+
+    render(ctx, width, height, t, state, stateTime, metrics) {
+        if (state === 'idle') { this.lastT = t; return; }
+
+        let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
+        this.lastT = t;
+
+        let globalAlpha = 1.0;
+        let targetWarp = 2.0; 
+        let beatWarp = 0.0;
+
+        if (state === 'starting') {
+            globalAlpha = Math.min(1.0, stateTime / 1.5);
+            targetWarp *= globalAlpha;
+        } else if (state === 'stopping') {
+            globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
+            targetWarp *= globalAlpha;
+        } else if (state === 'buildup') {
+            targetWarp = 2.8;              // Geringerer Schub (vorher 3.6)
+            beatWarp = 0.4;                // Subtiles Zucken bei Kicks
+        } else if (state === 'climax') {
+            targetWarp = 5.5; 
+            globalAlpha = 0.8 + (metrics.beat[0] * 0.2); 
+            beatWarp = 6.0;                // Hyperspeed-Einspritzung!
+        }
+        this.smoothedWarp += (targetWarp - this.smoothedWarp) * 0.1;
+        
+        // Micro-Dynamics: Smoothed Base Warp + Instant Beat Punch
+        let activeWarp = this.smoothedWarp + (metrics.beat[0] * beatWarp);
+
+        ctx.globalAlpha = globalAlpha;
+
+        if (metrics.system === 'c64') {
+            this.drawC64(ctx, width, height, activeWarp);
+        } else if (metrics.system === 'amiga') {
+            this.drawAmiga(ctx, width, height, activeWarp);
+        } else {
+            this.drawAtari(ctx, width, height, activeWarp);
+        }
+
+        ctx.globalAlpha = 1.0;
+    }
+
+    drawC64(ctx, w, h, activeWarp) {
+        ctx.lineCap = 'square'; 
+        const cx = w / 2; const cy = h / 2; const fov = 400; 
+
+        for (let i = 0; i < this.numStars; i++) {
+            let star = this.stars[i];
             const prevZ = star.z;
             
-            star.z -= speed;
+            // Subtraktion mit dem berechneten, beat-reaktiven Warp
+            star.z -= activeWarp;
+            
             if (star.z <= 6) {
-                star.z = 1000;
-                star.x = (Math.random() - 0.5) * 2000;
-                star.y = (Math.random() - 0.5) * 2000;
-                return; // Reset, in diesem Frame nicht zeichnen
+                star.z = 1000; star.x = (Math.random() - 0.5) * 2500; star.y = (Math.random() - 0.5) * 2500;
+                continue; 
             }
 
             const curZ = star.z;
-
-            // =========================================================
-            // RASTER-SNAPPING & PROJEKTION
-            // Math.floor() eliminiert die Browser-Glättung und sorgt für 
-            // messerscharfe, knackscharfe 8-Bit-Pixelkanten.
-            // =========================================================
             const px = Math.floor(cx + (star.x / curZ) * fov);
             const py = Math.floor(cy + (star.y / curZ) * fov);
-            
             const prevPx = Math.floor(cx + (star.x / prevZ) * fov);
             const prevPy = Math.floor(cy + (star.y / prevZ) * fov);
 
-            // =========================================================
-            // GFX UPGRADE: TRUE VIC-II 16-COLOR PALETTE SHADING
-            // Das Signal wird basierend auf der Tiefe hart schattiert.
-            // =========================================================
-            let starColor = '#444444'; // Dunkelgrau (VIC-II #11)
-            
-            if (curZ < 200) {
-                starColor = '#ffffff'; // Reinweiß (VIC-II #01)
-            } else if (curZ < 400) {
-                starColor = '#b5b5b5'; // Hellgrau (VIC-II #15)
-            } else if (curZ < 650) {
-                starColor = '#6c5eb5'; // C64 Hellblau (VIC-II #14)
-            } else if (curZ < 850) {
-                starColor = '#7a7a7a'; // Mittelgrau (VIC-II #12)
-            }
+            let starColor = '#444444'; 
+            if (curZ < 250) starColor = '#ffffff'; 
+            else if (curZ < 500) starColor = '#b5b5b5'; 
+            else if (curZ < 750) starColor = '#6c5eb5'; 
+            else if (curZ < 900) starColor = '#7a7a7a'; 
 
-            ctx.strokeStyle = starColor;
-            ctx.fillStyle = starColor;
-
-            // Berechnen der zurückgelegten Distanz im Frame
+            ctx.strokeStyle = starColor; ctx.fillStyle = starColor;
             const dx = px - prevPx;
             const dy = py - prevPy;
-            const distance = Math.sqrt(dx*dx + dy*dy);
+            // Schnelle Distanzberechnung ohne Math.sqrt im Hot-Path
+            const distSq = dx*dx + dy*dy;
 
-            if (distance > 3.0) {
-                // =========================================================
-                // WARP-SPEED STREAK (Motion Blur)
-                // Ist der Stern schnell genug, zeichnen wir eine dicke, blockige Linie.
-                // Die Linienstärke wächst, je näher uns der Stern kommt.
-                // =========================================================
+            if (distSq > 9.0) {
                 ctx.lineWidth = Math.max(2, Math.floor((1000 - curZ) / 250));
-                ctx.beginPath();
-                ctx.moveTo(prevPx, prevPy);
-                ctx.lineTo(px, py);
-                ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(prevPx, prevPy); ctx.lineTo(px, py); ctx.stroke();
             } else {
-                // =========================================================
-                // LOW-SPEED PIXEL BLOCK
-                // Bei langsamen Geschwindigkeiten verharrt der Stern als massiver Pixelblock.
-                // =========================================================
                 const size = Math.max(2, Math.floor((1000 - curZ) / 200));
                 ctx.fillRect(px - size/2, py - size/2, size, size);
             }
-        });
+        }
+    }
+
+    drawAmiga(ctx, w, h, activeWarp) {
+        ctx.lineCap = 'round'; 
+        ctx.globalCompositeOperation = 'screen'; 
+        const cx = w / 2; const cy = h / 2; const fov = 400; 
+
+        for (let i = 0; i < this.numStars; i++) {
+            let star = this.stars[i];
+            const prevZ = star.z;
+            
+            star.z -= activeWarp;
+            if (star.z <= 6) {
+                star.z = 1000; star.x = (Math.random() - 0.5) * 2500; star.y = (Math.random() - 0.5) * 2500;
+                continue; 
+            }
+
+            const curZ = star.z;
+            const px = cx + (star.x / curZ) * fov; 
+            const py = cy + (star.y / curZ) * fov;
+            const prevPx = cx + (star.x / prevZ) * fov;
+            const prevPy = cy + (star.y / prevZ) * fov;
+
+            let brightness = Math.max(0.1, 1.0 - (curZ / 1000));
+            let starColor = `rgba(${150 + brightness*105}, ${200 + brightness*55}, 255, ${brightness})`; 
+
+            ctx.strokeStyle = starColor; ctx.fillStyle = starColor;
+            const distSq = (px-prevPx)**2 + (py-prevPy)**2;
+
+            if (distSq > 4.0) {
+                ctx.lineWidth = 1.0 + brightness * 2.5;
+                ctx.beginPath(); ctx.moveTo(prevPx, prevPy); ctx.lineTo(px, py); ctx.stroke();
+            } else {
+                const size = 1.0 + brightness * 2.0;
+                ctx.beginPath(); ctx.arc(px, py, size, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+        ctx.globalCompositeOperation = 'source-over';
+    }
+
+    drawAtari(ctx, w, h, activeWarp) {
+        ctx.lineCap = 'butt'; 
+        const cx = w / 2; const cy = h / 2; const fov = 400; 
+
+        for (let i = 0; i < this.numStars; i++) {
+            let star = this.stars[i];
+            const prevZ = star.z;
+            
+            star.z -= activeWarp;
+            if (star.z <= 6) {
+                star.z = 1000; star.x = (Math.random() - 0.5) * 2500; star.y = (Math.random() - 0.5) * 2500;
+                continue; 
+            }
+
+            const curZ = star.z;
+            const px = Math.floor(cx + (star.x / curZ) * fov);
+            const py = Math.floor(cy + (star.y / curZ) * fov);
+            const prevPx = Math.floor(cx + (star.x / prevZ) * fov);
+            const prevPy = Math.floor(cy + (star.y / prevZ) * fov);
+
+            let starColor = '#002244'; 
+            if (curZ < 250) starColor = '#ffffff'; 
+            else if (curZ < 500) starColor = '#55ffff'; 
+            else if (curZ < 750) starColor = '#0055aa'; 
+
+            ctx.strokeStyle = starColor; ctx.fillStyle = starColor;
+            const distSq = (px-prevPx)**2 + (py-prevPy)**2;
+
+            if (distSq > 9.0) {
+                ctx.lineWidth = curZ < 400 ? 2 : 1;
+                ctx.beginPath(); ctx.moveTo(prevPx, prevPy); ctx.lineTo(px, py); ctx.stroke();
+            } else {
+                const size = curZ < 400 ? 2 : 1;
+                ctx.fillRect(px, py, size, size);
+            }
+        }
     }
 }
 
-===== ./js/visuals/scroller.js =====
+===== Path: ./js/visuals/dse/universal/void-element.js =====
+
+// === js/visuals/dse/universal/void-element.js ===
+// =========================================================
+// DEMO-SCENE-ELEMENT: UNIVERSAL VOID PLACEHOLDER
+// Acts as a transparent, zero-CPU placeholder for any layer.
+// Used to clear specific layers (background, floor, foreground).
+// =========================================================
+
+export class VoidElement {
+    constructor() {}
+
+    resize(width, height) {}
+
+    render(ctx, width, height, t, state, stateTime, metrics) {
+        // Absolut 0% CPU-Last. Das Element ist vollkommen transparent.
+    }
+}
+
+===== Path: ./js/visuals/scene-dj.js =====
+
+// === js/visuals/scene-dj.js ===
+// =========================================================
+// DEMOSCENE-SEQUENCER (DSS) / THE "SCENE-DJ"
+// Modular ECS-Pattern Refactoring (v1.2.0)
+// Includes the critical Getters for visualizer.js sync
+// =========================================================
+
+import { TrackMonitor } from './dj/track-monitor.js';
+import { TensionManager, TENSION_MAX } from './dj/tension-manager.js';
+import { SetlistManager } from './dj/setlist-manager.js';
+import { StageManager } from './dj/stage-manager.js';
+
+export class SceneDJ {
+    constructor() {
+        this.monitor = new TrackMonitor();
+        this.tension = new TensionManager();
+        this.setlist = new SetlistManager();
+        this.stage = new StageManager();
+        this.lastTime = 0;
+
+        // Wrapper-Objekt für Abwärtskompatibilität des DSE-Interfaces
+        this.metricsWrapper = {
+            tensionPct: 0.0,
+            isClimaxLocked: false,
+            climaxTimer: 0.0,
+            climaxHoldTime: 0.0
+        };
+    }
+
+    // =========================================================
+    // FIX: Die lebenswichtige Schnittstelle für die visualizer.js
+    // Verhindert, dass der DJ in jedem Frame einen System-Reset macht!
+    // =========================================================
+    get currentSystem() {
+        return this.monitor.info.system;
+    }
+
+    registerDSE(dse) {
+        this.setlist.registerDSE(dse);
+    }
+
+    forceSystemChange(newSystem) {
+        this.monitor.info.system = newSystem;
+        this.setlist.forceSystemChange(this.stage, this.monitor.info);
+        this.tension.reset();
+        this.monitor.dynamics.beatEnvelope[0] = 0.0;
+    }
+
+    resize(width, height) {
+        for (let dse of this.setlist.registeredDSEs) {
+            if (typeof dse.resize === 'function') dse.resize(width, height);
+        }
+    }
+
+    render(ctx, width, height, t, channelVolumes, isPlaying, sessionId) {
+        let dt = 0.016; 
+        if (this.lastTime !== 0) { 
+            dt = t - this.lastTime; 
+            if (dt > 0.1) dt = 0.016; 
+        }
+        this.lastTime = t;
+
+        // Unidirectional State Sync (Neues Lied gewählt)
+        if (this.monitor.info.sessionId !== sessionId) {
+            this.tension.reset();
+            this.monitor.info.sessionId = sessionId;
+            this.monitor.dynamics.beatEnvelope[0] = 0.0;
+        }
+
+        this.monitor.info.isPlaying = isPlaying;
+
+        // 1. Audio-Analyse
+        this.monitor.update(channelVolumes, dt);
+
+        // 2. Makro-Zustand berechnen
+        let didWakeUp = this.tension.update(this.monitor.dynamics, this.monitor.info, this.stage, dt);
+
+        // 3. Setlist / Swaps würfeln
+        if (isPlaying) {
+            this.setlist.manageSwaps(this.stage, this.monitor.info, this.tension.macroState, dt);
+            
+            // Wake-Up Roll Check
+            if (didWakeUp) {
+                this.setlist.fillEmptyLayers(this.stage, this.monitor.info, 'starting');
+            }
+        }
+
+        // 4. Bühne aktualisieren
+        this.stage.updateCrossfades(this.tension.macroState, dt);
+
+        // 5. Daten übergeben und zeichnen
+        this.metricsWrapper.tensionPct = this.tension.tension / TENSION_MAX;
+        this.metricsWrapper.isClimaxLocked = this.tension.isClimaxLocked;
+        this.metricsWrapper.climaxTimer = this.tension.climaxTimer;
+        this.metricsWrapper.climaxHoldTime = this.tension.currentClimaxHoldTime;
+
+        this.stage.renderAll(ctx, width, height, t, this.monitor.dynamics, this.monitor.info, this.metricsWrapper);
+    }
+}
+
+===== Path: ./js/visuals/scroller.js =====
 
 // === js/visuals/scroller.js ===
 // =========================================================
@@ -4835,20 +6539,21 @@ export function initScroller(getScrollerText, getEcoMode) {
     draw();
 }
 
-===== ./js/visuals/visualizer.js =====
+===== Path: ./js/visuals/visualizer.js =====
 
 // === js/visuals/visualizer.js ===
 // =========================================================
 // HIGH-PERFORMANCE RETROWAVE VISUALIZER MODULE
-// Modular Component Orchestration & Low-Latency Timing
+// Modulare DJ-Orchestrierung & Core UI Trennung (v1.2.0)
 // =========================================================
 
-import { C64Starfield } from './gimmicks/starfield-c64.js';
-import { AmigaCube } from './gimmicks/cube-amiga.js';
-import { AtariBobs } from './gimmicks/bobs-atari.js';
+import { SceneDJ } from './scene-dj.js';
+import { dseRegistry } from './dse/registry.js';
 import { FftAnalyzer } from './components/fft-analyzer.js';
 import { Oscilloscope } from './components/oscilloscope.js';
-import { Copperbars } from './gimmicks/copperbars.js';
+
+// NEU: Statisches, prä-allozierte Null-Array zur Vermeidung von Heap-Garbages bei Inaktivität
+const zeroVolumes = new Float32Array(4);
 
 export function initVisuals(stateGetters, callbacks) {
     const canvas = document.getElementById('demo-canvas');
@@ -4856,27 +6561,44 @@ export function initVisuals(stateGetters, callbacks) {
 
     const ctx = canvas.getContext('2d', { alpha: false }); 
 
+    // =========================================================
+    // INITIALISIERUNG SCENE-DJ (Zuerst deklarieren!)
+    // =========================================================
+    const dss = new SceneDJ();
+
+    // =========================================================
+    // AUTO-REGISTER ALL DEMO-SCENE-ELEMENTS WITH METADATA CONTRACT
+    // =========================================================
+    dseRegistry.forEach(entry => {
+        try {
+            const effectInstance = new entry.Class();
+            // Dem Renderer seine konsolidierten Metadaten anhängen
+            effectInstance.metadata = entry.metadata; 
+            dss.registerDSE(effectInstance);
+        } catch (err) {
+            console.error(`[SCENE-DJ] Failed to register DSE: ${entry.Class.name}`, err);
+        }
+    });
+
+    // Core UI (Vom DJ unabhängig)
+    const fft = new FftAnalyzer();
+    const osc = new Oscilloscope(canvas.width, canvas.height);
+
     // --- INTERACTIVE GIMMICK STATE & TOGGLE ---
     let showGimmick = false;
     const logo = document.getElementById('brand-logo');
     if (logo) {
         logo.addEventListener('click', () => {
             showGimmick = !showGimmick;
-            if (!showGimmick) {
-                osc.clear(); // Oszilloskop-Datenpuffer beim Umschalten leeren
-            }
+            if (!showGimmick) osc.clear();
+            
+            // NEU: Klassenzuweisung für den systemgetreuen Glow
+            logo.classList.toggle('demo-mode-active', showGimmick);
+            
             logo.style.filter = 'brightness(2.0)';
             setTimeout(() => logo.style.filter = '', 100);
         });
     }
-
-    // Instanziierung aller gekapselten GFX- und DSP-Komponenten
-    const starfield = new C64Starfield();
-    const cube = new AmigaCube();
-    const bobs = new AtariBobs();
-    const fft = new FftAnalyzer();
-    const osc = new Oscilloscope(canvas.width, canvas.height);
-    const coppers = new Copperbars();
 
     function resizeCanvas() {
         const clientWidth = canvas.clientWidth;
@@ -4894,10 +6616,12 @@ export function initVisuals(stateGetters, callbacks) {
         if (canvas.width !== newWidth || canvas.height !== newHeight) {
             canvas.width = newWidth; 
             canvas.height = newHeight;
-            osc.resize(newWidth, newHeight); // Oszilloskop-Datenpuffer anpassen
+            osc.resize(newWidth, newHeight); 
+            dss.resize(newWidth, newHeight); // Resize ans DSE-Ökosystem leiten
         }
     }
     
+    // Initialer Resize (Nachdem dss deklariert wurde!)
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
     
@@ -4937,7 +6661,6 @@ export function initVisuals(stateGetters, callbacks) {
 
         const t = (performance.now() - startTime) * 0.001; 
         
-        // GFX FIX: Hard 50Hz CRT Clear (Keine Glow-Spur / Motion Blur mehr)
         ctx.fillStyle = '#000000'; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
@@ -4946,37 +6669,28 @@ export function initVisuals(stateGetters, callbacks) {
         const isC64 = document.body.classList.contains('theme-c64');
         const lineColor = isAtari ? '#55ff55' : isAmiga ? '#ff8800' : '#6c5eb5';
         
-        // Rasterlinien ebenfalls ausblenden, wenn das Gimmick läuft!
-        if (!showGimmick) {
-            drawReticle(); 
+        const currentSystem = isAtari ? 'atari' : (isAmiga ? 'amiga' : 'c64');
+        if (dss.currentSystem !== currentSystem) {
+            dss.forceSystemChange(currentSystem);
         }
 
-        const channelVolumes = stateGetters.getChannelVolumes ? stateGetters.getChannelVolumes() : [0, 0, 0, 0];
-        let totalVol = 0;
-        for (let i=0; i<4; i++) totalVol += channelVolumes[i] || 0;
-        const avgVol = totalVol / 4.0;
+        // =========================================================
+        // FIX: Sicheres Ausblenden bei Pause (Kein Einfrieren mehr!)
+        // =========================================================
+        const isPlaying = stateGetters.getIsPlaying();
+        const channelVolumes = (isPlaying && stateGetters.getChannelVolumes) 
+            ? stateGetters.getChannelVolumes() 
+            : zeroVolumes;
 
-        // --- 1. EASTER EGG INJECTION ---
+         // NEU: Session ID aus der App-Logik abfragen
+        const sessionId = stateGetters.getPlaybackSessionId ? stateGetters.getPlaybackSessionId() : 0;
+
+        // --- RENDER ROUTING ---
         if (showGimmick) {
-            if (isC64) {
-                // C64: Sternenfeld ganz im Hintergrund, Rasterbars davor!
-                starfield.render(ctx, canvas.width, canvas.height, t, avgVol);
-                coppers.render(ctx, canvas.width, canvas.height, t, channelVolumes);
-            } else {
-                // Amiga/Atari ST: Rasterbars ganz hinten im Hintergrund, 
-                // die Vektorgrafiken (Cube / Bobs) davor im Vordergrund!
-                coppers.render(ctx, canvas.width, canvas.height, t, channelVolumes);
-                
-                if (isAmiga) {
-                    cube.render(ctx, canvas.width, canvas.height, t, channelVolumes[0] || 0);
-                } else if (isAtari) {
-                    bobs.render(ctx, canvas.width, canvas.height, t, avgVol);
-                }
-            }
-        }
-        
-        // --- 3. STANDARD CHANNELS (Nur aktiv wenn Gimmick aus) ---
-        if (!showGimmick) {
+            // NEU: sessionId als Parameter an den DJ durchreichen!
+            dss.render(ctx, canvas.width, canvas.height, t, channelVolumes, isPlaying, sessionId);
+        } else {
+            drawReticle(); 
             osc.render(ctx, canvas.width, canvas.height, stateGetters, lineColor);
             fft.render(ctx, canvas.width, canvas.height, stateGetters, lineColor);
         }
@@ -4990,7 +6704,7 @@ export function initVisuals(stateGetters, callbacks) {
     draw();
 }
 
-===== ./js/worklets/amiga/paula-exact.js =====
+===== Path: ./js/worklets/amiga/paula-exact.js =====
 
 // === js/worklets/amiga/paula-exact.js ===
 // ==========================================
@@ -5778,7 +7492,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
 
 registerProcessor('paula-exact-processor', PaulaProcessor);
 
-===== ./js/worklets/amiga/paula-standard.js =====
+===== Path: ./js/worklets/amiga/paula-standard.js =====
 
 // === js/worklets/amiga/paula-standard.js ===
 // ==========================================
@@ -6489,7 +8203,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
 // Hier wichtig: Der eindeutige Namespace für den sauberen Core
 registerProcessor('paula-standard-processor', PaulaProcessor);
 
-===== ./js/worklets/atari/ym-bladerunner.js =====
+===== Path: ./js/worklets/atari/ym-bladerunner.js =====
 
 // === js/worklets/atari/ym-bladerunner.js ===
 // =========================================================
@@ -6890,13 +8604,13 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
 
 registerProcessor('ym-bladerunner-processor', YMBladeRunnerProcessor);
 
-===== ./js/worklets/atari/ym-exact.js =====
+===== Path: ./js/worklets/atari/ym-exact.js =====
 
 // === js/worklets/atari/ym-exact.js ===
 // =========================================================
 // YM2149F CORE (CYCLE-EXACT 2MHz, LOG-DAC, TRUE 5-BIT ENV)
 // Studio-Grade Polyphase Sinc-FIR Decimator & Digidrum DAC Injection
-// Final Master: Smart Auto-Release Hijack Locks (Long Samples Fix)
+// Final Master: True 8-Bit Linear PCM Simulation for Digidrums
 // =========================================================
 
 import { DCBlocker, detectDigidrum, detectDigidrumVoice } from '../lib/dsp-utils.js';
@@ -6931,7 +8645,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
         this.digiPos = 0;
         this.lastDigiTrigger = 0;
         
-        // --- NEU: Smart Hijack Tracking ---
         this.hijackedVoice = 0;
         this.hijackReleaseVol = 0; 
         
@@ -6963,33 +8676,35 @@ class YMExactProcessor extends AudioWorkletProcessor {
 
         this.dcBlock = new DCBlocker();
         this.outLp = 0;
+        this.fadeVol = 0.0;
         
-        this.port.onmessage = this.handleMessage.bind(this);
-    }
-
-    handleMessage(event) {
-        const msg = event.data;
-        if (msg.type === 'PLAY_TRACK') {
-            this.trackData = msg.track;
-            this.digidrums = msg.digidrums || []; 
-            this.currentFrame = 0;
-            this.sampleCounter = 0;
-            this.currentDigidrum = null;
-            this.lastDigiTrigger = 0;
-            this.hijackedVoice = 0;
-            this.hijackReleaseVol = 0;
-            this.isPlaying = true;
-            this.ringBuffer.fill(0);
-        } else if (msg.type === 'STOP_TRACK') {
-            this.isPlaying = false;
-        } else if (msg.type === 'RESUME_TRACK') {
-            this.isPlaying = true; 
-        } else if (msg.type === 'SEEK_TRACK') {
-            if (this.trackData) {
-                this.currentFrame = msg.frame % this.trackData.length;
-                this.currentDigidrum = null; 
+        this.port.onmessage = (event) => {
+            const msg = event.data;
+            if (msg.type === 'PLAY_TRACK') {
+                this.trackData = msg.track;
+                this.digidrums = msg.digidrums || []; 
+                this.currentFrame = 0;
+                this.sampleCounter = 0;
+                this.currentDigidrum = null;
+                this.lastDigiTrigger = 0;
+                this.hijackedVoice = 0;
+                this.hijackReleaseVol = 0;
+                this.isPlaying = true;
+                
+                this.ringBuffer.fill(0);
+                this.outLp = 0;
+                this.dcBlock = new DCBlocker();
+            } else if (msg.type === 'STOP_TRACK') {
+                this.isPlaying = false;
+            } else if (msg.type === 'RESUME_TRACK') {
+                this.isPlaying = true; 
+            } else if (msg.type === 'SEEK_TRACK') {
+                if (this.trackData) {
+                    this.currentFrame = msg.frame % this.trackData.length;
+                    this.currentDigidrum = null; 
+                }
             }
-        }
+        };
     }
 
     process(inputs, outputs) {
@@ -6998,15 +8713,25 @@ class YMExactProcessor extends AudioWorkletProcessor {
         let currentVisualValue = 0;
 
         for (let i = 0; i < outL.length; i++) {
-            if (!this.isPlaying) {
-                outL[i] = 0; if (outR) outR[i] = 0;
+            
+            // Anti-Pop Glide Envelope
+            if (this.isPlaying) {
+                this.fadeVol = Math.min(1.0, this.fadeVol + 0.002);
+            } else {
+                this.fadeVol = Math.max(0.0, this.fadeVol - 0.002);
+            }
+
+            if (this.fadeVol === 0.0) {
+                let idleSample = this.dcBlock.process(0);
+                outL[i] = idleSample; if (outR) outR[i] = idleSample;
                 continue; 
             }
 
-            let cyclesToRun = 0;
-            if (this.trackData) {
+            let decimationSum = 0;
+
+            if (this.isPlaying && this.trackData && this.trackData.length > 0) {
                 this.cycleAccumulator += this.clock / sampleRate;
-                cyclesToRun = Math.floor(this.cycleAccumulator);
+                let cyclesToRun = Math.floor(this.cycleAccumulator);
                 this.cycleAccumulator -= cyclesToRun;
 
                 this.sampleCounter--;
@@ -7015,42 +8740,38 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     
                     let frame = this.trackData[this.currentFrame];
                     for(let r=0; r<16; r++) {
+                        let val = frame[r];
                         if (r === 13) {
-                            if (frame[13] !== 0xFF) {
-                                this.regs[13] = frame[13];
+                            if (val !== 0xFF) {
+                                this.regs[13] = val;
                                 this.envStep = 0;
                                 this.envPhase = 0;
                                 this.envDiv = 0; 
                                 this.envHold = false;
                             }
                         } else {
-                            this.regs[r] = frame[r];
+                            this.regs[r] = val;
                         }
                     }
                     
                     let activeDigiTrigger = detectDigidrum(frame);
                     let activeDigiVoice = detectDigidrumVoice(frame);
 
-                    // --- 1. DIGIDRUM TRIGGER & LOCK ---
                     if (activeDigiTrigger > 0 && activeDigiTrigger !== this.lastDigiTrigger) {
                         if (this.digidrums[activeDigiTrigger - 1]) {
                             this.currentDigidrum = this.digidrums[activeDigiTrigger - 1];
                             this.digiPos = 0;
                             
-                            // Kanal sperren und Müll-Lautstärke (Drum ID) speichern
                             if (activeDigiVoice > 0) {
                                 this.hijackedVoice = activeDigiVoice;
                                 if (activeDigiVoice === 1) this.hijackReleaseVol = frame[8];
                                 else if (activeDigiVoice === 2) this.hijackReleaseVol = frame[9];
                                 else if (activeDigiVoice === 3) this.hijackReleaseVol = frame[10];
                             }
-                            this.port.postMessage({ type: 'DEBUG', msg: 'Drum ' + activeDigiTrigger });
                         }
                     }
                     this.lastDigiTrigger = activeDigiTrigger;
 
-                    // --- 2. SMART AUTO-RELEASE ---
-                    // Wenn der Tracker die Lautstärke ändert, will er eine neue Note spielen -> Lock sofort aufheben!
                     if (this.hijackedVoice === 1 && frame[8] !== this.hijackReleaseVol) this.hijackedVoice = 0;
                     if (this.hijackedVoice === 2 && frame[9] !== this.hijackReleaseVol) this.hijackedVoice = 0;
                     if (this.hijackedVoice === 3 && frame[10] !== this.hijackReleaseVol) this.hijackedVoice = 0;
@@ -7123,42 +8844,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     let fixVolC = r10 & 0x0F;
                     let vC5 = (r10 & 0x10) ? this.envVol5Bit : (fixVolC === 0 ? 0 : fixVolC * 2 + 1);
 
-                    // --- 3. DIGIDRUM INJECTION & HIJACK OVERRIDE ---
-                    if (this.hijackedVoice > 0) {
-                        let dac5 = 0; // Default: Silence if sample ends, preventing DC pops
-
-                        if (this.currentDigidrum) {
-                            let posInt = Math.floor(this.digiPos);
-                            if (posInt < this.currentDigidrum.length) {
-                                let floatSample = this.currentDigidrum[posInt];
-                                let dacVal = Math.max(0, Math.min(15, Math.round((floatSample + 1.0) * 7.5)));
-                                dac5 = dacVal === 0 ? 0 : dacVal * 2 + 1;
-                                this.digiPos += (7812.5 / this.clock); 
-                            } else {
-                                // Sample nativ zu Ende -> Freeze auf 0, bis Tracker neue Note spielt
-                                this.currentDigidrum = null;
-                            }
-                        }
-
-                        // Override the YM hardware volume with DAC data or silence
-                        if (this.hijackedVoice === 1) vA5 = dac5;
-                        else if (this.hijackedVoice === 2) vB5 = dac5;
-                        else if (this.hijackedVoice === 3) vC5 = dac5;
-                    } 
-                    // Fallback für alte Global-Drums (sehr selten)
-                    else if (this.currentDigidrum) {
-                        let posInt = Math.floor(this.digiPos);
-                        if (posInt < this.currentDigidrum.length) {
-                            let floatSample = this.currentDigidrum[posInt];
-                            let dacVal = Math.max(0, Math.min(15, Math.round((floatSample + 1.0) * 7.5)));
-                            let dac5 = dacVal === 0 ? 0 : dacVal * 2 + 1;
-                            vA5 = vB5 = vC5 = dac5;
-                            this.digiPos += (7812.5 / this.clock); 
-                        } else {
-                            this.currentDigidrum = null;
-                        }
-                    }
-
                     let outA = 1, outB = 1, outC = 1;
                     if ((mix & 0x01) === 0 && !this.toneOutA) outA = 0;
                     if ((mix & 0x08) === 0 && !this.noiseOut) outA = 0;
@@ -7169,29 +8854,68 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     if ((mix & 0x04) === 0 && !this.toneOutC) outC = 0;
                     if ((mix & 0x20) === 0 && !this.noiseOut) outC = 0;
 
-                    let mixedSample = (outA * YM_DAC32[vA5] + outB * YM_DAC32[vB5] + outC * YM_DAC32[vC5]) / 3.0;
+                    let ampA = YM_DAC32[vA5];
+                    let ampB = YM_DAC32[vB5];
+                    let ampC = YM_DAC32[vC5];
 
-                    this.volA = YM_DAC32[vA5];
-                    this.volB = YM_DAC32[vB5];
-                    this.volC = YM_DAC32[vC5];
+                    // =========================================================
+                    // TRUE 8-BIT LINEAR PCM SIMULATION (Mad Max Hack)
+                    // Umgeht den kratzigen logarithmischen 4-Bit Wandler und 
+                    // speist das 8-Bit Digidrum-Sample linear in die Spur ein!
+                    // =========================================================
+                    let hasDigi = false;
+                    let digiAmp = 0.0;
+
+                    if (this.currentDigidrum) {
+                        let posInt = Math.floor(this.digiPos);
+                        if (posInt < this.currentDigidrum.length) {
+                            let floatSample = this.currentDigidrum[posInt]; // Bereich: -1.0 bis +1.0
+                            
+                            // Map von Bipolar (-1 bis 1) auf Unipolar (0 bis 1)
+                            digiAmp = (floatSample + 1.0) * 0.5;
+                            hasDigi = true;
+                            
+                            this.digiPos += (7812.5 / this.clock); 
+                        } else {
+                            this.currentDigidrum = null;
+                        }
+                    }
+
+                    if (hasDigi) {
+                        // Wenn der Tracker die Spur hijouckt, zwingen wir das Tone-Gate 
+                        // auf 1.0 (damit die Frequenz den Drum nicht zerhackt) und 
+                        // schreiben die saubere lineare Amplitude direkt in den Mixer.
+                        if (this.hijackedVoice === 1) { ampA = digiAmp; outA = 1.0; }
+                        else if (this.hijackedVoice === 2) { ampB = digiAmp; outB = 1.0; }
+                        else if (this.hijackedVoice === 3) { ampC = digiAmp; outC = 1.0; }
+                        else { 
+                            ampA = ampB = ampC = digiAmp; 
+                            outA = outB = outC = 1.0; 
+                        }
+                    }
+
+                    let mixedSample = (outA * ampA + outB * ampB + outC * ampC) / 3.0;
+
+                    this.volA = ampA;
+                    this.volB = ampB;
+                    this.volC = ampC;
 
                     this.ringBuffer[this.ringIndex] = mixedSample;
                     this.ringIndex = (this.ringIndex + 1) & 511;
                 }
 
-                let decimationSum = 0;
                 for (let k = 0; k < this.FIR_TAPS; k++) {
                     let readIdx = (this.ringIndex - 1 - k + 512) & 511;
                     decimationSum += this.ringBuffer[readIdx] * this.firKernel[k];
                 }
-
-                this.outLp += 0.45 * (decimationSum - this.outLp);
-                let finalSample = this.dcBlock.process(this.outLp);
-
-                outL[i] = finalSample;
-                if (outR) outR[i] = finalSample;
-                if (i === 0) currentVisualValue = finalSample;
             }
+
+            this.outLp += 0.45 * (decimationSum - this.outLp);
+            let finalSample = this.dcBlock.process(this.outLp) * this.fadeVol;
+
+            outL[i] = finalSample;
+            if (outR) outR[i] = finalSample;
+            if (i === 0) currentVisualValue = finalSample;
         }
 
         this.visualizer.update(this.isPlaying, this.currentFrame, currentVisualValue, this.regs, this.volA, this.volB, this.volC);
@@ -7201,7 +8925,7 @@ class YMExactProcessor extends AudioWorkletProcessor {
 
 registerProcessor('ym-exact-processor', YMExactProcessor);
 
-===== ./js/worklets/atari/ym-fantasy.js =====
+===== Path: ./js/worklets/atari/ym-fantasy.js =====
 
 // === js/worklets/atari/ym-fantasy.js ===
 // =========================================================
@@ -7553,7 +9277,7 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
 
 registerProcessor('ym-fantasy-processor', YMFantasyProcessor);
 
-===== ./js/worklets/atari/ym-standard.js =====
+===== Path: ./js/worklets/atari/ym-standard.js =====
 
 // === js/worklets/atari/ym-standard.js ===
 // =========================================================
@@ -7779,7 +9503,7 @@ class YMProcessor extends AudioWorkletProcessor {
 
 registerProcessor('ym-processor', YMProcessor);
 
-===== ./js/worklets/c64/sid-exact.js =====
+===== Path: ./js/worklets/c64/sid-exact.js =====
 
 // === js/worklets/c64/sid-exact.js ===
 // =========================================================
@@ -8060,7 +9784,7 @@ class SIDProcessor extends AudioWorkletProcessor {
 
 registerProcessor('sid-exact-processor', SIDProcessor);
 
-===== ./js/worklets/c64/sid-standard.js =====
+===== Path: ./js/worklets/c64/sid-standard.js =====
 
 // === js/worklets/c64/sid-standard.js ===
 // =========================================================
@@ -8310,7 +10034,7 @@ class SIDProcessor extends AudioWorkletProcessor {
 
 registerProcessor('sid-standard-processor', SIDProcessor);
 
-===== ./js/worklets/lib/cpu6502.js =====
+===== Path: ./js/worklets/lib/cpu6502.js =====
 
 // === js/worklets/lib/cpu6502.js ===
 // =========================================================
@@ -8713,7 +10437,7 @@ export class CPU6502 {
     }
 }
 
-===== ./js/worklets/lib/dsp-utils.js =====
+===== Path: ./js/worklets/lib/dsp-utils.js =====
 
 // =========================================================
 // DSP UTILITIES & FILTERS
@@ -8850,7 +10574,7 @@ export function detectDigidrumVoice(frame) {
     return 0; // Kein direkter Kanal gemappt (z. B. Fallback)
 }
 
-===== ./js/worklets/lib/dynamic-staging.js =====
+===== Path: ./js/worklets/lib/dynamic-staging.js =====
 
 // =========================================================
 // DYNAMIC STAGING MODULE
@@ -8921,7 +10645,7 @@ export class DynamicStaging {
     }
 }
 
-===== ./js/worklets/lib/sid-chip.js =====
+===== Path: ./js/worklets/lib/sid-chip.js =====
 
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
@@ -9225,7 +10949,7 @@ export class SIDChip {
     }
 }
 
-===== ./js/worklets/lib/sid-luts.js =====
+===== Path: ./js/worklets/lib/sid-luts.js =====
 
 // === js/worklets/lib/sid-luts.js ===
 // =========================================================
@@ -9295,7 +11019,7 @@ for (let i = 0; i < 4096; i++) {
     PWM_LUT[i] = shifted;
 }
 
-===== ./js/worklets/lib/sid-waveforms.js =====
+===== Path: ./js/worklets/lib/sid-waveforms.js =====
 
 // === js/worklets/lib/sid-waveforms.js ===
 // =========================================================
@@ -9395,7 +11119,7 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
     return Math.floor(out);
 }
 
-===== ./js/worklets/lib/ym-visualizer.js =====
+===== Path: ./js/worklets/lib/ym-visualizer.js =====
 
 // === js/worklets/lib/ym-visualizer.js ===
 // =========================================================
@@ -9440,7 +11164,7 @@ export class YMVisualizer {
     }
 }
 
-===== ./js/worklets/registry.js =====
+===== Path: ./js/worklets/registry.js =====
 
 // === js/worklets/registry.js ===
 // ==========================================
@@ -9464,7 +11188,7 @@ export const workletRegistry = {
     ]
 };
 
-===== ./manifest.json =====
+===== Path: ./manifest.json =====
 
 {
   "name": "Chiptunes Fantasy",
@@ -9489,7 +11213,7 @@ export const workletRegistry = {
   ]
 }
 
-===== ./sw.js =====
+===== Path: ./sw.js =====
 
 // ==========================================
 // CHIPTUNES FANTASY - OFFLINE SERVICE WORKER
@@ -9514,7 +11238,7 @@ self.addEventListener('fetch', (e) => {
     );
 });
 
-===== ./tracks/amiga/playlist.js =====
+===== Path: ./tracks/amiga/playlist.js =====
 
 // === tracks/amiga/mods.js ===
 // ==========================================
@@ -9583,7 +11307,7 @@ export const amigaPlaylist = myModFiles.map((filename, index) => {
     };
 });
 
-===== ./tracks/atari/playlist.js =====
+===== Path: ./tracks/atari/playlist.js =====
 
 // === tracks/atari/external.js ===
 // ==========================================
@@ -9686,7 +11410,7 @@ export const atariPlaylist = myYmFiles.map((filename, index) => {
     };
 });
 
-===== ./tracks/c64/playlist.js =====
+===== Path: ./tracks/c64/playlist.js =====
 
 // === tracks/c64/external.js ===
 // ==========================================
@@ -9772,7 +11496,7 @@ export const c64Playlist = mySidFiles.map((filename, index) => {
     };
 });
 
-===== ./tracks/index.js =====
+===== Path: ./tracks/index.js =====
 
 // === tracks/index.js ===
 // ==========================================
