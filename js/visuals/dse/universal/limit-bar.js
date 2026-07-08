@@ -1,11 +1,5 @@
 // === js/visuals/dse/universal/limit-bar.js ===
-// =========================================================
-// DEMO-SCENE-ELEMENT: TENSION LIMIT BAR
-// System-Themed reactive tension visualization (Borderless, No-Text)
-// Includes precision color mapping for Tension state milestones.
-// =========================================================
-
-const C64_COLS = ['#352879', '#6c5eb5', '#b5b5b5', '#ffffff', '#ff8a8a', '#ffff33'];
+import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit } from '../../utils/hardware-constraints.js';
 
 export class LimitBar {
     constructor() {
@@ -19,7 +13,6 @@ export class LimitBar {
 
         let pct = metrics.tensionPct;
         let isFlashing = false;
-
         let animIntensity = (state === 'climax') ? 1.0 : pct;
 
         if (state === 'climax') {
@@ -28,7 +21,6 @@ export class LimitBar {
             } else if (metrics.isClimaxLocked) {
                 pct = Math.max(0.0, 1.0 - (metrics.climaxTimer / metrics.climaxHoldTime));
             }
-            // Micro-Dynamics: Strobe-Flashing ist 100% synchron zur Kick-Drum
             isFlashing = (metrics.beat[0] > 0.5);
         }
         pct = Math.max(0, Math.min(1.0, pct));
@@ -39,25 +31,19 @@ export class LimitBar {
         this.displayAlpha += (targetAlpha - this.displayAlpha) * 0.1;
 
         let globalAlpha = 1.0;
-        if (state === 'starting') {
-            globalAlpha = Math.min(1.0, stateTime / 1.5);
-        } else if (state === 'stopping') {
-            globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
-        }
+        if (state === 'starting') globalAlpha = Math.min(1.0, stateTime / 1.5);
+        else if (state === 'stopping') globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
         
         globalAlpha *= this.displayAlpha;
         if (globalAlpha <= 0.01) return;
         ctx.globalAlpha = globalAlpha;
 
-        const w = 240;
-        const h = 18;
-        const x = 20;
-        const y = height - h - 20;
+        const w = 240; const h = 18;
+        const x = 20; const y = height - h - 20;
 
         if (metrics.system === 'c64') {
-            // --- C64 STYLE ---
-            let segCount = 20;
-            let gap = 2;
+            // --- STRICT C64 PALETTE BINDING ---
+            let segCount = 20; let gap = 2;
             let segW = (w / segCount) - gap;
             let activeSegs = Math.floor(pct * segCount);
             let activeW = activeSegs > 0 ? (activeSegs * (segW + gap) - gap) : 0;
@@ -66,31 +52,32 @@ export class LimitBar {
                 let borderThick = Math.floor(2 + animIntensity * 6);
                 let numStripes = 6;
                 let stripeH = (h + borderThick * 2) / numStripes;
+                
+                // Hardware Farben: [6: DarkBlue, 14: LightBlue, 15: LightGrey, 1: White, 10: LightRed, 7: Yellow]
+                const c64Colors = [6, 14, 15, 1, 10, 7].map(i => rgbToHex(...C64_PALETTE[i]));
+                
                 for (let i = 0; i < numStripes; i++) {
                     let colIdx = Math.floor((t * (5 + animIntensity * 15) + i) % 4);
-                    // Flackert rot/gelb bei extremem Beat!
                     if (animIntensity >= 1.0 && metrics.beat[0] > 0.3) colIdx = 4 + Math.floor(Math.random() * 2); 
                     
-                    ctx.fillStyle = C64_COLS[colIdx];
+                    ctx.fillStyle = c64Colors[colIdx];
                     ctx.fillRect(x - borderThick, Math.floor(y - borderThick + i * stripeH), activeW + borderThick * 2, Math.ceil(stripeH));
                 }
             }
 
             for (let i = 0; i < activeSegs; i++) {
-                // Präzise Zuweisung anhand des Fortschritts:
-                // 0-45% = Blau, 50-90% = Weiß, 95-100% = Rot
-                let color = '#6c5eb5'; 
-                if (i >= 19) color = '#ff8a8a';      // Das absolute Climax-Segment (100%)
-                else if (i >= 10) color = '#ffffff'; // Die Tension Build-Up Phase (ab 50%)
+                let color = rgbToHex(...C64_PALETTE[14]); // 14: Light Blue
+                if (i >= 19) color = rgbToHex(...C64_PALETTE[10]);      // 10: Light Red (100%)
+                else if (i >= 10) color = rgbToHex(...C64_PALETTE[1]);  // 1: White (50%)
                 
-                if (isFlashing) color = '#ffffff';
+                if (isFlashing) color = rgbToHex(...C64_PALETTE[1]);
                 
                 ctx.fillStyle = color;
                 ctx.fillRect(x + i * (segW + gap), y, segW, h); 
             }
 
         } else if (metrics.system === 'amiga') {
-            // --- AMIGA STYLE ---
+            // --- 12-BIT AMIGA COPPER GRADIENT ---
             let activeW = w * pct;
 
             if (animIntensity > 0.05 && activeW > 0) {
@@ -114,27 +101,34 @@ export class LimitBar {
             }
 
             if (pct > 0) {
-                // Harte Color-Stops für präzise Meilensteine
+                // 12-Bit Quantisierte Color Stops
+                const cBlue = rgbToHex(...quantizeAmiga12Bit(0, 85, 255));
+                const cOrange = rgbToHex(...quantizeAmiga12Bit(255, 136, 0));
+                const cRed = rgbToHex(...quantizeAmiga12Bit(255, 0, 0));
+                
                 let grad = ctx.createLinearGradient(x, y, x + activeW, y);
-                grad.addColorStop(0.0, '#0055ff'); // Blau
-                grad.addColorStop(0.5, '#ff8800'); // Orange (50%)
-                grad.addColorStop(0.95, '#ff8800'); // Hält Orange bis kurz vor Schluss
-                grad.addColorStop(1.0, '#ff0000'); // Rot beim Climax-Hit
+                grad.addColorStop(0.0, cBlue);
+                grad.addColorStop(0.5, cOrange); 
+                grad.addColorStop(0.95, cOrange); 
+                grad.addColorStop(1.0, cRed); 
                 
                 ctx.fillStyle = isFlashing ? '#ffffff' : grad;
                 ctx.fillRect(x, y, activeW, h); 
             }
 
         } else {
-            // --- ATARI ST STYLE ---
-            let segCount = 24;
-            let gap = 2;
+            // --- 9-BIT ATARI ST STYLE ---
+            let segCount = 24; let gap = 2;
             let segW = (w / segCount) - gap;
             let activeSegs = Math.floor(pct * segCount);
             let activeW = activeSegs > 0 ? (activeSegs * (segW + gap) - gap) : 0;
 
+            const cGreen = rgbToHex(...quantizeAtari9Bit(85, 255, 85));
+            const cYellow = rgbToHex(...quantizeAtari9Bit(255, 255, 51));
+            const cRed = rgbToHex(...quantizeAtari9Bit(255, 51, 51));
+
             if (animIntensity > 0.05 && activeW > 0) {
-                ctx.strokeStyle = animIntensity >= 1.0 ? '#ffffff' : '#55ff55';
+                ctx.strokeStyle = animIntensity >= 1.0 ? '#ffffff' : cGreen;
                 ctx.lineWidth = 1.5;
                 
                 let numSparks = Math.floor(animIntensity * 12);
@@ -152,18 +146,16 @@ export class LimitBar {
                     else if (edge === 2) { sx = x - 4; sy = y + Math.random() * h; dx = sx - sparkLen; dy = sy + offset; } 
                     else { sx = x + activeW + 4; sy = y + Math.random() * h; dx = sx + sparkLen; dy = sy + offset; } 
                     
-                    ctx.moveTo(sx, sy);
-                    ctx.lineTo(dx, dy);
+                    ctx.moveTo(sx, sy); ctx.lineTo(dx, dy);
                 }
                 ctx.stroke();
             }
 
             if (activeSegs > 0) {
                 for (let i = 0; i < activeSegs; i++) {
-                    // Präzise Zuweisung anhand des Fortschritts:
-                    let color = '#55ff55'; // 0-50% = Grün
-                    if (i >= 23) color = '#ff3333';      // Das absolute Climax-Segment (100%)
-                    else if (i >= 12) color = '#ffff33'; // Die Tension Build-Up Phase (ab 50%)
+                    let color = cGreen;
+                    if (i >= 23) color = cRed;      
+                    else if (i >= 12) color = cYellow; 
                     
                     if (isFlashing) color = '#ffffff'; 
                     
