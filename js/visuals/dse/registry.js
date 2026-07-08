@@ -12,6 +12,7 @@ import { RetroSunset } from './universal/retro-sunset.js';
 import { Starfield } from './universal/starfield.js'; 
 import { AmigaCube } from './amiga/glenz-cube.js';
 import { AtariBobs } from './atari/lissajous-bobs.js';
+import { ChunkyPlasma } from './c64/chunky-plasma.js';
 
 function defineDSE(DseClass, customMetadata) {
     const defaults = {
@@ -62,6 +63,14 @@ export const dseRegistry = [
         weight: 10,              
         minPlayTime: 15.0,
         climaxHoldTime: 12.0
+    }),
+
+        defineDSE(ChunkyPlasma, {
+        placementType: 'background',
+        computerType: ['c64'],   // Wird NUR getriggert, wenn C64 aktiv ist
+        weight: 12,              // Hohe Gewichtung, taucht oft auf
+        minPlayTime: 12.0,
+        climaxHoldTime: 10.0
     }),
 
     defineDSE(VoidElement, {
