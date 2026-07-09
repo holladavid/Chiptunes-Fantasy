@@ -1,6 +1,6 @@
 // === js/visuals/dj/stage-manager.js ===
 const TRANSITION_TIME = 1.5;
-const Z_ORDER = { 'background': 0, 'floor': 1, 'foreground': 2, 'overlay': 3 };
+const Z_ORDER = { 'background': 0, 'floor': 1, 'foreground': 2, 'overlay': 3, 'presenter': 4 };
 
 export class StageManager {
     constructor() {
@@ -19,7 +19,8 @@ export class StageManager {
     clearNonPermanentDSEs() {
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
-            if (dse.metadata.minPlayTime !== Infinity) {
+            // FIX: Der Presenter darf bei einem Track-Wake-Up NICHT gekillt werden!
+            if (dse.metadata.minPlayTime !== Infinity && dse.metadata.placementType !== 'presenter') {
                 dse.state = 'idle';
                 dse.stateTime = 0.0;
                 dse._markedForRemoval = false;
@@ -27,7 +28,6 @@ export class StageManager {
             }
         }
     }
-
     updateCrossfades(macroState, dt) {
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];

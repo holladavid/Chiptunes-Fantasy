@@ -12,6 +12,10 @@ import { RetroSunset } from './universal/retro-sunset.js';
 import { Starfield } from './universal/starfield.js'; 
 import { AmigaCube } from './amiga/glenz-cube.js';
 import { AtariBobs } from './atari/lissajous-bobs.js';
+import { ChunkyPlasma } from './c64/chunky-plasma.js';
+import { KefrensCheckerboard } from './amiga/kefrens-checkerboard.js';
+import { WireframeMorph } from './atari/wireframe-morph.js';
+import { TrackPresenter } from './universal/track-presenter.js';
 
 function defineDSE(DseClass, customMetadata) {
     const defaults = {
@@ -28,7 +32,7 @@ function defineDSE(DseClass, customMetadata) {
     const metadata = { ...defaults, ...customMetadata };
 
     if (!Array.isArray(metadata.computerType)) throw new Error(`[DSE Schema] ${metadata.name}: 'computerType' must be an Array.`);
-    const validPlacements = ['background', 'floor', 'foreground', 'overlay'];
+    const validPlacements = ['background', 'floor', 'foreground', 'overlay', 'presenter'];
     if (!validPlacements.includes(metadata.placementType)) throw new Error(`[DSE Schema] ${metadata.name}: Invalid placementType.`);
     if (typeof metadata.isVoid !== 'boolean') throw new Error(`[DSE Schema] ${metadata.name}: 'isVoid' must be a Boolean.`);
     if (typeof metadata.weight !== 'number' || metadata.weight <= 0) throw new Error(`[DSE Schema] ${metadata.name}: 'weight' must be a positive Number.`);
@@ -64,6 +68,14 @@ export const dseRegistry = [
         climaxHoldTime: 12.0
     }),
 
+        defineDSE(ChunkyPlasma, {
+        placementType: 'background',
+        computerType: ['c64'],   // Wird NUR getriggert, wenn C64 aktiv ist
+        weight: 12,              // Hohe Gewichtung, taucht oft auf
+        minPlayTime: 12.0,
+        climaxHoldTime: 10.0
+    }),
+
     defineDSE(VoidElement, {
         name: 'VoidBackground', // Weist der universellen Klasse einen spezifischen Namen zu
         placementType: 'background',
@@ -81,6 +93,14 @@ export const dseRegistry = [
         weight: 8,               
         minPlayTime: 15.0,
         climaxHoldTime: 12.0
+    }),
+        
+    defineDSE(KefrensCheckerboard, {
+        placementType: 'floor',
+        computerType: ['amiga'], // Streng auf Amiga limitiert
+        weight: 12,              // Hohe Gewichtung (Erscheint häufig!)
+        minPlayTime: 12.0,
+        climaxHoldTime: 15.0
     }),
 
     defineDSE(VoidElement, {
@@ -102,6 +122,15 @@ export const dseRegistry = [
         climaxHoldTime: 15.0
     }),
     
+    // NEU: Der klassische Atari ST Wireframe Morph
+    defineDSE(WireframeMorph, {
+        placementType: 'foreground',
+        computerType: ['atari'], // Exklusiv für den ST!
+        weight: 12,              // Hohe Präsenz
+        minPlayTime: 12.0,
+        climaxHoldTime: 15.0
+    }),
+
     defineDSE(AtariBobs, {
         placementType: 'foreground',
         computerType: ['atari'],
@@ -118,5 +147,14 @@ export const dseRegistry = [
         minPlayTime: 15.0,
         climaxHoldTime: 0.0,
         isVoid: true
+    }),
+
+    // --- PRESENTERS (One-Shot Overlays) ---
+    defineDSE(TrackPresenter, {
+        placementType: 'presenter',
+        computerType: ['all'],
+        weight: 10,
+        minPlayTime: 8.0,     // Wird nun als exakte Anzeigezeit ausgelesen!
+        climaxHoldTime: 0.0
     })
-];
+]; // Ende des dseRegistry Arrays

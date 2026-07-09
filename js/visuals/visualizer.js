@@ -141,11 +141,14 @@ export function initVisuals(stateGetters, callbacks) {
 
          // NEU: Session ID aus der App-Logik abfragen
         const sessionId = stateGetters.getPlaybackSessionId ? stateGetters.getPlaybackSessionId() : 0;
+        // TrackData und Metadata abholen
+        const trackData = stateGetters.getTrackData();
+        const trackMetadata = trackData ? trackData.metadata : null;
 
         // --- RENDER ROUTING ---
         if (showGimmick) {
-            // NEU: sessionId als Parameter an den DJ durchreichen!
-            dss.render(ctx, canvas.width, canvas.height, t, channelVolumes, isPlaying, sessionId);
+            // trackMetadata übergeben!
+            dss.render(ctx, canvas.width, canvas.height, t, channelVolumes, isPlaying, sessionId, trackMetadata);
         } else {
             drawReticle(); 
             osc.render(ctx, canvas.width, canvas.height, stateGetters, lineColor);

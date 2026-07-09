@@ -560,13 +560,15 @@ async function selectAndPlayTrack(index, system) {
     playRequestToken++;
     const myToken = playRequestToken;
 
-    playbackSessionId++; // NEU: Informiert das Rendering-System über einen Trackwechsel
+    // --- FIX: ZEILE ENTFERNT ---
+    // playbackSessionId++; (DIESE ZEILE LÖSCHEN!)
 
     if (getAudioContext() && getAudioContext().state === 'suspended') {
         resumeAudioContext().catch(e => console.log("AudioContext resume blockiert:", e));
     }
 
     const songs = trackRegistry[system]; 
+
     if (!songs || !songs[index]) return;
 
     const pwrLedOverride = document.getElementById('amiga-led-override');
@@ -598,17 +600,14 @@ async function selectAndPlayTrack(index, system) {
         try {
             let parsedFile = await selectedSong.loadAsync();
             
-            // =========================================================
-            // TOKEN CHECK: Hat der User den Tab gewechselt oder 
-            // einen anderen Track geklickt, während wir geladen haben?
-            // =========================================================
             if (myToken !== playRequestToken) {
                 console.warn("[SYSTEM] Veralteter Async-Ladevorgang durch User-Interaktion abgebrochen.");
-                return; // ABBRUCH! Keine Ghost-Playbacks mehr!
+                return; 
             }
 
             if (isC64System) {
                 trackData = parsedFile; 
+
                 currentSubsongIndex = parsedFile.startSong || 1; 
                 
                 let sldbLengths = trackData.lengths || [180];
@@ -632,6 +631,9 @@ async function selectAndPlayTrack(index, system) {
                 } else {
                     trackData = parsedFile.frames; 
                     trackData.digidrums = parsedFile.digidrums || [];
+                    
+                    // --- FIX: METADATEN WIEDER AN DAS ARRAY ANHÄNGEN! ---
+                    trackData.metadata = parsedFile.metadata; 
                 }
                 
                 if (isAmigaSystem) {
@@ -707,6 +709,10 @@ async function selectAndPlayTrack(index, system) {
                 </div>
                 <p class="blinking-cursor" style="margin-top: 15px;">_</p>
             `;
+
+            // --- NEU: HIER IST DER RICHTIGE ORT! ---
+            // Jetzt liegen die NEUEN Metadaten sicher in trackData bereit
+            playbackSessionId++; 
             startPlayback();
             
         } catch (err) {
@@ -731,6 +737,7 @@ async function selectAndPlayTrack(index, system) {
         `;
         currentScrollerText = "+++ NOW PLAYING: " + selectedSong.title + " +++";
         trackData = selectedSong.generator();
+
         startPlayback();
     }
 
