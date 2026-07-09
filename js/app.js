@@ -631,6 +631,9 @@ async function selectAndPlayTrack(index, system) {
                 } else {
                     trackData = parsedFile.frames; 
                     trackData.digidrums = parsedFile.digidrums || [];
+                    
+                    // --- FIX: METADATEN WIEDER AN DAS ARRAY ANHÄNGEN! ---
+                    trackData.metadata = parsedFile.metadata; 
                 }
                 
                 if (isAmigaSystem) {
