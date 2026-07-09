@@ -77,7 +77,8 @@ export class LimitBar {
                 if (isFlashing) color = rgbToHex(...C64_PALETTE[1]);
                 
                 ctx.fillStyle = color;
-                ctx.fillRect(x + i * (segW + gap), y, segW, h); 
+                // Math.floor erzwingt kantenscharfes Rendering der Segmente
+                ctx.fillRect(Math.floor(x + i * (segW + gap)), Math.floor(y), Math.floor(segW), Math.floor(h)); 
             }
 
         } else if (metrics.system === 'amiga') {

@@ -116,19 +116,17 @@ export class KefrensCheckerboard {
             
             let screenX = 0;
 
-            // Zeichne diese Scanline blockweise (vermeidet tausende draw-calls!)
             while (screenX < width) {
                 let drawW = Math.ceil(nextX - screenX);
                 
-                // Safety Catch gegen Floating-Point-Hänger
                 if (drawW <= 0) { drawW = 1; nextX = screenX + 1; }
                 if (screenX + drawW > width) drawW = width - screenX;
                 
-                // Bitweiser Checkerboard XOR Check
                 let colorXor = (uPhase + vPhase) & 1;
-                
                 ctx.fillStyle = colorXor === 0 ? hex1 : hex2;
-                ctx.fillRect(screenX, y, drawW, scanH);
+                
+                // SUB-PIXEL-KILLER: Harte Koordinaten!
+                ctx.fillRect(Math.floor(screenX), Math.floor(y), Math.floor(drawW), Math.floor(scanH));
                 
                 screenX += drawW;
                 nextX += deltaScreenX;

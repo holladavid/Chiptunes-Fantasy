@@ -122,13 +122,13 @@ export class RetroSunset {
             let waveWidth = 15 + (depth * 50); 
             let xOffset = Math.sin((y * 0.1) + (this.waterT * 3.0)) * distortion;
             
-            // Wasser-Dithering: Da es kein echtes Alpha gibt, lassen wir 
-            // im Hintergrund Zeilen ausfallen, um Transparenz zu simulieren!
             if (depth > 0.6 && y % 2 === 0) continue; 
             
+            // SUB-PIXEL-KILLER
             ctx.fillRect(Math.floor(sx - (waveWidth / 2) + xOffset), Math.floor(y), Math.floor(waveWidth), 1);
         }
     }
+
 
     drawAtari(ctx, w, h, horizon, sunPulse, beatDistortion) {
         // 9-Bit Himmel
@@ -173,13 +173,15 @@ export class RetroSunset {
                 if (Math.abs(x + offset - sx) < sunR * (1.0 - depth*0.5) && y < horizon + 40) ctx.fillStyle = cSunRef; 
                 else ctx.fillStyle = (Math.floor(y) % 3 === 0) ? cWater1 : cWater2; 
                 
-                let dashWidth = 8 + depth * 15; // Kürzere Reflexionen
+                let dashWidth = 8 + depth * 15;
                 let xDistort = Math.sin(y * 0.2 + waterSpeed) * distortion;
                 
                 if (beatDistortion > 2.0 && Math.random() > 0.7) {
-                    ctx.fillStyle = cGlitch; ctx.fillRect(0, y, w, 1); // Glitch auf 1px
+                    ctx.fillStyle = cGlitch; 
+                    ctx.fillRect(0, Math.floor(y), w, 1); 
                 } else {
-                    ctx.fillRect(x + offset + xDistort, Math.floor(y), dashWidth, thickness);
+                    // SUB-PIXEL-KILLER
+                    ctx.fillRect(Math.floor(x + offset + xDistort), Math.floor(y), Math.floor(dashWidth), Math.floor(thickness));
                 }
             }
         }

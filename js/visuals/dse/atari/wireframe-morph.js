@@ -5,7 +5,7 @@
 // Strict 9-Bit Shifter Colors, no Anti-Aliasing/Glow hacks.
 // =========================================================
 
-import { quantizeAtari9Bit, rgbToHex } from '../../utils/hardware-constraints.js';
+import { quantizeAtari9Bit, rgbToHex, drawAliasedLine } from '../../utils/hardware-constraints.js';
 
 export class WireframeMorph {
     constructor() {
@@ -126,37 +126,27 @@ export class WireframeMorph {
             // Z-Tiefe addieren, damit es vor der Kamera liegt
             let zOff = z2 + 4.5;
             
-            // Auf Integer floor(), um hartes Atari-Aliasing zu forcieren (kein weiches Sub-Pixel)
+            // SUB-PIXEL-KILLER: Strikte Integer-Werte für Atari!
             this.projected[i].x = Math.floor(cx + (x3 * fov) / zOff * (scale / 100));
             this.projected[i].y = Math.floor(cy + (y3 * fov) / zOff * (scale / 100));
         }
 
         // --- STRICT ATARI 9-BIT QUANTIZATION FOR WIREFRAME COLORS ---
-        // Normal = Dunkelgrün, Beat-Peak = Neon-Grün / Weiß
         let beat = metrics.beat[0];
         let r = 0 + beat * 255;
         let g = 153 + beat * 102;
         let b = 0 + beat * 255;
         let qColor = quantizeAtari9Bit(r, g, b);
+        let hexColor = rgbToHex(qColor[0], qColor[1], qColor[2]);
         
-        ctx.strokeStyle = rgbToHex(qColor[0], qColor[1], qColor[2]);
-        // Liniendicke pulsiert leicht zum Takt
-        ctx.lineWidth = 1.0 + Math.floor(beat * 1.0); 
-        
-        // Forciert harte Kanten ohne weiche Interpolationen an den Ecken
-        ctx.lineCap = 'butt';
-        ctx.lineJoin = 'miter';
-
-        // 3. Drahtgitter (Wireframe) zeichnen
-        ctx.beginPath();
+        // 3. Drahtgitter (Wireframe) per Software-Bresenham zeichnen
+        // Kein ctx.lineWidth oder ctx.stroke() mehr!
         for (let i = 0; i < 24; i++) {
             let p1 = this.projected[this.edges[i][0]];
             let p2 = this.projected[this.edges[i][1]];
             
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
+            drawAliasedLine(ctx, p1.x, p1.y, p2.x, p2.y, hexColor);
         }
-        ctx.stroke();
 
         ctx.globalAlpha = 1.0;
     }

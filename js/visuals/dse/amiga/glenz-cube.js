@@ -1,5 +1,5 @@
 // === js/visuals/dse/amiga/glenz-cube.js ===
-import { quantizeAmiga12Bit } from '../../utils/hardware-constraints.js';
+import { quantizeAmiga12Bit, rgbToHex, drawAliasedLine } from '../../utils/hardware-constraints.js';
 
 export class AmigaCube {
     constructor() {
@@ -64,8 +64,9 @@ export class AmigaCube {
         const fov = Math.min(width, height) * 1.5;
         for (let i = 0; i < 8; i++) {
             const zOff = this.rotated[i].z + 4.0; 
-            this.projected[i].x = cx + (this.rotated[i].x * fov) / zOff * (scale / 100);
-            this.projected[i].y = cy + (this.rotated[i].y * fov) / zOff * (scale / 100);
+            // PROPORTIONS-FIX & SUB-PIXEL-KILLER: Harte Integer-Koordinaten!
+            this.projected[i].x = Math.floor(cx + (this.rotated[i].x * fov) / zOff * (scale / 100));
+            this.projected[i].y = Math.floor(cy + (this.rotated[i].y * fov) / zOff * (scale / 100));
         }
 
         const lx = 0.5, ly = -0.5, lz = -0.7;
@@ -103,17 +104,40 @@ export class AmigaCube {
 
         this.facesToDraw.sort((a, b) => b.z - a.z);
 
+        const colorFrontLine = rgbToHex(...quantizeAmiga12Bit(255, 255, 255)); // Strahlendes Weiß
+        const colorBackLine = rgbToHex(...quantizeAmiga12Bit(85, 85, 85));     // Dunkelgrau (kein Alpha!)
+
         for (let i = 0; i < 6; i++) {
             let face = this.facesToDraw[i]; let idxs = face.idxs;
-            ctx.beginPath(); ctx.moveTo(this.projected[idxs[0]].x, this.projected[idxs[0]].y); ctx.lineTo(this.projected[idxs[1]].x, this.projected[idxs[1]].y); ctx.lineTo(this.projected[idxs[2]].x, this.projected[idxs[2]].y); ctx.lineTo(this.projected[idxs[3]].x, this.projected[idxs[3]].y); ctx.closePath();
+            
+            // Polygone füllen (Da Canvas fill() immer noch leicht glättet, helfen die floored Koordinaten extrem!)
+            ctx.beginPath(); 
+            ctx.moveTo(this.projected[idxs[0]].x, this.projected[idxs[0]].y); 
+            ctx.lineTo(this.projected[idxs[1]].x, this.projected[idxs[1]].y); 
+            ctx.lineTo(this.projected[idxs[2]].x, this.projected[idxs[2]].y); 
+            ctx.lineTo(this.projected[idxs[3]].x, this.projected[idxs[3]].y); 
+            ctx.closePath();
 
             if (face.isBackface) {
-                ctx.fillStyle = `rgba(${face.r * 0.4}, ${face.g * 0.4}, ${face.b * 0.4}, 0.28)`; ctx.fill();
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)'; ctx.lineWidth = 1.0; ctx.stroke();
+                // Wir nutzen hier beim Fill noch das pseudo-Alpha, da der Amiga "Glenz"-Vektoren 
+                // durch extrem schnelle Dithering/Blitter-Muster erzeugt hat. 
+                ctx.fillStyle = `rgba(${face.r * 0.4}, ${face.g * 0.4}, ${face.b * 0.4}, 0.28)`; 
+                ctx.fill();
             } else {
-                ctx.fillStyle = `rgba(${face.r}, ${face.g}, ${face.b}, 0.65)`; ctx.fill();
-                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.0; ctx.stroke();
+                ctx.fillStyle = `rgba(${face.r}, ${face.g}, ${face.b}, 0.65)`; 
+                ctx.fill();
             }
+
+            // --- STRICT ALIASED HARDWARE LINES ---
+            let lineColor = face.isBackface ? colorBackLine : colorFrontLine;
+            
+            let p0 = this.projected[idxs[0]]; let p1 = this.projected[idxs[1]];
+            let p2 = this.projected[idxs[2]]; let p3 = this.projected[idxs[3]];
+
+            drawAliasedLine(ctx, p0.x, p0.y, p1.x, p1.y, lineColor);
+            drawAliasedLine(ctx, p1.x, p1.y, p2.x, p2.y, lineColor);
+            drawAliasedLine(ctx, p2.x, p2.y, p3.x, p3.y, lineColor);
+            drawAliasedLine(ctx, p3.x, p3.y, p0.x, p0.y, lineColor);
         }
         ctx.globalAlpha = 1.0;
     }
