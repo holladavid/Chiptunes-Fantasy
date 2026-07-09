@@ -1,7 +1,7 @@
 # Chiptunes Fantasy
 
 ### The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator
-**Version 1.3.0-beta.1 [The Visual Expansion]**
+**Version 1.3.0-beta.2 🎨 The Pixel-Perfect Alignment**
 
 Built with 100% vanilla HTML5, CSS3, and modern Web Audio API. No MP3s, no pre-rendered streams — just pure mathematical real-time synthesis running asynchronously inside low-latency AudioWorklets.
 
@@ -36,3 +36,10 @@ Visual effects are decoupled, hardware-constrained classes injected dynamically 
 *   **Amiga Kefrens Checkerboard:** The iconic infinite zooming 3D floor, featuring scanline-based perspective math and strict 12-bit Copper Z-depth banding.
 *   **Atari Wireframe Morph:** A CPU-driven 3D polygon morphing from a cube to a stellated octahedron, drawn with our custom Bresenham algorithm to prevent sub-pixel line blurring.
 *   **Legacy DSEs Refined:** `Retro Sunset`, `Starfield`, `LimitBar`, `AmigaCube`, and `AtariBobs` have all been strictly quantized to their respective hardware color spaces and cleared of illegal `rgba()` alpha-blending.
+
+### 3. Strict Hardware Constraints & Math Rendering (v1.3.0 Additions)
+*   **The Retro Blitter:** All Demo-Scene-Elements are now isolated to render into a constrained low-res offscreen buffer (`200p` for C64/Atari, `256p` for Amiga). The buffer is upscaled via Nearest-Neighbor (`imageSmoothingEnabled = false`), resulting in crisp, authentic chunky pixels.
+*   **Bypassing Canvas AA:** Standard vector paths (`ctx.arc()`, `ctx.stroke()`) are banned. All outlines use a custom JS-Bresenham algorithm (`drawAliasedLine`), and circles are filled line-by-line via scanline calculation (`fillAliasedCircle`).
+*   **Grid-Snapped Subpixel-Killers:** All coordinates, widths, and heights passed to `fillRect` are dynamically integer-floored to prevent the browser from blurring moving edges.
+*   **Dynamic Frustum Recycling:** An advanced clipping optimization in the 3D Starfield that recycles star coordinates the millisecond they cross the 2D screen boundary, keeping active star density at 100% capacity.
+*   **One-Shot Metadata Presenter:** A specialized `presenter` overlay layer that slides in upon song changes and auto-destructs using ECS lifecycle bindings.
