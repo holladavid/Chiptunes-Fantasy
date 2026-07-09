@@ -48,7 +48,8 @@ export class SceneDJ {
         }
     }
 
-    render(ctx, width, height, t, channelVolumes, isPlaying, sessionId) {
+    // Argument trackMetadata hinzugefügt!
+    render(ctx, width, height, t, channelVolumes, isPlaying, sessionId, trackMetadata) {
         let dt = 0.016; 
         if (this.lastTime !== 0) { 
             dt = t - this.lastTime; 
@@ -60,6 +61,11 @@ export class SceneDJ {
             this.tension.reset();
             this.monitor.info.sessionId = sessionId;
             this.monitor.dynamics.beatEnvelope[0] = 0.0;
+            
+            // NEU: Title-Card Event abfeuern!
+            if (trackMetadata) {
+                this.setlist.triggerPresenter(this.stage, this.monitor.info, trackMetadata);
+            }
         }
 
         this.monitor.info.isPlaying = isPlaying;

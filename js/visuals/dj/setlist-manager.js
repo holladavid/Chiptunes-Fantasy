@@ -45,7 +45,9 @@ export class SetlistManager {
             if (!dse._markedForRemoval) layerFilled[dse.metadata.placementType] = true;
         }
 
+        // 'presenter' wird absichtlich ignoriert, da er ein One-Shot-Event ist!
         const layers = ['background', 'floor', 'foreground', 'overlay'];
+
         for (let layer of layers) {
             if (!layerFilled[layer]) {
                 let candidates = this.registeredDSEs.filter(d => 
@@ -102,15 +104,14 @@ export class SetlistManager {
         this.fillEmptyLayers(stageManager, info, 'idle');
     }
 
-    manageSwaps(stageManager, info, macroState, dt) {
-        // =========================================================
-        // SWAPPING NUN AUCH IM CLIMAX ERLAUBT!
-        // Wirft den künstlichen "Climax-Lockout" für Swaps raus.
-        // =========================================================
+manageSwaps(stageManager, info, macroState, dt) {
         let swapOccurred = false;
 
         for (let dse of stageManager.activeDSEs) {
             if (dse._markedForRemoval) continue;
+            
+            // FIX: Der Presenter darf niemals durch das Roulette-Wheel wegrotieren!
+            if (dse.metadata.placementType === 'presenter') continue;
             
             // Evaluierung nun in ALLEN 3 aktiven States möglich
             if ((dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax') && dse.metadata.minPlayTime !== Infinity) {
@@ -139,5 +140,34 @@ export class SetlistManager {
             }
         }
         if (swapOccurred) this.fillEmptyLayers(stageManager, info, 'starting');
+    }
+
+    triggerPresenter(stageManager, info, trackMetadata) {
+        // Falls ein alter Presenter noch läuft, brechen wir ihn ab
+        for (let i = stageManager.activeDSEs.length - 1; i >= 0; i--) {
+            if (stageManager.activeDSEs[i].metadata.placementType === 'presenter') {
+                stageManager.activeDSEs[i].state = 'stopping';
+                stageManager.activeDSEs[i].stateTime = 0.0;
+            }
+        }
+        
+        // Suche nach einem passenden Presenter für das System
+        let candidates = this.registeredDSEs.filter(d => 
+            d.metadata.placementType === 'presenter' &&
+            (d.metadata.computerType.includes(info.system) || d.metadata.computerType.includes('all'))
+        );
+        
+        if (candidates.length > 0) {
+            let chosen = this.selectWeightedDSE(candidates);
+            chosen.state = 'starting';
+            chosen.stateTime = 0.0;
+            chosen._markedForRemoval = false;
+            
+            // NEU: Wir injizieren die Datei-Metadaten direkt in das DSE!
+            chosen.trackInfo = trackMetadata; 
+            
+            stageManager.activeDSEs.push(chosen);
+            stageManager.sortZOrder();
+        }
     }
 }
