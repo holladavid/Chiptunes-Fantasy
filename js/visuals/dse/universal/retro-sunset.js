@@ -1,9 +1,8 @@
 // === js/visuals/dse/universal/retro-sunset.js ===
 // =========================================================
-// DEMO-SCENE-ELEMENT: RETRO SUNSET (IK+ & OUTRUN HYBRID)
+// DEMO-SCENE-ELEMENT: RETRO SUNSET (CLEAN CLASSIC EDITION)
 // Multi-system landscape with strict hardware quantization.
-// Overhauled C64 sun with absolute mathematical symmetry,
-// animated vertical Outrun-slits, and organic beat reactivity.
+// Restored to the timeless classic design with zero anti-aliasing.
 // =========================================================
 
 import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit, fillAliasedCircle } from '../../utils/hardware-constraints.js';
@@ -73,55 +72,32 @@ export class RetroSunset {
         ctx.fillStyle = colLightRed; ctx.fillRect(0, horizon * 0.6, w, horizon * 0.25); 
         ctx.fillStyle = colYellow; ctx.fillRect(0, horizon * 0.85, w, horizon * 0.15); 
 
-        // --- UPGRADE: 100% SYMMETRICAL C64 OUTRUN SUN ---
-        let sunR = Math.floor(25 + (sunPulse * 6.0)); 
+        // Mathematisch perfekte, symmetrische C64 Sonne
+        let sunR = Math.floor(25 + (sunPulse * 8.0)); 
         let sx = Math.floor(w / 2); 
         let sy = Math.floor(horizon - 12);
 
-        const blockSize = 4; // Block-Auflösung des C64
+        const blockSize = 4; 
         const blockR = Math.round(sunR / blockSize);
         const centerBlockX = Math.floor(sx / blockSize);
         const centerBlockY = Math.floor(sy / blockSize);
 
         ctx.fillStyle = colWhite;
-
         for (let by = -blockR; by <= blockR; by++) {
-            // Pythagoras-Radius für diese spezifische Blockzeile
             let dx = Math.round(Math.sqrt(blockR * blockR - by * by));
             let screenY = (centerBlockY + by) * blockSize;
-
-            // --- ANIMATED SUNSET SLITS (Nur in der unteren Hälfte der Sonne) ---
-            if (by > 0) {
-                // Symmetrischer Modulo-Scroller, der sich weich nach oben bewegt
-                let slitPattern = (screenY - Math.floor(this.internalT * 12)) % 12;
-                if (slitPattern < 0) slitPattern += 12; // JS modulo correction
-                
-                // Schlitze werden nach unten hin breiter
-                let slitThreshold = 3 + (by / blockR) * 4;
-                
-                // BEAT REACTION: Bei Kickdrums zieht sich die Sonne zusammen (wird kompakter)
-                slitThreshold = Math.max(0, slitThreshold - metrics.beat[0] * 3.5);
-
-                if (slitPattern < slitThreshold) {
-                    continue; // Diese Blockzeile auslassen (Lücke erzeugen!)
-                }
-            }
-
-            // Zeichnet die Zeile absolut symmetrisch gespiegelt um den CenterBlock
             let startX = (centerBlockX - dx) * blockSize;
             let endX = (centerBlockX + dx) * blockSize;
             ctx.fillRect(startX, screenY, endX - startX, blockSize);
         }
 
-        // Water Background
+        // Water
         ctx.fillStyle = colDarkBlue; ctx.fillRect(0, horizon, w, h - horizon);
 
-        // Water Lines
         let waveSpeed = this.waterT * 10; 
         for (let y = Math.floor(horizon); y < h; y += 4) {
             let offset = Math.floor((waveSpeed + y * 2) % 40);
             
-            // FIX: Von -40 bis w+40 zeichnen, um unschönen Pop-In an den Bildschirmrändern zu eliminieren
             for (let x = -40; x < w + 40; x += 40) {
                 let drawX = Math.floor(x - offset);
                 
@@ -137,6 +113,7 @@ export class RetroSunset {
     }
 
     drawAmiga(ctx, w, h, horizon, sunPulse, beatDistortion) {
+        // Amiga Sky Gradient (Quantized 12-Bit)
         let skyGrad = ctx.createLinearGradient(0, 0, 0, horizon);
         skyGrad.addColorStop(0.0, rgbToHex(...quantizeAmiga12Bit(0, 0, 68))); 
         skyGrad.addColorStop(0.4, rgbToHex(...quantizeAmiga12Bit(170, 0, 68))); 
@@ -155,6 +132,7 @@ export class RetroSunset {
         fillAliasedCircle(ctx, sx, sy, glowR, glowColor);
         fillAliasedCircle(ctx, sx, sy, sunR, coreColor);
 
+        // Water
         ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(0, 0, 34)); ctx.fillRect(0, horizon, w, h - horizon);
 
         ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 136, 0));
@@ -171,6 +149,7 @@ export class RetroSunset {
     }
 
     drawAtari(ctx, w, h, horizon, sunPulse, beatDistortion) {
+        // Atari Sky Bands (Quantized 9-Bit)
         const rawSkyColors = [
             [0, 0, 51], [34, 0, 51], [68, 0, 34], [102, 0, 17], 
             [136, 0, 0], [170, 34, 0], [204, 68, 0], [255, 102, 0]
@@ -191,6 +170,7 @@ export class RetroSunset {
         fillAliasedCircle(ctx, sx, sy, sunR, outerColor);
         fillAliasedCircle(ctx, sx, sy, Math.floor(sunR * 0.7), innerColor);
 
+        // Water
         ctx.fillStyle = rgbToHex(...quantizeAtari9Bit(0, 0, 34)); ctx.fillRect(0, horizon, w, h - horizon);
 
         let waterSpeed = this.waterT * 25;
