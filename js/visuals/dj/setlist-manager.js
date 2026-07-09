@@ -143,11 +143,12 @@ manageSwaps(stageManager, info, macroState, dt) {
     }
 
     triggerPresenter(stageManager, info, trackMetadata) {
-        // Falls ein alter Presenter noch läuft, brechen wir ihn ab
+        // FIX: Falls ein alter Presenter (z.B. vom schnellen Weiterschalten) noch existiert, 
+        // killen wir ihn SOFORT aus dem Render-Array, um hässliches Überlappen zu verhindern.
         for (let i = stageManager.activeDSEs.length - 1; i >= 0; i--) {
             if (stageManager.activeDSEs[i].metadata.placementType === 'presenter') {
-                stageManager.activeDSEs[i].state = 'stopping';
-                stageManager.activeDSEs[i].stateTime = 0.0;
+                stageManager.activeDSEs[i].state = 'idle';
+                stageManager.activeDSEs.splice(i, 1);
             }
         }
         
@@ -163,7 +164,6 @@ manageSwaps(stageManager, info, macroState, dt) {
             chosen.stateTime = 0.0;
             chosen._markedForRemoval = false;
             
-            // NEU: Wir injizieren die Datei-Metadaten direkt in das DSE!
             chosen.trackInfo = trackMetadata; 
             
             stageManager.activeDSEs.push(chosen);
