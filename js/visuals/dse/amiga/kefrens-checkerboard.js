@@ -4,6 +4,7 @@
 // Classic Amiga infinite zooming plane.
 // Utilizes scanline-based perspective math and strict 
 // 12-Bit OCS Copper Z-Depth shading.
+// Horizon aligned with RetroSunset via a 1-pixel projection shift.
 // =========================================================
 
 import { quantizeAmiga12Bit, rgbToHex } from '../../utils/hardware-constraints.js';
@@ -11,14 +12,13 @@ import { quantizeAmiga12Bit, rgbToHex } from '../../utils/hardware-constraints.j
 export class KefrensCheckerboard {
     constructor() {
         this.name = 'Kefrens Checkerboard';
+        this.computerType = ['amiga'];
+        this.placementType = 'floor';
         
         this.internalT = 0;
         this.smoothedSpeed = 1.0;
         this.smoothedSway = 0.0;
         this.lastT = 0;
-        
-        // Caching der Durchschnittsfarbe für den Horizont-Matsch (Anti-Aliasing)
-        this.horizonBlendCache = {};
     }
 
     resize(width, height) {}
@@ -34,7 +34,6 @@ export class KefrensCheckerboard {
         let targetSway = 0.0;
         let beatBump = 0.0;
 
-        // --- State-Machine Steuerung (Makro-Dynamik) ---
         if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
         } else if (state === 'stopping') {
@@ -45,8 +44,7 @@ export class KefrensCheckerboard {
         } else if (state === 'climax') {
             targetSpeed = 3.5; 
             targetSway = 2.5; 
-            // Die Kamera wird beim Kickdrum-Einschlag massiv nach unten gedrückt!
-            beatBump = metrics.beat[0] * 10.0; 
+            beatBump = metrics.beat[0] * 12.0; 
         }
 
         this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * Math.min(1.0, dt * 5.0);
@@ -56,62 +54,48 @@ export class KefrensCheckerboard {
         ctx.globalAlpha = globalAlpha;
 
         const horizon = Math.floor(height * 0.55);
-        const scanH = 1; // Typische Amiga 200p Scanline-Dicke
+        const scanH = 1; 
         
-        // Kamera-Setup
-        const fov = 160;
+        const fov = 120;
         const tileW = 60;
         const tileH = 60;
+        const camH = 30.0 - beatBump * 0.5; 
         
-        // Kamera-Höhe (Y) mit Beat-Erschütterung
-        const camH = 35.0 - beatBump; 
-        
-        // Seitliches Wanken (Sway)
         const swayOffset = Math.sin(this.internalT * 0.8) * 150 * this.smoothedSway;
 
-        // Farbbasis: Typisches Sanity/Kefrens Blau
-        const color1 = [0, 85, 255];  // Hellblau
-        const color2 = [0, 0, 68];    // Dunkelblau
+        const color1 = [0, 85, 255];  
+        const color2 = [0, 0, 68];    
 
-        // Z-Depth Shading Loop (Zeilenweises Rendern wie ein Amiga Copper)
-        for (let y = horizon + scanH; y < height; y += scanH) {
+        // --- UPGRADE: SCHLEIFE LÄUFT BIS <= height WEGEN DES SHIFTS ---
+        for (let y = horizon + scanH; y <= height; y += scanH) {
             let dy = y - horizon;
             let z = (camH * fov) / dy;
             
-            // Berechnung der Bildschirm-Breite eines Tiles auf dieser Z-Ebene
             let deltaScreenX = (tileW * fov) / z;
-            
-            // Depth-Shading: Je weiter weg, desto dunkler (Pow(0.6) macht den Vordergrund heller)
             let depth = Math.pow(Math.min(1.0, dy / (height - horizon)), 0.6);
             
-            // --- STRICT AMIGA 12-BIT QUANTIZATION FOR COPPER SHADING ---
             let c1 = quantizeAmiga12Bit(color1[0] * depth, color1[1] * depth, color1[2] * depth);
             let c2 = quantizeAmiga12Bit(color2[0] * depth, color2[1] * depth, color2[2] * depth);
             let hex1 = rgbToHex(c1[0], c1[1], c1[2]);
             let hex2 = rgbToHex(c2[0], c2[1], c2[2]);
 
-            // Moiré-Prävention: Am Horizont werden die Tiles zu klein zum Rendern.
-            // Der Amiga löste das durch schlichtes "Verwaschen" in eine Durchschnittsfarbe.
             if (deltaScreenX < 3.0) {
                 let blendR = Math.floor((c1[0] + c2[0]) / 2);
                 let blendG = Math.floor((c1[1] + c2[1]) / 2);
                 let blendB = Math.floor((c1[2] + c2[2]) / 2);
                 ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(blendR, blendG, blendB));
-                ctx.fillRect(0, y, width, scanH);
+                
+                // --- SHIFT: Zeichnet die Moiré-Zeile 1 Amiga-Pixel höher (y - 1) ---
+                ctx.fillRect(0, Math.floor(y - 1), width, Math.floor(scanH));
                 continue;
             }
 
-            // Vorwärtsbewegung (Z-Achse)
             let vPhase = Math.floor((z - this.internalT * 200) / tileH);
-            
-            let cx = (width / 2) + swayOffset * (1.0 - depth * 0.5); // Perspektivisches Sway
+            let cx = (width / 2) + swayOffset * (1.0 - depth * 0.5); 
             let invZ = 1.0 / z;
 
-            // Finde die exakte Start-Phase am linken Bildschirmrand (X = 0)
             let worldX_at_0 = (0 - cx) * z / fov;
             let uPhase = Math.floor(worldX_at_0 / tileW);
-            
-            // Finde den exakten X-Pixelwert, an dem die nächste Phase (Farbwechsel) beginnt
             let nextX = cx + (uPhase + 1) * tileW * fov / z;
             
             let screenX = 0;
@@ -125,8 +109,8 @@ export class KefrensCheckerboard {
                 let colorXor = (uPhase + vPhase) & 1;
                 ctx.fillStyle = colorXor === 0 ? hex1 : hex2;
                 
-                // SUB-PIXEL-KILLER: Harte Koordinaten!
-                ctx.fillRect(Math.floor(screenX), Math.floor(y), Math.floor(drawW), Math.floor(scanH));
+                // --- SHIFT: Zeichnet das Schachbrett-Segment 1 Amiga-Pixel höher (y - 1) ---
+                ctx.fillRect(Math.floor(screenX), Math.floor(y - 1), Math.floor(drawW), Math.floor(scanH));
                 
                 screenX += drawW;
                 nextX += deltaScreenX;
