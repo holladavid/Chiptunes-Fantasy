@@ -73,6 +73,8 @@ export class WireframeMorph {
         this.smoothedMorph += (targetMorph - this.smoothedMorph) * Math.min(1.0, dt * 4.0);
         this.internalT += dt * this.smoothedSpeed;
 
+// === js/visuals/dse/atari/wireframe-morph.js (Auszug) ===
+        
         ctx.globalAlpha = globalAlpha;
 
         const cx = width / 2;
@@ -88,8 +90,8 @@ export class WireframeMorph {
         const rz = this.internalT * 0.6;
 
         // 1. Morph-Logik anwenden: Ecke schrumpft, Spitzen schießen heraus
-        const cornerScale = 1.0 - (this.smoothedMorph * 0.65); // 1.0 -> 0.35
-        const tipScale = 1.0 + (this.smoothedMorph * 1.5);     // 1.0 -> 2.5
+        const cornerScale = 1.0 - (this.smoothedMorph * 0.65); 
+        const tipScale = 1.0 + (this.smoothedMorph * 1.5);     
 
         for (let i = 0; i < 8; i++) {
             this.vertices[i].x = this.baseCorners[i][0] * cornerScale;
@@ -102,8 +104,12 @@ export class WireframeMorph {
             this.vertices[8 + i].z = this.baseTips[i][2] * tipScale;
         }
 
-        // 2. 3D-Rotation und Perspektiven-Projektion anwenden
-        const fov = minDim * 1.2;
+        // =========================================================
+        // FIX: Konstantes Kamera-Sichtfeld verhindert exponentielles 
+        // Schrumpfen (Quadratic Scaling Bug) auf Portrait-Bildschirmen!
+        // =========================================================
+        const fov = 250; 
+        
         const sinX = Math.sin(rx), cosX = Math.cos(rx);
         const sinY = Math.sin(ry), cosY = Math.cos(ry);
         const sinZ = Math.sin(rz), cosZ = Math.cos(rz);
