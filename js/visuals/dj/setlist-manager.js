@@ -40,14 +40,12 @@ export class SetlistManager {
     }
 
     fillEmptyLayers(stageManager, info, initialState = 'starting') {
-        let layerFilled = { 'background': false, 'floor': false, 'foreground': false, 'overlay': false };
+        let layerFilled = { 'background': false, 'floor': false, 'foreground': false, 'overlay': false, 'presenter': false };
         for (let dse of stageManager.activeDSEs) {
             if (!dse._markedForRemoval) layerFilled[dse.metadata.placementType] = true;
         }
 
-        // 'presenter' wird absichtlich ignoriert, da er ein One-Shot-Event ist!
         const layers = ['background', 'floor', 'foreground', 'overlay'];
-
         for (let layer of layers) {
             if (!layerFilled[layer]) {
                 let candidates = this.registeredDSEs.filter(d => 
@@ -67,8 +65,16 @@ export class SetlistManager {
             }
         }
 
+        // =========================================================
+        // FIX: BLACK-SCREEN PROTECTION EXCLUDES THE PRESENTER
+        // Der Presenter wird nicht als Hintergrund-Grafik mitgezählt!
+        // =========================================================
         let nonVoidCount = 0;
-        let activeNonOverlays = stageManager.activeDSEs.filter(d => d.metadata.placementType !== 'overlay' && !d._markedForRemoval);
+        let activeNonOverlays = stageManager.activeDSEs.filter(d => 
+            d.metadata.placementType !== 'overlay' && 
+            d.metadata.placementType !== 'presenter' && 
+            !d._markedForRemoval
+        );
         for (let d of activeNonOverlays) if (!d.metadata.isVoid) nonVoidCount++;
 
         if (activeNonOverlays.length > 0 && nonVoidCount === 0) {
@@ -104,16 +110,13 @@ export class SetlistManager {
         this.fillEmptyLayers(stageManager, info, 'idle');
     }
 
-manageSwaps(stageManager, info, macroState, dt) {
+    manageSwaps(stageManager, info, macroState, dt) {
         let swapOccurred = false;
 
         for (let dse of stageManager.activeDSEs) {
             if (dse._markedForRemoval) continue;
+            if (dse.metadata.placementType === 'presenter') continue; 
             
-            // FIX: Der Presenter darf niemals durch das Roulette-Wheel wegrotieren!
-            if (dse.metadata.placementType === 'presenter') continue;
-            
-            // Evaluierung nun in ALLEN 3 aktiven States möglich
             if ((dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax') && dse.metadata.minPlayTime !== Infinity) {
                 if (dse.stateTime >= dse.metadata.minPlayTime) {
                     let overTime = dse.stateTime - dse.metadata.minPlayTime;
@@ -127,6 +130,8 @@ manageSwaps(stageManager, info, macroState, dt) {
                         );
                         if (candidates.length > 0) {
                             let chosen = this.selectWeightedDSE(candidates);
+                            
+                            // ERHALTENE FUNKTION: Same-DSE-Penalty
                             if (chosen === dse) {
                                 dse.stateTime = Math.max(0, dse.metadata.minPlayTime - 5.0);
                                 dse.currentWeight = Math.max(1.0, dse.currentWeight * 0.5);
@@ -143,8 +148,6 @@ manageSwaps(stageManager, info, macroState, dt) {
     }
 
     triggerPresenter(stageManager, info, trackMetadata) {
-        // FIX: Falls ein alter Presenter (z.B. vom schnellen Weiterschalten) noch existiert, 
-        // killen wir ihn SOFORT aus dem Render-Array, um hässliches Überlappen zu verhindern.
         for (let i = stageManager.activeDSEs.length - 1; i >= 0; i--) {
             if (stageManager.activeDSEs[i].metadata.placementType === 'presenter') {
                 stageManager.activeDSEs[i].state = 'idle';
@@ -152,7 +155,6 @@ manageSwaps(stageManager, info, macroState, dt) {
             }
         }
         
-        // Suche nach einem passenden Presenter für das System
         let candidates = this.registeredDSEs.filter(d => 
             d.metadata.placementType === 'presenter' &&
             (d.metadata.computerType.includes(info.system) || d.metadata.computerType.includes('all'))
@@ -163,9 +165,7 @@ manageSwaps(stageManager, info, macroState, dt) {
             chosen.state = 'starting';
             chosen.stateTime = 0.0;
             chosen._markedForRemoval = false;
-            
             chosen.trackInfo = trackMetadata; 
-            
             stageManager.activeDSEs.push(chosen);
             stageManager.sortZOrder();
         }

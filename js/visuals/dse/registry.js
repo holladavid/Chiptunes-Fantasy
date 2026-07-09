@@ -154,7 +154,7 @@ export const dseRegistry = [
         placementType: 'presenter',
         computerType: ['all'],
         weight: 10,
-        minPlayTime: 8.0,     // Wird nun als exakte Anzeigezeit ausgelesen!
+        minPlayTime: 5.0,     // Wird nun als exakte Anzeigezeit ausgelesen!
         climaxHoldTime: 0.0
     })
 ]; // Ende des dseRegistry Arrays
