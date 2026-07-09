@@ -173,6 +173,10 @@ body, html {
     width: 100%;
     height: 100%;
     display: block;
+    /* NEU: CSS-seitiges Anti-Aliasing gnadenlos abschalten! */
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    -moz-crisp-edges: true;
 }
 
 .scanlines {

@@ -1,5 +1,5 @@
 // === js/visuals/dse/universal/retro-sunset.js ===
-import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit } from '../../utils/hardware-constraints.js';
+import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit, fillAliasedCircle } from '../../utils/hardware-constraints.js';
 
 export class RetroSunset {
     constructor() {
@@ -90,7 +90,7 @@ export class RetroSunset {
     }
     
     drawAmiga(ctx, w, h, horizon, sunPulse, beatDistortion) {
-        // STRICT 12-BIT AMIGA QUANTIZATION
+        // 12-Bit Himmel
         let skyGrad = ctx.createLinearGradient(0, 0, 0, horizon);
         skyGrad.addColorStop(0.0, rgbToHex(...quantizeAmiga12Bit(0, 0, 68))); 
         skyGrad.addColorStop(0.4, rgbToHex(...quantizeAmiga12Bit(170, 0, 68))); 
@@ -98,33 +98,40 @@ export class RetroSunset {
         skyGrad.addColorStop(1.0, rgbToHex(...quantizeAmiga12Bit(255, 255, 0)));
         ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, w, horizon);
 
-        let sunR = 30 + (sunPulse * 15); // PROPORTIONS-FIX
-        let sx = w / 2, sy = horizon - 10;
+        // --- FIX: HARTE, ALIASED AMIGA SONNE OHNE RGBA() ---
+        let sunR = Math.floor(30 + (sunPulse * 15));
+        let sx = Math.floor(w / 2);
+        let sy = Math.floor(horizon - 10);
         
-        const sunGlow = quantizeAmiga12Bit(255, 255, 0);
-        ctx.beginPath(); ctx.arc(sx, sy, sunR + 15 + (sunPulse * 10), 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${sunGlow[0]}, ${sunGlow[1]}, ${sunGlow[2]}, ${0.3 + sunPulse * 0.2})`; ctx.fill();
+        let glowColor = rgbToHex(...quantizeAmiga12Bit(255, 170, 0)); // Kräftiges Orange
+        let coreColor = rgbToHex(...quantizeAmiga12Bit(255, 255, 255)); // Weißer Kern
+        
+        let glowR = Math.floor(sunR + 10 + (sunPulse * 5));
+        
+        // Zuerst den Glow, dann den Core darüberlegen (Scanline-Methode)
+        fillAliasedCircle(ctx, sx, sy, glowR, glowColor);
+        fillAliasedCircle(ctx, sx, sy, sunR, coreColor);
 
-        ctx.beginPath(); ctx.arc(sx, sy, sunR, 0, Math.PI * 2); 
-        ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 255, 255)); ctx.fill();
-
+        // Wasser-Rendering...
         ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(0, 0, 34)); ctx.fillRect(0, horizon, w, h - horizon);
 
         ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 136, 0));
         let distortion = 1 + (beatDistortion * 1.5); 
-        // 1-Pixel exakte Wasserzeilen!
         for (let y = horizon; y < h; y += 1) {
             let depth = (y - horizon) / (h - horizon); 
-            let waveWidth = 15 + (depth * 50); // Schmaleres Wasser
+            let waveWidth = 15 + (depth * 50); 
             let xOffset = Math.sin((y * 0.1) + (this.waterT * 3.0)) * distortion;
-            ctx.globalAlpha = Math.max(0, 1.0 - (depth * 1.5));
-            ctx.fillRect(sx - (waveWidth / 2) + xOffset, y, waveWidth, 1);
+            
+            // Wasser-Dithering: Da es kein echtes Alpha gibt, lassen wir 
+            // im Hintergrund Zeilen ausfallen, um Transparenz zu simulieren!
+            if (depth > 0.6 && y % 2 === 0) continue; 
+            
+            ctx.fillRect(Math.floor(sx - (waveWidth / 2) + xOffset), Math.floor(y), Math.floor(waveWidth), 1);
         }
-        ctx.globalAlpha = 1.0;
     }
 
     drawAtari(ctx, w, h, horizon, sunPulse, beatDistortion) {
-        // STRICT 9-BIT ATARI SHIFTER QUANTIZATION
+        // 9-Bit Himmel
         const rawSkyColors = [
             [0, 0, 51], [34, 0, 51], [68, 0, 34], [102, 0, 17], 
             [136, 0, 0], [170, 34, 0], [204, 68, 0], [255, 102, 0]
@@ -135,16 +142,16 @@ export class RetroSunset {
             ctx.fillRect(0, Math.floor(i * bandH), w, Math.ceil(bandH)); 
         }
 
-        let sx = w / 2, sy = horizon - 25;
-        let sunR = 25 + (sunPulse * 10);        
-        ctx.fillStyle = rgbToHex(...quantizeAtari9Bit(255, 170, 0)); ctx.beginPath(); ctx.arc(sx, sy, sunR, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = rgbToHex(...quantizeAtari9Bit(255, 255, 85)); ctx.beginPath(); ctx.arc(sx, sy, sunR * 0.7, 0, Math.PI * 2); ctx.fill();
+        // --- FIX: HARTE, ALIASED ATARI SONNE ---
+        let sx = Math.floor(w / 2);
+        let sy = Math.floor(horizon - 25);
+        let sunR = Math.floor(25 + (sunPulse * 10));
         
-        ctx.fillStyle = rgbToHex(...quantizeAtari9Bit(204, 102, 0)); 
-        for (let y = sy - sunR; y < sy + sunR; y += 4) {
-            let dy = y - sy; let dx = Math.sqrt((sunR * sunR) - (dy * dy));
-            if (dx > 0) ctx.fillRect(sx - dx, Math.floor(y), dx * 2, 2);
-        }
+        let outerColor = rgbToHex(...quantizeAtari9Bit(255, 170, 0));
+        let innerColor = rgbToHex(...quantizeAtari9Bit(255, 255, 85));
+        
+        fillAliasedCircle(ctx, sx, sy, sunR, outerColor);
+        fillAliasedCircle(ctx, sx, sy, Math.floor(sunR * 0.7), innerColor);
 
         ctx.fillStyle = rgbToHex(...quantizeAtari9Bit(0, 0, 34)); ctx.fillRect(0, horizon, w, h - horizon);
 

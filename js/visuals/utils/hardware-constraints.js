@@ -69,3 +69,47 @@ export const SYSTEM_RESOLUTIONS = {
     'atari': 200,  // 320x200 (Low-Res, 16-Color)
     'amiga': 256   // 320x256 (PAL Standard Low-Res)
 };
+
+// =========================================================
+// HARDWARE DRAWING ROUTINES (Bypass Canvas Anti-Aliasing)
+// =========================================================
+
+/** 
+ * Zeichnet einen 100% scharfkantigen (aliased) gefüllten Kreis,
+ * exakt so, wie ihn ein Amiga/Atari Blitter zeilenweise füllen würde.
+ */
+export function fillAliasedCircle(ctx, xc, yc, r, color) {
+    ctx.fillStyle = color;
+    xc = Math.floor(xc);
+    yc = Math.floor(yc);
+    r = Math.floor(r);
+    
+    for (let y = -r; y <= r; y++) {
+        // Pythagoras: x^2 + y^2 = r^2  =>  x = sqrt(r^2 - y^2)
+        let dx = Math.round(Math.sqrt(r * r - y * y));
+        ctx.fillRect(xc - dx, yc + y, dx * 2, 1);
+    }
+}
+
+/**
+ * Der klassische Bresenham-Linien-Algorithmus.
+ * Zeichnet pixelgenaue, harte Linien (z.B. für 3D Wireframes),
+ * da ctx.lineTo() im Browser nicht ohne Anti-Aliasing funktioniert.
+ */
+export function drawAliasedLine(ctx, x0, y0, x1, y1, color) {
+    ctx.fillStyle = color;
+    x0 = Math.floor(x0); y0 = Math.floor(y0);
+    x1 = Math.floor(x1); y1 = Math.floor(y1);
+
+    let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    let dy = Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    let err = (dx > dy ? dx : -dy) / 2;
+
+    while (true) {
+        ctx.fillRect(x0, y0, 1, 1);
+        if (x0 === x1 && y0 === y1) break;
+        let e2 = err;
+        if (e2 > -dx) { err -= dy; x0 += sx; }
+        if (e2 < dy) { err += dx; y0 += sy; }
+    }
+}
