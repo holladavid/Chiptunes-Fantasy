@@ -646,6 +646,9 @@ input[type="range"]::-moz-range-thumb {
     
     /* Color Cycling: Der Horizont wandert auf und ab */
     animation: chrome-cycle 3s ease-in-out infinite alternate;
+    
+    /* NEU: Weiche Transition für das nass glänzende Chrome */
+    transition: filter 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .brand-sub {
@@ -657,7 +660,11 @@ input[type="range"]::-moz-range-thumb {
     padding-right: 2px;
     /* Ein intensiver, theme-basierter Glow, der sich ins Canvas einbrennt */
     text-shadow: 0 0 10px var(--text-color), 2px 2px 0px #000000;
+    
+    /* NEU: Weiche Transition für den Untertitel-Glow */
+    transition: text-shadow 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), color 0.4s ease;
 }
+
 /* =========================================
    BRANDING LOGO DEMO MODE ACTIVE GLOW
 ========================================= */
@@ -677,7 +684,7 @@ input[type="range"]::-moz-range-thumb {
     transition: background 0.5s ease;
 }
 
-/* System-spezifische, dezente Farbanpassungen */
+/* System-spezifische, dezent pulsierende Farbanpassungen */
 body.theme-c64 #brand-logo.demo-mode-active::before {
     background: radial-gradient(circle, rgba(108, 94, 181, 0.45) 0%, transparent 70%);
 }
@@ -688,6 +695,24 @@ body.theme-amiga #brand-logo.demo-mode-active::before {
 
 body.theme-atari #brand-logo.demo-mode-active::before {
     background: radial-gradient(circle, rgba(85, 255, 85, 0.4) 0%, transparent 70%);
+}
+
+/* NEU: CHROME SHINE & LASER OUTLINE UPGRADES IM DEMOMODUS */
+#brand-logo.demo-mode-active .brand-main {
+    filter: drop-shadow(1px 1px 0px var(--bg-color)) 
+            drop-shadow(2px 2px 0px var(--bg-color)) 
+            drop-shadow(3px 3px 0px #000000)
+            brightness(1.4) 
+            contrast(1.25)
+            saturate(1.2)
+            drop-shadow(0 0 3px var(--text-color)); 
+}
+
+#brand-logo.demo-mode-active .brand-sub {
+    color: #ffffff;
+    text-shadow: 0 0 6px var(--highlight-color), 
+                 0 0 15px var(--text-color), 
+                 2px 2px 0px #000000;
 }
 
 @keyframes pulse-glow {
@@ -1195,8 +1220,16 @@ body.eco-mode .brand-main {
     
     /* Logo auf Handys weiter verkleinern (verhindert Kollision mit C64 HUD) */
     #brand-logo {
-        top: 25px;
-        left: 20px;
+        top: 30px;  /* FIX: Erhöht auf 35px, um dem Glow genug Raum nach oben zu geben! */
+        left: 30px;
+    }
+    
+    /* NEU & FIX: Mobile-Glow herunterskalieren, um Clipping am Rand komplett zu verhindern! */
+    #brand-logo.demo-mode-active::before {
+        top: -20px;
+        left: -20px;
+        width: calc(100% + 40px);
+        height: calc(100% + 40px);
     }
     .brand-main { 
         font-size: 14px; 
