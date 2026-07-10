@@ -1000,7 +1000,7 @@ body.eco-mode .brand-main {
 }
 
 /* Fadet das komplette Panel stufenlos aus, wenn die Maus stillsteht */
-#visual-zone.no-cursor #fs-ui-bar {
+#visual-zone.user-inactive #fs-ui-bar {
     opacity: 0;
     pointer-events: none;
 }
@@ -1307,7 +1307,7 @@ body.eco-mode .brand-main {
 ========================================= */
 /* Blendet das eingeklappte (collapsed) HUD im Vollbild bei Inaktivität komplett aus.
    Sobald geklickt oder die Maus bewegt wird, fadet es sofort wieder ein! */
-#visual-zone.no-cursor #chip-hud.collapsed {
+#visual-zone.user-inactive #chip-hud.collapsed {
     opacity: 0;
     pointer-events: none;
 }
