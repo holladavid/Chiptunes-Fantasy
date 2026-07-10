@@ -18,8 +18,9 @@ export class Starfield {
         
         this.numStars = 200; 
         this.stars = Array.from({ length: this.numStars }, (v, i) => ({
-            x: (Math.random() - 0.5) * 1200,
-            y: (Math.random() - 0.5) * 800,
+            // FIX: Initiale Box wieder groß genug machen, um Widescreen-Rotationen abzudecken
+            x: (Math.random() - 0.5) * 2500,
+            y: (Math.random() - 0.5) * 2500,
             z: Math.random() * 1000 + 10,
             type: i % 3 
         }));
@@ -200,6 +201,17 @@ export class Starfield {
         const cosR = Math.cos(this.angleZ);
         const sinR = Math.sin(this.angleZ);
 
+        // =========================================================
+        // FIX: RADIAL CULLING FÜR DIE ROTATION
+        // Wir berechnen den Bildschirm-Radius (Diagonale / 2)
+        // =========================================================
+        const diag = Math.sqrt(w * w + h * h) / 2;
+        const cullDistSq = (diag + 5) * (diag + 5); 
+        
+        // Die Spawn-Range muss groß genug sein, damit die rotierenden 
+        // Ecken bei z=1000 immer mit Sternen gefüllt sind.
+        const spawnRange = diag * 8.0; 
+
         for (let i = 0; i < this.numStars; i++) {
             let star = this.stars[i];
             star.z -= activeWarp;
@@ -207,18 +219,23 @@ export class Starfield {
             const rx = star.x;
             const ry = star.y;
 
-            // 3D-Matrix Drehung
+            // 3D-Matrix Drehung um Z
             const rxRot = rx * cosR - ry * sinR;
             const ryRot = rx * sinR + ry * cosR;
 
             let px = Math.floor(cx + (rxRot / star.z) * fov);
             let py = Math.floor(cy + (ryRot / star.z) * fov);
 
-            // --- OPTIMIERUNG: DYNAMIC FRUSTUM RECYCLING ---
-            if (star.z <= 6 || px < -5 || px > w + 5 || py < -5 || py > h + 5) {
+            // Abstand vom Bildschirm-Mittelpunkt berechnen
+            let distFromCenterSq = (px - cx) * (px - cx) + (py - cy) * (py - cy);
+
+            // --- OPTIMIERUNG: ROTATION-SAFE FRUSTUM RECYCLING ---
+            // Gelöscht wird nur, wenn der Stern außerhalb des Radius liegt!
+            if (star.z <= 6 || distFromCenterSq > cullDistSq) {
                 star.z = 1000;
-                star.x = (Math.random() - 0.5) * (w * 4.0);
-                star.y = (Math.random() - 0.5) * (h * 4.0);
+                // Spawnt im quadratischen Bounding-Circle-Bereich
+                star.x = (Math.random() - 0.5) * spawnRange;
+                star.y = (Math.random() - 0.5) * spawnRange;
                 continue; 
             }
 
