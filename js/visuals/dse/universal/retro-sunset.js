@@ -2,7 +2,8 @@
 // =========================================================
 // DEMO-SCENE-ELEMENT: RETRO SUNSET (CLEAN CLASSIC EDITION)
 // Multi-system landscape with strict hardware quantization.
-// Restored to the timeless classic design with zero anti-aliasing.
+// Overhauled with aspect-ratio safe scaling (minDim) to prevent 
+// distortion and oversized proportions during mobile screen rotations.
 // =========================================================
 
 import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit, fillAliasedCircle } from '../../utils/hardware-constraints.js';
@@ -66,14 +67,16 @@ export class RetroSunset {
         const colWhite     = rgbToHex(...C64_PALETTE[1]);
         const colLightBlue = rgbToHex(...C64_PALETTE[14]);
 
+        const minDim = Math.min(w, h); // Für proportionierte Skalierung
+
         // Sky Bands
         ctx.fillStyle = colDarkBlue; ctx.fillRect(0, 0, w, horizon * 0.3); 
         ctx.fillStyle = colRed; ctx.fillRect(0, horizon * 0.3, w, horizon * 0.3); 
         ctx.fillStyle = colLightRed; ctx.fillRect(0, horizon * 0.6, w, horizon * 0.25); 
         ctx.fillStyle = colYellow; ctx.fillRect(0, horizon * 0.85, w, horizon * 0.15); 
 
-        // Mathematisch perfekte, symmetrische C64 Sonne
-        let sunR = Math.floor(25 + (sunPulse * 8.0)); 
+        // --- PROPORTIONS-FIX: Sonnenradius skaliert linear mit der Breite ---
+        let sunR = Math.floor((minDim * 0.125) + (sunPulse * (minDim * 0.04))); 
         let sx = Math.floor(w / 2); 
         let sy = Math.floor(horizon - 12);
 
@@ -113,6 +116,8 @@ export class RetroSunset {
     }
 
     drawAmiga(ctx, w, h, horizon, sunPulse, beatDistortion) {
+        const minDim = Math.min(w, h);
+
         // Amiga Sky Gradient (Quantized 12-Bit)
         let skyGrad = ctx.createLinearGradient(0, 0, 0, horizon);
         skyGrad.addColorStop(0.0, rgbToHex(...quantizeAmiga12Bit(0, 0, 68))); 
@@ -121,13 +126,14 @@ export class RetroSunset {
         skyGrad.addColorStop(1.0, rgbToHex(...quantizeAmiga12Bit(255, 255, 0)));
         ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, w, horizon);
 
-        let sunR = Math.floor(30 + (sunPulse * 15));
+        // --- PROPORTIONS-FIX Amiga Sonne ---
+        let sunR = Math.floor((minDim * 0.15) + (sunPulse * (minDim * 0.075)));
         let sx = Math.floor(w / 2);
         let sy = Math.floor(horizon - 10);
         
         let glowColor = rgbToHex(...quantizeAmiga12Bit(255, 170, 0)); 
         let coreColor = rgbToHex(...quantizeAmiga12Bit(255, 255, 255)); 
-        let glowR = Math.floor(sunR + 10 + (sunPulse * 5));
+        let glowR = Math.floor(sunR + (minDim * 0.05) + (sunPulse * (minDim * 0.025)));
         
         fillAliasedCircle(ctx, sx, sy, glowR, glowColor);
         fillAliasedCircle(ctx, sx, sy, sunR, coreColor);
@@ -139,7 +145,8 @@ export class RetroSunset {
         let distortion = 1 + (beatDistortion * 1.5); 
         for (let y = horizon; y < h; y += 1) {
             let depth = (y - horizon) / (h - horizon); 
-            let waveWidth = 15 + (depth * 50); 
+            // --- PROPORTIONS-FIX: Wasser-Breite passt sich der Bildschirmbreite an ---
+            let waveWidth = (minDim * 0.075) + (depth * (minDim * 0.25)); 
             let xOffset = Math.sin((y * 0.1) + (this.waterT * 3.0)) * distortion;
             
             if (depth > 0.6 && y % 2 === 0) continue; 
@@ -149,6 +156,8 @@ export class RetroSunset {
     }
 
     drawAtari(ctx, w, h, horizon, sunPulse, beatDistortion) {
+        const minDim = Math.min(w, h);
+
         // Atari Sky Bands (Quantized 9-Bit)
         const rawSkyColors = [
             [0, 0, 51], [34, 0, 51], [68, 0, 34], [102, 0, 17], 
@@ -162,7 +171,9 @@ export class RetroSunset {
 
         let sx = Math.floor(w / 2);
         let sy = Math.floor(horizon - 25);
-        let sunR = Math.floor(25 + (sunPulse * 10));
+        
+        // --- PROPORTIONS-FIX Atari Sonne ---
+        let sunR = Math.floor((minDim * 0.125) + (sunPulse * (minDim * 0.05)));
         
         let outerColor = rgbToHex(...quantizeAtari9Bit(255, 170, 0));
         let innerColor = rgbToHex(...quantizeAtari9Bit(255, 255, 85));
@@ -170,7 +181,6 @@ export class RetroSunset {
         fillAliasedCircle(ctx, sx, sy, sunR, outerColor);
         fillAliasedCircle(ctx, sx, sy, Math.floor(sunR * 0.7), innerColor);
 
-        // Water
         ctx.fillStyle = rgbToHex(...quantizeAtari9Bit(0, 0, 34)); ctx.fillRect(0, horizon, w, h - horizon);
 
         let waterSpeed = this.waterT * 25;
@@ -191,7 +201,8 @@ export class RetroSunset {
                 if (Math.abs(x + offset - sx) < sunR * (1.0 - depth*0.5) && y < horizon + 40) ctx.fillStyle = cSunRef; 
                 else ctx.fillStyle = (Math.floor(y) % 3 === 0) ? cWater1 : cWater2; 
                 
-                let dashWidth = 8 + depth * 15;
+                // --- PROPORTIONS-FIX: Wasserstriche skalieren linear ---
+                let dashWidth = (minDim * 0.04) + (depth * (minDim * 0.075));
                 let xDistort = Math.sin(y * 0.2 + waterSpeed) * distortion;
                 
                 if (beatDistortion > 2.0 && Math.random() > 0.7) {
