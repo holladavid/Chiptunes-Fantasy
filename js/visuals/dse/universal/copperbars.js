@@ -95,7 +95,6 @@ export class Copperbars {
         const system = metrics.system;
         const numBars = system === 'amiga' ? 4 : 3;
         
-        // Definition der Paletten (wird intern quantisiert)
         const pals = [
             system === 'atari' ? ['#003300', '#00aa00'] : system === 'amiga' ? ['#000066', '#0055ff'] : ['#201a60', '#6c5eb5'],
             system === 'atari' ? ['#333300', '#aaaa00'] : system === 'amiga' ? ['#663300', '#ff8800'] : ['#660033', '#ff00aa'],
@@ -103,12 +102,15 @@ export class Copperbars {
             system === 'amiga' ? ['#222222', '#999999'] : [] 
         ];
 
-        // PROPORTIONS-FIX: 1 Pixel für 16-Bit, 2 Pixel für 8-Bit
         let scanlineHeight = system === 'c64' ? 2 : 1; 
 
-        let globalAlpha = 1.0; let targetSpeed = 1.0; let targetAmplitude = 0.85; 
-        let punchBase = 6.0; // PROPORTIONS-FIX
-        let targetBeatPunch = 0.0; let targetTwist = 0.0;
+        let globalAlpha = 1.0;
+        let targetSpeed = 1.0;
+        let targetAmplitude = 0.85; 
+
+        let punchBase = 6.0; 
+        let targetBeatPunch = 0.0;
+        let targetTwist = 0.0;
 
         if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
@@ -134,6 +136,13 @@ export class Copperbars {
         const baseSpeed = 0.55; 
         const phaseStep = (Math.PI * 2) / numBars; 
 
+        // =========================================================
+        // FIX: ASPECT-RATIO THICKNESS SCALING
+        // Schützt die elegante, schmale Balkenform vor dem Aufblähen
+        // auf hochkanten (Portrait) Smartphone-Bildschirmen.
+        // =========================================================
+        const thicknessScale = Math.min(1.0, width / height); 
+
         for (let c = 0; c < numBars; c++) {
             const smoothVol = metrics.smooth[c]; 
             const punch = (smoothVol * punchBase) + (metrics.beat[0] * this.smoothedBeatPunch); 
@@ -149,7 +158,12 @@ export class Copperbars {
             }
             
             let bar = this.barsToDraw[c];
-            bar.y = yCenter; bar.h = this.baseThickness[c] + punch; bar.vol = smoothVol; bar.z = Math.cos(angle); bar.pal = pals[c];
+            bar.y = yCenter; 
+            
+            // Die End-Höhe wird mitskaliert. Sie kann nicht dünner werden als scanlineHeight (1px/2px)!
+            bar.h = Math.max(scanlineHeight, Math.floor((this.baseThickness[c] + punch) * thicknessScale)); 
+            
+            bar.vol = smoothVol; bar.z = Math.cos(angle); bar.pal = pals[c];
         }
 
         for (let i = 0; i < numBars; i++) this.sortedBars[i] = this.barsToDraw[i];
@@ -162,7 +176,6 @@ export class Copperbars {
         }
         for (let i = 0; i < numBars; i++) {
             let bar = this.sortedBars[i];
-            // Übergebe das System statt des ColorBitShifts
             this.drawCopperbar(ctx, width, bar.y - bar.h / 2, bar.h, bar.vol, bar.pal[0], bar.pal[1], scanlineHeight, system, bar.z, globalAlpha);
         }
     }

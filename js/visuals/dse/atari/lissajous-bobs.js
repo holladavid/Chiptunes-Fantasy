@@ -1,4 +1,10 @@
 // === js/visuals/dse/atari/lissajous-bobs.js ===
+// =========================================================
+// CLASSIC LISSAJOUS METAL-BOB CHAIN (ATARI ST GIMMICK)
+// Refactored with strict Aspect-Ratio path safety (v1.3.0)
+// and kinetic "Snake-Warp" beat-reactivity.
+// =========================================================
+
 import { quantizeAtari9Bit, rgbToHex } from '../../utils/hardware-constraints.js';
 
 export class AtariBobs {
@@ -8,16 +14,15 @@ export class AtariBobs {
         this.placementType = 'foreground';
         
         this.numBobs = 45; 
-        this.bobSize = 16; // PROPORTIONS-FIX: Von 48 auf 16 geschrumpft!
+        this.bobSize = 16; 
         this.bobCanvas = document.createElement('canvas'); 
         this.bobCanvas.width = this.bobSize; 
         this.bobCanvas.height = this.bobSize;
         const bCtx = this.bobCanvas.getContext('2d');
         
         const cx = this.bobSize / 2; const cy = this.bobSize / 2;
-        const grad = bCtx.createRadialGradient(cx - 2, cy - 2, 1, cx, cy, this.bobSize / 2); // Glanzpunkt angepasst
-                
-        // --- STRICT ATARI 9-BIT QUANTIZATION ---
+        const grad = bCtx.createRadialGradient(cx - 2, cy - 2, 1, cx, cy, this.bobSize / 2);
+        
         const c1 = rgbToHex(...quantizeAtari9Bit(255, 255, 255));
         const c2 = rgbToHex(...quantizeAtari9Bit(153, 255, 153));
         const c3 = rgbToHex(...quantizeAtari9Bit(51, 255, 51));
@@ -49,6 +54,7 @@ export class AtariBobs {
         let targetSpeed = 1.0;
         let scaleMultiplier = 1.0;
         let beatScale = 0.0;
+        let beatWarp = 0.0; // Krümmungs-Ausschlag der Schlange
 
         if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
@@ -57,34 +63,50 @@ export class AtariBobs {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
             scaleMultiplier = globalAlpha;
         } else if (state === 'buildup') {
-            targetSpeed = 1.2; beatScale = 2.0;   
+            targetSpeed = 1.3; 
+            beatScale = 0.04; // Proportionales Aufblasen
+            beatWarp = 0.15;
         } else if (state === 'climax') {
-            targetSpeed = 2.0; globalAlpha = 0.8 + (metrics.beat[0] * 0.2); beatScale = 12.0;  
+            targetSpeed = 2.0; 
+            globalAlpha = 0.85 + (metrics.beat[0] * 0.15); 
+            beatScale = 0.09;  // Proportionales Aufblasen
+            beatWarp = 0.45;   // Schlange krümmt sich elastisch
         }
 
-        this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * 0.05;
-        this.internalT += dt * this.smoothedSpeed;
+        this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * Math.min(1.0, dt * 5.0);
+        
+        // --- 1. THE SPEED SURGE (Schlange peitscht zum Takt nach vorne) ---
+        const activeSpeed = this.smoothedSpeed + (metrics.beat[0] * this.smoothedSpeed * 0.8);
+        this.internalT += dt * activeSpeed;
 
         ctx.globalAlpha = globalAlpha;
         const cx = width / 2; const cy = height / 2;
         
         const minDim = Math.min(width, height);
-        const radiusX = (minDim * 0.38) * (1.0 + Math.sin(this.internalT * 0.4) * 0.25) * scaleMultiplier;
+        const isPortrait = width < height;
+
+        // --- 2. ASPECT-RATIO SAFE PATHING (Schrumpft im Hochkantmodus) ---
+        // Verhindert, dass die Bobs links und rechts an die Gehäusewand stoßen
+        const aspectScaleX = isPortrait ? 0.32 : 0.38;
+        
+        const radiusX = (minDim * aspectScaleX) * (1.0 + Math.sin(this.internalT * 0.4) * 0.25) * scaleMultiplier;
         const radiusY = (minDim * 0.28) * (1.0 + Math.cos(this.internalT * 0.5) * 0.2) * scaleMultiplier;
         
-        const baseBobSize = 3.0 + minDim * 0.03; // PROPORTIONS-FIX
+        const baseBobSize = 3.0 + minDim * 0.03; 
         const phaseStep = (Math.PI * 2) / this.numBobs;
         
         for (let i = 0; i < this.numBobs; i++) {
-            const phase = i * phaseStep;
+            // --- 3. THE SNAKE-WARP (Wirbelsäulen-Krümmung zum Beat) ---
+            const phase = i * phaseStep + (metrics.beat[0] * beatWarp * Math.sin(i * 0.2));
+            
             const x = cx + Math.sin(this.internalT * 1.4 + phase) * radiusX;
             const y = cy + Math.sin(this.internalT * 2.1 + phase) * Math.cos(this.internalT * 1.1 + phase) * radiusY;
-            const size = (baseBobSize + Math.sin(this.internalT * 3.5 + phase) * (baseBobSize * 0.4)) * scaleMultiplier + (metrics.beat[0] * beatScale);
             
-            // PROPORTIONS-FIX: Math.floor verhindert weiches Sub-Pixel-Blurring!
+            // Proportionaler Beat-Glow
+            const size = (baseBobSize + Math.sin(this.internalT * 3.5 + phase) * (baseBobSize * 0.4)) * scaleMultiplier + (metrics.beat[0] * minDim * beatScale);
+            
             ctx.drawImage(this.bobCanvas, Math.floor(x - size / 2), Math.floor(y - size / 2), Math.floor(size), Math.floor(size));
         }
-        
         ctx.globalAlpha = 1.0;
     }
 }

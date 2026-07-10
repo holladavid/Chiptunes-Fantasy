@@ -4,9 +4,27 @@
 // Universal One-Shot Event. Slides in, shows metadata, self-destructs.
 // Uses strict 200p quantized hardware colors and dynamic clamping
 // for perfect Widescreen / Mobile Portrait proportions.
+// Optimized with recursive `measureText` truncation to prevent overflow.
 // =========================================================
 
 import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit } from '../../utils/hardware-constraints.js';
+
+/**
+ * Hilfsfunktion zur pixelgenauen, dynamischen Text-Kürzung ohne Overflow.
+ * Nutzt die native Canvas-Messung zur Umgehung von Webfont-Plattformdifferenzen.
+ */
+function truncateToFit(ctx, text, maxWidth) {
+    if (ctx.measureText(text).width <= maxWidth) return text;
+    
+    let truncated = text;
+    while (truncated.length > 1) {
+        truncated = truncated.substring(0, truncated.length - 1);
+        if (ctx.measureText(truncated + '...').width <= maxWidth) {
+            return truncated + '...';
+        }
+    }
+    return '...';
+}
 
 export class TrackPresenter {
     constructor() {
@@ -20,25 +38,21 @@ export class TrackPresenter {
         if (!this.trackInfo) return;
 
         // 1. LIFECYCLE MANAGEMENT
-        const displayTime = this.metadata ? this.metadata.minPlayTime : 8.0;
+        const displayTime = this.metadata ? this.metadata.minPlayTime : 5.0;
         
         if (state !== 'starting' && state !== 'stopping' && stateTime > displayTime && !this._markedForRemoval) {
             this._markedForRemoval = true;
         }
 
-        // =========================================================
-        // 2. KINEMATIK & SKALIERUNG (Mobile vs. Fullscreen Fix)
-        // =========================================================
+        // 2. KINEMATIK & SKALIERUNG
+        const isPortrait = width < height;
         
-        // Feste Maximalbreite für Widescreen/Desktop (260px sieht aus wie eine klassische Title-Card).
-        // Fließende Anpassung für schmale Mobile-Screens (90% der Breite).
-        const boxW = Math.min(Math.floor(width * 0.9), 260); 
-        
-        // Feste Höhe in Retro-Pixeln (reicht perfekt für 3 Zeilen Text ohne zu dominieren)
+        // Mobile Portrait geben wir 96% Breite für maximalen Textplatz
+        const boxW = Math.min(Math.floor(width * (isPortrait ? 0.96 : 0.9)), 260); 
         const boxH = 56; 
         const boxX = Math.floor((width - boxW) / 2);
         
-        const targetY = Math.floor(height * 0.1); 
+        const targetY = Math.floor(height * 0.28); 
         let currentY = -boxH - 10; 
 
         if (state === 'starting') {
@@ -87,29 +101,28 @@ export class TrackPresenter {
         
         const isAmigaOrAtari = metrics.system === 'amiga' || metrics.system === 'atari';
         
-        // STRICT ALIASING FIX: C64 Font MUSS 8px sein! 6px erzeugt browser-seitiges Matsch-Aliasing.
+        // --- 5. DYNAMISCHE MESSUNG & TRUNCATION ---
+        // Wir erlauben dem Text maximal die Boxbreite abzüglich 20px (Sicherheits-Padding)
+        const maxTextW = boxW - 20;
+
+        // Zeile 1 & 2 Font setzen und messen
         ctx.font = isAmigaOrAtari ? "16px 'VT323', monospace" : "8px 'Press Start 2P', monospace";
-
-        // Dynamisches Text-Clipping basierend auf der tatsächlichen Box-Breite (Wichtig für Mobile!)
-        const charWidth = isAmigaOrAtari ? 7 : 8; 
-        const maxChars = Math.max(5, Math.floor((boxW - 16) / charWidth));
-
-        let displayTitle = this.trackInfo.name || 'UNKNOWN';
-        if (displayTitle.length > maxChars) displayTitle = displayTitle.substring(0, maxChars - 3) + '...';
-
-        let displayAuthor = "BY " + (this.trackInfo.author || 'UNKNOWN');
-        if (displayAuthor.length > maxChars) displayAuthor = displayAuthor.substring(0, maxChars - 3) + '...';
+        let displayTitle = truncateToFit(ctx, this.trackInfo.name || 'UNKNOWN', maxTextW);
+        let displayAuthor = truncateToFit(ctx, "BY " + (this.trackInfo.author || 'UNKNOWN'), maxTextW);
         
-        let displayType = this.trackInfo.type || 'RAW DATA';
-        if (displayType.length > maxChars) displayType = displayType.substring(0, maxChars - 3) + '...';
+        // Zeile 3 Font setzen und messen
+        ctx.font = isAmigaOrAtari ? "12px 'VT323', monospace" : "8px 'Press Start 2P', monospace";
+        let displayType = truncateToFit(ctx, this.trackInfo.type || 'RAW DATA', maxTextW);
 
-        // Exakte vertikale Ausrichtung auf dem Pixel-Grid (Keine fließenden Prozentwerte mehr)
+        // TEXT ZEICHNEN
+        ctx.font = isAmigaOrAtari ? "16px 'VT323', monospace" : "8px 'Press Start 2P', monospace";
         ctx.fillStyle = accentHex;
         ctx.fillText(displayTitle, Math.floor(width / 2), Math.floor(currentY + 16));
 
         ctx.fillStyle = textHex;
         ctx.fillText(displayAuthor, Math.floor(width / 2), Math.floor(currentY + 28));
 
+        ctx.font = isAmigaOrAtari ? "12px 'VT323', monospace" : "8px 'Press Start 2P', monospace";
         ctx.fillStyle = borderHex;
         ctx.fillText(displayType, Math.floor(width / 2), Math.floor(currentY + 44));
     }

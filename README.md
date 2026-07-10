@@ -1,7 +1,7 @@
 # Chiptunes Fantasy
 
 ### The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator
-**Version 1.3.0-beta.2 🎨 The Pixel-Perfect Alignment**
+**Version 1.3.0-beta.3 🌀 The Responsive Sync**
 
 Built with 100% vanilla HTML5, CSS3, and modern Web Audio API. No MP3s, no pre-rendered streams — just pure mathematical real-time synthesis running asynchronously inside low-latency AudioWorklets.
 
@@ -43,3 +43,12 @@ Visual effects are decoupled, hardware-constrained classes injected dynamically 
 *   **Grid-Snapped Subpixel-Killers:** All coordinates, widths, and heights passed to `fillRect` are dynamically integer-floored to prevent the browser from blurring moving edges.
 *   **Dynamic Frustum Recycling:** An advanced clipping optimization in the 3D Starfield that recycles star coordinates the millisecond they cross the 2D screen boundary, keeping active star density at 100% capacity.
 *   **One-Shot Metadata Presenter:** A specialized `presenter` overlay layer that slides in upon song changes and auto-destructs using ECS lifecycle bindings.
+
+### 3. Strict Hardware Constraints & Math Rendering (v1.3.0 Additions)
+*   **The Retro Blitter:** All Demo-Scene-Elements are now isolated to render into a constrained low-res offscreen buffer (`200p` for C64/Atari, `256p` for Amiga). The buffer is upscaled via Nearest-Neighbor (`imageSmoothingEnabled = false`), resulting in crisp, authentic chunky pixels.
+*   **Bypassing Canvas AA:** Standard vector paths (`ctx.arc()`, `ctx.stroke()`) are banned. All outlines use a custom JS-Bresenham algorithm (`drawAliasedLine`), and circles are filled line-by-line via scanline calculation (`fillAliasedCircle`).
+*   **Grid-Snapped Subpixel-Killers:** All coordinates, widths, and heights passed to `fillRect` are dynamically integer-floored to prevent the browser from blurring moving edges.
+*   **Dynamic Frustum & Radial Recycling:** An advanced clipping optimization in the 3D Starfield that recycles star coordinates the millisecond they cross the visible 2D screen boundary. For rotating fields (Atari ST), the system shifts to Radial Bounding Circle culling, preventing empty corners during rolls.
+*   **Aspect-Ratio Safe Pathing:** Star generation boundaries, 3D scales, and water dashes scale dynamically using `minDim = Math.min(width, height)`. Horizontal element thicknesses scale proportionally using `Math.min(1.0, width / height)` to prevent block distortion on portrait screens.
+*   **Dynamic Text Truncation (`measureText`):** The TrackPresenter uses native Canvas `ctx.measureText` API measurements recursively to dynamically truncate text to fit the viewport padding, overriding platform-specific webfont metric discrepancies.
+*   **Global Inactivity Fading:** Implemented `.user-inactive` state to fade the collapsed HUD globally after 3 seconds of inactivity in both windowed and fullscreen modes, keeping the viewport clean.

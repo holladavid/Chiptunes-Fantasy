@@ -160,6 +160,9 @@ class YMExactProcessor extends AudioWorkletProcessor {
                                 else if (activeDigiVoice === 2) this.hijackReleaseVol = frame[9];
                                 else if (activeDigiVoice === 3) this.hijackReleaseVol = frame[10];
                             }
+
+                            // BEHEBUNG: Sendet das Trigger-Signal an den UI-Thread (app.js)
+                            this.port.postMessage({ type: 'DEBUG', msg: 'Drum ' + activeDigiTrigger });
                         }
                     }
                     this.lastDigiTrigger = activeDigiTrigger;

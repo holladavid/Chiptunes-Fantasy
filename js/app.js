@@ -46,17 +46,26 @@ const visualZone = document.getElementById('visual-zone');
 
 function resetMouseIdleTimer() {
     if (!visualZone) return;
+    
+    // Aktiv-Zustand: Klassen sofort entfernen
+    visualZone.classList.remove('user-inactive');
     visualZone.classList.remove('no-cursor');
     clearTimeout(mouseIdleTimer);
     
-    // Nur im Vollbild- oder Pseudo-Vollbildmodus den Zeiger ausblenden
     const isFS = document.fullscreenElement || document.webkitFullscreenElement || visualZone.classList.contains('pseudo-fullscreen');
-    if (isFS) {
-        mouseIdleTimer = setTimeout(() => {
+    
+    // Inaktivitäts-Timer starten
+    mouseIdleTimer = setTimeout(() => {
+        // UI-Elemente faden globally aus (Sowohl im Fenster als auch im Vollbild)
+        visualZone.classList.add('user-inactive');
+        
+        // Der Mauszeiger verschwindet NUR im echten/pseudo Vollbild
+        if (isFS) {
             visualZone.classList.add('no-cursor');
-        }, 3000); // 3 Sekunden Inaktivität
-    }
+        }
+    }, 3000); // 3 Sekunden Inaktivität
 }
+
 
 function initApp() {
     if ('serviceWorker' in navigator) {
@@ -127,6 +136,9 @@ function initApp() {
             visualZone.addEventListener('mousemove', resetMouseIdleTimer);
             visualZone.addEventListener('mousedown', resetMouseIdleTimer);
             visualZone.addEventListener('touchstart', resetMouseIdleTimer);
+            
+            // UX-POLISH: Direkt einmal triggern, damit die UI beim Start kurz aufleuchtet
+            resetMouseIdleTimer(); 
         }
 
         setTheme('theme-c64');
