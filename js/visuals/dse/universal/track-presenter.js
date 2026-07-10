@@ -38,7 +38,7 @@ export class TrackPresenter {
         const boxH = 56; 
         const boxX = Math.floor((width - boxW) / 2);
         
-        const targetY = Math.floor(height * 0.1); 
+        const targetY = Math.floor(height * 0.28); 
         let currentY = -boxH - 10; 
 
         if (state === 'starting') {
