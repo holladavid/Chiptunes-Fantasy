@@ -1,9 +1,9 @@
 # Chiptunes Fantasy
 
 ### The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator
-**Version 1.3.0-beta.3 🌀 The Responsive Sync**
+**Version 1.3.0 [The Visual Expansion]**
 
-Built with 100% vanilla HTML5, CSS3, and modern Web Audio API. No MP3s, no pre-rendered streams — just pure mathematical real-time synthesis running asynchronously inside low-latency AudioWorklets.
+Built with 100% vanilla HTML5, CSS3, and modern Web Audio API. No MP3s, no pre-rendered streams — just pure mathematical real-time synthesis running asynchronously inside low-latency AudioWorklets. From nerds, for nerds.
 
 ---
 
@@ -11,9 +11,11 @@ Built with 100% vanilla HTML5, CSS3, and modern Web Audio API. No MP3s, no pre-r
 
 *Chiptunes-Fantasy* exposes the guts of retro-computing hardware in real-time, explaining the physics, honoring the coders of the 80s/90s, and educating the curious. 
 
-### The Dual-Constraint Design Philosophy
-1. **Bare-Metal Fidelity Per Element:** Each individual **Demo-Scene-Element (DSE)** is engineered to strictly fit the visual and performance boundaries of its target retro platform (e.g., adhering strictly to the 16-color VIC-II palette, Atari ST 9-bit limits, or Amiga OCS 12-bit stepping).
-2. **Modern Composited Power:** While each individual element is authentic, the *Demoscene-Sequencer* stacks, crossfades, and swaps these layers dynamically. This modern orchestration leverages CPU/GPU capabilities to create a seamless, high-fidelity experience that wouldn't have been possible on a single physical machine.
+### The Dual-Constraint DSE Philosophy
+In version 1.3.0, we introduced a ruthless constraint-driven architecture to ensure absolute visual authenticity. Every **Demo-Scene-Element (DSE)** must obey the physical laws of the machine it represents:
+1. **The Retro Blitter:** All rendering is trapped inside an offscreen buffer locked to historical resolutions (e.g., `320x200` for C64/Atari, `320x256` for Amiga). It is scaled to modern 4K/1080p displays using flawless Nearest-Neighbor interpolation, enforcing true chunky pixels.
+2. **Sub-Pixel & Anti-Aliasing Ban:** Native HTML5 vector smoothing is bypassed. All lines use our custom JS-Bresenham algorithm (`drawAliasedLine`), circles are drawn via scanline filling, and all coordinates are strictly integer-floored.
+3. **Hardware Palette Quantization:** DSEs are not allowed to blend freely. Every RGB value is routed through our central `hardware-constraints.js` utility, locking outputs to the 16-color VIC-II palette, 12-bit Amiga OCS banding, or 9-bit Atari ST Shifter steppings. 
 
 ---
 
@@ -21,34 +23,15 @@ Built with 100% vanilla HTML5, CSS3, and modern Web Audio API. No MP3s, no pre-r
 
 The **Demoscene-Sequencer (DSS)** orchestrates dynamic, rule-based visual choreographies using an Entity-Component-System (ECS) architecture. 
 
-With the **v1.3.0** milestone, the engine introduces the **Retro Blitter**, a strict internal offscreen buffer running at historical resolutions (e.g., 200p / 256p). All elements are rendered without HTML5 Canvas sub-pixel anti-aliasing or modern alpha blending, before being upscaled to modern 4K/1080p displays using flawless Nearest-Neighbor scaling for true chunky pixels.
-
-### 1. The Modular Scene-DJ (ECS Architecture)
-*   **TrackMonitor:** Translates raw channel volumes into filtered DSP metrics (`masterEnergy`, `transientPulse`, and an exponential `beatEnvelope`).
-*   **TensionManager:** Evaluates track progression (`idle`, `playing`, `buildup`, `climax`) based on a simulated tension accumulator.
-*   **SetlistManager:** Dynamically swaps DSEs using a weighted roulette algorithm.
-*   **StageManager:** Manages visual crossfades (`starting` -> `stopping`) and absolute Z-Order placement.
+### 1. Cycle-Accurate Track Syncing
+We abolished analog volume-guessing. The `TrackMonitor` now hooks directly into the emulator's hardware databus. By evaluating 6581 Gate-Bits, 8364 DMA spikes, and YM2149 volume registers in real-time, the visual engine triggers animations (`metrics.beat`) with 100% frame-accurate demoscene precision.
 
 ### 2. Demo-Scene-Element (DSE) Arsenal
-Visual effects are decoupled, hardware-constrained classes injected dynamically by the Scene-DJ.
-*   **Track Presenter:** A new ECS *One-Shot* overlay that elegantly slides in to display track metadata upon song change, self-destructing after 8 seconds.
-*   **C64 Chunky Plasma:** A mathematical PETSCII-style plasma locked strictly to the 16-color VIC-II palette with beat-reactive color cycling.
-*   **Amiga Kefrens Checkerboard:** The iconic infinite zooming 3D floor, featuring scanline-based perspective math and strict 12-bit Copper Z-depth banding.
-*   **Atari Wireframe Morph:** A CPU-driven 3D polygon morphing from a cube to a stellated octahedron, drawn with our custom Bresenham algorithm to prevent sub-pixel line blurring.
-*   **Legacy DSEs Refined:** `Retro Sunset`, `Starfield`, `LimitBar`, `AmigaCube`, and `AtariBobs` have all been strictly quantized to their respective hardware color spaces and cleared of illegal `rgba()` alpha-blending.
-
-### 3. Strict Hardware Constraints & Math Rendering (v1.3.0 Additions)
-*   **The Retro Blitter:** All Demo-Scene-Elements are now isolated to render into a constrained low-res offscreen buffer (`200p` for C64/Atari, `256p` for Amiga). The buffer is upscaled via Nearest-Neighbor (`imageSmoothingEnabled = false`), resulting in crisp, authentic chunky pixels.
-*   **Bypassing Canvas AA:** Standard vector paths (`ctx.arc()`, `ctx.stroke()`) are banned. All outlines use a custom JS-Bresenham algorithm (`drawAliasedLine`), and circles are filled line-by-line via scanline calculation (`fillAliasedCircle`).
-*   **Grid-Snapped Subpixel-Killers:** All coordinates, widths, and heights passed to `fillRect` are dynamically integer-floored to prevent the browser from blurring moving edges.
-*   **Dynamic Frustum Recycling:** An advanced clipping optimization in the 3D Starfield that recycles star coordinates the millisecond they cross the 2D screen boundary, keeping active star density at 100% capacity.
-*   **One-Shot Metadata Presenter:** A specialized `presenter` overlay layer that slides in upon song changes and auto-destructs using ECS lifecycle bindings.
-
-### 3. Strict Hardware Constraints & Math Rendering (v1.3.0 Additions)
-*   **The Retro Blitter:** All Demo-Scene-Elements are now isolated to render into a constrained low-res offscreen buffer (`200p` for C64/Atari, `256p` for Amiga). The buffer is upscaled via Nearest-Neighbor (`imageSmoothingEnabled = false`), resulting in crisp, authentic chunky pixels.
-*   **Bypassing Canvas AA:** Standard vector paths (`ctx.arc()`, `ctx.stroke()`) are banned. All outlines use a custom JS-Bresenham algorithm (`drawAliasedLine`), and circles are filled line-by-line via scanline calculation (`fillAliasedCircle`).
-*   **Grid-Snapped Subpixel-Killers:** All coordinates, widths, and heights passed to `fillRect` are dynamically integer-floored to prevent the browser from blurring moving edges.
-*   **Dynamic Frustum & Radial Recycling:** An advanced clipping optimization in the 3D Starfield that recycles star coordinates the millisecond they cross the visible 2D screen boundary. For rotating fields (Atari ST), the system shifts to Radial Bounding Circle culling, preventing empty corners during rolls.
-*   **Aspect-Ratio Safe Pathing:** Star generation boundaries, 3D scales, and water dashes scale dynamically using `minDim = Math.min(width, height)`. Horizontal element thicknesses scale proportionally using `Math.min(1.0, width / height)` to prevent block distortion on portrait screens.
-*   **Dynamic Text Truncation (`measureText`):** The TrackPresenter uses native Canvas `ctx.measureText` API measurements recursively to dynamically truncate text to fit the viewport padding, overriding platform-specific webfont metric discrepancies.
-*   **Global Inactivity Fading:** Implemented `.user-inactive` state to fade the collapsed HUD globally after 3 seconds of inactivity in both windowed and fullscreen modes, keeping the viewport clean.
+*   **Track Presenter:** A universal ECS *One-Shot* overlay that elegantly slides in upon track change. It uses native `ctx.measureText` to dynamically truncate metadata on mobile portrait screens and self-destructs gracefully after 5 seconds.
+*   **C64 Chunky Plasma:** A mathematical 8x8 PETSCII-style plasma locked strictly to the 16-color palette. Features fluid, beat-reactive color-cycling and a geometric zooming pump.
+*   **Amiga Boing Ball:** The legendary 1984 prototype, rendered as a 16x14 3D mesh with an authentic 17-degree right tilt. Features a majestic parabolic flight path and 12-bit quantized depth-shading.
+*   **Amiga Kefrens Checkerboard:** The iconic infinite zooming 3D floor with scanline-based perspective math, dynamically shifted by 1 pixel to seamlessly merge with the background horizon.
+*   **Atari 3D Dot Torus:** A tribute to classic 68000 CPU point-plotting. A massive 3D donut that rotates, pulses, and flashes in high-energy 9-bit neon colors.
+*   **Legacy DSEs Overhauled:** 
+    *   *Retro Sunset* now features C64 Outrun slits, an Amiga Copper-melt sky with parallax mountains, and an Atari elastic 3D water grid. 
+    *   *Starfield* utilizes *Dynamic Radial/Frustum Recycling* to keep visible star density at a permanent 100%, even during Atari 3D Z-roll rotations.
