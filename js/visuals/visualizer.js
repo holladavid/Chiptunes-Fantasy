@@ -8,6 +8,7 @@ import { SceneDJ } from './scene-dj.js';
 import { dseRegistry } from './dse/registry.js';
 import { FftAnalyzer } from './components/fft-analyzer.js';
 import { Oscilloscope } from './components/oscilloscope.js';
+import { LivingSilicon } from '../ui/living-silicon.js';
 
 // NEU: Statisches, prä-allozierte Null-Array zur Vermeidung von Heap-Garbages bei Inaktivität
 const zeroVolumes = new Float32Array(4);
@@ -138,6 +139,12 @@ export function initVisuals(stateGetters, callbacks) {
         const channelVolumes = (isPlaying && stateGetters.getChannelVolumes) 
             ? stateGetters.getChannelVolumes() 
             : zeroVolumes;
+
+        // NEU: Das Living Silicon Prozessor-Gatter-Diagramm in Echtzeit befeuern
+        const activeSilicon = document.getElementById('living-silicon-container');
+        if (activeSilicon && window.siliconVisualizerInstance) {
+            window.siliconVisualizerInstance.update(channelVolumes);
+        }
 
          // NEU: Session ID aus der App-Logik abfragen
         const sessionId = stateGetters.getPlaybackSessionId ? stateGetters.getPlaybackSessionId() : 0;

@@ -21,11 +21,13 @@ import {
     getPaulaNode, 
     getSidNode 
 } from './audio/audio-controller.js';
+import { LivingSilicon } from './ui/living-silicon.js';
 
 let fsUI = null;
+let siliconVisualizer = null; // Living Silicon Instanz
 let currentOscValue = 0; 
 let currentChipRegs = null; 
-let activeSystem = 'atari';
+let activeSystem = 'c64'; // Standard-System auf 'c64' korrigiert (passend zum Boot-Screen)
 let trackData = [];    
 let isPlaying = false; 
 let currentTrackIndex = 0;
@@ -135,24 +137,29 @@ function initApp() {
         });
 
         // Event-Listener für das Cursor-Hiding binden
-        if (visualZone) {
-            visualZone.addEventListener('mousemove', resetMouseIdleTimer);
-            visualZone.addEventListener('mousedown', resetMouseIdleTimer);
-            visualZone.addEventListener('touchstart', resetMouseIdleTimer);
-            
-            // UX-POLISH: Direkt einmal triggern, damit die UI beim Start kurz aufleuchtet
-            resetMouseIdleTimer(); 
-        }
+            if (visualZone) {
+                visualZone.addEventListener('mousemove', resetMouseIdleTimer);
+                visualZone.addEventListener('mousedown', resetMouseIdleTimer);
+                visualZone.addEventListener('touchstart', resetMouseIdleTimer);
+            }
 
-        setTheme('theme-c64');
-        
-        // Initialisiert das Fullscreen Overlay
-        fsUI = new FullscreenUI({
-            onTogglePlay: () => document.getElementById('btn-play').click(),
-            onPrev: () => document.getElementById('btn-prev').click(),
-            onNext: () => document.getElementById('btn-next').click()
-        });   
-    });
+            // =========================================================
+            // CHIP INITIALISIERUNGS-REIHENFOLGE GEFIXT
+            // Erst das Modul erstellen, dann setTheme() rufen!
+            // =========================================================
+            siliconVisualizer = new LivingSilicon('living-silicon-container');
+            window.siliconVisualizerInstance = siliconVisualizer; // Globaler Hook für den Visualizer
+            
+            // setTheme triggert nun automatisch siliconVisualizer.setSystem('c64')
+            setTheme('theme-c64');
+            
+            // Initialisiert das Fullscreen Overlay
+            fsUI = new FullscreenUI({
+                onTogglePlay: () => document.getElementById('btn-play').click(),
+                onPrev: () => document.getElementById('btn-prev').click(),
+                onNext: () => document.getElementById('btn-next').click()
+            });   
+        });
 }
 
 if (document.readyState === 'loading') document.addEventListener("DOMContentLoaded", initApp);
@@ -457,6 +464,11 @@ function setTheme(themeName) {
 
     activeSystem = themeName === 'theme-atari' ? 'atari' : themeName === 'theme-amiga' ? 'amiga' : 'c64';
     
+    // NEU: Dem Living Silicon Modul den geänderten Prozessor-Typ übermitteln
+    if (siliconVisualizer) {
+        siliconVisualizer.setSystem(activeSystem);
+    }
+
     const tempContainer = document.getElementById('temp-control-container');
     if (tempContainer) {
         if (activeSystem === 'c64') tempContainer.classList.remove('hidden');
