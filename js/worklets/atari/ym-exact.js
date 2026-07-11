@@ -1,8 +1,8 @@
 // === js/worklets/atari/ym-exact.js ===
 // =========================================================
 // YM2149F CORE (CYCLE-EXACT 2MHz, LOG-DAC, TRUE 5-BIT ENV)
-// Phase 1 Hardware Upgrade: True Measured DAC, 17-Bit LFSR Noise,
-// Hardware Mixer Gates, 4-Bit Digidrum Hijacking & Analog Output Stage.
+// Phase 2 Hardware Upgrade: 64-Step Envelope State Machine,
+// True Measured DAC, 17-Bit LFSR, Hardware Mixer Gates.
 // =========================================================
 
 import { detectDigidrum, detectDigidrumVoice, YM2149_DAC32, AtariAnalogFilter } from '../lib/dsp-utils.js';
@@ -16,17 +16,15 @@ class YMExactProcessor extends AudioWorkletProcessor {
         
         this.toneDivA = 0; this.toneDivB = 0; this.toneDivC = 0;
         this.noiseDiv = 0;
+        
+        // --- PHASE 2: Envelope State Machine ---
         this.envDiv = 0;
-
-        this.toneOutA = 1; this.toneOutB = 1; this.toneOutC = 1;
-        
-        // REVIEW FIX: 17-Bit LFSR Hardware Initialisierung
-        this.noiseLfsr = 1; this.noiseOut = 1; 
-        
-        this.envStep = 0;   
-        this.envPhase = 0;  
+        this.envPos = 0;   // 64-Step Counter (0-63)
+        this.envShape = 0; // Aktuelles Shape (0-15)
         this.envVol5Bit = 0; 
-        this.envHold = true; 
+        
+        this.toneOutA = 1; this.toneOutB = 1; this.toneOutC = 1;
+        this.noiseLfsr = 1; this.noiseOut = 1; 
         
         this.digidrums = [];
         this.currentDigidrum = null;
@@ -46,7 +44,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
         this.volA = 0.0; this.volB = 0.0; this.volC = 0.0;
         this.visualizer = new YMVisualizer(this.port);
         
-        // Polyphase Sinc-FIR Decimator (Für Zero-Aliasing von 2MHz -> 48kHz)
         this.FIR_TAPS = 255;
         this.firKernel = new Float32Array(this.FIR_TAPS);
         this.ringBuffer = new Float32Array(512); 
@@ -63,7 +60,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
         }
         for (let i = 0; i < this.FIR_TAPS; i++) this.firKernel[i] /= sum; 
 
-        // REVIEW FIX: Echte Atari Analog-Motherboard Emulation!
         this.analogOut = new AtariAnalogFilter(sampleRate);
         this.outLp = 0;
         this.fadeVol = 0.0;
@@ -130,10 +126,10 @@ class YMExactProcessor extends AudioWorkletProcessor {
                         if (r === 13) {
                             if (val !== 0xFF) {
                                 this.regs[13] = val;
-                                this.envStep = 0;
-                                this.envPhase = 0;
+                                // --- PHASE 2: Envelope Trigger ---
+                                this.envShape = val & 0x0F;
+                                this.envPos = 0;
                                 this.envDiv = 0; 
-                                this.envHold = false;
                             }
                         } else {
                             this.regs[r] = val;
@@ -166,7 +162,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     this.currentFrame = (this.currentFrame + 1) % this.trackData.length;
                 }
 
-                // REVIEW FIX: Period 0 wird als 1 behandelt!
                 const pA = (((this.regs[1] & 0x0F) << 8) | this.regs[0]) || 1;
                 const pB = (((this.regs[3] & 0x0F) << 8) | this.regs[2]) || 1;
                 const pC = (((this.regs[5] & 0x0F) << 8) | this.regs[4]) || 1;
@@ -176,11 +171,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
                 const mix = this.regs[7];
                 const r8 = this.regs[8], r9 = this.regs[9], r10 = this.regs[10];
                 
-                // (Der Envelope-Code bleibt für Phase 1 noch grob erhalten, wird in Phase 2 refaktorisiert)
-                const shape = this.regs[13] & 0x0F;
-                const envAttack = (shape & 4) !== 0; const envCont = (shape & 8) !== 0;
-                const envAlt = (shape & 2) !== 0; const envHoldFlag = (shape & 1) !== 0;
-
                 // --- THE 2MHZ CYCLE-EXACT LOCKSTEP ---
                 for (let c = 0; c < cyclesToRun; c++) {
                     
@@ -188,49 +178,54 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     if (--this.toneDivB <= 0) { this.toneDivB = 8 * pB; this.toneOutB ^= 1; }
                     if (--this.toneDivC <= 0) { this.toneDivC = 8 * pC; this.toneOutC ^= 1; }
                     
-                    // REVIEW FIX: True 17-Bit LFSR Feedback (Bit 0 XOR Bit 3)
                     if (--this.noiseDiv <= 0) {
                         this.noiseDiv = 16 * pN;
                         let bit0 = this.noiseLfsr & 1;
                         let bit3 = (this.noiseLfsr >> 3) & 1;
                         this.noiseLfsr = (this.noiseLfsr >> 1) | ((bit0 ^ bit3) << 16);
-                        this.noiseOut = bit0; // 0 oder 1
+                        this.noiseOut = bit0; 
                     }
 
+                    // --- PHASE 2: Die 64-Step Envelope State Machine ---
                     if (--this.envDiv <= 0) {
                         this.envDiv = 8 * pE;
-                        if (!this.envHold) {
-                            this.envStep++;
-                            if (this.envStep > 31) {
-                                this.envStep = 0;
-                                this.envPhase++;
-                                if (!envCont) this.envHold = true;
-                                if (envCont && envHoldFlag) this.envHold = true;
+                        
+                        // Welche Shapes stoppen nach dem ersten Durchlauf (Phase 1)?
+                        const holds = [true, true, true, true, true, true, true, true, false, true, false, true, false, true, false, true];
+                        
+                        if (this.envPos < 32) {
+                            this.envPos++;
+                        } else {
+                            if (!holds[this.envShape]) {
+                                this.envPos++;
+                                if (this.envPos >= 64) this.envPos = 0;
                             }
-                            
-                            let eVol = 0;
-                            if (!envCont) {
-                                eVol = (this.envPhase > 0) ? 0 : (envAttack ? this.envStep : (31 - this.envStep));
-                            } else {
-                                if (this.envHold && this.envPhase > 0) {
-                                    let dirUp = envAttack ? !envAlt : envAlt;
-                                    eVol = dirUp ? 31 : 0;
-                                } else {
-                                    let isReversed = envAlt && ((this.envPhase & 1) === 1);
-                                    let dirUp = envAttack ? !isReversed : isReversed;
-                                    eVol = dirUp ? this.envStep : (31 - this.envStep);
-                                }
-                            }
-                            this.envVol5Bit = eVol;
                         }
+
+                        let p = this.envPos;
+                        let s = p & 31;
+                        let out = 0;
+                        
+                        // Hardware Mapping der 16 YM-Shapes auf die 5-Bit Werte (0-31)
+                        switch (this.envShape) {
+                            case 0: case 1: case 2: case 3: out = (p < 32) ? (31 - s) : 0; break;
+                            case 4: case 5: case 6: case 7: out = (p < 32) ? s : 0; break;
+                            case 8:  out = 31 - s; break;
+                            case 9:  out = (p < 32) ? (31 - s) : 0; break;
+                            case 10: out = (p < 32) ? (31 - s) : s; break;          // 0xA: \/\/\/
+                            case 11: out = (p < 32) ? (31 - s) : 31; break;         // 0xB: \‾‾‾‾
+                            case 12: out = s; break;                                // 0xC: //////
+                            case 13: out = (p < 32) ? s : 31; break;                // 0xD: /‾‾‾‾
+                            case 14: out = (p < 32) ? s : (31 - s); break;          // 0xE: /\/\/\
+                            case 15: out = (p < 32) ? s : 0; break;                 // 0xF: /\____
+                        }
+                        this.envVol5Bit = out;
                     }
 
-                    // --- DIGIDRUM HIJACKING (REVIEW FIX: 4-Bit DAC Modulation) ---
                     let digiVal5Bit = -1;
                     if (this.currentDigidrum) {
                         let posInt = Math.floor(this.digiPos);
                         if (posInt < this.currentDigidrum.length) {
-                            // Float (-1 bis +1) zu 5-Bit Quantisierung (0 bis 31)
                             let floatSample = this.currentDigidrum[posInt]; 
                             digiVal5Bit = Math.floor((floatSample + 1.0) * 15.5);
                             this.digiPos += (7812.5 / this.clock); 
@@ -243,14 +238,12 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     let vB5 = (r9 & 0x10) ? this.envVol5Bit : (r9 & 0x0F) * 2 + 1;
                     let vC5 = (r10 & 0x10) ? this.envVol5Bit : (r10 & 0x0F) * 2 + 1;
 
-                    // Digidrum überschreibt das Lautstärkeregister (wie bei Mad Max!)
                     if (digiVal5Bit !== -1) {
                         if (this.hijackedVoice === 1 || this.hijackedVoice === 0) vA5 = digiVal5Bit;
                         else if (this.hijackedVoice === 2) vB5 = digiVal5Bit;
                         else if (this.hijackedVoice === 3) vC5 = digiVal5Bit;
                     }
 
-                    // REVIEW FIX: Hardware Mixer Gates (AND / OR)
                     let toneEnA = (mix & 0x01) ? 1 : 0; let noiseEnA = (mix & 0x08) ? 1 : 0;
                     let toneEnB = (mix & 0x02) ? 1 : 0; let noiseEnB = (mix & 0x10) ? 1 : 0;
                     let toneEnC = (mix & 0x04) ? 1 : 0; let noiseEnC = (mix & 0x20) ? 1 : 0;
@@ -259,14 +252,12 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     let outB = (toneEnB | this.toneOutB) & (noiseEnB | this.noiseOut);
                     let outC = (toneEnC | this.toneOutC) & (noiseEnC | this.noiseOut);
 
-                    // Digidrum erzwingt offenes Gate, damit der Sample nicht zerschnitten wird
                     if (digiVal5Bit !== -1) {
                         if (this.hijackedVoice === 1 || this.hijackedVoice === 0) outA = 1;
                         if (this.hijackedVoice === 2) outB = 1;
                         if (this.hijackedVoice === 3) outC = 1;
                     }
 
-                    // REVIEW FIX: True Measured YM2149 DAC Table
                     let ampA = outA ? YM2149_DAC32[vA5] : 0;
                     let ampB = outB ? YM2149_DAC32[vB5] : 0;
                     let ampC = outC ? YM2149_DAC32[vC5] : 0;
@@ -278,17 +269,13 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     this.ringIndex = (this.ringIndex + 1) & 511;
                 }
 
-                // Sinc-FIR Decimator
                 for (let k = 0; k < this.FIR_TAPS; k++) {
                     let readIdx = (this.ringIndex - 1 - k + 512) & 511;
                     decimationSum += this.ringBuffer[readIdx] * this.firKernel[k];
                 }
             }
 
-            // Smoothing filter for FIR output
             this.outLp += 0.45 * (decimationSum - this.outLp);
-            
-            // REVIEW FIX: Atari Analog Stage
             let finalSample = this.analogOut.process(this.outLp) * this.fadeVol;
 
             outL[i] = finalSample;
