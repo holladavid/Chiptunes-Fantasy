@@ -1,18 +1,12 @@
 // === js/worklets/atari/ym-exact.js ===
 // =========================================================
 // YM2149F CORE (CYCLE-EXACT 2MHz, LOG-DAC, TRUE 5-BIT ENV)
-// Studio-Grade Polyphase Sinc-FIR Decimator & Digidrum DAC Injection
-// Final Master: True 8-Bit Linear PCM Simulation for Digidrums
+// Phase 1 Hardware Upgrade: True Measured DAC, 17-Bit LFSR Noise,
+// Hardware Mixer Gates, 4-Bit Digidrum Hijacking & Analog Output Stage.
 // =========================================================
 
-import { DCBlocker, detectDigidrum, detectDigidrumVoice } from '../lib/dsp-utils.js';
+import { detectDigidrum, detectDigidrumVoice, YM2149_DAC32, AtariAnalogFilter } from '../lib/dsp-utils.js';
 import { YMVisualizer } from '../lib/ym-visualizer.js';
-
-const YM_DAC32 = new Float32Array(32);
-YM_DAC32[0] = 0.0;
-for (let i = 1; i < 32; i++) {
-    YM_DAC32[i] = Math.pow(10, (-1.5 * (31 - i)) / 20.0);
-}
 
 class YMExactProcessor extends AudioWorkletProcessor {
     constructor() {
@@ -25,7 +19,9 @@ class YMExactProcessor extends AudioWorkletProcessor {
         this.envDiv = 0;
 
         this.toneOutA = 1; this.toneOutB = 1; this.toneOutC = 1;
-        this.noiseLfsr = 1; this.noiseOut = 1;
+        
+        // REVIEW FIX: 17-Bit LFSR Hardware Initialisierung
+        this.noiseLfsr = 1; this.noiseOut = 1; 
         
         this.envStep = 0;   
         this.envPhase = 0;  
@@ -50,6 +46,7 @@ class YMExactProcessor extends AudioWorkletProcessor {
         this.volA = 0.0; this.volB = 0.0; this.volC = 0.0;
         this.visualizer = new YMVisualizer(this.port);
         
+        // Polyphase Sinc-FIR Decimator (Für Zero-Aliasing von 2MHz -> 48kHz)
         this.FIR_TAPS = 255;
         this.firKernel = new Float32Array(this.FIR_TAPS);
         this.ringBuffer = new Float32Array(512); 
@@ -66,7 +63,8 @@ class YMExactProcessor extends AudioWorkletProcessor {
         }
         for (let i = 0; i < this.FIR_TAPS; i++) this.firKernel[i] /= sum; 
 
-        this.dcBlock = new DCBlocker();
+        // REVIEW FIX: Echte Atari Analog-Motherboard Emulation!
+        this.analogOut = new AtariAnalogFilter(sampleRate);
         this.outLp = 0;
         this.fadeVol = 0.0;
         
@@ -85,7 +83,7 @@ class YMExactProcessor extends AudioWorkletProcessor {
                 
                 this.ringBuffer.fill(0);
                 this.outLp = 0;
-                this.dcBlock = new DCBlocker();
+                this.analogOut = new AtariAnalogFilter(sampleRate);
             } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
             } else if (msg.type === 'RESUME_TRACK') {
@@ -106,15 +104,11 @@ class YMExactProcessor extends AudioWorkletProcessor {
 
         for (let i = 0; i < outL.length; i++) {
             
-            // Anti-Pop Glide Envelope
-            if (this.isPlaying) {
-                this.fadeVol = Math.min(1.0, this.fadeVol + 0.002);
-            } else {
-                this.fadeVol = Math.max(0.0, this.fadeVol - 0.002);
-            }
+            if (this.isPlaying) this.fadeVol = Math.min(1.0, this.fadeVol + 0.002);
+            else this.fadeVol = Math.max(0.0, this.fadeVol - 0.002);
 
             if (this.fadeVol === 0.0) {
-                let idleSample = this.dcBlock.process(0);
+                let idleSample = this.analogOut.process(0);
                 outL[i] = idleSample; if (outR) outR[i] = idleSample;
                 continue; 
             }
@@ -160,8 +154,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
                                 else if (activeDigiVoice === 2) this.hijackReleaseVol = frame[9];
                                 else if (activeDigiVoice === 3) this.hijackReleaseVol = frame[10];
                             }
-
-                            // BEHEBUNG: Sendet das Trigger-Signal an den UI-Thread (app.js)
                             this.port.postMessage({ type: 'DEBUG', msg: 'Drum ' + activeDigiTrigger });
                         }
                     }
@@ -174,6 +166,7 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     this.currentFrame = (this.currentFrame + 1) % this.trackData.length;
                 }
 
+                // REVIEW FIX: Period 0 wird als 1 behandelt!
                 const pA = (((this.regs[1] & 0x0F) << 8) | this.regs[0]) || 1;
                 const pB = (((this.regs[3] & 0x0F) << 8) | this.regs[2]) || 1;
                 const pC = (((this.regs[5] & 0x0F) << 8) | this.regs[4]) || 1;
@@ -183,23 +176,25 @@ class YMExactProcessor extends AudioWorkletProcessor {
                 const mix = this.regs[7];
                 const r8 = this.regs[8], r9 = this.regs[9], r10 = this.regs[10];
                 
+                // (Der Envelope-Code bleibt für Phase 1 noch grob erhalten, wird in Phase 2 refaktorisiert)
                 const shape = this.regs[13] & 0x0F;
-                const envAttack = (shape & 4) !== 0;
-                const envCont   = (shape & 8) !== 0;
-                const envAlt    = (shape & 2) !== 0;
-                const envHoldFlag = (shape & 1) !== 0;
+                const envAttack = (shape & 4) !== 0; const envCont = (shape & 8) !== 0;
+                const envAlt = (shape & 2) !== 0; const envHoldFlag = (shape & 1) !== 0;
 
+                // --- THE 2MHZ CYCLE-EXACT LOCKSTEP ---
                 for (let c = 0; c < cyclesToRun; c++) {
                     
                     if (--this.toneDivA <= 0) { this.toneDivA = 8 * pA; this.toneOutA ^= 1; }
                     if (--this.toneDivB <= 0) { this.toneDivB = 8 * pB; this.toneOutB ^= 1; }
                     if (--this.toneDivC <= 0) { this.toneDivC = 8 * pC; this.toneOutC ^= 1; }
                     
+                    // REVIEW FIX: True 17-Bit LFSR Feedback (Bit 0 XOR Bit 3)
                     if (--this.noiseDiv <= 0) {
                         this.noiseDiv = 16 * pN;
-                        this.noiseLfsr ^= (((this.noiseLfsr & 1) ^ ((this.noiseLfsr >> 3) & 1)) << 17);
-                        this.noiseLfsr >>= 1;
-                        this.noiseOut = this.noiseLfsr & 1;
+                        let bit0 = this.noiseLfsr & 1;
+                        let bit3 = (this.noiseLfsr >> 3) & 1;
+                        this.noiseLfsr = (this.noiseLfsr >> 1) | ((bit0 ^ bit3) << 16);
+                        this.noiseOut = bit0; // 0 oder 1
                     }
 
                     if (--this.envDiv <= 0) {
@@ -230,83 +225,71 @@ class YMExactProcessor extends AudioWorkletProcessor {
                         }
                     }
 
-                    let fixVolA = r8 & 0x0F;
-                    let vA5 = (r8 & 0x10) ? this.envVol5Bit : (fixVolA === 0 ? 0 : fixVolA * 2 + 1);
-                    
-                    let fixVolB = r9 & 0x0F;
-                    let vB5 = (r9 & 0x10) ? this.envVol5Bit : (fixVolB === 0 ? 0 : fixVolB * 2 + 1);
-                    
-                    let fixVolC = r10 & 0x0F;
-                    let vC5 = (r10 & 0x10) ? this.envVol5Bit : (fixVolC === 0 ? 0 : fixVolC * 2 + 1);
-
-                    let outA = 1, outB = 1, outC = 1;
-                    if ((mix & 0x01) === 0 && !this.toneOutA) outA = 0;
-                    if ((mix & 0x08) === 0 && !this.noiseOut) outA = 0;
-                    
-                    if ((mix & 0x02) === 0 && !this.toneOutB) outB = 0;
-                    if ((mix & 0x10) === 0 && !this.noiseOut) outB = 0;
-                    
-                    if ((mix & 0x04) === 0 && !this.toneOutC) outC = 0;
-                    if ((mix & 0x20) === 0 && !this.noiseOut) outC = 0;
-
-                    let ampA = YM_DAC32[vA5];
-                    let ampB = YM_DAC32[vB5];
-                    let ampC = YM_DAC32[vC5];
-
-                    // =========================================================
-                    // TRUE 8-BIT LINEAR PCM SIMULATION (Mad Max Hack)
-                    // Umgeht den kratzigen logarithmischen 4-Bit Wandler und 
-                    // speist das 8-Bit Digidrum-Sample linear in die Spur ein!
-                    // =========================================================
-                    let hasDigi = false;
-                    let digiAmp = 0.0;
-
+                    // --- DIGIDRUM HIJACKING (REVIEW FIX: 4-Bit DAC Modulation) ---
+                    let digiVal5Bit = -1;
                     if (this.currentDigidrum) {
                         let posInt = Math.floor(this.digiPos);
                         if (posInt < this.currentDigidrum.length) {
-                            let floatSample = this.currentDigidrum[posInt]; // Bereich: -1.0 bis +1.0
-                            
-                            // Map von Bipolar (-1 bis 1) auf Unipolar (0 bis 1)
-                            digiAmp = (floatSample + 1.0) * 0.5;
-                            hasDigi = true;
-                            
+                            // Float (-1 bis +1) zu 5-Bit Quantisierung (0 bis 31)
+                            let floatSample = this.currentDigidrum[posInt]; 
+                            digiVal5Bit = Math.floor((floatSample + 1.0) * 15.5);
                             this.digiPos += (7812.5 / this.clock); 
                         } else {
                             this.currentDigidrum = null;
                         }
                     }
 
-                    if (hasDigi) {
-                        // Wenn der Tracker die Spur hijouckt, zwingen wir das Tone-Gate 
-                        // auf 1.0 (damit die Frequenz den Drum nicht zerhackt) und 
-                        // schreiben die saubere lineare Amplitude direkt in den Mixer.
-                        if (this.hijackedVoice === 1) { ampA = digiAmp; outA = 1.0; }
-                        else if (this.hijackedVoice === 2) { ampB = digiAmp; outB = 1.0; }
-                        else if (this.hijackedVoice === 3) { ampC = digiAmp; outC = 1.0; }
-                        else { 
-                            ampA = ampB = ampC = digiAmp; 
-                            outA = outB = outC = 1.0; 
-                        }
+                    let vA5 = (r8 & 0x10) ? this.envVol5Bit : (r8 & 0x0F) * 2 + 1;
+                    let vB5 = (r9 & 0x10) ? this.envVol5Bit : (r9 & 0x0F) * 2 + 1;
+                    let vC5 = (r10 & 0x10) ? this.envVol5Bit : (r10 & 0x0F) * 2 + 1;
+
+                    // Digidrum überschreibt das Lautstärkeregister (wie bei Mad Max!)
+                    if (digiVal5Bit !== -1) {
+                        if (this.hijackedVoice === 1 || this.hijackedVoice === 0) vA5 = digiVal5Bit;
+                        else if (this.hijackedVoice === 2) vB5 = digiVal5Bit;
+                        else if (this.hijackedVoice === 3) vC5 = digiVal5Bit;
                     }
 
-                    let mixedSample = (outA * ampA + outB * ampB + outC * ampC) / 3.0;
+                    // REVIEW FIX: Hardware Mixer Gates (AND / OR)
+                    let toneEnA = (mix & 0x01) ? 1 : 0; let noiseEnA = (mix & 0x08) ? 1 : 0;
+                    let toneEnB = (mix & 0x02) ? 1 : 0; let noiseEnB = (mix & 0x10) ? 1 : 0;
+                    let toneEnC = (mix & 0x04) ? 1 : 0; let noiseEnC = (mix & 0x20) ? 1 : 0;
 
-                    this.volA = ampA;
-                    this.volB = ampB;
-                    this.volC = ampC;
+                    let outA = (toneEnA | this.toneOutA) & (noiseEnA | this.noiseOut);
+                    let outB = (toneEnB | this.toneOutB) & (noiseEnB | this.noiseOut);
+                    let outC = (toneEnC | this.toneOutC) & (noiseEnC | this.noiseOut);
 
+                    // Digidrum erzwingt offenes Gate, damit der Sample nicht zerschnitten wird
+                    if (digiVal5Bit !== -1) {
+                        if (this.hijackedVoice === 1 || this.hijackedVoice === 0) outA = 1;
+                        if (this.hijackedVoice === 2) outB = 1;
+                        if (this.hijackedVoice === 3) outC = 1;
+                    }
+
+                    // REVIEW FIX: True Measured YM2149 DAC Table
+                    let ampA = outA ? YM2149_DAC32[vA5] : 0;
+                    let ampB = outB ? YM2149_DAC32[vB5] : 0;
+                    let ampC = outC ? YM2149_DAC32[vC5] : 0;
+
+                    let mixedSample = (ampA + ampB + ampC) / 3.0;
+
+                    this.volA = ampA; this.volB = ampB; this.volC = ampC;
                     this.ringBuffer[this.ringIndex] = mixedSample;
                     this.ringIndex = (this.ringIndex + 1) & 511;
                 }
 
+                // Sinc-FIR Decimator
                 for (let k = 0; k < this.FIR_TAPS; k++) {
                     let readIdx = (this.ringIndex - 1 - k + 512) & 511;
                     decimationSum += this.ringBuffer[readIdx] * this.firKernel[k];
                 }
             }
 
+            // Smoothing filter for FIR output
             this.outLp += 0.45 * (decimationSum - this.outLp);
-            let finalSample = this.dcBlock.process(this.outLp) * this.fadeVol;
+            
+            // REVIEW FIX: Atari Analog Stage
+            let finalSample = this.analogOut.process(this.outLp) * this.fadeVol;
 
             outL[i] = finalSample;
             if (outR) outR[i] = finalSample;
