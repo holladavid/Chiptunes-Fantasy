@@ -102,7 +102,6 @@ function initApp() {
             console.error("[CRITICAL] Cores konnten nicht geladen werden:", err);
         }
 
-// === js/app.js (ca. Zeile 83) ===
         initVisuals({
             getEcoMode: () => isEcoMode,
             getCurrentOscValue: () => currentOscValue,
@@ -112,9 +111,7 @@ function initApp() {
             getIsPlaying: () => isPlaying,
             getAudioContext: getAudioContext,
             getPlaybackSessionId: () => playbackSessionId,
-            
-            // --- NEU: Den Hardware-Bus freigeben ---
-            getCurrentChipRegs: () => currentChipRegs 
+            getCurrentChipRegs: () => currentChipRegs // NEU: Register-Schnittstelle übergeben!
         }, {
             updateTimelineUI: () => updateTimelineUI(),
             updateChipHUD: () => updateChipHUD({
@@ -123,7 +120,7 @@ function initApp() {
                 getCurrentChipRegs: () => currentChipRegs
             })
         });
-        
+
         initScroller(() => currentScrollerText, () => isEcoMode); 
         
         // INTERAKTIVE SKEUOMORPHIC LED KOPPLUNG (AMIGA)

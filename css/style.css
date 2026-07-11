@@ -929,3 +929,18 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
 .silicon-die-bus {
     transition: stroke 0.05s ease, opacity 0.05s ease;
 }
+/* =========================================
+   10. SILICON DIE SIGNAL-FLOW KEYFRAMES
+   ========================================= */
+@keyframes signal-pulse-right {
+    to {
+        stroke-dashoffset: -20;
+    }
+}
+
+.signal-bus {
+    stroke-dasharray: 6, 6;
+    animation: signal-pulse-right 1s linear infinite;
+    stroke-linecap: round;
+    transition: opacity 0.1s ease, stroke 0.1s ease, filter 0.1s ease;
+}

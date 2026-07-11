@@ -133,17 +133,21 @@ export function initVisuals(stateGetters, callbacks) {
         }
 
         // =========================================================
-        // FIX: Sicheres Ausblenden bei Pause (Kein Einfrieren mehr!)
+        // REAL-TIME REGISTER INTEGRATION
+        // Speist das Register-Frame & die Systemzeit in das Die-Layout
         // =========================================================
         const isPlaying = stateGetters.getIsPlaying();
         const channelVolumes = (isPlaying && stateGetters.getChannelVolumes) 
             ? stateGetters.getChannelVolumes() 
             : zeroVolumes;
 
-        // NEU: Das Living Silicon Prozessor-Gatter-Diagramm in Echtzeit befeuern
+        const currentRegs = (isPlaying && stateGetters.getCurrentChipRegs)
+            ? stateGetters.getCurrentChipRegs()
+            : null;
+
         const activeSilicon = document.getElementById('living-silicon-container');
         if (activeSilicon && window.siliconVisualizerInstance) {
-            window.siliconVisualizerInstance.update(channelVolumes);
+            window.siliconVisualizerInstance.update(channelVolumes, currentRegs, t);
         }
 
          // NEU: Session ID aus der App-Logik abfragen
