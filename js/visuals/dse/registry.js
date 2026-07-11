@@ -16,6 +16,8 @@ import { ChunkyPlasma } from './c64/chunky-plasma.js';
 import { KefrensCheckerboard } from './amiga/kefrens-checkerboard.js';
 import { WireframeMorph } from './atari/wireframe-morph.js';
 import { TrackPresenter } from './universal/track-presenter.js';
+import { AmigaBoingBall } from './amiga/boing-ball.js';
+import { AtariDotTorus } from './atari/dot-torus.js';
 
 function defineDSE(DseClass, customMetadata) {
     const defaults = {
@@ -119,6 +121,24 @@ export const dseRegistry = [
         computerType: ['amiga'],
         weight: 10,
         minPlayTime: 15.0,
+        climaxHoldTime: 15.0
+    }),
+
+    // NEU: Der legendäre 1984 Amiga Boing Ball!
+    defineDSE(AmigaBoingBall, {
+        placementType: 'foreground',
+        computerType: ['amiga'], // Streng auf Amiga limitiert
+        weight: 12,              // Leicht höhere Gewichtung
+        minPlayTime: 12.0,
+        climaxHoldTime: 15.0
+    }),
+
+    // NEU: Der legendäre Atari ST 3D Dot Torus!
+    defineDSE(AtariDotTorus, {
+        placementType: 'foreground',
+        computerType: ['atari'], // Exklusiv Atari ST!
+        weight: 12,              
+        minPlayTime: 12.0,
         climaxHoldTime: 15.0
     }),
     

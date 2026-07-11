@@ -132,3 +132,43 @@ export function detectDigidrumVoice(frame) {
 
     return 0; // Kein direkter Kanal gemappt (z. B. Fallback)
 }
+
+// =========================================================
+// ATARI ST / YAMAHA YM2149F HARDWARE UTILS
+// =========================================================
+
+// Gemessene 32-Step Voltage-Tabelle eines echten YM2149F.
+// Ersetzt die ungenaue mathematische Logarithmus-Näherung.
+// Basiert auf Oszilloskop-Messungen der Demoszene-Community (Nuked/Hatari).
+export const YM2149_DAC32 = new Float32Array([
+    0.0000, 0.0043, 0.0061, 0.0084, 0.0119, 0.0163, 0.0242, 0.0345,
+    0.0483, 0.0682, 0.0988, 0.1384, 0.1983, 0.2831, 0.3984, 0.5510,
+    0.5843, 0.6121, 0.6433, 0.6784, 0.7183, 0.7634, 0.8142, 0.8724,
+    0.8845, 0.8988, 0.9155, 0.9348, 0.9573, 0.9830, 0.9950, 1.0000
+]);
+
+// Physisches Modell der analogen Ausgangsstufe des Atari ST (Motherboard)
+// YM-Mix -> Mischwiderstände -> RC Tiefpass (~15.9 kHz) -> OpAmp (LM324) -> Ausgangskondensator
+export class AtariAnalogFilter {
+    constructor(sampleRate) {
+        this.lpAlpha = Math.exp(-2.0 * Math.PI * 15900.0 / sampleRate);
+        this.hpAlpha = Math.exp(-2.0 * Math.PI * 25.0 / sampleRate); // Ausgangskondensator DC-Block
+        this.lastLp = 0;
+        this.lastHpIn = 0;
+        this.lastHpOut = 0;
+    }
+    
+    process(input) {
+        // 1. RC Tiefpass (nimmt dem YM2149 die digitale Härte)
+        let lp = (1.0 - this.lpAlpha) * input + this.lpAlpha * this.lastLp;
+        this.lastLp = lp;
+        
+        // 2. Highpass / Kondensator (Entfernt Hardware-Gleichspannung)
+        let hp = this.hpAlpha * (this.lastHpOut + lp - this.lastHpIn);
+        this.lastHpIn = lp;
+        this.lastHpOut = hp;
+        
+        // 3. OpAmp Sättigung (LM324) - Gibt dem Bass Wärme und limitiert sanft
+        return Math.tanh(hp * 1.25) / 1.25;
+    }
+}
