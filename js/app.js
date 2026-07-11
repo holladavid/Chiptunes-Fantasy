@@ -100,6 +100,7 @@ function initApp() {
             console.error("[CRITICAL] Cores konnten nicht geladen werden:", err);
         }
 
+// === js/app.js (ca. Zeile 83) ===
         initVisuals({
             getEcoMode: () => isEcoMode,
             getCurrentOscValue: () => currentOscValue,
@@ -108,8 +109,10 @@ function initApp() {
             getAnalyserNode: getAnalyserNode,  
             getIsPlaying: () => isPlaying,
             getAudioContext: getAudioContext,
-            // NEU: Session ID an die visuelle Pipeline übergeben
-            getPlaybackSessionId: () => playbackSessionId 
+            getPlaybackSessionId: () => playbackSessionId,
+            
+            // --- NEU: Den Hardware-Bus freigeben ---
+            getCurrentChipRegs: () => currentChipRegs 
         }, {
             updateTimelineUI: () => updateTimelineUI(),
             updateChipHUD: () => updateChipHUD({

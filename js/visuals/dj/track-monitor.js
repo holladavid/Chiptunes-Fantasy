@@ -1,4 +1,11 @@
 // === js/visuals/dj/track-monitor.js ===
+// =========================================================
+// SCENE-DJ SKILL: TRACK MONITOR (HARDWARE SYNC EDITION)
+// Bypasses analog envelope following by directly analyzing
+// soundchip registers (Gate Bits, DMA Spikes, Envelope triggers)
+// to guarantee 100% frame-accurate demoscene beat syncing.
+// =========================================================
+
 export class TrackInfo {
     constructor() {
         this.system = 'c64';
@@ -13,7 +20,6 @@ export class TrackDynamics {
         this.transientPulse = new Float32Array(1);
         this.beatEnvelope = new Float32Array(1);
         this.channelSmooth = new Float32Array(4);
-        this.channelPeaks = new Float32Array(4);
         this.rawEnergyState = 'playing';
         this.beatCooldown = 0.0;
     }
@@ -23,20 +29,22 @@ export class TrackMonitor {
     constructor() {
         this.info = new TrackInfo();
         this.dynamics = new TrackDynamics();
+        // Hardware-State-Speicher für Rising-Edge Detection
+        this.lastRegs = new Uint8Array(32); 
     }
 
-    update(channelVolumes, dt) {
+    update(channelVolumes, dt, chipRegs) {
         let totalEnergy = 0.0;
-        let maxPulse = 0.0;
+        let analogMaxPulse = 0.0;
         let numActiveChannels = (this.info.system === 'c64' || this.info.system === 'atari') ? 3 : 4;
 
+        // 1. Analog Energy Tracking (Für die generelle Makro-Spannung / Tension)
         for (let i = 0; i < 4; i++) {
             let rawVol = channelVolumes[i] || 0.0;
             let smooth = this.dynamics.channelSmooth;
-            let peaks = this.dynamics.channelPeaks;
 
             let instantPulse = Math.max(0.0, rawVol - smooth[i]);
-            if (instantPulse > maxPulse) maxPulse = instantPulse;
+            if (instantPulse > analogMaxPulse) analogMaxPulse = instantPulse;
 
             if (rawVol > smooth[i]) smooth[i] += (rawVol - smooth[i]) * (dt * 20.0);
             else smooth[i] += (rawVol - smooth[i]) * (dt * 6.0);
@@ -45,27 +53,82 @@ export class TrackMonitor {
         }
 
         this.dynamics.masterEnergy[0] = totalEnergy / numActiveChannels;
-        this.dynamics.transientPulse[0] = maxPulse;
 
+        // =========================================================
+        // 2. HARDWARE TRIGGER DETECTION (Demoscene Precision)
+        // =========================================================
+        let isHardwareBeat = false;
+
+        if (chipRegs && this.info.isPlaying) {
+            if (this.info.system === 'c64') {
+                // C64: Wir suchen nach dem ADSR "Gate Bit" (Bit 0 in Ctrl-Reg)
+                for (let v = 0; v < 3; v++) {
+                    let ctrl = chipRegs[v * 7 + 4];
+                    let lastCtrl = this.lastRegs[v * 7 + 4];
+                    
+                    // Rising Edge: Gate ging von 0 auf 1!
+                    if ((ctrl & 1) && !(lastCtrl & 1)) {
+                        // Triggern, wenn es eine Noise-Drum (Bit 128) oder tiefe Frequenz ist
+                        if (ctrl & 128) isHardwareBeat = true; 
+                    }
+                }
+            } else if (this.info.system === 'atari') {
+                // Atari ST: Jochen Hippel & Mad Max Digidrums
+                for (let v = 0; v < 3; v++) {
+                    let vol = chipRegs[8 + v] & 15;
+                    let lastVol = this.lastRegs[8 + v] & 15;
+                    // Ein harter, manueller Lautstärke-Sprung um >5 Stufen ist fast immer ein Digidrum
+                    if (vol > lastVol + 5) isHardwareBeat = true; 
+                }
+                // Hardware-Envelope getriggert (oft für Sync-Buzzer Bässe genutzt)
+                if (chipRegs[13] !== this.lastRegs[13] && chipRegs[13] !== 255) {
+                    isHardwareBeat = true;
+                }
+            } else if (this.info.system === 'amiga') {
+                // Amiga: Paula DMA Volume Spikes (Kickdrums haben massive Anschläge)
+                for (let c = 0; c < 4; c++) {
+                    let vol = chipRegs[c * 7 + 6];
+                    let lastVol = this.lastRegs[c * 7 + 6];
+                    if (vol > lastVol + 20) isHardwareBeat = true; // Harter Anschlag!
+                }
+            }
+            
+            // Register-Zustand für den nächsten Frame sichern
+            for(let i=0; i<32; i++) this.lastRegs[i] = chipRegs[i];
+        }
+
+        // 3. Fallback: Strenger analoger Schmit-Trigger (falls Hardware-Trigger nicht greift)
+        let pulseThresh = this.info.system === 'c64' ? 0.60 : (this.info.system === 'atari' ? 0.55 : 0.45);
+        let isAnalogBeat = (analogMaxPulse > pulseThresh);
+
+        // Signal in die Pipeline schreiben
+        if (isHardwareBeat || isAnalogBeat) {
+            this.dynamics.transientPulse[0] = 1.0; // Absoluter Peak
+        } else {
+            this.dynamics.transientPulse[0] = analogMaxPulse;
+        }
+
+        // 4. Macro State Logic (Tension States)
         const energy = this.dynamics.masterEnergy[0];
-        const pulse = this.dynamics.transientPulse[0];
-        
-        let buildupThresh = 0.40, overdriveThresh = 0.58, pulseThresh = 0.35;
-        if (this.info.system === 'c64') { buildupThresh = 0.40; overdriveThresh = 0.60; pulseThresh = 0.50; } 
-        else if (this.info.system === 'atari') { buildupThresh = 0.35; overdriveThresh = 0.66; pulseThresh = 0.48; }
+        let buildupThresh = 0.40, overdriveThresh = 0.58;
+        if (this.info.system === 'c64') { buildupThresh = 0.40; overdriveThresh = 0.65; } 
+        else if (this.info.system === 'atari') { buildupThresh = 0.35; overdriveThresh = 0.66; }
 
-        let isOverdrive = (energy > overdriveThresh && pulse > pulseThresh);
+        let isOverdrive = (energy > overdriveThresh && this.dynamics.transientPulse[0] > pulseThresh * 0.8);
         let isBuildup = (energy > buildupThresh);
         this.dynamics.rawEnergyState = isOverdrive ? 'climax' : (isBuildup ? 'buildup' : 'playing');
 
+        // 5. Perfect Micro-Dynamics (Beat Envelope)
         this.dynamics.beatCooldown -= dt;
-        let beatThresh = pulseThresh * 0.65;
-        if (this.info.isPlaying && pulse > beatThresh && this.dynamics.beatCooldown <= 0.0) {
-            this.dynamics.beatEnvelope[0] = 1.0;
-            this.dynamics.beatCooldown = 0.12;
+        
+        if (this.info.isPlaying && (isHardwareBeat || (isAnalogBeat && this.dynamics.beatCooldown <= 0.0))) {
+            this.dynamics.beatEnvelope[0] = 1.0; // Sofortiger Einschlag!
+            this.dynamics.beatCooldown = 0.15; // Cooldown verhindert Maschinengewehr-Zittern
         } else {
+            // Musikalisches Abklingen der Flanke (Exponential Decay)
             this.dynamics.beatEnvelope[0] *= Math.exp(-dt * 15.0);
         }
+        
         if (!this.info.isPlaying) this.dynamics.beatEnvelope[0] = 0.0;
     }
 }

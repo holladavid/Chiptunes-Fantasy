@@ -48,8 +48,8 @@ export class SceneDJ {
         }
     }
 
-    // Argument trackMetadata hinzugefügt!
-    render(ctx, width, height, t, channelVolumes, isPlaying, sessionId, trackMetadata) {
+    // Parameter chipRegs am Ende hinzufügen
+    render(ctx, width, height, t, channelVolumes, isPlaying, sessionId, trackMetadata, chipRegs) {
         let dt = 0.016; 
         if (this.lastTime !== 0) { 
             dt = t - this.lastTime; 
@@ -71,7 +71,8 @@ export class SceneDJ {
         this.monitor.info.isPlaying = isPlaying;
 
         // 1. Audio-Analyse
-        this.monitor.update(channelVolumes, dt);
+        // NEU: Register an den Monitor übergeben!
+        this.monitor.update(channelVolumes, dt, chipRegs);
 
         // 2. Makro-Zustand berechnen
         let didWakeUp = this.tension.update(this.monitor.dynamics, this.monitor.info, this.stage, dt);

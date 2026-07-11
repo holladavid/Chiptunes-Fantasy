@@ -145,10 +145,13 @@ export function initVisuals(stateGetters, callbacks) {
         const trackData = stateGetters.getTrackData();
         const trackMetadata = trackData ? trackData.metadata : null;
 
+        // NEU: Register abrufen
+        const chipRegs = (isPlaying && stateGetters.getCurrentChipRegs) ? stateGetters.getCurrentChipRegs() : null;
+
         // --- RENDER ROUTING ---
         if (showGimmick) {
-            // trackMetadata übergeben!
-            dss.render(ctx, canvas.width, canvas.height, t, channelVolumes, isPlaying, sessionId, trackMetadata);
+            // NEU: chipRegs am Ende des Aufrufs anfügen!
+            dss.render(ctx, canvas.width, canvas.height, t, channelVolumes, isPlaying, sessionId, trackMetadata, chipRegs);
         } else {
             drawReticle(); 
             osc.render(ctx, canvas.width, canvas.height, stateGetters, lineColor);
