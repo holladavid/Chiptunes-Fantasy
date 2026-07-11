@@ -86,7 +86,7 @@ export class AtariDotTorus {
         const cx = Math.floor(width / 2);
         const cy = Math.floor(height / 2);
         const fov = minDim * 1.2;
-        const scale = minDim * 0.38 * beatScale;
+        const scale = minDim * 0.28 * beatScale;
 
         const rotX = this.internalT * 1.1;
         const rotY = this.internalT * 1.5;
@@ -116,7 +116,7 @@ export class AtariDotTorus {
             let y3 = x2 * sinZ + y1 * cosZ;
 
             // Tiefe hinzufügen
-            let zOff = z2 + 3.0;
+            let zOff = z2 + 3.5;
 
             // 3. Projektion (Sub-Pixel-Killer via Math.floor!)
             let p = this.projected[i];
@@ -126,43 +126,44 @@ export class AtariDotTorus {
             p.colorPhase = dot.colorPhase;
         }
 
-        // --- Z-SORTING (Painter's Algorithm für Depth Shading) ---
+        // Z-Sorting (Depth-Shading)
         this.projected.sort((a, b) => b.z - a.z);
 
         ctx.globalAlpha = globalAlpha;
 
-        // --- RENDERING (Hardware Quantized Dots) ---
+        // RENDERING
         for (let i = 0; i < this.numDots; i++) {
             let p = this.projected[i];
 
-            // Tiefe (zOff) von ca. 1.5 (nah) bis 4.5 (fern) auf 0.0 bis 1.0 mappen
-            let depthNorm = Math.max(0.0, Math.min(1.0, (4.5 - p.z) / 3.0));
-            
-            // Helligkeit berechnen (Tiefen-Schattierung + Beat-Flash)
+            // --- UPGRADE: AMBIENT LIGHT GEGEN DUNKLE HINTERGRÜNDE ---
+            // Sichert ab, dass auch die Rückseite des Donuts mit mindestens 30% Helligkeit
+            // sichtbar bleibt und nicht als unsichtbares Schwarz (#000000) quantisiert wird.
+            let depthNorm = 0.30 + 0.70 * Math.max(0.0, Math.min(1.0, (5.0 - p.z) / 3.0));
             let brightness = depthNorm + illumination;
 
-            // Color-Cycling auf dem Donut-Ring (ColorPhase dreht sich mit der Zeit!)
+            // Color-Cycling
             let cycle = (p.colorPhase + this.internalT * 0.2) % 1.0;
             
-            // Grundfarbe: Ein wilder Atari Magenta/Cyan-Mix
-            let baseR = Math.sin(cycle * Math.PI * 2) * 127 + 128;
-            let baseG = 80;
-            let baseB = Math.cos(cycle * Math.PI * 2) * 127 + 128;
+            // --- UPGRADE: HIGH-ENERGY NEON COLOR-PALETTE ---
+            // Wir heben das Minimum der Farbkanäle an und spendieren dem Grünkanal einen festen Boost (140).
+            // Das transformiert die Farben in strahlendes Neon-Lila, flüssiges Pink und leuchtendes Türkis!
+            let baseR = Math.sin(cycle * Math.PI * 2) * 80 + 175;
+            let baseG = 140;
+            let baseB = Math.cos(cycle * Math.PI * 2) * 80 + 175;
 
-            // Helligkeit anwenden und clippen
+            // Helligkeit anwenden
             let r = Math.min(255, Math.floor(baseR * brightness));
             let g = Math.min(255, Math.floor(baseG * brightness));
             let b = Math.min(255, Math.floor(baseB * brightness));
 
-            // STRICT ATARI 9-BIT QUANTIZATION
+            // STRICT 9-BIT ATARI QUANTIZATION
             let qColor = quantizeAtari9Bit(r, g, b);
             
             ctx.fillStyle = rgbToHex(qColor[0], qColor[1], qColor[2]);
             
-            // Atari Dot-Plotting: Punkte im Vordergrund (nah) zeichnen wir 2x2, hinten 1x1
-            let dotSize = p.z < 2.5 ? 2 : 1; 
+            // Viskose Pixelgröße
+            let dotSize = p.z < 3.0 ? 2 : 1; 
             
-            // Harter Block, kein Sub-Pixel!
             ctx.fillRect(p.x, p.y, dotSize, dotSize);
         }
 
