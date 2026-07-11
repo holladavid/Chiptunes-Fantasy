@@ -910,8 +910,10 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
 /* Erbt die Retro-System-Schriftarten (Press Start 2P / VT323) für die Chip-Beschriftung */
 .silicon-chassis text {
     font-family: var(--font-main);
-    font-weight: bold;
+    font-weight: normal; /* "bold" bei C64 Font führt oft zu Unschärfe, normal ist schärfer */
     user-select: none;
+    -webkit-font-smoothing: none; /* Erzwingt knackige Kanten im SVG */
+    font-smooth: never;
 }
 
 .silicon-chip-body {
