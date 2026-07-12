@@ -1,7 +1,7 @@
 # Chiptunes Fantasy
 
 ### The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator
-**Version 1.3.0 [The Visual Expansion]**
+**Version 1.4.0-beta.1 [The Hardware Laboratory]**
 
 Built with 100% vanilla HTML5, CSS3, and modern Web Audio API. No MP3s, no pre-rendered streams — just pure mathematical real-time synthesis running asynchronously inside low-latency AudioWorklets. From nerds, for nerds.
 
@@ -35,3 +35,8 @@ We abolished analog volume-guessing. The `TrackMonitor` now hooks directly into 
 *   **Legacy DSEs Overhauled:** 
     *   *Retro Sunset* now features C64 Outrun slits, an Amiga Copper-melt sky with parallax mountains, and an Atari elastic 3D water grid. 
     *   *Starfield* utilizes *Dynamic Radial/Frustum Recycling* to keep visible star density at a permanent 100%, even during Atari 3D Z-roll rotations.
+    
+*   **Living Silicon (Core Visualization):** Ein hochperformantes Vektor-Die-Modul der drei verbauten Soundprozessoren (MOS 6581, MOS Paula 8364, YM2149F). Zeigt physische Pinout-Glows, Live-Mixer-Gatter, flackernde Noise-Generatoren und Echtzeit-Frequenzanalysen direkt auf dem Silizium-Plättchen.
+*   **Amiga Boing Ball (1984 Tribute):** Ein historisch akkurates 16x14-Demoszene-Mesh mit starrer 3D-Kinematik, 17-Grad-Neigung und originaler parabolischer Schwerkraft-Physik.
+*   **Environmental Sensor Bay:** Live-Diagnostik der virtuellen analogen Ströme. Simuliert dynamische Spannungsabfälle (Voltage Sags) bei tiefen Frequenzen, Transistor-Bias-Drifts und thermische Rauschpegel.
+*   **Cinematic CRT Transitions:** Asynchroner Systemwechsel, der einen gefrästen Relais-Chassis-Reset mit Stromschwankungen, weichem FFT-Physik-Absturz und einem CRT-Degauss-Glitch auf dem Canvas verbindet.
