@@ -112,7 +112,8 @@ export class FftAnalyzer {
                 if (this.peaks[i] > 2) {
                     ctx.fillStyle = '#ffffff';
                     let snappedPeak = Math.floor(this.peaks[i] / step) * step;
-                    ctx.fillRect(x, height - snappedPeak, barWidth, 2);
+                    // Y-Koordinate um 'segmentHeight' nach oben versetzt
+                    ctx.fillRect(x, height - snappedPeak - segmentHeight, barWidth, 2);
                 }
 
                 x += barWidth + 2;
