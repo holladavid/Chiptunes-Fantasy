@@ -99,10 +99,10 @@
         <div id="playback-bar">
             <div class="controls">
                 <!-- Hardware Demoscene Terminology -->
-                <button id="btn-prev" title="Previous Track">[ &lt; MEM ]</button>
-                <button id="btn-play" title="Play/Pause">[ INJECT ROM ]</button>
-                <button id="btn-next" title="Next Track">[ BUS &gt; ]</button>
-                <button id="btn-eco" title="Pure Audio Mode">[ HALT GFX ]</button>
+                <button id="btn-prev" title="Previous Track">&lt; MEM</button>
+                <button id="btn-play" title="Play/Pause">INJECT ROM</button>
+                <button id="btn-next" title="Next Track">BUS &gt;</button>
+                <button id="btn-eco" title="Pure Audio Mode">HALT GFX</button>
             </div>
             
             <div class="timeline-control">
@@ -135,11 +135,19 @@
                     <select id="core-selector"></select>
                 </div>
                 
-                <!-- Auf 55°C Standard-Betriebstemperatur initialisiert -->
-                <div class="core-control hidden" id="temp-control-container" style="margin-top: -15px; margin-bottom: 25px; font-size: calc(var(--font-size-base) * 0.8);">
-                    <label>TEMP:</label>
-                    <input type="range" id="temp-slider" min="15" max="75" value="55" style="flex-grow: 1;">
-                    <span id="temp-display" style="width: 45px; text-align: right;">55°C</span>
+                <!-- Umweltsensor-Bucht (Sensor Bay) -->
+                <div class="sensor-bay terminal-card" id="sensor-bay-container" style="margin-top: 20px;">
+                    <div class="terminal-card-header">&gt; ENV DIAGNOSTICS</div>
+                    <div class="core-control" id="temp-control-container" style="margin-bottom: 12px; font-size: calc(var(--font-size-base) * 0.8);">
+                        <label>TEMP:</label>
+                        <input type="range" id="temp-slider" min="15" max="75" value="55" style="flex-grow: 1;">
+                        <span id="temp-display" style="width: 50px; text-align: right;">55°C</span>
+                    </div>
+                    <div class="terminal-grid" id="sensor-grid-values">
+                        <span class="lbl">[VOLT]</span><span class="val" id="sensor-volt">5.02V</span>
+                        <span class="lbl">[NOIS]</span><span class="val" id="sensor-noise">-74.0dB</span>
+                        <span class="lbl">[BIAS]</span><span class="val" id="sensor-bias">0.82</span>
+                    </div>
                 </div>
                 
                 <ul id="tracklist"></ul>

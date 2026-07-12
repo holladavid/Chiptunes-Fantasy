@@ -111,13 +111,14 @@ function initApp() {
             getIsPlaying: () => isPlaying,
             getAudioContext: getAudioContext,
             getPlaybackSessionId: () => playbackSessionId,
-            getCurrentChipRegs: () => currentChipRegs // NEU: Register-Schnittstelle übergeben!
+            getCurrentChipRegs: () => currentChipRegs 
         }, {
             updateTimelineUI: () => updateTimelineUI(),
             updateChipHUD: () => updateChipHUD({
                 getActiveSystem: () => activeSystem,
                 getIsPlaying: () => isPlaying,
-                getCurrentChipRegs: () => currentChipRegs
+                getCurrentChipRegs: () => currentChipRegs,
+                getChannelVolumes: () => channelVolumes // NEU: Lautstärken an das HUD-Modul koppeln
             })
         });
 
