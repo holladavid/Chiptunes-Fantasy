@@ -456,32 +456,28 @@ async function setTheme(themeName, isBootSequence = false) {
     if (isTransitioning) return;
     
     const newSystem = themeName === 'theme-atari' ? 'atari' : themeName === 'theme-amiga' ? 'amiga' : 'c64';
-    
-    // Wir animieren nur, wenn sich das System wirklich ändert, oder wir nicht frisch booten
     const doAnimate = !isBootSequence && (activeSystem !== newSystem || isPlaying);
 
     if (doAnimate) {
         isTransitioning = true;
-        playRequestToken++; // Bricht alle im Hintergrund ladenden Downloads sofort ab
-        stopPlayback();     // Kappt Audio: FFT-Peaks stürzen nun durch Schwerkraft physikalisch ab
+        playRequestToken++; 
+        stopPlayback();     
         
-        // 1. POWER DOWN & DEGAUSS TRIGGER
         document.body.classList.add('system-transitioning');
         window.dispatchEvent(new CustomEvent('trigger-glitch'));
         
-        // Warten, bis der visuelle Blackout-Peak der CSS-Animation erreicht ist (ca. 300ms)
+        // Warten, bis der visuelle Blackout-Peak der CSS-Animation erreicht ist (300ms)
         await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // Physischer RAM-Wipe: Zerstört alle Canvas-Ghost-States (wie den Presenter) komplett
-        window.dispatchEvent(new CustomEvent('hardware-power-cycle'));
-        
-        // Restliche Zeit absitzen, bis der Glitch vorbei ist
-        await new Promise(resolve => setTimeout(resolve, 100));
     } else {
         stopPlayback();
     }
 
-    // --- 2. THE HARD SWITCH (Passiert unsichtbar während des Glitches) ---
+    // =========================================================
+    // THE HARD SWITCH (Wird exakt im Blackout-Peak ausgeführt!)
+    // Wir setzen das komplette UI, CSS und den RAM zurück, 
+    // BEVOR die Hardware wieder mit Strom versorgt wird.
+    // =========================================================
+    
     document.body.className = themeName + (doAnimate ? ' system-transitioning' : '');
     
     const tabs = document.querySelectorAll('.tab-btn');
@@ -528,16 +524,16 @@ async function setTheme(themeName, isBootSequence = false) {
     const infoBtn = document.getElementById('btn-hud-info');
     if (infoBtn) infoBtn.classList.add('hidden');
 
+    // ---------------------------------------------------------
+    // GHOST-TRACK WIPES (RAM Löschen)
+    // ---------------------------------------------------------
     trackData = [];
     currentTrackIndex = 0;
     currentChipRegs = null;
+    playbackSessionId++; // Erzwingt auch im DJ-Skillset einen State Sync Reset
     
     resetHUD();
-
-    // =========================================================
-    // FIX: Fullscreen Presenter-Box Reset
-    // Löscht den Ghost-Track aus dem UI Overlay!
-    // =========================================================
+    
     if (fsUI) {
         fsUI.updateTrack("[ AWAITING INJECTION ]");
         fsUI.updatePlayState(false);
@@ -556,20 +552,25 @@ async function setTheme(themeName, isBootSequence = false) {
     
     renderCoreSelector(activeSystem);
     
-    // Living Silicon mit dem neuen Chip versorgen
     if (typeof siliconVisualizer !== 'undefined' && siliconVisualizer) {
         siliconVisualizer.setSystem(activeSystem);
     }
 
+    // =========================================================
+    // RAM-WIPE EVENT (Hardware Boot)
+    // Da die Trackdaten nun garantiert gelöscht sind, 
+    // kann kein neu erwachendes DSE mehr die alten Titel einlesen!
+    // =========================================================
+    window.dispatchEvent(new CustomEvent('hardware-power-cycle'));
+
     // --- 3. POWER UP ---
     if (doAnimate) {
-        // Die restlichen 200ms der Flicker-Animation abklingen lassen
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Die restlichen 300ms der Flicker-Animation abklingen lassen
+        await new Promise(resolve => setTimeout(resolve, 300));
         document.body.classList.remove('system-transitioning');
         isTransitioning = false;
     }
 }
-
 // === js/app.js (Auszug) ===
 
 function renderCoreSelector(system) {
