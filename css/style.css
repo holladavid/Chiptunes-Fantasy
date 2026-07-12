@@ -1040,3 +1040,23 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     content: "█ " !important; /* Block-Cursor statt einfachem '>' */
     animation: c64-blink 0.8s steps(2, start) infinite; 
 }
+
+/* =========================================
+   14. CINEMATIC BOOT & STATE TRANSITIONS
+   ========================================= */
+body.system-transitioning #ui-zone,
+body.system-transitioning #living-silicon-container,
+body.system-transitioning #chip-hud {
+    animation: power-flicker 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+    pointer-events: none; /* Blockiert Klicks während des Schaltvorgangs */
+}
+
+@keyframes power-flicker {
+    0%   { filter: brightness(1) contrast(1); }
+    15%  { filter: brightness(0.2) contrast(1.5); opacity: 0.8; }
+    30%  { filter: brightness(0.8) contrast(1.2); opacity: 0.95; }
+    50%  { filter: brightness(0.1) contrast(2.0); opacity: 0.6; } /* Blackout Peak */
+    70%  { filter: brightness(0.6) contrast(1.4); opacity: 0.9; }
+    85%  { filter: brightness(0.3) contrast(1.8); opacity: 0.7; }
+    100% { filter: brightness(1) contrast(1); opacity: 1; }
+}

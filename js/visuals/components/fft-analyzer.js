@@ -19,7 +19,7 @@ export class FftAnalyzer {
         const isPlaying = stateGetters.getIsPlaying();
         const audioCtx = stateGetters.getAudioContext();
 
-        if (activeAnalyser && isPlaying && audioCtx) {
+        if (activeAnalyser && audioCtx) {
             const bufferLength = activeAnalyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
             activeAnalyser.getByteFrequencyData(dataArray);

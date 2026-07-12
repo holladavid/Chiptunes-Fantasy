@@ -9,6 +9,7 @@ import { dseRegistry } from './dse/registry.js';
 import { FftAnalyzer } from './components/fft-analyzer.js';
 import { Oscilloscope } from './components/oscilloscope.js';
 import { LivingSilicon } from '../ui/living-silicon.js';
+import { CrtGlitch } from './components/crt-glitch.js';
 
 // NEU: Statisches, prä-allozierte Null-Array zur Vermeidung von Heap-Garbages bei Inaktivität
 const zeroVolumes = new Float32Array(4);
@@ -41,6 +42,7 @@ export function initVisuals(stateGetters, callbacks) {
     // Core UI (Vom DJ unabhängig)
     const fft = new FftAnalyzer();
     const osc = new Oscilloscope(canvas.width, canvas.height);
+    const glitch = new CrtGlitch(); // NEU: Instanziiert den Glitcher
 
     // --- INTERACTIVE GIMMICK STATE & TOGGLE ---
     let showGimmick = false;
@@ -110,6 +112,8 @@ export function initVisuals(stateGetters, callbacks) {
         ctx.setLineDash([]); 
     }
 
+    let lastDrawTime = performance.now(); // NEU: Außerhalb von draw() definieren!
+
     function draw() {
         if (stateGetters.getEcoMode()) {
             callbacks.updateTimelineUI(); 
@@ -117,8 +121,11 @@ export function initVisuals(stateGetters, callbacks) {
             return; 
         }
 
-        const t = (performance.now() - startTime) * 0.001; 
-        
+        const now = performance.now();
+        const t = (now - startTime) * 0.001; 
+        let dt = (now - lastDrawTime) * 0.001;
+        if (dt > 0.1) dt = 0.016; // FPS-Drop Protection
+        lastDrawTime = now;        
         ctx.fillStyle = '#000000'; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
@@ -168,6 +175,9 @@ export function initVisuals(stateGetters, callbacks) {
             osc.render(ctx, canvas.width, canvas.height, stateGetters, lineColor);
             fft.render(ctx, canvas.width, canvas.height, stateGetters, lineColor);
         }
+
+        // NEU: Globaler Hardware-Glitch post-processing Pass
+        glitch.render(ctx, canvas.width, canvas.height, dt);
 
         hudCounter++;
         callbacks.updateTimelineUI();

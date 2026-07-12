@@ -450,23 +450,42 @@ function stopPlayback() {
     channelVolumes.fill(0); 
 }
 
-function setTheme(themeName) {
-    playRequestToken++; // NEU: Bricht alle noch im Hintergrund ladenden Tracks sofort ab!
+let isTransitioning = false; // Verhindert Spam-Klicken der Tabs
 
-    document.body.className = themeName;
+async function setTheme(themeName, isBootSequence = false) {
+    if (isTransitioning) return;
+    
+    const newSystem = themeName === 'theme-atari' ? 'atari' : themeName === 'theme-amiga' ? 'amiga' : 'c64';
+    
+    // Wir animieren nur, wenn sich das System wirklich ändert, oder wir nicht frisch booten
+    const doAnimate = !isBootSequence && (activeSystem !== newSystem || isPlaying);
+
+    if (doAnimate) {
+        isTransitioning = true;
+        playRequestToken++; // Bricht alle im Hintergrund ladenden Downloads sofort ab
+        stopPlayback();     // Kappt Audio: FFT-Peaks stürzen nun durch Schwerkraft physikalisch ab
+        
+        // 1. POWER DOWN & DEGAUSS TRIGGER
+        document.body.classList.add('system-transitioning');
+        window.dispatchEvent(new CustomEvent('trigger-glitch'));
+        
+        // Wir warten 400ms, bis der Glitch auf seinem visuellen Blackout-Peak ist
+        await new Promise(resolve => setTimeout(resolve, 400));
+    } else {
+        stopPlayback();
+    }
+
+    // --- 2. THE HARD SWITCH (Passiert unsichtbar während des Glitches) ---
+    document.body.className = themeName + (doAnimate ? ' system-transitioning' : '');
+    
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach(tab => {
         tab.classList.remove('active');
         if (tab.getAttribute('data-theme') === themeName) tab.classList.add('active');
     });
 
-    activeSystem = themeName === 'theme-atari' ? 'atari' : themeName === 'theme-amiga' ? 'amiga' : 'c64';
+    activeSystem = newSystem;
     
-    // NEU: Dem Living Silicon Modul den geänderten Prozessor-Typ übermitteln
-    if (siliconVisualizer) {
-        siliconVisualizer.setSystem(activeSystem);
-    }
-
     const tempContainer = document.getElementById('temp-control-container');
     if (tempContainer) {
         if (activeSystem === 'c64') tempContainer.classList.remove('hidden');
@@ -474,17 +493,19 @@ function setTheme(themeName) {
     }
 
     renderTracklist(activeSystem);
-    stopPlayback(); 
 
     document.getElementById('info-text').innerHTML = `
-        ${systemDescriptions[activeSystem]}
-        <div>
-            <p style="color: var(--highlight-color);">[ SYSTEM READY ]</p>
-            <p>Please select a track from the playlist to initialize playback and load data into memory...</p>
-            <p class="blinking-cursor" style="margin-top: 15px;">_</p>
+        <div class="terminal-card">
+            <div class="terminal-card-header">&gt; SYSTEM INITIALIZATION</div>
+            <div style="padding: 10px 0;">
+                <p style="color: var(--highlight-color); margin-bottom: 8px;">[ SYSTEM READY ]</p>
+                <p style="font-size: 0.9em; opacity: 0.8;">Please inject a ROM from the archive to initialize bus routing...</p>
+                <p class="blinking-cursor" style="margin-top: 15px;">_</p>
+            </div>
         </div>
     `;
-    currentScrollerText = `+++ ${activeSystem.toUpperCase()} SYSTEM READY. AWAITING INPUT... +++`;
+    
+    currentScrollerText = `+++ ${activeSystem.toUpperCase()} SYSTEM READY. AWAITING DATA INJECTION... +++`;
 
     const legend = document.getElementById('hud-legend');
     if (legend) legend.classList.add('hidden'); 
@@ -519,6 +540,19 @@ function setTheme(themeName) {
     }
     
     renderCoreSelector(activeSystem);
+    
+    // Living Silicon mit dem neuen Chip versorgen
+    if (typeof siliconVisualizer !== 'undefined' && siliconVisualizer) {
+        siliconVisualizer.setSystem(activeSystem);
+    }
+
+    // --- 3. POWER UP ---
+    if (doAnimate) {
+        // Die restlichen 200ms der Flicker-Animation abklingen lassen
+        await new Promise(resolve => setTimeout(resolve, 200));
+        document.body.classList.remove('system-transitioning');
+        isTransitioning = false;
+    }
 }
 
 // === js/app.js (Auszug) ===
