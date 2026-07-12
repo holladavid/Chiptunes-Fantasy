@@ -2,8 +2,8 @@
 // =========================================================
 // DEMO-SCENE-ELEMENT: AMIGA BOING BALL (1984 TRIBUTE)
 // Authentic 16x14 mesh, 17-degree right tilt, and strict 12-bit
-// OCS shading. Features a centered parabolic bounce and 
-// subtle, hardware-accurate beat-illumination (Strobe-Flash).
+// OCS shading. Features a rigid, majestic parabolic gravity arc 
+// and linear wall-bounces. No squash & stretch!
 // =========================================================
 
 import { quantizeAmiga12Bit, rgbToHex } from '../../utils/hardware-constraints.js';
@@ -58,8 +58,10 @@ export class AmigaBoingBall {
         this.projected = Array(numVerts).fill(null).map(() => ({x: 0, y: 0}));
         this.facesToDraw = Array(this.facesDef.length).fill(null).map(() => ({idxs: null, hex: '', z: 0}));
 
-        this.internalT = 0;
-        this.moveT = 0; 
+        // Unabhängige Physik-Akkumulatoren
+        this.moveXPhase = 0.0;
+        this.moveYPhase = 0.0;
+        this.currentRotY = 0.0; 
         this.smoothedSpeed = 1.0;
         this.lastT = 0;
     }
@@ -75,38 +77,62 @@ export class AmigaBoingBall {
         let globalAlpha = 1.0;
         let targetSpeed = 1.0;
 
+        // Dämpft die Extreme im Climax, damit die Trägheit des Balls erhalten bleibt
         if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
         } else if (state === 'stopping') {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
         } else if (state === 'buildup') {
-            targetSpeed = 1.5;
+            targetSpeed = 1.2;
         } else if (state === 'climax') {
-            targetSpeed = 2.4;
+            targetSpeed = 1.6;
         }
 
         this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * Math.min(1.0, dt * 5.0);
-        this.internalT += dt * this.smoothedSpeed;      
-        this.moveT += dt * (this.smoothedSpeed * 0.7);  
+
+        // =========================================================
+        // 1. X-ACHSE: MAJESTÄTISCHES, LINEARES PING-PONG
+        // =========================================================
+        // Sehr langsame X-Geschwindigkeit für die weite Raumdurchquerung
+        const speedX = 0.25 * this.smoothedSpeed;
+        this.moveXPhase = (this.moveXPhase + dt * speedX) % 2.0; 
+        
+        const isMovingRight = this.moveXPhase < 1.0;
+        const xNorm = isMovingRight 
+            ? (this.moveXPhase * 2.0 - 1.0) 
+            : (1.0 - (this.moveXPhase - 1.0) * 2.0); 
+            
+        // Sweep über 30% der Bildschirmbreite
+        const moveX = xNorm * (width * 0.30);
+
+        // =========================================================
+        // 2. ROTATION: GEKOPPELT AN X-RICHTUNG
+        // =========================================================
+        const rotSpeed = 1.6 * this.smoothedSpeed;
+        this.currentRotY += isMovingRight ? (dt * rotSpeed) : -(dt * rotSpeed);
+
+        // =========================================================
+        // 3. Y-ACHSE: STARRE PARABOLISCHE SCHWERKRAFT
+        // =========================================================
+        // Sanfte Sprungfrequenz
+        const bounceFreq = 1.1 * this.smoothedSpeed;
+        this.moveYPhase = (this.moveYPhase + dt * bounceFreq) % 1.0;
+        
+        let u = 2.0 * this.moveYPhase - 1.0; 
+        let parabolicArc = 1.0 - (u * u);    
+        
+        // Hohe, majestätische Sprungbögen
+        const bounceY = parabolicArc * (height * 0.45);
 
         const beat = metrics.beat[0];
-        
-        // --- 1. SUBTILES BEAT-AUFLEUCHTEN ---
-        // Addiert maximal 35% Helligkeit auf die Flächen beim Kickdrum-Einschlag
         const illumination = beat * 0.35; 
-
-        // --- 2. DIE KOMPAKTE FLUGBAHN ---
+        
         const minDim = Math.min(width, height);
         const baseScale = minDim * 0.22; 
-        
-        // Sweep über nur 40% der Bildschirmbreite (wirkt kompakter und edler)
-        const moveX = Math.sin(this.moveT * 1.2) * (width * 0.20);
-        // Entspanntes Bouncen
-        const bounceY = Math.abs(Math.cos(this.moveT * 2.2)) * (height * 0.28);
 
-        // --- 3. 3D-KINEMATIK & ROTATION ---
-        const rotY = this.internalT * 2.0; 
-        const tiltZ = 0.3; // 17 Grad Rechtsneigung
+        // --- 4. 3D-KINEMATIK & ROTATION (Rigid Body) ---
+        const rotY = this.currentRotY; 
+        const tiltZ = 0.3; // 17 Grad Rechtsneigung (Das Amiga Original!)
 
         const sinRy = Math.sin(rotY), cosRy = Math.cos(rotY);
         const sinT = Math.sin(tiltZ), cosT = Math.cos(tiltZ);
@@ -114,17 +140,15 @@ export class AmigaBoingBall {
         for (let i = 0; i < this.vertices.length; i++) {
             let v = this.vertices[i];
             
-            // Reines 3D ohne Verzerrung (Squash & Stretch entfernt)
+            // Starre Geometrie (Kein Squash & Stretch!)
             let sx = v.x;
             let sy = v.y;
             let sz = v.z;
 
-            // Rotation um die Y-Achse (Spin)
             let rx = sx * cosRy - sz * sinRy;
             let rz = sx * sinRy + sz * cosRy;
             let ry = sy;
 
-            // Neigung um die Z-Achse (Tilt)
             let tx = rx * cosT - ry * sinT;
             let ty = rx * sinT + ry * cosT;
             let tz = rz;
@@ -136,6 +160,7 @@ export class AmigaBoingBall {
 
         // Kamera Setup
         const cx = width / 2;
+        // Von 0.85 auf 0.75 korrigiert, damit der Kugel-Radius (ca. 22%) unten nicht aus dem Canvas ragt
         const floorY = height * 0.75; 
         const fov = minDim * 1.2;
 
@@ -145,12 +170,10 @@ export class AmigaBoingBall {
             let targetX = cx + moveX;
             let targetY = floorY - bounceY;
 
-            // SUB-PIXEL-KILLER
             this.projected[i].x = Math.floor(targetX + (this.transformed[i].x * fov) / zOff * (baseScale / 100));
             this.projected[i].y = Math.floor(targetY + (this.transformed[i].y * fov) / zOff * (baseScale / 100));
         }
 
-        // Lichtquelle (Von links oben)
         const lx = 0.5, ly = -0.5, lz = -0.7;
         const lLen = Math.sqrt(lx*lx + ly*ly + lz*lz);
         const nlx = lx/lLen, nly = ly/lLen, nlz = lz/lLen;
@@ -172,22 +195,18 @@ export class AmigaBoingBall {
             let ny = abZ * acX - abX * acZ;
             let nz = abX * acY - abY * acX;
             
-            // Backface Culling
-            if (nz >= 0) continue;
+            if (nz >= 0) continue; // Backface Culling
 
             let len = Math.sqrt(nx*nx + ny*ny + nz*nz);
             nx /= len; ny /= len; nz /= len;
 
-            // Flat Shading + BEAT ILLUMINATION
             let dotLight = nx * nlx + ny * nly + nz * nlz;
             let brightness = 0.25 + 0.75 * Math.max(0.0, -dotLight) + illumination;
             
-            // Clampen vor der Quantisierung (verhindert Farb-Überlauf durch Beat-Flash)
             let rawR = Math.min(255, Math.floor(faceDef.baseColor[0] * brightness));
             let rawG = Math.min(255, Math.floor(faceDef.baseColor[1] * brightness));
             let rawB = Math.min(255, Math.floor(faceDef.baseColor[2] * brightness));
             
-            // 12-Bit OCS Quantisierung
             let qColor = quantizeAmiga12Bit(rawR, rawG, rawB);
 
             let zCentroid = (p0.z + p1.z + p2.z + this.transformed[idxs[3]].z) / 4.0;
@@ -198,7 +217,6 @@ export class AmigaBoingBall {
             f.z = zCentroid;
         }
 
-        // Z-Sorting
         const visibleFaces = this.facesToDraw.slice(0, activeFaces);
         visibleFaces.sort((a, b) => b.z - a.z);
 
