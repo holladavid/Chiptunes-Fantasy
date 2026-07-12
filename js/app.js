@@ -704,6 +704,15 @@ async function selectAndPlayTrack(index, system) {
                 `;
             }
 
+            // =========================================================
+            // SCROLLER LAUFTEXT WIEDER AKTIVIERT (Track-Infos)
+            // =========================================================
+            currentScrollerText = isAmigaSystem
+                ? `+++ BOOM! SUCCESSFULLY DECODED AMIGA MODULE +++ NOW PLAYING: ${meta.name.toUpperCase()} BY ${meta.author.toUpperCase()} +++ FORMAT: ${meta.type} +++ THIS IS PURE PROTRACKER MAGIC +++ `
+                : (isC64System
+                    ? `+++ BOOM! SUCCESSFULLY CRACKED OPEN BINARY PSID FILE +++ NOW PLAYING: ${meta.name.toUpperCase()} BY ${meta.author.toUpperCase()} +++ FORMAT: ${meta.type} +++ CRANK UP THE VOLUME AND LET THE ANALOG SID FILTERS SHINE +++ `
+                    : `+++ BOOM! SUCCESSFULLY CRACKED OPEN BINARY FILE +++ NOW PLAYING: ${meta.name.toUpperCase()} BY ${meta.author.toUpperCase()} +++ COMMENT ALONG THE RIDE: ${meta.comment.toUpperCase() || "NO COMMENT"} +++ CRANK UP THE GAIN AND LET THE YM2149 MELT YOUR SPEAKERS +++ `);
+
             const systemText = (typeof systemDescriptions !== 'undefined' && systemDescriptions[system]) 
                 ? systemDescriptions[system] 
                 : '<p style="color: var(--text-color);">[ NO ARCHIVE DATA ]</p>';
