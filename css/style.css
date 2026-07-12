@@ -551,8 +551,8 @@ input[type="range"]::-moz-range-thumb {
 ========================================= */
 #brand-logo {
     position: absolute;
-    top: 15px;
-    left: 20px;
+    top: 25px;  /* Von 15px auf 25px erhöht für mehr Abstand zum Gehäuserand */
+    left: 30px; /* Von 20px on 30px erhöht für einen edlen Weißraum */
     z-index: 10;
     pointer-events: auto; 
     cursor: pointer;      
@@ -576,27 +576,92 @@ input[type="range"]::-moz-range-thumb {
 
 .brand-sub {
     font-family: 'Press Start 2P', monospace;
-    font-size: 12px;
+    font-size: 11px; /* Minimal kompakter für schärferen Textitz */
     color: var(--highlight-color);
-    letter-spacing: 12px; 
+    letter-spacing: 12px; /* Breites, edles Kerning */
     text-align: right; 
     padding-right: 2px;
-    text-shadow: 0 0 10px var(--text-color), 2px 2px 0px #000000;
+    margin-top: 8px; /* Verschiebt "FANTASY" nach unten, weg von der Chrom-Kante */
+    
+    /* GFX FIX: Kein weichgezeichneter Glow mehr, sondern ein messerscharfer Hardware-Schatten */
+    text-shadow: 1px 1px 0px #000000;
 }
 
+/* =========================================
+   BRANDING LOGO DEMO MODE ACTIVE GLOW
+   ========================================= */
 #brand-logo.demo-mode-active::before {
-    content: ''; position: absolute; top: -30px; left: -30px; width: calc(100% + 60px); height: calc(100% + 60px);
-    z-index: -1; filter: blur(20px); pointer-events: none; border-radius: 50%;
-    animation: pulse-glow 2.5s ease-in-out infinite alternate; transition: background 0.5s ease;
+    content: '';
+    position: absolute;
+    top: -40px;
+    left: -40px;
+    width: calc(100% + 80px);
+    height: calc(100% + 80px);
+    z-index: -1;
+    pointer-events: none;
+    border-radius: 50%;
+    /* Schimmert und rotiert organisch auf der GPU */
+    animation: pulse-glow 3.5s ease-in-out infinite alternate;
+    transition: background 0.5s ease;
 }
 
-body.theme-c64 #brand-logo.demo-mode-active::before { background: radial-gradient(circle, rgba(108, 94, 181, 0.45) 0%, transparent 70%); }
-body.theme-amiga #brand-logo.demo-mode-active::before { background: radial-gradient(circle, rgba(255, 136, 0, 0.35) 0%, transparent 70%); }
-body.theme-atari #brand-logo.demo-mode-active::before { background: radial-gradient(circle, rgba(85, 255, 85, 0.4) 0%, transparent 70%); }
+/* System-spezifische, dreidimensionale Neon-Glows */
+body.theme-c64 #brand-logo.demo-mode-active::before {
+    background: radial-gradient(circle, rgba(108, 94, 181, 0.45) 0%, rgba(53, 40, 121, 0.15) 50%, transparent 70%);
+}
 
-@keyframes pulse-glow { 0% { transform: scale(0.85); opacity: 0.5; } 100% { transform: scale(1.15); opacity: 0.95; } }
-@keyframes float-logo { 0% { transform: translateY(0px) rotate(0deg); } 100% { transform: translateY(6px) rotate(-1deg); } }
-@keyframes chrome-cycle { 0% { background-position: 0% 10%; } 100% { background-position: 0% 90%; } }
+body.theme-amiga #brand-logo.demo-mode-active::before {
+    background: radial-gradient(circle, rgba(255, 136, 0, 0.4) 0%, rgba(255, 51, 0, 0.15) 55%, transparent 75%);
+}
+
+body.theme-atari #brand-logo.demo-mode-active::before {
+    background: radial-gradient(circle, rgba(85, 255, 85, 0.35) 0%, rgba(0, 51, 0, 0.15) 60%, transparent 75%);
+}
+
+/* Nobel und edel pulsierender Back-Glow über CSS-Filter statt unruhigem Text-Schatten */
+#brand-logo.demo-mode-active .brand-main {
+    transition: filter 0.5s ease;
+}
+
+body.theme-c64 #brand-logo.demo-mode-active .brand-main {
+    filter: drop-shadow(1px 1px 0px var(--bg-color)) 
+            drop-shadow(2px 2px 0px var(--bg-color)) 
+            drop-shadow(4px 4px 0px #000000)
+            /* Der weiche, noble Back-Glow sitzt sauber hinter der 3D-Kante */
+            drop-shadow(0 0 10px rgba(108, 94, 181, 0.55));
+}
+
+body.theme-amiga #brand-logo.demo-mode-active .brand-main {
+    filter: drop-shadow(1px 1px 0px var(--bg-color)) 
+            drop-shadow(2px 2px 0px var(--bg-color)) 
+            drop-shadow(4px 4px 0px #000000)
+            drop-shadow(0 0 10px rgba(255, 136, 0, 0.5));
+}
+
+body.theme-atari #brand-logo.demo-mode-active .brand-main {
+    filter: drop-shadow(1px 1px 0px var(--bg-color)) 
+            drop-shadow(2px 2px 0px var(--bg-color)) 
+            drop-shadow(4px 4px 0px #000000)
+            drop-shadow(0 0 10px rgba(85, 255, 85, 0.45));
+}
+
+@keyframes pulse-glow {
+    0% {
+        transform: scale(0.85) rotate(0deg);
+        opacity: 0.5;
+        filter: blur(25px);
+    }
+    50% {
+        opacity: 0.85;
+        filter: blur(18px);
+    }
+    100% {
+        /* Weiche 15-Grad-Rotation erzeugt lebendigen Licht-Schimmer */
+        transform: scale(1.12) rotate(15deg);
+        opacity: 0.65;
+        filter: blur(32px);
+    }
+}
 
 body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: paused !important; }
 
@@ -860,14 +925,34 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     #playback-bar #btn-play { flex: 2; font-weight: bold; }
     
     #playback-bar .controls button { padding: 14px 0; font-size: calc(var(--font-size-base) * 1.3); }
+    
+    #tracklist {
+        max-height: 250px; 
+    }
+    
+    #tracklist li {
+        padding: 10px 12px;
+        margin-bottom: 2px;
+    }
+    
+    /* Logo auf Handys weiter verkleinern und aus der extremen Ecke rücken */
+    #brand-logo {
+        top: 18px;  /* Von 10px auf 18px erhöht */
+        left: 18px; /* Von 10px auf 18px erhöht */
+    }
+    .brand-main { 
+        font-size: 14px; 
+        margin-bottom: 6px;
+    }
+    
+    /* "FANTASY" auch auf Handys sauber abrücken und scharfstellen */
+    .brand-sub { 
+        font-size: 7px; 
+        letter-spacing: 5px; 
+        margin-top: 4px; /* Auch auf Handys etwas mehr Luft nach oben */
+        text-shadow: 1px 1px 0px #000000; /* Scharfer Kontrast-Schatten */
+    }
 
-    #tracklist { max-height: 250px; }
-    #tracklist li { padding: 10px 12px; margin-bottom: 2px; }
-    
-    #brand-logo { top: 10px; left: 10px; }
-    .brand-main { font-size: 14px; margin-bottom: 6px; }
-    .brand-sub { font-size: 7px; letter-spacing: 5px; }
-    
     #chip-hud { width: 94%; top: 10px; right: 3%; padding: 8px; z-index: 110; }
     #chip-hud.collapsed { width: auto; right: 10px; }
 
