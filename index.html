@@ -137,9 +137,10 @@
                 </div>
                 
                 <!-- Umweltsensor-Bucht (Sensor Bay) -->
-                <div class="sensor-bay terminal-card" id="sensor-bay-container" style="margin-top: 20px;">
+                <!-- Inline-Sicherheitsabstand entfernt, um Platz zu sparen -->
+                <div class="sensor-bay terminal-card" id="sensor-bay-container">
                     <div class="terminal-card-header">&gt; ENV DIAGNOSTICS</div>
-                    <div class="core-control" id="temp-control-container" style="margin-bottom: 12px; font-size: calc(var(--font-size-base) * 0.8);">
+                         <div class="core-control" id="temp-control-container" style="margin-bottom: 12px; font-size: calc(var(--font-size-base) * 0.8);">
                         <label>TEMP:</label>
                         <input type="range" id="temp-slider" min="15" max="75" value="55" style="flex-grow: 1;">
                         <span id="temp-display" style="width: 50px; text-align: right;">55°C</span>

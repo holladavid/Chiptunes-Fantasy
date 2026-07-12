@@ -291,12 +291,12 @@ body.theme-amiga .tab-btn.active {
     border-image: linear-gradient(90deg, #ff0000 20%, #ff7700 40%, #ffff00 60%, #00cc00 80%, #0033ff 100%) 1;
 }
 
-/* --- EMU CORE SELECTOR CONTAINER (VFD LCD Display) --- */
+/* --- EMU CORE SELECTOR CONTAINER --- */
 .core-control {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 20px;
+    margin-bottom: 12px; /* Von 25px auf 12px verringert für kompakten Sitz */
     font-size: calc(var(--font-size-base) * 0.8);
     color: var(--panel-text);
 }
