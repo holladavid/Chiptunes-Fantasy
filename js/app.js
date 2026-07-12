@@ -469,8 +469,14 @@ async function setTheme(themeName, isBootSequence = false) {
         document.body.classList.add('system-transitioning');
         window.dispatchEvent(new CustomEvent('trigger-glitch'));
         
-        // Wir warten 400ms, bis der Glitch auf seinem visuellen Blackout-Peak ist
-        await new Promise(resolve => setTimeout(resolve, 400));
+        // Warten, bis der visuelle Blackout-Peak der CSS-Animation erreicht ist (ca. 300ms)
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Physischer RAM-Wipe: Zerstört alle Canvas-Ghost-States (wie den Presenter) komplett
+        window.dispatchEvent(new CustomEvent('hardware-power-cycle'));
+        
+        // Restliche Zeit absitzen, bis der Glitch vorbei ist
+        await new Promise(resolve => setTimeout(resolve, 100));
     } else {
         stopPlayback();
     }

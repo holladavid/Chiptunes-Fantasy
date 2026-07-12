@@ -21,9 +21,32 @@ export function initVisuals(stateGetters, callbacks) {
     const ctx = canvas.getContext('2d', { alpha: false }); 
 
     // =========================================================
-    // INITIALISIERUNG SCENE-DJ (Zuerst deklarieren!)
+    // INITIALISIERUNG SCENE-DJ (Hardware Rebootable)
     // =========================================================
-    const dss = new SceneDJ();
+    let dss = null;
+    
+    function wireSiliconDJ() {
+        dss = new SceneDJ();
+        dseRegistry.forEach(entry => {
+            try {
+                const effectInstance = new entry.Class();
+                effectInstance.metadata = entry.metadata; 
+                dss.registerDSE(effectInstance);
+            } catch (err) {
+                console.error(`[SCENE-DJ] Failed to register DSE: ${entry.Class.name}`, err);
+            }
+        });
+    }
+    
+    wireSiliconDJ(); // Kaltstart beim Boot
+
+    // Horcht auf den physischen Power-Cycle und flusht den RAM
+    window.addEventListener('hardware-power-cycle', () => {
+        wireSiliconDJ();
+        const sys = document.body.classList.contains('theme-atari') ? 'atari' : (document.body.classList.contains('theme-amiga') ? 'amiga' : 'c64');
+        dss.forceSystemChange(sys);
+        dss.resize(canvas.width, canvas.height); // Skalierung für neue DSEs wiederherstellen
+    });
 
     // =========================================================
     // AUTO-REGISTER ALL DEMO-SCENE-ELEMENTS WITH METADATA CONTRACT
