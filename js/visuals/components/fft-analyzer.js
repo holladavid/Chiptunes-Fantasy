@@ -19,7 +19,7 @@ export class FftAnalyzer {
         const isPlaying = stateGetters.getIsPlaying();
         const audioCtx = stateGetters.getAudioContext();
 
-        if (activeAnalyser && isPlaying && audioCtx) {
+        if (activeAnalyser && audioCtx) {
             const bufferLength = activeAnalyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
             activeAnalyser.getByteFrequencyData(dataArray);
@@ -112,7 +112,8 @@ export class FftAnalyzer {
                 if (this.peaks[i] > 2) {
                     ctx.fillStyle = '#ffffff';
                     let snappedPeak = Math.floor(this.peaks[i] / step) * step;
-                    ctx.fillRect(x, height - snappedPeak, barWidth, 2);
+                    // Y-Koordinate um 'segmentHeight' nach oben versetzt
+                    ctx.fillRect(x, height - snappedPeak - segmentHeight, barWidth, 2);
                 }
 
                 x += barWidth + 2;

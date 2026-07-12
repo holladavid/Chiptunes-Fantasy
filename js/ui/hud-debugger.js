@@ -21,6 +21,11 @@ const pitchHistC = new Float32Array(HIST_LEN);
 const pitchHistD = new Float32Array(HIST_LEN); 
 let histIdx = 0;
 
+// NEU: Globale Sensor-Akkumulatoren für gleitende Sensorwerte
+let lastVoltVal = 5.02;
+let lastNoiseVal = -74.0;
+let lastBiasVal = 0.82;
+
 export function resetHUD() {
     pitchHistA.fill(0);
     pitchHistB.fill(0);
@@ -29,6 +34,37 @@ export function resetHUD() {
     histIdx = 0;
     cachedSystem = null;
     hudValElements = [];
+}
+
+function updateEnvironmentalSensors(stateGetters) {
+    const isPlaying = stateGetters.getIsPlaying();
+    const vols = stateGetters.getChannelVolumes ? stateGetters.getChannelVolumes() : null;
+
+    let avgEnergy = 0.0;
+    if (isPlaying && vols) {
+        avgEnergy = (vols[0] + vols[1] + vols[2] + vols[3]) / 4.0;
+    }
+
+    // Physikalische Modellierung:
+    // 1. Wenn Bässe knallen, fällt die Betriebsspannung (Voltage Sag) um bis zu 0.12V ab.
+    // 2. Das thermische Rauschen steigt bei hoher Auslastung an.
+    // 3. Der Transistor-Bias (Arbeitspunkt) driftet temperatur- und pegelabhängig ab.
+    const targetVolt = 5.02 - (avgEnergy * 0.12) + (Math.random() - 0.5) * 0.008;
+    const targetNoise = -74.0 + (avgEnergy * 3.8) + (Math.random() - 0.5) * 0.15;
+    const targetBias = 0.82 + (avgEnergy * 0.03) + (Math.random() - 0.5) * 0.004;
+
+    // Weiches Slew-Limiting für analoge Trägheit
+    lastVoltVal += (targetVolt - lastVoltVal) * 0.12;
+    lastNoiseVal += (targetNoise - lastNoiseVal) * 0.12;
+    lastBiasVal += (targetBias - lastBiasVal) * 0.12;
+
+    const elVolt = document.getElementById('sensor-volt');
+    const elNoise = document.getElementById('sensor-noise');
+    const elBias = document.getElementById('sensor-bias');
+
+    if (elVolt) elVolt.innerText = lastVoltVal.toFixed(2) + 'V';
+    if (elNoise) elNoise.innerText = lastNoiseVal.toFixed(1) + 'dB';
+    if (elBias) elBias.innerText = lastBiasVal.toFixed(3);
 }
 
 function drawSparkline(canvasId, historyArr, headIdx, color) {
@@ -486,4 +522,7 @@ export function updateChipHUD(stateGetters) {
         
         histIdx = (histIdx + 1) % HIST_LEN;
     }
+    
+    // NEU: Umweltsensoren im Render-Loop triggern
+    updateEnvironmentalSensors(stateGetters);
 }

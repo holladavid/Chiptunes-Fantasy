@@ -21,11 +21,13 @@ import {
     getPaulaNode, 
     getSidNode 
 } from './audio/audio-controller.js';
+import { LivingSilicon } from './ui/living-silicon.js';
 
 let fsUI = null;
+let siliconVisualizer = null; // Living Silicon Instanz
 let currentOscValue = 0; 
 let currentChipRegs = null; 
-let activeSystem = 'atari';
+let activeSystem = 'c64'; // Standard-System auf 'c64' korrigiert (passend zum Boot-Screen)
 let trackData = [];    
 let isPlaying = false; 
 let currentTrackIndex = 0;
@@ -100,7 +102,6 @@ function initApp() {
             console.error("[CRITICAL] Cores konnten nicht geladen werden:", err);
         }
 
-// === js/app.js (ca. Zeile 83) ===
         initVisuals({
             getEcoMode: () => isEcoMode,
             getCurrentOscValue: () => currentOscValue,
@@ -110,18 +111,17 @@ function initApp() {
             getIsPlaying: () => isPlaying,
             getAudioContext: getAudioContext,
             getPlaybackSessionId: () => playbackSessionId,
-            
-            // --- NEU: Den Hardware-Bus freigeben ---
             getCurrentChipRegs: () => currentChipRegs 
         }, {
             updateTimelineUI: () => updateTimelineUI(),
             updateChipHUD: () => updateChipHUD({
                 getActiveSystem: () => activeSystem,
                 getIsPlaying: () => isPlaying,
-                getCurrentChipRegs: () => currentChipRegs
+                getCurrentChipRegs: () => currentChipRegs,
+                getChannelVolumes: () => channelVolumes // NEU: Lautstärken an das HUD-Modul koppeln
             })
         });
-        
+
         initScroller(() => currentScrollerText, () => isEcoMode); 
         
         // INTERAKTIVE SKEUOMORPHIC LED KOPPLUNG (AMIGA)
@@ -135,24 +135,29 @@ function initApp() {
         });
 
         // Event-Listener für das Cursor-Hiding binden
-        if (visualZone) {
-            visualZone.addEventListener('mousemove', resetMouseIdleTimer);
-            visualZone.addEventListener('mousedown', resetMouseIdleTimer);
-            visualZone.addEventListener('touchstart', resetMouseIdleTimer);
-            
-            // UX-POLISH: Direkt einmal triggern, damit die UI beim Start kurz aufleuchtet
-            resetMouseIdleTimer(); 
-        }
+            if (visualZone) {
+                visualZone.addEventListener('mousemove', resetMouseIdleTimer);
+                visualZone.addEventListener('mousedown', resetMouseIdleTimer);
+                visualZone.addEventListener('touchstart', resetMouseIdleTimer);
+            }
 
-        setTheme('theme-c64');
-        
-        // Initialisiert das Fullscreen Overlay
-        fsUI = new FullscreenUI({
-            onTogglePlay: () => document.getElementById('btn-play').click(),
-            onPrev: () => document.getElementById('btn-prev').click(),
-            onNext: () => document.getElementById('btn-next').click()
-        });   
-    });
+            // =========================================================
+            // CHIP INITIALISIERUNGS-REIHENFOLGE GEFIXT
+            // Erst das Modul erstellen, dann setTheme() rufen!
+            // =========================================================
+            siliconVisualizer = new LivingSilicon('living-silicon-container');
+            window.siliconVisualizerInstance = siliconVisualizer; // Globaler Hook für den Visualizer
+            
+            // setTheme triggert nun automatisch siliconVisualizer.setSystem('c64')
+            setTheme('theme-c64');
+            
+            // Initialisiert das Fullscreen Overlay
+            fsUI = new FullscreenUI({
+                onTogglePlay: () => document.getElementById('btn-play').click(),
+                onPrev: () => document.getElementById('btn-prev').click(),
+                onNext: () => document.getElementById('btn-next').click()
+            });   
+        });
 }
 
 if (document.readyState === 'loading') document.addEventListener("DOMContentLoaded", initApp);
@@ -445,17 +450,43 @@ function stopPlayback() {
     channelVolumes.fill(0); 
 }
 
-function setTheme(themeName) {
-    playRequestToken++; // NEU: Bricht alle noch im Hintergrund ladenden Tracks sofort ab!
+let isTransitioning = false; // Verhindert Spam-Klicken der Tabs
 
-    document.body.className = themeName;
+async function setTheme(themeName, isBootSequence = false) {
+    if (isTransitioning) return;
+    
+    const newSystem = themeName === 'theme-atari' ? 'atari' : themeName === 'theme-amiga' ? 'amiga' : 'c64';
+    const doAnimate = !isBootSequence && (activeSystem !== newSystem || isPlaying);
+
+    if (doAnimate) {
+        isTransitioning = true;
+        playRequestToken++; 
+        stopPlayback();     
+        
+        document.body.classList.add('system-transitioning');
+        window.dispatchEvent(new CustomEvent('trigger-glitch'));
+        
+        // Warten, bis der visuelle Blackout-Peak der CSS-Animation erreicht ist (300ms)
+        await new Promise(resolve => setTimeout(resolve, 300));
+    } else {
+        stopPlayback();
+    }
+
+    // =========================================================
+    // THE HARD SWITCH (Wird exakt im Blackout-Peak ausgeführt!)
+    // Wir setzen das komplette UI, CSS und den RAM zurück, 
+    // BEVOR die Hardware wieder mit Strom versorgt wird.
+    // =========================================================
+    
+    document.body.className = themeName + (doAnimate ? ' system-transitioning' : '');
+    
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach(tab => {
         tab.classList.remove('active');
         if (tab.getAttribute('data-theme') === themeName) tab.classList.add('active');
     });
 
-    activeSystem = themeName === 'theme-atari' ? 'atari' : themeName === 'theme-amiga' ? 'amiga' : 'c64';
+    activeSystem = newSystem;
     
     const tempContainer = document.getElementById('temp-control-container');
     if (tempContainer) {
@@ -464,25 +495,19 @@ function setTheme(themeName) {
     }
 
     renderTracklist(activeSystem);
-    stopPlayback(); 
-
-    const headerTitles = {
-        'c64': '>>> INFO: MOS Technology SID 6581',
-        'amiga': '>>> INFO: MOS Paula 8364',
-        'atari': '>>> INFO: Yamaha YM2149 (Atari ST)'
-    };
-    const headerEl = document.querySelector('.museum-header h2');
-    if (headerEl) headerEl.innerText = headerTitles[activeSystem];
 
     document.getElementById('info-text').innerHTML = `
-        ${systemDescriptions[activeSystem]}
-        <div>
-            <p style="color: var(--highlight-color);">[ SYSTEM READY ]</p>
-            <p>Please select a track from the playlist to initialize playback and load data into memory...</p>
-            <p class="blinking-cursor" style="margin-top: 15px;">_</p>
+        <div class="terminal-card">
+            <div class="terminal-card-header">&gt; SYSTEM INITIALIZATION</div>
+            <div style="padding: 10px 0;">
+                <p style="color: var(--highlight-color); margin-bottom: 8px;">[ SYSTEM READY ]</p>
+                <p style="font-size: 0.9em; opacity: 0.8;">Please inject a ROM from the archive to initialize bus routing...</p>
+                <p class="blinking-cursor" style="margin-top: 15px;">_</p>
+            </div>
         </div>
     `;
-    currentScrollerText = `+++ ${activeSystem.toUpperCase()} SYSTEM READY. AWAITING INPUT... +++`;
+    
+    currentScrollerText = `+++ ${activeSystem.toUpperCase()} SYSTEM READY. AWAITING DATA INJECTION... +++`;
 
     const legend = document.getElementById('hud-legend');
     if (legend) legend.classList.add('hidden'); 
@@ -499,11 +524,20 @@ function setTheme(themeName) {
     const infoBtn = document.getElementById('btn-hud-info');
     if (infoBtn) infoBtn.classList.add('hidden');
 
+    // ---------------------------------------------------------
+    // GHOST-TRACK WIPES (RAM Löschen)
+    // ---------------------------------------------------------
     trackData = [];
     currentTrackIndex = 0;
     currentChipRegs = null;
+    playbackSessionId++; // Erzwingt auch im DJ-Skillset einen State Sync Reset
     
     resetHUD();
+    
+    if (fsUI) {
+        fsUI.updateTrack("[ AWAITING INJECTION ]");
+        fsUI.updatePlayState(false);
+    }
     
     document.getElementById('progress-slider').value = 0;
     document.getElementById('progress-slider').disabled = true;
@@ -517,8 +551,26 @@ function setTheme(themeName) {
     }
     
     renderCoreSelector(activeSystem);
-}
+    
+    if (typeof siliconVisualizer !== 'undefined' && siliconVisualizer) {
+        siliconVisualizer.setSystem(activeSystem);
+    }
 
+    // =========================================================
+    // RAM-WIPE EVENT (Hardware Boot)
+    // Da die Trackdaten nun garantiert gelöscht sind, 
+    // kann kein neu erwachendes DSE mehr die alten Titel einlesen!
+    // =========================================================
+    window.dispatchEvent(new CustomEvent('hardware-power-cycle'));
+
+    // --- 3. POWER UP ---
+    if (doAnimate) {
+        // Die restlichen 300ms der Flicker-Animation abklingen lassen
+        await new Promise(resolve => setTimeout(resolve, 300));
+        document.body.classList.remove('system-transitioning');
+        isTransitioning = false;
+    }
+}
 // === js/app.js (Auszug) ===
 
 function renderCoreSelector(system) {
@@ -670,59 +722,73 @@ async function selectAndPlayTrack(index, system) {
             }
 
             let meta = parsedFile.metadata;
+            let gridHTML = "";
+
+            if (isAmigaSystem) {
+                gridHTML = `
+                    <span class="lbl">[TYPE]</span> <span class="val">${meta.type}</span>
+                    <span class="lbl">[CHNL]</span> <span class="val">4 DMA</span>
+                    <span class="lbl">[SIZE]</span> <span class="val">${Math.floor(meta.fileSize / 1024)} KB</span>
+                    <span class="lbl">[PATT]</span> <span class="val">${meta.patternCount}</span>
+                    <span class="lbl">[SMPL]</span> <span class="val">${meta.instrumentCount}</span>
+                    <span class="lbl">[FILT]</span> <span class="val">LED+RC</span>
+                `;
+            } else if (isC64System) {
+                gridHTML = `
+                    <span class="lbl">[ADDR]</span> <span class="val">${meta.loadAddress}</span>
+                    <span class="lbl">[SONG]</span> <span class="val">${meta.startSong}/${meta.songs}</span>
+                    <span class="lbl">[INIT]</span> <span class="val">${meta.initAddress}</span>
+                    <span class="lbl">[SIZE]</span> <span class="val">${Math.floor(meta.fileSize / 1024)} KB</span>
+                    <span class="lbl">[PLAY]</span> <span class="val">${meta.playAddress}</span>
+                    <span class="lbl">[FILT]</span> <span class="val">ANALOG</span>
+                `;
+            } else {
+                let pcmText = meta.digidrumCount > 0 ? `${meta.digidrumCount} SMP` : "NONE";
+                gridHTML = `
+                    <span class="lbl">[TYPE]</span> <span class="val">${meta.type}</span>
+                    <span class="lbl">[CHNL]</span> <span class="val">3+1</span>
+                    <span class="lbl">[LENG]</span> <span class="val">${trackData.length} F</span>
+                    <span class="lbl">[P_CM]</span> <span class="val">${pcmText}</span>
+                    <span class="lbl">[RATE]</span> <span class="val">50 Hz</span>
+                    <span class="lbl">[MIX ]</span> <span class="val">LOG-5</span>
+                `;
+            }
+
+            // =========================================================
+            // SCROLLER LAUFTEXT WIEDER AKTIVIERT (Track-Infos)
+            // =========================================================
             currentScrollerText = isAmigaSystem
                 ? `+++ BOOM! SUCCESSFULLY DECODED AMIGA MODULE +++ NOW PLAYING: ${meta.name.toUpperCase()} BY ${meta.author.toUpperCase()} +++ FORMAT: ${meta.type} +++ THIS IS PURE PROTRACKER MAGIC +++ `
                 : (isC64System
                     ? `+++ BOOM! SUCCESSFULLY CRACKED OPEN BINARY PSID FILE +++ NOW PLAYING: ${meta.name.toUpperCase()} BY ${meta.author.toUpperCase()} +++ FORMAT: ${meta.type} +++ CRANK UP THE VOLUME AND LET THE ANALOG SID FILTERS SHINE +++ `
                     : `+++ BOOM! SUCCESSFULLY CRACKED OPEN BINARY FILE +++ NOW PLAYING: ${meta.name.toUpperCase()} BY ${meta.author.toUpperCase()} +++ COMMENT ALONG THE RIDE: ${meta.comment.toUpperCase() || "NO COMMENT"} +++ CRANK UP THE GAIN AND LET THE YM2149 MELT YOUR SPEAKERS +++ `);
 
-            let techInfo = "";
-            if (isAmigaSystem) {
-                techInfo += `<p><strong>File Signature:</strong> ${meta.type}</p>`;
-                techInfo += `<p><strong>Size in Memory:</strong> ${meta.fileSize.toLocaleString('de-DE')} Bytes</p>`;
-                techInfo += `<p><strong>Structure:</strong> ${meta.patternCount} Patterns, ${meta.instrumentCount} Synthesized Amiga Instruments</p>`;
-                techInfo += `<p><strong>Paula Configuration:</strong> 4 Channels, Direct DMA emulation</p>`;
-            } else if (isC64System) {
-                techInfo += `<p><strong>File Signature:</strong> ${meta.type}</p>`;
-                techInfo += `<p><strong>Size in Memory:</strong> ${meta.fileSize.toLocaleString('de-DE')} Bytes</p>`;
-                techInfo += `<p><strong>SID Address Space:</strong> Load: ${meta.loadAddress} | Init: ${meta.initAddress} | Play: ${meta.playAddress}</p>`;
-                techInfo += `<p><strong>Song Data:</strong> ${meta.songs} Subsong(s) detected, starting with Song ${meta.startSong}</p>`;
-                techInfo += `<p><strong>SID Core:</strong> 6502 Emulator, MOS SID 6581, 3 Voices, Analog SVF filtering</p>`;
-            } else {
-                techInfo = `<p><strong>File Signature:</strong> ${meta.type} (De-interleaved)</p>`;
-                techInfo += `<p><strong>Length:</strong> ${trackData.length} Frames @ 50Hz VBLANK</p>`;
-                
-                if (meta.digidrumCount > 0) {
-                    techInfo += `<p style="margin-top: 5px;"><strong>PCM Data:</strong> ${meta.digidrumCount} Digidrum(s) detected!</p>`;
-                    let sizes = meta.digidrumSizes.map(s => s.toLocaleString('de-DE') + ' Bytes').join(' / ');
-                    techInfo += `<p style="font-size: 0.9em; margin-left: 10px; color: var(--text-color); opacity: 0.8;">&gt; Sample sizes: [ ${sizes} ]</p>`;
-                } else {
-                    techInfo += `<p style="margin-top: 5px;"><strong>PCM Data:</strong> None. 100% pure synthesized chip magic.</p>`;
-                }
-            }
-
-            let dynamicHTML = `
-                <div style="margin-top: 15px; padding: 10px 15px; background: rgba(0,0,0,0.2); border-left: 4px solid var(--highlight-color); position: relative;">
-                    <p style="color: var(--highlight-color); margin-bottom: 8px;"><strong>[ BINARY FILE ANALYSIS ]</strong></p>
-                    ${techInfo}
-                </div>
-            `;
-
             const systemText = (typeof systemDescriptions !== 'undefined' && systemDescriptions[system]) 
                 ? systemDescriptions[system] 
-                : '<p style="color: var(--text-color);">[ Museumdatenarchiv geladen, Beschreibung temporär nicht verfügbar ]</p>';
+                : '<p style="color: var(--text-color);">[ NO ARCHIVE DATA ]</p>';
 
+            // Z-Depth Card Layout
             document.getElementById('info-text').innerHTML = `
-                <div style="margin-bottom: 20px;">
-                    <h2 style="color: var(--highlight-color);">&gt; NOW PLAYING:</h2>
-                    <p style="font-size: 1.2em; padding-top: 5px;">${selectedSong.title}</p>
+                <div class="terminal-card">
+                    <div class="terminal-card-header">&gt; NOW PLAYING</div>
+                    <div style="font-size: 1.2em; padding: 5px 0;">${selectedSong.title}</div>
                 </div>
-                ${selectedSong.composerInfo ? `<div style="margin-bottom: 15px; line-height:1.6;">${selectedSong.composerInfo}</div>` : ''}
-                ${dynamicHTML}
-                <div style="margin-top: 30px; padding-top: 15px;">
+
+                <div class="terminal-card">
+                    <div class="terminal-card-header">&gt; BINARY ANALYSIS</div>
+                    <div class="terminal-grid">
+                        ${gridHTML}
+                    </div>
+                </div>
+
+                ${selectedSong.composerInfo ? `
+                <div class="terminal-card">
+                    ${selectedSong.composerInfo}
+                </div>` : ''}
+
+                <div class="terminal-card" style="margin-top: 20px;">
                     ${systemText}
                 </div>
-                <p class="blinking-cursor" style="margin-top: 15px;">_</p>
             `;
 
             // --- NEU: HIER IST DER RICHTIGE ORT! ---
@@ -740,22 +806,24 @@ async function selectAndPlayTrack(index, system) {
             : '<p style="color: var(--text-color);">[ Museumdatenarchiv geladen ]</p>';
 
         document.getElementById('info-text').innerHTML = `
-            <div style="margin-bottom: 20px;">
-                <h2 style="color: var(--highlight-color);">&gt; NOW PLAYING:</h2>
-                <p style="font-size: 1.2em; padding-top: 5px;">${selectedSong.title}</p>
+            <div class="terminal-card">
+                <div class="terminal-card-header">&gt; NOW PLAYING</div>
+                <div style="font-size: 1.2em; padding: 5px 0;">${selectedSong.title}</div>
             </div>
-            ${selectedSong.composerInfo}
-            <div style="margin-top: 30px; padding-top: 15px;">
+            
+            ${selectedSong.composerInfo ? `
+            <div class="terminal-card">
+                ${selectedSong.composerInfo}
+            </div>` : ''}
+
+            <div class="terminal-card" style="margin-top: 20px;">
                 ${systemText}
             </div>
-            <p class="blinking-cursor" style="margin-top: 15px;">_</p>
         `;
         currentScrollerText = "+++ NOW PLAYING: " + selectedSong.title + " +++";
         trackData = selectedSong.generator();
-
         startPlayback();
     }
-
     if (fsUI) fsUI.updateTrack(selectedSong.title);
 
 }

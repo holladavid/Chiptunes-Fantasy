@@ -25,7 +25,7 @@
 
     <div id="boot-screen">
         <div class="boot-box">
-            <p class="boot-header">**** CHIPTUNES FANTASY V1.3.0 ****</p>
+            <p class="boot-header">**** CHIPTUNES FANTASY V1.4.0-BETA.1 ****</p>
             <p class="boot-subheader">64K RAM SYSTEM  38911 BASIC BYTES FREE</p>
             <div class="boot-logs">
                 <p>EMU CORES LOADED: OK</p>
@@ -78,13 +78,14 @@
                 </div>
             </div>
 
-            <!-- FULLSCREEN UI BAR (Neu: Kapselt Track-Info, Controls & Fullscreen-Button) -->
+            <!-- FULLSCREEN UI BAR -->
             <div id="fs-ui-bar">
                 <div id="fs-playback-controls">
-                    <div class="fs-track-info" id="fs-track-info">NO TRACK LOADED</div>
+                    <!-- Standardwert in echte Demoscene-Terminologie geändert -->
+                    <div class="fs-track-info" id="fs-track-info">[ AWAITING INJECTION ]</div>
                     <div class="fs-controls">
                         <button id="fs-btn-prev">|&lt;</button>
-                        <button id="fs-btn-play">&gt;</button>
+                        <button id="fs-btn-play">[ INJECT ROM ]</button>
                         <button id="fs-btn-next">&gt;|</button>
                     </div>
                 </div>
@@ -97,12 +98,12 @@
         
         <!-- DIE STICKY PLAYBACK BAR -->
         <div id="playback-bar">
-        <div class="controls">
-                <!-- Klassische Tracker ASCII-Buttons -->
-                <button id="btn-prev">|&lt;</button>
-                <button id="btn-play">&gt; / ||</button>
-                <button id="btn-next">&gt;|</button>
-                <button id="btn-eco" title="Pure Audio Mode">ECO</button>
+            <div class="controls">
+                <!-- Hardware Demoscene Terminology -->
+                <button id="btn-prev" title="Previous Track">&lt; MEM</button>
+                <button id="btn-play" title="Play/Pause">INJECT ROM</button>
+                <button id="btn-next" title="Next Track">BUS &gt;</button>
+                <button id="btn-eco" title="Pure Audio Mode">HALT GFX</button>
             </div>
             
             <div class="timeline-control">
@@ -135,11 +136,20 @@
                     <select id="core-selector"></select>
                 </div>
                 
-                <!-- Auf 55°C Standard-Betriebstemperatur initialisiert -->
-                <div class="core-control hidden" id="temp-control-container" style="margin-top: -15px; margin-bottom: 25px; font-size: calc(var(--font-size-base) * 0.8);">
-                    <label>TEMP:</label>
-                    <input type="range" id="temp-slider" min="15" max="75" value="55" style="flex-grow: 1;">
-                    <span id="temp-display" style="width: 45px; text-align: right;">55°C</span>
+                <!-- Umweltsensor-Bucht (Sensor Bay) -->
+                <!-- Inline-Sicherheitsabstand entfernt, um Platz zu sparen -->
+                <div class="sensor-bay terminal-card" id="sensor-bay-container">
+                    <div class="terminal-card-header">&gt; ENV DIAGNOSTICS</div>
+                         <div class="core-control" id="temp-control-container" style="margin-bottom: 12px; font-size: calc(var(--font-size-base) * 0.8);">
+                        <label>TEMP:</label>
+                        <input type="range" id="temp-slider" min="15" max="75" value="55" style="flex-grow: 1;">
+                        <span id="temp-display" style="width: 50px; text-align: right;">55°C</span>
+                    </div>
+                    <div class="terminal-grid" id="sensor-grid-values">
+                        <span class="lbl">[VOLT]</span><span class="val" id="sensor-volt">5.02V</span>
+                        <span class="lbl">[NOIS]</span><span class="val" id="sensor-noise">-74.0dB</span>
+                        <span class="lbl">[BIAS]</span><span class="val" id="sensor-bias">0.82</span>
+                    </div>
                 </div>
                 
                 <ul id="tracklist"></ul>
@@ -147,9 +157,9 @@
 
             <!-- Rechte Spalte: Museum / Info -->
             <div id="museum-panel">
-                <div class="museum-header">
-                    <h2>>>> INFO: MOS Technology SID 6581</h2>
-                </div>
+                <!-- Das Living Silicon Modul rutscht bündig an die Gehäuseoberkante -->
+                <div id="living-silicon-container" style="margin-bottom: 15px;"></div>
+                
                 <div class="museum-content" id="info-text">
                     <p class="blinking-cursor">_</p>
                 </div>

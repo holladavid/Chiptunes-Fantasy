@@ -1,13 +1,18 @@
 /* =========================================
-   1. GLOBALE VARIABLEN & THEMES
+   1. GLOBALE VARIABLEN & THEMES (Z-DEPTH UPGRADE)
    ========================================= */
-/* Globale Variablen für dynamisches Theming */
 :root {
+    /* C64 Default Theme */
     --bg-color: #352879;      
-    --fg-color: #6c5eb5;      
+    --fg-color: #201a60;      /* Tiefes Chassis-Blau */
+    --chassis-light: #4a3d99; /* Highlight-Kante */
+    --chassis-dark: #141040;  /* Schatten-Kante */
+    
     --text-color: #6c5eb5;
-    --panel-text: #352879;    
+    --panel-text: #6c5eb5;    
     --highlight-color: #ffffff;
+    
+    --screen-bg: #1c1544;     /* Dunkler CRT-Hintergrund */
     
     --font-main: 'Press Start 2P', monospace;
     --font-size-base: 10px;
@@ -15,10 +20,15 @@
 
 body.theme-amiga {
     --bg-color: #000000;      
-    --fg-color: #002244;      
+    --fg-color: #111111;      /* Dunkles Graphit-Gehäuse */
+    --chassis-light: #2a2a2a; 
+    --chassis-dark: #050505;  
+    
     --text-color: #ffffff;
     --panel-text: #ff8800;    
     --highlight-color: #ffffff; 
+    
+    --screen-bg: #0a0500;     /* Tiefer Bernstein-Glow Background */
     
     --font-main: 'VT323', monospace;
     --font-size-base: 18px;
@@ -26,10 +36,15 @@ body.theme-amiga {
 
 body.theme-atari {
     --bg-color: #000000;      
-    --fg-color: #111111;      
+    --fg-color: #141414;      /* Schwarzes Plastik-Chassis */
+    --chassis-light: #222222; 
+    --chassis-dark: #000000;  
+    
     --text-color: #55ff55;    
     --panel-text: #55ff55;    
     --highlight-color: #ffffff;
+    
+    --screen-bg: #001100;     /* Phosphor-Grün Background */
     
     --font-main: 'VT323', monospace;
     --font-size-base: 20px;
@@ -47,7 +62,7 @@ body.theme-atari {
 body, html {
     width: 100%;
     height: 100%;
-    height: 100dvh; /* Verhindert Safari-Überlauf */
+    height: 100dvh;
     background-color: var(--bg-color);
     color: var(--text-color);
     font-family: var(--font-main);
@@ -55,29 +70,20 @@ body, html {
     transition: background-color 0.5s, color 0.5s;
 }
 
-.hidden {
-    display: none !important;
-}
+.hidden { display: none !important; }
 
-.blink {
-    animation: blinker 1s linear infinite;
-}
-@keyframes blinker {
-    50% { opacity: 0; }
-}
+.blink { animation: blinker 1s linear infinite; }
+@keyframes blinker { 50% { opacity: 0; } }
 
 /* =========================================
    3. BOOT SCREEN (C64 Startup Simulation)
-   ========================================= */
-/* =========================================
-   3. BOOT SCREEN (True C64 Resolution & Border)
    ========================================= */
 #boot-screen {
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
-    background-color: #6c5eb5; /* Der echte C64 TV-Rahmen (Light Blue) */
+    background-color: #6c5eb5;
     cursor: pointer;
 }
 
@@ -86,47 +92,33 @@ body, html {
     max-width: 900px;
     height: 100%;
     max-height: 70vh;
-    background-color: #352879; /* Das Textfenster (Dark Blue) */
+    background-color: #352879;
     padding: 8vh 4vw;
     color: #6c5eb5;
     font-family: 'Press Start 2P', monospace;
     text-transform: uppercase;
-    
-    /* Die Magie für die blockige Original-Auflösung:
-       Verhindert Sub-Pixel-Antialiasing und erzwingt harte Kanten */
     -webkit-font-smoothing: none;
     font-smooth: never;
     image-rendering: pixelated;
-    
-    /* Basisgröße muss ein Vielfaches von 8 sein für perfekte Pixel */
     font-size: 16px; 
 }
 
-.boot-header {
+.boot-header, .boot-subheader {
     text-align: center;
     margin-bottom: 24px;
     line-height: 1.6;
 }
-
-.boot-subheader {
-    text-align: center;
-    margin-bottom: 48px;
-    line-height: 1.6;
-}
+.boot-subheader { margin-bottom: 48px; }
 
 .boot-logs {
     text-align: left;
     margin: 0 auto;
     width: 100%;
-    max-width: 640px; /* Simuliert die originalen 40-Zeichen Breite */
+    max-width: 640px;
     line-height: 1.6;
 }
+.boot-logs p { margin: 16px 0; }
 
-.boot-logs p {
-    margin: 16px 0;
-}
-
-/* Originaler, dicker Hardware-Cursor */
 .boot-cursor {
     display: inline-block;
     width: 16px;
@@ -142,41 +134,34 @@ body, html {
     50% { opacity: 0; }
 }
 
-/* Auf Desktop-Monitoren die dicken 24px CRT-Pixel simulieren */
 @media (min-width: 800px) {
-    .boot-box {
-        font-size: 24px;
-        padding: 60px 40px;
-    }
-    .boot-cursor {
-        width: 24px;
-        height: 24px;
-    }
+    .boot-box { font-size: 24px; padding: 60px 40px; }
+    .boot-cursor { width: 24px; height: 24px; }
 }
 
 /* =========================================
-   4. HAUPT-LAYOUT (ZONEN)
+   4. HAUPT-LAYOUT (ZONEN & HARDWARE CHASSIS)
    ========================================= */
 #demo-container {
     display: flex;
     flex-direction: column;
     height: 100vh;
-    height: 100dvh; /* Zieht die gesamte App exakt in das sichtbare Browserfenster */
+    height: 100dvh;
 }
 
 #visual-zone {
     height: 35vh;
     position: relative;
     background-color: #000;
+    /* Physischer Bevel zum Chassis darunter */
+    border-bottom: 4px solid var(--chassis-dark);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.8);
+    z-index: 10;
 }
 #demo-canvas {
     width: 100%;
     height: 100%;
     display: block;
-    /* NEU: CSS-seitiges Anti-Aliasing gnadenlos abschalten! */
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-    -moz-crisp-edges: true;
 }
 
 .scanlines {
@@ -185,20 +170,43 @@ body, html {
     background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
     background-size: 100% 4px, 3px 100%;
     pointer-events: none;
+    z-index: 5;
 }
 
+/* --- DAS HARDWARE CHASSIS --- */
 #ui-zone {
     height: 47vh;
     display: flex;
-    background-color: var(--bg-color);
+    background-color: var(--fg-color);
     padding: 20px;
     gap: 20px;
+    /* GFX FIX: Inset-Schatten gelöscht, um doppelte Kanten zu verhindern */
 }
 
 #scroller-zone {
-    height: 10vh;
-    background-color: #000;
+    position: relative;
+    height: 12vh; /* Von 10vh auf 12vh vergrößert für mehr Prominenz */
+    background-color: #020202; /* Minimal aufgehellt, damit der Schatten greift */
+    border-top: 4px solid var(--chassis-dark);
 }
+
+/* GFX UPGRADE: Der Hardware-Bezel (Versenktes LED-Matrix-Modul) */
+#scroller-zone::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    /* Massiver Schlagschatten nach innen, der wie ein Acrylglas-Abstandshalter wirkt */
+    box-shadow: inset 0 10px 20px rgba(0, 0, 0, 1.0), inset 0 -6px 15px rgba(0, 0, 0, 0.9);
+    pointer-events: none; /* Lässt Event-Klicks (falls später nötig) durchs Glas aufs Canvas fallen */
+    z-index: 10;
+}
+
+#scroller-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
 #scroller-canvas {
     width: 100%;
     height: 100%;
@@ -212,175 +220,106 @@ body, html {
     flex: 0 0 35%;
     display: flex;
     flex-direction: column;
-    background-color: var(--fg-color);
     color: var(--panel-text); 
-    /* Rahmen entfernt! Nur noch ein satter Farbblock */
-    padding: 15px; 
+    padding: 10px; 
 }
 
 /* =========================================
-   SKEUOMORPHIC RETRO SYSTEM TABS
+   SKEUOMORPHIC RETRO SYSTEM TABS (Hardware Buttons)
 ========================================= */
 .system-tabs {
     display: flex;
     justify-content: space-between;
     margin-bottom: 20px;
-    gap: 8px; /* Etwas mehr Luft zwischen den Tasten */
+    gap: 12px; 
 }
 
 .tab-btn {
     flex: 1;
     position: relative;
-    border: none;
-    padding: 10px 0;
+    background: var(--fg-color);
+    color: var(--panel-text);
+    padding: 12px 0;
     font-family: inherit;
     font-size: var(--font-size-base);
     cursor: pointer;
-    transition: all 0.15s cubic-bezier(0.25, 0.8, 0.25, 1);
-    outline: none;
     text-transform: uppercase;
-    
-    /* BUGFIX: Verhindert, dass die ASCII-Klammern in eine neue Zeile rutschen! */
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis; /* Schneidet sanft ab, falls der Platz (z. B. auf Mobile) wirklich zu eng wird */
+    text-overflow: ellipsis;
+    
+    /* Hardware 3D Bevel (Angehobener Button) */
+    border: none;
+    border-top: 2px solid var(--chassis-light);
+    border-left: 2px solid var(--chassis-light);
+    border-bottom: 4px solid var(--chassis-dark);
+    border-right: 4px solid var(--chassis-dark);
+    box-shadow: 2px 4px 6px rgba(0,0,0,0.4);
+    
+    transition: all 0.1s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-/* Die magischen Tracker ASCII-Klammer-Generatoren */
-.tab-btn::before {
-    content: "[ ";
-    opacity: 0.15;
-    transition: all 0.15s ease;
-}
-.tab-btn::after {
-    content: " ]";
-    opacity: 0.15;
-    transition: all 0.15s ease;
-}
-
-.tab-btn:hover::before, .tab-btn:hover::after,
-.tab-btn.active::before, .tab-btn.active::after {
-    opacity: 1;
+.tab-btn:hover {
     color: var(--highlight-color);
 }
 
-/* --- THEME 1: COMMODORE 64 ACCENTS --- */
-body.theme-c64 .tab-btn {
-    background: #201a60; /* Dunkles C64-Blau */
-    color: #6c5eb5;
-    border-bottom: 3px solid #141040;
-}
-/* Spezifische Breiten-Sicherung für den C64 Play-Button gegen Textumbruch */
-body.theme-c64 #btn-play {
-    flex: 1.8 !important;
-}
-body.theme-c64 .tab-btn:hover {
+/* Gepresster Button (Active State) */
+.tab-btn.active {
+    background: var(--bg-color); /* Vertieft = Schattenfarbe */
     color: var(--highlight-color);
-    border-bottom-color: #6c5eb5;
+    transform: translateY(2px) translateX(2px); /* Physikalisch nach unten/rechts gedrückt */
+    
+    /* Invertierter Bevel (Versunken in das Chassis) */
+    border-top: 4px solid var(--chassis-dark);
+    border-left: 4px solid var(--chassis-dark);
+    border-bottom: 2px solid var(--chassis-light);
+    border-right: 2px solid var(--chassis-light);
+    box-shadow: inset 2px 4px 8px rgba(0,0,0,0.6);
 }
+
+/* System-spezifische Active-Indikatoren (LED Stripes am oberen Rand) */
 body.theme-c64 .tab-btn.active {
-    background: #352879; /* C64 Panel-Blau */
-    color: var(--highlight-color);
-    border-bottom: 4px solid var(--highlight-color); /* Hellblauer/Weißer Akzent */
-    box-shadow: inset 0 3px 6px rgba(0,0,0,0.6);
-    transform: translateY(1px);
-}
-
-/* =========================================
-   THEME 2: AMIGA SPECIFIC PLAYLIST OVERRIDES
-   ========================================= */
-body.theme-amiga #tracklist li {
-    color: var(--panel-text); /* Amiga Orange (#ff8800) */
-    
-    /* GFX FIX: Dieselbe gut sichtbare, feine weiße Linie wie bei C64 & Atari! */
-    border-bottom: 1px dashed rgba(255, 255, 255, 0.15); 
-}
-/* --- THEME 2: AMIGA REGENBOGEN ACCENTS --- */
-body.theme-amiga .tab-btn {
-    background: #0a0a0a;
-    color: #555555;
-    border-top: 3px solid #1a1a1a;
-    font-family: 'VT323', monospace;
-    font-size: 18px;
-}
-body.theme-amiga .tab-btn:hover {
-    color: #ff8800;
-    border-top-color: #ff8800;
-}
-/* =========================================
-   THEME 2: AMIGA ACTIVE BUTTON REGREBOGEN
-   ========================================= */
-body.theme-amiga .tab-btn.active {
-    background: #112244;
-    color: var(--highlight-color);
-    transform: translateY(1px);
-    box-shadow: inset 0 3px 6px rgba(0,0,0,0.8);
-    
-    /* Der weltberühmte Amiga-Checkmark-Regenbogen als harte 12-Bit Oberkante! 
-       Genau 5 scharf abgegrenzte Farbstreifen (jeweils 20% Breite) */
-    border-top: 4px solid transparent;
-    border-image: linear-gradient(
-        90deg, 
-        #ff0000 0%,   #ff0000 20%, 
-        #ff7700 20%,  #ff7700 40%, 
-        #ffff00 40%,  #ffff00 60%, 
-        #00cc00 60%,  #00cc00 80%, 
-        #0033ff 80%,  #0033ff 100%
-    ) 1;
-}
-
-/* --- THEME 3: ATARI GREEN GLOW ACCENTS --- */
-body.theme-atari .tab-btn {
-    background: #080808;
-    color: #008800;
-    border: 1px solid #111111;
-    font-family: 'VT323', monospace;
-    font-size: 20px;
-}
-body.theme-atari .tab-btn:hover {
-    color: #55ff55;
-    border-color: #00aa00;
-    box-shadow: 0 0 6px rgba(0, 255, 0, 0.2);
+    border-top: 4px solid #6c5eb5; 
 }
 body.theme-atari .tab-btn.active {
-    background: #111111;
-    color: #55ff55;
-    border-color: #55ff55;
-    transform: translateY(1px);
-    
-    /* Radioaktiver Phosphor-Grün-Glow */
-    box-shadow: inset 0 0 8px rgba(85, 255, 85, 0.4), 0 0 10px rgba(85, 255, 85, 0.6);
+    border-top: 4px solid #55ff55;
+    text-shadow: 0 0 8px #55ff55;
 }
+body.theme-amiga .tab-btn.active {
+    border-top: 4px solid transparent;
+    border-image: linear-gradient(90deg, #ff0000 20%, #ff7700 40%, #ffff00 60%, #00cc00 80%, #0033ff 100%) 1;
+}
+
 /* --- EMU CORE SELECTOR CONTAINER --- */
 .core-control {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 25px;
+    margin-bottom: 12px; /* Von 25px auf 12px verringert für kompakten Sitz */
     font-size: calc(var(--font-size-base) * 0.8);
     color: var(--panel-text);
 }
 
 .core-control select {
     flex-grow: 1;
-     /* UI FIX: Verhindert, dass lange Texte den Bildschirm auf Handys sprengen! */
     min-width: 0; 
     text-overflow: ellipsis;
     white-space: nowrap;
     overflow: hidden;
-    /* GFX UPGRADE: Physische, in das Gehäuse gefräste LCD-Display Rille */
-    background-color: rgba(0, 0, 0, 0.4); 
-    border: none;
-    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+    
+    /* Recessed LCD Screen Look */
+    background-color: var(--screen-bg); 
+    border: 2px solid var(--chassis-dark);
+    border-bottom: 1px solid var(--chassis-light);
+    box-shadow: inset 0 3px 8px rgba(0,0,0,0.9);
+    
     color: var(--highlight-color);     
-    padding: 8px 12px;
+    padding: 10px 12px;
     font-family: inherit;
     font-size: inherit;
     outline: none;
     cursor: pointer;
-    transition: all 0.1s;
     
-    /* GFX UPGRADE: Native OS-Pfeile ausblenden und eigenen Retro-Pfeil (SVG) setzen */
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
@@ -391,89 +330,58 @@ body.theme-atari .tab-btn.active {
     padding-right: 35px;
 }
 
-.core-control select:hover, .core-control select:focus {
-    /* Leichter Glow-Effekt an der unteren Kante bei Interaktion */
-    color: #ffffff;
-    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8), inset 0 -1px 0 rgba(255, 255, 255, 0.15);
-}
-
 .core-control select option {
-    background-color: var(--bg-color); /* Ausgeklappt bleibt es im Theme-Design */
+    background-color: var(--bg-color); 
     color: var(--highlight-color); 
     padding: 8px 5px;
 }
 
 /* =========================================
-   TRACKLIST (Retro File-Selector Terminal)
+   TRACKLIST (Recessed CRT Terminal)
 ========================================= */
 #tracklist {
     list-style: none;
     flex-grow: 1;
     overflow-y: auto;
-    
-    /* UI FIX: Volle Schriftgröße für alte Nerd-Augen! Keine 0.9 Skalierung mehr,
-       wodurch die Pixelfont wieder messerscharf im Pixelgrid einrastet. */
     font-size: var(--font-size-base); 
-    line-height: 1.6; /* Mehr Luft zum Atmen */
+    line-height: 1.6;
     
-    /* GFX UPGRADE: Echter CRT-Screen-Ausschnitt statt milchiger Transparenz.
-       Beim C64 ergibt das jetzt perfekt Hellblau auf Dunkelblau! */
-    background: var(--bg-color); 
-    border: 2px solid rgba(0, 0, 0, 0.4);
-    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.8), 1px 1px 0 rgba(255,255,255,0.05);
-    padding: 8px;
+    /* GFX UPGRADE: Echter, versenkter CRT-Screen-Ausschnitt */
+    background: var(--screen-bg); 
+    border-top: 3px solid var(--chassis-dark);
+    border-left: 3px solid var(--chassis-dark);
+    border-bottom: 2px solid var(--chassis-light);
+    border-right: 2px solid var(--chassis-light);
+    box-shadow: inset 0 4px 15px rgba(0, 0, 0, 0.9);
+    padding: 10px;
 }
 
 #tracklist li {
-    /* Strahlende Monitor-Textfarbe (C64: Hellblau, Atari: Grün, Amiga: Weiß) */
     color: var(--text-color); 
-    
-    /* UI FIX: Größere Touch-Targets für Smartphone-Daumen */
     padding: 8px 10px; 
     cursor: pointer;
-    transition: none; 
-    
-    /* Trennlinien leicht aufgehellt, da der Hintergrund nun dunkel ist */
-    border-bottom: 1px dashed rgba(255, 255, 255, 0.15); 
-    
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.1); 
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-#tracklist li:last-child {
-    border-bottom: none;
-}
-
-#tracklist li::before {
-    content: "> ";
-    opacity: 0; 
-    font-weight: bold;
-}
+#tracklist li:last-child { border-bottom: none; }
+#tracklist li::before { content: "> "; opacity: 0; font-weight: bold; }
 
 #tracklist li:hover {
-    background: rgba(255, 255, 255, 0.15); 
+    background: rgba(255, 255, 255, 0.1); 
     color: var(--highlight-color);      
 }
+#tracklist li:hover::before { opacity: 0.5; }
 
-#tracklist li:hover::before {
-    opacity: 0.5; 
-}
-
-/* =========================================
-   ACTIVE TRACK (Inverted Selection)
-========================================= */
 .active-track {
-    /* GFX FIX: Echte physikalische Farbinvertierung basierend auf den neuen CRT-Farben */
     background: var(--text-color) !important;
-    color: var(--bg-color) !important; 
+    color: var(--screen-bg) !important; 
     font-weight: bold;
     border-bottom-color: transparent !important;
     box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
-    animation: none !important; 
-    text-shadow: none !important;
 }
-
 .active-track::before {
     opacity: 1 !important;
     animation: c64-blink 1s steps(2, start) infinite; 
@@ -485,135 +393,169 @@ body.theme-atari .tab-btn.active {
     justify-content: space-between;
     align-items: center;
     background-color: var(--fg-color);
-    padding: 10px 20px;
-    gap: 20px;
-    border-bottom: 2px solid var(--bg-color); 
+    padding: 15px 20px;
+    gap: 25px;
+    /* GFX FIX: Einzelne, perfekt austarierte 3D-Fuge statt unschöner doppelter Ränder */
+    border-bottom: 1px solid var(--chassis-dark); 
+    box-shadow: 0 1px 0 var(--chassis-light); /* Wirft das Licht-Highlight sauber nach unten */
 }
 
-/* FIX 1: Flex-Verteilung für Desktop (Buttons bekommen genug Platz!) */
+/* Erweitert den Platz für die hardware-nahen Tasten */
 .controls { 
     display: flex; 
-    gap: 5px; 
-    flex: 0 0 300px; /* Feste Breite für die 4 Buttons auf dem Desktop */
-    margin-top: 0; 
-}
-/* Fette Tracker-Slider (Volume & Timeline) */
-.timeline-control, .volume-control {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex: 1; /* Nimmt den restlichen Platz ein */
-    margin-top: 0; /* Von 15px auf 0 korrigiert für perfekte vertikale Zentrierung */
-    color: var(--panel-text); /* Perfekter Kontrast */
-    font-size: calc(var(--font-size-base) * 0.9);
+    gap: 8px; 
+    flex: 0 0 410px; /* Von 320px auf 410px vergrößert */
 }
 
+/* Kompakteres Letter-Spacing für sauberen Textitz im Button-Gehäuse */
 .controls button {
     flex: 1;
-    background: rgba(0, 0, 0, 0.15); 
+    background: var(--bg-color); 
     color: var(--panel-text);
-    border: none; 
-    padding: 10px 0;
-    font-size: calc(var(--font-size-base) * 1.2);
+    padding: 12px 4px; /* Etwas weniger horizontaler Padding-Verbrauch */
+    font-size: calc(var(--font-size-base) * 0.95); /* Schriftgröße minimal optimiert für den Textfluss */
+    letter-spacing: -0.5px; /* Verhindert das Auseinanderziehen von langen Begriffen */
     cursor: pointer;
     font-family: inherit;
-    transition: all 0.1s;
+    
+    border: none;
+    border-top: 2px solid var(--chassis-light);
+    border-left: 2px solid var(--chassis-light);
+    border-bottom: 3px solid var(--chassis-dark);
+    border-right: 3px solid var(--chassis-dark);
+    box-shadow: 1px 3px 5px rgba(0,0,0,0.4);
+    
+    transition: all 0.05s;
 }
+/* Verhindert zuverlässig den Zeilenumbruch durch überproportionale Flex-Gewichtung */
+#btn-play {
+    flex: 2.1 !important; 
+}
+
 .controls button:hover {
     background: var(--panel-text);
-    color: var(--fg-color);
+    color: var(--bg-color);
 }
+
 .controls button:active {
-    transform: scale(0.95); 
+    transform: translateY(2px) translateX(1px); 
+    border-top: 3px solid var(--chassis-dark);
+    border-left: 3px solid var(--chassis-dark);
+    border-bottom: 1px solid var(--chassis-light);
+    border-right: 1px solid var(--chassis-light);
+    box-shadow: inset 1px 3px 5px rgba(0,0,0,0.6);
 }
 
-
-/* Fette Tracker-Slider (Volume & Timeline) */
 .timeline-control, .volume-control {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-top: 0;
-    color: var(--panel-text); /* Perfekter Kontrast */
+    flex: 1;
+    color: var(--panel-text); 
     font-size: calc(var(--font-size-base) * 0.9);
-    line-height: 1; /* Bereinigt theme-abhängige Schriftüberhänge */
 }
 
 /* =========================================
-   HARDWARE SLIDERS (Timeline, Volume, Temp)
+   HARDWARE SLIDERS (Real Mixing Desk Faders)
 ========================================= */
 input[type="range"] {
     flex-grow: 1;
     -webkit-appearance: none;
     
-    /* GFX FIX: Rand entfernt! Stattdessen eine tiefe, in das Gehäuse gefräste Hardware-Rille */
-    background: rgba(0, 0, 0, 0.4); 
-    border: none;
-    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8), inset 0 -1px 0 rgba(255, 255, 255, 0.05); 
-    height: 10px;
+    /* Tiefe Hardware-Rille */
+    background: var(--screen-bg); 
+    border-top: 2px solid var(--chassis-dark);
+    border-left: 1px solid var(--chassis-dark);
+    border-bottom: 1px solid var(--chassis-light);
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.9); 
+    height: 8px;
     outline: none;
     cursor: pointer;
-    border-radius: 0;
 }
 
-/* Der Schieberegler (Thumb) als physischer Hardware-Fader */
+/* Der Schieberegler (Fader Cap) */
 input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 16px;
-    height: 22px; /* Höher als die Rille, damit er greifbar wirkt */
-    background: var(--panel-text);
-    border: none;
+    width: 20px;
+    height: 30px; 
+    
+    /* Rillen-Muster für Griffigkeit (ALPS Fader Look) */
+    background: linear-gradient(
+        to bottom,
+        var(--panel-text) 0%,
+        var(--panel-text) 40%,
+        var(--bg-color) 40%,
+        var(--bg-color) 60%,
+        var(--panel-text) 60%,
+        var(--panel-text) 100%
+    );
+    border: 1px solid var(--chassis-dark);
+    border-top: 2px solid #fff; /* Starkes Highlight oben */
+    border-radius: 2px;
     cursor: pointer;
-    /* 3D-Drop-Shadow für den Knopf, damit er über der Rille schwebt + Lichtkante */
-    box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5), inset 1px 1px 0px rgba(255, 255, 255, 0.25);
+    
+    /* Schwerer Drop-Shadow, der über die Rille geworfen wird */
+    box-shadow: -2px 3px 6px rgba(0, 0, 0, 0.6);
 }
 
+/* Firefox Fallback */
 input[type="range"]::-moz-range-thumb {
-    width: 16px;
-    height: 22px;
-    background: var(--panel-text);
-    border: none;
+    width: 20px;
+    height: 30px;
+    background: linear-gradient(to bottom, var(--panel-text) 0%, var(--panel-text) 40%, var(--bg-color) 40%, var(--bg-color) 60%, var(--panel-text) 60%, var(--panel-text) 100%);
+    border: 1px solid var(--chassis-dark);
+    border-top: 2px solid #fff;
+    border-radius: 2px;
     cursor: pointer;
-    border-radius: 0;
-    box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5), inset 1px 1px 0px rgba(255, 255, 255, 0.25);
+    box-shadow: -2px 3px 6px rgba(0, 0, 0, 0.6);
 }
 
 /* =========================================
-   6. MUSEUM PANEL (RECHTS)
+   6. MUSEUM PANEL (RECHTS - CARD BASED TERMINAL)
    ========================================= */
 #museum-panel {
     flex: 1;
-    /* Rahmen entfernt und Hintergrund transparent, verschmilzt mit der UI-Zone! */
     background-color: transparent; 
-    padding: 15px;
+    padding: 10px;
     display: flex;
     flex-direction: column;
 }
+
 .museum-header h2 {
-    font-size: calc(var(--font-size-base) * 1.2);
+    font-size: calc(var(--font-size-base) * 1.1);
     margin-bottom: 15px;
     color: var(--highlight-color);
-    /* Das gestrichelte Unterstreichen ist weg! */
-}
-.museum-content {
-    font-size: var(--font-size-base);
-    line-height: 1.5;
-    overflow-y: auto;
-}
-.museum-content p {
-    margin-bottom: 10px;
+    text-shadow: 2px 2px 0 var(--chassis-dark);
 }
 
+.museum-content {
+    flex-grow: 1;
+    font-size: var(--font-size-base);
+    line-height: 1.6;
+    overflow-y: auto;
+    
+    /* GFX UPGRADE: Ebenfalls als Terminal-Screen versenkt */
+    background: var(--screen-bg);
+    border-top: 3px solid var(--chassis-dark);
+    border-left: 3px solid var(--chassis-dark);
+    border-bottom: 2px solid var(--chassis-light);
+    border-right: 2px solid var(--chassis-light);
+    box-shadow: inset 0 4px 15px rgba(0, 0, 0, 0.9);
+    padding: 15px;
+}
+
+.museum-content p { margin-bottom: 12px; }
+
 /* =========================================
-   BRANDING LOGO (CHIPTUNES FANTASY)
+   BRANDING LOGO
 ========================================= */
 #brand-logo {
     position: absolute;
-    top: 35px;
-    left: 35px;
+    top: 15px;
+    left: 20px;
     z-index: 10;
-    pointer-events: auto; /* WICHTIG: Vorher 'none', jetzt 'auto' für Klicks! */
-    cursor: pointer;      /* NEU: Zeigt an, dass es klickbar ist */
+    pointer-events: auto; 
+    cursor: pointer;      
     display: flex;
     flex-direction: column;
     animation: float-logo 3.5s ease-in-out infinite alternate;
@@ -621,127 +563,42 @@ input[type="range"]::-moz-range-thumb {
 
 .brand-main {
     font-family: 'Press Start 2P', monospace;
-    font-size: 28px; /* Einen Hauch massiver */
+    font-size: 28px;
     letter-spacing: 2px;
-    
-    /* Der 90er "Chrome Horizon" Effekt (Glänzende Metall-Reflektion) */
-    background: linear-gradient(
-        to bottom, 
-        #ffffff 0%, 
-        var(--text-color) 45%, 
-        var(--bg-color) 50%, 
-        #ffffff 53%, 
-        var(--text-color) 100%
-    );
-    background-size: 100% 200%; /* Vergrößert für die Cycling-Animation */
+    background: linear-gradient(to bottom, #ffffff 0%, var(--text-color) 45%, var(--bg-color) 50%, #ffffff 53%, var(--text-color) 100%);
+    background-size: 100% 200%;
     -webkit-background-clip: text;
     color: transparent;
-    
-    /* Gestapelte Drop-Shadows erzeugen einen fetten, echten 3D-Extrusions-Block! */
-    filter: drop-shadow(1px 1px 0px var(--bg-color)) 
-            drop-shadow(2px 2px 0px var(--bg-color)) 
-            drop-shadow(3px 3px 0px #000000);
-            
+    filter: drop-shadow(1px 1px 0px var(--bg-color)) drop-shadow(2px 2px 0px var(--bg-color)) drop-shadow(4px 4px 0px #000000);
     margin-bottom: 2px;
-    
-    /* Color Cycling: Der Horizont wandert auf und ab */
     animation: chrome-cycle 3s ease-in-out infinite alternate;
-    
-    /* NEU: Weiche Transition für das nass glänzende Chrome */
-    transition: filter 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .brand-sub {
     font-family: 'Press Start 2P', monospace;
     font-size: 12px;
     color: var(--highlight-color);
-    letter-spacing: 12px; /* Breiteres Kerning für den Untertitel */
+    letter-spacing: 12px; 
     text-align: right; 
     padding-right: 2px;
-    /* Ein intensiver, theme-basierter Glow, der sich ins Canvas einbrennt */
     text-shadow: 0 0 10px var(--text-color), 2px 2px 0px #000000;
-    
-    /* NEU: Weiche Transition für den Untertitel-Glow */
-    transition: text-shadow 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), color 0.4s ease;
 }
 
-/* =========================================
-   BRANDING LOGO DEMO MODE ACTIVE GLOW
-========================================= */
 #brand-logo.demo-mode-active::before {
-    content: '';
-    position: absolute;
-    top: -30px;
-    left: -30px;
-    width: calc(100% + 60px);
-    height: calc(100% + 60px);
-    z-index: -1;
-    filter: blur(20px);
-    pointer-events: none;
-    border-radius: 50%;
-    /* Atmet organisch, während das Logo über die 'float-logo' Animation gleitet */
-    animation: pulse-glow 2.5s ease-in-out infinite alternate;
-    transition: background 0.5s ease;
+    content: ''; position: absolute; top: -30px; left: -30px; width: calc(100% + 60px); height: calc(100% + 60px);
+    z-index: -1; filter: blur(20px); pointer-events: none; border-radius: 50%;
+    animation: pulse-glow 2.5s ease-in-out infinite alternate; transition: background 0.5s ease;
 }
 
-/* System-spezifische, dezent pulsierende Farbanpassungen */
-body.theme-c64 #brand-logo.demo-mode-active::before {
-    background: radial-gradient(circle, rgba(108, 94, 181, 0.45) 0%, transparent 70%);
-}
+body.theme-c64 #brand-logo.demo-mode-active::before { background: radial-gradient(circle, rgba(108, 94, 181, 0.45) 0%, transparent 70%); }
+body.theme-amiga #brand-logo.demo-mode-active::before { background: radial-gradient(circle, rgba(255, 136, 0, 0.35) 0%, transparent 70%); }
+body.theme-atari #brand-logo.demo-mode-active::before { background: radial-gradient(circle, rgba(85, 255, 85, 0.4) 0%, transparent 70%); }
 
-body.theme-amiga #brand-logo.demo-mode-active::before {
-    background: radial-gradient(circle, rgba(255, 136, 0, 0.35) 0%, transparent 70%);
-}
+@keyframes pulse-glow { 0% { transform: scale(0.85); opacity: 0.5; } 100% { transform: scale(1.15); opacity: 0.95; } }
+@keyframes float-logo { 0% { transform: translateY(0px) rotate(0deg); } 100% { transform: translateY(6px) rotate(-1deg); } }
+@keyframes chrome-cycle { 0% { background-position: 0% 10%; } 100% { background-position: 0% 90%; } }
 
-body.theme-atari #brand-logo.demo-mode-active::before {
-    background: radial-gradient(circle, rgba(85, 255, 85, 0.4) 0%, transparent 70%);
-}
-
-/* NEU: CHROME SHINE & LASER OUTLINE UPGRADES IM DEMOMODUS */
-#brand-logo.demo-mode-active .brand-main {
-    filter: drop-shadow(1px 1px 0px var(--bg-color)) 
-            drop-shadow(2px 2px 0px var(--bg-color)) 
-            drop-shadow(3px 3px 0px #000000)
-            brightness(1.4) 
-            contrast(1.25)
-            saturate(1.2)
-            drop-shadow(0 0 3px var(--text-color)); 
-}
-
-#brand-logo.demo-mode-active .brand-sub {
-    color: #ffffff;
-    text-shadow: 0 0 6px var(--highlight-color), 
-                 0 0 15px var(--text-color), 
-                 2px 2px 0px #000000;
-}
-
-@keyframes pulse-glow {
-    0% {
-        transform: scale(0.85);
-        opacity: 0.5;
-    }
-    100% {
-        transform: scale(1.15);
-        opacity: 0.95;
-    }
-}
-
-@keyframes float-logo {
-    0%   { transform: translateY(0px) rotate(0deg); }
-    100% { transform: translateY(6px) rotate(-1deg); } /* Weiches Absinken mit minimalem Tilt */
-}
-
-/* Copper-Bar Reflection Animation */
-@keyframes chrome-cycle {
-    0% { background-position: 0% 10%; }
-    100% { background-position: 0% 90%; }
-}
-
-/* Pausiert die Logo-Animation im Pure Audio Mode */
-body.eco-mode #brand-logo,
-body.eco-mode .brand-main {
-    animation-play-state: paused !important;
-}
+body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: paused !important; }
 
 /* =========================================
    7. CHIP HUD (DSP MATRIX & ANALYZER)
@@ -750,105 +607,80 @@ body.eco-mode .brand-main {
     position: absolute;
     top: 15px;
     right: 15px;
-    width: 520px; /* Von 480px auf 520px verbreitert (Fix für Amiga-Labels) */
-    background: rgba(0, 0, 0, 0.75);
-    border-left: 4px solid var(--text-color);
-    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    width: 520px; 
+    
+    /* GFX UPGRADE: Das HUD sieht jetzt aus wie ein aufgeschraubtes Acryl-Modul */
+    background: rgba(0, 0, 0, 0.85);
+    border: 2px solid var(--chassis-dark);
+    border-top: 1px solid rgba(255,255,255,0.2);
+    border-left: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 4px 6px 15px rgba(0,0,0,0.8);
+    backdrop-filter: blur(4px);
+    
     padding: 15px; 
     color: var(--highlight-color);
     pointer-events: auto; 
     z-index: 15; 
-    /* NEU: Ermöglicht das weiche Ein- und Ausfaden */
-    transition: opacity 0.4s ease; 
+    transition: opacity 0.4s ease, width 0.3s ease; 
 }
 
-/* NEU: Der geschrumpfte Zustand! */
 #chip-hud.collapsed {
-    width: auto; /* Passt sich exakt an den Text an */
-    padding: 8px 12px; /* Etwas schmaler */
+    width: auto; 
+    padding: 8px 12px; 
 }
 
-/* --- HIER IST DER GEFIXTE HEADER --- */
 .hud-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px dashed var(--text-color);
+    border-bottom: 2px groove var(--chassis-dark); /* Gefräste Kante */
     padding-bottom: 5px;
     margin-bottom: 15px;
     font-size: calc(var(--font-size-base) * 0.9);
-    white-space: nowrap; /* VERHINDERT DEN ZEILENUMBRUCH! */
-    gap: 15px; /* Zwingt Platz zwischen Titel und Buttons */
+    white-space: nowrap; 
+    gap: 15px; 
 }
 
-/* Hält [?] und [+] stoisch in einer horizontalen Reihe */
-.hud-header div {
-    display: flex;
-    align-items: center;
-}
-/* ----------------------------------- */
+.hud-header div { display: flex; align-items: center; gap: 8px; }
 
-/* Die gestrichelte Trennlinie verstecken, wenn das Menü zu ist */
-#chip-hud.collapsed .hud-header {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
-}
+#chip-hud.collapsed .hud-header { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
 
 #btn-hud-info, #btn-hud-toggle {
-    background: none;
-    border: none;
+    background: var(--chassis-dark);
+    border: 1px solid var(--chassis-light);
     color: var(--highlight-color);
+    padding: 2px 6px;
     cursor: pointer;
     font-family: inherit;
-    font-size: inherit;
-    margin-left: 5px;
+    font-size: calc(var(--font-size-base) * 0.8);
+    transition: all 0.1s;
 }
 
-#btn-hud-info:hover, #btn-hud-toggle:hover { 
-    color: #ffffff; 
-}
-/* Die Hex-Matrix (Fallback für C64 / Amiga) */
-#hud-matrix {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    gap: 4px;
-}
-.hud-cell {
-    background: rgba(255, 255, 255, 0.1);
-    text-align: center;
-    padding: 4px 2px;
-}
-.hud-cell-label {
-    font-size: calc(var(--font-size-base) * 0.6);
-    color: var(--text-color);
-    margin-bottom: 2px;
-}
-.hud-cell-val {
-    font-size: calc(var(--font-size-base) * 0.9);
+#btn-hud-info:active, #btn-hud-toggle:active {
+    transform: translateY(1px);
 }
 
-/* --- NEU: ADVANCED DSP ANALYZER (Atari ST) --- */
 .atari-analyzer-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr; /* Zwei saubere 50/50 Spalten */
-    gap: 20px; /* Abstand zwischen den Spalten */
+    grid-template-columns: 1fr 1fr; 
+    gap: 20px; 
 }
 
 .hud-channel {
     margin-bottom: 12px;
-    border-bottom: 1px dotted rgba(255,255,255,0.2);
-    padding-bottom: 8px;
+    background: rgba(255,255,255,0.02); /* Leichte Hinterlegung pro Block */
+    border: 1px solid rgba(255,255,255,0.05);
+    padding: 8px;
 }
-.hud-channel:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
 
 .hud-channel h4 {
     color: var(--highlight-color);
     font-size: calc(var(--font-size-base) * 0.8);
     margin-bottom: 8px;
-    /* BUGFIX: Glow extrem reduziert für perfekte Lesbarkeit! */
     text-shadow: 0 0 2px var(--text-color); 
     letter-spacing: 1px;
+    border-bottom: 1px dotted rgba(255,255,255,0.2);
+    padding-bottom: 4px;
 }
 
 .hud-row {
@@ -857,457 +689,398 @@ body.eco-mode .brand-main {
     margin-bottom: 5px;
     font-size: calc(var(--font-size-base) * 0.75);
 }
-/* Ersetze diese Klassen im Atari-Bereich der style.css: */
+
 .hud-row label {
     flex-shrink: 0;
-    width: 60px; /* Etwas kompakter */
+    width: 60px; 
     color: var(--text-color);
     opacity: 0.8;
 }
 
-/* Der neue Container für unser Echtzeit-Liniendiagramm */
 .hud-sparkline {
     flex-grow: 1;
     height: 18px;
-    background: rgba(0,0,0,0.5);
+    background: #000; /* CRT Screen Look für Oszilloskop */
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.8);
     margin-right: 8px;
-    border: 1px solid rgba(255,255,255,0.2);
-    display: block; /* Wichtig für Canvas */
+    border: 1px solid rgba(255,255,255,0.1);
+    display: block; 
 }
 
-/* Wir behalten den alten Balken für die Volume-Anzeige! */
 .hud-bar {
     flex-grow: 1;
-    height: 6px;
-    background: rgba(255,255,255,0.15);
+    height: 8px;
+    background: #000;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.8);
     margin-right: 8px;
     position: relative;
-    border: 1px solid rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.1);
 }
 .hud-bar-fill {
     height: 100%;
     background: var(--text-color);
     width: 0%; 
     transition: width 0.05s linear; 
+    box-shadow: 0 0 5px var(--text-color); /* LED Leuchten */
 }
 
-/* Breiteres Textfeld für "12500 Hz", verhindert Zeilenumbruch! */
 .hud-val {
     flex-shrink: 0;
-    width: 75px; /* <--- HIER VON 55px AUF 75px ÄNDERN */
+    width: 75px; 
     text-align: right;
     font-family: 'Press Start 2P', monospace; 
     font-size: 8px;
     color: var(--highlight-color);
 }
+
+/* Physikalische LEDs */
 .hud-led {
     flex-shrink: 0;
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
-    background: #222;
-    border: 1px solid var(--text-color);
+    background: #111;
+    border: 2px solid #000;
+    box-shadow: inset 0 2px 2px rgba(255,255,255,0.2), 0 1px 1px rgba(255,255,255,0.1);
     margin-right: 4px;
 }
 .hud-led.on {
     background: var(--text-color);
-    box-shadow: 0 0 6px var(--text-color);
+    border-color: var(--text-color);
+    box-shadow: inset 0 2px 2px rgba(255,255,255,0.4), 0 0 10px var(--text-color), 0 0 20px var(--text-color);
 }
-.hud-text-sel {
-    color: var(--highlight-color);
-    font-weight: bold;
-}
+.hud-text-sel { color: var(--highlight-color); font-weight: bold; }
 
 #hud-legend {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid var(--text-color);
-    font-size: calc(var(--font-size-base) * 0.7);
-    line-height: 1.4;
-    color: var(--text-color);
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--text-color);
+    font-size: calc(var(--font-size-base) * 0.7); line-height: 1.4; color: var(--text-color);
 }
+
 /* --- PURE AUDIO / ECO MODE OVERLAY --- */
 #eco-overlay {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.85); /* Sehr dunkel, spart Display-Strom (OLED) */
-    backdrop-filter: blur(5px);
-    z-index: 20; /* Liegt über ALLEM im Visual-Bereich (auch dem HUD) */
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px);
+    z-index: 20; display: flex; justify-content: center; align-items: center;
 }
 
 .eco-box {
-    display: flex;             /* Als Flex-Container deklarieren */
-    flex-direction: column;    /* Vertikale Aufreihung erzwingen */
-    align-items: center;       /* Mittig ausrichten */
-    text-align: center;
-    border: 1px solid var(--text-color);
-    background: rgba(0, 0, 0, 0.5);
-    padding: 20px;
-    box-shadow: 0 0 15px rgba(0,0,0,0.8);
-    gap: 8px;                  /* Einheitlicher vertikaler Abstand */
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    border: 2px solid var(--chassis-dark);
+    border-top: 1px solid var(--chassis-light);
+    background: var(--fg-color);
+    padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.9); gap: 12px;
 }
 
-.eco-box h2 {
-    color: var(--text-color);
-    margin-bottom: 15px;
-}
-
-.eco-box p {
-    color: var(--highlight-color);
-    font-size: calc(var(--font-size-base) * 0.8);
-    margin-bottom: 5px;
-    opacity: 0.8;
-}
+.eco-box h2 { color: var(--highlight-color); margin-bottom: 15px; }
+.eco-box p { color: var(--text-color); font-size: calc(var(--font-size-base) * 0.8); margin-bottom: 5px; opacity: 0.9; }
 
 #btn-eco-off {
-    display: block;            /* BUGFIX: Erzwingt den Umbruch in eine eigene Zeile */
-    margin: 20px auto 0 auto;  /* Zentriert den Button horizontal und schafft Abstand nach oben */
-    background: transparent;
-    color: var(--highlight-color);
-    border: 2px solid var(--highlight-color);
-    padding: 10px 20px;
-    font-family: inherit;
-    font-size: var(--font-size-base);
-    cursor: pointer;
-    transition: all 0.2s;
+    display: block; margin: 20px auto 0 auto;
+    background: var(--bg-color); color: var(--highlight-color);
+    border: 2px solid var(--highlight-color); padding: 12px 24px;
+    font-family: inherit; font-size: var(--font-size-base);
+    cursor: pointer; transition: all 0.2s;
+    box-shadow: 0 4px 0 var(--chassis-dark);
 }
 
-#btn-eco-off:hover {
-    background: var(--highlight-color);
-    color: #000;
-}
+#btn-eco-off:active { transform: translateY(4px); box-shadow: 0 0 0 var(--chassis-dark); }
 
 /* =========================================
    FULLSCREEN UI BAR (Unobtrusive)
 ========================================= */
 #fs-ui-bar {
-    position: absolute;
-    bottom: 15px;
-    right: 15px;
-    z-index: 12; /* Unter dem HUD, über dem Canvas */
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    opacity: 0.3; /* Demoszene-Fokus: Sehr dezent im Normalzustand */
-    transition: opacity 0.4s ease;
+    position: absolute; bottom: 15px; right: 15px; z-index: 12; 
+    display: flex; align-items: center; gap: 15px; opacity: 0.3; transition: opacity 0.4s ease;
 }
 
-#fs-ui-bar:hover {
-    opacity: 1.0; /* Voller Kontrast bei Interaktion */
-}
+#fs-ui-bar:hover { opacity: 1.0; }
+#visual-zone.no-cursor #fs-ui-bar { opacity: 0; pointer-events: none; }
 
-/* Fadet das komplette Panel stufenlos aus, wenn die Maus stillsteht */
-#visual-zone.user-inactive #fs-ui-bar {
-    opacity: 0;
-    pointer-events: none;
-}
-
-#fs-playback-controls {
-    display: none; /* Im Fenster-Modus unsichtbar */
-    align-items: center;
-    gap: 15px;
-}
-
-/* CSS-Magie: Player-Controls nur im echten Vollbild aktivieren */
+#fs-playback-controls { display: none; align-items: center; gap: 15px; }
 #visual-zone:fullscreen #fs-playback-controls { display: flex; }
 #visual-zone:-webkit-full-screen #fs-playback-controls { display: flex; }
 #visual-zone.pseudo-fullscreen #fs-playback-controls { display: flex; }
 
 .fs-track-info {
-    font-family: var(--font-main);
-    font-size: calc(var(--font-size-base) * 0.8);
-    color: var(--highlight-color);
-    text-shadow: 1px 1px 0px #000; /* Lesbarkeit über hellen Effekten garantieren */
-    max-width: 350px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    text-align: right;
-    letter-spacing: 1px;
+    font-family: var(--font-main); font-size: calc(var(--font-size-base) * 0.8);
+    color: var(--highlight-color); text-shadow: 1px 1px 0px #000; 
+    max-width: 350px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; letter-spacing: 1px;
 }
 
-.fs-controls {
-    display: flex;
-    gap: 5px;
-}
-
+.fs-controls { display: flex; gap: 5px; }
 .fs-controls button, #btn-fullscreen {
-    background: rgba(0, 0, 0, 0.6);
-    border: 1px solid var(--text-color);
-    color: var(--highlight-color);
-    padding: 6px 12px;
-    font-family: var(--font-main);
-    font-size: 10px;
-    cursor: pointer;
-    transition: all 0.1s;
-    outline: none;
+    background: rgba(0, 0, 0, 0.8); border: 1px solid var(--text-color); color: var(--highlight-color);
+    padding: 8px 14px; font-family: var(--font-main); font-size: 10px; cursor: pointer; transition: all 0.1s; outline: none;
 }
+.fs-controls button:hover, #btn-fullscreen:hover { background: var(--text-color); color: #000; border-color: var(--highlight-color); }
 
-.fs-controls button:hover, #btn-fullscreen:hover {
-    background: var(--text-color);
-    color: #000;
-    border-color: var(--highlight-color);
-}
-
-/* Erzwingt, dass die Visualisierungs-Zone im Vollbildmodus den ganzen Screen füllt */
 #visual-zone:fullscreen { width: 100% !important; height: 100% !important; }
 #visual-zone:-webkit-full-screen { width: 100% !important; height: 100% !important; }
 
-/* Pseudo-Fullscreen Fallback für iOS / iPhone */
 #visual-zone.pseudo-fullscreen {
-    position: fixed !important;
-    inset: 0 !important; 
-    width: 100% !important;
-    height: 100% !important;
-    max-width: none !important;
-    max-height: none !important;
-    z-index: 999999 !important; 
-    margin: 0 !important;
-    border-radius: 0 !important;
+    position: fixed !important; inset: 0 !important; width: 100% !important; height: 100% !important;
+    max-width: none !important; max-height: none !important; z-index: 999999 !important; margin: 0 !important; border-radius: 0 !important;
 }
-
-/* Mobile Safe Area Anpassung für das UI-Panel */
-@media (max-width: 800px) {
-    .fs-track-info {
-        display: none; /* Text auf kleinen Handys ausblenden, um den Limit-Bar nicht zu verdecken */
-    }
-    #visual-zone.pseudo-fullscreen #fs-ui-bar {
-        bottom: calc(20px + env(safe-area-inset-bottom)) !important;
-        right: calc(15px + env(safe-area-inset-right)) !important;
-    }
-}
-
-/* Blendet den nativen OS-Cursor aus */
-#visual-zone.no-cursor { cursor: none !important; }
-#visual-zone.no-cursor * { cursor: none !important; }
-
 
 /* =========================================
    SUBSONG DISPLAY TIMELINE OVERLAY
 ========================================= */
 #subsong-display {
-    font-family: inherit;
-    font-size: calc(var(--font-size-base) * 0.9);
-    color: var(--highlight-color);
-    margin-right: 15px; /* Schafft Platz zur Zeitanzeige */
-    text-shadow: 0 0 4px var(--text-color);
-    letter-spacing: 1px;
+    font-family: inherit; font-size: calc(var(--font-size-base) * 0.9);
+    color: var(--highlight-color); margin-right: 15px; text-shadow: 0 0 4px var(--text-color); letter-spacing: 1px;
 }
+
 /* =========================================
-   8. MOBILE RESPONSIVE DESIGN (Smartphones)
+   8. MOBILE RESPONSIVE DESIGN
    ========================================= */
 @media (max-width: 800px) {
+    body, html { overflow: visible !important; height: auto; min-height: 100dvh; }
+
+    #hud-body { max-height: 35vh; overflow-y: auto; overflow-x: hidden; }
+    #demo-container { height: auto; min-height: 100vh; }
+    #visual-zone { height: 45vh; }
     
-    /* 1. iOS STICKY BUGFIX: Safari killt Sticky, wenn body overflow-hidden hat! */
-    body, html {
-        overflow: visible !important; 
-        height: auto;
-        min-height: 100dvh; /* Mobile Safari Anpassung */
-    }
-
-    /* Begrenzt die Höhe des aufgeklappten HUDs auf Handys */
-    #hud-body {
-        max-height: 35vh; /* FIX 2A: Passt nun perfekt in die 45vh Visual-Zone! */
-        overflow-y: auto;
-        overflow-x: hidden;
-    }
-
-    #demo-container {
-        height: auto;
-        min-height: 100vh;
-    }
-
-    #visual-zone {
-        height: 45vh; /* Etwas mehr Platz für das gestapelte HUD */
-    }
-
     /* Das Scroller-Zone Upgrade für den sicheren iOS-Rand */
-    #scroller-zone {
-        height: auto;
-        min-height: 8vh;
-        padding-bottom: env(safe-area-inset-bottom); /* iOS Home-Indikator Safe Area Support */
-        box-sizing: border-box; /* Garantiert korrekte Höhenberechnung */
-    }
+    #scroller-zone { height: auto; min-height: 10vh; padding-bottom: env(safe-area-inset-bottom); box-sizing: border-box; }
 
-    /* 2. UI-Zonen untereinander stapeln */
-    #ui-zone {
-        flex-direction: column;
-        height: auto;
-        padding: 10px;
-    }
+    #ui-zone { flex-direction: column; height: auto; padding: 10px; }
+    #player-panel, #museum-panel { flex: none; width: 100%; }
+    .museum-content { overflow-y: visible !important; }
 
-    #player-panel, #museum-panel {
-        flex: none;
-        width: 100%;
-    }
-
-    /* FIX 2: Museum aufklappen! Der Nutzer scrollt das Handy, nicht die Box! */
-    .museum-content {
-        overflow-y: visible !important; 
-    }
-
-    /* Sticky Playback-Bar auf dem Handy (iOS Safe!) */
     #playback-bar {
-        position: -webkit-sticky; 
-        position: sticky;
-        top: 0; 
-        z-index: 100; 
-        flex-wrap: wrap; 
-        padding: 10px;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.8); 
-        align-items: center; /* Override Desktop-Stretch */
+        position: -webkit-sticky; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; padding: 10px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.8); align-items: center; 
     }
     
-    /* ZEILE 1: Buttons dehnen sich vollflächig aus */
-    #playback-bar .controls { 
-        flex: 1 1 100%; 
-        width: 100%; 
-        display: flex;
-        gap: 5px; 
-        margin-bottom: 12px; /* Schafft Luft zur Timeline */
-    }
+    #playback-bar .controls { flex: 1 1 100%; width: 100%; display: flex; gap: 5px; margin-bottom: 12px; }
+    #playback-bar .timeline-control { flex: 1 1 100%; width: 100%; margin-bottom: 10px; }
+    #playback-bar .volume-control { flex: 1 1 100%; width: 100%; justify-content: flex-start; margin-bottom: 8px; }
 
-    /* ZEILE 2: Timeline-Schieberegler nimmt die ganze Breite ein */
-    #playback-bar .timeline-control { 
-        flex: 1 1 100%; 
-        width: 100%; 
-        margin-bottom: 10px; 
-    }
+    #playback-bar #btn-prev, #playback-bar #btn-next, #playback-bar #btn-eco { flex: 1; }
+    #playback-bar #btn-play { flex: 2; font-weight: bold; }
     
-    /* ZEILE 3: Volume-Schieberegler nimmt die ganze Breite ein */
-    #playback-bar .volume-control { 
-        flex: 1 1 100%; 
-        width: 100%; 
-        justify-content: flex-start; 
-        
-        /* UI FIX: Wenn der Slider umbricht, schaffen wir hier 
-           den nötigen Puffer zum UI-Feld darunter! */
-        margin-bottom: 8px; 
-    }
+    #playback-bar .controls button { padding: 14px 0; font-size: calc(var(--font-size-base) * 1.3); }
 
-    /* Play/Pause bleibt doppelt so breit wie die restlichen Tasten */
-    #playback-bar #btn-prev, 
-    #playback-bar #btn-next,
-    #playback-bar #btn-eco { 
-        flex: 1; 
-    }
+    #tracklist { max-height: 250px; }
+    #tracklist li { padding: 10px 12px; margin-bottom: 2px; }
     
-    #playback-bar #btn-play { 
-        flex: 2; 
-        font-weight: bold; 
-    }
+    #brand-logo { top: 10px; left: 10px; }
+    .brand-main { font-size: 14px; margin-bottom: 6px; }
+    .brand-sub { font-size: 7px; letter-spacing: 5px; }
     
-    /* Griffige Touch-Tastenhöhe */
-    #playback-bar .controls button {
-        padding: 14px 0; 
-        font-size: calc(var(--font-size-base) * 1.3); 
-    }
+    #chip-hud { width: 94%; top: 10px; right: 3%; padding: 8px; z-index: 110; }
+    #chip-hud.collapsed { width: auto; right: 10px; }
 
-    /* Tracklist Touch-Friendly machen & Höhe limitieren */
-    #tracklist {
-        max-height: 250px; 
-    }
-    
-    #tracklist li {
-        /* UI FIX: Breiteres horizontales Padding für komfortable Daumen-Steuerung
-           auf allen Mobilgeräten (C64, Amiga & Atari gleich!) */
-        padding: 10px 12px; /* Vorher: 10px 5px */
-        margin-bottom: 2px;
-    }
-    
-    /* Logo auf Handys weiter verkleinern (verhindert Kollision mit C64 HUD) */
-    #brand-logo {
-        top: 30px;  /* FIX: Erhöht auf 35px, um dem Glow genug Raum nach oben zu geben! */
-        left: 30px;
-    }
-    
-    /* NEU & FIX: Mobile-Glow herunterskalieren, um Clipping am Rand komplett zu verhindern! */
-    #brand-logo.demo-mode-active::before {
-        top: -20px;
-        left: -20px;
-        width: calc(100% + 40px);
-        height: calc(100% + 40px);
-    }
-    .brand-main { 
-        font-size: 14px; 
-        margin-bottom: 6px; /* <-- Erhöht, damit der 3D-Schatten "FANTASY" nicht schluckt */
-    }
-    .brand-sub { 
-        font-size: 7px; 
-        letter-spacing: 5px; 
-    }
+    .atari-analyzer-grid { grid-template-columns: 1fr; gap: 5px; }
+    .hud-row label { width: 55px; }
+    .hud-channel { margin-bottom: 5px; padding-bottom: 5px; }
 
-    /* 3. Das HUD (DSP Matrix) komprimieren */
-    #chip-hud {
-        width: 94%;
-        top: 10px;
-        right: 3%;
-        padding: 8px;
-        z-index: 110; /* FIX 2B: Liegt jetzt ÜBER der Sticky-Bar (z-index: 100)! */
-    }
-
-    #chip-hud.collapsed {
-        width: auto;
-        right: 10px; 
-    }
-
-    /* Das Atari Analyzer-Grid von 2 auf 1 Spalte umbrechen */
-    .atari-analyzer-grid {
-        grid-template-columns: 1fr;
-        gap: 5px;
-    }
-
-    /* Balken im HUD leicht anpassen */
-    .hud-row label {
-        width: 55px; 
-    }
-    
-    .hud-channel {
-        margin-bottom: 5px;
-        padding-bottom: 5px;
+    /* NEU: Kompakte Gehäusehöhe für Mobilgeräte */
+    .silicon-chassis {
+        height: 180px; 
     }
 }
 
-/* Blendet den Cursor im Vollbildmodus bei Inaktivität aus */
-#visual-zone.no-cursor {
-    cursor: none !important;
+.fs-track-info { display: none; }
+#visual-zone.pseudo-fullscreen #fs-ui-bar {
+    bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+    right: calc(15px + env(safe-area-inset-right)) !important;
 }
-#visual-zone.no-cursor * {
-    cursor: none !important;
-}
-/* =========================================
-   AMIGA HUD POWER LED UPGRADE (Touch Friendly)
-========================================= */
+
+#visual-zone.no-cursor, #visual-zone.no-cursor * { cursor: none !important; }
+
 #amiga-led-pwr {
-    /* Vergrößert die Trefferfläche massiv auf 16x16 Pixel */
-    width: 16px !important;
-    height: 16px !important;
-    border-width: 2px !important;
-    cursor: pointer;
-    
-    /* Sanfter Feder-Effekt für taktiles Feedback */
+    width: 16px !important; height: 16px !important; border-width: 2px !important; cursor: pointer;
     transition: transform 0.1s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
+#amiga-led-pwr:hover { transform: scale(1.18); }
+#amiga-led-pwr:active { transform: scale(0.85); }
 
-/* Vergrößert sich dezent beim Drüberfahren (Hover) */
-#amiga-led-pwr:hover {
-    transform: scale(1.18);
+#visual-zone.no-cursor #chip-hud.collapsed { opacity: 0; pointer-events: none; }
+
+/* =========================================
+   9. LIVING SILICON STYLING (HARDWARE LABORATORY)
+========================================= */
+#living-silicon-container {
+    flex-shrink: 0; 
+    width: 100%;
+    display: block;
 }
 
-/* Federt elastisch zusammen beim Klicken (Active) */
-#amiga-led-pwr:active {
-    transform: scale(0.85);
+.silicon-chassis {
+    height: 250px; /* Erhöht auf 250px für maximale Gehäusebreite auf Desktop-Monitoren */
+    background: var(--screen-bg);
+    border-top: 3px solid var(--chassis-dark);
+    border-left: 3px solid var(--chassis-dark);
+    border-bottom: 2px solid var(--chassis-light);
+    border-right: 2px solid var(--chassis-light);
+    box-shadow: inset 0 4px 15px rgba(0, 0, 0, 0.9);
+    padding: 10px;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.silicon-chassis svg {
+    width: 100%;
+    height: 100%;
+    max-height: 100%; /* Erlaubt dem SVG, die vollen 250px auszunutzen */
+    display: block;
+}
+
+/* Erbt die Retro-System-Schriftarten (Press Start 2P / VT323) für die Chip-Beschriftung */
+.silicon-chassis text {
+    font-family: var(--font-main);
+    font-weight: normal; /* "bold" bei C64 Font führt oft zu Unschärfe, normal ist schärfer */
+    user-select: none;
+    -webkit-font-smoothing: none; /* Erzwingt knackige Kanten im SVG */
+    font-smooth: never;
+}
+
+.silicon-chip-body {
+    fill: #1c1c1c;
+    stroke: var(--chassis-dark);
+    stroke-width: 2px;
+}
+
+.silicon-pin {
+    fill: var(--panel-text);
+    stroke: var(--chassis-dark);
+    stroke-width: 1px;
+    transition: fill 0.05s ease, filter 0.05s ease;
+}
+
+.silicon-chip-label {
+    font-size: 10px !important;
+    letter-spacing: 0.5px;
+}
+
+.silicon-die-bus {
+    transition: stroke 0.05s ease, opacity 0.05s ease;
 }
 
 /* =========================================
-   FULLSCREEN HUD AUTO-FADE LOGIC
-========================================= */
-/* Blendet das eingeklappte (collapsed) HUD im Vollbild bei Inaktivität komplett aus.
-   Sobald geklickt oder die Maus bewegt wird, fadet es sofort wieder ein! */
-#visual-zone.user-inactive #chip-hud.collapsed {
-    opacity: 0;
-    pointer-events: none;
+   10. SILICON DIE SIGNAL-FLOW KEYFRAMES
+   ========================================= */
+@keyframes signal-pulse-right {
+    to {
+        stroke-dashoffset: -20;
+    }
+}
+
+.signal-bus {
+    stroke-dasharray: 6, 6;
+    animation: signal-pulse-right 1s linear infinite;
+    stroke-linecap: round;
+    transition: opacity 0.1s ease, stroke 0.1s ease, filter 0.1s ease;
+}
+
+/* =========================================
+   11. TERMINAL CARDS & HEX GRIDS (MUSEUM)
+   ========================================= */
+.terminal-card {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--chassis-dark);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-left: 1px solid rgba(255, 255, 255, 0.05);
+    margin-bottom: 15px;
+    padding: 12px;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.terminal-card-header {
+    color: var(--highlight-color);
+    border-bottom: 1px dashed var(--panel-text);
+    padding-bottom: 5px;
+    margin-bottom: 10px;
+    font-size: calc(var(--font-size-base) * 0.9);
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+.terminal-grid {
+    display: grid;
+    /* 4 Spalten: Label -> Wert -> Label -> Wert */
+    grid-template-columns: auto 1fr auto 1fr;
+    gap: 6px 12px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px; /* Sehr kleine, dichte Nerd-Schrift */
+    color: var(--text-color);
+    line-height: 1.4;
+}
+
+.terminal-grid .lbl {
+    color: var(--panel-text);
+}
+
+.terminal-grid .val {
+    color: var(--highlight-color);
+    text-align: left;
+}
+
+/* =========================================
+   12. THE ACTIVE TRACK GLOW
+   ========================================= */
+.active-track {
+    /* Fügt Hardware-Scanlines und invertierte Farben zusammen */
+    background: linear-gradient(rgba(255, 255, 255, 0.15) 50%, transparent 50%), var(--text-color) !important;
+    background-size: 100% 4px !important;
+    color: var(--screen-bg) !important; 
+    font-weight: bold;
+    border-bottom-color: transparent !important;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.5), 2px 2px 5px rgba(0,0,0,0.5);
+}
+
+.active-track::before {
+    opacity: 1 !important;
+    content: "█ " !important; /* Block-Cursor statt einfachem '>' */
+    animation: c64-blink 0.8s steps(2, start) infinite; 
+}
+
+/* =========================================
+   14. CINEMATIC BOOT & STATE TRANSITIONS
+   ========================================= */
+body.system-transitioning #ui-zone,
+body.system-transitioning #living-silicon-container,
+body.system-transitioning #chip-hud,
+body.system-transitioning #playback-bar {
+    animation: power-flicker 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+    pointer-events: none; /* Blockiert Klicks während des Schaltvorgangs */
+}
+
+@keyframes power-flicker {
+    0%   { filter: brightness(1) contrast(1); }
+    15%  { filter: brightness(0.2) contrast(1.5); opacity: 0.8; }
+    30%  { filter: brightness(0.8) contrast(1.2); opacity: 0.95; }
+    50%  { filter: brightness(0.1) contrast(2.0); opacity: 0.6; } /* Blackout Peak */
+    70%  { filter: brightness(0.6) contrast(1.4); opacity: 0.9; }
+    85%  { filter: brightness(0.3) contrast(1.8); opacity: 0.7; }
+    100% { filter: brightness(1) contrast(1); opacity: 1; }
+}
+
+/* =========================================
+   15. PURE AUDIO / ECO MODE STANDBY (TIEFSCHLAF)
+   ========================================= */
+/* Versetzt das gesamte Silizium-Die in ein kaltes, stromloses Standby-Grau */
+body.eco-mode .silicon-chassis {
+    filter: brightness(0.12) grayscale(0.95) !important;
+    border-top-color: var(--chassis-dark) !important;
+    border-left-color: var(--chassis-dark) !important;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,1) !important;
+    transition: filter 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* Friert die Elektronenströme auf den Datenbussen sofort ein */
+body.eco-mode .signal-bus {
+    animation-play-state: paused !important;
+    stroke: var(--chassis-dark) !important;
+    opacity: 0.1 !important;
+    filter: none !important;
+}
+
+/* Dimmt das Scroller-Display unten im Standby ebenfalls tief ab */
+body.eco-mode #scroller-zone {
+    filter: brightness(0.08) !important;
+    transition: filter 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
 }

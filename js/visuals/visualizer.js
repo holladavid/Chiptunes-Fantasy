@@ -8,6 +8,8 @@ import { SceneDJ } from './scene-dj.js';
 import { dseRegistry } from './dse/registry.js';
 import { FftAnalyzer } from './components/fft-analyzer.js';
 import { Oscilloscope } from './components/oscilloscope.js';
+import { LivingSilicon } from '../ui/living-silicon.js';
+import { CrtGlitch } from './components/crt-glitch.js';
 
 // NEU: Statisches, prä-allozierte Null-Array zur Vermeidung von Heap-Garbages bei Inaktivität
 const zeroVolumes = new Float32Array(4);
@@ -19,9 +21,32 @@ export function initVisuals(stateGetters, callbacks) {
     const ctx = canvas.getContext('2d', { alpha: false }); 
 
     // =========================================================
-    // INITIALISIERUNG SCENE-DJ (Zuerst deklarieren!)
+    // INITIALISIERUNG SCENE-DJ (Hardware Rebootable)
     // =========================================================
-    const dss = new SceneDJ();
+    let dss = null;
+    
+    function wireSiliconDJ() {
+        dss = new SceneDJ();
+        dseRegistry.forEach(entry => {
+            try {
+                const effectInstance = new entry.Class();
+                effectInstance.metadata = entry.metadata; 
+                dss.registerDSE(effectInstance);
+            } catch (err) {
+                console.error(`[SCENE-DJ] Failed to register DSE: ${entry.Class.name}`, err);
+            }
+        });
+    }
+    
+    wireSiliconDJ(); // Kaltstart beim Boot
+
+    // Horcht auf den physischen Power-Cycle und flusht den RAM
+    window.addEventListener('hardware-power-cycle', () => {
+        wireSiliconDJ();
+        const sys = document.body.classList.contains('theme-atari') ? 'atari' : (document.body.classList.contains('theme-amiga') ? 'amiga' : 'c64');
+        dss.forceSystemChange(sys);
+        dss.resize(canvas.width, canvas.height); // Skalierung für neue DSEs wiederherstellen
+    });
 
     // =========================================================
     // AUTO-REGISTER ALL DEMO-SCENE-ELEMENTS WITH METADATA CONTRACT
@@ -40,6 +65,7 @@ export function initVisuals(stateGetters, callbacks) {
     // Core UI (Vom DJ unabhängig)
     const fft = new FftAnalyzer();
     const osc = new Oscilloscope(canvas.width, canvas.height);
+    const glitch = new CrtGlitch(); // NEU: Instanziiert den Glitcher
 
     // --- INTERACTIVE GIMMICK STATE & TOGGLE ---
     let showGimmick = false;
@@ -109,6 +135,8 @@ export function initVisuals(stateGetters, callbacks) {
         ctx.setLineDash([]); 
     }
 
+    let lastDrawTime = performance.now(); // NEU: Außerhalb von draw() definieren!
+
     function draw() {
         if (stateGetters.getEcoMode()) {
             callbacks.updateTimelineUI(); 
@@ -116,8 +144,11 @@ export function initVisuals(stateGetters, callbacks) {
             return; 
         }
 
-        const t = (performance.now() - startTime) * 0.001; 
-        
+        const now = performance.now();
+        const t = (now - startTime) * 0.001; 
+        let dt = (now - lastDrawTime) * 0.001;
+        if (dt > 0.1) dt = 0.016; // FPS-Drop Protection
+        lastDrawTime = now;        
         ctx.fillStyle = '#000000'; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
@@ -132,12 +163,22 @@ export function initVisuals(stateGetters, callbacks) {
         }
 
         // =========================================================
-        // FIX: Sicheres Ausblenden bei Pause (Kein Einfrieren mehr!)
+        // REAL-TIME REGISTER INTEGRATION
+        // Speist das Register-Frame & die Systemzeit in das Die-Layout
         // =========================================================
         const isPlaying = stateGetters.getIsPlaying();
         const channelVolumes = (isPlaying && stateGetters.getChannelVolumes) 
             ? stateGetters.getChannelVolumes() 
             : zeroVolumes;
+
+        const currentRegs = (isPlaying && stateGetters.getCurrentChipRegs)
+            ? stateGetters.getCurrentChipRegs()
+            : null;
+
+        const activeSilicon = document.getElementById('living-silicon-container');
+        if (activeSilicon && window.siliconVisualizerInstance) {
+            window.siliconVisualizerInstance.update(channelVolumes, currentRegs, t);
+        }
 
          // NEU: Session ID aus der App-Logik abfragen
         const sessionId = stateGetters.getPlaybackSessionId ? stateGetters.getPlaybackSessionId() : 0;
@@ -157,6 +198,9 @@ export function initVisuals(stateGetters, callbacks) {
             osc.render(ctx, canvas.width, canvas.height, stateGetters, lineColor);
             fft.render(ctx, canvas.width, canvas.height, stateGetters, lineColor);
         }
+
+        // NEU: Globaler Hardware-Glitch post-processing Pass
+        glitch.render(ctx, canvas.width, canvas.height, dt);
 
         hudCounter++;
         callbacks.updateTimelineUI();

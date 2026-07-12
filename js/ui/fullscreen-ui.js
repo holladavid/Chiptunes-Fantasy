@@ -12,11 +12,12 @@ export class FullscreenUI {
         this.btnPrev = document.getElementById('fs-btn-prev');
         this.btnNext = document.getElementById('fs-btn-next');
         
-        // WICHTIG: stopPropagation verhindert, dass ein Klick auf "Pause" 
-        // gleichzeitig das Easteregg-Gimmick (Logo-Klick-Event-Listener auf dem Container) umschaltet!
         if (this.btnPlay) this.btnPlay.addEventListener('click', (e) => { e.stopPropagation(); callbacks.onTogglePlay(); });
         if (this.btnPrev) this.btnPrev.addEventListener('click', (e) => { e.stopPropagation(); callbacks.onPrev(); });
         if (this.btnNext) this.btnNext.addEventListener('click', (e) => { e.stopPropagation(); callbacks.onNext(); });
+
+        // NEU: Sofortige Synchronisation des Play-Zustands beim Laden der Klasse
+        this.updatePlayState(false);
     }
 
     updateTrack(title) {
@@ -27,8 +28,13 @@ export class FullscreenUI {
 
     updatePlayState(isPlaying) {
         if (this.btnPlay) {
-            // Tracker-typische Play/Pause ASCII Symbole
-            this.btnPlay.innerText = isPlaying ? '||' : '>';
+            this.btnPlay.innerText = isPlaying ? '[ HALT BUS ]' : '[ INJECT ROM ]';
+        }
+        
+        // Aktualisiere auch den Haupt-Button in der Playback-Bar
+        const mainPlayBtn = document.getElementById('btn-play');
+        if (mainPlayBtn) {
+            mainPlayBtn.innerText = isPlaying ? '[ HALT BUS ]' : '[ INJECT ROM ]';
         }
     }
 }
