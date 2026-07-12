@@ -476,14 +476,6 @@ function setTheme(themeName) {
     renderTracklist(activeSystem);
     stopPlayback(); 
 
-    const headerTitles = {
-        'c64': '>>> INFO: MOS Technology SID 6581',
-        'amiga': '>>> INFO: MOS Paula 8364',
-        'atari': '>>> INFO: Yamaha YM2149 (Atari ST)'
-    };
-    const headerEl = document.querySelector('.museum-header h2');
-    if (headerEl) headerEl.innerText = headerTitles[activeSystem];
-
     document.getElementById('info-text').innerHTML = `
         ${systemDescriptions[activeSystem]}
         <div>
