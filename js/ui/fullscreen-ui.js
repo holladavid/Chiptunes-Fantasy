@@ -27,8 +27,13 @@ export class FullscreenUI {
 
     updatePlayState(isPlaying) {
         if (this.btnPlay) {
-            // Tracker-typische Play/Pause ASCII Symbole
-            this.btnPlay.innerText = isPlaying ? '||' : '>';
+            this.btnPlay.innerText = isPlaying ? '[ HALT BUS ]' : '[ INJECT ROM ]';
+        }
+        
+        // Aktualisiere auch den Haupt-Button in der Playback-Bar
+        const mainPlayBtn = document.getElementById('btn-play');
+        if (mainPlayBtn) {
+            mainPlayBtn.innerText = isPlaying ? '[ HALT BUS ]' : '[ INJECT ROM ]';
         }
     }
 }

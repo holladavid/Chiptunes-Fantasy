@@ -679,59 +679,64 @@ async function selectAndPlayTrack(index, system) {
             }
 
             let meta = parsedFile.metadata;
-            currentScrollerText = isAmigaSystem
-                ? `+++ BOOM! SUCCESSFULLY DECODED AMIGA MODULE +++ NOW PLAYING: ${meta.name.toUpperCase()} BY ${meta.author.toUpperCase()} +++ FORMAT: ${meta.type} +++ THIS IS PURE PROTRACKER MAGIC +++ `
-                : (isC64System
-                    ? `+++ BOOM! SUCCESSFULLY CRACKED OPEN BINARY PSID FILE +++ NOW PLAYING: ${meta.name.toUpperCase()} BY ${meta.author.toUpperCase()} +++ FORMAT: ${meta.type} +++ CRANK UP THE VOLUME AND LET THE ANALOG SID FILTERS SHINE +++ `
-                    : `+++ BOOM! SUCCESSFULLY CRACKED OPEN BINARY FILE +++ NOW PLAYING: ${meta.name.toUpperCase()} BY ${meta.author.toUpperCase()} +++ COMMENT ALONG THE RIDE: ${meta.comment.toUpperCase() || "NO COMMENT"} +++ CRANK UP THE GAIN AND LET THE YM2149 MELT YOUR SPEAKERS +++ `);
+            let gridHTML = "";
 
-            let techInfo = "";
             if (isAmigaSystem) {
-                techInfo += `<p><strong>File Signature:</strong> ${meta.type}</p>`;
-                techInfo += `<p><strong>Size in Memory:</strong> ${meta.fileSize.toLocaleString('de-DE')} Bytes</p>`;
-                techInfo += `<p><strong>Structure:</strong> ${meta.patternCount} Patterns, ${meta.instrumentCount} Synthesized Amiga Instruments</p>`;
-                techInfo += `<p><strong>Paula Configuration:</strong> 4 Channels, Direct DMA emulation</p>`;
+                gridHTML = `
+                    <span class="lbl">[TYPE]</span> <span class="val">${meta.type}</span>
+                    <span class="lbl">[CHNL]</span> <span class="val">4 DMA</span>
+                    <span class="lbl">[SIZE]</span> <span class="val">${Math.floor(meta.fileSize / 1024)} KB</span>
+                    <span class="lbl">[PATT]</span> <span class="val">${meta.patternCount}</span>
+                    <span class="lbl">[SMPL]</span> <span class="val">${meta.instrumentCount}</span>
+                    <span class="lbl">[FILT]</span> <span class="val">LED+RC</span>
+                `;
             } else if (isC64System) {
-                techInfo += `<p><strong>File Signature:</strong> ${meta.type}</p>`;
-                techInfo += `<p><strong>Size in Memory:</strong> ${meta.fileSize.toLocaleString('de-DE')} Bytes</p>`;
-                techInfo += `<p><strong>SID Address Space:</strong> Load: ${meta.loadAddress} | Init: ${meta.initAddress} | Play: ${meta.playAddress}</p>`;
-                techInfo += `<p><strong>Song Data:</strong> ${meta.songs} Subsong(s) detected, starting with Song ${meta.startSong}</p>`;
-                techInfo += `<p><strong>SID Core:</strong> 6502 Emulator, MOS SID 6581, 3 Voices, Analog SVF filtering</p>`;
+                gridHTML = `
+                    <span class="lbl">[ADDR]</span> <span class="val">${meta.loadAddress}</span>
+                    <span class="lbl">[SONG]</span> <span class="val">${meta.startSong}/${meta.songs}</span>
+                    <span class="lbl">[INIT]</span> <span class="val">${meta.initAddress}</span>
+                    <span class="lbl">[SIZE]</span> <span class="val">${Math.floor(meta.fileSize / 1024)} KB</span>
+                    <span class="lbl">[PLAY]</span> <span class="val">${meta.playAddress}</span>
+                    <span class="lbl">[FILT]</span> <span class="val">ANALOG</span>
+                `;
             } else {
-                techInfo = `<p><strong>File Signature:</strong> ${meta.type} (De-interleaved)</p>`;
-                techInfo += `<p><strong>Length:</strong> ${trackData.length} Frames @ 50Hz VBLANK</p>`;
-                
-                if (meta.digidrumCount > 0) {
-                    techInfo += `<p style="margin-top: 5px;"><strong>PCM Data:</strong> ${meta.digidrumCount} Digidrum(s) detected!</p>`;
-                    let sizes = meta.digidrumSizes.map(s => s.toLocaleString('de-DE') + ' Bytes').join(' / ');
-                    techInfo += `<p style="font-size: 0.9em; margin-left: 10px; color: var(--text-color); opacity: 0.8;">&gt; Sample sizes: [ ${sizes} ]</p>`;
-                } else {
-                    techInfo += `<p style="margin-top: 5px;"><strong>PCM Data:</strong> None. 100% pure synthesized chip magic.</p>`;
-                }
+                let pcmText = meta.digidrumCount > 0 ? `${meta.digidrumCount} SMP` : "NONE";
+                gridHTML = `
+                    <span class="lbl">[TYPE]</span> <span class="val">${meta.type}</span>
+                    <span class="lbl">[CHNL]</span> <span class="val">3+1</span>
+                    <span class="lbl">[LENG]</span> <span class="val">${trackData.length} F</span>
+                    <span class="lbl">[P_CM]</span> <span class="val">${pcmText}</span>
+                    <span class="lbl">[RATE]</span> <span class="val">50 Hz</span>
+                    <span class="lbl">[MIX ]</span> <span class="val">LOG-5</span>
+                `;
             }
-
-            let dynamicHTML = `
-                <div style="margin-top: 15px; padding: 10px 15px; background: rgba(0,0,0,0.2); border-left: 4px solid var(--highlight-color); position: relative;">
-                    <p style="color: var(--highlight-color); margin-bottom: 8px;"><strong>[ BINARY FILE ANALYSIS ]</strong></p>
-                    ${techInfo}
-                </div>
-            `;
 
             const systemText = (typeof systemDescriptions !== 'undefined' && systemDescriptions[system]) 
                 ? systemDescriptions[system] 
-                : '<p style="color: var(--text-color);">[ Museumdatenarchiv geladen, Beschreibung temporär nicht verfügbar ]</p>';
+                : '<p style="color: var(--text-color);">[ NO ARCHIVE DATA ]</p>';
 
+            // Z-Depth Card Layout
             document.getElementById('info-text').innerHTML = `
-                <div style="margin-bottom: 20px;">
-                    <h2 style="color: var(--highlight-color);">&gt; NOW PLAYING:</h2>
-                    <p style="font-size: 1.2em; padding-top: 5px;">${selectedSong.title}</p>
+                <div class="terminal-card">
+                    <div class="terminal-card-header">&gt; NOW PLAYING</div>
+                    <div style="font-size: 1.2em; padding: 5px 0;">${selectedSong.title}</div>
                 </div>
-                ${selectedSong.composerInfo ? `<div style="margin-bottom: 15px; line-height:1.6;">${selectedSong.composerInfo}</div>` : ''}
-                ${dynamicHTML}
-                <div style="margin-top: 30px; padding-top: 15px;">
+
+                <div class="terminal-card">
+                    <div class="terminal-card-header">&gt; BINARY ANALYSIS</div>
+                    <div class="terminal-grid">
+                        ${gridHTML}
+                    </div>
+                </div>
+
+                ${selectedSong.composerInfo ? `
+                <div class="terminal-card">
+                    ${selectedSong.composerInfo}
+                </div>` : ''}
+
+                <div class="terminal-card" style="margin-top: 20px;">
                     ${systemText}
                 </div>
-                <p class="blinking-cursor" style="margin-top: 15px;">_</p>
             `;
 
             // --- NEU: HIER IST DER RICHTIGE ORT! ---
@@ -749,22 +754,24 @@ async function selectAndPlayTrack(index, system) {
             : '<p style="color: var(--text-color);">[ Museumdatenarchiv geladen ]</p>';
 
         document.getElementById('info-text').innerHTML = `
-            <div style="margin-bottom: 20px;">
-                <h2 style="color: var(--highlight-color);">&gt; NOW PLAYING:</h2>
-                <p style="font-size: 1.2em; padding-top: 5px;">${selectedSong.title}</p>
+            <div class="terminal-card">
+                <div class="terminal-card-header">&gt; NOW PLAYING</div>
+                <div style="font-size: 1.2em; padding: 5px 0;">${selectedSong.title}</div>
             </div>
-            ${selectedSong.composerInfo}
-            <div style="margin-top: 30px; padding-top: 15px;">
+            
+            ${selectedSong.composerInfo ? `
+            <div class="terminal-card">
+                ${selectedSong.composerInfo}
+            </div>` : ''}
+
+            <div class="terminal-card" style="margin-top: 20px;">
                 ${systemText}
             </div>
-            <p class="blinking-cursor" style="margin-top: 15px;">_</p>
         `;
         currentScrollerText = "+++ NOW PLAYING: " + selectedSong.title + " +++";
         trackData = selectedSong.generator();
-
         startPlayback();
     }
-
     if (fsUI) fsUI.updateTrack(selectedSong.title);
 
 }
