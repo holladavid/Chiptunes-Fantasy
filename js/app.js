@@ -527,6 +527,15 @@ async function setTheme(themeName, isBootSequence = false) {
     currentChipRegs = null;
     
     resetHUD();
+
+    // =========================================================
+    // FIX: Fullscreen Presenter-Box Reset
+    // Löscht den Ghost-Track aus dem UI Overlay!
+    // =========================================================
+    if (fsUI) {
+        fsUI.updateTrack("[ AWAITING INJECTION ]");
+        fsUI.updatePlayState(false);
+    }
     
     document.getElementById('progress-slider').value = 0;
     document.getElementById('progress-slider').disabled = true;
