@@ -1,7 +1,7 @@
 # Chiptunes Fantasy
 
 ### The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator
-**Version 1.4.0-beta.1 [The Hardware Laboratory]**
+**Version 1.4.0-beta.2 [Living Silicon Refinement & Responsive Architecture]**
 
 Built with 100% vanilla HTML5, CSS3, and modern Web Audio API. No MP3s, no pre-rendered streams — just pure mathematical real-time synthesis running asynchronously inside low-latency AudioWorklets. From nerds, for nerds.
 
@@ -40,3 +40,9 @@ We abolished analog volume-guessing. The `TrackMonitor` now hooks directly into 
 *   **Amiga Boing Ball (1984 Tribute):** Ein historisch akkurates 16x14-Demoszene-Mesh mit starrer 3D-Kinematik, 17-Grad-Neigung und originaler parabolischer Schwerkraft-Physik.
 *   **Environmental Sensor Bay:** Live-Diagnostik der virtuellen analogen Ströme. Simuliert dynamische Spannungsabfälle (Voltage Sags) bei tiefen Frequenzen, Transistor-Bias-Drifts und thermische Rauschpegel.
 *   **Cinematic CRT Transitions:** Asynchroner Systemwechsel, der einen gefrästen Relais-Chassis-Reset mit Stromschwankungen, weichem FFT-Physik-Absturz und einem CRT-Degauss-Glitch auf dem Canvas verbindet.
+
+*   **Strategy-Pattern Chip Emulation:** Die `LivingSilicon`-Klasse wurde von einer monolithischen Klasse in einen schlanken Orchestrator refaktorisiert. Die globalen Hardware-Schnittstellen (Pins generieren, Bus-Ströme steuern) werden über eine `BaseChip`-Mutterklasse vererbt, während die chip-spezifischen Schaltpläne (Registerschnittstellen, Gatter-Layouts, Signal-Weichen) in eigenständigen Modulen gekapselt sind:
+    *   `Sid6581`: Verwaltet die ADSR-Envelopes und das dynamische VCF-Filter-Bypass-Routing.
+    *   `Paula8364`: Verwaltet den DMA-Zustand und das physische L-R-R-L-Stereo-Routing.
+    *   `Ym2149`: Verwaltet die Mixer-Matrix (Reg 7), die Rauschfrequenzen und die Hüllkurvenformen.
+*   **Database & Archive Expandability:** Über eine neue Systemleiste oberhalb der Museums-Inhalte lässt sich das Living-Silicon-Modul temporär abschalten. Dadurch dehnt sich das Lese-Terminal flexibel über die gesamte rechte Konsolen-Spalte aus.
