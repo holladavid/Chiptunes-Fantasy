@@ -413,7 +413,7 @@ details[open] > summary::before { content: "[-] "; }
 .controls { 
     display: flex; 
     gap: 8px; 
-    flex: 0 0 410px; /* Von 320px auf 410px vergrößert */
+    flex: 0 0 440px; /* Von 410px auf 440px vergrößert für ausfallsicheren Textfluss */
 }
 
 /* Kompakteres Letter-Spacing für sauberen Textitz im Button-Gehäuse */
@@ -436,6 +436,12 @@ details[open] > summary::before { content: "[-] "; }
     
     transition: all 0.05s;
 }
+
+/* GFX FIX: Spezifischer Scaler für die extrem breiten C64-Schriftzeichen */
+body.theme-c64 .controls button {
+    font-size: calc(var(--font-size-base) * 0.82); /* Leicht verkleinert, um Breitenüberlauf zu verhindern */
+}
+
 /* Verhindert zuverlässig den Zeilenumbruch durch überproportionale Flex-Gewichtung */
 #btn-play {
     flex: 2.1 !important; 
