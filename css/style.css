@@ -494,14 +494,15 @@ input[type="range"]::-webkit-slider-thumb {
     width: 20px;
     height: 30px; 
     
-    /* Rillen-Muster für Griffigkeit (ALPS Fader Look) */
+    /* GFX FIX: Neutraler 3D-Schattierungs-Verlauf verhindert optisches Durchbrechen auf schwarzem Grund */
     background: linear-gradient(
         to bottom,
         var(--panel-text) 0%,
-        var(--panel-text) 40%,
-        var(--bg-color) 40%,
-        var(--bg-color) 60%,
-        var(--panel-text) 60%,
+        var(--panel-text) 45%,
+        rgba(0, 0, 0, 0.45) 45%,      /* Tiefe, dunkle Fuge */
+        rgba(255, 255, 255, 0.15) 50%, /* Reflektierende Lichtkante am Fugen-Boden */
+        rgba(0, 0, 0, 0.45) 55%,      /* Tiefe, dunkle Fuge */
+        var(--panel-text) 55%,
         var(--panel-text) 100%
     );
     border: 1px solid var(--chassis-dark);
@@ -513,11 +514,19 @@ input[type="range"]::-webkit-slider-thumb {
     box-shadow: -2px 3px 6px rgba(0, 0, 0, 0.6);
 }
 
-/* Firefox Fallback */
 input[type="range"]::-moz-range-thumb {
     width: 20px;
     height: 30px;
-    background: linear-gradient(to bottom, var(--panel-text) 0%, var(--panel-text) 40%, var(--bg-color) 40%, var(--bg-color) 60%, var(--panel-text) 60%, var(--panel-text) 100%);
+    background: linear-gradient(
+        to bottom,
+        var(--panel-text) 0%,
+        var(--panel-text) 45%,
+        rgba(0, 0, 0, 0.45) 45%,      /* Tiefe, dunkle Fuge */
+        rgba(255, 255, 255, 0.15) 50%, /* Reflektierende Lichtkante am Fugen-Boden */
+        rgba(0, 0, 0, 0.45) 55%,      /* Tiefe, dunkle Fuge */
+        var(--panel-text) 55%,
+        var(--panel-text) 100%
+    );
     border: 1px solid var(--chassis-dark);
     border-top: 2px solid #fff;
     border-radius: 2px;
