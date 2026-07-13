@@ -56,15 +56,17 @@
                     <span id="hud-title">DSP REGISTERS</span>
                     <div>
                         <button id="btn-hud-info" class="hidden" title="Toggle Cheat Sheet">[?]</button>
-                        <button id="btn-hud-toggle" title="Toggle HUD">[+]</button>
+                        <!-- GFX UPGRADE: Engineer Wording -->
+                        <button id="btn-hud-toggle" title="Toggle Lab Mode">[ LAB MODE: OFF ]</button>
                     </div>
                 </div>
                 
+                <!-- FIX: Der hud-body Block war versehentlich gelöscht worden! -->
                 <div id="hud-body" class="hidden">
                     <div id="hud-matrix"></div>
                     <div id="hud-legend" class="hidden"></div>
                 </div>
-            </div>
+            </div> <!-- FIX: Hier wird das chip-hud sauber geschlossen! -->
 
             <!-- PURE AUDIO OVERLAY -->
             <div id="eco-overlay" class="hidden">

@@ -50,11 +50,27 @@ export class BaseChip {
     cacheDOM() {}
     update(vols, regs, t) {}
 
-    // Mountet den Chip physisch auf das Mainboard
+    // Mountet den Chip physisch auf das Mainboard und injiziert die Flanken-Diagnostik
     mount() {
+        let clockFreq = "1.00 MHz";
+        let regCount = "16";
+        if (this.constructor.name === 'Sid6581') { clockFreq = "0.98 MHz"; regCount = "29"; }
+        else if (this.constructor.name === 'Paula8364') { clockFreq = "3.54 MHz"; regCount = "DMA"; }
+        else if (this.constructor.name === 'Ym2149') { clockFreq = "2.00 MHz"; regCount = "16"; }
+
         this.container.innerHTML = `
             <div class="silicon-chassis">
-                ${this.getSvg()}
+                <div class="silicon-diagnostics diag-left">
+                    <div class="diag-block"><span class="d-lbl">CLOCK</span><span class="d-val">${clockFreq}</span></div>
+                    <div class="diag-block"><span class="d-lbl">BUS</span><span class="d-val blink">ACTIVE</span></div>
+                </div>
+                <div class="silicon-die-wrapper">
+                    ${this.getSvg()}
+                </div>
+                <div class="silicon-diagnostics diag-right">
+                    <div class="diag-block"><span class="d-lbl">REGS</span><span class="d-val">${regCount}</span></div>
+                    <div class="diag-block"><span class="d-lbl">PWR</span><span class="d-val">NOMINAL</span></div>
+                </div>
             </div>
         `;
         this.cacheDOM();

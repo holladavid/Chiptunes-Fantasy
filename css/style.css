@@ -15,7 +15,8 @@
     --screen-bg: #1c1544;     /* Dunkler CRT-Hintergrund */
     
     --font-main: 'Press Start 2P', monospace;
-    --font-size-base: 10px;
+    /* GFX UPGRADE: Fluid Typography wächst dynamisch mit der Bildschirmbreite mit */
+    --font-size-base: clamp(9px, 0.8vw, 12px);
 }
 
 body.theme-amiga {
@@ -31,7 +32,7 @@ body.theme-amiga {
     --screen-bg: #0a0500;     /* Tiefer Bernstein-Glow Background */
     
     --font-main: 'VT323', monospace;
-    --font-size-base: 18px;
+    --font-size-base: clamp(18px, 1.3vw, 22px);
 }
 
 body.theme-atari {
@@ -150,10 +151,10 @@ body, html {
 }
 
 #visual-zone {
-    height: 35vh;
+    /* GFX UPGRADE: Der Analyzer skaliert auf großen Monitoren jetzt wuchtig mit! */
+    height: clamp(200px, 35vh, 450px);
     position: relative;
     background-color: #000;
-    /* Physischer Bevel zum Chassis darunter */
     border-bottom: 4px solid var(--chassis-dark);
     box-shadow: 0 5px 15px rgba(0,0,0,0.8);
     z-index: 10;
@@ -358,13 +359,21 @@ body.theme-amiga .tab-btn.active {
 
 #tracklist li {
     color: var(--text-color); 
-    padding: 8px 10px; 
+    /* GFX UPGRADE: Weniger Padding & Line-Height für Laptops */
+    padding: 6px 8px; 
+    line-height: 1.3;
     cursor: pointer;
     border-bottom: 1px dashed rgba(255, 255, 255, 0.1); 
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+/* GFX UPGRADE: Native Accordion Pfeile überschreiben (Retro Style) */
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary::before { content: "[+] "; color: var(--panel-text); }
+details[open] > summary::before { content: "[-] "; }
 
 #tracklist li:last-child { border-bottom: none; }
 #tracklist li::before { content: "> "; opacity: 0; font-weight: bold; }
@@ -986,41 +995,64 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
 /* =========================================
    9. LIVING SILICON STYLING (HARDWARE LABORATORY)
 ========================================= */
-#living-silicon-container {
-    flex-shrink: 0; 
-    width: 100%;
-    display: block;
-}
+/* =========================================
+   9. LIVING SILICON STYLING (HARDWARE LABORATORY)
+   ========================================= */
+#living-silicon-container { flex-shrink: 0; width: 100%; display: block; }
 
 .silicon-chassis {
-    height: 250px; /* Erhöht auf 250px für maximale Gehäusebreite auf Desktop-Monitoren */
+    /* Wächst auf Widescreens nun mächtig an */
+    height: clamp(180px, 28vh, 320px); 
     background: var(--screen-bg);
-    border-top: 3px solid var(--chassis-dark);
-    border-left: 3px solid var(--chassis-dark);
-    border-bottom: 2px solid var(--chassis-light);
-    border-right: 2px solid var(--chassis-light);
+    border-top: 3px solid var(--chassis-dark); border-left: 3px solid var(--chassis-dark);
+    border-bottom: 2px solid var(--chassis-light); border-right: 2px solid var(--chassis-light);
     box-shadow: inset 0 4px 15px rgba(0, 0, 0, 0.9);
-    padding: 10px;
-    box-sizing: border-box;
-    display: flex;
-    justify-content: center;
+    padding: 15px; box-sizing: border-box;
+    
+    /* GFX UPGRADE: Das 3-Spalten Logic-Analyzer Layout */
+    display: grid;
+    grid-template-columns: 80px 1fr 80px;
+    gap: 15px;
     align-items: center;
 }
 
-.silicon-chassis svg {
-    width: 100%;
-    height: 100%;
-    max-height: 100%; /* Erlaubt dem SVG, die vollen 250px auszunutzen */
-    display: block;
+.silicon-die-wrapper { 
+    width: 100%; 
+    height: 100%; 
+    
+    /* FIX: Zwingt CSS-Grid, das SVG einzusperren anstatt es ausbrechen zu lassen */
+    min-width: 0; 
+    min-height: 0; 
+    
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
 }
 
-/* Erbt die Retro-System-Schriftarten (Press Start 2P / VT323) für die Chip-Beschriftung */
-.silicon-chassis text {
-    font-family: var(--font-main);
-    font-weight: normal; /* "bold" bei C64 Font führt oft zu Unschärfe, normal ist schärfer */
-    user-select: none;
-    -webkit-font-smoothing: none; /* Erzwingt knackige Kanten im SVG */
-    font-smooth: never;
+.silicon-die-wrapper svg { 
+    width: 100%; 
+    height: 100%; 
+    max-height: 100%; 
+    display: block; 
+}
+
+/* Flanken-Diagnostik */
+.silicon-diagnostics {
+    display: flex; flex-direction: column; justify-content: space-around;
+    height: 60%; text-align: center;
+}
+.diag-block { display: flex; flex-direction: column; gap: 6px; }
+.d-lbl { font-size: 8px; color: var(--panel-text); font-family: 'Press Start 2P', monospace; opacity: 0.8; }
+.d-val { font-size: 10px; color: var(--highlight-color); font-family: 'Press Start 2P', monospace; text-shadow: 0 0 5px var(--highlight-color); }
+
+/* RESPONSIVE DOWN-SCALING */
+@media (max-width: 1400px) {
+    .silicon-chassis {
+        grid-template-columns: 1fr; /* Auf Laptops verschwinden die Flanken, der Chip bekommt 100% Platz */
+        padding: 10px; 
+        height: clamp(160px, 22vh, 220px);
+    }
+    .silicon-diagnostics { display: none; }
 }
 
 .silicon-chip-body {
