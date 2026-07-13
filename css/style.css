@@ -1155,7 +1155,6 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
    12. THE ACTIVE TRACK GLOW
    ========================================= */
 .active-track {
-    /* Fügt Hardware-Scanlines und invertierte Farben zusammen */
     background: linear-gradient(rgba(255, 255, 255, 0.15) 50%, transparent 50%), var(--text-color) !important;
     background-size: 100% 4px !important;
     color: var(--screen-bg) !important; 
@@ -1164,10 +1163,21 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     box-shadow: inset 0 0 10px rgba(0,0,0,0.5), 2px 2px 5px rgba(0,0,0,0.5);
 }
 
+/* Globaler Standard: Wieder zu 100% im fehlerfreien Originalzustand (Amiga & Atari gerettet!) */
 .active-track::before {
     opacity: 1 !important;
     content: "█ " !important; /* Block-Cursor statt einfachem '>' */
     animation: c64-blink 0.8s steps(2, start) infinite; 
+}
+
+/* GFX FIX: Spezifischer Höhen- und Abstands-Ausgleich NUR für das C64-Theme */
+body.theme-c64 .active-track::before {
+    content: "█" !important; /* Entfernt das kollabierende Leerzeichen aus dem String */
+    display: inline-block;
+    vertical-align: middle;
+    transform: translateY(-0.08em); /* Schiebt das Zeichen präzise auf die vertikale Mittelachse */
+    margin-right: 8px; /* Stabiler, hardware-getreuer Abstand zum Track-Text */
+    line-height: 1;
 }
 
 /* =========================================
