@@ -134,8 +134,19 @@ function initApp() {
             }
         });
 
+        // =========================================================
+        // NEU: MUSEUM ARCHIVE TOGGLE SCHALTER VERKABELN
+        // =========================================================
+        const btnToggleArchive = document.getElementById('btn-toggle-archive');
+        if (btnToggleArchive) {
+            btnToggleArchive.addEventListener('click', (e) => {
+                const isExpanded = document.body.classList.toggle('archive-expanded');
+                e.target.innerText = isExpanded ? '[ COLLAPSE ]' : '[ EXPAND ]';
+            });
+        }
+
         // Event-Listener für das Cursor-Hiding binden
-            if (visualZone) {
+        if (visualZone) {
                 visualZone.addEventListener('mousemove', resetMouseIdleTimer);
                 visualZone.addEventListener('mousedown', resetMouseIdleTimer);
                 visualZone.addEventListener('touchstart', resetMouseIdleTimer);
@@ -519,7 +530,7 @@ async function setTheme(themeName, isBootSequence = false) {
     if (hudMain) hudMain.classList.add('collapsed');     
     
     const hudToggleBtn = document.getElementById('btn-hud-toggle');
-    if (hudToggleBtn) hudToggleBtn.innerText = '[+]';
+    if (hudToggleBtn) hudToggleBtn.innerText = '[ LAB MODE: OFF ]';
     
     const infoBtn = document.getElementById('btn-hud-info');
     if (infoBtn) infoBtn.classList.add('hidden');
@@ -767,19 +778,20 @@ async function selectAndPlayTrack(index, system) {
                 ? systemDescriptions[system] 
                 : '<p style="color: var(--text-color);">[ NO ARCHIVE DATA ]</p>';
 
-            // Z-Depth Card Layout
+            // Z-Depth Card Layout mit nativen Accordions
             document.getElementById('info-text').innerHTML = `
                 <div class="terminal-card">
                     <div class="terminal-card-header">&gt; NOW PLAYING</div>
                     <div style="font-size: 1.2em; padding: 5px 0;">${selectedSong.title}</div>
                 </div>
 
-                <div class="terminal-card">
-                    <div class="terminal-card-header">&gt; BINARY ANALYSIS</div>
-                    <div class="terminal-grid">
+                <!-- GFX UPGRADE: Einklappbares Akkordeon für die Binärdaten -->
+                <details class="terminal-card" open>
+                    <summary class="terminal-card-header" style="cursor: pointer; outline: none;">&gt; BINARY ANALYSIS</summary>
+                    <div class="terminal-grid" style="margin-top: 10px;">
                         ${gridHTML}
                     </div>
-                </div>
+                </details>
 
                 ${selectedSong.composerInfo ? `
                 <div class="terminal-card">
@@ -983,12 +995,12 @@ document.getElementById('btn-hud-toggle').addEventListener('click', (e) => {
         body.classList.remove('hidden');
         infoBtn.classList.remove('hidden'); 
         hud.classList.remove('collapsed'); 
-        e.target.innerText = '[-]'; 
+        e.target.innerText = '[ LAB MODE: ON ]'; // NEU
     } else {
         body.classList.add('hidden');
         infoBtn.classList.add('hidden'); 
         hud.classList.add('collapsed'); 
-        e.target.innerText = '[+]'; 
+        e.target.innerText = '[ LAB MODE: OFF ]'; // NEU
         const legend = document.getElementById('hud-legend');
         if (legend) legend.classList.add('hidden');
     }

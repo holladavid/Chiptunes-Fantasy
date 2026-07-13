@@ -15,7 +15,8 @@
     --screen-bg: #1c1544;     /* Dunkler CRT-Hintergrund */
     
     --font-main: 'Press Start 2P', monospace;
-    --font-size-base: 10px;
+    /* GFX UPGRADE: Fluid Typography wächst dynamisch mit der Bildschirmbreite mit */
+    --font-size-base: clamp(9px, 0.8vw, 12px);
 }
 
 body.theme-amiga {
@@ -31,7 +32,7 @@ body.theme-amiga {
     --screen-bg: #0a0500;     /* Tiefer Bernstein-Glow Background */
     
     --font-main: 'VT323', monospace;
-    --font-size-base: 18px;
+    --font-size-base: clamp(18px, 1.3vw, 22px);
 }
 
 body.theme-atari {
@@ -150,10 +151,10 @@ body, html {
 }
 
 #visual-zone {
-    height: 35vh;
+    /* GFX UPGRADE: Der Analyzer skaliert auf großen Monitoren jetzt wuchtig mit! */
+    height: clamp(200px, 35vh, 450px);
     position: relative;
     background-color: #000;
-    /* Physischer Bevel zum Chassis darunter */
     border-bottom: 4px solid var(--chassis-dark);
     box-shadow: 0 5px 15px rgba(0,0,0,0.8);
     z-index: 10;
@@ -358,13 +359,21 @@ body.theme-amiga .tab-btn.active {
 
 #tracklist li {
     color: var(--text-color); 
-    padding: 8px 10px; 
+    /* GFX UPGRADE: Weniger Padding & Line-Height für Laptops */
+    padding: 6px 8px; 
+    line-height: 1.3;
     cursor: pointer;
     border-bottom: 1px dashed rgba(255, 255, 255, 0.1); 
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+/* GFX UPGRADE: Native Accordion Pfeile überschreiben (Retro Style) */
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary::before { content: "[+] "; color: var(--panel-text); }
+details[open] > summary::before { content: "[-] "; }
 
 #tracklist li:last-child { border-bottom: none; }
 #tracklist li::before { content: "> "; opacity: 0; font-weight: bold; }
@@ -404,7 +413,7 @@ body.theme-amiga .tab-btn.active {
 .controls { 
     display: flex; 
     gap: 8px; 
-    flex: 0 0 410px; /* Von 320px auf 410px vergrößert */
+    flex: 0 0 440px; /* Von 410px auf 440px vergrößert für ausfallsicheren Textfluss */
 }
 
 /* Kompakteres Letter-Spacing für sauberen Textitz im Button-Gehäuse */
@@ -427,6 +436,12 @@ body.theme-amiga .tab-btn.active {
     
     transition: all 0.05s;
 }
+
+/* GFX FIX: Spezifischer Scaler für die extrem breiten C64-Schriftzeichen */
+body.theme-c64 .controls button {
+    font-size: calc(var(--font-size-base) * 0.82); /* Leicht verkleinert, um Breitenüberlauf zu verhindern */
+}
+
 /* Verhindert zuverlässig den Zeilenumbruch durch überproportionale Flex-Gewichtung */
 #btn-play {
     flex: 2.1 !important; 
@@ -479,14 +494,15 @@ input[type="range"]::-webkit-slider-thumb {
     width: 20px;
     height: 30px; 
     
-    /* Rillen-Muster für Griffigkeit (ALPS Fader Look) */
+    /* GFX FIX: Neutraler 3D-Schattierungs-Verlauf verhindert optisches Durchbrechen auf schwarzem Grund */
     background: linear-gradient(
         to bottom,
         var(--panel-text) 0%,
-        var(--panel-text) 40%,
-        var(--bg-color) 40%,
-        var(--bg-color) 60%,
-        var(--panel-text) 60%,
+        var(--panel-text) 45%,
+        rgba(0, 0, 0, 0.45) 45%,      /* Tiefe, dunkle Fuge */
+        rgba(255, 255, 255, 0.15) 50%, /* Reflektierende Lichtkante am Fugen-Boden */
+        rgba(0, 0, 0, 0.45) 55%,      /* Tiefe, dunkle Fuge */
+        var(--panel-text) 55%,
         var(--panel-text) 100%
     );
     border: 1px solid var(--chassis-dark);
@@ -498,11 +514,19 @@ input[type="range"]::-webkit-slider-thumb {
     box-shadow: -2px 3px 6px rgba(0, 0, 0, 0.6);
 }
 
-/* Firefox Fallback */
 input[type="range"]::-moz-range-thumb {
     width: 20px;
     height: 30px;
-    background: linear-gradient(to bottom, var(--panel-text) 0%, var(--panel-text) 40%, var(--bg-color) 40%, var(--bg-color) 60%, var(--panel-text) 60%, var(--panel-text) 100%);
+    background: linear-gradient(
+        to bottom,
+        var(--panel-text) 0%,
+        var(--panel-text) 45%,
+        rgba(0, 0, 0, 0.45) 45%,      /* Tiefe, dunkle Fuge */
+        rgba(255, 255, 255, 0.15) 50%, /* Reflektierende Lichtkante am Fugen-Boden */
+        rgba(0, 0, 0, 0.45) 55%,      /* Tiefe, dunkle Fuge */
+        var(--panel-text) 55%,
+        var(--panel-text) 100%
+    );
     border: 1px solid var(--chassis-dark);
     border-top: 2px solid #fff;
     border-radius: 2px;
@@ -551,8 +575,8 @@ input[type="range"]::-moz-range-thumb {
 ========================================= */
 #brand-logo {
     position: absolute;
-    top: 15px;
-    left: 20px;
+    top: 25px;  /* Von 15px auf 25px erhöht für mehr Abstand zum Gehäuserand */
+    left: 30px; /* Von 20px on 30px erhöht für einen edlen Weißraum */
     z-index: 10;
     pointer-events: auto; 
     cursor: pointer;      
@@ -576,27 +600,92 @@ input[type="range"]::-moz-range-thumb {
 
 .brand-sub {
     font-family: 'Press Start 2P', monospace;
-    font-size: 12px;
+    font-size: 11px; /* Minimal kompakter für schärferen Textitz */
     color: var(--highlight-color);
-    letter-spacing: 12px; 
+    letter-spacing: 12px; /* Breites, edles Kerning */
     text-align: right; 
     padding-right: 2px;
-    text-shadow: 0 0 10px var(--text-color), 2px 2px 0px #000000;
+    margin-top: 8px; /* Verschiebt "FANTASY" nach unten, weg von der Chrom-Kante */
+    
+    /* GFX FIX: Kein weichgezeichneter Glow mehr, sondern ein messerscharfer Hardware-Schatten */
+    text-shadow: 1px 1px 0px #000000;
 }
 
+/* =========================================
+   BRANDING LOGO DEMO MODE ACTIVE GLOW
+   ========================================= */
 #brand-logo.demo-mode-active::before {
-    content: ''; position: absolute; top: -30px; left: -30px; width: calc(100% + 60px); height: calc(100% + 60px);
-    z-index: -1; filter: blur(20px); pointer-events: none; border-radius: 50%;
-    animation: pulse-glow 2.5s ease-in-out infinite alternate; transition: background 0.5s ease;
+    content: '';
+    position: absolute;
+    top: -40px;
+    left: -40px;
+    width: calc(100% + 80px);
+    height: calc(100% + 80px);
+    z-index: -1;
+    pointer-events: none;
+    border-radius: 50%;
+    /* Schimmert und rotiert organisch auf der GPU */
+    animation: pulse-glow 3.5s ease-in-out infinite alternate;
+    transition: background 0.5s ease;
 }
 
-body.theme-c64 #brand-logo.demo-mode-active::before { background: radial-gradient(circle, rgba(108, 94, 181, 0.45) 0%, transparent 70%); }
-body.theme-amiga #brand-logo.demo-mode-active::before { background: radial-gradient(circle, rgba(255, 136, 0, 0.35) 0%, transparent 70%); }
-body.theme-atari #brand-logo.demo-mode-active::before { background: radial-gradient(circle, rgba(85, 255, 85, 0.4) 0%, transparent 70%); }
+/* System-spezifische, dreidimensionale Neon-Glows */
+body.theme-c64 #brand-logo.demo-mode-active::before {
+    background: radial-gradient(circle, rgba(108, 94, 181, 0.45) 0%, rgba(53, 40, 121, 0.15) 50%, transparent 70%);
+}
 
-@keyframes pulse-glow { 0% { transform: scale(0.85); opacity: 0.5; } 100% { transform: scale(1.15); opacity: 0.95; } }
-@keyframes float-logo { 0% { transform: translateY(0px) rotate(0deg); } 100% { transform: translateY(6px) rotate(-1deg); } }
-@keyframes chrome-cycle { 0% { background-position: 0% 10%; } 100% { background-position: 0% 90%; } }
+body.theme-amiga #brand-logo.demo-mode-active::before {
+    background: radial-gradient(circle, rgba(255, 136, 0, 0.4) 0%, rgba(255, 51, 0, 0.15) 55%, transparent 75%);
+}
+
+body.theme-atari #brand-logo.demo-mode-active::before {
+    background: radial-gradient(circle, rgba(85, 255, 85, 0.35) 0%, rgba(0, 51, 0, 0.15) 60%, transparent 75%);
+}
+
+/* Nobel und edel pulsierender Back-Glow über CSS-Filter statt unruhigem Text-Schatten */
+#brand-logo.demo-mode-active .brand-main {
+    transition: filter 0.5s ease;
+}
+
+body.theme-c64 #brand-logo.demo-mode-active .brand-main {
+    filter: drop-shadow(1px 1px 0px var(--bg-color)) 
+            drop-shadow(2px 2px 0px var(--bg-color)) 
+            drop-shadow(4px 4px 0px #000000)
+            /* Der weiche, noble Back-Glow sitzt sauber hinter der 3D-Kante */
+            drop-shadow(0 0 10px rgba(108, 94, 181, 0.55));
+}
+
+body.theme-amiga #brand-logo.demo-mode-active .brand-main {
+    filter: drop-shadow(1px 1px 0px var(--bg-color)) 
+            drop-shadow(2px 2px 0px var(--bg-color)) 
+            drop-shadow(4px 4px 0px #000000)
+            drop-shadow(0 0 10px rgba(255, 136, 0, 0.5));
+}
+
+body.theme-atari #brand-logo.demo-mode-active .brand-main {
+    filter: drop-shadow(1px 1px 0px var(--bg-color)) 
+            drop-shadow(2px 2px 0px var(--bg-color)) 
+            drop-shadow(4px 4px 0px #000000)
+            drop-shadow(0 0 10px rgba(85, 255, 85, 0.45));
+}
+
+@keyframes pulse-glow {
+    0% {
+        transform: scale(0.85) rotate(0deg);
+        opacity: 0.5;
+        filter: blur(25px);
+    }
+    50% {
+        opacity: 0.85;
+        filter: blur(18px);
+    }
+    100% {
+        /* Weiche 15-Grad-Rotation erzeugt lebendigen Licht-Schimmer */
+        transform: scale(1.12) rotate(15deg);
+        opacity: 0.65;
+        filter: blur(32px);
+    }
+}
 
 body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: paused !important; }
 
@@ -860,14 +949,34 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     #playback-bar #btn-play { flex: 2; font-weight: bold; }
     
     #playback-bar .controls button { padding: 14px 0; font-size: calc(var(--font-size-base) * 1.3); }
+    
+    #tracklist {
+        max-height: 250px; 
+    }
+    
+    #tracklist li {
+        padding: 10px 12px;
+        margin-bottom: 2px;
+    }
+    
+    /* Logo auf Handys weiter verkleinern und aus der extremen Ecke rücken */
+    #brand-logo {
+        top: 18px;  /* Von 10px auf 18px erhöht */
+        left: 18px; /* Von 10px auf 18px erhöht */
+    }
+    .brand-main { 
+        font-size: 14px; 
+        margin-bottom: 6px;
+    }
+    
+    /* "FANTASY" auch auf Handys sauber abrücken und scharfstellen */
+    .brand-sub { 
+        font-size: 7px; 
+        letter-spacing: 5px; 
+        margin-top: 4px; /* Auch auf Handys etwas mehr Luft nach oben */
+        text-shadow: 1px 1px 0px #000000; /* Scharfer Kontrast-Schatten */
+    }
 
-    #tracklist { max-height: 250px; }
-    #tracklist li { padding: 10px 12px; margin-bottom: 2px; }
-    
-    #brand-logo { top: 10px; left: 10px; }
-    .brand-main { font-size: 14px; margin-bottom: 6px; }
-    .brand-sub { font-size: 7px; letter-spacing: 5px; }
-    
     #chip-hud { width: 94%; top: 10px; right: 3%; padding: 8px; z-index: 110; }
     #chip-hud.collapsed { width: auto; right: 10px; }
 
@@ -901,41 +1010,64 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
 /* =========================================
    9. LIVING SILICON STYLING (HARDWARE LABORATORY)
 ========================================= */
-#living-silicon-container {
-    flex-shrink: 0; 
-    width: 100%;
-    display: block;
-}
+/* =========================================
+   9. LIVING SILICON STYLING (HARDWARE LABORATORY)
+   ========================================= */
+#living-silicon-container { flex-shrink: 0; width: 100%; display: block; }
 
 .silicon-chassis {
-    height: 250px; /* Erhöht auf 250px für maximale Gehäusebreite auf Desktop-Monitoren */
+    /* Wächst auf Widescreens nun mächtig an */
+    height: clamp(180px, 28vh, 320px); 
     background: var(--screen-bg);
-    border-top: 3px solid var(--chassis-dark);
-    border-left: 3px solid var(--chassis-dark);
-    border-bottom: 2px solid var(--chassis-light);
-    border-right: 2px solid var(--chassis-light);
+    border-top: 3px solid var(--chassis-dark); border-left: 3px solid var(--chassis-dark);
+    border-bottom: 2px solid var(--chassis-light); border-right: 2px solid var(--chassis-light);
     box-shadow: inset 0 4px 15px rgba(0, 0, 0, 0.9);
-    padding: 10px;
-    box-sizing: border-box;
-    display: flex;
-    justify-content: center;
+    padding: 15px; box-sizing: border-box;
+    
+    /* GFX UPGRADE: Das 3-Spalten Logic-Analyzer Layout */
+    display: grid;
+    grid-template-columns: 80px 1fr 80px;
+    gap: 15px;
     align-items: center;
 }
 
-.silicon-chassis svg {
-    width: 100%;
-    height: 100%;
-    max-height: 100%; /* Erlaubt dem SVG, die vollen 250px auszunutzen */
-    display: block;
+.silicon-die-wrapper { 
+    width: 100%; 
+    height: 100%; 
+    
+    /* FIX: Zwingt CSS-Grid, das SVG einzusperren anstatt es ausbrechen zu lassen */
+    min-width: 0; 
+    min-height: 0; 
+    
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
 }
 
-/* Erbt die Retro-System-Schriftarten (Press Start 2P / VT323) für die Chip-Beschriftung */
-.silicon-chassis text {
-    font-family: var(--font-main);
-    font-weight: normal; /* "bold" bei C64 Font führt oft zu Unschärfe, normal ist schärfer */
-    user-select: none;
-    -webkit-font-smoothing: none; /* Erzwingt knackige Kanten im SVG */
-    font-smooth: never;
+.silicon-die-wrapper svg { 
+    width: 100%; 
+    height: 100%; 
+    max-height: 100%; 
+    display: block; 
+}
+
+/* Flanken-Diagnostik */
+.silicon-diagnostics {
+    display: flex; flex-direction: column; justify-content: space-around;
+    height: 60%; text-align: center;
+}
+.diag-block { display: flex; flex-direction: column; gap: 6px; }
+.d-lbl { font-size: 8px; color: var(--panel-text); font-family: 'Press Start 2P', monospace; opacity: 0.8; }
+.d-val { font-size: 10px; color: var(--highlight-color); font-family: 'Press Start 2P', monospace; text-shadow: 0 0 5px var(--highlight-color); }
+
+/* RESPONSIVE DOWN-SCALING */
+@media (max-width: 1400px) {
+    .silicon-chassis {
+        grid-template-columns: 1fr; /* Auf Laptops verschwinden die Flanken, der Chip bekommt 100% Platz */
+        padding: 10px; 
+        height: clamp(160px, 22vh, 220px);
+    }
+    .silicon-diagnostics { display: none; }
 }
 
 .silicon-chip-body {
@@ -1023,7 +1155,6 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
    12. THE ACTIVE TRACK GLOW
    ========================================= */
 .active-track {
-    /* Fügt Hardware-Scanlines und invertierte Farben zusammen */
     background: linear-gradient(rgba(255, 255, 255, 0.15) 50%, transparent 50%), var(--text-color) !important;
     background-size: 100% 4px !important;
     color: var(--screen-bg) !important; 
@@ -1032,10 +1163,21 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     box-shadow: inset 0 0 10px rgba(0,0,0,0.5), 2px 2px 5px rgba(0,0,0,0.5);
 }
 
+/* Globaler Standard: Wieder zu 100% im fehlerfreien Originalzustand (Amiga & Atari gerettet!) */
 .active-track::before {
     opacity: 1 !important;
     content: "█ " !important; /* Block-Cursor statt einfachem '>' */
     animation: c64-blink 0.8s steps(2, start) infinite; 
+}
+
+/* GFX FIX: Spezifischer Höhen- und Abstands-Ausgleich NUR für das C64-Theme */
+body.theme-c64 .active-track::before {
+    content: "█" !important; /* Entfernt das kollabierende Leerzeichen aus dem String */
+    display: inline-block;
+    vertical-align: middle;
+    transform: translateY(-0.08em); /* Schiebt das Zeichen präzise auf die vertikale Mittelachse */
+    margin-right: 8px; /* Stabiler, hardware-getreuer Abstand zum Track-Text */
+    line-height: 1;
 }
 
 /* =========================================
@@ -1083,4 +1225,49 @@ body.eco-mode .signal-bus {
 body.eco-mode #scroller-zone {
     filter: brightness(0.08) !important;
     transition: filter 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* =========================================
+   16. MUSEUM TOOLBAR & ARCHIVE TOGGLE
+   ========================================= */
+.museum-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    /* Gefräste Fuge als Trenner zum Silizium */
+    border-bottom: 2px groove var(--chassis-dark); 
+}
+
+.museum-toolbar-title {
+    color: var(--highlight-color);
+    font-size: calc(var(--font-size-base) * 0.9);
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+#btn-toggle-archive {
+    background: var(--chassis-dark);
+    border: 1px solid var(--chassis-light);
+    color: var(--highlight-color);
+    padding: 4px 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: calc(var(--font-size-base) * 0.8);
+    transition: all 0.1s;
+    outline: none;
+}
+
+#btn-toggle-archive:active {
+    transform: translateY(1px);
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+
+/* =========================================
+   ARCHIVE EXPANSION LOGIC
+   ========================================= */
+/* Blendet den Chip aus, wodurch das flex-grow Terminal den Platz übernimmt */
+body.archive-expanded #living-silicon-container {
+    display: none !important;
 }
