@@ -134,8 +134,19 @@ function initApp() {
             }
         });
 
+        // =========================================================
+        // NEU: MUSEUM ARCHIVE TOGGLE SCHALTER VERKABELN
+        // =========================================================
+        const btnToggleArchive = document.getElementById('btn-toggle-archive');
+        if (btnToggleArchive) {
+            btnToggleArchive.addEventListener('click', (e) => {
+                const isExpanded = document.body.classList.toggle('archive-expanded');
+                e.target.innerText = isExpanded ? '[ COLLAPSE ]' : '[ EXPAND ]';
+            });
+        }
+
         // Event-Listener für das Cursor-Hiding binden
-            if (visualZone) {
+        if (visualZone) {
                 visualZone.addEventListener('mousemove', resetMouseIdleTimer);
                 visualZone.addEventListener('mousedown', resetMouseIdleTimer);
                 visualZone.addEventListener('touchstart', resetMouseIdleTimer);
