@@ -13,6 +13,8 @@ import { CrtGlitch } from './components/crt-glitch.js';
 
 // NEU: Statisches, prä-allozierte Null-Array zur Vermeidung von Heap-Garbages bei Inaktivität
 const zeroVolumes = new Float32Array(4);
+const idleRegs = new Uint8Array(32);
+idleRegs[7] = 0xFF; // Schaltet alle Mixer-LED-Gatter des YM2149 im Idle-Modus ab
 
 export function initVisuals(stateGetters, callbacks) {
     const canvas = document.getElementById('demo-canvas');
@@ -171,9 +173,12 @@ export function initVisuals(stateGetters, callbacks) {
             ? stateGetters.getChannelVolumes() 
             : zeroVolumes;
 
-        const currentRegs = (isPlaying && stateGetters.getCurrentChipRegs)
-            ? stateGetters.getCurrentChipRegs()
-            : null;
+        // GFX FIX: Wenn pausiert, übergeben wir das "stromlose" idleRegs Array
+        let currentRegs = idleRegs;
+        if (isPlaying && stateGetters.getCurrentChipRegs) {
+            const r = stateGetters.getCurrentChipRegs();
+            if (r) currentRegs = r;
+        }
 
         const activeSilicon = document.getElementById('living-silicon-container');
         if (activeSilicon && window.siliconVisualizerInstance) {
