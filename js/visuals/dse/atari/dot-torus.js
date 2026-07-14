@@ -3,9 +3,10 @@
 // DEMO-SCENE-ELEMENT: ATARI ST 3D DOT TORUS
 // A tribute to "The Lost Boys" and "Delta Force" 68000 CPU math.
 // Fast point-plotting 3D object with strict 9-bit depth shading.
+// Fixed: Linear FOV projection and responsive dot-sizing!
 // =========================================================
 
-import { quantizeAtari9Bit, rgbToHex } from '../../utils/hardware-constraints.js';
+import { quantizeAtari9Bit, rgbToHex } from '../../../visuals/utils/hardware-constraints.js';
 
 export class AtariDotTorus {
     constructor() {
@@ -13,9 +14,9 @@ export class AtariDotTorus {
         this.computerType = ['atari'];
         this.placementType = 'foreground';
         
-        // Torus Geometrie: u (Ring), v (Röhre)
-        this.uSteps = 36; 
-        this.vSteps = 14; 
+        // Etwas höhere Dichte für bildschirmfüllende Displays
+        this.uSteps = 42; 
+        this.vSteps = 16; 
         this.numDots = this.uSteps * this.vSteps;
         
         // Konstante Parameter der Form
@@ -85,8 +86,9 @@ export class AtariDotTorus {
         const minDim = Math.min(width, height);
         const cx = Math.floor(width / 2);
         const cy = Math.floor(height / 2);
-        const fov = minDim * 1.2;
-        const scale = minDim * 0.28 * beatScale;
+        
+        // GFX FIX: Saubere, lineare Skalierung!
+        const fov = minDim * 1.2 * beatScale;
 
         const rotX = this.internalT * 1.1;
         const rotY = this.internalT * 1.5;
@@ -95,6 +97,9 @@ export class AtariDotTorus {
         const sinX = Math.sin(rotX), cosX = Math.cos(rotX);
         const sinY = Math.sin(rotY), cosY = Math.cos(rotY);
         const sinZ = Math.sin(rotZ), cosZ = Math.cos(rotZ);
+
+        // GFX FIX: Dynamische Punktgröße je nach Retina/Bildschirm-Auflösung
+        const baseDotSize = Math.max(2, Math.floor(minDim * 0.005));
 
         for (let i = 0; i < this.numDots; i++) {
             let dot = this.dots[i];
@@ -118,10 +123,10 @@ export class AtariDotTorus {
             // Tiefe hinzufügen
             let zOff = z2 + 3.5;
 
-            // 3. Projektion (Sub-Pixel-Killer via Math.floor!)
+            // 3. Projektion (Der fehlerhafte double-scale Multiplikator wurde entfernt!)
             let p = this.projected[i];
-            p.x = Math.floor(cx + (x3 * fov) / zOff * (scale / 100));
-            p.y = Math.floor(cy + (y3 * fov) / zOff * (scale / 100));
+            p.x = Math.floor(cx + (x3 * fov) / zOff);
+            p.y = Math.floor(cy + (y3 * fov) / zOff);
             p.z = zOff;
             p.colorPhase = dot.colorPhase;
         }
@@ -135,18 +140,12 @@ export class AtariDotTorus {
         for (let i = 0; i < this.numDots; i++) {
             let p = this.projected[i];
 
-            // --- UPGRADE: AMBIENT LIGHT GEGEN DUNKLE HINTERGRÜNDE ---
-            // Sichert ab, dass auch die Rückseite des Donuts mit mindestens 30% Helligkeit
-            // sichtbar bleibt und nicht als unsichtbares Schwarz (#000000) quantisiert wird.
             let depthNorm = 0.30 + 0.70 * Math.max(0.0, Math.min(1.0, (5.0 - p.z) / 3.0));
             let brightness = depthNorm + illumination;
 
             // Color-Cycling
             let cycle = (p.colorPhase + this.internalT * 0.2) % 1.0;
             
-            // --- UPGRADE: HIGH-ENERGY NEON COLOR-PALETTE ---
-            // Wir heben das Minimum der Farbkanäle an und spendieren dem Grünkanal einen festen Boost (140).
-            // Das transformiert die Farben in strahlendes Neon-Lila, flüssiges Pink und leuchtendes Türkis!
             let baseR = Math.sin(cycle * Math.PI * 2) * 80 + 175;
             let baseG = 140;
             let baseB = Math.cos(cycle * Math.PI * 2) * 80 + 175;
@@ -161,8 +160,8 @@ export class AtariDotTorus {
             
             ctx.fillStyle = rgbToHex(qColor[0], qColor[1], qColor[2]);
             
-            // Viskose Pixelgröße
-            let dotSize = p.z < 3.0 ? 2 : 1; 
+            // Viskose Pixelgröße (Vordere Punkte werfen sich etwas dicker auf)
+            let dotSize = p.z < 3.2 ? baseDotSize + 1 : baseDotSize; 
             
             ctx.fillRect(p.x, p.y, dotSize, dotSize);
         }
