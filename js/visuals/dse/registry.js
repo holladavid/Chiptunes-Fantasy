@@ -20,6 +20,7 @@ import { AmigaBoingBall } from './amiga/boing-ball.js';
 import { AtariDotTorus } from './atari/dot-torus.js';
 import { SidSiliconBg } from './c64/sid-silicon-bg.js';
 import { PaulaSiliconBg } from './amiga/paula-silicon-bg.js';
+import { YmSiliconBg } from './atari/ym-silicon-bg.js';
 
 function defineDSE(DseClass, customMetadata) {
     const defaults = {
@@ -93,6 +94,14 @@ export const dseRegistry = [
         placementType: 'background',
         computerType: ['amiga'], // System exklusiv!
         weight: 12,              // Zieht bevorzugt im Roulette
+        minPlayTime: 12.0,
+        climaxHoldTime: 10.0
+    }),
+
+    defineDSE(YmSiliconBg, {
+        placementType: 'background',
+        computerType: ['atari'], // System exklusiv!
+        weight: 12,              
         minPlayTime: 12.0,
         climaxHoldTime: 10.0
     }),
