@@ -1,7 +1,7 @@
 # Chiptunes Fantasy
 
 ### The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator
-**Version 1.4.0-beta.2 [Living Silicon Refinement & Responsive Architecture]**
+**Version 1.4.0-beta.3 [Living Silicon Refinement & Responsive Architecture]**
 
 Built with 100% vanilla HTML5, CSS3, and modern Web Audio API. No MP3s, no pre-rendered streams — just pure mathematical real-time synthesis running asynchronously inside low-latency AudioWorklets. From nerds, for nerds.
 
@@ -46,3 +46,7 @@ We abolished analog volume-guessing. The `TrackMonitor` now hooks directly into 
     *   `Paula8364`: Verwaltet den DMA-Zustand und das physische L-R-R-L-Stereo-Routing.
     *   `Ym2149`: Verwaltet die Mixer-Matrix (Reg 7), die Rauschfrequenzen und die Hüllkurvenformen.
 *   **Database & Archive Expandability:** Über eine neue Systemleiste oberhalb der Museums-Inhalte lässt sich das Living-Silicon-Modul temporär abschalten. Dadurch dehnt sich das Lese-Terminal flexibel über die gesamte rechte Konsolen-Spalte aus.
+
+*   **SID 6581 Microverse (C64 Background DSE):** Ein systemgetreues Vektor-Die-Szenario. Integriert ein kochendes 8x8 PETSCII-Plasma, isometrische Oszillator-Kerne und an die Sound-Transienten gekoppelte Datenbusse, eingebettet über ein tension-reaktives Parallax-Tech-Grid.
+*   **Paula 8364 Microverse (Amiga Background DSE):** Visualisiert die 4 DMA-Kanäle als ferne Monolithen direkt am 3D-Fluchtpunkt des Horizonts. Datenpakete schießen nach oben in einen 12-Bit quantisierten Moiré-Himmel, während sich der 3D-Boden exakt an den 55%-Schnitt des `KefrensCheckerboards` anschmiegt.
+*   **YM2149F Microverse (Atari ST Background DSE):** Zeigt live pulsierende Rechteckwellen-Oszilloskope, einen gedämpften Magenta-Rauschregen und simuliert im Climax die berühmten Timer-B-Overscan-Glitches, indem das Canvas zeilenweise horizontal zerrissen wird.
