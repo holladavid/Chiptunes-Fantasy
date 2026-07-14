@@ -90,10 +90,9 @@ export class AmigaBoingBall {
 
         this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * Math.min(1.0, dt * 5.0);
 
-        // =========================================================
+// =========================================================
         // 1. X-ACHSE: MAJESTÄTISCHES, LINEARES PING-PONG
         // =========================================================
-        // Sehr langsame X-Geschwindigkeit für die weite Raumdurchquerung
         const speedX = 0.25 * this.smoothedSpeed;
         this.moveXPhase = (this.moveXPhase + dt * speedX) % 2.0; 
         
@@ -114,25 +113,21 @@ export class AmigaBoingBall {
         // =========================================================
         // 3. Y-ACHSE: STARRE PARABOLISCHE SCHWERKRAFT
         // =========================================================
-        // Sanfte Sprungfrequenz
         const bounceFreq = 1.1 * this.smoothedSpeed;
         this.moveYPhase = (this.moveYPhase + dt * bounceFreq) % 1.0;
         
         let u = 2.0 * this.moveYPhase - 1.0; 
         let parabolicArc = 1.0 - (u * u);    
         
-        // Hohe, majestätische Sprungbögen
-        const bounceY = parabolicArc * (height * 0.45);
+        // Sprunghöhe: 40% der Bildschirmhöhe
+        const bounceY = parabolicArc * (height * 0.40);
 
         const beat = metrics.beat[0];
         const illumination = beat * 0.35; 
         
-        const minDim = Math.min(width, height);
-        const baseScale = minDim * 0.22; 
-
         // --- 4. 3D-KINEMATIK & ROTATION (Rigid Body) ---
         const rotY = this.currentRotY; 
-        const tiltZ = 0.3; // 17 Grad Rechtsneigung (Das Amiga Original!)
+        const tiltZ = 0.3; // 17 Grad Rechtsneigung
 
         const sinRy = Math.sin(rotY), cosRy = Math.cos(rotY);
         const sinT = Math.sin(tiltZ), cosT = Math.cos(tiltZ);
@@ -140,7 +135,6 @@ export class AmigaBoingBall {
         for (let i = 0; i < this.vertices.length; i++) {
             let v = this.vertices[i];
             
-            // Starre Geometrie (Kein Squash & Stretch!)
             let sx = v.x;
             let sy = v.y;
             let sz = v.z;
@@ -155,14 +149,24 @@ export class AmigaBoingBall {
 
             this.transformed[i].x = tx;
             this.transformed[i].y = ty;
-            this.transformed[i].z = tz + 3.5;
+            // 3.5 ist unser fester Kameraabstand auf der Z-Achse
+            this.transformed[i].z = tz + 3.5; 
         }
 
-        // Kamera Setup
+        // =========================================================
+        // 5. KAMERA & LINEARE PROJEKTION (GFX FIX)
+        // =========================================================
+        const minDim = Math.min(width, height);
+        
+        // Lineares FOV (keine quadratischen Bugs mehr!)
+        const fov = minDim * 0.85; 
+        
+        // Dynamische Boden-Berechnung: Wir subtrahieren den Radius der 3D-Kugel, 
+        // damit sie unten haargenau auf dem Gehäuserand abprallt.
+        const ballRadiusOnScreen = fov / 3.5; 
+        const floorY = height * 0.92 - ballRadiusOnScreen; 
+        
         const cx = width / 2;
-        // Von 0.85 auf 0.75 korrigiert, damit der Kugel-Radius (ca. 22%) unten nicht aus dem Canvas ragt
-        const floorY = height * 0.75; 
-        const fov = minDim * 1.2;
 
         for (let i = 0; i < this.vertices.length; i++) {
             let zOff = this.transformed[i].z;
@@ -170,8 +174,9 @@ export class AmigaBoingBall {
             let targetX = cx + moveX;
             let targetY = floorY - bounceY;
 
-            this.projected[i].x = Math.floor(targetX + (this.transformed[i].x * fov) / zOff * (baseScale / 100));
-            this.projected[i].y = Math.floor(targetY + (this.transformed[i].y * fov) / zOff * (baseScale / 100));
+            // Saubere, rein lineare 3D-Projektion
+            this.projected[i].x = Math.floor(targetX + (this.transformed[i].x * fov) / zOff);
+            this.projected[i].y = Math.floor(targetY + (this.transformed[i].y * fov) / zOff);
         }
 
         const lx = 0.5, ly = -0.5, lz = -0.7;
@@ -179,7 +184,6 @@ export class AmigaBoingBall {
         const nlx = lx/lLen, nly = ly/lLen, nlz = lz/lLen;
 
         let activeFaces = 0;
-
         for (let i = 0; i < this.facesDef.length; i++) {
             let faceDef = this.facesDef[i];
             let idxs = faceDef.idxs;
