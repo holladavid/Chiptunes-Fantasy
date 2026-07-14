@@ -4,7 +4,7 @@
 // Authentic 256 PAL vertical resolution with dynamic 
 // responsive aspect-ratio width. 100% 12-Bit OCS Colors.
 // Features a depth-faded 3D perspective floor, Moiré magnetic
-// fields, and responsive L-R-R-L panning DMA monoliths.
+// fields, and horizon-anchored L-R-R-L DMA monoliths.
 // =========================================================
 
 import { quantizeAmiga12Bit, rgbToHex } from '../../../visuals/utils/hardware-constraints.js';
@@ -30,11 +30,6 @@ export class PaulaSiliconBg {
         let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
         this.lastT = t;
 
-        // =========================================================
-        // GFX UPGRADE: DYNAMISCHE CHUNKY-AUFLÖSUNG
-        // Sichert 256 Zeilen vertikale PAL-Auflösung, passt die Breite
-        // exakt an den Monitor an, um schwarze Ränder zu eliminieren!
-        // =========================================================
         const TARGET_HEIGHT = 256;
         const aspect = width / height;
         const offW = Math.floor(TARGET_HEIGHT * aspect);
@@ -89,7 +84,6 @@ export class PaulaSiliconBg {
         // =========================================================
         if (tension > 0.2) {
             const intensity = (tension - 0.2) / 0.8; 
-            // Zentren relativ zur dynamischen Bildschirmmitte (cx)
             const cx1 = cx + Math.sin(time) * (40 + intensity * 40);
             const cy1 = 64 + Math.cos(time * 1.3) * 30;
             const cx2 = cx + Math.sin(time * 1.1 + Math.PI) * (40 + intensity * 40);
@@ -149,10 +143,10 @@ export class PaulaSiliconBg {
             ctx.stroke();
         }
 
-        // Vertikale Fluchtpunkt-Linien (Dynamische Ausdehnung für Widescreens)
+        // Vertikale Fluchtpunkt-Linien
         ctx.globalAlpha = 0.5;
         ctx.beginPath();
-        const xRange = Math.max(400, offW * 1.5); // Füllt auch auf 21:9 Widescreens den Rand!
+        const xRange = Math.max(400, offW * 1.5); 
         for (let x = -xRange; x <= xRange; x += 32) {
             let startZ = zStep - scrollZ;
             if (startZ < 2.5) startZ = 2.5; 
@@ -170,15 +164,15 @@ export class PaulaSiliconBg {
         ctx.globalAlpha = 1.0;
 
         // =========================================================
-        // 4. THE 4 DMA MONOLITHS (Responsive L-R-R-L Mapping)
+        // 4. THE 4 DMA MONOLITHS (Horizon-Anchored)
         // =========================================================
-        // Dynamische Spreizung abhängig von der Displaybreite!
-        const span = Math.min(180, offW * 0.38); 
+        // Perspektivisch näher zusammen (am Fluchtpunkt)
+        const span = Math.min(100, offW * 0.25); 
         const dmaX = [
             cx - span,        // DMA 0 (Left)
-            cx + span * 0.4,  // DMA 1 (Right)
+            cx + span * 0.35, // DMA 1 (Right)
             cx + span,        // DMA 2 (Right)
-            cx - span * 0.4   // DMA 3 (Left)
+            cx - span * 0.35  // DMA 3 (Left)
         ];
         
         for (let i = 0; i < 4; i++) {
@@ -186,41 +180,50 @@ export class PaulaSiliconBg {
             let vol = vols[i];
             let isLeft = (i === 0 || i === 3);
 
-            ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(40, 40, 50));
-            ctx.fillRect(x - 20, 220, 40, 36);
+            // Sockel stehen jetzt auf der Horizontlinie!
+            const baseW = 28;
+            const baseH = 20;
+            const baseY = horizon - baseH;
+
+            ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(30, 30, 40));
+            ctx.fillRect(x - baseW/2, baseY, baseW, baseH);
             
+            // Leuchtender Kern (Perspektivisch verkleinert)
             let coreColor = isLeft ? [0, 50 + vol*200, 255] : [255, 50 + vol*200, 0];
             if (tension > 0.8) coreColor = [255, 255, 255]; 
             
             ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(...coreColor));
-            ctx.fillRect(x - 12, 226, 24, 24);
+            ctx.fillRect(x - 8, baseY + 4, 16, 16);
 
-            let fetchSpeed = 60 + vol * 250 + tension * 150;
-            let numBlocks = Math.floor(vol * 10) + (tension > 0.5 ? 4 : 2);
+            let fetchSpeed = 40 + vol * 150 + tension * 100;
+            let numBlocks = Math.floor(vol * 8) + (tension > 0.5 ? 3 : 1);
             
+            // Datenpakete schießen nach OBEN in den Himmel
             for (let b = 0; b < numBlocks; b++) {
-                let yOffset = (time * fetchSpeed + b * 30) % 220;
-                let blockY = 220 - yOffset;
+                let yOffset = (time * fetchSpeed + b * 25) % horizon;
+                let blockY = baseY - yOffset;
                 
-                if (blockY < horizon - 10) continue; 
+                if (blockY < 0) continue; 
                 
                 let jitterX = 0;
                 if (tension > 0.7 && vol > 0.4) {
-                    jitterX = (Math.random() - 0.5) * 8 * tension;
+                    jitterX = (Math.random() - 0.5) * 6 * tension;
                 }
 
+                // Weiches Fade-Out, wenn sie die Decke erreichen
                 let bAlpha = 1.0;
-                if (blockY < horizon + 20) bAlpha = Math.max(0, (blockY - horizon) / 30);
+                if (blockY < 40) bAlpha = Math.max(0, blockY / 40);
                 
                 ctx.globalAlpha = bAlpha;
                 ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(...coreColor));
-                ctx.fillRect(x - 8 + jitterX, blockY, 16, Math.max(4, vol * 16));
+                ctx.fillRect(x - 5 + jitterX, blockY, 10, Math.max(3, vol * 12));
             }
             ctx.globalAlpha = 1.0;
 
+            // Climax Laser schießen von der Basis zum Himmel
             if (state === 'climax' && beat > 0.3 && vol > 0.3) {
                 ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));
-                ctx.fillRect(x - 6, 0, 12, 220); 
+                ctx.fillRect(x - 4, 0, 8, horizon); 
             }
         }
 
@@ -233,13 +236,11 @@ export class PaulaSiliconBg {
         }
 
         // =========================================================
-        // BLIT TO MAIN CANVAS (100% Fullscreen Coverage)
+        // BLIT TO MAIN CANVAS
         // =========================================================
         mainCtx.globalAlpha = globalAlpha;
         mainCtx.imageSmoothingEnabled = false; 
         
-        // Da die Aspect Ratio von Offscreen und Main-Canvas nun identisch ist,
-        // können wir ohne Interpolations-Zerrungen vollflächig stretchen!
         mainCtx.drawImage(this.offscreen, 0, 0, width, height);
         
         mainCtx.imageSmoothingEnabled = true; 
