@@ -30,6 +30,9 @@ export class PaulaSiliconBg {
         let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
         this.lastT = t;
 
+// =========================================================
+        // GFX UPGRADE: DYNAMISCHE CHUNKY-AUFLÖSUNG
+        // =========================================================
         const TARGET_HEIGHT = 256;
         const aspect = width / height;
         const offW = Math.floor(TARGET_HEIGHT * aspect);
@@ -58,8 +61,9 @@ export class PaulaSiliconBg {
         const ctx = this.ctx;
         ctx.imageSmoothingEnabled = false;
 
-        const horizon = 128; // Immer exakt bei 50% der 256px Höhe
-        const cx = offW / 2; // Dynamische horizontale Mitte
+        // FIX: Horizont an den 55%-Split des Kefrens-Checkerboards anpassen (256 * 0.55 = 140)
+        const horizon = Math.floor(offH * 0.55); 
+        const cx = offW / 2; 
 
         // =========================================================
         // 1. SKY GRADIENT
@@ -85,9 +89,10 @@ export class PaulaSiliconBg {
         if (tension > 0.2) {
             const intensity = (tension - 0.2) / 0.8; 
             const cx1 = cx + Math.sin(time) * (40 + intensity * 40);
-            const cy1 = 64 + Math.cos(time * 1.3) * 30;
+            // Zentren an das neue 140px Himmel-Muster anpassen (Mitte bei Y = 70 statt 64)
+            const cy1 = 70 + Math.cos(time * 1.3) * 30;
             const cx2 = cx + Math.sin(time * 1.1 + Math.PI) * (40 + intensity * 40);
-            const cy2 = 64 + Math.cos(time * 0.9 + Math.PI) * 30;
+            const cy2 = 70 + Math.cos(time * 0.9 + Math.PI) * 30;
             
             ctx.lineWidth = 1;
             const rStep = 8 + intensity * 6;
