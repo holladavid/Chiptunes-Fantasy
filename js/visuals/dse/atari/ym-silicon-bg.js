@@ -159,8 +159,13 @@ export class YmSiliconBg {
         // =========================================================
         const noiseVol = (vols[0] + vols[1] + vols[2]) / 3.0;
         if (noiseVol > 0.1 || tension > 0.2) {
-            const rainIntensity = noiseVol + tension;
-            const dropCount = (rainIntensity * 100) | 0;
+            // =========================================================
+            // HIER SIND DIE STELLEN DER ANPASSUNG:
+            // 1. Audio-Pegel-Einfluss auf 30% gedämpft, Tension auf 40%
+            // 2. Maximaler Multiplikator von 100 auf 50 halbiert
+            // =========================================================
+            const rainIntensity = (noiseVol * 0.30) + (tension * 0.40);
+            const dropCount = (rainIntensity * 50) | 0; 
             
             ctx.fillStyle = PAL[4]; // Magenta (Klassischer Atari Kontrast-Ton)
             for (let i = 0; i < dropCount; i++) {

@@ -88,7 +88,7 @@ export class AtariDotTorus {
         const cy = Math.floor(height / 2);
         
         // GFX FIX: Saubere, lineare Skalierung!
-        const fov = minDim * 1.2 * beatScale;
+        const fov = minDim * 1.0 * beatScale;
 
         const rotX = this.internalT * 1.1;
         const rotY = this.internalT * 1.5;
