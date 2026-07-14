@@ -2,7 +2,7 @@
 // =========================================================
 // DEMO-SCENE-ELEMENT: SID 6581 MICROVERSE (BACKGROUND)
 // 100% Anti-Aliasing free. Pure fillRect() integer rendering.
-// Features C64 Rasterbars, 8x8 Block Plasma, Isometric DCOs,
+// Features Parallax Tech-Grids, 8x8 Block Plasma, Isometric DCOs,
 // and strictly orthogonal data bus routing.
 // =========================================================
 
@@ -17,7 +17,7 @@ export class SidSiliconBg {
         this.computerType = ['c64'];
         this.placementType = 'background';
         
-        // Exakte VIC-II Auflösung
+        // Exakte VIC-II Auflösung (320x200)
         this.offscreen = document.createElement('canvas');
         this.offscreen.width = 320;
         this.offscreen.height = 200;
@@ -72,7 +72,6 @@ export class SidSiliconBg {
         if (vol > 0.1) {
             const coreW = bw - 12;
             const coreH = bh - 12;
-            // Kernfarbe flackert zwischen zwei Tönen
             const coreCol = isVcf 
                 ? (vol > 0.4 ? 10 : 2) // Light Red / Red
                 : (vol > 0.4 ? 7 : 13); // Yellow / Light Green
@@ -107,26 +106,61 @@ export class SidSiliconBg {
         ctx.imageSmoothingEnabled = false;
 
         // =========================================================
-        // 1. BACKGROUND: C64 RASTERBARS (COPPER)
+        // 1. BACKGROUND: PARALLAX TECH-GRID (Tension Reactive)
         // =========================================================
         ctx.fillStyle = PAL[0]; // Clear screen (Black)
         ctx.fillRect(0, 0, 320, 200);
 
-        if (tension > 0.0) {
-            // Eine wandernde Raster-Linie im Hintergrund
-            const rasterY = (Math.sin(time * 2) * 50 + 100) | 0;
-            const rColors = [6, 14, 3, 1, 3, 14, 6]; // Blue -> Cyan -> White Gradient
-            for (let i = 0; i < rColors.length; i++) {
-                let ry = rasterY + (i * 2); // 2 Pixel dicke Rasterzeilen
-                if (ry >= 0 && ry < 200) {
-                    ctx.fillStyle = PAL[rColors[i]];
-                    ctx.fillRect(0, ry, 320, 2);
+        // --- Layer 1: Deep Substrate (Punktmuster) ---
+        const speed1 = 15 + tension * 30;
+        const off1X = (time * speed1) % 16;
+        const off1Y = (time * speed1 * 0.5) % 16;
+        
+        ctx.fillStyle = PAL[11]; // Dark Grey
+        for (let y = -(off1Y | 0); y < 200; y += 16) {
+            for (let x = -(off1X | 0); x < 320; x += 16) {
+                // Schachbrettartiges Punktemuster für optische Tiefe
+                let gX = Math.floor(x / 16);
+                let gY = Math.floor(y / 16);
+                if (Math.abs(gX + gY) % 2 === 0) {
+                    ctx.fillRect(x | 0, y | 0, 1, 1);
+                }
+            }
+        }
+
+        // --- Layer 2: Main Moving Grid ---
+        const speed2 = 30 + tension * 80;
+        const off2X = (time * speed2) % 32;
+        const off2Y = (time * speed2 * 0.8) % 32;
+        const iOx = off2X | 0;
+        const iOy = off2Y | 0;
+        const gridCol = tension > 0.7 ? 12 : 11; // Wechselt bei hoher Spannung auf helleres Grau
+        
+        for (let x = -iOx; x < 320; x += 32) {
+            this.drawVLine(ctx, x, 0, 200, gridCol);
+        }
+        for (let y = -iOy; y < 200; y += 32) {
+            this.drawHLine(ctx, 0, y, 320, gridCol);
+        }
+
+        // --- Layer 3: Data Nodes (Tension gesteuert) ---
+        if (tension > 0.3) {
+            // Blau -> Cyan -> Weiß je nach Intensität des Tracks
+            const nodeCol = tension > 0.8 ? 1 : (tension > 0.6 ? 3 : 6); 
+            for (let y = -iOy; y < 200; y += 32) {
+                for (let x = -iOx; x < 320; x += 32) {
+                    let gX = Math.floor(x / 32);
+                    let gY = Math.floor(y / 32);
+                    if (Math.abs(gX + gY) % 2 === 0) {
+                        ctx.fillStyle = PAL[nodeCol];
+                        ctx.fillRect(x - 1, y - 1, 3, 3);
+                    }
                 }
             }
         }
 
         // =========================================================
-        // 2. SUBSTRATE: 8x8 CHUNKY PLASMA
+        // 2. MIDDLEGROUND: 8x8 CHUNKY PETSCII PLASMA
         // =========================================================
         if (tension > 0.1) {
             // Plasma-Farben: Black, Blue, Purple, Dark Grey
@@ -136,7 +170,8 @@ export class SidSiliconBg {
                     let v = Math.sin(x * 0.3 + time) + Math.sin(y * 0.3 + time * 1.2) + Math.sin((x + y) * 0.2 - time);
                     let cIdx = Math.floor((v + 3) * 1.5) & 3; // 0 bis 3
                     
-                    if (cIdx > 0 && Math.random() < tension) { // Tension steuert Dichte
+                    // Tension steuert die Dichte der durchbrechenden Plasma-Blöcke
+                    if (cIdx > 0 && Math.random() < tension) { 
                         ctx.fillStyle = PAL[pColors[cIdx]];
                         // Exakt 8x8 Pixel Blöcke (Größe eines C64-Zeichens)
                         ctx.fillRect(x * 8, y * 8, 8, 8);
@@ -158,7 +193,7 @@ export class SidSiliconBg {
             for (let x = startX; x < midX; x++) {
                 if (((x - offset) % (dashLen * 2) + (dashLen * 2)) % (dashLen * 2) < dashLen) {
                     this.drawHLine(ctx, x, startY - 1, 1, colorIdx);
-                    this.drawHLine(ctx, x, startY, 1, colorIdx); // 2px dick
+                    this.drawHLine(ctx, x, startY, 1, colorIdx); 
                 }
             }
             // Vertikale Linie
@@ -210,7 +245,7 @@ export class SidSiliconBg {
         this.drawIsoBlock(ctx, vcfPos.x, vcfPos.y, 56, 64, vcaVol, true);
 
         // =========================================================
-        // 5. STROBE FLASH (True 8-Bit Whiteout, No Blend-Modes!)
+        // 5. STROBE FLASH (True 8-Bit Whiteout)
         // =========================================================
         if (state === 'climax' && beat > 0.7) {
             ctx.fillStyle = PAL[1]; // Exakt Farbe 1 (Weiß)
