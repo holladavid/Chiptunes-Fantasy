@@ -691,21 +691,18 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
 
 /* =========================================
    7. CHIP HUD (DSP MATRIX & ANALYZER)
-   ========================================= */
+ ========================================= */
 #chip-hud {
     position: absolute;
     top: 15px;
     right: 15px;
-    width: 520px; 
-    
-    /* GFX UPGRADE: Das HUD sieht jetzt aus wie ein aufgeschraubtes Acryl-Modul */
+    width: 540px; /* Von 520px auf 540px verbreitert für Amiga-Overflow Fix */
     background: rgba(0, 0, 0, 0.85);
     border: 2px solid var(--chassis-dark);
     border-top: 1px solid rgba(255,255,255,0.2);
     border-left: 1px solid rgba(255,255,255,0.1);
     box-shadow: 4px 6px 15px rgba(0,0,0,0.8);
     backdrop-filter: blur(4px);
-    
     padding: 15px; 
     color: var(--highlight-color);
     pointer-events: auto; 
@@ -715,19 +712,25 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
 
 #chip-hud.collapsed {
     width: auto; 
-    padding: 8px 12px; 
+    padding: 10px 14px; 
 }
 
 .hud-header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 2px groove var(--chassis-dark); /* Gefräste Kante */
-    padding-bottom: 5px;
+    flex-direction: column; /* GFX FIX: 2-zeiliges Setup (Titel oben, Button unten) */
+    align-items: flex-end;  /* Rechtsbündig ausgerichtet */
+    border-bottom: 2px groove var(--chassis-dark);
+    padding-bottom: 8px;
     margin-bottom: 15px;
     font-size: calc(var(--font-size-base) * 0.9);
     white-space: nowrap; 
-    gap: 15px; 
+    gap: 8px; 
+}
+
+#hud-title {
+    color: var(--highlight-color);
+    letter-spacing: 1px;
+    opacity: 0.9;
 }
 
 .hud-header div { display: flex; align-items: center; gap: 8px; }
@@ -929,6 +932,23 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     #demo-container { height: auto; min-height: 100vh; }
     #visual-zone { height: 45vh; }
     
+    /* NEU: Maximale Touch-Größe & Treffsicherheit für die Playlist-Buttons */
+    body.theme-amiga #tracklist li,
+    body.theme-atari #tracklist li {
+        font-size: clamp(24px, 6.5vw, 30px) !important;
+        padding: 12px 14px !important;
+    }
+
+    /* NEU: Weit größere Transport-Button-Schrift für Amiga & Atari im Mobile-Modus
+       Da VT323 extrem schmal ist, können wir hier massiv hochskalieren! */
+    body.theme-amiga #playback-bar .controls button,
+    body.theme-atari #playback-bar .controls button {
+        font-size: clamp(14px, 4.4vw, 22px) !important; /* Von max 13px auf bis zu 22px angehoben! */
+        letter-spacing: 0px !important; /* Kein negatives Spacing nötig bei der schmalen Schrift */
+    }
+
+    #hud-body { max-height: 35vh; overflow-y: auto; overflow-x: hidden; }
+    
     /* Das Scroller-Zone Upgrade für den sicheren iOS-Rand */
     #scroller-zone { height: auto; min-height: 10vh; padding-bottom: env(safe-area-inset-bottom); box-sizing: border-box; }
 
@@ -941,15 +961,41 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
         box-shadow: 0 5px 15px rgba(0,0,0,0.8); align-items: center; 
     }
     
-    #playback-bar .controls { flex: 1 1 100%; width: 100%; display: flex; gap: 5px; margin-bottom: 12px; }
+    /* =========================================
+       MOBILE PLAYBACK BAR FIX
+       Erzwingt volle Breite und proportionale Tasten
+       ========================================= */
+    #playback-bar .controls { 
+        flex: 0 0 100% !important; /* Zwingt den Container auf exakt 100% Breite */
+        width: 100%; 
+        display: flex; 
+        gap: 6px; 
+        margin-bottom: 12px; 
+    }
+
+    #playback-bar #btn-prev, 
+    #playback-bar #btn-next, 
+    #playback-bar #btn-eco { 
+        flex: 1 1 0 !important; /* Zwingt die Nebentasten, exakt gleich breit zu sein */
+    }
+    
+    #playback-bar #btn-play { 
+        flex: 1.6 1 0 !important; /* Der Play-Button wird exakt 1.6x breiter als die restlichen Tasten */
+    }
+    
+    #playback-bar .controls button { 
+        padding: 14px 0 !important; /* Vertikaler Touch-Bereich, 0 horizontales Padding für maximalen Textplatz */
+        font-size: clamp(8px, 2.4vw, 12px) !important; 
+        white-space: nowrap;
+        letter-spacing: -0.5px;
+        min-width: 0; /* Verhindert Flexbox-Blowout bei zu langem Text */
+        overflow: hidden; 
+        text-overflow: clip; 
+    }
+
     #playback-bar .timeline-control { flex: 1 1 100%; width: 100%; margin-bottom: 10px; }
     #playback-bar .volume-control { flex: 1 1 100%; width: 100%; justify-content: flex-start; margin-bottom: 8px; }
-
-    #playback-bar #btn-prev, #playback-bar #btn-next, #playback-bar #btn-eco { flex: 1; }
-    #playback-bar #btn-play { flex: 2; font-weight: bold; }
-    
-    #playback-bar .controls button { padding: 14px 0; font-size: calc(var(--font-size-base) * 1.3); }
-    
+       
     #tracklist {
         max-height: 250px; 
     }
