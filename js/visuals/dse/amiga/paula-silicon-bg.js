@@ -1,9 +1,10 @@
 // === js/visuals/dse/amiga/paula-silicon-bg.js ===
 // =========================================================
 // DEMO-SCENE-ELEMENT: PAULA 8364 MICROVERSE (BACKGROUND)
-// Authentic 320x256 PAL resolution. 100% 12-Bit OCS Colors.
-// Features a depth-faded 3D perspective floor (horizon 128),
-// Moiré magnetic fields, and 4x DMA data-fetch monoliths.
+// Authentic 256 PAL vertical resolution with dynamic 
+// responsive aspect-ratio width. 100% 12-Bit OCS Colors.
+// Features a depth-faded 3D perspective floor, Moiré magnetic
+// fields, and responsive L-R-R-L panning DMA monoliths.
 // =========================================================
 
 import { quantizeAmiga12Bit, rgbToHex } from '../../../visuals/utils/hardware-constraints.js';
@@ -14,10 +15,8 @@ export class PaulaSiliconBg {
         this.computerType = ['amiga'];
         this.placementType = 'background';
         
-        // Exakte Amiga PAL Low-Res Auflösung
+        // Canvas wird dynamisch im Render-Loop auf das Seitenverhältnis genormt
         this.offscreen = document.createElement('canvas');
-        this.offscreen.width = 320;
-        this.offscreen.height = 256;
         this.ctx = this.offscreen.getContext('2d', { alpha: false });
         
         this.lastT = 0;
@@ -30,6 +29,21 @@ export class PaulaSiliconBg {
         if (state === 'idle') { this.lastT = t; return; }
         let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
         this.lastT = t;
+
+        // =========================================================
+        // GFX UPGRADE: DYNAMISCHE CHUNKY-AUFLÖSUNG
+        // Sichert 256 Zeilen vertikale PAL-Auflösung, passt die Breite
+        // exakt an den Monitor an, um schwarze Ränder zu eliminieren!
+        // =========================================================
+        const TARGET_HEIGHT = 256;
+        const aspect = width / height;
+        const offW = Math.floor(TARGET_HEIGHT * aspect);
+        const offH = TARGET_HEIGHT;
+
+        if (this.offscreen.width !== offW || this.offscreen.height !== offH) {
+            this.offscreen.width = offW;
+            this.offscreen.height = offH;
+        }
 
         const beat = metrics.beat[0]; 
         const tension = metrics.tensionPct; 
@@ -49,11 +63,12 @@ export class PaulaSiliconBg {
         const ctx = this.ctx;
         ctx.imageSmoothingEnabled = false;
 
+        const horizon = 128; // Immer exakt bei 50% der 256px Höhe
+        const cx = offW / 2; // Dynamische horizontale Mitte
+
         // =========================================================
-        // 1. SKY GRADIENT (Horizon exakt bei Y=128 für Kefrens-Match)
+        // 1. SKY GRADIENT
         // =========================================================
-        const horizon = 128; // Exakt mittig (50% Split)
-        
         for (let y = 0; y < horizon; y += 4) {
             let r = 0, g = 0, b = 0;
             if (tension < 0.5) {
@@ -66,18 +81,18 @@ export class PaulaSiliconBg {
             }
             let hex = rgbToHex(...quantizeAmiga12Bit(r, g, b));
             ctx.fillStyle = hex;
-            ctx.fillRect(0, y, 320, 4);
+            ctx.fillRect(0, y, offW, 4);
         }
 
         // =========================================================
-        // 2. MAGNETIC MOIRÉ INTERFERENCE (The Paula Field)
+        // 2. MAGNETIC MOIRÉ INTERFERENCE
         // =========================================================
         if (tension > 0.2) {
             const intensity = (tension - 0.2) / 0.8; 
-            // Zentrum der Kreise an den neuen Horizont (128) anpassen (Höhe 64)
-            const cx1 = 160 + Math.sin(time) * (40 + intensity * 40);
+            // Zentren relativ zur dynamischen Bildschirmmitte (cx)
+            const cx1 = cx + Math.sin(time) * (40 + intensity * 40);
             const cy1 = 64 + Math.cos(time * 1.3) * 30;
-            const cx2 = 160 + Math.sin(time * 1.1 + Math.PI) * (40 + intensity * 40);
+            const cx2 = cx + Math.sin(time * 1.1 + Math.PI) * (40 + intensity * 40);
             const cy2 = 64 + Math.cos(time * 0.9 + Math.PI) * 30;
             
             ctx.lineWidth = 1;
@@ -89,7 +104,7 @@ export class PaulaSiliconBg {
             ctx.strokeStyle = rgbToHex(...mColor);
             
             ctx.beginPath();
-            for (let r = 10; r < 200; r += rStep) {
+            for (let r = 10; r < Math.max(200, offW/2); r += rStep) {
                 ctx.moveTo(cx1 + r, cy1);
                 ctx.arc(cx1, cy1, r, 0, Math.PI * 2);
                 ctx.moveTo(cx2 + r, cy2);
@@ -99,13 +114,13 @@ export class PaulaSiliconBg {
         }
 
         // =========================================================
-        // 3. 3D DATA BUS FLOOR (Smooth Parallax Perspective)
+        // 3. 3D DATA BUS FLOOR
         // =========================================================
         const fov = 120 + tension * 50; 
         const camY = 30 + beat * 15; 
         
         ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(10, 5, 20));
-        ctx.fillRect(0, horizon, 320, 256 - horizon);
+        ctx.fillRect(0, horizon, offW, offH - horizon);
 
         let gridColor = quantizeAmiga12Bit(0, 100 + tension * 155, 255 - tension * 100);
         if (state === 'climax') gridColor = quantizeAmiga12Bit(255, 255, 255);
@@ -117,37 +132,35 @@ export class PaulaSiliconBg {
         const speed = 150;
         const scrollZ = (time * speed) % zStep;
         
-        // Horizontale Querlinien mit Depth-Fading und Near-Plane-Clipping
+        // Horizontale Querlinien
         for (let z = zMax; z >= zStep; z -= zStep) {
             let pZ = z - scrollZ;
-            
-            // GFX FIX: Div/0 Verhindern. Linien tauchen unter der Kamera durch.
             if (pZ < 2.5) continue; 
             
             let py = horizon + (camY * fov) / pZ;
-            if (py > 256) continue;
+            if (py > offH) continue;
 
-            // Weiches Einblenden am Horizont, voll sichtbar im Vordergrund
             let alpha = Math.max(0, 1.0 - (pZ / zMax));
             ctx.globalAlpha = alpha;
             
             ctx.beginPath();
             ctx.moveTo(0, py | 0);
-            ctx.lineTo(320, py | 0);
+            ctx.lineTo(offW, py | 0);
             ctx.stroke();
         }
 
-        // Vertikale Fluchtpunkt-Linien (Konstante Deckkraft, tauchen unter der Kamera ab)
+        // Vertikale Fluchtpunkt-Linien (Dynamische Ausdehnung für Widescreens)
         ctx.globalAlpha = 0.5;
         ctx.beginPath();
-        for (let x = -400; x <= 400; x += 32) {
+        const xRange = Math.max(400, offW * 1.5); // Füllt auch auf 21:9 Widescreens den Rand!
+        for (let x = -xRange; x <= xRange; x += 32) {
             let startZ = zStep - scrollZ;
-            if (startZ < 2.5) startZ = 2.5; // Near Plane Clip
+            if (startZ < 2.5) startZ = 2.5; 
             
-            let pxStart = 160 + (x * fov) / startZ;
+            let pxStart = cx + (x * fov) / startZ;
             let pyStart = horizon + (camY * fov) / startZ;
             
-            let pxEnd = 160 + (x * fov) / zMax;
+            let pxEnd = cx + (x * fov) / zMax;
             let pyEnd = horizon + (camY * fov) / zMax;
             
             ctx.moveTo(pxStart | 0, pyStart | 0);
@@ -157,20 +170,25 @@ export class PaulaSiliconBg {
         ctx.globalAlpha = 1.0;
 
         // =========================================================
-        // 4. THE 4 DMA MONOLITHS (L-R-R-L Mapping)
+        // 4. THE 4 DMA MONOLITHS (Responsive L-R-R-L Mapping)
         // =========================================================
-        const dmaX = [40, 210, 270, 100]; 
+        // Dynamische Spreizung abhängig von der Displaybreite!
+        const span = Math.min(180, offW * 0.38); 
+        const dmaX = [
+            cx - span,        // DMA 0 (Left)
+            cx + span * 0.4,  // DMA 1 (Right)
+            cx + span,        // DMA 2 (Right)
+            cx - span * 0.4   // DMA 3 (Left)
+        ];
         
         for (let i = 0; i < 4; i++) {
             let x = dmaX[i];
             let vol = vols[i];
             let isLeft = (i === 0 || i === 3);
 
-            // Sockel
             ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(40, 40, 50));
             ctx.fillRect(x - 20, 220, 40, 36);
             
-            // Leuchtender Kern
             let coreColor = isLeft ? [0, 50 + vol*200, 255] : [255, 50 + vol*200, 0];
             if (tension > 0.8) coreColor = [255, 255, 255]; 
             
@@ -184,7 +202,6 @@ export class PaulaSiliconBg {
                 let yOffset = (time * fetchSpeed + b * 30) % 220;
                 let blockY = 220 - yOffset;
                 
-                // Verschwinden exakt in den Wolken (am Horizont)
                 if (blockY < horizon - 10) continue; 
                 
                 let jitterX = 0;
@@ -192,7 +209,6 @@ export class PaulaSiliconBg {
                     jitterX = (Math.random() - 0.5) * 8 * tension;
                 }
 
-                // Opacity Fade im Himmel
                 let bAlpha = 1.0;
                 if (blockY < horizon + 20) bAlpha = Math.max(0, (blockY - horizon) / 30);
                 
@@ -213,22 +229,18 @@ export class PaulaSiliconBg {
         // =========================================================
         if (state === 'climax' && beat > 0.8) {
             ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));
-            ctx.fillRect(0, 0, 320, 256);
+            ctx.fillRect(0, 0, offW, offH);
         }
 
         // =========================================================
-        // BLIT TO MAIN CANVAS
+        // BLIT TO MAIN CANVAS (100% Fullscreen Coverage)
         // =========================================================
         mainCtx.globalAlpha = globalAlpha;
         mainCtx.imageSmoothingEnabled = false; 
         
-        const scale = Math.min(width / 320, height / 256);
-        const drawW = (320 * scale) | 0;
-        const drawH = (256 * scale) | 0;
-        const drawX = ((width - drawW) / 2) | 0;
-        const drawY = ((height - drawH) / 2) | 0;
-
-        mainCtx.drawImage(this.offscreen, drawX, drawY, drawW, drawH);
+        // Da die Aspect Ratio von Offscreen und Main-Canvas nun identisch ist,
+        // können wir ohne Interpolations-Zerrungen vollflächig stretchen!
+        mainCtx.drawImage(this.offscreen, 0, 0, width, height);
         
         mainCtx.imageSmoothingEnabled = true; 
         mainCtx.globalAlpha = 1.0;
