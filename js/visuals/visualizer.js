@@ -137,7 +137,7 @@ export function initVisuals(stateGetters, callbacks) {
         ctx.setLineDash([]); 
     }
 
-    let lastDrawTime = performance.now(); // NEU: Außerhalb von draw() definieren!
+let lastDrawTime = performance.now();
 
     function draw() {
         if (stateGetters.getEcoMode()) {
@@ -150,7 +150,8 @@ export function initVisuals(stateGetters, callbacks) {
         const t = (now - startTime) * 0.001; 
         let dt = (now - lastDrawTime) * 0.001;
         if (dt > 0.1) dt = 0.016; // FPS-Drop Protection
-        lastDrawTime = now;        
+        lastDrawTime = now;
+        
         ctx.fillStyle = '#000000'; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
@@ -165,38 +166,40 @@ export function initVisuals(stateGetters, callbacks) {
         }
 
         // =========================================================
-        // REAL-TIME REGISTER INTEGRATION
-        // Speist das Register-Frame & die Systemzeit in das Die-Layout
+        // 1. AUDIO & REGISTER DATEN ABGREIFEN
         // =========================================================
         const isPlaying = stateGetters.getIsPlaying();
         const channelVolumes = (isPlaying && stateGetters.getChannelVolumes) 
             ? stateGetters.getChannelVolumes() 
             : zeroVolumes;
 
-        // GFX FIX: Wenn pausiert, übergeben wir das "stromlose" idleRegs Array
-        let currentRegs = idleRegs;
+        // FIX: Variable konsequent "chipRegs" nennen
+        let chipRegs = idleRegs; 
         if (isPlaying && stateGetters.getCurrentChipRegs) {
             const r = stateGetters.getCurrentChipRegs();
-            if (r) currentRegs = r;
+            if (r) chipRegs = r;
         }
 
+        // =========================================================
+        // 2. LIVING SILICON UPDATE (Hardware Labor Monitor)
+        // =========================================================
         const activeSilicon = document.getElementById('living-silicon-container');
         if (activeSilicon && window.siliconVisualizerInstance) {
-            window.siliconVisualizerInstance.update(channelVolumes, currentRegs, t);
+            window.siliconVisualizerInstance.update(channelVolumes, chipRegs, t);
         }
 
-         // NEU: Session ID aus der App-Logik abfragen
+        // =========================================================
+        // 3. METADATEN FÜR DEN SCENE-DJ (Track Presenter)
+        // =========================================================
         const sessionId = stateGetters.getPlaybackSessionId ? stateGetters.getPlaybackSessionId() : 0;
-        // TrackData und Metadata abholen
-        const trackData = stateGetters.getTrackData();
-        const trackMetadata = trackData ? trackData.metadata : null;
+        const trkData = stateGetters.getTrackData ? stateGetters.getTrackData() : null;
+        const trackMetadata = trkData ? trkData.metadata : null;
 
-        // NEU: Register abrufen
-        const chipRegs = (isPlaying && stateGetters.getCurrentChipRegs) ? stateGetters.getCurrentChipRegs() : null;
-
-        // --- RENDER ROUTING ---
+        // =========================================================
+        // 4. CANVAS RENDER ROUTING
+        // =========================================================
         if (showGimmick) {
-            // NEU: chipRegs am Ende des Aufrufs anfügen!
+            // FIX: chipRegs als 9. Argument an den SceneDJ übergeben!
             dss.render(ctx, canvas.width, canvas.height, t, channelVolumes, isPlaying, sessionId, trackMetadata, chipRegs);
         } else {
             drawReticle(); 
@@ -204,12 +207,17 @@ export function initVisuals(stateGetters, callbacks) {
             fft.render(ctx, canvas.width, canvas.height, stateGetters, lineColor);
         }
 
-        // NEU: Globaler Hardware-Glitch post-processing Pass
-        glitch.render(ctx, canvas.width, canvas.height, dt);
+        // =========================================================
+        // 5. POST-PROCESSING (CRT Glitch)
+        // =========================================================
+        if (typeof glitch !== 'undefined' && glitch) {
+            glitch.render(ctx, canvas.width, canvas.height, dt);
+        }
 
         hudCounter++;
         callbacks.updateTimelineUI();
         if (hudCounter % 4 === 0) callbacks.updateChipHUD();
+        
         requestAnimationFrame(draw);
     }
     

@@ -1,6 +1,6 @@
 // === js/visuals/dj/stage-manager.js ===
 const TRANSITION_TIME = 1.5;
-const Z_ORDER = { 'background': 0, 'floor': 1, 'foreground': 2, 'overlay': 3, 'presenter': 4 };
+const Z_ORDER = { 'background': 0, 'floor': 1, 'foreground': 2, 'overlay': 3 };
 
 export class StageManager {
     constructor() {
@@ -8,19 +8,19 @@ export class StageManager {
     }
 
     sortZOrder() {
-        this.activeDSEs.sort((a, b) => Z_ORDER[a.metadata.placementType] - Z_ORDER[b.metadata.placementType]);
+        this.activeDSEs.sort((a, b) => Z_ORDER[a.metadata.layer] - Z_ORDER[b.metadata.layer]);
     }
 
     getMaxClimaxHoldTime() {
         if (this.activeDSEs.length === 0) return 10.0;
-        return Math.max(...this.activeDSEs.map(d => d.metadata.climaxHoldTime || 10.0));
+        return Math.max(...this.activeDSEs.map(d => d.metadata.climaxHold || 10.0));
     }
 
     clearNonPermanentDSEs() {
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
-            // FIX: Der Presenter darf bei einem Track-Wake-Up NICHT gekillt werden!
-            if (dse.metadata.minPlayTime !== Infinity && dse.metadata.placementType !== 'presenter') {
+            // Nur 'managed' Elemente löschen! 'permanent' und 'oneshot' (Presenter) bleiben unangetastet.
+            if (dse.metadata.lifecycle === 'managed') {
                 dse.state = 'idle';
                 dse.stateTime = 0.0;
                 dse._markedForRemoval = false;
@@ -28,12 +28,19 @@ export class StageManager {
             }
         }
     }
+
     updateCrossfades(macroState, dt) {
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
             dse.stateTime += dt;
 
-            // 1. Crossfade Ausstieg (Element wird durch den SetlistManager wegrotiert)
+            // ONE-SHOT AUTO-DESTRUCT (z.B. für TrackPresenter)
+            if (dse.metadata.lifecycle === 'oneshot' && !dse._markedForRemoval) {
+                if (dse.stateTime >= dse.metadata.duration) {
+                    dse._markedForRemoval = true;
+                }
+            }
+
             if (dse._markedForRemoval) {
                 if (dse.state !== 'stopping') { 
                     dse.state = 'stopping'; 
@@ -47,9 +54,7 @@ export class StageManager {
                 continue; 
             }
 
-            // 2. Normale State Machine Steuerung
             if (macroState === 'idle') {
-                // Musik pausiert: Alles weich ausfaden
                 if (dse.state !== 'idle' && dse.state !== 'stopping') { 
                     dse.state = 'stopping'; 
                     dse.stateTime = 0.0; 
@@ -58,18 +63,13 @@ export class StageManager {
                     dse.stateTime = 0.0; 
                 }
             } else {
-                // Musik läuft
                 if (dse.state === 'idle' || dse.state === 'stopping') { 
-                    // Sanfter Einstieg (Wenn es gerade ausgefadet ist, wird die Zeit für einen fließenden Umkehreffekt invertiert)
                     dse.state = 'starting'; 
                     dse.stateTime = dse.state === 'stopping' ? Math.max(0.0, TRANSITION_TIME - dse.stateTime) : 0.0; 
                 } else if (dse.state === 'starting' && dse.stateTime >= TRANSITION_TIME) { 
-                    // Intro beendet -> Ab in den aktiven Modus! (Hier wird die Zeit zum Zählen der Lebensdauer resettet)
                     dse.state = macroState; 
                     dse.stateTime = 0.0; 
                 } else if (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax') {
-                    // ARCHITEKTUR-FIX: Wenn der DJ die Intensität ändert, passt sich das DSE an,
-                    // ABER der Timer (stateTime) darf NICHT zurückgesetzt werden!
                     if (dse.state !== macroState) { 
                         dse.state = macroState; 
                     }
@@ -78,6 +78,7 @@ export class StageManager {
         }
     }
 
+    // EINZIGER DURCHLAUF: Alle DSEs werden in den übergebenen Canvas gerendert
     renderAll(ctx, width, height, t, dynamics, info, metricsWrapper) {
         metricsWrapper.energy = dynamics.masterEnergy;
         metricsWrapper.pulse = dynamics.transientPulse;
