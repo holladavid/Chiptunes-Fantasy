@@ -2,8 +2,8 @@
 // =========================================================
 // DEMO-SCENE-ELEMENT: SID 6581 MICROVERSE (BACKGROUND)
 // 100% Anti-Aliasing free. Pure fillRect() integer rendering.
-// Features Parallax Tech-Grids, 8x8 Block Plasma, Isometric DCOs,
-// and strictly orthogonal data bus routing.
+// Features responsive Parallax Tech-Grids, 8x8 Block Plasma, 
+// adaptive isometric DCOs, and dynamic orthogonal routing.
 // =========================================================
 
 import { C64_PALETTE, rgbToHex } from '../../utils/hardware-constraints.js';
@@ -17,10 +17,8 @@ export class SidSiliconBg {
         this.computerType = ['c64'];
         this.placementType = 'background';
         
-        // Exakte VIC-II Auflösung (320x200)
+        // Canvas wird dynamisch im Render-Loop auf das Seitenverhältnis genormt
         this.offscreen = document.createElement('canvas');
-        this.offscreen.width = 320;
-        this.offscreen.height = 200;
         this.ctx = this.offscreen.getContext('2d', { alpha: false });
         
         this.lastT = 0;
@@ -85,6 +83,21 @@ export class SidSiliconBg {
         let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
         this.lastT = t;
 
+        // =========================================================
+        // GFX UPGRADE: DYNAMISCHE RETRO-AUFLÖSUNG
+        // Sichert 200px vertikale C64-Auflösung, passt die Breite
+        // exakt an den Monitor an, um schwarze Ränder zu eliminieren!
+        // =========================================================
+        const TARGET_HEIGHT = 200;
+        const aspect = width / height;
+        const offW = Math.floor(TARGET_HEIGHT * aspect);
+        const offH = TARGET_HEIGHT;
+
+        if (this.offscreen.width !== offW || this.offscreen.height !== TARGET_HEIGHT) {
+            this.offscreen.width = offW;
+            this.offscreen.height = TARGET_HEIGHT;
+        }
+
         const beat = metrics.beat[0]; 
         const tension = metrics.tensionPct; 
         const vols = metrics.smooth; 
@@ -101,15 +114,15 @@ export class SidSiliconBg {
         const time = this.internalT;
 
         const ctx = this.ctx;
-        
-        // Anti-Aliasing auf dem Offscreen-Canvas gnadenlos abschalten
         ctx.imageSmoothingEnabled = false;
+
+        const cx = offW / 2; // Dynamische horizontale Mitte
 
         // =========================================================
         // 1. BACKGROUND: PARALLAX TECH-GRID (Tension Reactive)
         // =========================================================
         ctx.fillStyle = PAL[0]; // Clear screen (Black)
-        ctx.fillRect(0, 0, 320, 200);
+        ctx.fillRect(0, 0, offW, 200);
 
         // --- Layer 1: Deep Substrate (Punktmuster) ---
         const speed1 = 15 + tension * 30;
@@ -118,8 +131,7 @@ export class SidSiliconBg {
         
         ctx.fillStyle = PAL[11]; // Dark Grey
         for (let y = -(off1Y | 0); y < 200; y += 16) {
-            for (let x = -(off1X | 0); x < 320; x += 16) {
-                // Schachbrettartiges Punktemuster für optische Tiefe
+            for (let x = -(off1X | 0); x < offW; x += 16) {
                 let gX = Math.floor(x / 16);
                 let gY = Math.floor(y / 16);
                 if (Math.abs(gX + gY) % 2 === 0) {
@@ -134,21 +146,20 @@ export class SidSiliconBg {
         const off2Y = (time * speed2 * 0.8) % 32;
         const iOx = off2X | 0;
         const iOy = off2Y | 0;
-        const gridCol = tension > 0.7 ? 12 : 11; // Wechselt bei hoher Spannung auf helleres Grau
+        const gridCol = tension > 0.7 ? 12 : 11; 
         
-        for (let x = -iOx; x < 320; x += 32) {
+        for (let x = -iOx; x < offW; x += 32) {
             this.drawVLine(ctx, x, 0, 200, gridCol);
         }
         for (let y = -iOy; y < 200; y += 32) {
-            this.drawHLine(ctx, 0, y, 320, gridCol);
+            this.drawHLine(ctx, 0, y, offW, gridCol);
         }
 
         // --- Layer 3: Data Nodes (Tension gesteuert) ---
         if (tension > 0.3) {
-            // Blau -> Cyan -> Weiß je nach Intensität des Tracks
             const nodeCol = tension > 0.8 ? 1 : (tension > 0.6 ? 3 : 6); 
             for (let y = -iOy; y < 200; y += 32) {
-                for (let x = -iOx; x < 320; x += 32) {
+                for (let x = -iOx; x < offW; x += 32) {
                     let gX = Math.floor(x / 32);
                     let gY = Math.floor(y / 32);
                     if (Math.abs(gX + gY) % 2 === 0) {
@@ -163,17 +174,15 @@ export class SidSiliconBg {
         // 2. MIDDLEGROUND: 8x8 CHUNKY PETSCII PLASMA
         // =========================================================
         if (tension > 0.1) {
-            // Plasma-Farben: Black, Blue, Purple, Dark Grey
             const pColors = [0, 6, 4, 11]; 
+            const plasmaBlocksX = Math.ceil(offW / 8); // Skaliert in die Breite!
             for (let y = 0; y < 25; y++) {
-                for (let x = 0; x < 40; x++) {
+                for (let x = 0; x < plasmaBlocksX; x++) {
                     let v = Math.sin(x * 0.3 + time) + Math.sin(y * 0.3 + time * 1.2) + Math.sin((x + y) * 0.2 - time);
-                    let cIdx = Math.floor((v + 3) * 1.5) & 3; // 0 bis 3
+                    let cIdx = Math.floor((v + 3) * 1.5) & 3; 
                     
-                    // Tension steuert die Dichte der durchbrechenden Plasma-Blöcke
                     if (cIdx > 0 && Math.random() < tension) { 
                         ctx.fillStyle = PAL[pColors[cIdx]];
-                        // Exakt 8x8 Pixel Blöcke (Größe eines C64-Zeichens)
                         ctx.fillRect(x * 8, y * 8, 8, 8);
                     }
                 }
@@ -181,13 +190,26 @@ export class SidSiliconBg {
         }
 
         // =========================================================
-        // 3. SIGNAL BUSES (Manhattan Routing mit Dashes)
+        // 3. THE ADAPTIVE CHIP BLOCKS (OSC & VCF)
+        // =========================================================
+        // GFX FIX: Breiten schrumpfen auf Handys sachte mit, um Überlappung zu verhindern!
+        const oscWidth = Math.min(40, Math.floor(offW * 0.15));
+        const vcfWidth = Math.min(56, Math.floor(offW * 0.18));
+
+        // Symmetrische Spreizung relativ zur Mitte (cx)
+        const span = Math.min(110, offW * 0.35); 
+        const oscX = cx - span;
+        const vcfX = cx + span * 0.63; // Perfekt ausbalanciertes C64-Routing
+
+        // =========================================================
+        // 4. SIGNAL BUSES (Dynamic Manhattan Routing)
         // =========================================================
         const drawChunkyBus = (startX, startY, endX, endY, vol) => {
-            const midX = startX + 60;
+            // Berechnet den Biegungspunkt der Leitungen dynamisch als Prozentwert des Abstands
+            const midX = Math.floor(startX + (endX - startX) * 0.55);
             const dashLen = 8;
             const offset = (time * 60 * (1.0 + vol)) | 0;
-            const colorIdx = vol > 0.5 ? 1 : (vol > 0.1 ? 3 : 6); // White, Cyan, Blue
+            const colorIdx = vol > 0.5 ? 1 : (vol > 0.1 ? 3 : 6); 
 
             // Horizontale Linie 1
             for (let x = startX; x < midX; x++) {
@@ -215,56 +237,47 @@ export class SidSiliconBg {
         };
 
         const oscY = [40, 100, 160];
-        const vcfPos = { x: 230, y: 100 };
+        const vcfY = 100;
 
-        drawChunkyBus(50, oscY[0], vcfPos.x, vcfPos.y - 20, vols[0]);
-        drawChunkyBus(50, oscY[1], vcfPos.x, vcfPos.y,      vols[1]);
-        drawChunkyBus(50, oscY[2], vcfPos.x, vcfPos.y + 20, vols[2]);
+        drawChunkyBus(oscX, oscY[0], vcfX, vcfY - 20, vols[0]);
+        drawChunkyBus(oscX, oscY[1], vcfX, vcfY,      vols[1]);
+        drawChunkyBus(oscX, oscY[2], vcfX, vcfY + 20, vols[2]);
 
         const vcaVol = (vols[0] + vols[1] + vols[2]) / 3.0;
         
-        // Dicker Master-Out Bus (4px)
+        // Dicker Master-Out Bus (Fließt bis an den dynamischen rechten Rand!)
         const dashLenM = 12;
         const offsetM = (time * 100) | 0;
-        const mCol = vcaVol > 0.5 ? 1 : 10; // White or Light Red
-        for (let x = vcfPos.x; x < 320; x++) {
+        const mCol = vcaVol > 0.5 ? 1 : 10; 
+        for (let x = vcfX; x < offW; x++) {
             if (((x - offsetM) % (dashLenM * 2) + (dashLenM * 2)) % (dashLenM * 2) < dashLenM) {
                 ctx.fillStyle = PAL[mCol];
                 ctx.fillRect(x, 98, 1, 4);
             }
         }
 
-        // =========================================================
-        // 4. ISOMETRIC CHIP BLOCKS (OSC & VCF)
-        // =========================================================
-        this.drawIsoBlock(ctx, 50, oscY[0], 40, 32, vols[0], false);
-        this.drawIsoBlock(ctx, 50, oscY[1], 40, 32, vols[1], false);
-        this.drawIsoBlock(ctx, 50, oscY[2], 40, 32, vols[2], false);
+        // Die Gatterblöcke zeichnen
+        this.drawIsoBlock(ctx, oscX, oscY[0], oscWidth, 32, vols[0], false);
+        this.drawIsoBlock(ctx, oscX, oscY[1], oscWidth, 32, vols[1], false);
+        this.drawIsoBlock(ctx, oscX, oscY[2], oscWidth, 32, vols[2], false);
 
-        // VCF Block ist massiver
-        this.drawIsoBlock(ctx, vcfPos.x, vcfPos.y, 56, 64, vcaVol, true);
+        this.drawIsoBlock(ctx, vcfX, vcfY, vcfWidth, 64, vcaVol, true);
 
         // =========================================================
-        // 5. STROBE FLASH (True 8-Bit Whiteout)
+        // 5. STROBE FLASH
         // =========================================================
         if (state === 'climax' && beat > 0.7) {
-            ctx.fillStyle = PAL[1]; // Exakt Farbe 1 (Weiß)
-            ctx.fillRect(0, 0, 320, 200);
+            ctx.fillStyle = PAL[1]; 
+            ctx.fillRect(0, 0, offW, 200);
         }
 
         // =========================================================
-        // BLIT TO MAIN CANVAS (Nearest-Neighbor Upscaling)
+        // BLIT TO MAIN CANVAS
         // =========================================================
         mainCtx.globalAlpha = globalAlpha;
         mainCtx.imageSmoothingEnabled = false; 
         
-        const scale = Math.min(width / 320, height / 200);
-        const drawW = (320 * scale) | 0;
-        const drawH = (200 * scale) | 0;
-        const drawX = ((width - drawW) / 2) | 0;
-        const drawY = ((height - drawH) / 2) | 0;
-
-        mainCtx.drawImage(this.offscreen, drawX, drawY, drawW, drawH);
+        mainCtx.drawImage(this.offscreen, 0, 0, width, height);
         
         mainCtx.imageSmoothingEnabled = true; 
         mainCtx.globalAlpha = 1.0;
