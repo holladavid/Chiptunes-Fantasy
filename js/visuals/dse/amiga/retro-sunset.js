@@ -9,6 +9,7 @@ export class AmigaRetroSunset {
         this.smoothedWaveSpeed = 1.0;
         this.lastT = 0;
 
+        // Parallax-Scroll-Akkumulatoren
         this.bgScroll = 0.0;
         this.fgScroll = 0.0;
 
@@ -63,11 +64,11 @@ export class AmigaRetroSunset {
     ensureInitialized() {
         if (this.copperPalette && this.sunColorCore) return;
 
-        // Exakte OCS Farbpalette (12-Bit)
-        this.waterColor = rgbToHex(...quantizeAmiga12Bit(0, 0, 17));         // Tiefstes Mitternachtsblau-Schwarz
-        this.reflectionColor = rgbToHex(...quantizeAmiga12Bit(255, 119, 0)); // Warmes Orange
+        // Exakte Amiga-Farbpalette (12-Bit OCS)
+        this.waterColor = rgbToHex(...quantizeAmiga12Bit(0, 0, 17));         // Tiefes Meeres-Mitternachtsblau
+        this.reflectionColor = rgbToHex(...quantizeAmiga12Bit(255, 119, 0)); // Warmes Sunset-Orange
         this.sunGlowColor = rgbToHex(...quantizeAmiga12Bit(255, 187, 0));    // Goldgelb
-        this.sunCoreColor = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));  // Reinweiß
+        this.sunCoreColor = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));  // Reinweiß (Liquid White)
         
         // Harmonisch glühende Sonnen-Palette
         this.sunColorCore = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));   
@@ -75,7 +76,7 @@ export class AmigaRetroSunset {
         this.sunColorOrange = rgbToHex(...quantizeAmiga12Bit(255, 119, 0));   
         this.sunColorRed = rgbToHex(...quantizeAmiga12Bit(204, 51, 0));       
 
-        // Subtile Tiefenperspektive für die Berghorizonte (Charcoal-Teal-Schema)
+        // Subtile Tiefenperspektive für die Berghorizonte (Dunkles Charcoal-Blau-Schema)
         this.mountain1Color = rgbToHex(...quantizeAmiga12Bit(51, 17, 68));     // Ferne Kette (atmosphärisches Violett)
         this.mountain2Color = rgbToHex(...quantizeAmiga12Bit(0, 17, 34));      // Nahe Kette (Charcoal-Teal-Schwarz)
         this.mountain2Outline = rgbToHex(...quantizeAmiga12Bit(0, 34, 51));    // Dunkle Konturkante für Berg 2
@@ -138,6 +139,31 @@ export class AmigaRetroSunset {
         ctx.restore();
     }
 
+    // BOB ROSS "VERTICAL PULL" - Zeichnet die Berge vertikal gespiegelt nach unten
+    drawMirroredMountainRange(ctx, width, horizon, points, color, scrollOffset, heightScale) {
+        ctx.fillStyle = color;
+        let sOff = Math.floor(scrollOffset);
+        
+        ctx.save();
+        ctx.translate(-sOff, 0);
+        for (let tile = 0; tile < 2; tile++) {
+            let tX = tile * width;
+            ctx.beginPath();
+            ctx.moveTo(tX, horizon);
+            for (let i = 0; i < points.length; i++) {
+                let p = points[i];
+                let px = Math.floor((p.x / 100) * width) + tX;
+                // Gespiegelt: Höhe wird addiert, statt abgezogen
+                let py = Math.floor(horizon + (p.y / 100) * horizon * heightScale * 0.82);
+                ctx.lineTo(px, py);
+            }
+            ctx.lineTo(width + tX, horizon);
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
     rebuildWaterCache(width, height) {
         this.ensureInitialized();
         const horizon = Math.floor(height * 0.55);
@@ -153,29 +179,29 @@ export class AmigaRetroSunset {
             let depth = (y - horizon) / (height - horizon);
 
             // --- MULTI-BAND COPPER BLUE WATER BASE ---
-            // Shaded OCS gradient from deepest midnight blue to royal ocean blue to teal-blue
+            // Shaded OCS gradient from deepest midnight blue to royal ocean blue to teal-blue (No purple!)
             let r = 0, g = 0, b = 0;
             if (depth < 0.5) {
                 let t = depth / 0.5;
                 r = 0;
-                g = Math.floor(34 * t);
-                b = Math.floor(17 + (102 - 17) * t);
+                g = Math.floor(17 * t);
+                b = Math.floor(17 + (68 - 17) * t);
             } else {
                 let t = (depth - 0.5) / 0.5;
                 r = 0;
-                g = Math.floor(34 + (68 - 34) * t);
-                b = Math.floor(102 + (119 - 102) * t);
+                g = Math.floor(17 + (34 - 17) * t);
+                b = Math.floor(68 + (102 - 68) * t);
             }
 
             // Demoscene dither bands (subtle scanline striping in deep navy blue)
-            let isStripe = (depth > 0.6 && Math.floor(y / 4) % 3 === 0);
+            let isStripe = (depth > 0.65 && Math.floor(y / 4) % 3 === 0);
             if (isStripe) {
                 this.cachedWaterColors[i] = rgbToHex(...quantizeAmiga12Bit(0, 17, 51));
             } else {
                 this.cachedWaterColors[i] = rgbToHex(...quantizeAmiga12Bit(r, g, b));
             }
 
-            // Reflexionsband (shimmering orange)
+            // Reflexionsband (shimmering OCS orange shade)
             let shading = Math.max(0.15, 1.0 - depth * 0.72);
             this.cachedRefColors[i] = rgbToHex(...quantizeAmiga12Bit(255 * shading, 119 * shading, 0));
         }
@@ -234,7 +260,7 @@ export class AmigaRetroSunset {
             skyJitterY = Math.floor(Math.sin(t * 60) * 1.2);
         }
 
-        // --- LAYER 1: THE COPPER SKY (Ganz hinten) ---
+        // --- LAYER 1: THE COPPER SKY ---
         const bandH = Math.ceil(horizon / this.copperPalette.length);
         for (let i = 0; i < this.copperPalette.length; i++) {
             ctx.fillStyle = this.copperPalette[i];
@@ -338,7 +364,18 @@ export class AmigaRetroSunset {
             ctx.fillRect(hStart, horizon, hWidth, 1);
         }
 
-        // --- LAYER 7: SHIMMERING WATER (Bandeingefasster Vordergrund-Glow) ---
+        // --- LAYER 7: BOB ROSS "VERTICAL PULL" (Berge-Spiegelung im Meeresgrund) ---
+        // Wir blitten die reflektierten Berge zart vor den dithernden Wasser-Scanlines
+        ctx.save();
+        ctx.globalAlpha = globalAlpha * 0.35; // Weicher, unaufdringlicher Spiegel-Glow
+        // Wir wobbeln die Reflexionen horizontal auf einer Schwingung
+        let bgRefWobble = this.bgScroll + Math.sin(this.waterT * 2.5) * 6;
+        let fgRefWobble = this.fgScroll + Math.cos(this.waterT * 2.5) * 8;
+        this.drawMirroredMountainRange(ctx, width, horizon, this.mountains1, this.mountain1Color, bgRefWobble, 0.35);
+        this.drawMirroredMountainRange(ctx, width, horizon, this.mountains2, this.mountain2Color, fgRefWobble, 0.22);
+        ctx.restore();
+
+        // --- LAYER 8: SHIMMERING WATER & HORIZONTAL WHISPERS (OCS Scanlines) ---
         const numLines = this.cachedWaterColors.length;
         const activeBeatDistortion = beat * beatIntensity * 4.0; 
         const distortion = 1.5 + (activeBeatDistortion * 2.0);
@@ -356,7 +393,7 @@ export class AmigaRetroSunset {
 
             let shimmer = Math.sin((y * 0.45) + (this.waterT * 12.0));
             if (shimmer < -0.15) {
-                // Zeichnet das tiefe Basiswasser (Shading-Bands im Cache)
+                // Background water (bereits im Cache dither-gestreift!)
                 ctx.fillStyle = this.cachedWaterColors[i];
                 ctx.fillRect(0, y, width, 2);
                 continue;
@@ -377,13 +414,22 @@ export class AmigaRetroSunset {
                 ctx.fillStyle = this.sunCoreColor;
                 ctx.fillRect(Math.floor(sx - (coreW / 2) + xOffset * 0.5), y, Math.floor(coreW), 2);
             }
+
+            // BOB ROSS "LIQUID WHITE" RIPPLES (Flüchtige Spachtel-Striche treiben über das Wasser)
+            let rippleNoise = Math.sin(y * 0.95 + this.waterT * 7.0);
+            if (rippleNoise > 0.94) {
+                let rx = sx + Math.sin(y * 12.3) * (width * 0.35);
+                let rW = 8 + Math.abs(Math.sin(y)) * 14;
+                ctx.fillStyle = this.sunCoreColor;
+                ctx.fillRect(Math.floor(rx - rW/2), y, Math.floor(rW), 1); // 1px dünne Spachtel-Kante
+            }
         }
 
-        // --- LAYER 8: ANTICS: GLIDING SEAGULLS (Möwen fliegen nun tiefer über den Gipfeln) ---
+        // --- LAYER 9: ANTICS: GLIDING SEAGULLS (Gipfel-Tiefflug) ---
         let flockInactive = !this.birdActive[0] && !this.birdActive[1] && !this.birdActive[2];
         if (flockInactive && Math.random() < 0.0035) {
             let baseSpeed = 24 + Math.random() * 10;
-            // Einflugshöhe bündig über den Bergen zentriert (zwischen 25% und 40% Bildschirmhöhe)
+            // Einflugshöhe knapp über den Bergen zentriert
             let baseRowY = Math.floor(horizon * 0.45 + Math.random() * horizon * 0.25);
             
             // Leader
@@ -414,7 +460,7 @@ export class AmigaRetroSunset {
             }
         }
 
-        // --- LAYER 9: ANTICS: LEAPING FISH ---
+        // --- LAYER 10: ANTICS: LEAPING FISH ---
         if (!this.fishActive && beat > 0.82 && Math.random() < 0.015) {
             this.fishActive = true;
             this.fishT = 0;
