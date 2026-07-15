@@ -64,9 +64,10 @@ export class AmigaRetroSunset {
         if (this.copperPalette && this.sunColorCore) return;
 
         // Exakte OCS Farbpalette (12-Bit)
-        this.reflectionColor = rgbToHex(...quantizeAmiga12Bit(255, 119, 0));  // Warmes Orange
-        this.sunGlowColor = rgbToHex(...quantizeAmiga12Bit(255, 187, 0));     // Goldgelb
-        this.sunCoreColor = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));   // Reinweiß
+        this.waterColor = rgbToHex(...quantizeAmiga12Bit(0, 0, 17));         // Tiefstes Mitternachtsblau-Schwarz
+        this.reflectionColor = rgbToHex(...quantizeAmiga12Bit(255, 119, 0)); // Warmes Orange
+        this.sunGlowColor = rgbToHex(...quantizeAmiga12Bit(255, 187, 0));    // Goldgelb
+        this.sunCoreColor = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));  // Reinweiß
         
         // Harmonisch glühende Sonnen-Palette
         this.sunColorCore = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));   
@@ -74,10 +75,10 @@ export class AmigaRetroSunset {
         this.sunColorOrange = rgbToHex(...quantizeAmiga12Bit(255, 119, 0));   
         this.sunColorRed = rgbToHex(...quantizeAmiga12Bit(204, 51, 0));       
 
-        // Subtile Tiefenperspektive für die Berghorizonte
+        // Subtile Tiefenperspektive für die Berghorizonte (Charcoal-Teal-Schema)
         this.mountain1Color = rgbToHex(...quantizeAmiga12Bit(51, 17, 68));     // Ferne Kette (atmosphärisches Violett)
-        this.mountain2Color = rgbToHex(...quantizeAmiga12Bit(17, 0, 17));      // Nahe Kette (maroonschwarze Silhouette)
-        this.mountain2Outline = rgbToHex(...quantizeAmiga12Bit(34, 0, 34));    // Dunkle Konturkante für Berg 2
+        this.mountain2Color = rgbToHex(...quantizeAmiga12Bit(0, 17, 34));      // Nahe Kette (Charcoal-Teal-Schwarz)
+        this.mountain2Outline = rgbToHex(...quantizeAmiga12Bit(0, 34, 51));    // Dunkle Konturkante für Berg 2
 
         // 28-Band Amiga OCS Copper-Himmel-Palette (Top-down Shading, dithered steps)
         this.copperPalette = [
@@ -151,28 +152,28 @@ export class AmigaRetroSunset {
             let y = horizon + i * 2;
             let depth = (y - horizon) / (height - horizon);
 
-            // --- MULTI-BAND COPPER WATER BASE ---
-            // Shaded OCS gradient from very dark indigo to deep violet/purple
-            let r, g, b;
+            // --- MULTI-BAND COPPER BLUE WATER BASE ---
+            // Shaded OCS gradient from deepest midnight blue to royal ocean blue to teal-blue
+            let r = 0, g = 0, b = 0;
             if (depth < 0.5) {
                 let t = depth / 0.5;
-                r = 10 + (17 - 10) * t;
-                g = 5 + (0 - 5) * t;
-                b = 20 + (51 - 20) * t;
+                r = 0;
+                g = Math.floor(34 * t);
+                b = Math.floor(17 + (102 - 17) * t);
             } else {
                 let t = (depth - 0.5) / 0.5;
-                r = 17 + (34 - 17) * t;
-                g = 0;
-                b = 51 + (68 - 51) * t;
+                r = 0;
+                g = Math.floor(34 + (68 - 34) * t);
+                b = Math.floor(102 + (119 - 102) * t);
             }
 
-            // Subtile periodische Streifen-Gaps im Vordergrundwasser vorkalkulieren
-            let stripeFactor = (depth > 0.6 && Math.floor(y / 4) % 3 === 0) ? 0.72 : 1.0;
-            r *= stripeFactor;
-            g *= stripeFactor;
-            b *= stripeFactor;
-
-            this.cachedWaterColors[i] = rgbToHex(...quantizeAmiga12Bit(r, g, b));
+            // Demoscene dither bands (subtle scanline striping in deep navy blue)
+            let isStripe = (depth > 0.6 && Math.floor(y / 4) % 3 === 0);
+            if (isStripe) {
+                this.cachedWaterColors[i] = rgbToHex(...quantizeAmiga12Bit(0, 17, 51));
+            } else {
+                this.cachedWaterColors[i] = rgbToHex(...quantizeAmiga12Bit(r, g, b));
+            }
 
             // Reflexionsband (shimmering orange)
             let shading = Math.max(0.15, 1.0 - depth * 0.72);
@@ -355,7 +356,7 @@ export class AmigaRetroSunset {
 
             let shimmer = Math.sin((y * 0.45) + (this.waterT * 12.0));
             if (shimmer < -0.15) {
-                // Zeichnet nur das tiefe Basiswasser (mit ditherten Vordergrund-Streifen im Cache)
+                // Zeichnet das tiefe Basiswasser (Shading-Bands im Cache)
                 ctx.fillStyle = this.cachedWaterColors[i];
                 ctx.fillRect(0, y, width, 2);
                 continue;
@@ -378,11 +379,12 @@ export class AmigaRetroSunset {
             }
         }
 
-        // --- LAYER 8: ANTICS: GLIDING SEAGULLS (Flock of 3 in V-Formation - ganz vorne) ---
+        // --- LAYER 8: ANTICS: GLIDING SEAGULLS (Möwen fliegen nun tiefer über den Gipfeln) ---
         let flockInactive = !this.birdActive[0] && !this.birdActive[1] && !this.birdActive[2];
         if (flockInactive && Math.random() < 0.0035) {
             let baseSpeed = 24 + Math.random() * 10;
-            let baseRowY = Math.floor(height * 0.06 + Math.random() * height * 0.12);
+            // Einflugshöhe bündig über den Bergen zentriert (zwischen 25% und 40% Bildschirmhöhe)
+            let baseRowY = Math.floor(horizon * 0.45 + Math.random() * horizon * 0.25);
             
             // Leader
             this.birdActive[0] = true; this.birdX[0] = width + 20; this.birdY[0] = baseRowY; this.birdSpeed[0] = baseSpeed; this.birdPhase[0] = 0.0;
