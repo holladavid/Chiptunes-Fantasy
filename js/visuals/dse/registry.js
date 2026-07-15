@@ -1,13 +1,13 @@
 // === js/visuals/dse/registry.js ===
 // =========================================================
 // DEMO-SCENE-ELEMENT (DSE) REGISTRY & METADATA SCHEMAS
-// Centralized configuration file acting as a single source 
-// of truth for all orchestration, limits, and weights.
+// Features a fluent Builder Pattern for strict separation of
+// Z-Order (layer), behavior (lifecycle), and concurrency limits.
 // =========================================================
 
 import { LimitBar } from './universal/limit-bar.js';
 import { Copperbars } from './universal/copperbars.js';
-import { VoidElement } from './universal/void-element.js'; // NEU: Universeller Platzhalter
+import { VoidElement } from './universal/void-element.js'; 
 import { RetroSunset } from './universal/retro-sunset.js';
 import { Starfield } from './universal/starfield.js'; 
 import { AmigaCube } from './amiga/glenz-cube.js';
@@ -21,188 +21,212 @@ import { AtariDotTorus } from './atari/dot-torus.js';
 import { SidSiliconBg } from './c64/sid-silicon-bg.js';
 import { PaulaSiliconBg } from './amiga/paula-silicon-bg.js';
 import { YmSiliconBg } from './atari/ym-silicon-bg.js';
+import { C64VectorStar } from './c64/vector-star.js';
 
-function defineDSE(DseClass, customMetadata) {
-    const defaults = {
-        name: DseClass.name,
-        computerType: ['all'],                  
-        placementType: 'foreground',            
-        energyLevel: ['idle', 'playing', 'buildup', 'climax'],
-        weight: 10,                             
-        minPlayTime: 15.0,                      
-        climaxHoldTime: 10.0,
-        isVoid: false // NEU: Standardmäßig ist ein Element sichtbar (kein Void)
-    };
+// =========================================================
+// FLUENT BUILDER PATTERN (1 Funktion je Attribut)
+// =========================================================
+class DseBuilder {
+    constructor(DseClass) {
+        this.Class = DseClass;
+        this.meta = {
+            name: DseClass.name || 'UnnamedDSE',
+            systems: ['all'],
+            layer: 'foreground',       // Visuelle Z-Order (background, floor, foreground, overlay)
+            lifecycle: 'managed',      // Verhalten (managed, permanent, oneshot)
+            maxInstances: 1,           // Maximal gleichzeitige Instanzen im aktiven Render-Pool
+            weight: 10,                // Roulette-Gewichtung
+            duration: 15.0,            // Mindest-Laufzeit (managed) oder absolute Lebensdauer (oneshot)
+            climaxHold: 10.0,          // Nachbrennzeit des Climax
+            isVoid: false              // Marker für unsichtbare Platzhalter
+        };
+    }
 
-    const metadata = { ...defaults, ...customMetadata };
+    name(val) { this.meta.name = val; return this; }
+    systems(...sys) { this.meta.systems = sys.length ? sys : ['all']; return this; }
+    layer(val) { this.meta.layer = val; return this; }
+    lifecycle(val) { this.meta.lifecycle = val; return this; }
+    maxInstances(val) { this.meta.maxInstances = val; return this; }
+    weight(val) { this.meta.weight = val; return this; }
+    duration(val) { this.meta.duration = val; return this; }
+    climaxHold(val) { this.meta.climaxHold = val; return this; }
+    isVoid() { this.meta.isVoid = true; return this; }
 
-    if (!Array.isArray(metadata.computerType)) throw new Error(`[DSE Schema] ${metadata.name}: 'computerType' must be an Array.`);
-    const validPlacements = ['background', 'floor', 'foreground', 'overlay', 'presenter'];
-    if (!validPlacements.includes(metadata.placementType)) throw new Error(`[DSE Schema] ${metadata.name}: Invalid placementType.`);
-    if (typeof metadata.isVoid !== 'boolean') throw new Error(`[DSE Schema] ${metadata.name}: 'isVoid' must be a Boolean.`);
-    if (typeof metadata.weight !== 'number' || metadata.weight <= 0) throw new Error(`[DSE Schema] ${metadata.name}: 'weight' must be a positive Number.`);
+    build() {
+        // Compile-Time Validierung, schützt vor fehlerhafter DSE-Deklaration
+        const validLayers = ['background', 'floor', 'foreground', 'overlay'];
+        if (!validLayers.includes(this.meta.layer)) throw new Error(`[DSE Schema] ${this.meta.name}: Invalid layer.`);
+        
+        const validLifecycles = ['managed', 'permanent', 'oneshot'];
+        if (!validLifecycles.includes(this.meta.lifecycle)) throw new Error(`[DSE Schema] ${this.meta.name}: Invalid lifecycle.`);
 
-    return { Class: DseClass, metadata: metadata };
+        return { Class: this.Class, metadata: this.meta };
+    }
 }
 
+// Wrapper für syntaktischen Zucker
+const RegisterDSE = (DseClass) => new DseBuilder(DseClass);
+
+// =========================================================
+// THE OFFICIAL SETLIST REGISTRY
+// =========================================================
 export const dseRegistry = [
     
     // --- OVERLAYS ---
-    defineDSE(LimitBar, {
-        placementType: 'overlay',
-        computerType: ['all'],
-        weight: 1,                
-        minPlayTime: Infinity,    
-        climaxHoldTime: 0.0
-    }),
-
-    // --- BACKGROUNDS (Tauschen sich nun gegenseitig aus!) ---
-    defineDSE(Starfield, {
-        placementType: 'background',
-        computerType: ['all'], 
-        weight: 7,               
-        minPlayTime: 15.0,
-        climaxHoldTime: 8.0
-    }),
-    
-    defineDSE(RetroSunset, {
-        placementType: 'background',
-        computerType: ['all'],
-        weight: 10,              
-        minPlayTime: 15.0,
-        climaxHoldTime: 12.0
-    }),
-
-        defineDSE(ChunkyPlasma, {
-        placementType: 'background',
-        computerType: ['c64'],   // Wird NUR getriggert, wenn C64 aktiv ist
-        weight: 12,              // Hohe Gewichtung, taucht oft auf
-        minPlayTime: 12.0,
-        climaxHoldTime: 10.0
-    }),
-
-    // --- SYSTEM EXCLUSIVE BACKGROUNDS ---
-    defineDSE(SidSiliconBg, {
-        placementType: 'background',
-        computerType: ['c64'], // Nur auf dem C64 sichtbar!
-        weight: 12,            // Hohe Gewichtung, wird oft gezogen
-        minPlayTime: 12.0,
-        climaxHoldTime: 10.0
-    }),
-
-    defineDSE(PaulaSiliconBg, {
-        placementType: 'background',
-        computerType: ['amiga'], // System exklusiv!
-        weight: 12,              // Zieht bevorzugt im Roulette
-        minPlayTime: 12.0,
-        climaxHoldTime: 10.0
-    }),
-
-    defineDSE(YmSiliconBg, {
-        placementType: 'background',
-        computerType: ['atari'], // System exklusiv!
-        weight: 12,              
-        minPlayTime: 12.0,
-        climaxHoldTime: 10.0
-    }),
-
-    defineDSE(VoidElement, {
-        name: 'VoidBackground', // Weist der universellen Klasse einen spezifischen Namen zu
-        placementType: 'background',
-        computerType: ['all'],
-        weight: 5,              // Geringeres Gewicht = seltener als echte Grafik-Hintergründe
-        minPlayTime: 15.0,
-        climaxHoldTime: 0.0,
-        isVoid: true            // Als Void-Element markiert
-    }),
-
-    // --- FLOORS (Tauschen sich nun gegenseitig aus!) ---
-    defineDSE(Copperbars, {
-        placementType: 'floor',
-        computerType: ['all'],
-        weight: 8,               
-        minPlayTime: 15.0,
-        climaxHoldTime: 12.0
-    }),
-        
-    defineDSE(KefrensCheckerboard, {
-        placementType: 'floor',
-        computerType: ['amiga'], // Streng auf Amiga limitiert
-        weight: 12,              // Hohe Gewichtung (Erscheint häufig!)
-        minPlayTime: 12.0,
-        climaxHoldTime: 15.0
-    }),
-
-    defineDSE(VoidElement, {
-        name: 'VoidFloor',
-        placementType: 'floor',
-        computerType: ['all'],
-        weight: 8,               
-        minPlayTime: 15.0,
-        climaxHoldTime: 0.0,
-        isVoid: true
-    }),
-    
-    // --- FOREGROUNDS (Tauschen sich nun gegenseitig aus!) ---
-    defineDSE(AmigaCube, {
-        placementType: 'foreground',
-        computerType: ['amiga'],
-        weight: 10,
-        minPlayTime: 15.0,
-        climaxHoldTime: 15.0
-    }),
-
-    // NEU: Der legendäre 1984 Amiga Boing Ball!
-    defineDSE(AmigaBoingBall, {
-        placementType: 'foreground',
-        computerType: ['amiga'], // Streng auf Amiga limitiert
-        weight: 12,              // Leicht höhere Gewichtung
-        minPlayTime: 12.0,
-        climaxHoldTime: 15.0
-    }),
-
-    // NEU: Der legendäre Atari ST 3D Dot Torus!
-    defineDSE(AtariDotTorus, {
-        placementType: 'foreground',
-        computerType: ['atari'], // Exklusiv Atari ST!
-        weight: 12,              
-        minPlayTime: 12.0,
-        climaxHoldTime: 15.0
-    }),
-    
-    // NEU: Der klassische Atari ST Wireframe Morph
-    defineDSE(WireframeMorph, {
-        placementType: 'foreground',
-        computerType: ['atari'], // Exklusiv für den ST!
-        weight: 12,              // Hohe Präsenz
-        minPlayTime: 12.0,
-        climaxHoldTime: 15.0
-    }),
-
-    defineDSE(AtariBobs, {
-        placementType: 'foreground',
-        computerType: ['atari'],
-        weight: 10,
-        minPlayTime: 15.0,
-        climaxHoldTime: 10.0
-    }),
-
-    defineDSE(VoidElement, {
-        name: 'VoidForeground',
-        placementType: 'foreground',
-        computerType: ['all'],
-        weight: 5,               
-        minPlayTime: 15.0,
-        climaxHoldTime: 0.0,
-        isVoid: true
-    }),
+    RegisterDSE(LimitBar)
+        .layer('overlay')
+        .lifecycle('permanent') // Dauerhaft auf dem Monitor
+        .weight(1)
+        .duration(0)
+        .climaxHold(0)
+        .build(),
 
     // --- PRESENTERS (One-Shot Overlays) ---
-    defineDSE(TrackPresenter, {
-        placementType: 'presenter',
-        computerType: ['all'],
-        weight: 10,
-        minPlayTime: 5.0,     // Wird nun als exakte Anzeigezeit ausgelesen!
-        climaxHoldTime: 0.0
-    })
-]; // Ende des dseRegistry Arrays
+    RegisterDSE(TrackPresenter)
+        .layer('overlay')       // Sitzt visuell auf dem Overlay-Layer
+        .lifecycle('oneshot')   // Zerstört sich selbst nach der Duration
+        .duration(5.0)          // Exakte Anzeigezeit: 5 Sekunden
+        .weight(10)
+        .climaxHold(0)
+        .build(),
+
+    // --- BACKGROUNDS ---
+    RegisterDSE(Starfield)
+        .layer('background')
+        .weight(7)
+        .duration(15.0)
+        .climaxHold(8.0)
+        .build(),
+    
+    RegisterDSE(RetroSunset)
+        .layer('background')
+        .weight(10)
+        .duration(15.0)
+        .climaxHold(12.0)
+        .build(),
+
+    RegisterDSE(ChunkyPlasma)
+        .systems('c64')
+        .layer('background')
+        .weight(12)
+        .duration(12.0)
+        .climaxHold(10.0)
+        .build(),
+
+    // --- SYSTEM EXCLUSIVE BACKGROUNDS (Living Silicon) ---
+    RegisterDSE(SidSiliconBg)
+        .systems('c64')
+        .layer('background')
+        .weight(12)
+        .duration(12.0)
+        .climaxHold(10.0)
+        .build(),
+
+    RegisterDSE(PaulaSiliconBg)
+        .systems('amiga')
+        .layer('background')
+        .weight(12)
+        .duration(12.0)
+        .climaxHold(10.0)
+        .build(),
+
+    RegisterDSE(YmSiliconBg)
+        .systems('atari')
+        .layer('background')
+        .weight(12)
+        .duration(12.0)
+        .climaxHold(10.0)
+        .build(),
+
+    RegisterDSE(VoidElement)
+        .name('VoidBackground')
+        .layer('background')
+        .weight(5)
+        .duration(15.0)
+        .isVoid()
+        .build(),
+
+    // --- FLOORS ---
+    RegisterDSE(Copperbars)
+        .layer('floor')
+        .weight(8)
+        .duration(15.0)
+        .climaxHold(12.0)
+        .build(),
+        
+    RegisterDSE(KefrensCheckerboard)
+        .systems('amiga')
+        .layer('floor')
+        .weight(12)
+        .duration(12.0)
+        .climaxHold(15.0)
+        .build(),
+
+    RegisterDSE(VoidElement)
+        .name('VoidFloor')
+        .layer('floor')
+        .weight(8)
+        .duration(15.0)
+        .isVoid()
+        .build(),
+    
+    // --- FOREGROUNDS ---
+    RegisterDSE(AmigaCube)
+        .systems('amiga')
+        .layer('foreground')
+        .weight(10)
+        .duration(15.0)
+        .climaxHold(15.0)
+        .maxInstances(1) // Hier könnten wir künftig "2" setzen für duale Objekte!
+        .build(),
+
+    RegisterDSE(AmigaBoingBall)
+        .systems('amiga')
+        .layer('foreground')
+        .weight(12)
+        .duration(12.0)
+        .climaxHold(15.0)
+        .build(),
+
+    RegisterDSE(AtariDotTorus)
+        .systems('atari')
+        .layer('foreground')
+        .weight(12)
+        .duration(12.0)
+        .climaxHold(15.0)
+        .build(),
+    
+    RegisterDSE(WireframeMorph)
+        .systems('atari')
+        .layer('foreground')
+        .weight(12)
+        .duration(12.0)
+        .climaxHold(15.0)
+        .build(),
+
+    RegisterDSE(AtariBobs)
+        .systems('atari')
+        .layer('foreground')
+        .weight(10)
+        .duration(15.0)
+        .climaxHold(10.0)
+        .build(),
+
+    // NEU: Der rotierende, interaktive C64 Vektor-Stern
+    RegisterDSE(C64VectorStar)
+        .systems('c64')
+        .layer('foreground')
+        .weight(12) // Zieht oft
+        .duration(12.0)
+        .climaxHold(15.0)
+        .build(),
+
+    RegisterDSE(VoidElement)
+        .name('VoidForeground')
+        .layer('foreground')
+        .weight(5)
+        .duration(15.0)
+        .isVoid()
+        .build()
+
+]; // Ende der Registry

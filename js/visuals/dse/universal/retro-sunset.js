@@ -2,8 +2,8 @@
 // =========================================================
 // DEMO-SCENE-ELEMENT: RETRO SUNSET (CLEAN CLASSIC EDITION)
 // Multi-system landscape with strict hardware quantization.
-// Overhauled with aspect-ratio safe scaling (minDim) to prevent 
-// distortion and oversized proportions during mobile screen rotations.
+// Overhauled with aspect-ratio safe scaling, wave sines,
+// and a pulsing 8-bit phosphor corona.
 // =========================================================
 
 import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit, fillAliasedCircle } from '../../utils/hardware-constraints.js';
@@ -33,7 +33,7 @@ export class RetroSunset {
         } else if (state === 'buildup') {
             targetSpeed = 1.2;             
             targetWaveSpeed = 1.5;         
-            beatIntensity = 0.2;           
+            beatIntensity = 0.25; // Erhöht für sichtbareres Pumpen           
         } else if (state === 'climax') {
             targetSpeed = 2.2;
             targetWaveSpeed = 5.0;         
@@ -50,16 +50,22 @@ export class RetroSunset {
         let activeBeatDistortion = metrics.beat[0] * beatIntensity * 4.0;
 
         ctx.globalAlpha = globalAlpha;
-        const horizon = height * 0.55; 
+        
+        // GFX FIX: Exakt auf den 55% Horizont des Kefrens-Checkerboards abgestimmt!
+        const horizon = Math.floor(height * 0.55); 
 
-        if (metrics.system === 'c64') this.drawC64(ctx, width, height, horizon, activeSunPulse, activeBeatDistortion, metrics);
-        else if (metrics.system === 'amiga') this.drawAmiga(ctx, width, height, horizon, activeSunPulse, activeBeatDistortion);
-        else this.drawAtari(ctx, width, height, horizon, activeSunPulse, activeBeatDistortion);
+        if (metrics.system === 'c64') {
+            this.drawC64(ctx, width, height, horizon, activeSunPulse, activeBeatDistortion, metrics.tensionPct);
+        } else if (metrics.system === 'amiga') {
+            this.drawAmiga(ctx, width, height, horizon, activeSunPulse, activeBeatDistortion);
+        } else {
+            this.drawAtari(ctx, width, height, horizon, activeSunPulse, activeBeatDistortion);
+        }
 
         ctx.globalAlpha = 1.0;
     }
 
-    drawC64(ctx, w, h, horizon, sunPulse, beatDistortion, metrics) {
+    drawC64(ctx, w, h, horizon, sunPulse, beatDistortion, tension) {
         const colDarkBlue  = rgbToHex(...C64_PALETTE[6]);
         const colRed       = rgbToHex(...C64_PALETTE[2]);
         const colLightRed  = rgbToHex(...C64_PALETTE[10]);
@@ -67,24 +73,43 @@ export class RetroSunset {
         const colWhite     = rgbToHex(...C64_PALETTE[1]);
         const colLightBlue = rgbToHex(...C64_PALETTE[14]);
 
-        const minDim = Math.min(w, h); // Für proportionierte Skalierung
+        const minDim = Math.min(w, h); 
 
-        // Sky Bands
-        ctx.fillStyle = colDarkBlue; ctx.fillRect(0, 0, w, horizon * 0.3); 
-        ctx.fillStyle = colRed; ctx.fillRect(0, horizon * 0.3, w, horizon * 0.3); 
-        ctx.fillStyle = colLightRed; ctx.fillRect(0, horizon * 0.6, w, horizon * 0.25); 
-        ctx.fillStyle = colYellow; ctx.fillRect(0, horizon * 0.85, w, horizon * 0.15); 
+        // Sky Bands (GFX FIX: Mathematisch lückenloser Verlauf ohne 1px Kantenriss)
+        const y1 = Math.floor(horizon * 0.3);
+        const y2 = Math.floor(horizon * 0.6);
+        const y3 = Math.floor(horizon * 0.85);
 
-        // --- PROPORTIONS-FIX: Sonnenradius skaliert linear mit der Breite ---
-        let sunR = Math.floor((minDim * 0.125) + (sunPulse * (minDim * 0.04))); 
+        ctx.fillStyle = colDarkBlue; ctx.fillRect(0, 0, w, y1); 
+        ctx.fillStyle = colRed;      ctx.fillRect(0, y1, w, y2 - y1); 
+        ctx.fillStyle = colLightRed; ctx.fillRect(0, y2, w, y3 - y2); 
+        ctx.fillStyle = colYellow;   ctx.fillRect(0, y3, w, horizon - y3);
+        
+        // Symmetrisch zentrierte, pumpende C64-Sonne
+        let sunR = Math.floor((minDim * 0.125) + (sunPulse * (minDim * 0.045))); 
         let sx = Math.floor(w / 2); 
         let sy = Math.floor(horizon - 12);
 
         const blockSize = 4; 
-        const blockR = Math.round(sunR / blockSize);
         const centerBlockX = Math.floor(sx / blockSize);
         const centerBlockY = Math.floor(sy / blockSize);
 
+        // 1. Die glühende Corona im Hintergrund (Wächst explosiv beim Beat)
+        if (sunPulse > 0.05) {
+            let coronaR = Math.floor(sunR + (minDim * 0.035 * sunPulse));
+            const coronaBlockR = Math.round(coronaR / blockSize);
+            ctx.fillStyle = colLightRed; 
+            for (let by = -coronaBlockR; by <= coronaBlockR; by++) {
+                let dx = Math.round(Math.sqrt(coronaBlockR * coronaBlockR - by * by));
+                let screenY = (centerBlockY + by) * blockSize;
+                let startX = (centerBlockX - dx) * blockSize;
+                let endX = (centerBlockX + dx) * blockSize;
+                ctx.fillRect(startX, screenY, endX - startX, blockSize);
+            }
+        }
+
+        // 2. Der weiße Sonnenkern
+        const blockR = Math.round(sunR / blockSize);
         ctx.fillStyle = colWhite;
         for (let by = -blockR; by <= blockR; by++) {
             let dx = Math.round(Math.sqrt(blockR * blockR - by * by));
@@ -94,18 +119,22 @@ export class RetroSunset {
             ctx.fillRect(startX, screenY, endX - startX, blockSize);
         }
 
-        // Water
+        // Water Background
         ctx.fillStyle = colDarkBlue; ctx.fillRect(0, horizon, w, h - horizon);
 
+        // Wasser-Sway: Amplitude ist an das Tension-Level gekoppelt
         let waveSpeed = this.waterT * 10; 
+        const waveDisplacementAmp = tension * 6.0;
+
         for (let y = Math.floor(horizon); y < h; y += 4) {
+            let xDistort = Math.sin((y * 0.15) + (this.waterT * 0.8)) * waveDisplacementAmp;
             let offset = Math.floor((waveSpeed + y * 2) % 40);
             
             for (let x = -40; x < w + 40; x += 40) {
-                let drawX = Math.floor(x - offset);
+                let drawX = Math.floor(x - offset + xDistort);
                 
-                if (Math.abs(drawX - sx) < sunR * 0.8 && y > horizon + 8) {
-                    let isBright = (beatDistortion > 2.0) ? (Math.random() > 0.4) : (Math.random() > 0.2);
+                if (Math.abs(drawX - sx) < sunR * 0.9 && y > horizon + 8) {
+                    let isBright = (beatDistortion > 1.5) ? (Math.random() > 0.4) : (Math.random() > 0.15);
                     ctx.fillStyle = isBright ? colYellow : colLightRed;
                 } else {
                     ctx.fillStyle = colLightBlue; 
@@ -126,7 +155,7 @@ export class RetroSunset {
         skyGrad.addColorStop(1.0, rgbToHex(...quantizeAmiga12Bit(255, 255, 0)));
         ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, w, horizon);
 
-        // --- PROPORTIONS-FIX Amiga Sonne ---
+        // Amiga Sonne
         let sunR = Math.floor((minDim * 0.15) + (sunPulse * (minDim * 0.075)));
         let sx = Math.floor(w / 2);
         let sy = Math.floor(horizon - 10);
@@ -145,7 +174,6 @@ export class RetroSunset {
         let distortion = 1 + (beatDistortion * 1.5); 
         for (let y = horizon; y < h; y += 1) {
             let depth = (y - horizon) / (h - horizon); 
-            // --- PROPORTIONS-FIX: Wasser-Breite passt sich der Bildschirmbreite an ---
             let waveWidth = (minDim * 0.075) + (depth * (minDim * 0.25)); 
             let xOffset = Math.sin((y * 0.1) + (this.waterT * 3.0)) * distortion;
             
@@ -172,7 +200,7 @@ export class RetroSunset {
         let sx = Math.floor(w / 2);
         let sy = Math.floor(horizon - 25);
         
-        // --- PROPORTIONS-FIX Atari Sonne ---
+        // Atari Sonne
         let sunR = Math.floor((minDim * 0.125) + (sunPulse * (minDim * 0.05)));
         
         let outerColor = rgbToHex(...quantizeAtari9Bit(255, 170, 0));
@@ -201,7 +229,6 @@ export class RetroSunset {
                 if (Math.abs(x + offset - sx) < sunR * (1.0 - depth*0.5) && y < horizon + 40) ctx.fillStyle = cSunRef; 
                 else ctx.fillStyle = (Math.floor(y) % 3 === 0) ? cWater1 : cWater2; 
                 
-                // --- PROPORTIONS-FIX: Wasserstriche skalieren linear ---
                 let dashWidth = (minDim * 0.04) + (depth * (minDim * 0.075));
                 let xDistort = Math.sin(y * 0.2 + waterSpeed) * distortion;
                 

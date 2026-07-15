@@ -886,8 +886,11 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
 }
 
 #fs-ui-bar:hover { opacity: 1.0; }
-#visual-zone.no-cursor #fs-ui-bar { opacity: 0; pointer-events: none; }
-
+/* Fadet das komplette Panel stufenlos aus, wenn der User inaktiv ist (Sohwohl im Fenster als auch im Vollbild!) */
+#visual-zone.user-inactive #fs-ui-bar {
+    opacity: 0;
+    pointer-events: none;
+}
 #fs-playback-controls { display: none; align-items: center; gap: 15px; }
 #visual-zone:fullscreen #fs-playback-controls { display: flex; }
 #visual-zone:-webkit-full-screen #fs-playback-controls { display: flex; }
@@ -965,12 +968,30 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
        MOBILE PLAYBACK BAR FIX
        Erzwingt volle Breite und proportionale Tasten
        ========================================= */
-    #playback-bar .controls { 
-        flex: 0 0 100% !important; /* Zwingt den Container auf exakt 100% Breite */
-        width: 100%; 
-        display: flex; 
-        gap: 6px; 
-        margin-bottom: 12px; 
+    #playback-bar .controls button { 
+        padding: 14px 0 !important; 
+        font-size: clamp(8px, 2.4vw, 12px) !important; 
+        white-space: nowrap;
+        letter-spacing: -0.5px;
+        min-width: 0; 
+        overflow: hidden; 
+        text-overflow: clip; 
+    }
+
+        /* =========================================
+       GFX UPGRADE: Fullscreen Play-Controls auf Mobile drosseln
+       ========================================= */
+    body.theme-c64 #fs-playback-controls .fs-controls button {
+        font-size: clamp(6px, 1.8vw, 9px) !important; /* Extrem kompakt für den C64-Font */
+        padding: 6px 4px !important;
+        white-space: nowrap;
+    }
+
+    body.theme-amiga #fs-playback-controls .fs-controls button,
+    body.theme-atari #fs-playback-controls .fs-controls button {
+        font-size: clamp(11px, 3.2vw, 15px) !important; /* VT323 darf etwas größer sein */
+        padding: 6px 8px !important;
+        white-space: nowrap;
     }
 
     #playback-bar #btn-prev, 
@@ -1051,7 +1072,15 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
 #amiga-led-pwr:hover { transform: scale(1.18); }
 #amiga-led-pwr:active { transform: scale(0.85); }
 
-#visual-zone.no-cursor #chip-hud.collapsed { opacity: 0; pointer-events: none; }
+/* =========================================
+   FULLSCREEN HUD AUTO-FADE LOGIC
+   ========================================= */
+/* Blendet das eingeklappte (collapsed) HUD bei Inaktivität komplett aus.
+   Sobald geklickt oder die Maus bewegt wird, fadet es sofort wieder ein! */
+#visual-zone.user-inactive #chip-hud.collapsed {
+    opacity: 0;
+    pointer-events: none;
+}
 
 /* =========================================
    9. LIVING SILICON STYLING (HARDWARE LABORATORY)

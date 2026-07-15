@@ -1,9 +1,10 @@
 // === js/visuals/dse/atari/ym-silicon-bg.js ===
 // =========================================================
 // DEMO-SCENE-ELEMENT: YM2149F MICROVERSE (BACKGROUND)
-// Authentic 320x200 ST Low-Res. Strict 9-Bit Palette.
+// Authentic 200px ST vertical resolution with dynamic 
+// responsive aspect-ratio width. Strict 9-Bit Palette.
 // Features Log-DAC background stairs, live Square Wave cores,
-// LFSR Noise rain, and brutal Timer-B raster interrupt glitches.
+// smooth parallax LFSR Noise rain, and Timer-B glitches.
 // =========================================================
 
 import { quantizeAtari9Bit, rgbToHex } from '../../../visuals/utils/hardware-constraints.js';
@@ -26,10 +27,8 @@ export class YmSiliconBg {
         this.computerType = ['atari'];
         this.placementType = 'background';
         
-        // Exakte Atari ST Low-Res Auflösung
+        // Canvas wird dynamisch im Render-Loop auf das Seitenverhältnis genormt
         this.offscreen = document.createElement('canvas');
-        this.offscreen.width = 320;
-        this.offscreen.height = 200;
         this.ctx = this.offscreen.getContext('2d', { alpha: false });
         
         this.lastT = 0;
@@ -60,7 +59,7 @@ export class YmSiliconBg {
         const offset = (time * 50) % period;
         const leftX = (cx - width/2) | 0;
         const topY = (cy - amp/2) | 0;
-        const botY = (cy + amp/2) | 0;
+        const bottomY = (cy + amp/2) | 0;
 
         ctx.fillStyle = vol > 0.6 ? PAL[1] : PAL[2]; // White (Clipping) or Neon Green
 
@@ -69,10 +68,8 @@ export class YmSiliconBg {
             let localX = x + offset;
             let nextHigh = (localX % period) < (period / 2);
             
-            // Horizontale Linie zeichnen
-            ctx.fillRect(leftX + x, nextHigh ? topY : botY, 1, 2);
+            ctx.fillRect(leftX + x, nextHigh ? topY : bottomY, 1, 2);
             
-            // Vertikale Verbindungsflanke zeichnen (scharfer Sprung)
             if (x > 0 && isHigh !== nextHigh) {
                 ctx.fillRect(leftX + x, topY, 2, amp);
             }
@@ -84,6 +81,21 @@ export class YmSiliconBg {
         if (state === 'idle') { this.lastT = t; return; }
         let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
         this.lastT = t;
+
+        // =========================================================
+        // GFX UPGRADE: DYNAMISCHE RETRO-AUFLÖSUNG
+        // Sichert 200px vertikale Atari-Auflösung, passt die Breite
+        // exakt an den Monitor an, um schwarze Ränder zu eliminieren!
+        // =========================================================
+        const TARGET_HEIGHT = 200;
+        const aspect = width / height;
+        const offW = Math.floor(TARGET_HEIGHT * aspect);
+        const offH = TARGET_HEIGHT;
+
+        if (this.offscreen.width !== offW || this.offscreen.height !== offH) {
+            this.offscreen.width = offW;
+            this.offscreen.height = offH;
+        }
 
         const beat = metrics.beat[0]; 
         const tension = metrics.tensionPct; 
@@ -103,89 +115,86 @@ export class YmSiliconBg {
         const ctx = this.ctx;
         ctx.imageSmoothingEnabled = false;
 
+        const cx = offW / 2; // Dynamische horizontale Mitte
+
         // =========================================================
         // 1. BACKGROUND: LOG-DAC STAIRCASE
         // =========================================================
         ctx.fillStyle = PAL[0]; // Black
-        ctx.fillRect(0, 0, 320, 200);
+        ctx.fillRect(0, 0, offW, offH);
 
-        // Bewegende logarithmische Treppen von der Mitte nach außen
         const scrollY = (time * 15) % 20;
         for (let i = 0; i < 10; i++) {
-            let yDist = (Math.pow(1.3, i) * 5) | 0; // Exponentielles Wachstum (Logarithmisch)
+            let yDist = (Math.pow(1.3, i) * 5) | 0; 
             let yTop = 100 - yDist - scrollY;
             let yBot = 100 + yDist + scrollY;
             
             let col = tension > 0.5 ? 7 : 3; // Dark Cyan / Dark Green
-            if (yTop > 0) this.drawHLine(ctx, 0, yTop, 320, col);
-            if (yBot < 200) this.drawHLine(ctx, 0, yBot, 320, col);
+            if (yTop > 0) this.drawHLine(ctx, 0, yTop, offW, col);
+            if (yBot < 200) this.drawHLine(ctx, 0, yBot, offW, col);
         }
 
         // =========================================================
-        // 2. THE 3 SQUARE TONE CORES
+        // 2. THE 3 SQUARE TONE CORES (Responsive Alignment & Scaling)
         // =========================================================
-        const coreWidth = 60;
+        // GFX FIX: Core-Breite schrumpft auf Handys sachte mit, um Überlappung zu verhindern!
+        const coreWidth = Math.min(60, Math.floor(offW * 0.18));
         const coreHeight = 120;
         const coreY = 40;
-        const coreX = [50, 160, 270]; // Perfekte Drittel
+        
+        // Symmetrische Spreizung relativ zur Mitte (cx)
+        const span = Math.min(110, offW * 0.35); 
+        const coreX = [cx - span, cx, cx + span]; 
 
         for (let i = 0; i < 3; i++) {
-            const cx = coreX[i];
+            const currentCx = coreX[i];
             const vol = vols[i];
             
-            // Core Gehäuse (Skeuomorphic Vector)
-            ctx.fillStyle = PAL[3]; // Dark Green Border
-            ctx.fillRect(cx - coreWidth/2 - 2, coreY - 2, coreWidth + 4, coreHeight + 4);
-            ctx.fillStyle = PAL[0]; // Black Inside
-            ctx.fillRect(cx - coreWidth/2, coreY, coreWidth, coreHeight);
+            ctx.fillStyle = PAL[3]; 
+            ctx.fillRect(currentCx - coreWidth/2 - 2, coreY - 2, coreWidth + 4, coreHeight + 4);
+            ctx.fillStyle = PAL[0]; 
+            ctx.fillRect(currentCx - coreWidth/2, coreY, coreWidth, coreHeight);
 
-            // Raster-Gitter im Core
             for(let gy = coreY; gy < coreY + coreHeight; gy += 8) {
-                this.drawHLine(ctx, cx - coreWidth/2, gy, coreWidth, 3);
+                this.drawHLine(ctx, currentCx - coreWidth/2, gy, coreWidth, 3);
             }
 
-            // Die pulsierende Rechteckwelle!
-            this.drawSquareWave(ctx, cx, coreY + coreHeight/2, coreWidth, coreHeight * 0.8, vol, time + i);
+            this.drawSquareWave(ctx, currentCx, coreY + coreHeight/2, coreWidth, coreHeight * 0.8, vol, time + i);
 
-            // LED Status an der Spitze
             if (vol > 0.1) {
-                ctx.fillStyle = vol > 0.7 ? PAL[1] : PAL[2]; // White or Neon Green
-                ctx.fillRect(cx - 10, coreY - 8, 20, 4);
+                ctx.fillStyle = vol > 0.7 ? PAL[1] : PAL[2]; 
+                ctx.fillRect(currentCx - 10, coreY - 8, 20, 4);
             }
         }
 
         // =========================================================
-        // 3. LFSR NOISE RAIN (Middle Foreground)
+        // 3. LFSR NOISE RAIN (Physikalisch flüssiges Parallax-Sinken)
         // =========================================================
         const noiseVol = (vols[0] + vols[1] + vols[2]) / 3.0;
         if (noiseVol > 0.1 || tension > 0.2) {
-            // =========================================================
-            // HIER SIND DIE STELLEN DER ANPASSUNG:
-            // 1. Audio-Pegel-Einfluss auf 30% gedämpft, Tension auf 40%
-            // 2. Maximaler Multiplikator von 100 auf 50 halbiert
-            // =========================================================
             const rainIntensity = (noiseVol * 0.30) + (tension * 0.40);
             const dropCount = (rainIntensity * 50) | 0; 
             
-            ctx.fillStyle = PAL[4]; // Magenta (Klassischer Atari Kontrast-Ton)
+            ctx.fillStyle = PAL[4]; // Magenta
             for (let i = 0; i < dropCount; i++) {
-                // Pseudo-Random LFSR Simulation
-                let rx = ((Math.sin(time * 123.456 + i) * 160) + 160) | 0;
-                let ry = ((Math.cos(time * 345.678 + i) * 100) + 100) | 0;
-                let len = (Math.random() * 8 + 2) | 0;
+                // GFX FIX: X-Koordinate hängt starr vom Index ab -> kein links/rechts Flackern mehr!
+                let rx = Math.floor(((Math.sin(i * 45.12) * 0.5 + 0.5) * offW));
                 
-                // Falling Digital Rain
-                ry = (ry + time * 100) % 200;
+                // GFX FIX: Weiche, flüssige Fallbewegung gekoppelt an unterschiedliche Spurgeschwindigkeiten (Parallax)
+                let fallSpeed = 60 + (i % 5) * 15; 
+                let ry = Math.floor((i * 17 + time * fallSpeed) % offH);
+                
+                let len = (Math.random() * 4 + 2) | 0;
+                
                 ctx.fillRect(rx, ry, 2, len);
             }
         }
 
         // =========================================================
-        // 4. TIMER-B RASTER GLITCHES (Sync Buzzer Hack Simulation)
+        // 4. TIMER-B RASTER GLITCHES (Sync Buzzer Hack)
         // =========================================================
-        // Schneidet das Canvas in Streifen und verschiebt es zeilenweise horizontal
         if (state === 'climax' || (tension > 0.6 && beat > 0.1)) {
-            const glitchSeverity = (tension * beat * 30) | 0; // Bis zu 30px Offset!
+            const glitchSeverity = (tension * beat * 30) | 0; 
             
             if (glitchSeverity > 2) {
                 const numTears = (Math.random() * 5 + 2) | 0;
@@ -194,40 +203,31 @@ export class YmSiliconBg {
                     let tearH = (Math.random() * 15 + 2) | 0;
                     let tearShift = ((Math.random() > 0.5 ? 1 : -1) * glitchSeverity) | 0;
 
-                    // Holt den Bildausschnitt und zeichnet ihn verschoben neu
-                    let slice = ctx.getImageData(0, tearY, 320, tearH);
+                    let slice = ctx.getImageData(0, tearY, offW, tearH);
                     
-                    // Schwarze Lücke füllen
                     ctx.fillStyle = PAL[0];
-                    ctx.fillRect(0, tearY, 320, tearH);
+                    ctx.fillRect(0, tearY, offW, tearH);
                     
-                    // Verschoben wieder einfügen
                     ctx.putImageData(slice, tearShift, tearY);
                 }
             }
         }
 
         // =========================================================
-        // 5. ATARI STROBE (Pure Whiteout)
+        // 5. ATARI STROBE
         // =========================================================
         if (state === 'climax' && beat > 0.8) {
-            ctx.fillStyle = PAL[1]; // White
-            ctx.fillRect(0, 0, 320, 200);
+            ctx.fillStyle = PAL[1]; 
+            ctx.fillRect(0, 0, offW, offH);
         }
 
         // =========================================================
-        // BLIT TO MAIN CANVAS (Nearest-Neighbor Upscaling)
+        // BLIT TO MAIN CANVAS
         // =========================================================
         mainCtx.globalAlpha = globalAlpha;
         mainCtx.imageSmoothingEnabled = false; 
         
-        const scale = Math.min(width / 320, height / 200);
-        const drawW = (320 * scale) | 0;
-        const drawH = (200 * scale) | 0;
-        const drawX = ((width - drawW) / 2) | 0;
-        const drawY = ((height - drawH) / 2) | 0;
-
-        mainCtx.drawImage(this.offscreen, drawX, drawY, drawW, drawH);
+        mainCtx.drawImage(this.offscreen, 0, 0, width, height);
         
         mainCtx.imageSmoothingEnabled = true; 
         mainCtx.globalAlpha = 1.0;

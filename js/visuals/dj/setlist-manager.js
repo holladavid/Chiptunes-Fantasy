@@ -1,8 +1,7 @@
 // === js/visuals/dj/setlist-manager.js ===
 // =========================================================
-// SCENE-DJ SKILL: SETLIST MANAGER
-// Verwaltet die DSE-Registry, das Roulette-Wheel (Swapping)
-// und die Black-Screen Schutzschaltung.
+// SCENE-DJ SKILL: SETLIST MANAGER (Bug-Free Edition)
+// Safe Black-Screen protection and deterministic weight decaying.
 // =========================================================
 
 export class SetlistManager {
@@ -14,14 +13,13 @@ export class SetlistManager {
         dse.state = 'idle';
         dse.stateTime = 0.0;
         dse._markedForRemoval = false;
-        if (!dse.metadata) dse.metadata = { name: dse.constructor.name, minPlayTime: 5.0, weight: 10, climaxHoldTime: 10.0, isVoid: false };
         dse.currentWeight = dse.metadata.weight || 10.0;
         this.registeredDSEs.push(dse);
     }
 
     resetWeightsForLayer(layer) {
         for (let d of this.registeredDSEs) {
-            if (d.metadata.placementType === layer) d.currentWeight = d.metadata.weight || 10.0;
+            if (d.metadata.layer === layer) d.currentWeight = d.metadata.weight || 10.0;
         }
     }
 
@@ -40,18 +38,27 @@ export class SetlistManager {
     }
 
     fillEmptyLayers(stageManager, info, initialState = 'starting') {
-        let layerFilled = { 'background': false, 'floor': false, 'foreground': false, 'overlay': false, 'presenter': false };
+        let layerFilled = { 'background': false, 'floor': false, 'foreground': false, 'overlay': false };
+        let activeInstanceCount = {};
+
         for (let dse of stageManager.activeDSEs) {
-            if (!dse._markedForRemoval) layerFilled[dse.metadata.placementType] = true;
+            if (!dse._markedForRemoval) {
+                layerFilled[dse.metadata.layer] = true;
+                activeInstanceCount[dse.metadata.name] = (activeInstanceCount[dse.metadata.name] || 0) + 1;
+            }
         }
 
         const layers = ['background', 'floor', 'foreground', 'overlay'];
+        
+        // 1. Reguläres Auffüllen fehlender Layer
         for (let layer of layers) {
             if (!layerFilled[layer]) {
                 let candidates = this.registeredDSEs.filter(d => 
                     d.state === 'idle' && !d._markedForRemoval &&
-                    d.metadata.placementType === layer &&
-                    (d.metadata.computerType.includes(info.system) || d.metadata.computerType.includes('all'))
+                    d.metadata.layer === layer &&
+                    d.metadata.lifecycle !== 'oneshot' && 
+                    (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all')) &&
+                    ((activeInstanceCount[d.metadata.name] || 0) < d.metadata.maxInstances)
                 );
                 
                 if (candidates.length > 0) {
@@ -61,38 +68,55 @@ export class SetlistManager {
                     chosen.stateTime = 0.0;
                     chosen._markedForRemoval = false;
                     stageManager.activeDSEs.push(chosen);
+                    activeInstanceCount[chosen.metadata.name] = (activeInstanceCount[chosen.metadata.name] || 0) + 1;
                 }
             }
         }
 
         // =========================================================
-        // FIX: BLACK-SCREEN PROTECTION EXCLUDES THE PRESENTER
-        // Der Presenter wird nicht als Hintergrund-Grafik mitgezählt!
+        // 2. BLACK-SCREEN PROTECTION (Schutzschaltung-Upgrade)
         // =========================================================
-        let nonVoidCount = 0;
-        let activeNonOverlays = stageManager.activeDSEs.filter(d => 
-            d.metadata.placementType !== 'overlay' && 
-            d.metadata.placementType !== 'presenter' && 
-            !d._markedForRemoval
-        );
-        for (let d of activeNonOverlays) if (!d.metadata.isVoid) nonVoidCount++;
+        let activeManaged = stageManager.activeDSEs.filter(d => d.metadata.lifecycle === 'managed' && !d._markedForRemoval);
+        let nonVoidCount = activeManaged.filter(d => !d.metadata.isVoid).length;
 
-        if (activeNonOverlays.length > 0 && nonVoidCount === 0) {
-            let dseToReplace = activeNonOverlays[Math.floor(Math.random() * activeNonOverlays.length)];
-            let realCandidates = this.registeredDSEs.filter(d => 
-                !d.metadata.isVoid && d.metadata.placementType === dseToReplace.metadata.placementType &&
-                (d.metadata.computerType.includes(info.system) || d.metadata.computerType.includes('all'))
-            );
-            if (realCandidates.length > 0) {
-                let idx = stageManager.activeDSEs.indexOf(dseToReplace);
-                if (idx !== -1) {
-                    dseToReplace.state = 'idle'; dseToReplace.stateTime = 0.0;
-                    stageManager.activeDSEs.splice(idx, 1);
+        if (activeManaged.length > 0 && nonVoidCount === 0) {
+            // GFX FIX: Wir filtern nach aktiven Layern, für die es auf dem aktuellen System
+            // WIRKLICH ein sichtbares Gegenstück in der Registry gibt (löst C64-Foreground Bug!)
+            let replaceable = activeManaged.filter(activeDse => {
+                return this.registeredDSEs.some(d => 
+                    !d.metadata.isVoid && 
+                    d.metadata.layer === activeDse.metadata.layer &&
+                    d.metadata.lifecycle === 'managed' &&
+                    (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
+                );
+            });
+
+            if (replaceable.length > 0) {
+                // Nur aus den physikalisch ersetzbaren Layern zufällig wählen
+                let dseToReplace = replaceable[Math.floor(Math.random() * replaceable.length)];
+                
+                let realCandidates = this.registeredDSEs.filter(d => 
+                    !d.metadata.isVoid && 
+                    d.metadata.layer === dseToReplace.metadata.layer &&
+                    d.metadata.lifecycle === 'managed' &&
+                    (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
+                );
+                
+                if (realCandidates.length > 0) {
+                    let idx = stageManager.activeDSEs.indexOf(dseToReplace);
+                    if (idx !== -1) {
+                        dseToReplace.state = 'idle'; 
+                        dseToReplace.stateTime = 0.0;
+                        stageManager.activeDSEs.splice(idx, 1);
+                    }
+                    
+                    this.resetWeightsForLayer(dseToReplace.metadata.layer);
+                    let chosen = this.selectWeightedDSE(realCandidates);
+                    chosen.state = initialState; 
+                    chosen.stateTime = 0.0; 
+                    chosen._markedForRemoval = false;
+                    stageManager.activeDSEs.push(chosen);
                 }
-                this.resetWeightsForLayer(dseToReplace.metadata.placementType);
-                let chosen = this.selectWeightedDSE(realCandidates);
-                chosen.state = initialState; chosen.stateTime = 0.0; chosen._markedForRemoval = false;
-                if (!stageManager.activeDSEs.includes(chosen)) stageManager.activeDSEs.push(chosen);
             }
         }
         stageManager.sortZOrder();
@@ -101,8 +125,8 @@ export class SetlistManager {
     forceSystemChange(stageManager, info) {
         for (let i = stageManager.activeDSEs.length - 1; i >= 0; i--) {
             let dse = stageManager.activeDSEs[i];
-            if (dse.metadata.minPlayTime === Infinity && dse.metadata.computerType.includes('all')) continue; 
-            if (!dse.metadata.computerType.includes(info.system) && !dse.metadata.computerType.includes('all')) {
+            if (dse.metadata.lifecycle === 'permanent' && dse.metadata.systems.includes('all')) continue; 
+            if (!dse.metadata.systems.includes(info.system) && !dse.metadata.systems.includes('all')) {
                 dse.state = 'idle';
                 stageManager.activeDSEs.splice(i, 1);
             }
@@ -111,63 +135,76 @@ export class SetlistManager {
     }
 
     manageSwaps(stageManager, info, macroState, dt) {
-        let swapOccurred = false;
-
         for (let dse of stageManager.activeDSEs) {
             if (dse._markedForRemoval) continue;
-            if (dse.metadata.placementType === 'presenter') continue; 
             
-            if ((dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax') && dse.metadata.minPlayTime !== Infinity) {
-                if (dse.stateTime >= dse.metadata.minPlayTime) {
-                    let overTime = dse.stateTime - dse.metadata.minPlayTime;
+            if (dse.metadata.lifecycle === 'managed' && (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax')) {
+                if (dse.stateTime >= dse.metadata.duration) {
+                    let overTime = dse.stateTime - dse.metadata.duration;
                     let swapChance = overTime * 0.1 * dt; 
 
                     if (Math.random() < swapChance) {
                         let candidates = this.registeredDSEs.filter(alt => 
                             (alt.state === 'idle' || alt === dse) && !alt._markedForRemoval &&
-                            alt.metadata.placementType === dse.metadata.placementType &&
-                            (alt.metadata.computerType.includes(info.system) || alt.metadata.computerType.includes('all'))
+                            alt.metadata.layer === dse.metadata.layer &&
+                            alt.metadata.lifecycle === 'managed' &&
+                            (alt.metadata.systems.includes(info.system) || alt.metadata.systems.includes('all'))
                         );
+                        
                         if (candidates.length > 0) {
                             let chosen = this.selectWeightedDSE(candidates);
                             
-                            // ERHALTENE FUNKTION: Same-DSE-Penalty
                             if (chosen === dse) {
-                                dse.stateTime = Math.max(0, dse.metadata.minPlayTime - 5.0);
+                                // Re-Roll Strafe: Zeit kürzen und Gewicht halbieren
+                                dse.stateTime = Math.max(0, dse.metadata.duration - 5.0);
                                 dse.currentWeight = Math.max(1.0, dse.currentWeight * 0.5);
                             } else {
+                                // GFX FIX: Hard-Swap direkt im Frame ausführen (kein Double-Rolling mehr!)
                                 dse._markedForRemoval = true;
-                                swapOccurred = true;
+                                
+                                chosen.state = 'starting';
+                                chosen.stateTime = 0.0;
+                                chosen._markedForRemoval = false;
+                                stageManager.activeDSEs.push(chosen);
+                                stageManager.sortZOrder();
+                                
+                                // Setzt die Gewichte für diesen Layer erst NACH dem erfolgreichen Tausch zurück
+                                this.resetWeightsForLayer(dse.metadata.layer);
                             }
                         }
                     }
                 }
             }
         }
-        if (swapOccurred) this.fillEmptyLayers(stageManager, info, 'starting');
     }
 
     triggerPresenter(stageManager, info, trackMetadata) {
-        for (let i = stageManager.activeDSEs.length - 1; i >= 0; i--) {
-            if (stageManager.activeDSEs[i].metadata.placementType === 'presenter') {
-                stageManager.activeDSEs[i].state = 'idle';
-                stageManager.activeDSEs.splice(i, 1);
-            }
-        }
-        
         let candidates = this.registeredDSEs.filter(d => 
-            d.metadata.placementType === 'presenter' &&
-            (d.metadata.computerType.includes(info.system) || d.metadata.computerType.includes('all'))
+            d.metadata.lifecycle === 'oneshot' &&
+            (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
         );
-        
+
         if (candidates.length > 0) {
-            let chosen = this.selectWeightedDSE(candidates);
-            chosen.state = 'starting';
-            chosen.stateTime = 0.0;
-            chosen._markedForRemoval = false;
-            chosen.trackInfo = trackMetadata; 
-            stageManager.activeDSEs.push(chosen);
-            stageManager.sortZOrder();
+            let presenter = candidates[0]; 
+            
+            if (typeof presenter.setTrackInfo === 'function') {
+                presenter.setTrackInfo(trackMetadata);
+            } else {
+                presenter.trackInfo = trackMetadata;
+            }
+
+            let idx = stageManager.activeDSEs.indexOf(presenter);
+            if (idx !== -1) {
+                presenter.state = 'starting';
+                presenter.stateTime = 0.0;
+                presenter._markedForRemoval = false;
+            } else {
+                presenter.state = 'starting';
+                presenter.stateTime = 0.0;
+                presenter._markedForRemoval = false;
+                stageManager.activeDSEs.push(presenter);
+                stageManager.sortZOrder();
+            }
         }
     }
 }

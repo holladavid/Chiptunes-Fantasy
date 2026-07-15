@@ -1,7 +1,7 @@
 # Chiptunes Fantasy
 
 ### The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator
-**Version 1.4.0-beta.3 [Living Silicon Refinement & Responsive Architecture]**
+**Version 1.4.0-beta.4 [Low-Res Canvas Overhaul, Screen Alignment & Final Calibration]**
 
 Built with 100% vanilla HTML5, CSS3, and modern Web Audio API. No MP3s, no pre-rendered streams — just pure mathematical real-time synthesis running asynchronously inside low-latency AudioWorklets. From nerds, for nerds.
 
@@ -50,3 +50,5 @@ We abolished analog volume-guessing. The `TrackMonitor` now hooks directly into 
 *   **SID 6581 Microverse (C64 Background DSE):** Ein systemgetreues Vektor-Die-Szenario. Integriert ein kochendes 8x8 PETSCII-Plasma, isometrische Oszillator-Kerne und an die Sound-Transienten gekoppelte Datenbusse, eingebettet über ein tension-reaktives Parallax-Tech-Grid.
 *   **Paula 8364 Microverse (Amiga Background DSE):** Visualisiert die 4 DMA-Kanäle als ferne Monolithen direkt am 3D-Fluchtpunkt des Horizonts. Datenpakete schießen nach oben in einen 12-Bit quantisierten Moiré-Himmel, während sich der 3D-Boden exakt an den 55%-Schnitt des `KefrensCheckerboards` anschmiegt.
 *   **YM2149F Microverse (Atari ST Background DSE):** Zeigt live pulsierende Rechteckwellen-Oszilloskope, einen gedämpften Magenta-Rauschregen und simuliert im Climax die berühmten Timer-B-Overscan-Glitches, indem das Canvas zeilenweise horizontal zerrissen wird.
+*   **Aspect-Ratio-Aware Low-Res Scaling:** Die systemexklusiven Hintergrund-Gimmicks (`SidSiliconBg`, `PaulaSiliconBg`, `YmSiliconBg`) wurden vollständig auf ein dynamisches Breitenmodell umgestellt. Die vertikale Auflösung bleibt hardware-getreu gelockt (200p bzw. 256p), während sich die Breite nahtlos an das Monitor- oder Handy-Format anpasst. Die Logik-Zentren (Oszillatoren, Mixer, DMAs) rücken auf mobilen Hochkant-Displays automatisch zusammen (Huddling) und verkleinern sachte ihre Breite, um ein Überlappen zu verhindern.
+*   **User-Inactive Autohide:** Um den Fokus voll und ganz auf das Demoszene-Spektakel zu richten, blenden sich die Overlay-Elemente (`[ LAB MODE ]` und der Vollbild-Button) bei Maus-Inaktivität im Fenster- und Vollbildmodus nach 3 Sekunden weich aus und erscheinen erst bei Interaktion wieder.
