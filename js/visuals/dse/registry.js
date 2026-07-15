@@ -8,7 +8,9 @@
 import { LimitBar } from './universal/limit-bar.js';
 import { Copperbars } from './universal/copperbars.js';
 import { VoidElement } from './universal/void-element.js'; 
-import { RetroSunset } from './universal/retro-sunset.js';
+import { C64RetroSunset } from './c64/retro-sunset.js';
+import { AmigaRetroSunset } from './amiga/retro-sunset.js';
+import { AtariRetroSunset } from './atari/retro-sunset.js';
 import { Starfield } from './universal/starfield.js'; 
 import { AmigaCube } from './amiga/glenz-cube.js';
 import { AtariBobs } from './atari/lissajous-bobs.js';
@@ -98,7 +100,24 @@ export const dseRegistry = [
         .climaxHold(8.0)
         .build(),
     
-    RegisterDSE(RetroSunset)
+    RegisterDSE(C64RetroSunset)
+        .systems('c64')
+        .layer('background')
+        .weight(10)
+        .duration(15.0)
+        .climaxHold(12.0)
+        .build(),
+
+    RegisterDSE(AmigaRetroSunset)
+        .systems('amiga')
+        .layer('background')
+        .weight(10)
+        .duration(15.0)
+        .climaxHold(12.0)
+        .build(),
+
+    RegisterDSE(AtariRetroSunset)
+        .systems('atari')
         .layer('background')
         .weight(10)
         .duration(15.0)
