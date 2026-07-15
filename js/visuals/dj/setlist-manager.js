@@ -1,8 +1,7 @@
 // === js/visuals/dj/setlist-manager.js ===
 // =========================================================
-// SCENE-DJ SKILL: SETLIST MANAGER
-// Verwaltet die DSE-Registry, das Roulette-Wheel (Swapping)
-// und die lebenswichtige Black-Screen Schutzschaltung.
+// SCENE-DJ SKILL: SETLIST MANAGER (Bug-Free Edition)
+// Safe Black-Screen protection and deterministic weight decaying.
 // =========================================================
 
 export class SetlistManager {
@@ -14,7 +13,6 @@ export class SetlistManager {
         dse.state = 'idle';
         dse.stateTime = 0.0;
         dse._markedForRemoval = false;
-        // Dynamische Gewichtung (wird zur Laufzeit bei Re-Rolls reduziert)
         dse.currentWeight = dse.metadata.weight || 10.0;
         this.registeredDSEs.push(dse);
     }
@@ -46,7 +44,6 @@ export class SetlistManager {
         for (let dse of stageManager.activeDSEs) {
             if (!dse._markedForRemoval) {
                 layerFilled[dse.metadata.layer] = true;
-                // Zählt, wie oft dasselbe DSE gerade aktiv ist (für künftige Partikel-Swärme)
                 activeInstanceCount[dse.metadata.name] = (activeInstanceCount[dse.metadata.name] || 0) + 1;
             }
         }
@@ -59,7 +56,7 @@ export class SetlistManager {
                 let candidates = this.registeredDSEs.filter(d => 
                     d.state === 'idle' && !d._markedForRemoval &&
                     d.metadata.layer === layer &&
-                    d.metadata.lifecycle !== 'oneshot' && // One-Shots (Presenter) werden niemals auto-gerollt!
+                    d.metadata.lifecycle !== 'oneshot' && 
                     (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all')) &&
                     ((activeInstanceCount[d.metadata.name] || 0) < d.metadata.maxInstances)
                 );
@@ -77,43 +74,49 @@ export class SetlistManager {
         }
 
         // =========================================================
-        // 2. BLACK-SCREEN PROTECTION (Die Schutzschaltung)
-        // Stellt sicher, dass das Canvas niemals komplett schwarz/leer wird!
+        // 2. BLACK-SCREEN PROTECTION (Schutzschaltung-Upgrade)
         // =========================================================
         let activeManaged = stageManager.activeDSEs.filter(d => d.metadata.lifecycle === 'managed' && !d._markedForRemoval);
-        let nonVoidCount = 0;
-        
-        for (let d of activeManaged) {
-            if (!d.metadata.isVoid) nonVoidCount++;
-        }
+        let nonVoidCount = activeManaged.filter(d => !d.metadata.isVoid).length;
 
-        // Wenn alle managed DSEs Platzhalter sind (Canvas ist schwarz) -> Not-Reroll erzwingen!
         if (activeManaged.length > 0 && nonVoidCount === 0) {
-            let dseToReplace = activeManaged[Math.floor(Math.random() * activeManaged.length)];
-            
-            let realCandidates = this.registeredDSEs.filter(d => 
-                !d.metadata.isVoid && 
-                d.metadata.layer === dseToReplace.metadata.layer &&
-                d.metadata.lifecycle === 'managed' &&
-                (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
-            );
-            
-            if (realCandidates.length > 0) {
-                // Den Platzhalter hart rauswerfen
-                let idx = stageManager.activeDSEs.indexOf(dseToReplace);
-                if (idx !== -1) {
-                    dseToReplace.state = 'idle'; 
-                    dseToReplace.stateTime = 0.0;
-                    stageManager.activeDSEs.splice(idx, 1);
-                }
+            // GFX FIX: Wir filtern nach aktiven Layern, für die es auf dem aktuellen System
+            // WIRKLICH ein sichtbares Gegenstück in der Registry gibt (löst C64-Foreground Bug!)
+            let replaceable = activeManaged.filter(activeDse => {
+                return this.registeredDSEs.some(d => 
+                    !d.metadata.isVoid && 
+                    d.metadata.layer === activeDse.metadata.layer &&
+                    d.metadata.lifecycle === 'managed' &&
+                    (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
+                );
+            });
+
+            if (replaceable.length > 0) {
+                // Nur aus den physikalisch ersetzbaren Layern zufällig wählen
+                let dseToReplace = replaceable[Math.floor(Math.random() * replaceable.length)];
                 
-                // Ein echtes, gezeichnetes Gimmick erzwingen
-                this.resetWeightsForLayer(dseToReplace.metadata.layer);
-                let chosen = this.selectWeightedDSE(realCandidates);
-                chosen.state = initialState; 
-                chosen.stateTime = 0.0; 
-                chosen._markedForRemoval = false;
-                stageManager.activeDSEs.push(chosen);
+                let realCandidates = this.registeredDSEs.filter(d => 
+                    !d.metadata.isVoid && 
+                    d.metadata.layer === dseToReplace.metadata.layer &&
+                    d.metadata.lifecycle === 'managed' &&
+                    (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
+                );
+                
+                if (realCandidates.length > 0) {
+                    let idx = stageManager.activeDSEs.indexOf(dseToReplace);
+                    if (idx !== -1) {
+                        dseToReplace.state = 'idle'; 
+                        dseToReplace.stateTime = 0.0;
+                        stageManager.activeDSEs.splice(idx, 1);
+                    }
+                    
+                    this.resetWeightsForLayer(dseToReplace.metadata.layer);
+                    let chosen = this.selectWeightedDSE(realCandidates);
+                    chosen.state = initialState; 
+                    chosen.stateTime = 0.0; 
+                    chosen._markedForRemoval = false;
+                    stageManager.activeDSEs.push(chosen);
+                }
             }
         }
         stageManager.sortZOrder();
@@ -122,10 +125,7 @@ export class SetlistManager {
     forceSystemChange(stageManager, info) {
         for (let i = stageManager.activeDSEs.length - 1; i >= 0; i--) {
             let dse = stageManager.activeDSEs[i];
-            
-            // Permanente, universelle Overlays (wie LimitBar) bleiben erhalten
             if (dse.metadata.lifecycle === 'permanent' && dse.metadata.systems.includes('all')) continue; 
-            
             if (!dse.metadata.systems.includes(info.system) && !dse.metadata.systems.includes('all')) {
                 dse.state = 'idle';
                 stageManager.activeDSEs.splice(i, 1);
@@ -135,12 +135,9 @@ export class SetlistManager {
     }
 
     manageSwaps(stageManager, info, macroState, dt) {
-        let swapOccurred = false;
-
         for (let dse of stageManager.activeDSEs) {
             if (dse._markedForRemoval) continue;
             
-            // Nur 'managed' DSEs werden vom Crate-Digger wegrotiert
             if (dse.metadata.lifecycle === 'managed' && (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax')) {
                 if (dse.stateTime >= dse.metadata.duration) {
                     let overTime = dse.stateTime - dse.metadata.duration;
@@ -157,32 +154,31 @@ export class SetlistManager {
                         if (candidates.length > 0) {
                             let chosen = this.selectWeightedDSE(candidates);
                             
-                            // =========================================================
-                            // PENALTY SYSTEM: Re-Roll Strafe!
-                            // Zieht das Roulette denselben Effekt erneut, sinkt seine
-                            // Chance massiv und er fliegt 5 Sekunden früher wieder raus!
-                            // =========================================================
                             if (chosen === dse) {
+                                // Re-Roll Strafe: Zeit kürzen und Gewicht halbieren
                                 dse.stateTime = Math.max(0, dse.metadata.duration - 5.0);
                                 dse.currentWeight = Math.max(1.0, dse.currentWeight * 0.5);
                             } else {
+                                // GFX FIX: Hard-Swap direkt im Frame ausführen (kein Double-Rolling mehr!)
                                 dse._markedForRemoval = true;
-                                swapOccurred = true;
+                                
+                                chosen.state = 'starting';
+                                chosen.stateTime = 0.0;
+                                chosen._markedForRemoval = false;
+                                stageManager.activeDSEs.push(chosen);
+                                stageManager.sortZOrder();
+                                
+                                // Setzt die Gewichte für diesen Layer erst NACH dem erfolgreichen Tausch zurück
+                                this.resetWeightsForLayer(dse.metadata.layer);
                             }
                         }
                     }
                 }
             }
         }
-        if (swapOccurred) this.fillEmptyLayers(stageManager, info, 'starting');
     }
 
-    // =========================================================
-    // ONE-SHOT TRIGGER (z.B. TrackPresenter)
-    // Wird vom SceneDJ aufgerufen, wenn ein neuer Track startet
-    // =========================================================
     triggerPresenter(stageManager, info, trackMetadata) {
-        // Suche nach einem registrierten 'oneshot' DSE (wie dem TrackPresenter)
         let candidates = this.registeredDSEs.filter(d => 
             d.metadata.lifecycle === 'oneshot' &&
             (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
@@ -191,13 +187,12 @@ export class SetlistManager {
         if (candidates.length > 0) {
             let presenter = candidates[0]; 
             
-            // Injiziert die neuen Metadaten des Tracks in das DSE
             if (typeof presenter.setTrackInfo === 'function') {
                 presenter.setTrackInfo(trackMetadata);
+            } else {
+                presenter.trackInfo = trackMetadata;
             }
 
-            // Wenn das Element bereits aktiv ist (z.B. bei schnellem Weiterklicken),
-            // setzen wir seinen Timer und State einfach wieder hart auf Null zurück!
             let idx = stageManager.activeDSEs.indexOf(presenter);
             if (idx !== -1) {
                 presenter.state = 'starting';

@@ -21,6 +21,7 @@ import { AtariDotTorus } from './atari/dot-torus.js';
 import { SidSiliconBg } from './c64/sid-silicon-bg.js';
 import { PaulaSiliconBg } from './amiga/paula-silicon-bg.js';
 import { YmSiliconBg } from './atari/ym-silicon-bg.js';
+import { C64VectorStar } from './c64/vector-star.js';
 
 // =========================================================
 // FLUENT BUILDER PATTERN (1 Funktion je Attribut)
@@ -209,6 +210,15 @@ export const dseRegistry = [
         .weight(10)
         .duration(15.0)
         .climaxHold(10.0)
+        .build(),
+
+    // NEU: Der rotierende, interaktive C64 Vektor-Stern
+    RegisterDSE(C64VectorStar)
+        .systems('c64')
+        .layer('foreground')
+        .weight(12) // Zieht oft
+        .duration(12.0)
+        .climaxHold(15.0)
         .build(),
 
     RegisterDSE(VoidElement)
