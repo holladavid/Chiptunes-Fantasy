@@ -36,7 +36,7 @@ export class TensionManager {
 
         let accumulationSpeed = 0.75;
         if (info.system === 'c64') accumulationSpeed = 0.45;
-        else if (info.system === 'atari') accumulationSpeed = 0.15;
+        else if (info.system === 'atari') accumulationSpeed = 0.55;
 
         let targetState = this.macroState;
 

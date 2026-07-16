@@ -77,8 +77,9 @@ export class TrackMonitor {
                 for (let v = 0; v < 3; v++) {
                     let vol = chipRegs[8 + v] & 15;
                     let lastVol = this.lastRegs[8 + v] & 15;
-                    // Ein harter, manueller Lautstärke-Sprung um >5 Stufen ist fast immer ein Digidrum
-                    if (vol > lastVol + 5) isHardwareBeat = true; 
+                    // KORREKTUR: Von +5 auf +3 gesenkt!
+                    // Schon ein Pegelsprung von 3 Registerstufen triggert nun den Hardware-Beat.
+                    if (vol > lastVol + 3) isHardwareBeat = true; 
                 }
                 // Hardware-Envelope getriggert (oft für Sync-Buzzer Bässe genutzt)
                 if (chipRegs[13] !== this.lastRegs[13] && chipRegs[13] !== 255) {
@@ -98,7 +99,7 @@ export class TrackMonitor {
         }
 
         // 3. Fallback: Strenger analoger Schmit-Trigger (falls Hardware-Trigger nicht greift)
-        let pulseThresh = this.info.system === 'c64' ? 0.60 : (this.info.system === 'atari' ? 0.55 : 0.45);
+        let pulseThresh = this.info.system === 'c64' ? 0.60 : (this.info.system === 'atari' ? 0.42 : 0.45);
         let isAnalogBeat = (analogMaxPulse > pulseThresh);
 
         // Signal in die Pipeline schreiben
@@ -112,8 +113,9 @@ export class TrackMonitor {
         const energy = this.dynamics.masterEnergy[0];
         let buildupThresh = 0.40, overdriveThresh = 0.58;
         if (this.info.system === 'c64') { buildupThresh = 0.40; overdriveThresh = 0.65; } 
-        else if (this.info.system === 'atari') { buildupThresh = 0.35; overdriveThresh = 0.66; }
-
+        // KORREKTUR: buildupThresh auf 0.28 (vorher 0.35) und overdriveThresh auf 0.52 (vorher 0.66) gesenkt!
+        // YM-Tracks erreichen selten 0.66 RMS-Energie. 0.52 ist die perfekte Schwelle für YM-Climaxes.
+        else if (this.info.system === 'atari') { buildupThresh = 0.28; overdriveThresh = 0.52; }
         let isOverdrive = (energy > overdriveThresh && this.dynamics.transientPulse[0] > pulseThresh * 0.8);
         let isBuildup = (energy > buildupThresh);
         this.dynamics.rawEnergyState = isOverdrive ? 'climax' : (isBuildup ? 'buildup' : 'playing');

@@ -78,11 +78,15 @@ export class SetlistManager {
                 let candidates = this.registeredDSEs.filter(alt => {
                     if (alt.state !== 'idle' || alt._markedForRemoval) return false;
                     if (alt.metadata.layer !== layer) return false;
-                    if (alt.metadata.lifecycle !== 'managed') return false;
+                    
+                    // KORREKTUR: Nur 'oneshot' ausschließen! 
+                    // Erlaubt 'managed' und 'permanent' (z.B. LimitBar) das Eintreten auf die Bühne.
+                    if (alt.metadata.lifecycle === 'oneshot') return false; 
+                    
                     if (!alt.metadata.systems.includes(info.system) && !alt.metadata.systems.includes('all')) return false;
                     if ((activeInstanceCount[alt.metadata.name] || 0) >= alt.metadata.maxInstances) return false;
                     
-                    // PREVENTION AT SOURCE: Wenn nichts anderes sichtbar ist, DARF dieses Element nicht unsichtbar (Void) sein!
+                    // ANTI-BLACKOUT: Ist dies das einzige Element, darf es nicht Void sein!
                     if (alt.metadata.isVoid && visibleCount === 0) return false;
 
                     return true;
