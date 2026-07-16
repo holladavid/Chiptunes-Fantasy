@@ -54,56 +54,123 @@ export class TrackMonitor {
 
         this.dynamics.masterEnergy[0] = totalEnergy / numActiveChannels;
 
-        // =========================================================
+// =========================================================
         // 2. HARDWARE TRIGGER DETECTION (Demoscene Precision)
         // =========================================================
         let isHardwareBeat = false;
 
         if (chipRegs && this.info.isPlaying) {
             if (this.info.system === 'c64') {
-                // C64: Wir suchen nach dem ADSR "Gate Bit" (Bit 0 in Ctrl-Reg)
+                // --- C64 SID: THE REAL KICK & SNARE CATCHER ---
                 for (let v = 0; v < 3; v++) {
                     let ctrl = chipRegs[v * 7 + 4];
                     let lastCtrl = this.lastRegs[v * 7 + 4];
                     
+                    // Frequenz (16-Bit) auslesen, um tiefe Kickdrums zu identifizieren
+                    let freq = chipRegs[v * 7] | (chipRegs[v * 7 + 1] << 8);
+                    
                     // Rising Edge: Gate ging von 0 auf 1!
                     if ((ctrl & 1) && !(lastCtrl & 1)) {
-                        // Triggern, wenn es eine Noise-Drum (Bit 128) oder tiefe Frequenz ist
+                        // 1. Snare/Hi-Hat: Nutzt das Noise-Bit (128)
                         if (ctrl & 128) isHardwareBeat = true; 
+                        // 2. Synth-Kickdrum: Keine Noise, aber extrem tiefe Frequenz (< ~250 Hz entspricht SID-Wert 4000)
+                        else if (freq > 0 && freq < 4000) isHardwareBeat = true;
+                    }
+                    
+                    // 3. Fallback für Arpeggio-Kicks (Schneller Pitch-Drop ohne erneutes Gate-On)
+                    let lastFreq = this.lastRegs[v * 7] | (this.lastRegs[v * 7 + 1] << 8);
+                    if ((ctrl & 1) && (lastCtrl & 1)) {
+                        // Frequenz stürzt rasant ab und landet im Bass-Bereich
+                        if (lastFreq > freq + 2000 && freq < 3500) isHardwareBeat = true;
                     }
                 }
             } else if (this.info.system === 'atari') {
-                // Atari ST: Jochen Hippel & Mad Max Digidrums
+                // --- ATARI ST: THE ULTIMATE YM2149 RHYTHM CATCHER ---
+                const mixer = chipRegs[7];
+                const lastMixer = this.lastRegs[7];
+
                 for (let v = 0; v < 3; v++) {
                     let vol = chipRegs[8 + v] & 15;
                     let lastVol = this.lastRegs[8 + v] & 15;
-                    // Ein harter, manueller Lautstärke-Sprung um >5 Stufen ist fast immer ein Digidrum
-                    if (vol > lastVol + 5) isHardwareBeat = true; 
+                    let isEnv = (chipRegs[8 + v] & 16) !== 0;
+
+                    // 1. Harter Volume-Spike (Empfindlichkeit von +3 auf +2 gesenkt!)
+                    if (!isEnv && vol > lastVol + 2) isHardwareBeat = true;
+
+                    // 2. Noise-Gate Snare/Hi-Hat Detection (NEU!)
+                    // Im YM2149 ist Noise aktiv, wenn das Bit 0 ist (Active Low)
+                    let noiseBit = 1 << (3 + v);
+                    let noiseNowOn = (mixer & noiseBit) === 0;
+                    let noiseWasOff = (lastMixer & noiseBit) !== 0;
+                    
+                    // Wenn Noise *jetzt* eingeschaltet wurde und Volume hörbar ist -> Harter Snare Hit!
+                    if (noiseNowOn && noiseWasOff && (vol > 5 || isEnv)) {
+                        isHardwareBeat = true;
+                    }
                 }
-                // Hardware-Envelope getriggert (oft für Sync-Buzzer Bässe genutzt)
+
+                // 3. Hardware-Envelope getriggert (Sync-Buzzer Bässe & Kicks)
                 if (chipRegs[13] !== this.lastRegs[13] && chipRegs[13] !== 255) {
                     isHardwareBeat = true;
                 }
+
+                // 4. Digidrum Trigger via Virtual Registers (NEU!)
+                // Fängt die Jochen Hippel 4-Bit-PCM Samples ab, die ansonsten zwischen 
+                // den 60Hz Frame-Snapshots durchrutschen würden!
+                if (chipRegs[14] !== this.lastRegs[14] && chipRegs[14] > 0) isHardwareBeat = true;
+                if (chipRegs[15] !== this.lastRegs[15] && chipRegs[15] > 0) isHardwareBeat = true;
+
             } else if (this.info.system === 'amiga') {
-                // Amiga: Paula DMA Volume Spikes (Kickdrums haben massive Anschläge)
+                // --- AMIGA PAULA: THE ULTIMATE PROTRACKER BEAT CATCHER ---
                 for (let c = 0; c < 4; c++) {
-                    let vol = chipRegs[c * 7 + 6];
-                    let lastVol = this.lastRegs[c * 7 + 6];
-                    if (vol > lastVol + 20) isHardwareBeat = true; // Harter Anschlag!
+                    let offset = c * 7;
+                    
+                    // Rekonstruiere die 16-Bit Wiedergabe-Adresse (enthält den pointer-Zustand)
+                    let address = (chipRegs[offset] << 8) | chipRegs[offset + 1];
+                    let lastAddress = (this.lastRegs[offset] << 8) | this.lastRegs[offset + 1];
+                    
+                    let period = (chipRegs[offset + 4] << 8) | chipRegs[offset + 5];
+                    let vol = chipRegs[offset + 6];
+                    let lastVol = this.lastRegs[offset + 6];
+
+                    // 1. Harter Volume-Spike (Empfindlichkeit von +20 auf +12 gesenkt!)
+                    // Perfekt für Snares, Claps und Rimshots, die aus der Stille einschlagen
+                    if (vol > lastVol + 12) {
+                        isHardwareBeat = true;
+                    }
+
+                    // 2. Note-Trigger-Analyse (DMA-Pointer Reset)
+                    // Wenn die Adresse plötzlich zurückspringt, wurde ein neues Sample getriggert!
+                    if (address > 0 && lastAddress > 0 && address < lastAddress) {
+                        // Kicks und Basslines laufen klassisch auf den äußeren Spuren (Ch 0 & 3)
+                        if (c === 0 || c === 3) {
+                            // Filtert extrem hohe Frequenzen aus (Melodie-Gepiepe, Period < 150)
+                            if (period > 150 && vol > 20) {
+                                isHardwareBeat = true;
+                            }
+                        } else {
+                            // Auf den Kanälen 1 & 2 triggern wir nur, wenn das Sample 
+                            // mit maximaler Wucht (vol > 48) abgefeuert wird (z.B. dicke Orchestral-Hits)
+                            if (vol > 48) {
+                                isHardwareBeat = true;
+                            }
+                        }
+                    }
                 }
             }
-            
+
             // Register-Zustand für den nächsten Frame sichern
             for(let i=0; i<32; i++) this.lastRegs[i] = chipRegs[i];
         }
 
-        // 3. Fallback: Strenger analoger Schmit-Trigger (falls Hardware-Trigger nicht greift)
-        let pulseThresh = this.info.system === 'c64' ? 0.60 : (this.info.system === 'atari' ? 0.55 : 0.45);
+        // 3. Fallback: Strenger analoger Schmit-Trigger
+        // KORREKTUR: C64-Analog-Schwelle von 0.60 auf 0.48 gesenkt für bessere Dynamik
+        let pulseThresh = this.info.system === 'c64' ? 0.48 : (this.info.system === 'atari' ? 0.30 : 0.45);
         let isAnalogBeat = (analogMaxPulse > pulseThresh);
 
         // Signal in die Pipeline schreiben
         if (isHardwareBeat || isAnalogBeat) {
-            this.dynamics.transientPulse[0] = 1.0; // Absoluter Peak
+            this.dynamics.transientPulse[0] = 1.0; 
         } else {
             this.dynamics.transientPulse[0] = analogMaxPulse;
         }
@@ -111,8 +178,10 @@ export class TrackMonitor {
         // 4. Macro State Logic (Tension States)
         const energy = this.dynamics.masterEnergy[0];
         let buildupThresh = 0.40, overdriveThresh = 0.58;
-        if (this.info.system === 'c64') { buildupThresh = 0.40; overdriveThresh = 0.65; } 
-        else if (this.info.system === 'atari') { buildupThresh = 0.35; overdriveThresh = 0.66; }
+        
+        // KORREKTUR: Tension zündet bei C64 nun früher!
+        if (this.info.system === 'c64') { buildupThresh = 0.35; overdriveThresh = 0.60; } 
+        else if (this.info.system === 'atari') { buildupThresh = 0.24; overdriveThresh = 0.48; }
 
         let isOverdrive = (energy > overdriveThresh && this.dynamics.transientPulse[0] > pulseThresh * 0.8);
         let isBuildup = (energy > buildupThresh);

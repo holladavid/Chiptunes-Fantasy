@@ -1,8 +1,8 @@
 // === js/visuals/dse/atari/lissajous-bobs.js ===
 // =========================================================
-// CLASSIC LISSAJOUS METAL-BOB CHAIN (ATARI ST GIMMICK)
-// Refactored with strict Aspect-Ratio path safety (v1.3.0)
-// and kinetic "Snake-Warp" beat-reactivity.
+// CLASSIC ATARI ST METAL-BOB CHAIN (v4.0.0 - 100% Bare-Metal)
+// No Alpha. No modern Trails. Pure masked software sprites
+// rendered directly on top of the redrawn 16-bit background.
 // =========================================================
 
 import { quantizeAtari9Bit, rgbToHex } from '../../utils/hardware-constraints.js';
@@ -13,34 +13,102 @@ export class AtariBobs {
         this.computerType = ['atari']; 
         this.placementType = 'foreground';
         
-        this.numBobs = 45; 
+        this.numBobs = 48; // Klassische Atari-Größe
         this.bobSize = 16; 
+
+        // Sprite-Buffer für die Onion-Layers (Maskiertes Software-Sprite)
         this.bobCanvas = document.createElement('canvas'); 
         this.bobCanvas.width = this.bobSize; 
         this.bobCanvas.height = this.bobSize;
+
+        // Choreographie-States (Snappy "Klick" Jumps)
+        this.states = [
+            { ratioX: 2, ratioY: 3, scale: 0.9,  mirror: 0, palette: 'green' },   // 2:3 Classic Star
+            { ratioX: 1, ratioY: 1, scale: 1.1,  mirror: 0, palette: 'cyan' },    // 1:1 Circle
+            { ratioX: 1, ratioY: 2, scale: 0.9,  mirror: 1, palette: 'magenta' }, // 1:2 DNA Helix (Mirror X)
+            { ratioX: 5, ratioY: 4, scale: 0.7,  mirror: 0, palette: 'gold' },    // 5:4 Compact Knot
+            { ratioX: 3, ratioY: 4, scale: 1.0,  mirror: 2, palette: 'green' },   // 3:4 Mirror Y
+            { ratioX: 0, ratioY: 0, scale: 0.85, mirror: 3, palette: 'magenta' }  // Dispersal/Explosion (Mirror XY)
+        ];
+
+        this.stateIndex = 0;
+        this.beatCounter = 0;
+        this.wasBeat = false;
+        this.rotDirection = 1;
+        this.angleZ = 0.0;
+        this.lastT = 0;
+        
+        // Kinetik-Akkumulatoren
+        this.internalT = 0.0;
+        this.waterT = 0.0;
+        this.smoothedSpeed = 1.0;
+
+        // Diskrete Phasen-Tabelle (LUT) für stufiges, mechanisches Ruckeln
+        this.phaseLUT = new Float32Array(this.numBobs);
+        for (let i = 0; i < this.numBobs; i++) {
+            this.phaseLUT[i] = Math.round(Math.sin((i / this.numBobs) * Math.PI * 2) * 4) * 0.25;
+        }
+
+        this.initialized = false;
+        this.ensureInitialized();
+    }
+
+    ensureInitialized() {
+        if (this.initialized) return;
+
+        // --- STRICT ATARI ST 9-BIT PALETTEN (Concentric Ring Shading) ---
+        this.palettes = {
+            green: [
+                rgbToHex(...quantizeAtari9Bit(0, 51, 0)),     // Dunkelgrün
+                rgbToHex(...quantizeAtari9Bit(0, 136, 0)),    // Mittelgrün
+                rgbToHex(...quantizeAtari9Bit(102, 255, 102)),// Hellgrün
+                rgbToHex(...quantizeAtari9Bit(255, 255, 255)) // Weiß
+            ],
+            cyan: [
+                rgbToHex(...quantizeAtari9Bit(0, 51, 102)),
+                rgbToHex(...quantizeAtari9Bit(0, 136, 170)),
+                rgbToHex(...quantizeAtari9Bit(102, 219, 255)),
+                rgbToHex(...quantizeAtari9Bit(255, 255, 255))
+            ],
+            magenta: [
+                rgbToHex(...quantizeAtari9Bit(51, 0, 51)),
+                rgbToHex(...quantizeAtari9Bit(136, 0, 136)),
+                rgbToHex(...quantizeAtari9Bit(255, 102, 255)),
+                rgbToHex(...quantizeAtari9Bit(255, 255, 255))
+            ],
+            gold: [
+                rgbToHex(...quantizeAtari9Bit(68, 17, 0)),
+                rgbToHex(...quantizeAtari9Bit(170, 85, 0)),
+                rgbToHex(...quantizeAtari9Bit(255, 187, 0)),
+                rgbToHex(...quantizeAtari9Bit(255, 255, 255))
+            ]
+        };
+
+        this.rebuildBobSprite();
+        this.initialized = true;
+    }
+
+    // Zeichnet das knallharte Zwiebel-Bob-Sprite mit konzentrischen Ringen
+    rebuildBobSprite() {
         const bCtx = this.bobCanvas.getContext('2d');
-        
-        const cx = this.bobSize / 2; const cy = this.bobSize / 2;
-        const grad = bCtx.createRadialGradient(cx - 2, cy - 2, 1, cx, cy, this.bobSize / 2);
-        
-        const c1 = rgbToHex(...quantizeAtari9Bit(255, 255, 255));
-        const c2 = rgbToHex(...quantizeAtari9Bit(153, 255, 153));
-        const c3 = rgbToHex(...quantizeAtari9Bit(51, 255, 51));
-        const c4 = rgbToHex(...quantizeAtari9Bit(0, 85, 0));
-        const c5 = `rgba(${quantizeAtari9Bit(0, 10, 0).join(',')}, 0)`;
-        
-        grad.addColorStop(0.0, c1); 
-        grad.addColorStop(0.2, c2); 
-        grad.addColorStop(0.55, c3); 
-        grad.addColorStop(0.85, c4); 
-        grad.addColorStop(1.0, c5); 
-        
-        bCtx.fillStyle = grad; 
-        bCtx.beginPath(); 
-        bCtx.arc(cx, cy, this.bobSize / 2, 0, Math.PI * 2); 
-        bCtx.fill();
-        
-        this.lastT = 0; this.internalT = 0; this.smoothedSpeed = 1.0;
+        bCtx.clearRect(0, 0, this.bobSize, this.bobSize);
+        const cx = this.bobSize / 2;
+        const cy = this.bobSize / 2;
+
+        const activePalette = this.palettes[this.states[this.stateIndex].palette];
+        const radii = [8, 6, 4, 2];
+
+        // Harte onion layers zeichnen
+        for (let i = 0; i < 4; i++) {
+            bCtx.fillStyle = activePalette[i];
+            bCtx.beginPath();
+            bCtx.arc(cx, cy, radii[i], 0, Math.PI * 2);
+            bCtx.fill();
+        }
+
+        // Glanzpunkt (Specular highlight dot)
+        bCtx.fillStyle = '#ffffff';
+        bCtx.fillRect(cx - 2, cy - 2, 1, 1);
     }
 
     resize(width, height) {}
@@ -50,63 +118,94 @@ export class AtariBobs {
         let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
         this.lastT = t;
 
-        let globalAlpha = 1.0;
-        let targetSpeed = 1.0;
-        let scaleMultiplier = 1.0;
-        let beatScale = 0.0;
-        let beatWarp = 0.0; // Krümmungs-Ausschlag der Schlange
+        // =========================================================
+        // TENSION & BEAT-KINETIK (Integrierter Spannungsaufbau)
+        // =========================================================
+        const beat = metrics.beat[0];
+        const tension = metrics.tensionPct || 0.0; 
+        const isBeat = beat > 0.8 && !this.wasBeat;
+        this.wasBeat = (beat > 0.8);
 
-        if (state === 'starting') {
-            globalAlpha = Math.min(1.0, stateTime / 1.5);
-            scaleMultiplier = globalAlpha;
-        } else if (state === 'stopping') {
-            globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
-            scaleMultiplier = globalAlpha;
-        } else if (state === 'buildup') {
-            targetSpeed = 1.3; 
-            beatScale = 0.04; // Proportionales Aufblasen
-            beatWarp = 0.15;
-        } else if (state === 'climax') {
-            targetSpeed = 2.0; 
-            globalAlpha = 0.85 + (metrics.beat[0] * 0.15); 
-            beatScale = 0.09;  // Proportionales Aufblasen
-            beatWarp = 0.45;   // Schlange krümmt sich elastisch
+        if (isBeat) {
+            this.beatCounter++;
+            
+            // Alle 8 Beats: Musterhart tauschen!
+            if (this.beatCounter % 8 === 0) {
+                this.stateIndex = (this.stateIndex + 1) % this.states.length;
+                this.rebuildBobSprite();
+            }
+
+            // Alle 4 Beats: Richtung der Z-Rotation umdrehen!
+            if (this.beatCounter % 4 === 0) {
+                this.rotDirection *= -1;
+            }
         }
 
-        this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * Math.min(1.0, dt * 5.0);
-        
-        // --- 1. THE SPEED SURGE (Schlange peitscht zum Takt nach vorne) ---
-        const activeSpeed = this.smoothedSpeed + (metrics.beat[0] * this.smoothedSpeed * 0.8);
-        this.internalT += dt * activeSpeed;
+        const activeState = this.states[this.stateIndex];
 
-        ctx.globalAlpha = globalAlpha;
-        const cx = width / 2; const cy = height / 2;
-        
+        // Z-Rotation akkumulieren
+        // CLIMAX EVENT: Die Rotationsgeschwindigkeit verfünffacht sich schlagartig im Drop!
+        const rotBaseSpeed = (state === 'climax') ? 0.95 : 0.18;
+        this.angleZ += dt * rotBaseSpeed * this.rotDirection;
+
+        // Kinetik-Akkumulator: Das Tension-Level treibt das Morphing-Tempo bei Drops an!
+        const tensionSpeedMultiplier = 1.0 + (tension * 1.2); 
+        this.internalT += dt * this.smoothedSpeed * tensionSpeedMultiplier;
+        this.waterT += dt * this.smoothedSpeed;
+
+        // Koordinatenmitte
+        const cx = width / 2;
+        const cy = height / 2;
         const minDim = Math.min(width, height);
-        const isPortrait = width < height;
 
-        // --- 2. ASPECT-RATIO SAFE PATHING (Schrumpft im Hochkantmodus) ---
-        // Verhindert, dass die Bobs links und rechts an die Gehäusewand stoßen
-        const aspectScaleX = isPortrait ? 0.32 : 0.38;
-        
-        const radiusX = (minDim * aspectScaleX) * (1.0 + Math.sin(this.internalT * 0.4) * 0.25) * scaleMultiplier;
-        const radiusY = (minDim * 0.28) * (1.0 + Math.cos(this.internalT * 0.5) * 0.2) * scaleMultiplier;
-        
-        const baseBobSize = 3.0 + minDim * 0.03; 
+        // Mathematisch festgezurrte Skalierungen
+        const radiusX = (minDim * 0.38) * activeState.scale;
+        const radiusY = (minDim * 0.28) * activeState.scale;
+
         const phaseStep = (Math.PI * 2) / this.numBobs;
-        
+
+        // --- COORDINATE TRANSFORMATION & RENDER ---
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(this.angleZ);
+
         for (let i = 0; i < this.numBobs; i++) {
-            // --- 3. THE SNAKE-WARP (Wirbelsäulen-Krümmung zum Beat) ---
-            const phase = i * phaseStep + (metrics.beat[0] * beatWarp * Math.sin(i * 0.2));
-            
-            const x = cx + Math.sin(this.internalT * 1.4 + phase) * radiusX;
-            const y = cy + Math.sin(this.internalT * 2.1 + phase) * Math.cos(this.internalT * 1.1 + phase) * radiusY;
-            
-            // Proportionaler Beat-Glow
-            const size = (baseBobSize + Math.sin(this.internalT * 3.5 + phase) * (baseBobSize * 0.4)) * scaleMultiplier + (metrics.beat[0] * minDim * beatScale);
-            
-            ctx.drawImage(this.bobCanvas, Math.floor(x - size / 2), Math.floor(y - size / 2), Math.floor(size), Math.floor(size));
+            // LUT-basierter Phasen-Warp
+            const phase = i * phaseStep + this.phaseLUT[i] * (1.0 + beat * 2.0);
+
+            let x = 0;
+            let y = 0;
+
+            if (activeState.ratioX === 0) {
+                // EXPLOSION STATE (Bobs stieben radial auseinander)
+                let explodeOffset = 25 + Math.sin(t * 12.0) * (minDim * 0.3);
+                x = Math.sin(phase) * explodeOffset;
+                y = Math.cos(phase) * explodeOffset;
+            } else {
+                // DETERMINISTIC INTEGER LISSAJOUS
+                x = Math.sin(this.internalT * activeState.ratioX + phase) * radiusX;
+                y = Math.sin(this.internalT * activeState.ratioY + phase) * Math.cos(this.internalT * 0.5 + phase) * radiusY;
+            }
+
+            // CLIMAX EVENT: Spiegelungs-Mayhem zuckt wild bei jedem Beat!
+            let activeMirror = activeState.mirror;
+            if (state === 'climax') {
+                activeMirror = this.beatCounter % 4; // Toggles on every beat!
+            }
+
+            if (activeMirror === 1) x = -Math.abs(x);       // Mirror X
+            if (activeMirror === 2) y = -Math.abs(y);       // Mirror Y
+            if (activeMirror === 3) { x = -Math.abs(x); y = -Math.abs(y); } // Mirror XY
+
+            // Direkt auf das Haupt-Canvas blitten (Maskiertes Software-Sprite)
+            ctx.drawImage(
+                this.bobCanvas, 
+                Math.floor(x - this.bobSize / 2), 
+                Math.floor(y - this.bobSize / 2), 
+                this.bobSize, 
+                this.bobSize
+            );
         }
-        ctx.globalAlpha = 1.0;
+        ctx.restore();
     }
 }

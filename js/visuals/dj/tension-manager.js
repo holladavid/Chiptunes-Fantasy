@@ -35,8 +35,10 @@ export class TensionManager {
         const rawState = dynamics.rawEnergyState;
 
         let accumulationSpeed = 0.75;
-        if (info.system === 'c64') accumulationSpeed = 0.45;
-        else if (info.system === 'atari') accumulationSpeed = 0.15;
+        // KORREKTUR: C64 Bremse gelöst! Von 0.45 massiv auf 0.75 angehoben. 
+        // Die Spannung akkumuliert bei Rob Hubbard Tracks nun rasant.
+        if (info.system === 'c64') accumulationSpeed = 0.75;
+        else if (info.system === 'atari') accumulationSpeed = 0.55;
 
         let targetState = this.macroState;
 

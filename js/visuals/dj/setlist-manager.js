@@ -1,7 +1,8 @@
 // === js/visuals/dj/setlist-manager.js ===
 // =========================================================
-// SCENE-DJ SKILL: SETLIST MANAGER (Bug-Free Edition)
-// Safe Black-Screen protection and deterministic weight decaying.
+// SCENE-DJ SKILL: SETLIST MANAGER (Fatigue Edition)
+// Flawless Anti-Blackout prevention at source and organic
+// Round-Robin weight recovery (Fatigue System).
 // =========================================================
 
 export class SetlistManager {
@@ -13,18 +14,32 @@ export class SetlistManager {
         dse.state = 'idle';
         dse.stateTime = 0.0;
         dse._markedForRemoval = false;
+        // Dynamisches Gewicht für das Roulette (startet auf Basiswert)
         dse.currentWeight = dse.metadata.weight || 10.0;
         this.registeredDSEs.push(dse);
     }
 
-    resetWeightsForLayer(layer) {
+    // =========================================================
+    // FATIGUE SYSTEM (Ersetzt hard-coded Penaltys)
+    // Wenn ein Effekt gewählt wird, fällt er ans Ende der Schlange.
+    // Alle Konkurrenten erholen ihre Gewichte sachte.
+    // =========================================================
+    applyFatigue(selectedDse) {
+        selectedDse.currentWeight = 0.1; // Erschöpfung!
+        
         for (let d of this.registeredDSEs) {
-            if (d.metadata.layer === layer) d.currentWeight = d.metadata.weight || 10.0;
+            if (d !== selectedDse && d.metadata.layer === selectedDse.metadata.layer) {
+                let baseWeight = d.metadata.weight || 10.0;
+                // Erholt sich um 50% der Basis pro verpasstem Swap (Maximal BaseWeight)
+                d.currentWeight = Math.min(baseWeight, d.currentWeight + (baseWeight * 0.5));
+            }
         }
     }
 
     selectWeightedDSE(candidates) {
         if (candidates.length === 0) return null;
+        if (candidates.length === 1) return candidates[0];
+
         let totalWeight = 0.0;
         for (let c of candidates) totalWeight += c.currentWeight;
         
@@ -50,72 +65,43 @@ export class SetlistManager {
 
         const layers = ['background', 'floor', 'foreground', 'overlay'];
         
-        // 1. Reguläres Auffüllen fehlender Layer
         for (let layer of layers) {
             if (!layerFilled[layer]) {
-                let candidates = this.registeredDSEs.filter(d => 
-                    d.state === 'idle' && !d._markedForRemoval &&
-                    d.metadata.layer === layer &&
-                    d.metadata.lifecycle !== 'oneshot' && 
-                    (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all')) &&
-                    ((activeInstanceCount[d.metadata.name] || 0) < d.metadata.maxInstances)
-                );
+                
+                // ANTI-BLACKOUT: Wieviele sichtbare Elemente sind BEREITS im Aufbau/Aktiv?
+                let visibleCount = stageManager.activeDSEs.filter(d => 
+                    !d._markedForRemoval && 
+                    d.metadata.lifecycle === 'managed' && 
+                    !d.metadata.isVoid
+                ).length;
+
+                let candidates = this.registeredDSEs.filter(alt => {
+                    if (alt.state !== 'idle' || alt._markedForRemoval) return false;
+                    if (alt.metadata.layer !== layer) return false;
+                    
+                    // KORREKTUR: Nur 'oneshot' ausschließen! 
+                    // Erlaubt 'managed' und 'permanent' (z.B. LimitBar) das Eintreten auf die Bühne.
+                    if (alt.metadata.lifecycle === 'oneshot') return false; 
+                    
+                    if (!alt.metadata.systems.includes(info.system) && !alt.metadata.systems.includes('all')) return false;
+                    if ((activeInstanceCount[alt.metadata.name] || 0) >= alt.metadata.maxInstances) return false;
+                    
+                    // ANTI-BLACKOUT: Ist dies das einzige Element, darf es nicht Void sein!
+                    if (alt.metadata.isVoid && visibleCount === 0) return false;
+
+                    return true;
+                });
                 
                 if (candidates.length > 0) {
-                    this.resetWeightsForLayer(layer);
                     let chosen = this.selectWeightedDSE(candidates);
+                    this.applyFatigue(chosen); // Verringert Wahrscheinlichkeit beim nächsten Roll
+                    
                     chosen.state = initialState;
                     chosen.stateTime = 0.0;
                     chosen._markedForRemoval = false;
                     stageManager.activeDSEs.push(chosen);
-                    activeInstanceCount[chosen.metadata.name] = (activeInstanceCount[chosen.metadata.name] || 0) + 1;
-                }
-            }
-        }
-
-        // =========================================================
-        // 2. BLACK-SCREEN PROTECTION (Schutzschaltung-Upgrade)
-        // =========================================================
-        let activeManaged = stageManager.activeDSEs.filter(d => d.metadata.lifecycle === 'managed' && !d._markedForRemoval);
-        let nonVoidCount = activeManaged.filter(d => !d.metadata.isVoid).length;
-
-        if (activeManaged.length > 0 && nonVoidCount === 0) {
-            // GFX FIX: Wir filtern nach aktiven Layern, für die es auf dem aktuellen System
-            // WIRKLICH ein sichtbares Gegenstück in der Registry gibt (löst C64-Foreground Bug!)
-            let replaceable = activeManaged.filter(activeDse => {
-                return this.registeredDSEs.some(d => 
-                    !d.metadata.isVoid && 
-                    d.metadata.layer === activeDse.metadata.layer &&
-                    d.metadata.lifecycle === 'managed' &&
-                    (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
-                );
-            });
-
-            if (replaceable.length > 0) {
-                // Nur aus den physikalisch ersetzbaren Layern zufällig wählen
-                let dseToReplace = replaceable[Math.floor(Math.random() * replaceable.length)];
-                
-                let realCandidates = this.registeredDSEs.filter(d => 
-                    !d.metadata.isVoid && 
-                    d.metadata.layer === dseToReplace.metadata.layer &&
-                    d.metadata.lifecycle === 'managed' &&
-                    (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
-                );
-                
-                if (realCandidates.length > 0) {
-                    let idx = stageManager.activeDSEs.indexOf(dseToReplace);
-                    if (idx !== -1) {
-                        dseToReplace.state = 'idle'; 
-                        dseToReplace.stateTime = 0.0;
-                        stageManager.activeDSEs.splice(idx, 1);
-                    }
                     
-                    this.resetWeightsForLayer(dseToReplace.metadata.layer);
-                    let chosen = this.selectWeightedDSE(realCandidates);
-                    chosen.state = initialState; 
-                    chosen.stateTime = 0.0; 
-                    chosen._markedForRemoval = false;
-                    stageManager.activeDSEs.push(chosen);
+                    activeInstanceCount[chosen.metadata.name] = (activeInstanceCount[chosen.metadata.name] || 0) + 1;
                 }
             }
         }
@@ -126,11 +112,18 @@ export class SetlistManager {
         for (let i = stageManager.activeDSEs.length - 1; i >= 0; i--) {
             let dse = stageManager.activeDSEs[i];
             if (dse.metadata.lifecycle === 'permanent' && dse.metadata.systems.includes('all')) continue; 
+            
             if (!dse.metadata.systems.includes(info.system) && !dse.metadata.systems.includes('all')) {
                 dse.state = 'idle';
                 stageManager.activeDSEs.splice(i, 1);
             }
         }
+        
+        // Frischer Start beim Systemwechsel: Gewichte normalisieren
+        for (let d of this.registeredDSEs) {
+            d.currentWeight = d.metadata.weight || 10.0;
+        }
+        
         this.fillEmptyLayers(stageManager, info, 'idle');
     }
 
@@ -144,32 +137,47 @@ export class SetlistManager {
                     let swapChance = overTime * 0.1 * dt; 
 
                     if (Math.random() < swapChance) {
-                        let candidates = this.registeredDSEs.filter(alt => 
-                            (alt.state === 'idle' || alt === dse) && !alt._markedForRemoval &&
-                            alt.metadata.layer === dse.metadata.layer &&
-                            alt.metadata.lifecycle === 'managed' &&
-                            (alt.metadata.systems.includes(info.system) || alt.metadata.systems.includes('all'))
-                        );
+                        
+                        // ANTI-BLACKOUT: Wieviele ANDERE Elemente halten das Bild gerade lebendig?
+                        let otherVisibleCount = stageManager.activeDSEs.filter(d => 
+                            d !== dse && 
+                            !d._markedForRemoval && 
+                            d.metadata.lifecycle === 'managed' && 
+                            !d.metadata.isVoid
+                        ).length;
+
+                        let candidates = this.registeredDSEs.filter(alt => {
+                            if (alt._markedForRemoval) return false;
+                            if (alt.state !== 'idle' && alt !== dse) return false;
+                            if (alt.metadata.layer !== dse.metadata.layer) return false;
+                            if (alt.metadata.lifecycle !== 'managed') return false;
+                            if (!alt.metadata.systems.includes(info.system) && !alt.metadata.systems.includes('all')) return false;
+                            
+                            // Wenn alles andere auf der Bühne Void ist, darf der Nachfolger von 'dse' nicht ebenfalls Void sein!
+                            if (alt.metadata.isVoid && otherVisibleCount === 0) return false;
+
+                            return true;
+                        });
                         
                         if (candidates.length > 0) {
                             let chosen = this.selectWeightedDSE(candidates);
                             
                             if (chosen === dse) {
-                                // Re-Roll Strafe: Zeit kürzen und Gewicht halbieren
-                                dse.stateTime = Math.max(0, dse.metadata.duration - 5.0);
-                                dse.currentWeight = Math.max(1.0, dse.currentWeight * 0.5);
+                                // Hat sich selbst gezogen (z.B. weil es mangels Alternativen das einzige DSE ist).
+                                // Darf weiterspielen! Timer Reset + Fatigue anwenden
+                                dse.stateTime = 0.0;
+                                this.applyFatigue(dse);
                             } else {
-                                // GFX FIX: Hard-Swap direkt im Frame ausführen (kein Double-Rolling mehr!)
+                                // Neuer Star auf der Bühne! Alter geht ab.
                                 dse._markedForRemoval = true;
+                                
+                                this.applyFatigue(chosen);
                                 
                                 chosen.state = 'starting';
                                 chosen.stateTime = 0.0;
                                 chosen._markedForRemoval = false;
                                 stageManager.activeDSEs.push(chosen);
                                 stageManager.sortZOrder();
-                                
-                                // Setzt die Gewichte für diesen Layer erst NACH dem erfolgreichen Tausch zurück
-                                this.resetWeightsForLayer(dse.metadata.layer);
                             }
                         }
                     }
