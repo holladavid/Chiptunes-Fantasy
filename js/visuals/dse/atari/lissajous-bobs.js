@@ -1,8 +1,8 @@
 // === js/visuals/dse/atari/lissajous-bobs.js ===
 // =========================================================
-// CLASSIC ATARI ST METAL-BOB CHAIN (v2.0.2 - Transparent)
-// Mechanical discrete state jumps, hard-banded sprites,
-// whole-path Z-roll rotation, and transparent ghosting trails.
+// CLASSIC ATARI ST METAL-BOB CHAIN (v4.0.0 - 100% Bare-Metal)
+// No Alpha. No modern Trails. Pure masked software sprites
+// rendered directly on top of the redrawn 16-bit background.
 // =========================================================
 
 import { quantizeAtari9Bit, rgbToHex } from '../../utils/hardware-constraints.js';
@@ -15,13 +15,8 @@ export class AtariBobs {
         
         this.numBobs = 48; // Klassische Atari-Größe
         this.bobSize = 16; 
-        
-        // Interner Trail-Buffer (Nun vollkommen TRANSPARENT!)
-        this.trailCanvas = document.createElement('canvas');
-        this.trailCtx = this.trailCanvas.getContext('2d'); // alpha ist standardmäßig true
-        this.trailFadeColor = 'rgba(0,0,0,0.12)'; // Moduliert die Transparenz-Dämpfung
 
-        // Sprite-Buffer für die Onion-Layers
+        // Sprite-Buffer für die Onion-Layers (Maskiertes Software-Sprite)
         this.bobCanvas = document.createElement('canvas'); 
         this.bobCanvas.width = this.bobSize; 
         this.bobCanvas.height = this.bobSize;
@@ -41,12 +36,12 @@ export class AtariBobs {
         this.wasBeat = false;
         this.rotDirection = 1;
         this.angleZ = 0.0;
+        this.lastT = 0;
         
         // Kinetik-Akkumulatoren
         this.internalT = 0.0;
         this.waterT = 0.0;
         this.smoothedSpeed = 1.0;
-        this.lastT = 0;
 
         // Diskrete Phasen-Tabelle (LUT) für stufiges, mechanisches Ruckeln
         this.phaseLUT = new Float32Array(this.numBobs);
@@ -116,22 +111,12 @@ export class AtariBobs {
         bCtx.fillRect(cx - 2, cy - 2, 1, 1);
     }
 
-    resize(width, height) {
-        if (this.trailCanvas.width !== width || this.trailCanvas.height !== height) {
-            this.trailCanvas.width = width;
-            this.trailCanvas.height = height;
-            
-            // Mit transparentem Null-Alpha leeren
-            this.trailCtx.clearRect(0, 0, width, height);
-        }
-    }
+    resize(width, height) {}
 
     render(ctx, width, height, t, state, stateTime, metrics) {
         if (state === 'idle') { this.lastT = t; return; }
         let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
         this.lastT = t;
-
-        this.resize(width, height);
 
         // =========================================================
         // TENSION & BEAT-KINETIK (Integrierter Spannungsaufbau)
@@ -159,20 +144,14 @@ export class AtariBobs {
         const activeState = this.states[this.stateIndex];
 
         // Z-Rotation akkumulieren
-        this.angleZ += dt * 0.18 * this.rotDirection;
+        // CLIMAX EVENT: Die Rotationsgeschwindigkeit verfünffacht sich schlagartig im Drop!
+        const rotBaseSpeed = (state === 'climax') ? 0.95 : 0.18;
+        this.angleZ += dt * rotBaseSpeed * this.rotDirection;
 
         // Kinetik-Akkumulator: Das Tension-Level treibt das Morphing-Tempo bei Drops an!
-        const tensionSpeedMultiplier = 1.0 + (tension * 0.8); 
+        const tensionSpeedMultiplier = 1.0 + (tension * 1.2); 
         this.internalT += dt * this.smoothedSpeed * tensionSpeedMultiplier;
         this.waterT += dt * this.smoothedSpeed;
-        
-        // --- 2. THE GHOST TRAIL ACCUMULATOR (Transparent Destination-Out) ---
-        // Verringert den Alpha-Kanal aller Pixel auf dem Trail-Canvas um 12% pro Frame.
-        // Das lässt Bobs im Hintergrund verschwinden, ohne die Pixel dahinter schwarz zu übermalen!
-        this.trailCtx.globalCompositeOperation = 'destination-out';
-        this.trailCtx.fillStyle = this.trailFadeColor;
-        this.trailCtx.fillRect(0, 0, width, height);
-        this.trailCtx.globalCompositeOperation = 'source-over';
 
         // Koordinatenmitte
         const cx = width / 2;
@@ -185,10 +164,10 @@ export class AtariBobs {
 
         const phaseStep = (Math.PI * 2) / this.numBobs;
 
-        // --- 3. COORDINATE TRANSFORMATION & RENDER ---
-        this.trailCtx.save();
-        this.trailCtx.translate(cx, cy);
-        this.trailCtx.rotate(this.angleZ);
+        // --- COORDINATE TRANSFORMATION & RENDER ---
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(this.angleZ);
 
         for (let i = 0; i < this.numBobs; i++) {
             // LUT-basierter Phasen-Warp
@@ -208,13 +187,18 @@ export class AtariBobs {
                 y = Math.sin(this.internalT * activeState.ratioY + phase) * Math.cos(this.internalT * 0.5 + phase) * radiusY;
             }
 
-            // Spiegelungs-Choreographie
-            if (activeState.mirror === 1) x = -Math.abs(x);       // Mirror X
-            if (activeState.mirror === 2) y = -Math.abs(y);       // Mirror Y
-            if (activeState.mirror === 3) { x = -Math.abs(x); y = -Math.abs(y); } // Mirror XY
+            // CLIMAX EVENT: Spiegelungs-Mayhem zuckt wild bei jedem Beat!
+            let activeMirror = activeState.mirror;
+            if (state === 'climax') {
+                activeMirror = this.beatCounter % 4; // Toggles on every beat!
+            }
 
-            // Auf dem Trail-Canvas plotten
-            this.trailCtx.drawImage(
+            if (activeMirror === 1) x = -Math.abs(x);       // Mirror X
+            if (activeMirror === 2) y = -Math.abs(y);       // Mirror Y
+            if (activeMirror === 3) { x = -Math.abs(x); y = -Math.abs(y); } // Mirror XY
+
+            // Direkt auf das Haupt-Canvas blitten (Maskiertes Software-Sprite)
+            ctx.drawImage(
                 this.bobCanvas, 
                 Math.floor(x - this.bobSize / 2), 
                 Math.floor(y - this.bobSize / 2), 
@@ -222,10 +206,6 @@ export class AtariBobs {
                 this.bobSize
             );
         }
-        this.trailCtx.restore();
-
-        // --- 4. FINAL COMPOSITING ---
-        // Wir blitten die fertigen, transparenten Trails über den Hintergrund und die Floor-DSEs
-        ctx.drawImage(this.trailCanvas, 0, 0);
+        ctx.restore();
     }
 }
