@@ -64,12 +64,12 @@ export class AtariRetroSunset {
 
         // --- PRE-CALCULATED STRUCTURES ---
         
-        // Clouds
+        // Wolken (Fewer & Smaller: y-Pos, x-Pos, relative-r, individuelle Drift-Geschwindigkeit)
+        // Die Geschwindigkeiten sind leicht asymmetrisch verteilt, um die Tiefe zu maximieren
         this.clouds = [
-            { y: 0.1, x: 0.2, w: 0.6, h: 0.15 },
-            { y: 0.25, x: 0.0, w: 0.4, h: 0.1 },
-            { y: 0.3, x: 0.5, w: 0.5, h: 0.12 },
-            { y: 0.5, x: 0.1, w: 0.8, h: 0.08 }
+            { y: 0.15, x: 0.15, r: 0.038, phase: 0.0, speed: -1.25 }, // Driftet moderat nach links
+            { y: 0.28, x: 0.68, r: 0.046, phase: 2.0, speed: 1.85 },  // Driftet schneller nach rechts
+            { y: 0.38, x: 0.22, r: 0.042, phase: 4.0, speed: -0.80 }  // Driftet sehr langsam nach links
         ];
 
         // The Bonsai Branch Logic
@@ -118,12 +118,40 @@ export class AtariRetroSunset {
         }
     }
 
+    // Zeichnet einen pixelgenauen, 50%-Schachbrett-ditherten Kreis ohne AA
+    fillDitheredCircle(ctx, xc, yc, r, col1, col2) {
+        xc = Math.floor(xc); yc = Math.floor(yc); r = Math.floor(r);
+        for (let y = -r; y <= r; y++) {
+            let dx = Math.round(Math.sqrt(r * r - y * y));
+            let drawY = yc + y;
+            let startX = xc - dx;
+            let endX = xc + dx;
+            for (let x = startX; x <= endX; x++) {
+                ctx.fillStyle = ((x + drawY) % 2 === 0) ? col1 : col2;
+                ctx.fillRect(x, drawY, 1, 1);
+            }
+        }
+    }
+
     drawDitheredBand(ctx, width, yStart, yEnd, col1, col2) {
         yStart = Math.floor(yStart); yEnd = Math.floor(yEnd);
         for (let y = yStart; y < yEnd; y++) {
             ctx.fillStyle = (y % 2 === 0) ? col1 : col2;
             ctx.fillRect(0, y, width, 1);
         }
+    }
+
+    // Zeichnet eine organische Wolke AUSSCHLIESSLICH aus 7 dithernden Kreisen
+    drawChunkyCloud(ctx, cx, cy, r, col1, col2) {
+        cx = Math.floor(cx); cy = Math.floor(cy); r = Math.floor(r);
+        
+        this.fillDitheredCircle(ctx, cx, cy, r, col1, col2); // Center
+        this.fillDitheredCircle(ctx, cx - Math.floor(r * 0.7), cy + Math.floor(r * 0.1), Math.floor(r * 0.7), col1, col2); // Left
+        this.fillDitheredCircle(ctx, cx + Math.floor(r * 0.7), cy + Math.floor(r * 0.1), Math.floor(r * 0.7), col1, col2); // Right
+        this.fillDitheredCircle(ctx, cx - Math.floor(r * 1.3), cy + Math.floor(r * 0.3), Math.floor(r * 0.45), col1, col2); // Far Left
+        this.fillDitheredCircle(ctx, cx + Math.floor(r * 1.3), cy + Math.floor(r * 0.3), Math.floor(r * 0.45), col1, col2); // Far Right
+        this.fillDitheredCircle(ctx, cx - Math.floor(r * 0.35), cy - Math.floor(r * 0.35), Math.floor(r * 0.65), col1, col2); // Top Left
+        this.fillDitheredCircle(ctx, cx + Math.floor(r * 0.35), cy - Math.floor(r * 0.35), Math.floor(r * 0.65), col1, col2); // Top Right
     }
 
     render(ctx, width, height, t, state, stateTime, metrics) {
@@ -187,20 +215,28 @@ export class AtariRetroSunset {
         ctx.fillRect(0, horizon - 2, width, 2);
 
         // =========================================================
-        // 2. THE CLOUDS
+        // 2. THE CLOUDS (Delicate Shifter-Dithered Circle Clusters)
         // =========================================================
         for (let i = 0; i < this.clouds.length; i++) {
             let c = this.clouds[i];
             let cy = Math.floor(horizon * c.y);
-            let ch = Math.floor(horizon * c.h);
-            let cw = Math.floor(width * c.w);
             let cxCloud = Math.floor(width * c.x);
+            let rSize = Math.floor(minDim * c.r); // Skaliert proportional auf minDim
 
-            let drift = Math.floor(this.internalT * 2.0 * (i % 2 === 0 ? 1 : -1));
-            cxCloud += drift;
+            // Horizontaler Drift mit individueller Geschwindigkeit und Richtung
+            let drift = Math.floor(this.internalT * c.speed);
+            
+            // Nahtloser Wrap-Around
+            let span = width + rSize * 3;
+            let finalX = ((cxCloud + drift + rSize * 1.5) % span);
+            if (finalX < 0) finalX += span;
+            finalX -= rSize * 1.5;
 
-            this.drawDitherRect(ctx, cxCloud, cy, cw, ch, this.cCloudW, this.cCloudP);
-            this.drawDitherRect(ctx, cxCloud + 10, cy + ch - 4, cw - 20, 4, this.cCloudP, this.cCloudD);
+            // --- 2a. SCHATTEN-LAYER (Pink/Dark Dither) ---
+            this.drawChunkyCloud(ctx, finalX + 4, cy + 2, rSize, this.cCloudP, this.cCloudD);
+
+            // --- 2b. CORE-LAYER (White/Pink Dither) ---
+            this.drawChunkyCloud(ctx, finalX, cy, rSize, this.cCloudW, this.cCloudP);
         }
 
         // =========================================================
