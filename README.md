@@ -1,7 +1,7 @@
 # Chiptunes Fantasy
 
 ### The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator
-**Version 1.4.0-beta.4 [Low-Res Canvas Overhaul, Screen Alignment & Final Calibration]**
+**Version 1.4.0-beta.5 [The Painterly Water & Democoding Polish]**
 
 Built with 100% vanilla HTML5, CSS3, and modern Web Audio API. No MP3s, no pre-rendered streams — just pure mathematical real-time synthesis running asynchronously inside low-latency AudioWorklets. From nerds, for nerds.
 
@@ -31,11 +31,12 @@ We abolished analog volume-guessing. The `TrackMonitor` now hooks directly into 
 *   **C64 Chunky Plasma:** A mathematical 8x8 PETSCII-style plasma locked strictly to the 16-color palette. Features fluid, beat-reactive color-cycling and a geometric zooming pump.
 *   **Amiga Boing Ball:** The legendary 1984 prototype, rendered as a 16x14 3D mesh with an authentic 17-degree right tilt. Features a majestic parabolic flight path and 12-bit quantized depth-shading.
 *   **Amiga Kefrens Checkerboard:** The iconic infinite zooming 3D floor with scanline-based perspective math, dynamically shifted by 1 pixel to seamlessly merge with the background horizon.
-*   **Atari 3D Dot Torus:** A tribute to classic 68000 CPU point-plotting. A massive 3D donut that rotates, pulses, and flashes in high-energy 9-bit neon colors.
+*   **Atari 3D Dot Torus:** A tribute to classic 68000 CPU point-plotting. A massive 3D donut rotating via a 100% integer-based 256-entry Sine Look-Up Table (LUT). Disabling Z-sorting results in the raw, overlapping "pixel-chaos" look typical of 1989-era demos.
+*   **Atari ST Metal Bobs (AtariBobs):** A classic 16-bit software sprite routine. Completely stripped of modern alpha transparency to maintain strict bare-metal compliance, it now blits solid, onion-shaded masked sprites directly onto the redrawn background, featuring high-energy Climax Z-rolls and beat-driven mirror mayhem.
 *   **Legacy DSEs Overhauled:** 
-    *   *Retro Sunset* now features C64 Outrun slits, an Amiga Copper-melt sky with parallax mountains, and an Atari elastic 3D water grid. 
-    *   *Starfield* utilizes *Dynamic Radial/Frustum Recycling* to keep visible star density at a permanent 100%, even during Atari 3D Z-roll rotations.
-    
+    *   *Retro Sunset* has been split into highly optimized, platform-exclusive DSEs. The Amiga edition features an authentic 28-band OCS Copper Sky, Bob Ross vertical-pull mountain reflections with dithered navy water ripples, and an atmospheric dithered 3-seagull V-formation flock. The Atari ST edition features heavy dithered cloud clusters, shorelines, and hard-edge raster-bar glitches.
+    *   *Starfield* utilizes *Dynamic Radial/Frustum/Rotation-Safe Recycling* to keep visible star density at a permanent 100%, even during Atari 3D Z-roll rotations.
+        
 *   **Living Silicon (Core Visualization):** Ein hochperformantes Vektor-Die-Modul der drei verbauten Soundprozessoren (MOS 6581, MOS Paula 8364, YM2149F). Zeigt physische Pinout-Glows, Live-Mixer-Gatter, flackernde Noise-Generatoren und Echtzeit-Frequenzanalysen direkt auf dem Silizium-Plättchen.
 *   **Amiga Boing Ball (1984 Tribute):** Ein historisch akkurates 16x14-Demoszene-Mesh mit starrer 3D-Kinematik, 17-Grad-Neigung und originaler parabolischer Schwerkraft-Physik.
 *   **Environmental Sensor Bay:** Live-Diagnostik der virtuellen analogen Ströme. Simuliert dynamische Spannungsabfälle (Voltage Sags) bei tiefen Frequenzen, Transistor-Bias-Drifts und thermische Rauschpegel.
