@@ -6,196 +6,112 @@ export class AtariRetroSunset {
         this.internalT = 0;
         this.waterT = 0;
         this.smoothedSpeed = 1.0;
-        this.smoothedWaveSpeed = 1.0;
         this.lastT = 0;
 
-        // Parallax-Scroll-Akkumulatoren
-        this.bgScroll = 0.0;
-        this.fgScroll = 0.0;
+        // Pre-allocated Arrays for Zero-Allocation Rendering
+        this.clouds = [];
+        this.shrines = [];
+        this.leafClusters = [];
+        this.leaves = [];
 
-        this.cachedWidth = 0;
-        this.cachedHeight = 0;
-
-        // Speicher-Arrays für das vorab berechnete Wasser-Shading (Zero Allocation)
-        this.cachedWaterColors = [];
-        this.cachedRefColors = [];
-
-        // IK+ Mountain-Polygone (X: 0-100%, Y: 0-100% Höhe über Horizont)
-        this.mountains1 = [
-            { x: 0, y: 0 }, { x: 12, y: 15 }, { x: 25, y: 4 }, { x: 38, y: 24 },
-            { x: 52, y: 8 }, { x: 68, y: 28 }, { x: 82, y: 6 }, { x: 100, y: 0 }
-        ];
-        this.mountains2 = [
-            { x: 0, y: 0 }, { x: 18, y: 8 }, { x: 32, y: 16 }, { x: 48, y: 6 },
-            { x: 60, y: 18 }, { x: 75, y: 4 }, { x: 88, y: 12 }, { x: 100, y: 0 }
-        ];
-
-        // --- ANTICS (Archer Maclean Tribute States) ---
-        this.cloudX = -50;
-        this.cloudY = 45; 
-        this.cloudSpeedOffset = 0.0;
-
-        // Das 3er Möwengeschwader
-        this.birdX = new Float32Array([-50, -50, -50]);
-        this.birdY = new Float32Array([0, 0, 0]);
-        this.birdActive = [false, false, false];
-        this.birdSpeed = new Float32Array([0, 0, 0]);
-        this.birdYOffset = new Float32Array([0, 0, 0]);
-        this.birdPhase = new Float32Array([0, 0, 0]);
-
-        this.fishActive = false;
-        this.fishT = 0;
-        this.fishStartX = 0;
-        this.fishBaseY = 0;
-
-        this.starActive = false;
-        this.starX = 0;
-        this.starY = 0;
-        this.starT = 0;
-
-        this.sunPulse = 0.0;
-
-        // Kaltstart-Initialisierung
         this.ensureInitialized();
     }
 
-    // Selbstheilungs-Schutzschaltung gegen Hot-Reload / State-Caches
     ensureInitialized() {
-        if (this.copperPalette && this.sunColorCore) return;
+        if (this.initialized) return;
 
-        // Exakte Atari-Farbpalette (9-Bit Shifter - 512 Farben)
-        this.waterColor = rgbToHex(...quantizeAtari9Bit(0, 0, 34));          // Tiefes ST-Marineblau
-        this.reflectionColor = rgbToHex(...quantizeAtari9Bit(255, 102, 0));  // Kratziges ST-Orange
-        this.sunGlowColor = rgbToHex(...quantizeAtari9Bit(255, 170, 0));     // ST-Gold
-        this.sunCoreColor = rgbToHex(...quantizeAtari9Bit(255, 255, 255));   // Reinweiß
+        // --- STRICT ATARI ST 9-BIT SHIFTER PALETTE (512 Colors) ---
+        // Sky Gradient (Magenta -> Red -> Orange -> Yellowish)
+        this.cSkyTop  = rgbToHex(...quantizeAtari9Bit(68, 0, 68));    
+        this.cSkyMid1 = rgbToHex(...quantizeAtari9Bit(136, 0, 34));   
+        this.cSkyMid2 = rgbToHex(...quantizeAtari9Bit(204, 68, 0));   
+        this.cSkyBot  = rgbToHex(...quantizeAtari9Bit(255, 170, 102));
+
+        this.cSun = rgbToHex(...quantizeAtari9Bit(255, 204, 0));      
+
+        // Water
+        this.cWaterDark  = rgbToHex(...quantizeAtari9Bit(0, 0, 51));  
+        this.cWaterLight = rgbToHex(...quantizeAtari9Bit(0, 68, 136));
+        this.cWaterRefl  = rgbToHex(...quantizeAtari9Bit(255, 255, 136)); 
+
+        // Architecture & Path
+        this.cTorii     = rgbToHex(...quantizeAtari9Bit(34, 17, 0));  
+        this.cToriiHigh = rgbToHex(...quantizeAtari9Bit(85, 34, 0));  
         
-        // Harmonisch glühende Sonnen-Palette
-        this.sunColorYellow = rgbToHex(...quantizeAtari9Bit(255, 255, 85));   
-        this.sunColorOrange = rgbToHex(...quantizeAtari9Bit(255, 136, 0));   
-        this.sunColorRed = rgbToHex(...quantizeAtari9Bit(204, 34, 0));       
+        this.cPathLight = rgbToHex(...quantizeAtari9Bit(136, 136, 136)); 
+        this.cPathDark  = rgbToHex(...quantizeAtari9Bit(68, 68, 68));    
+        this.cPathLine  = rgbToHex(...quantizeAtari9Bit(17, 17, 17));    
 
-        // Subtile Tiefenperspektive für die Berghorizonte
-        this.mountain1Color = rgbToHex(...quantizeAtari9Bit(68, 0, 68));       // Ferne Kette (Dunkles ST-Magenta)
-        this.mountain2Color = rgbToHex(...quantizeAtari9Bit(0, 0, 17));        // Nahe Kette (Fast schwarzes Nachtblau)
-        this.mountain2Outline = rgbToHex(...quantizeAtari9Bit(0, 34, 51));     // Dunkle Konturkante für Berg 2
+        // Vegetation (Autumn Bonsai Colors)
+        this.cTreeTrunk = rgbToHex(...quantizeAtari9Bit(68, 34, 0));  
+        this.cLeaf1 = rgbToHex(...quantizeAtari9Bit(255, 136, 0));    // Orange
+        this.cLeaf2 = rgbToHex(...quantizeAtari9Bit(204, 170, 0));    // Gelbgrün
+        this.cLeaf3 = rgbToHex(...quantizeAtari9Bit(85, 136, 0));     // Mid Green
+        this.cGrass = rgbToHex(...quantizeAtari9Bit(34, 102, 0));     // Dark Green
 
-        // Der brutale ST Glitch-Farbton
-        this.glitchColor = rgbToHex(...quantizeAtari9Bit(255, 255, 255));
+        this.cLantern1 = rgbToHex(...quantizeAtari9Bit(204, 34, 0));  
+        this.cLantern2 = rgbToHex(...quantizeAtari9Bit(255, 136, 0)); 
 
-        // 8-Band Atari ST Himmel-Palette (Weniger Bänder, mehr Hardcore-Retro-Feeling)
-        this.copperPalette = [
-            [0, 0, 51],     // Midnight Blue
-            [34, 0, 51],    // Deep Purple
-            [68, 0, 34],    // Maroon
-            [102, 0, 17],   // Dark Red
-            [136, 0, 0],    // Red
-            [170, 34, 0],   // Vermilion
-            [204, 68, 0],   // Orange
-            [255, 102, 0]   // ST Sunset Orange
-        ].map(c => rgbToHex(...quantizeAtari9Bit(c[0], c[1], c[2])));
-    }
+        this.cCloud1 = rgbToHex(...quantizeAtari9Bit(204, 68, 102));  
+        this.cCloud2 = rgbToHex(...quantizeAtari9Bit(255, 136, 170)); 
+        this.cCloud3 = rgbToHex(...quantizeAtari9Bit(255, 204, 204)); 
 
-    // Tiling-fähiger, allokationsfreier Berg-Renderer
-    drawMountainRange(ctx, width, horizon, points, color, scrollOffset, heightScale, isForeground = false) {
-        ctx.fillStyle = color;
-        let sOff = Math.floor(scrollOffset);
+        // --- PRE-CALCULATE STATIC STRUCTURES ---
         
-        ctx.save();
-        ctx.translate(-sOff, 0);
-        for (let tile = 0; tile < 2; tile++) {
-            let tX = tile * width;
-            ctx.beginPath();
-            ctx.moveTo(tX, horizon + 1);
-            for (let i = 0; i < points.length; i++) {
-                let p = points[i];
-                let px = Math.floor((p.x / 100) * width) + tX;
-                let py = Math.floor(horizon - (p.y / 100) * horizon * heightScale);
-                ctx.lineTo(px, py);
-            }
-            ctx.lineTo(width + tX, horizon + 1);
-            ctx.closePath();
-            ctx.fill();
+        // Wolken (Relativ-Koordinaten)
+        this.clouds = [
+            { y: 0.15, x: 0.2, w: 0.3, col: this.cCloud1, phase: 0 },
+            { y: 0.17, x: 0.22, w: 0.25, col: this.cCloud2, phase: 1 },
+            { y: 0.22, x: 0.6, w: 0.28, col: this.cCloud1, phase: 2 },
+            { y: 0.24, x: 0.55, w: 0.35, col: this.cCloud2, phase: 3 },
+            { y: 0.26, x: 0.58, w: 0.2, col: this.cCloud3, phase: 4 },
+            { y: 0.35, x: 0.1, w: 0.4, col: this.cCloud2, phase: 5 },
+            { y: 0.37, x: 0.15, w: 0.2, col: this.cCloud3, phase: 6 }
+        ];
 
-            if (isForeground) {
-                ctx.strokeStyle = this.mountain2Outline;
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(tX, horizon);
-                for (let i = 0; i < points.length; i++) {
-                    let p = points[i];
-                    let px = Math.floor((p.x / 100) * width) + tX;
-                    let py = Math.floor(horizon - (p.y / 100) * horizon * heightScale);
-                    ctx.lineTo(px, py);
-                }
-                ctx.stroke();
+        // --- THE BONSAI TREE LOGIC ---
+        // Vordefinierte Ast-Zentren (relativ zur Höhe/Breite des Stamms)
+        this.leafClusters = [
+            { dx: -0.12, dy: -0.15, r: 0.08 }, // Ast 1: Links Mitte
+            { dx: -0.04, dy: -0.28, r: 0.11 }, // Ast 2: Oben Mitte
+            { dx:  0.08, dy: -0.22, r: 0.09 }, // Ast 3: Rechts Oben
+            { dx:  0.09, dy: -0.10, r: 0.07 }  // Ast 4: Rechts Unten
+        ];
+
+        // Dicht gepacktes Laub um die Zweige (Square Root Sampling)
+        for (let c of this.leafClusters) {
+            // 45 Pixel pro Cluster für eine dichte Wolken-Ästhetik
+            for (let i = 0; i < 45; i++) {
+                let angle = Math.random() * Math.PI * 2;
+                // sqrt sorgt für dichtere Packung im Zentrum des Astes
+                let dist = Math.sqrt(Math.random()) * c.r; 
+                this.leaves.push({
+                    cdx: c.dx, cdy: c.dy, // Cluster-Zentrum
+                    lx: Math.cos(angle) * dist,
+                    ly: Math.sin(angle) * dist,
+                    size: Math.floor(Math.random() * 3) + 2, // 2-4 px
+                    colIdx: Math.random() > 0.55 ? 0 : (Math.random() > 0.4 ? 1 : 2),
+                    phase: Math.random() * Math.PI * 2
+                });
             }
         }
-        ctx.restore();
+
+        // Schreine (Z-Tiefe für perspektivisches Sortieren)
+        this.shrines = [
+            { xDir: -1, z: 0.8 }, { xDir: 1, z: 0.8 },
+            { xDir: -1, z: 0.5 }, { xDir: 1, z: 0.5 },
+            { xDir: -1, z: 0.15 }, { xDir: 1, z: 0.15 }
+        ];
+
+        this.initialized = true;
     }
 
-    // BOB ROSS "VERTICAL PULL"
-    drawMirroredMountainRange(ctx, width, horizon, points, color, scrollOffset, heightScale) {
-        ctx.fillStyle = color;
-        let sOff = Math.floor(scrollOffset);
-        
-        ctx.save();
-        ctx.translate(-sOff, 0);
-        for (let tile = 0; tile < 2; tile++) {
-            let tX = tile * width;
-            ctx.beginPath();
-            ctx.moveTo(tX, horizon);
-            for (let i = 0; i < points.length; i++) {
-                let p = points[i];
-                let px = Math.floor((p.x / 100) * width) + tX;
-                let py = Math.floor(horizon + (p.y / 100) * horizon * heightScale * 0.82);
-                ctx.lineTo(px, py);
-            }
-            ctx.lineTo(width + tX, horizon);
-            ctx.closePath();
-            ctx.fill();
-        }
-        ctx.restore();
-    }
+    resize(width, height) {}
 
-    rebuildWaterCache(width, height) {
-        this.ensureInitialized();
-        const horizon = Math.floor(height * 0.55);
-        const numLines = Math.ceil((height - horizon) / 2);
-
-        if (!this.cachedWaterColors || this.cachedWaterColors.length !== numLines) {
-            this.cachedWaterColors = new Array(numLines);
-            this.cachedRefColors = new Array(numLines);
-        }
-
-        for (let i = 0; i < numLines; i++) {
-            let y = horizon + i * 2;
-            let depth = (y - horizon) / (height - horizon);
-
-            // --- ATARI TEAL WATER BASE ---
-            // Gradient from deep navy to bright classic ST Teal/Cyan
-            let r = 0, g = 0, b = 0;
-            if (depth < 0.5) {
-                let t = depth / 0.5;
-                r = 0;
-                g = Math.floor(34 * t);
-                b = Math.floor(34 + (85 - 34) * t);
-            } else {
-                let t = (depth - 0.5) / 0.5;
-                r = 0;
-                g = Math.floor(34 + (102 - 34) * t);
-                b = Math.floor(85 + (170 - 85) * t);
-            }
-
-            // ST Hard Banding Stripe
-            let isStripe = (depth > 0.65 && Math.floor(y / 4) % 3 === 0);
-            if (isStripe) {
-                this.cachedWaterColors[i] = rgbToHex(...quantizeAtari9Bit(0, 0, 51));
-            } else {
-                this.cachedWaterColors[i] = rgbToHex(...quantizeAtari9Bit(r, g, b));
-            }
-
-            let shading = Math.max(0.15, 1.0 - depth * 0.72);
-            this.cachedRefColors[i] = rgbToHex(...quantizeAtari9Bit(255 * shading, 102 * shading, 0));
+    drawDitheredBand(ctx, width, yStart, yEnd, col1, col2) {
+        for (let y = yStart; y < yEnd; y++) {
+            ctx.fillStyle = (y % 2 === 0) ? col1 : col2;
+            ctx.fillRect(0, y, width, 1);
         }
     }
 
@@ -208,277 +124,244 @@ export class AtariRetroSunset {
 
         let globalAlpha = 1.0;
         let targetSpeed = 1.0;
-        let targetWaveSpeed = 1.0;
-        let beatIntensity = 0.0; 
-
+        
         if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
         } else if (state === 'stopping') {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
         } else if (state === 'buildup') {
-            targetSpeed = 1.25;             
-            targetWaveSpeed = 1.8;         
-            beatIntensity = 0.35;           
+            targetSpeed = 1.5;             
         } else if (state === 'climax') {
-            targetSpeed = 2.0;
-            targetWaveSpeed = 4.2;         
-            beatIntensity = 1.0;           
+            targetSpeed = 2.5; 
         }
 
         this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * 0.05;
-        this.smoothedWaveSpeed += (targetWaveSpeed - this.smoothedWaveSpeed) * 0.05;
-        
         this.internalT += dt * this.smoothedSpeed;
-        this.waterT += dt * this.smoothedWaveSpeed;
+        this.waterT += dt * this.smoothedSpeed;
 
         const beat = metrics.beat[0];
-        this.sunPulse += (beat * beatIntensity * 0.15 - this.sunPulse) * 0.1;
-
-        if (this.cachedWidth !== width || this.cachedHeight !== height) {
-            this.cachedWidth = width;
-            this.cachedHeight = height;
-            this.rebuildWaterCache(width, height);
-        }
-
         ctx.globalAlpha = globalAlpha;
         
         const horizon = Math.floor(height * 0.55); 
+        const cx = Math.floor(width / 2);
         const minDim = Math.min(width, height);
 
-        let skyJitterY = 0;
-        if (Math.sin(t * 1.5) > 0.97) {
-            skyJitterY = Math.floor(Math.sin(t * 60) * 1.2);
-        }
+        // =========================================================
+        // 1. THE SKY (Atari Banding & Dithering)
+        // =========================================================
+        const h0 = 0;
+        const h1 = Math.floor(horizon * 0.3);
+        const h2 = Math.floor(horizon * 0.4);
+        const h3 = Math.floor(horizon * 0.7);
+        const h4 = Math.floor(horizon * 0.85);
 
-        // --- LAYER 1: THE 8-BAND ATARI SKY ---
-        const bandH = Math.ceil(horizon / this.copperPalette.length);
-        for (let i = 0; i < this.copperPalette.length; i++) {
-            ctx.fillStyle = this.copperPalette[i];
-            let startY = Math.floor(i * bandH) + skyJitterY;
-            let endY = Math.floor((i + 1) * bandH) + skyJitterY;
-            if (startY < horizon) {
-                ctx.fillRect(0, startY, width, Math.min(horizon, endY) - startY);
-            }
-        }
-
-        // --- LAYER 2: THE SINGLE SHINING STAR ---
-        if (!this.starActive && Math.sin(t * 0.4) > 0.96) {
-            this.starActive = true;
-            this.starX = Math.floor(width * 0.15 + Math.random() * width * 0.7);
-            this.starY = Math.floor(height * 0.05 + Math.random() * height * 0.1);
-            this.starT = 0;
-        }
-
-        if (this.starActive) {
-            this.starT += dt * 1.5;
-            if (this.starT >= Math.PI) {
-                this.starActive = false;
-            } else {
-                let starAlpha = Math.sin(this.starT);
-                ctx.fillStyle = this.sunCoreColor;
-                ctx.save();
-                ctx.globalAlpha = starAlpha * globalAlpha;
-                
-                let sxStar = Math.floor(this.starX);
-                let syStar = Math.floor(this.starY) + skyJitterY;
-                
-                ctx.fillRect(sxStar, syStar, 1, 1);
-                
-                if (starAlpha > 0.8) {
-                    ctx.fillStyle = this.sunColorYellow;
-                    ctx.fillRect(sxStar - 1, syStar, 1, 1);
-                    ctx.fillRect(sxStar + 1, syStar, 1, 1);
-                    ctx.fillRect(sxStar, syStar - 1, 1, 1);
-                    ctx.fillRect(sxStar, syStar + 1, 1, 1);
-                }
-                ctx.restore();
-            }
-        }
-
-        // --- LAYER 3: ATARI SUN (Asymmetrisch, breiter) ---
-        let sunR = Math.floor(minDim * 0.23); 
-        let sx = Math.floor(width * 0.44); // Asymmetrischer Offset
-        let sy = Math.floor(horizon - 10) + skyJitterY;
-
-        for (let dy = -sunR; dy <= sunR; dy += 2) {
-            let yLine = sy + dy;
-            if (yLine >= horizon) continue; 
-
-            let dx = Math.round(Math.sqrt(sunR * sunR - dy * dy));
-            let rDist = Math.abs(dy) / sunR;
-
-            let sunColor = this.sunCoreColor;
-            if (rDist > 0.82) sunColor = this.sunColorRed; 
-            else if (rDist > 0.55) sunColor = this.sunColorOrange; 
-            else if (rDist > 0.28) sunColor = this.sunColorYellow; 
-            
-            // Hardcore Zebra-Gaps on Climax
-            if (beat > 0.75 && (yLine % 4 === 0)) continue;
-
-            ctx.fillStyle = sunColor;
-            ctx.fillRect(sx - dx, yLine, dx * 2, 2);
-        }
-
-        // --- LAYER 4: ANTICS: MOUNTING CLOUD ---
-        this.cloudSpeedOffset += (beat * 14.0 - this.cloudSpeedOffset) * 0.08;
-        this.cloudX += dt * (2.2 + this.cloudSpeedOffset);
-        if (this.cloudX > width + 60) this.cloudX = -60;
-
-        let cx = Math.floor(this.cloudX);
-        let cy = Math.floor(this.cloudY) + skyJitterY;
+        ctx.fillStyle = this.cSkyTop;
+        ctx.fillRect(0, 0, width, h1);
+        this.drawDitheredBand(ctx, width, h1, h2, this.cSkyTop, this.cSkyMid1);
+        ctx.fillStyle = this.cSkyMid1;
+        ctx.fillRect(0, h2, width, h3 - h2);
+        this.drawDitheredBand(ctx, width, h3, h4, this.cSkyMid1, this.cSkyMid2);
+        ctx.fillStyle = this.cSkyMid2;
+        ctx.fillRect(0, h4, width, horizon - h4);
         
-        ctx.fillStyle = this.reflectionColor;
-        fillAliasedCircle(ctx, cx, cy + 2, 13, this.reflectionColor);
-        fillAliasedCircle(ctx, cx - 11, cy + 3, 9, this.reflectionColor);
-        fillAliasedCircle(ctx, cx + 11, cy + 3, 9, this.reflectionColor);
-        
-        ctx.fillStyle = this.sunCoreColor;
-        fillAliasedCircle(ctx, cx, cy, 12, this.sunCoreColor);
-        fillAliasedCircle(ctx, cx - 11, cy + 1, 8, this.sunCoreColor);
-        fillAliasedCircle(ctx, cx + 11, cy + 1, 8, this.sunCoreColor);
+        ctx.fillStyle = this.cSkyBot;
+        ctx.fillRect(0, horizon - 2, width, 2);
 
-        // --- LAYER 5: PARALLAX MOUNTAINS ---
-        this.bgScroll = (this.bgScroll + dt * 4.8) % width;
-        this.drawMountainRange(ctx, width, horizon, this.mountains1, this.mountain1Color, this.bgScroll, 0.35, false);
+        // =========================================================
+        // 2. THE CLOUDS
+        // =========================================================
+        for (let i = 0; i < this.clouds.length; i++) {
+            let c = this.clouds[i];
+            let cy = Math.floor(horizon * c.y);
+            let shimmerW = Math.floor(Math.sin(this.internalT * 2.0 + c.phase) * 4);
+            let cw = Math.floor(width * c.w) + shimmerW;
+            let cxCloud = Math.floor(width * c.x);
 
-        this.fgScroll = (this.fgScroll + dt * 10.8) % width;
-        this.drawMountainRange(ctx, width, horizon, this.mountains2, this.mountain2Color, this.fgScroll, 0.22, true);
-
-        // --- LAYER 6: SHIMMERING HORIZON-GLOW ---
-        let horizonFlicker = Math.floor(t * 30) % 2 === 0;
-        if (horizonFlicker) {
-            ctx.fillStyle = this.sunColorYellow;
-            let hStart = sx - Math.floor(sunR * 0.65);
-            let hWidth = Math.floor(sunR * 1.3);
-            ctx.fillRect(hStart, horizon, hWidth, 1);
+            ctx.fillStyle = c.col;
+            ctx.fillRect(cxCloud, cy, cw, 2);
+            ctx.fillRect(cxCloud - 4, cy, 2, 1);
+            ctx.fillRect(cxCloud + cw + 2, cy + 1, 2, 1);
         }
 
-        // --- LAYER 7: BOB ROSS "VERTICAL PULL" ---
-        ctx.save();
-        ctx.globalAlpha = globalAlpha * 0.35; 
-        let bgRefWobble = this.bgScroll + Math.sin(this.waterT * 2.5) * 6;
-        let fgRefWobble = this.fgScroll + Math.cos(this.waterT * 2.5) * 8;
-        this.drawMirroredMountainRange(ctx, width, horizon, this.mountains1, this.mountain1Color, bgRefWobble, 0.35);
-        this.drawMirroredMountainRange(ctx, width, horizon, this.mountains2, this.mountain2Color, fgRefWobble, 0.22);
-        ctx.restore();
+        // =========================================================
+        // 3. THE BEAT-PULSING SUN
+        // =========================================================
+        // Dynamische Größe durch den Transienten-Envelope
+        const activeSunPulse = Math.floor(beat * minDim * 0.035);
+        const sunR = Math.floor(minDim * 0.14) + activeSunPulse;
+        
+        fillAliasedCircle(ctx, cx, horizon - sunR + 4, sunR, this.cSun);
 
-        // --- LAYER 8: SHIMMERING WATER & HORIZONTAL WHISPERS ---
-        const numLines = this.cachedWaterColors.length;
-        const activeBeatDistortion = beat * beatIntensity * 4.0; 
-        const distortion = 1.5 + (activeBeatDistortion * 2.0);
+        // =========================================================
+        // 4. THE WATER & REFLECTION
+        // =========================================================
+        ctx.fillStyle = this.cWaterDark;
+        ctx.fillRect(0, horizon, width, height - horizon);
 
-        for (let i = 0; i < numLines; i++) {
-            let y = horizon + i * 2;
+        ctx.fillStyle = this.cWaterLight;
+        for (let y = horizon + 2; y < height; y += 4) {
+            ctx.fillRect(0, y, width, 1);
+            ctx.fillRect(Math.floor(width * 0.2), y + 2, Math.floor(width * 0.6), 1);
+        }
+
+        ctx.fillStyle = this.cWaterRefl;
+        for (let y = horizon + 2; y < height; y += 2) {
             let depth = (y - horizon) / (height - horizon);
-            let waveWidth = (minDim * 0.065) + (depth * (minDim * 0.28));
-
-            let wobble = Math.sin((y * 0.08) + (this.waterT * 3.8)) * distortion;
-            let lineJitter = Math.floor(Math.sin(y * 0.5 + this.waterT * 10.0) * 1.2);
-            let lineNoiseX = Math.sin((y * 1.8) + (this.waterT * 8.0)) * 2.5; 
-            let xOffset = wobble + lineJitter + lineNoiseX;
-
-            let shimmer = Math.sin((y * 0.45) + (this.waterT * 12.0));
-            if (shimmer < -0.15) {
-                ctx.fillStyle = this.cachedWaterColors[i];
-                ctx.fillRect(0, y, width, 2);
-                continue;
-            }
-
-            ctx.fillStyle = this.cachedWaterColors[i];
-            ctx.fillRect(0, y, width, 2);
-
-            let lx = sx - (waveWidth / 2) + xOffset;
-
-            // Atari ST Glitch Stripes auf extremen Transienten (anstatt Ripple)
-            if (activeBeatDistortion > 2.0 && Math.random() > 0.75) {
-                ctx.fillStyle = this.glitchColor;
-                ctx.fillRect(0, y, width, 1);
-            } else {
-                ctx.fillStyle = this.cachedRefColors[i];
-                ctx.fillRect(Math.floor(lx), y, Math.floor(waveWidth), 2);
-                
-                let coreShimmer = Math.sin((y * 0.9) + (this.waterT * 18.0));
-                if (coreShimmer > 0.1) {
-                    let coreW = waveWidth * 0.28 * (1.0 - depth * 0.45);
-                    ctx.fillStyle = this.sunCoreColor;
-                    ctx.fillRect(Math.floor(sx - (coreW / 2) + xOffset * 0.5), y, Math.floor(coreW), 2);
-                }
-
-                // Liquid White Ripples
-                let rippleNoise = Math.sin(y * 0.95 + this.waterT * 7.0);
-                if (rippleNoise > 0.94) {
-                    let rx = sx + Math.sin(y * 12.3) * (width * 0.35);
-                    let rW = 8 + Math.abs(Math.sin(y)) * 14;
-                    ctx.fillStyle = this.sunCoreColor;
-                    ctx.fillRect(Math.floor(rx - rW/2), y, Math.floor(rW), 1); 
-                }
-            }
-        }
-
-        // --- LAYER 9: ANTICS: GLIDING SEAGULLS ---
-        let flockInactive = !this.birdActive[0] && !this.birdActive[1] && !this.birdActive[2];
-        if (flockInactive && Math.random() < 0.0035) {
-            let baseSpeed = 24 + Math.random() * 10;
-            let baseRowY = Math.floor(horizon * 0.45 + Math.random() * horizon * 0.25);
+            let shimmer = Math.sin(y * 0.8 + this.waterT * 5.0) + (beat * 0.5);
             
-            this.birdActive[0] = true; this.birdX[0] = width + 20; this.birdY[0] = baseRowY; this.birdSpeed[0] = baseSpeed; this.birdPhase[0] = 0.0;
-            this.birdActive[1] = true; this.birdX[1] = width + 48; this.birdY[1] = baseRowY - 10; this.birdSpeed[1] = baseSpeed; this.birdPhase[1] = 0.5;
-            this.birdActive[2] = true; this.birdX[2] = width + 58; this.birdY[2] = baseRowY + 10; this.birdSpeed[2] = baseSpeed; this.birdPhase[2] = 1.0;
-        }
+            if (shimmer > -0.2) {
+                let rWidth = 10 + (depth * 40);
+                rWidth *= (0.5 + Math.sin(y * 0.15) * 0.8);
+                rWidth += beat * 16.0; // Kräftigeres Aufblitzen der Reflexion
 
-        for (let b = 0; b < 3; b++) {
-            if (this.birdActive[b]) {
-                this.birdX[b] -= dt * (this.birdSpeed[b] + beat * 35.0);
-                this.birdYOffset[b] = Math.sin(t * 3.5 + this.birdPhase[b]) * 5.0 + (Math.sin(t * 12.0) * 1.0);
-                
-                if (this.birdX[b] < -30) {
-                    this.birdActive[b] = false;
-                } else {
-                    let bx = Math.floor(this.birdX[b]);
-                    let by = Math.floor(this.birdY[b] + this.birdYOffset[b]) + skyJitterY;
-                    
-                    let flap = Math.sin(t * 10.0 + beat * 15.0 + this.birdPhase[b] * Math.PI) > 0;
-                    let wingY = flap ? -3 : 3;
-                    
-                    drawAliasedLine(ctx, bx - 4, by + wingY, bx, by, this.mountain1Color);
-                    drawAliasedLine(ctx, bx, by, bx + 4, by + wingY, this.mountain1Color);
-                }
+                let jitterX = Math.floor(Math.sin(y * 0.5 + this.waterT * 8.0) * 2);
+                ctx.fillRect(Math.floor(cx - rWidth / 2 + jitterX), y, Math.floor(rWidth), 1);
             }
         }
 
-        // --- LAYER 10: ANTICS: LEAPING FISH ---
-        if (!this.fishActive && beat > 0.82 && Math.random() < 0.015) {
-            this.fishActive = true;
-            this.fishT = 0;
-            this.fishStartX = Math.floor(width * 0.2 + Math.random() * width * 0.6);
-            this.fishBaseY = horizon + 12 + Math.floor(Math.random() * (height - horizon - 28));
+        // =========================================================
+        // 5. STONE PATH
+        // =========================================================
+        for (let y = horizon; y <= height; y++) {
+            let depth = (y - horizon) / (height - horizon); 
+            let pathW = 10 + depth * 280; 
+            let px = cx - pathW / 2;
+
+            ctx.fillStyle = this.cPathLight;
+            ctx.fillRect(Math.floor(px), y, Math.floor(pathW), 1);
+
+            ctx.fillStyle = this.cPathLine;
+            ctx.fillRect(Math.floor(px) - 1, y, 1, 1);
+            ctx.fillRect(Math.floor(px + pathW), y, 1, 1);
+
+            let gapFreq = Math.sin(Math.pow(depth, 0.5) * 40.0);
+            if (gapFreq > 0.92) {
+                ctx.fillStyle = this.cPathDark;
+                ctx.fillRect(Math.floor(px), y, Math.floor(pathW), 1);
+            }
         }
 
-        if (this.fishActive) {
-            this.fishT += dt * 2.1;
-            if (this.fishT >= 1.0) {
-                this.fishActive = false;
-            } else {
-                let fx = Math.floor(this.fishStartX + this.fishT * 32);
-                let u = 2.0 * this.fishT - 1.0;
-                let arc = 1.0 - u * u;
-                let fy = Math.floor(this.fishBaseY - arc * 22);
+        // =========================================================
+        // 6. SHRINES / BENCHES
+        // =========================================================
+        for (let i = 0; i < this.shrines.length; i++) {
+            let s = this.shrines[i];
+            let sy = Math.floor(horizon + s.z * (height - horizon));
+            let sx = cx + s.xDir * (20 + s.z * 180);
+            let sWidth = 15 + s.z * 40;
+            let sHeight = 8 + s.z * 25;
 
-                if (this.fishT < 0.15 || this.fishT > 0.85) {
-                    ctx.fillStyle = this.sunCoreColor;
-                    let sY = this.fishBaseY;
-                    ctx.fillRect(fx - 4, sY, 1, 1);
-                    ctx.fillRect(fx + 4, sY, 1, 1);
-                    ctx.fillRect(fx - 2, sY - 2, 1, 1);
-                    ctx.fillRect(fx + 2, sY - 2, 1, 1);
-                    ctx.fillRect(fx, sY - 4, 1, 1);
-                }
+            ctx.fillStyle = this.cPathDark;
+            ctx.fillRect(Math.floor(sx - sWidth / 2), sy - sHeight, Math.floor(sWidth), sHeight);
+            
+            ctx.fillStyle = this.cPathLight;
+            ctx.fillRect(Math.floor(sx - sWidth / 2 - 2), sy - sHeight - 2, Math.floor(sWidth + 4), 3);
 
-                ctx.fillStyle = this.sunGlowColor;
-                ctx.fillRect(fx - 2, fy - 1, 4, 3);
-                ctx.fillStyle = this.reflectionColor;
-                ctx.fillRect(fx - 4, fy, 2, 1);
+            let flicker = Math.sin(this.internalT * 8.0 + i) > 0 ? 1 : 0;
+            ctx.fillStyle = this.cGrass;
+            ctx.fillRect(Math.floor(sx - sWidth / 2 - 4), sy - 1, 3 + flicker, 2);
+            ctx.fillRect(Math.floor(sx + sWidth / 2 + 1), sy - 2 + flicker, 2, 2);
+        }
+
+        // =========================================================
+        // 7. THE TORII GATE
+        // =========================================================
+        const toriiTop = horizon - 90;
+        const toriiBot = horizon + 50;
+
+        for (let y = toriiTop; y <= toriiBot; y++) {
+            let depth = (y - toriiTop) / (toriiBot - toriiTop);
+            let offset = 45 + depth * 15; 
+            let postW = 8 + depth * 6;
+            
+            let pxLeft = cx - offset - postW / 2;
+            let pxRight = cx + offset - postW / 2;
+
+            ctx.fillStyle = this.cTorii;
+            ctx.fillRect(Math.floor(pxLeft), y, Math.floor(postW), 1);
+            ctx.fillRect(Math.floor(pxRight), y, Math.floor(postW), 1);
+
+            ctx.fillStyle = this.cToriiHigh;
+            ctx.fillRect(Math.floor(pxLeft + postW - 2), y, 2, 1);
+            ctx.fillRect(Math.floor(pxRight + postW - 2), y, 2, 1);
+
+            if (y > horizon - 60 && y < horizon && y % 12 < 4) {
+                ctx.fillStyle = this.cSun;
+                ctx.fillRect(Math.floor(cx - offset - 1), y, 2, 1);
+                ctx.fillRect(Math.floor(cx + offset - 1), y, 2, 1);
             }
+        }
+
+        ctx.fillStyle = this.cTorii;
+        ctx.fillRect(cx - 75, toriiTop, 150, 6);
+        ctx.fillStyle = this.cToriiHigh;
+        ctx.fillRect(cx - 75, toriiTop, 150, 1);
+
+        ctx.fillStyle = this.cTorii;
+        ctx.fillRect(cx - 65, toriiTop + 12, 130, 4);
+
+        const lanternX = [cx - 35, cx - 15, cx + 15, cx + 35];
+        for (let i = 0; i < 4; i++) {
+            let swing = Math.sin(this.internalT * 2.5 + i) * (2 + beat * 4.0);
+            let lx = Math.floor(lanternX[i] + swing);
+            let ly = toriiTop + 16;
+            
+            ctx.fillStyle = this.cPathLine;
+            ctx.fillRect(lx, ly, 1, 6);
+            
+            ctx.fillStyle = (i % 2 === 0) ? this.cLantern1 : this.cLantern2;
+            ctx.fillRect(lx - 3, ly + 6, 7, 8);
+            
+            ctx.fillStyle = this.cSun;
+            ctx.fillRect(lx - 1, ly + 8, 3, 4);
+        }
+
+        // =========================================================
+        // 8. THE BONSAI TREE (Redesign)
+        // =========================================================
+        let trunkBaseX = width - Math.floor(minDim * 0.15); // ca. 15% vom rechten Rand
+        let trunkBaseY = horizon + 10;
+        let trunkTopY = horizon - Math.floor(minDim * 0.28); // Stamm endet sicher unterhalb des Bildschirms!
+        
+        // 8a. Stamm zeichnen
+        for (let y = trunkTopY; y <= trunkBaseY; y++) {
+            let depth = (y - trunkTopY) / (trunkBaseY - trunkTopY);
+            let tw = 5 + Math.pow(depth, 1.8) * 16; // Wurzelt sich weich auf
+            let tx = trunkBaseX + Math.sin(depth * 2) * 8; // Stammkrümmung
+
+            ctx.fillStyle = this.cTreeTrunk;
+            ctx.fillRect(Math.floor(tx - tw/2), y, Math.floor(tw), 1);
+
+            // Rinde
+            if (y % 4 === 0) {
+                ctx.fillStyle = this.cToriiHigh;
+                ctx.fillRect(Math.floor(tx - tw/2 + 2), y, Math.floor(tw * 0.4), 1);
+            }
+        }
+
+        let branchBaseX = trunkBaseX + Math.sin(0) * 8; // Startpunkt der Äste an der Baumkrone
+
+        // 8b. Verzweigte Äste zeichnen
+        for (let c of this.leafClusters) {
+            let destX = trunkBaseX + Math.floor(c.dx * minDim);
+            let destY = trunkBaseY + Math.floor(c.dy * minDim);
+            
+            // Bresenham-Linie für die Äste, gedoppelt für 2px Dicke
+            drawAliasedLine(ctx, branchBaseX, trunkTopY + 5, destX, destY, this.cTreeTrunk);
+            drawAliasedLine(ctx, branchBaseX - 1, trunkTopY + 5, destX - 1, destY, this.cTreeTrunk);
+        }
+
+        // 8c. Dichte Laub-Wolken zeichnen (atmend)
+        for (let l of this.leaves) {
+            let lx = trunkBaseX + (l.cdx * minDim) + (l.lx * minDim);
+            let ly = trunkBaseY + (l.cdy * minDim) + (l.ly * minDim);
+            
+            let rustleX = Math.round(Math.sin(this.internalT * 3.0 + l.phase) * (1.0 + beat * 2.0));
+            let rustleY = Math.round(Math.cos(this.internalT * 2.0 + l.phase) * (0.5 + beat * 1.0));
+            
+            let col = l.colIdx === 0 ? this.cLeaf1 : (l.colIdx === 1 ? this.cLeaf2 : this.cLeaf3);
+            ctx.fillStyle = col;
+            ctx.fillRect(Math.floor(lx + rustleX), Math.floor(ly + rustleY), l.size, l.size);
         }
 
         ctx.globalAlpha = 1.0;
