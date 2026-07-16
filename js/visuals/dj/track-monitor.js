@@ -61,15 +61,27 @@ export class TrackMonitor {
 
         if (chipRegs && this.info.isPlaying) {
             if (this.info.system === 'c64') {
-                // C64: Wir suchen nach dem ADSR "Gate Bit" (Bit 0 in Ctrl-Reg)
+                // --- C64 SID: THE REAL KICK & SNARE CATCHER ---
                 for (let v = 0; v < 3; v++) {
                     let ctrl = chipRegs[v * 7 + 4];
                     let lastCtrl = this.lastRegs[v * 7 + 4];
                     
+                    // Frequenz (16-Bit) auslesen, um tiefe Kickdrums zu identifizieren
+                    let freq = chipRegs[v * 7] | (chipRegs[v * 7 + 1] << 8);
+                    
                     // Rising Edge: Gate ging von 0 auf 1!
                     if ((ctrl & 1) && !(lastCtrl & 1)) {
-                        // Triggern, wenn es eine Noise-Drum (Bit 128) oder tiefe Frequenz ist
+                        // 1. Snare/Hi-Hat: Nutzt das Noise-Bit (128)
                         if (ctrl & 128) isHardwareBeat = true; 
+                        // 2. Synth-Kickdrum: Keine Noise, aber extrem tiefe Frequenz (< ~250 Hz entspricht SID-Wert 4000)
+                        else if (freq > 0 && freq < 4000) isHardwareBeat = true;
+                    }
+                    
+                    // 3. Fallback für Arpeggio-Kicks (Schneller Pitch-Drop ohne erneutes Gate-On)
+                    let lastFreq = this.lastRegs[v * 7] | (this.lastRegs[v * 7 + 1] << 8);
+                    if ((ctrl & 1) && (lastCtrl & 1)) {
+                        // Frequenz stürzt rasant ab und landet im Bass-Bereich
+                        if (lastFreq > freq + 2000 && freq < 3500) isHardwareBeat = true;
                     }
                 }
             } else if (this.info.system === 'atari') {
@@ -122,8 +134,8 @@ export class TrackMonitor {
         }
 
         // 3. Fallback: Strenger analoger Schmit-Trigger
-        // KORREKTUR: Atari-Schwelle radikal von 0.42 auf 0.30 gesenkt für schwächere RMS-Pegel
-        let pulseThresh = this.info.system === 'c64' ? 0.60 : (this.info.system === 'atari' ? 0.30 : 0.45);
+        // KORREKTUR: C64-Analog-Schwelle von 0.60 auf 0.48 gesenkt für bessere Dynamik
+        let pulseThresh = this.info.system === 'c64' ? 0.48 : (this.info.system === 'atari' ? 0.30 : 0.45);
         let isAnalogBeat = (analogMaxPulse > pulseThresh);
 
         // Signal in die Pipeline schreiben
@@ -137,8 +149,8 @@ export class TrackMonitor {
         const energy = this.dynamics.masterEnergy[0];
         let buildupThresh = 0.40, overdriveThresh = 0.58;
         
-        if (this.info.system === 'c64') { buildupThresh = 0.40; overdriveThresh = 0.65; } 
-        // KORREKTUR: Tension zündet bei YM-Tracks nun signifikant früher!
+        // KORREKTUR: Tension zündet bei C64 nun früher!
+        if (this.info.system === 'c64') { buildupThresh = 0.35; overdriveThresh = 0.60; } 
         else if (this.info.system === 'atari') { buildupThresh = 0.24; overdriveThresh = 0.48; }
 
         let isOverdrive = (energy > overdriveThresh && this.dynamics.transientPulse[0] > pulseThresh * 0.8);
