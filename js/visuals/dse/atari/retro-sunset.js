@@ -5,102 +5,102 @@ export class AtariRetroSunset {
     constructor() {
         this.internalT = 0;
         this.waterT = 0;
-        this.smoothedSpeed = 1.0;
         this.lastT = 0;
-
-        // Pre-allocated Arrays for Zero-Allocation Rendering
+        
+        // Zero-Allocation Arrays
         this.clouds = [];
-        this.shrines = [];
         this.leafClusters = [];
-        this.leaves = [];
-
+        this.treeLeaves = [];
+        this.shrines = [];
+        
+        this.initialized = false;
         this.ensureInitialized();
     }
 
     ensureInitialized() {
         if (this.initialized) return;
 
-        // --- STRICT ATARI ST 9-BIT SHIFTER PALETTE (512 Colors) ---
-        // Sky Gradient (Magenta -> Red -> Orange -> Yellowish)
-        this.cSkyTop  = rgbToHex(...quantizeAtari9Bit(68, 0, 68));    
-        this.cSkyMid1 = rgbToHex(...quantizeAtari9Bit(136, 0, 34));   
-        this.cSkyMid2 = rgbToHex(...quantizeAtari9Bit(204, 68, 0));   
-        this.cSkyBot  = rgbToHex(...quantizeAtari9Bit(255, 170, 102));
+        // --- STRICT ATARI ST 9-BIT SHIFTER PALETTE (IK+ Match) ---
+        // Sky (Magenta -> Red -> Orange -> Pale Yellow)
+        this.cSky1 = rgbToHex(...quantizeAtari9Bit(0, 0, 0));       
+        this.cSky2 = rgbToHex(...quantizeAtari9Bit(136, 0, 102));   
+        this.cSky3 = rgbToHex(...quantizeAtari9Bit(204, 34, 68));   
+        this.cSky4 = rgbToHex(...quantizeAtari9Bit(255, 102, 68));  
+        this.cSky5 = rgbToHex(...quantizeAtari9Bit(255, 204, 136)); 
 
-        this.cSun = rgbToHex(...quantizeAtari9Bit(255, 204, 0));      
+        // Clouds
+        this.cCloudW = rgbToHex(...quantizeAtari9Bit(255, 255, 255)); 
+        this.cCloudP = rgbToHex(...quantizeAtari9Bit(204, 136, 170)); 
+        this.cCloudD = rgbToHex(...quantizeAtari9Bit(136, 68, 102));  
+
+        this.cSun = rgbToHex(...quantizeAtari9Bit(255, 255, 0));      
 
         // Water
-        this.cWaterDark  = rgbToHex(...quantizeAtari9Bit(0, 0, 51));  
-        this.cWaterLight = rgbToHex(...quantizeAtari9Bit(0, 68, 136));
-        this.cWaterRefl  = rgbToHex(...quantizeAtari9Bit(255, 255, 136)); 
+        this.cWater      = rgbToHex(...quantizeAtari9Bit(34, 68, 255)); 
+        this.cWaterDark  = rgbToHex(...quantizeAtari9Bit(0, 34, 170));  
+        this.cWaterRefl  = rgbToHex(...quantizeAtari9Bit(255, 255, 0)); 
+        this.cWaterRefl2 = rgbToHex(...quantizeAtari9Bit(255, 136, 0)); 
 
-        // Architecture & Path
-        this.cTorii     = rgbToHex(...quantizeAtari9Bit(34, 17, 0));  
-        this.cToriiHigh = rgbToHex(...quantizeAtari9Bit(85, 34, 0));  
+        // Mountains & Buildings
+        this.cMountain = rgbToHex(...quantizeAtari9Bit(34, 17, 17));    
+        this.cBuilding = rgbToHex(...quantizeAtari9Bit(255, 255, 255)); 
+
+        // Architecture (Torii & Shrines)
+        this.cTorii     = rgbToHex(...quantizeAtari9Bit(17, 0, 0));     
+        this.cToriiHigh = rgbToHex(...quantizeAtari9Bit(85, 34, 17));   
+        this.cKanji     = rgbToHex(...quantizeAtari9Bit(255, 170, 0));  
         
-        this.cPathLight = rgbToHex(...quantizeAtari9Bit(136, 136, 136)); 
-        this.cPathDark  = rgbToHex(...quantizeAtari9Bit(68, 68, 68));    
-        this.cPathLine  = rgbToHex(...quantizeAtari9Bit(17, 17, 17));    
+        this.cStoneLight = rgbToHex(...quantizeAtari9Bit(170, 170, 170)); 
+        this.cStoneMid   = rgbToHex(...quantizeAtari9Bit(102, 102, 102)); 
+        this.cStoneDark  = rgbToHex(...quantizeAtari9Bit(51, 51, 51));    
+        this.cStoneLine  = rgbToHex(...quantizeAtari9Bit(17, 17, 17));    
 
-        // Vegetation (Autumn Bonsai Colors)
-        this.cTreeTrunk = rgbToHex(...quantizeAtari9Bit(68, 34, 0));  
-        this.cLeaf1 = rgbToHex(...quantizeAtari9Bit(255, 136, 0));    // Orange
-        this.cLeaf2 = rgbToHex(...quantizeAtari9Bit(204, 170, 0));    // Gelbgrün
-        this.cLeaf3 = rgbToHex(...quantizeAtari9Bit(85, 136, 0));     // Mid Green
-        this.cGrass = rgbToHex(...quantizeAtari9Bit(34, 102, 0));     // Dark Green
+        // Vegetation (Bonsai Colors)
+        this.cTreeTrunk = rgbToHex(...quantizeAtari9Bit(102, 51, 0));   
+        this.cLeaf1 = rgbToHex(...quantizeAtari9Bit(136, 204, 34));     
+        this.cLeaf2 = rgbToHex(...quantizeAtari9Bit(255, 204, 0));      
+        this.cLeaf3 = rgbToHex(...quantizeAtari9Bit(255, 102, 0));      
+        this.cMoss  = rgbToHex(...quantizeAtari9Bit(51, 204, 51));      
 
-        this.cLantern1 = rgbToHex(...quantizeAtari9Bit(204, 34, 0));  
-        this.cLantern2 = rgbToHex(...quantizeAtari9Bit(255, 136, 0)); 
-
-        this.cCloud1 = rgbToHex(...quantizeAtari9Bit(204, 68, 102));  
-        this.cCloud2 = rgbToHex(...quantizeAtari9Bit(255, 136, 170)); 
-        this.cCloud3 = rgbToHex(...quantizeAtari9Bit(255, 204, 204)); 
-
-        // --- PRE-CALCULATE STATIC STRUCTURES ---
+        // --- PRE-CALCULATED STRUCTURES ---
         
-        // Wolken (Relativ-Koordinaten)
+        // Clouds
         this.clouds = [
-            { y: 0.15, x: 0.2, w: 0.3, col: this.cCloud1, phase: 0 },
-            { y: 0.17, x: 0.22, w: 0.25, col: this.cCloud2, phase: 1 },
-            { y: 0.22, x: 0.6, w: 0.28, col: this.cCloud1, phase: 2 },
-            { y: 0.24, x: 0.55, w: 0.35, col: this.cCloud2, phase: 3 },
-            { y: 0.26, x: 0.58, w: 0.2, col: this.cCloud3, phase: 4 },
-            { y: 0.35, x: 0.1, w: 0.4, col: this.cCloud2, phase: 5 },
-            { y: 0.37, x: 0.15, w: 0.2, col: this.cCloud3, phase: 6 }
+            { y: 0.1, x: 0.2, w: 0.6, h: 0.15 },
+            { y: 0.25, x: 0.0, w: 0.4, h: 0.1 },
+            { y: 0.3, x: 0.5, w: 0.5, h: 0.12 },
+            { y: 0.5, x: 0.1, w: 0.8, h: 0.08 }
         ];
 
-        // --- THE BONSAI TREE LOGIC ---
-        // Vordefinierte Ast-Zentren (relativ zur Höhe/Breite des Stamms)
+        // The Bonsai Branch Logic
         this.leafClusters = [
-            { dx: -0.12, dy: -0.15, r: 0.08 }, // Ast 1: Links Mitte
-            { dx: -0.04, dy: -0.28, r: 0.11 }, // Ast 2: Oben Mitte
-            { dx:  0.08, dy: -0.22, r: 0.09 }, // Ast 3: Rechts Oben
-            { dx:  0.09, dy: -0.10, r: 0.07 }  // Ast 4: Rechts Unten
+            { dx: -0.15, dy: -0.02, r: 0.10 }, // Links unten
+            { dx: -0.06, dy: -0.15, r: 0.12 }, // Mitte hoch
+            { dx:  0.08, dy: -0.12, r: 0.11 }, // Rechts hoch
+            { dx:  0.18, dy:  0.02, r: 0.09 }  // Rechts unten
         ];
 
-        // Dicht gepacktes Laub um die Zweige (Square Root Sampling)
+        // Populate tree leaves around branches
         for (let c of this.leafClusters) {
-            // 45 Pixel pro Cluster für eine dichte Wolken-Ästhetik
-            for (let i = 0; i < 45; i++) {
+            for(let i = 0; i < 40; i++) {
                 let angle = Math.random() * Math.PI * 2;
-                // sqrt sorgt für dichtere Packung im Zentrum des Astes
-                let dist = Math.sqrt(Math.random()) * c.r; 
-                this.leaves.push({
-                    cdx: c.dx, cdy: c.dy, // Cluster-Zentrum
-                    lx: Math.cos(angle) * dist,
-                    ly: Math.sin(angle) * dist,
-                    size: Math.floor(Math.random() * 3) + 2, // 2-4 px
-                    colIdx: Math.random() > 0.55 ? 0 : (Math.random() > 0.4 ? 1 : 2),
+                let dist = Math.sqrt(Math.random()) * c.r;
+                this.treeLeaves.push({
+                    dx: c.dx + Math.cos(angle) * dist,
+                    dy: c.dy + Math.sin(angle) * dist * 0.8,
+                    r: Math.floor(Math.random() * 4) + 2,
+                    col: Math.random() > 0.6 ? this.cLeaf1 : (Math.random() > 0.3 ? this.cLeaf2 : this.cLeaf3),
                     phase: Math.random() * Math.PI * 2
                 });
             }
         }
 
-        // Schreine (Z-Tiefe für perspektivisches Sortieren)
+        // Shrines/Benches (Z-Depth relative to SHORE, not horizon)
         this.shrines = [
-            { xDir: -1, z: 0.8 }, { xDir: 1, z: 0.8 },
-            { xDir: -1, z: 0.5 }, { xDir: 1, z: 0.5 },
-            { xDir: -1, z: 0.15 }, { xDir: 1, z: 0.15 }
+            { xDir: -1, z: 0.85 }, { xDir: 1, z: 0.85 },
+            { xDir: -1, z: 0.55 }, { xDir: 1, z: 0.55 },
+            { xDir: -1, z: 0.25 }, { xDir: 1, z: 0.25 },
+            { xDir: -1, z: 0.05 }, { xDir: 1, z: 0.05 }
         ];
 
         this.initialized = true;
@@ -108,7 +108,18 @@ export class AtariRetroSunset {
 
     resize(width, height) {}
 
+    drawDitherRect(ctx, x, y, w, h, col1, col2) {
+        x = Math.floor(x); y = Math.floor(y); w = Math.floor(w); h = Math.floor(h);
+        for (let dy = 0; dy < h; dy++) {
+            for (let dx = 0; dx < w; dx++) {
+                ctx.fillStyle = ((dx + dy) % 2 === 0) ? col1 : col2;
+                ctx.fillRect(x + dx, y + dy, 1, 1);
+            }
+        }
+    }
+
     drawDitheredBand(ctx, width, yStart, yEnd, col1, col2) {
+        yStart = Math.floor(yStart); yEnd = Math.floor(yEnd);
         for (let y = yStart; y < yEnd; y++) {
             ctx.fillStyle = (y % 2 === 0) ? col1 : col2;
             ctx.fillRect(0, y, width, 1);
@@ -123,48 +134,56 @@ export class AtariRetroSunset {
         this.lastT = t;
 
         let globalAlpha = 1.0;
-        let targetSpeed = 1.0;
+        let speedMult = 1.0;
         
         if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
         } else if (state === 'stopping') {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
         } else if (state === 'buildup') {
-            targetSpeed = 1.5;             
+            speedMult = 1.5;             
         } else if (state === 'climax') {
-            targetSpeed = 2.5; 
+            speedMult = 2.5; 
         }
 
-        this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * 0.05;
-        this.internalT += dt * this.smoothedSpeed;
-        this.waterT += dt * this.smoothedSpeed;
+        this.internalT += dt * speedMult;
+        this.waterT += dt * speedMult;
 
         const beat = metrics.beat[0];
         ctx.globalAlpha = globalAlpha;
         
         const horizon = Math.floor(height * 0.55); 
-        const cx = Math.floor(width / 2);
         const minDim = Math.min(width, height);
+        const cx = Math.floor(width / 2);
+
+        // =========================================================
+        // DIE UFERKANTE (Trennt das Wasser sauber vom Steinweg ab)
+        // =========================================================
+        const shoreY = horizon + Math.floor(minDim * 0.15); 
 
         // =========================================================
         // 1. THE SKY (Atari Banding & Dithering)
         // =========================================================
-        const h0 = 0;
-        const h1 = Math.floor(horizon * 0.3);
-        const h2 = Math.floor(horizon * 0.4);
-        const h3 = Math.floor(horizon * 0.7);
+        const h1 = Math.floor(horizon * 0.15);
+        const h2 = Math.floor(horizon * 0.35);
+        const h3 = Math.floor(horizon * 0.6);
         const h4 = Math.floor(horizon * 0.85);
 
-        ctx.fillStyle = this.cSkyTop;
+        ctx.fillStyle = this.cSky1;
         ctx.fillRect(0, 0, width, h1);
-        this.drawDitheredBand(ctx, width, h1, h2, this.cSkyTop, this.cSkyMid1);
-        ctx.fillStyle = this.cSkyMid1;
+        this.drawDitheredBand(ctx, width, h1, h2, this.cSky1, this.cSky2);
+        
+        ctx.fillStyle = this.cSky2;
         ctx.fillRect(0, h2, width, h3 - h2);
-        this.drawDitheredBand(ctx, width, h3, h4, this.cSkyMid1, this.cSkyMid2);
-        ctx.fillStyle = this.cSkyMid2;
+        
+        this.drawDitheredBand(ctx, width, h3, h4, this.cSky2, this.cSky3);
+        
+        ctx.fillStyle = this.cSky3;
         ctx.fillRect(0, h4, width, horizon - h4);
         
-        ctx.fillStyle = this.cSkyBot;
+        this.drawDitheredBand(ctx, width, horizon - Math.floor(horizon*0.1), horizon, this.cSky3, this.cSky4);
+        
+        ctx.fillStyle = this.cSky5;
         ctx.fillRect(0, horizon - 2, width, 2);
 
         // =========================================================
@@ -173,106 +192,192 @@ export class AtariRetroSunset {
         for (let i = 0; i < this.clouds.length; i++) {
             let c = this.clouds[i];
             let cy = Math.floor(horizon * c.y);
-            let shimmerW = Math.floor(Math.sin(this.internalT * 2.0 + c.phase) * 4);
-            let cw = Math.floor(width * c.w) + shimmerW;
+            let ch = Math.floor(horizon * c.h);
+            let cw = Math.floor(width * c.w);
             let cxCloud = Math.floor(width * c.x);
 
-            ctx.fillStyle = c.col;
-            ctx.fillRect(cxCloud, cy, cw, 2);
-            ctx.fillRect(cxCloud - 4, cy, 2, 1);
-            ctx.fillRect(cxCloud + cw + 2, cy + 1, 2, 1);
+            let drift = Math.floor(this.internalT * 2.0 * (i % 2 === 0 ? 1 : -1));
+            cxCloud += drift;
+
+            this.drawDitherRect(ctx, cxCloud, cy, cw, ch, this.cCloudW, this.cCloudP);
+            this.drawDitherRect(ctx, cxCloud + 10, cy + ch - 4, cw - 20, 4, this.cCloudP, this.cCloudD);
         }
 
         // =========================================================
-        // 3. THE BEAT-PULSING SUN
+        // 3. THE MOUNTAINS 
         // =========================================================
-        // Dynamische Größe durch den Transienten-Envelope
-        const activeSunPulse = Math.floor(beat * minDim * 0.035);
-        const sunR = Math.floor(minDim * 0.14) + activeSunPulse;
+        ctx.fillStyle = this.cMountain;
         
-        fillAliasedCircle(ctx, cx, horizon - sunR + 4, sunR, this.cSun);
+        ctx.beginPath();
+        ctx.moveTo(0, horizon);
+        ctx.lineTo(0, horizon - Math.floor(horizon * 0.4));
+        ctx.lineTo(Math.floor(width * 0.15), horizon - Math.floor(horizon * 0.2));
+        ctx.lineTo(Math.floor(width * 0.35), horizon);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(width, horizon);
+        ctx.lineTo(width, horizon - Math.floor(horizon * 0.35));
+        ctx.lineTo(Math.floor(width * 0.8), horizon - Math.floor(horizon * 0.15));
+        ctx.lineTo(Math.floor(width * 0.65), horizon);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = this.cBuilding;
+        ctx.fillRect(Math.floor(width * 0.05), horizon - 6, 12, 6);
+        ctx.fillStyle = this.cStoneLine;
+        ctx.fillRect(Math.floor(width * 0.05) + 3, horizon - 4, 3, 4); 
+        
+        ctx.fillStyle = this.cBuilding;
+        ctx.fillRect(Math.floor(width * 0.75), horizon - 8, 16, 8);
+        ctx.fillStyle = this.cStoneLine;
+        ctx.fillRect(Math.floor(width * 0.75) + 5, horizon - 5, 4, 5);
 
         // =========================================================
-        // 4. THE WATER & REFLECTION
+        // 4. THE PULSING SUN
         // =========================================================
+        // Der Beat lässt die Sonne majestätisch aufatmen!
+        let baseSunR = Math.floor(minDim * 0.12);
+        let activeSunR = baseSunR + Math.floor(beat * minDim * 0.035);
+        
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, width, horizon); 
+        ctx.clip();
+        fillAliasedCircle(ctx, cx, horizon, activeSunR, this.cSun);
+        ctx.restore();
+
+        // =========================================================
+        // 5. THE WATER & REFLECTION (Geklippt auf die Uferkante!)
+        // =========================================================
+        ctx.fillStyle = this.cWater;
+        ctx.fillRect(0, horizon, width, shoreY - horizon);
+
         ctx.fillStyle = this.cWaterDark;
-        ctx.fillRect(0, horizon, width, height - horizon);
-
-        ctx.fillStyle = this.cWaterLight;
-        for (let y = horizon + 2; y < height; y += 4) {
-            ctx.fillRect(0, y, width, 1);
-            ctx.fillRect(Math.floor(width * 0.2), y + 2, Math.floor(width * 0.6), 1);
-        }
+        ctx.fillRect(0, horizon, Math.floor(width * 0.35), 4);
+        ctx.fillRect(Math.floor(width * 0.65), horizon, width, 4);
 
         ctx.fillStyle = this.cWaterRefl;
-        for (let y = horizon + 2; y < height; y += 2) {
-            let depth = (y - horizon) / (height - horizon);
-            let shimmer = Math.sin(y * 0.8 + this.waterT * 5.0) + (beat * 0.5);
+        // Reflektion endet exakt am Ufer (shoreY)
+        for (let y = horizon + 2; y < shoreY; y += 2) {
+            let depth = (y - horizon) / (shoreY - horizon);
             
-            if (shimmer > -0.2) {
-                let rWidth = 10 + (depth * 40);
+            let shimmer = Math.sin(y * 1.2 - this.waterT * 6.0);
+            
+            if (shimmer > -0.3) {
+                let rWidth = activeSunR * 0.6 + (depth * activeSunR * 1.2);
                 rWidth *= (0.5 + Math.sin(y * 0.15) * 0.8);
-                rWidth += beat * 16.0; // Kräftigeres Aufblitzen der Reflexion
+                rWidth += beat * 12.0;
 
                 let jitterX = Math.floor(Math.sin(y * 0.5 + this.waterT * 8.0) * 2);
-                ctx.fillRect(Math.floor(cx - rWidth / 2 + jitterX), y, Math.floor(rWidth), 1);
+                
+                ctx.fillStyle = this.cWaterRefl2;
+                ctx.fillRect(Math.floor(cx - rWidth / 2 - 2 + jitterX), y, Math.floor(rWidth + 4), 1);
+                
+                ctx.fillStyle = this.cWaterRefl;
+                if (depth > 0.3 && y % 4 === 0) {
+                    let half = Math.floor(rWidth / 2);
+                    ctx.fillRect(Math.floor(cx - rWidth / 2 + jitterX), y, half - 2, 1);
+                    ctx.fillRect(Math.floor(cx + 2 + jitterX), y, half - 2, 1);
+                } else {
+                    ctx.fillRect(Math.floor(cx - rWidth / 2 + jitterX), y, Math.floor(rWidth), 1);
+                }
             }
         }
 
         // =========================================================
-        // 5. STONE PATH
+        // 6. THE SHORELINE & STONE PATH
         // =========================================================
-        for (let y = horizon; y <= height; y++) {
-            let depth = (y - horizon) / (height - horizon); 
-            let pathW = 10 + depth * 280; 
+        // Basis-Uferkante zeichnen
+        ctx.fillStyle = this.cStoneDark;
+        ctx.fillRect(0, shoreY, width, height - shoreY);
+        ctx.fillStyle = this.cStoneLine;
+        ctx.fillRect(0, shoreY, width, 2);
+
+        const pathBottomW = width * 0.9; 
+        const pathTopW = width * 0.15;   
+
+        // Weg rendert erst AB der Uferkante
+        for (let y = shoreY; y <= height; y++) {
+            // Perspektiven-Tiefe bleibt auf HORIZON gemünzt, damit die Fluchtlinie stimmt!
+            let trueDepth = (y - horizon) / (height - horizon); 
+            let pathW = pathTopW + trueDepth * (pathBottomW - pathTopW); 
             let px = cx - pathW / 2;
 
             ctx.fillStyle = this.cPathLight;
             ctx.fillRect(Math.floor(px), y, Math.floor(pathW), 1);
 
-            ctx.fillStyle = this.cPathLine;
+            ctx.fillStyle = this.cStoneLine;
             ctx.fillRect(Math.floor(px) - 1, y, 1, 1);
             ctx.fillRect(Math.floor(px + pathW), y, 1, 1);
 
-            let gapFreq = Math.sin(Math.pow(depth, 0.5) * 40.0);
-            if (gapFreq > 0.92) {
+            let gapFreq = Math.sin(Math.pow(trueDepth, 0.5) * 50.0);
+            if (gapFreq > 0.95) {
                 ctx.fillStyle = this.cPathDark;
                 ctx.fillRect(Math.floor(px), y, Math.floor(pathW), 1);
+            }
+
+            let numLanes = 6;
+            for (let lane = 1; lane < numLanes; lane++) {
+                let laneNorm = (lane / numLanes) - 0.5; 
+                let laneX = cx + (pathW * laneNorm);
+                ctx.fillStyle = this.cStoneLine;
+                ctx.fillRect(Math.floor(laneX), y, 1, 1);
+            }
+
+            if (y % 8 < 2 && trueDepth > 0.2) {
+                ctx.fillStyle = this.cMoss;
+                ctx.fillRect(Math.floor(px) - 2, y, 2, 1);
+                ctx.fillRect(Math.floor(px + pathW), y, 2, 1);
             }
         }
 
         // =========================================================
-        // 6. SHRINES / BENCHES
+        // 7. SHRINES / BENCHES (Placed exactly on the shore)
         // =========================================================
         for (let i = 0; i < this.shrines.length; i++) {
             let s = this.shrines[i];
-            let sy = Math.floor(horizon + s.z * (height - horizon));
-            let sx = cx + s.xDir * (20 + s.z * 180);
-            let sWidth = 15 + s.z * 40;
-            let sHeight = 8 + s.z * 25;
+            
+            let scale = Math.pow(s.z, 1.5);
+            // Y-Pos berechnet sich zwischen shoreY und height
+            let sy = Math.floor(shoreY + scale * (height - shoreY));
+            
+            let trueDepth = (sy - horizon) / (height - horizon);
+            let pathWAtZ = pathTopW + trueDepth * (pathBottomW - pathTopW);
+            let sx = cx + s.xDir * (pathWAtZ / 2 + 10 + scale * 40);
+            
+            let sWidth = 8 + scale * 30;
+            let sHeight = 15 + scale * 40;
 
             ctx.fillStyle = this.cPathDark;
-            ctx.fillRect(Math.floor(sx - sWidth / 2), sy - sHeight, Math.floor(sWidth), sHeight);
+            ctx.fillRect(Math.floor(sx - sWidth/2), sy - Math.floor(sHeight*0.2), Math.floor(sWidth), Math.floor(sHeight*0.2));
+            
+            ctx.fillStyle = this.cStoneMid;
+            ctx.fillRect(Math.floor(sx - sWidth*0.25), sy - Math.floor(sHeight*0.7), Math.floor(sWidth*0.5), Math.floor(sHeight*0.5));
             
             ctx.fillStyle = this.cPathLight;
-            ctx.fillRect(Math.floor(sx - sWidth / 2 - 2), sy - sHeight - 2, Math.floor(sWidth + 4), 3);
+            ctx.fillRect(Math.floor(sx - sWidth*0.6), sy - Math.floor(sHeight*0.9), Math.floor(sWidth*1.2), Math.floor(sHeight*0.2));
 
-            let flicker = Math.sin(this.internalT * 8.0 + i) > 0 ? 1 : 0;
-            ctx.fillStyle = this.cGrass;
-            ctx.fillRect(Math.floor(sx - sWidth / 2 - 4), sy - 1, 3 + flicker, 2);
-            ctx.fillRect(Math.floor(sx + sWidth / 2 + 1), sy - 2 + flicker, 2, 2);
+            fillAliasedCircle(ctx, sx, sy - Math.floor(sHeight*0.9), Math.floor(sWidth*0.4), this.cStoneDark);
+
+            ctx.fillStyle = this.cMoss;
+            ctx.fillRect(Math.floor(sx - sWidth*0.5), sy - Math.floor(sHeight*0.7), 2, Math.floor(sHeight*0.3));
         }
 
         // =========================================================
-        // 7. THE TORII GATE
+        // 8. THE TORII GATE
         // =========================================================
         const toriiTop = horizon - 90;
-        const toriiBot = horizon + 50;
+        const toriiBot = shoreY + Math.floor(minDim * 0.05); // Steht massiv im Vordergrund!
 
         for (let y = toriiTop; y <= toriiBot; y++) {
-            let depth = (y - toriiTop) / (toriiBot - toriiTop);
-            let offset = 45 + depth * 15; 
-            let postW = 8 + depth * 6;
+            // Reale Perspektive zum Horizont
+            let depth = (y - horizon) / (height - horizon);
+            if (depth < 0) depth = 0;
+            
+            let offset = Math.floor(minDim * 0.22) + depth * Math.floor(minDim * 0.05); 
+            let postW = Math.floor(minDim * 0.03) + depth * 4;
             
             let pxLeft = cx - offset - postW / 2;
             let pxRight = cx + offset - postW / 2;
@@ -285,83 +390,70 @@ export class AtariRetroSunset {
             ctx.fillRect(Math.floor(pxLeft + postW - 2), y, 2, 1);
             ctx.fillRect(Math.floor(pxRight + postW - 2), y, 2, 1);
 
-            if (y > horizon - 60 && y < horizon && y % 12 < 4) {
-                ctx.fillStyle = this.cSun;
-                ctx.fillRect(Math.floor(cx - offset - 1), y, 2, 1);
-                ctx.fillRect(Math.floor(cx + offset - 1), y, 2, 1);
+            if (y > toriiTop + 20 && y < toriiBot - 20 && (y * 7) % 11 < 3) {
+                ctx.fillStyle = this.cKanji;
+                ctx.fillRect(Math.floor(pxLeft + postW/2 - 1), y, 2, 1);
+                ctx.fillRect(Math.floor(pxRight + postW/2 - 1), y, 2, 1);
             }
         }
 
         ctx.fillStyle = this.cTorii;
-        ctx.fillRect(cx - 75, toriiTop, 150, 6);
+        let bWidth = Math.floor(minDim * 0.6);
+        ctx.fillRect(cx - bWidth/2, toriiTop, bWidth, Math.floor(minDim * 0.04));
         ctx.fillStyle = this.cToriiHigh;
-        ctx.fillRect(cx - 75, toriiTop, 150, 1);
+        ctx.fillRect(cx - bWidth/2, toriiTop, bWidth, 1);
 
+        let bWidth2 = Math.floor(minDim * 0.5);
         ctx.fillStyle = this.cTorii;
-        ctx.fillRect(cx - 65, toriiTop + 12, 130, 4);
+        ctx.fillRect(cx - bWidth2/2, toriiTop + Math.floor(minDim * 0.06), bWidth2, Math.floor(minDim * 0.02));
+        ctx.fillRect(cx - 2, toriiTop, 4, Math.floor(minDim * 0.06));
 
-        const lanternX = [cx - 35, cx - 15, cx + 15, cx + 35];
-        for (let i = 0; i < 4; i++) {
-            let swing = Math.sin(this.internalT * 2.5 + i) * (2 + beat * 4.0);
-            let lx = Math.floor(lanternX[i] + swing);
-            let ly = toriiTop + 16;
+        // =========================================================
+        // 9. THE BONSAI TREE (Solid & Rooted)
+        // =========================================================
+        let trunkBaseX = width - Math.floor(minDim * 0.15); 
+        let trunkBaseY = shoreY + Math.floor(minDim * 0.15); // Wurzelt tief auf der Shore-Ebene
+        let trunkTopY = shoreY - Math.floor(minDim * 0.25);  // Krone ragt hoch in den Himmel
+        
+        let crownBaseX = trunkBaseX + Math.sin(0) * Math.floor(minDim * 0.06);
+
+        // 9a. Die knorrigen Äste zeichnen (Verbinden Stamm und Blatt-Cluster!)
+        for (let c of this.leafClusters) {
+            let endX = Math.floor(crownBaseX + c.dx * minDim);
+            let endY = Math.floor(trunkTopY + c.dy * minDim);
             
-            ctx.fillStyle = this.cPathLine;
-            ctx.fillRect(lx, ly, 1, 6);
-            
-            ctx.fillStyle = (i % 2 === 0) ? this.cLantern1 : this.cLantern2;
-            ctx.fillRect(lx - 3, ly + 6, 7, 8);
-            
-            ctx.fillStyle = this.cSun;
-            ctx.fillRect(lx - 1, ly + 8, 3, 4);
+            // Massiver Ast (3 Pixel breit für Pixel-Art-Vibe)
+            drawAliasedLine(ctx, crownBaseX, trunkTopY + 8, endX, endY, this.cTreeTrunk);
+            drawAliasedLine(ctx, crownBaseX - 1, trunkTopY + 8, endX - 1, endY, this.cTreeTrunk);
+            drawAliasedLine(ctx, crownBaseX + 1, trunkTopY + 8, endX + 1, endY, this.cTreeTrunk);
         }
 
-        // =========================================================
-        // 8. THE BONSAI TREE (Redesign)
-        // =========================================================
-        let trunkBaseX = width - Math.floor(minDim * 0.15); // ca. 15% vom rechten Rand
-        let trunkBaseY = horizon + 10;
-        let trunkTopY = horizon - Math.floor(minDim * 0.28); // Stamm endet sicher unterhalb des Bildschirms!
-        
-        // 8a. Stamm zeichnen
+        // 9b. Den dicken Stamm zeichnen (überdeckt die unteren Astansätze)
         for (let y = trunkTopY; y <= trunkBaseY; y++) {
             let depth = (y - trunkTopY) / (trunkBaseY - trunkTopY);
-            let tw = 5 + Math.pow(depth, 1.8) * 16; // Wurzelt sich weich auf
-            let tx = trunkBaseX + Math.sin(depth * 2) * 8; // Stammkrümmung
+            let tw = Math.floor(minDim * 0.04) + Math.pow(depth, 2) * Math.floor(minDim * 0.1); 
+            let tx = trunkBaseX + Math.sin(depth * 3.5) * Math.floor(minDim * 0.06); 
 
             ctx.fillStyle = this.cTreeTrunk;
             ctx.fillRect(Math.floor(tx - tw/2), y, Math.floor(tw), 1);
 
-            // Rinde
             if (y % 4 === 0) {
                 ctx.fillStyle = this.cToriiHigh;
                 ctx.fillRect(Math.floor(tx - tw/2 + 2), y, Math.floor(tw * 0.4), 1);
             }
         }
 
-        let branchBaseX = trunkBaseX + Math.sin(0) * 8; // Startpunkt der Äste an der Baumkrone
-
-        // 8b. Verzweigte Äste zeichnen
-        for (let c of this.leafClusters) {
-            let destX = trunkBaseX + Math.floor(c.dx * minDim);
-            let destY = trunkBaseY + Math.floor(c.dy * minDim);
+        // 9c. Das dichte Blattwerk an den Enden der Äste zeichnen
+        for (let i = 0; i < this.treeLeaves.length; i++) {
+            let leaf = this.treeLeaves[i];
             
-            // Bresenham-Linie für die Äste, gedoppelt für 2px Dicke
-            drawAliasedLine(ctx, branchBaseX, trunkTopY + 5, destX, destY, this.cTreeTrunk);
-            drawAliasedLine(ctx, branchBaseX - 1, trunkTopY + 5, destX - 1, destY, this.cTreeTrunk);
-        }
-
-        // 8c. Dichte Laub-Wolken zeichnen (atmend)
-        for (let l of this.leaves) {
-            let lx = trunkBaseX + (l.cdx * minDim) + (l.lx * minDim);
-            let ly = trunkBaseY + (l.cdy * minDim) + (l.ly * minDim);
+            let rustleX = Math.round(Math.sin(this.internalT * 3.0 + leaf.phase) * (1.0 + beat * 2.0));
+            let rustleY = Math.round(Math.cos(this.internalT * 2.0 + leaf.phase) * (0.5 + beat * 1.0));
             
-            let rustleX = Math.round(Math.sin(this.internalT * 3.0 + l.phase) * (1.0 + beat * 2.0));
-            let rustleY = Math.round(Math.cos(this.internalT * 2.0 + l.phase) * (0.5 + beat * 1.0));
+            let lx = Math.floor(crownBaseX + leaf.dx * minDim + rustleX);
+            let ly = Math.floor(trunkTopY + leaf.dy * minDim + rustleY);
             
-            let col = l.colIdx === 0 ? this.cLeaf1 : (l.colIdx === 1 ? this.cLeaf2 : this.cLeaf3);
-            ctx.fillStyle = col;
-            ctx.fillRect(Math.floor(lx + rustleX), Math.floor(ly + rustleY), l.size, l.size);
+            fillAliasedCircle(ctx, lx, ly, leaf.r, leaf.col);
         }
 
         ctx.globalAlpha = 1.0;
