@@ -121,14 +121,44 @@ export class TrackMonitor {
                 if (chipRegs[15] !== this.lastRegs[15] && chipRegs[15] > 0) isHardwareBeat = true;
 
             } else if (this.info.system === 'amiga') {
-                // Amiga: Paula DMA Volume Spikes
+                // --- AMIGA PAULA: THE ULTIMATE PROTRACKER BEAT CATCHER ---
                 for (let c = 0; c < 4; c++) {
-                    let vol = chipRegs[c * 7 + 6];
-                    let lastVol = this.lastRegs[c * 7 + 6];
-                    if (vol > lastVol + 20) isHardwareBeat = true; 
+                    let offset = c * 7;
+                    
+                    // Rekonstruiere die 16-Bit Wiedergabe-Adresse (enthält den pointer-Zustand)
+                    let address = (chipRegs[offset] << 8) | chipRegs[offset + 1];
+                    let lastAddress = (this.lastRegs[offset] << 8) | this.lastRegs[offset + 1];
+                    
+                    let period = (chipRegs[offset + 4] << 8) | chipRegs[offset + 5];
+                    let vol = chipRegs[offset + 6];
+                    let lastVol = this.lastRegs[offset + 6];
+
+                    // 1. Harter Volume-Spike (Empfindlichkeit von +20 auf +12 gesenkt!)
+                    // Perfekt für Snares, Claps und Rimshots, die aus der Stille einschlagen
+                    if (vol > lastVol + 12) {
+                        isHardwareBeat = true;
+                    }
+
+                    // 2. Note-Trigger-Analyse (DMA-Pointer Reset)
+                    // Wenn die Adresse plötzlich zurückspringt, wurde ein neues Sample getriggert!
+                    if (address > 0 && lastAddress > 0 && address < lastAddress) {
+                        // Kicks und Basslines laufen klassisch auf den äußeren Spuren (Ch 0 & 3)
+                        if (c === 0 || c === 3) {
+                            // Filtert extrem hohe Frequenzen aus (Melodie-Gepiepe, Period < 150)
+                            if (period > 150 && vol > 20) {
+                                isHardwareBeat = true;
+                            }
+                        } else {
+                            // Auf den Kanälen 1 & 2 triggern wir nur, wenn das Sample 
+                            // mit maximaler Wucht (vol > 48) abgefeuert wird (z.B. dicke Orchestral-Hits)
+                            if (vol > 48) {
+                                isHardwareBeat = true;
+                            }
+                        }
+                    }
                 }
             }
-            
+
             // Register-Zustand für den nächsten Frame sichern
             for(let i=0; i<32; i++) this.lastRegs[i] = chipRegs[i];
         }
@@ -156,7 +186,7 @@ export class TrackMonitor {
         let isOverdrive = (energy > overdriveThresh && this.dynamics.transientPulse[0] > pulseThresh * 0.8);
         let isBuildup = (energy > buildupThresh);
         this.dynamics.rawEnergyState = isOverdrive ? 'climax' : (isBuildup ? 'buildup' : 'playing');
-        
+
         // 5. Perfect Micro-Dynamics (Beat Envelope)
         this.dynamics.beatCooldown -= dt;
         
