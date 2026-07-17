@@ -964,10 +964,18 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
         box-shadow: 0 5px 15px rgba(0,0,0,0.8); align-items: center; 
     }
     
-    /* =========================================
+    /* =========================================================
        MOBILE PLAYBACK BAR FIX
        Erzwingt volle Breite und proportionale Tasten
-       ========================================= */
+    ========================================================= */
+    #playback-bar .controls {
+        flex: 1 1 100% !important; /* Löst die starre 440px-Sperre auf Handys auf */
+        width: 100% !important;    /* Nutzt die volle verfügbare Breite des Viewports */
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;       /* Schafft etwas Luft zur Timeline darunter */
+    }
+
     #playback-bar .controls button { 
         padding: 14px 0 !important; 
         font-size: clamp(8px, 2.4vw, 12px) !important; 
