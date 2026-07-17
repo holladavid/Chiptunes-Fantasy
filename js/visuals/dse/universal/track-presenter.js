@@ -1,12 +1,12 @@
 // === js/visuals/dse/universal/track-presenter.js ===
 // =========================================================
-// DEMO-SCENE-ELEMENT: TRACK PRESENTER (TITLE CARD)
-// Universal One-Shot Event. Slides in, shows metadata, self-destructs.
-// Uses strict 200p quantized hardware colors and rendering bounds.
-// Optimized with recursive `measureText` truncation to prevent overflow.
+// DEMO-SCENE-ELEMENT: TRACK PRESENTER (PLATFORM-SPECIFIC)
+// v2.2.1 - Redesigned with distinct C64 Rasterbars, Amiga Copper,
+// and Atari GEM Frames. Fully optimized with dynamic C64 subtracks,
+// and safe, non-overflowing Atari ST truncation.
 // =========================================================
 
-import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit } from '../../utils/hardware-constraints.js';
+import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit, drawAliasedLine } from '../../utils/hardware-constraints.js';
 
 function truncateToFit(ctx, text, maxWidth) {
     if (ctx.measureText(text).width <= maxWidth) return text;
@@ -25,11 +25,10 @@ export class TrackPresenter {
     constructor() {
         this.name = 'Universal Track Presenter';
         this.trackInfo = null; 
+        this.wasBeat = false;
+        this.beatCounter = 0;
     }
 
-    // =========================================================
-    // FIX: Die lebenswichtige Setter-Methode für den SceneDJ!
-    // =========================================================
     setTrackInfo(info) {
         this.trackInfo = info;
     }
@@ -45,85 +44,255 @@ export class TrackPresenter {
             this._markedForRemoval = true;
         }
 
-        // 2. KINEMATIK & SKALIERUNG (im 200p / 256p Retro-Canvas!)
-        const isPortrait = width < height;
-        const boxW = Math.min(Math.floor(width * (isPortrait ? 0.96 : 0.9)), 280); 
-        const boxH = 58; // Leicht erhöht für sauberes Pixel-Grid
-        const boxX = Math.floor((width - boxW) / 2);
-        
-        const targetY = Math.floor(height * 0.28); 
-        let currentY = -boxH - 10; 
+        const isC64 = metrics.system === 'c64';
+        const isAmiga = metrics.system === 'amiga';
+        const isAtari = metrics.system === 'atari';
 
-        if (state === 'starting') {
-            const ease = 1.0 - Math.pow(1.0 - Math.min(1.0, stateTime / 1.5), 3);
-            currentY = Math.floor((-boxH - 10) + (targetY - (-boxH - 10)) * ease);
-        } else if (state === 'stopping') {
-            const ease = Math.pow(Math.min(1.0, stateTime / 1.5), 3);
-            currentY = Math.floor(targetY + ((-boxH - 10) - targetY) * ease);
-        } else {
-            currentY = targetY; 
+        // Beat-Trigger abgreifen
+        const beat = metrics.beat[0];
+        const isBeat = beat > 0.75 && !this.wasBeat;
+        this.wasBeat = (beat > 0.75);
+        if (isBeat) this.beatCounter++;
+
+        // =========================================================
+        // 1. DISKRETES 15HZ "TICK" EASING
+        // =========================================================
+        const tQuant = Math.floor(stateTime * 15); 
+        const progress = Math.min(1.0, tQuant / 20); 
+        const ease = (1.0 - Math.cos(progress * Math.PI)) * 0.5;
+
+        // Horizont & Orientierung
+        const horizon = Math.floor(height * 0.55);
+        const cx = Math.floor(width / 2);
+        const isPortrait = width < height; // KORREKTUR: Wieder deklariert!
+
+        // Metadata Textaufbereitung
+        const titleText = (this.trackInfo.name || 'UNKNOWN').toUpperCase();
+        const authorText = ("BY " + (this.trackInfo.author || 'UNKNOWN')).toUpperCase();
+        const typeText = (this.trackInfo.type || 'RAW DATA').toUpperCase();
+
+        const isUltraNarrow = width < 160; // Wahr bei mobilem Hochkant-Modus
+
+        // =========================================================
+        // PLATTLFORM-EXKLUSIVER RENDERER: C64 (RASTERBAR SLIDE & DUAL-LINE)
+        // =========================================================
+        if (isC64) {
+            const barH = 55; // 11 Bänder à 5 Pixel
+            const targetY = Math.floor(horizon * 0.28);
+            
+            let currentY = -barH - 10;
+            if (state === 'starting') {
+                currentY = Math.floor((-barH - 10) + (targetY - (-barH - 10)) * ease);
+            } else if (state === 'stopping') {
+                currentY = Math.floor(targetY + ((-barH - 10) - targetY) * ease);
+            } else {
+                currentY = targetY;
+            }
+
+            // Concentric VIC-II Rasterbar (Dunkelblau -> Blau -> Hellblau -> Grau -> Weiß)
+            const rasterColors = [6, 6, 14, 14, 12, 1, 12, 14, 14, 6, 6].map(idx => rgbToHex(...C64_PALETTE[idx]));
+            const bandH = 5;
+            
+            // Raster-Interrupt-Split zeichnen
+            for (let i = 0; i < rasterColors.length; i++) {
+                let rY = currentY + i * bandH;
+                let wobbleX = Math.floor(Math.sin(rY * 0.08 + t * 4.0) * 3);
+                ctx.fillStyle = rasterColors[i];
+                ctx.fillRect(wobbleX, rY, width, bandH);
+            }
+
+            // Schriftgrößen für C64 festlegen
+            const fontTitle = isUltraNarrow ? "6px 'Press Start 2P', monospace" : "8px 'Press Start 2P', monospace";
+            const fontSub = isUltraNarrow ? "5px 'Press Start 2P', monospace" : "8px 'Press Start 2P', monospace";
+
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            let textY1 = Math.floor(currentY + 18);
+            let textY2 = Math.floor(currentY + 36);
+
+            let maxTextW = width - 16;
+            ctx.font = fontTitle;
+            let textW = ctx.measureText(titleText).width;
+
+            // --- ZEILE 1: SCROLLING TITLE (Schwarz auf weißem Raster) ---
+            if (textW > maxTextW) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(8, currentY + 4, maxTextW, barH - 8);
+                ctx.clip();
+
+                let scrollX = (t * 45) % (textW + maxTextW + 30);
+                let tx = Math.floor(width - 8 - scrollX);
+                ctx.fillStyle = rgbToHex(...C64_PALETTE[0]); // Tiefschwarz für perfekten Kontrast!
+                ctx.fillText(titleText, tx, textY1);
+                ctx.restore();
+            } else {
+                ctx.fillStyle = (beat > 0.6) ? rgbToHex(...C64_PALETTE[7]) : rgbToHex(...C64_PALETTE[0]);
+                ctx.fillText(titleText, cx, textY1);
+            }
+
+            // --- ZEILE 2: COHESIVE SUBTRACK INFO (Dunkelblau auf hellem Raster) ---
+            ctx.font = fontSub;
+            
+            // Dynamisch injizierte Subtrack-Nummer abfangen
+            let curSub = this.trackInfo.currentSubsong || this.trackInfo.startSong || 1;
+            let subtracksText = this.trackInfo.songs ? ` • SUB ${curSub}/${this.trackInfo.songs}` : "";
+            let displaySub = authorText + subtracksText;
+            
+            // Failsafe: Auch den Subtext auf Handys sauber abschneiden
+            let displaySubTruncated = truncateToFit(ctx, displaySub, maxTextW);
+
+            ctx.fillStyle = rgbToHex(...C64_PALETTE[6]); // C64-Dunkelblau
+            ctx.fillText(displaySubTruncated, cx, textY2);
         }
 
-        const bump = Math.floor(metrics.beat[0] * 3.0);
-        currentY += bump;
+        // =========================================================
+        // PLATTLFORM-EXKLUSIVER RENDERER: AMIGA (COPPERLIST CURTAINS)
+        // =========================================================
+        if (isAmiga) {
+            const paneH = 64;
+            const targetY = Math.floor(horizon * 0.28);
+            
+            let topY = -40;
+            let Math_floorY = height;
+            let botY = height;
+            
+            if (state === 'starting') {
+                topY = Math.floor(-40 + (targetY + 40) * ease);
+                botY = Math.floor(height - (height - (targetY + paneH)) * ease);
+            } else if (state === 'stopping') {
+                topY = Math.floor(targetY + (-40 - targetY) * ease);
+                botY = Math.floor((targetY + paneH) + (height - (targetY + paneH)) * ease);
+            } else {
+                topY = targetY;
+                botY = targetY + paneH;
+            }
 
-        // 3. HARDWARE THEMES
-        let bgHex, borderHex, textHex, accentHex;
+            const copColors = [
+                [0,0,34], [0,0,68], [85,0,85], [170,0,85], [255,102,0], [255,255,255]
+            ].map(c => rgbToHex(...quantizeAmiga12Bit(c[0], c[1], c[2])));
 
-        if (metrics.system === 'c64') {
-            bgHex = rgbToHex(...C64_PALETTE[6]);       
-            borderHex = rgbToHex(...C64_PALETTE[14]);  
-            textHex = rgbToHex(...C64_PALETTE[1]);     
-            accentHex = rgbToHex(...C64_PALETTE[7]);   
-        } else if (metrics.system === 'amiga') {
-            bgHex = rgbToHex(...quantizeAmiga12Bit(0, 0, 34));
-            borderHex = rgbToHex(...quantizeAmiga12Bit(0, 85, 255));
-            textHex = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));
-            accentHex = rgbToHex(...quantizeAmiga12Bit(255, 136, 0));
-        } else {
-            bgHex = rgbToHex(...quantizeAtari9Bit(0, 17, 0));
-            borderHex = rgbToHex(...quantizeAtari9Bit(0, 170, 0));
-            textHex = rgbToHex(...quantizeAtari9Bit(255, 255, 255));
-            accentHex = rgbToHex(...quantizeAtari9Bit(85, 255, 85));
+            // Top Curtain
+            let copLineH = Math.ceil((horizon * 0.5) / copColors.length);
+            for (let i = 0; i < copColors.length; i++) {
+                ctx.fillStyle = copColors[i];
+                ctx.fillRect(0, Math.floor(topY - 40 + i * copLineH), width, copLineH);
+            }
+
+            // Bottom Curtain
+            for (let i = 0; i < copColors.length; i++) {
+                ctx.fillStyle = copColors[copColors.length - 1 - i];
+                ctx.fillRect(0, Math.floor(botY + i * copLineH), width, copLineH);
+            }
+
+            // Lesefeld füllen
+            ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(17, 0, 34));
+            ctx.fillRect(0, Math.floor(topY), width, Math.floor(botY - topY));
+
+            // Text zeichnen
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const fontTitle = isUltraNarrow ? "16px 'VT323', monospace" : "20px 'VT323', monospace";
+            const fontSub = isUltraNarrow ? "11px 'VT323', monospace" : "14px 'VT323', monospace";
+            ctx.font = fontTitle;
+
+            let textY1 = Math.floor(topY + (botY - topY) * 0.3);
+            let textY2 = Math.floor(topY + (botY - topY) * 0.7);
+
+            let maxTextW = width - 20;
+            let textW = ctx.measureText(titleText).width;
+
+            if (textW > maxTextW) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(10, topY, maxTextW, botY - topY);
+                ctx.clip();
+
+                let scrollX = (t * 50) % (textW + maxTextW + 30);
+                let tx = Math.floor(width - 10 - scrollX);
+                ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 119, 0)); // Orange Title
+                ctx.fillText(titleText, tx, textY1);
+                ctx.restore();
+            } else {
+                ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 119, 0));
+                ctx.fillText(titleText, cx, textY1);
+            }
+
+            ctx.font = fontSub;
+            ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 255, 255)); // White Subtext
+            ctx.fillText(authorText + " • " + typeText, cx, textY2);
         }
 
-        if (metrics.beat[0] > 0.6) borderHex = textHex;
+        // =========================================================
+        // PLATTLFORM-EXKLUSIVER RENDERER: ATARI ST (GEM DIALOG TRUNCATION)
+        // =========================================================
+        if (isAtari) {
+            const boxW = Math.min(Math.floor(width * (isPortrait ? 0.94 : 0.85)), 280); 
+            const boxH = 50;
+            const boxX = Math.floor((width - boxW) / 2);
+            
+            const targetY = Math.floor(horizon * 0.25);
+            let currentY = -boxH - 10;
+            
+            if (state === 'starting') {
+                currentY = Math.floor((-boxH - 10) + (targetY - (-boxH - 10)) * ease);
+            } else if (state === 'stopping') {
+                currentY = Math.floor(targetY + ((-boxH - 10) - targetY) * ease);
+            } else {
+                currentY = targetY;
+            }
 
-        // 4. RENDERN (Absolut scharfe Integer-Koordinaten)
-        ctx.fillStyle = borderHex;
-        ctx.fillRect(boxX, currentY, boxW, boxH);
-        ctx.fillStyle = bgHex;
-        ctx.fillRect(boxX + 2, currentY + 2, boxW - 4, boxH - 4);
+            const bgHex = rgbToHex(...quantizeAtari9Bit(17, 34, 17));       
+            const borderHex = rgbToHex(...quantizeAtari9Bit(0, 170, 0));    
+            const textHex = rgbToHex(...quantizeAtari9Bit(255, 255, 255));  
+            const accentHex = rgbToHex(...quantizeAtari9Bit(255, 136, 0));  
 
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        
-        const isAmigaOrAtari = metrics.system === 'amiga' || metrics.system === 'atari';
-        const maxTextW = boxW - 20;
+            // Fenster füllen
+            ctx.fillStyle = bgHex;
+            ctx.fillRect(boxX, currentY, boxW, boxH);
 
-        // --- 5. DYNAMISCHE MESSUNG & TRUNCATION ---
-        // GFX FIX: Da wir im 200p Canvas rendern, müssen VT323 Schriften größer skaliert 
-        // werden als die klobige C64-Schrift, damit die Pixel-Matrix optisch sauber schließt.
-        const fontTitle = isAmigaOrAtari ? "20px 'VT323', monospace" : "8px 'Press Start 2P', monospace";
-        const fontSub = isAmigaOrAtari ? "14px 'VT323', monospace" : "8px 'Press Start 2P', monospace";
+            // Outlines (Bresenham)
+            drawAliasedLine(ctx, boxX, currentY, boxX + boxW, currentY, borderHex);
+            drawAliasedLine(ctx, boxX, currentY + boxH, boxX + boxW, currentY + boxH, borderHex);
+            drawAliasedLine(ctx, boxX, currentY, boxX, currentY + boxH, borderHex);
+            drawAliasedLine(ctx, boxX + boxW, currentY, boxX + boxW, currentY + boxH, borderHex);
 
-        ctx.font = fontTitle;
-        let displayTitle = truncateToFit(ctx, this.trackInfo.name || 'UNKNOWN', maxTextW);
-        
-        ctx.font = fontSub;
-        let displayAuthor = truncateToFit(ctx, "BY " + (this.trackInfo.author || 'UNKNOWN'), maxTextW);
-        let displayType = truncateToFit(ctx, this.trackInfo.type || 'RAW DATA', maxTextW);
+            // GEM Eck-Kreuze
+            drawAliasedLine(ctx, boxX - 2, currentY - 2, boxX + 2, currentY + 2, borderHex);
+            drawAliasedLine(ctx, boxX + boxW - 2, currentY - 2, boxX + boxW + 2, currentY + 2, borderHex);
+            drawAliasedLine(ctx, boxX - 2, currentY + boxH - 2, boxX + 2, currentY + boxH + 2, borderHex);
+            drawAliasedLine(ctx, boxX + boxW - 2, currentY + boxH - 2, boxX + boxW + 2, currentY + boxH + 2, borderHex);
 
-        // TEXT ZEICHNEN
-        ctx.font = fontTitle;
-        ctx.fillStyle = accentHex;
-        ctx.fillText(displayTitle, Math.floor(width / 2), Math.floor(currentY + 16));
+            const fontTitle = isUltraNarrow ? "14px 'VT323', monospace" : "18px 'VT323', monospace";
+            const fontSub = isUltraNarrow ? "11px 'VT323', monospace" : "14px 'VT323', monospace";
 
-        ctx.font = fontSub;
-        ctx.fillStyle = textHex;
-        ctx.fillText(displayAuthor, Math.floor(width / 2), Math.floor(currentY + 30));
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            let textY1 = Math.floor(currentY + 16);
+            let textY2 = Math.floor(currentY + 36);
 
-        ctx.fillStyle = borderHex;
-        ctx.fillText(displayType, Math.floor(width / 2), Math.floor(currentY + 44));
+            const maxTextW = boxW - 16;
+            ctx.font = fontTitle;
+
+            // --- ZEILE 1: TRUNCATION TITLE ON ATARI ---
+            let displayTitle = truncateToFit(ctx, titleText, maxTextW);
+
+            ctx.fillStyle = accentHex;
+            ctx.fillText(displayTitle, cx, textY1);
+
+            // --- ZEILE 2: TRUNCATION SUBTEXT ON ATARI (KORREKTUR!) ---
+            // Setzt zuerst die kleinere Subtext-Schrift für die Breitenmessung
+            ctx.font = fontSub;
+            let subtext = authorText + " • " + typeText;
+            let displaySub = truncateToFit(ctx, subtext, maxTextW);
+
+            ctx.fillStyle = textHex;
+            ctx.fillText(displaySub, cx, textY2);
+        }
+
+        ctx.globalAlpha = 1.0;
     }
 }
