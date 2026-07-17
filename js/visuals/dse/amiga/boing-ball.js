@@ -1,12 +1,11 @@
 // === js/visuals/dse/amiga/boing-ball.js ===
 // =========================================================
-// DEMO-SCENE-ELEMENT: AMIGA BOING BALL (1984 TRIBUTE)
-// Authentic 16x14 mesh, 17-degree right tilt, and strict 12-bit
-// OCS shading. Features a rigid, majestic parabolic gravity arc 
-// and linear wall-bounces. No squash & stretch!
+// DEMO-SCENE-ELEMENT: AMIGA BOING BALL (v3.2.0 - Edge Bouncing)
+// Transparent foreground layer. Staggered mesh, dithered shadow,
+// specular face-override, and dynamic edge-detection bouncing.
 // =========================================================
 
-import { quantizeAmiga12Bit, rgbToHex } from '../../utils/hardware-constraints.js';
+import { quantizeAmiga12Bit, rgbToHex, drawAliasedLine } from '../../utils/hardware-constraints.js';
 
 export class AmigaBoingBall {
     constructor() {
@@ -14,7 +13,7 @@ export class AmigaBoingBall {
         this.computerType = ['amiga'];
         this.placementType = 'foreground';
         
-        // 1. Mesh Generation (16 Longitude x 14 Latitude)
+        // Mesh Generation (16 Longitude x 14 Latitude)
         const latBands = 14;
         const lonBands = 16;
         this.vertices = [];
@@ -42,8 +41,9 @@ export class AmigaBoingBall {
                 let first = (lat * (lonBands + 1)) + lon;
                 let second = first + lonBands + 1;
 
-                // Checkerboard Logic (Alternating Red and White)
-                let isRed = (lat % 2 === 0) ? (lon % 2 === 0) : (lon % 2 !== 0);
+                // Authentic Boing pattern stagger
+                let stagger = Math.floor(lat / 2) % 2;
+                let isRed = (lon + stagger) % 2 === 0;
                 let color = isRed ? [255, 0, 0] : [255, 255, 255];
 
                 this.facesDef.push({
@@ -56,19 +56,44 @@ export class AmigaBoingBall {
         const numVerts = this.vertices.length;
         this.transformed = Array(numVerts).fill(null).map(() => ({x: 0, y: 0, z: 0}));
         this.projected = Array(numVerts).fill(null).map(() => ({x: 0, y: 0}));
-        this.facesToDraw = Array(this.facesDef.length).fill(null).map(() => ({idxs: null, hex: '', z: 0}));
+        this.facesToDraw = Array(this.facesDef.length).fill(null).map(() => ({idxs: null, hex: '', z: 0, dot: 0}));
 
-        // Unabhängige Physik-Akkumulatoren
+        // Physik-Akkumulatoren
         this.moveXPhase = 0.0;
         this.moveYPhase = 0.0;
         this.currentRotY = 0.0; 
+        this.currentRotSpeed = 0.0;
         this.smoothedSpeed = 1.0;
         this.lastT = 0;
+        
+        // Scene FX
+        this.bounceFrames = 0;
+        this.initialized = false;
+        this.ensureInitialized();
+    }
+
+    ensureInitialized() {
+        if (this.initialized) return;
+
+        // Dither Pattern für den OCS-Schatten (1-Bit Schachbrett statt Alpha!)
+        const sCanvas = document.createElement('canvas');
+        sCanvas.width = 2; 
+        sCanvas.height = 2;
+        const sCtx = sCanvas.getContext('2d');
+        sCtx.fillStyle = rgbToHex(...quantizeAmiga12Bit(0, 0, 0));
+        sCtx.fillRect(0, 0, 1, 1);
+        sCtx.fillRect(1, 1, 1, 1);
+        
+        this.shadowPattern = sCtx.createPattern(sCanvas, 'repeat');
+        this.reflColor = rgbToHex(...quantizeAmiga12Bit(170, 0, 0));
+
+        this.initialized = true;
     }
 
     resize(width, height) {}
 
     render(ctx, width, height, t, state, stateTime, metrics) {
+        this.ensureInitialized();
         if (state === 'idle') { this.lastT = t; return; }
         
         let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
@@ -77,21 +102,33 @@ export class AmigaBoingBall {
         let globalAlpha = 1.0;
         let targetSpeed = 1.0;
 
-        // Dämpft die Extreme im Climax, damit die Trägheit des Balls erhalten bleibt
         if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
         } else if (state === 'stopping') {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
         } else if (state === 'buildup') {
-            targetSpeed = 1.2;
+            targetSpeed = 1.15;
         } else if (state === 'climax') {
-            targetSpeed = 1.6;
+            targetSpeed = 1.3;
         }
 
         this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * Math.min(1.0, dt * 5.0);
 
-// =========================================================
-        // 1. X-ACHSE: MAJESTÄTISCHES, LINEARES PING-PONG
+        // =========================================================
+        // 1. COORDINATE BASICS (Zuerst berechnen für dynamischen Rand-Bounce)
+        // =========================================================
+        const cx = Math.floor(width / 2);
+        const horizon = Math.floor(height * 0.90);
+
+        // Proportionale Skalierung (kompakt)
+        const minDim = Math.min(width, height);
+        const fov = minDim * 0.58; 
+        
+        const ballRadiusOnScreen = fov / 3.5; 
+        const floorY = horizon - ballRadiusOnScreen; 
+
+        // =========================================================
+        // 2. PHYSICS & DYNAMIC BOUNCE BOUNDARIES
         // =========================================================
         const speedX = 0.25 * this.smoothedSpeed;
         this.moveXPhase = (this.moveXPhase + dt * speedX) % 2.0; 
@@ -101,31 +138,46 @@ export class AmigaBoingBall {
             ? (this.moveXPhase * 2.0 - 1.0) 
             : (1.0 - (this.moveXPhase - 1.0) * 2.0); 
             
-        // Sweep über 30% der Bildschirmbreite
-        const moveX = xNorm * (width * 0.30);
+        // EXAKTER RAND-AUFPRALL-EFFEKT (Berührt den Rand haargenau vor dem Richtungswechsel)
+        const maxAmplitude = Math.max(0, (width / 2) - ballRadiusOnScreen);
+        const moveX = xNorm * maxAmplitude;
 
-        // =========================================================
-        // 2. ROTATION: GEKOPPELT AN X-RICHTUNG
-        // =========================================================
-        const rotSpeed = 1.6 * this.smoothedSpeed;
-        this.currentRotY += isMovingRight ? (dt * rotSpeed) : -(dt * rotSpeed);
-
-        // =========================================================
-        // 3. Y-ACHSE: STARRE PARABOLISCHE SCHWERKRAFT
-        // =========================================================
+        // Y-Achse
         const bounceFreq = 1.1 * this.smoothedSpeed;
+        let prevYPhase = this.moveYPhase;
         this.moveYPhase = (this.moveYPhase + dt * bounceFreq) % 1.0;
         
+        // Bounce Detector
+        if (this.moveYPhase < prevYPhase) {
+            this.bounceFrames = 2; 
+            this.currentRotSpeed *= 0.85; 
+        }
+
         let u = 2.0 * this.moveYPhase - 1.0; 
         let parabolicArc = 1.0 - (u * u);    
-        
-        // Sprunghöhe: 40% der Bildschirmhöhe
-        const bounceY = parabolicArc * (height * 0.40);
+        const bounceY = parabolicArc * (height * 0.28);
 
-        const beat = metrics.beat[0];
-        const illumination = beat * 0.35; 
-        
-        // --- 4. 3D-KINEMATIK & ROTATION (Rigid Body) ---
+        // Rotation
+        let targetRotSpeed = 1.8 * this.smoothedSpeed;
+        this.currentRotSpeed += (targetRotSpeed - this.currentRotSpeed) * dt * 2.0;
+        this.currentRotY += isMovingRight ? (dt * this.currentRotSpeed) : -(dt * this.currentRotSpeed);
+
+        // --- SCREEN SHAKE FX ---
+        let shakeX = 0, shakeY = 0;
+        if (this.bounceFrames > 0) {
+            shakeX = (this.bounceFrames % 2 === 0) ? 1 : -1;
+            shakeY = (this.bounceFrames % 2 === 0) ? 1 : 0;
+            this.bounceFrames--;
+        }
+
+        // Transform-Offsets für Screen Shake anwenden
+        const finalCx = cx + shakeX;
+        const finalHorizon = horizon + shakeY;
+        const finalFloorY = floorY + shakeY;
+
+        // =========================================================
+        // 3. 3D-TRANSFORMATION
+        // =========================================================
         const rotY = this.currentRotY; 
         const tiltZ = 0.3; // 17 Grad Rechtsneigung
 
@@ -135,55 +187,63 @@ export class AmigaBoingBall {
         for (let i = 0; i < this.vertices.length; i++) {
             let v = this.vertices[i];
             
-            let sx = v.x;
-            let sy = v.y;
-            let sz = v.z;
-
+            let sx = v.x, sy = v.y, sz = v.z;
             let rx = sx * cosRy - sz * sinRy;
             let rz = sx * sinRy + sz * cosRy;
             let ry = sy;
 
             let tx = rx * cosT - ry * sinT;
             let ty = rx * sinT + ry * cosT;
-            let tz = rz;
 
             this.transformed[i].x = tx;
             this.transformed[i].y = ty;
-            // 3.5 ist unser fester Kameraabstand auf der Z-Achse
-            this.transformed[i].z = tz + 3.5; 
+            this.transformed[i].z = rz + 3.5; 
         }
-
-        // =========================================================
-        // 5. KAMERA & LINEARE PROJEKTION (GFX FIX)
-        // =========================================================
-        const minDim = Math.min(width, height);
-        
-        // Lineares FOV (keine quadratischen Bugs mehr!)
-        const fov = minDim * 0.85; 
-        
-        // Dynamische Boden-Berechnung: Wir subtrahieren den Radius der 3D-Kugel, 
-        // damit sie unten haargenau auf dem Gehäuserand abprallt.
-        const ballRadiusOnScreen = fov / 3.5; 
-        const floorY = height * 0.92 - ballRadiusOnScreen; 
-        
-        const cx = width / 2;
 
         for (let i = 0; i < this.vertices.length; i++) {
             let zOff = this.transformed[i].z;
-            
-            let targetX = cx + moveX;
-            let targetY = floorY - bounceY;
+            let targetX = finalCx + moveX;
+            let targetY = finalFloorY - bounceY;
 
-            // Saubere, rein lineare 3D-Projektion
-            this.projected[i].x = Math.floor(targetX + (this.transformed[i].x * fov) / zOff);
+            // SCENE JITTER (1-Pixel-Rundungsfehler)
+            this.projected[i].x = Math.floor(targetX + (this.transformed[i].x * fov) / zOff) + (i % 2);
             this.projected[i].y = Math.floor(targetY + (this.transformed[i].y * fov) / zOff);
         }
 
-        const lx = 0.5, ly = -0.5, lz = -0.7;
+        // =========================================================
+        // 4. SHADOW & BOUNCE REFLECTION
+        // =========================================================
+        let shadowX = finalCx + moveX;
+        let shadowY = finalHorizon;
+        
+        // Die Rote Blitz-Reflexion beim Aufprall
+        if (this.bounceFrames > 0) {
+            ctx.fillStyle = this.reflColor;
+            ctx.fillRect(shadowX - ballRadiusOnScreen * 0.8, shadowY + 2, ballRadiusOnScreen * 1.6, 6);
+        }
+
+        // Dithered 1-Bit Shadow (Skaliert mit der Flughöhe)
+        let shadowW = ballRadiusOnScreen * 1.2 * (1.0 - (bounceY / height));
+        let shadowH = ballRadiusOnScreen * 0.3 * (1.0 - (bounceY / height));
+        
+        ctx.save();
+        ctx.fillStyle = this.shadowPattern;
+        ctx.beginPath();
+        ctx.ellipse(shadowX, shadowY, shadowW, shadowH, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // =========================================================
+        // 5. LIGHTING & FAKE SPECULAR HIGHLIGHT
+        // =========================================================
+        const lx = 0.2, ly = -0.8, lz = -0.5;
         const lLen = Math.sqrt(lx*lx + ly*ly + lz*lz);
         const nlx = lx/lLen, nly = ly/lLen, nlz = lz/lLen;
 
         let activeFaces = 0;
+        let maxDot = -1.0;
+        let specFaceIdx = -1;
+
         for (let i = 0; i < this.facesDef.length; i++) {
             let faceDef = this.facesDef[i];
             let idxs = faceDef.idxs;
@@ -205,27 +265,41 @@ export class AmigaBoingBall {
             nx /= len; ny /= len; nz /= len;
 
             let dotLight = nx * nlx + ny * nly + nz * nlz;
-            let brightness = 0.25 + 0.75 * Math.max(0.0, -dotLight) + illumination;
             
+            if (dotLight > maxDot) {
+                maxDot = dotLight;
+                specFaceIdx = activeFaces;
+            }
+
+            let brightness = 0.25 + 0.75 * Math.max(0.0, -dotLight);
+            
+            if (i % 2 !== 0) brightness *= 0.95; // Scanline-Dämpfung
+
             let rawR = Math.min(255, Math.floor(faceDef.baseColor[0] * brightness));
             let rawG = Math.min(255, Math.floor(faceDef.baseColor[1] * brightness));
             let rawB = Math.min(255, Math.floor(faceDef.baseColor[2] * brightness));
             
             let qColor = quantizeAmiga12Bit(rawR, rawG, rawB);
-
             let zCentroid = (p0.z + p1.z + p2.z + this.transformed[idxs[3]].z) / 4.0;
 
             let f = this.facesToDraw[activeFaces++];
             f.idxs = idxs;
             f.hex = rgbToHex(qColor[0], qColor[1], qColor[2]);
             f.z = zCentroid;
+            f.dot = dotLight;
+        }
+
+        // Specular Hack: Glanzfleck auf Reinweiß zwingen
+        if (specFaceIdx !== -1 && maxDot > 0.8) {
+            this.facesToDraw[specFaceIdx].hex = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));
         }
 
         const visibleFaces = this.facesToDraw.slice(0, activeFaces);
         visibleFaces.sort((a, b) => b.z - a.z);
 
-        ctx.globalAlpha = globalAlpha;
-
+        // =========================================================
+        // 6. RENDER FACES
+        // =========================================================
         for (let i = 0; i < activeFaces; i++) {
             let face = visibleFaces[i];
             let idxs = face.idxs;
@@ -239,6 +313,11 @@ export class AmigaBoingBall {
             
             ctx.fillStyle = face.hex;
             ctx.fill();
+
+            // 1-Pixel Black Outline an der Schattenseite
+            if (face.dot < -0.3) {
+                drawAliasedLine(ctx, this.projected[idxs[0]].x, this.projected[idxs[0]].y, this.projected[idxs[1]].x, this.projected[idxs[1]].y, '#000000');
+            }
         }
 
         ctx.globalAlpha = 1.0;
