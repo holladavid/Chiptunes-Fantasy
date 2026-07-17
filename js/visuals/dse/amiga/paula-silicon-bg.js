@@ -1,13 +1,12 @@
 // === js/visuals/dse/amiga/paula-silicon-bg.js ===
 // =========================================================
-// DEMO-SCENE-ELEMENT: PAULA 8364 MICROVERSE (BACKGROUND)
-// Authentic 256 PAL vertical resolution with dynamic 
-// responsive aspect-ratio width. 100% 12-Bit OCS Colors.
-// Features a depth-faded 3D perspective floor, Moiré magnetic
-// fields, and horizon-anchored L-R-R-L DMA monoliths.
+// DEMO-SCENE-ELEMENT: PAULA 8364 MICROVERSE (1989 EDITION)
+// 100% Alpha-free! Features 16-Color Copper skies, pseudo-3D
+// monoliths, vector-LUT Moiré rings, bitplane noise, 
+// and dynamic horizon rasterlines. (Tribute to Scoopex & Phenomena)
 // =========================================================
 
-import { quantizeAmiga12Bit, rgbToHex } from '../../../visuals/utils/hardware-constraints.js';
+import { quantizeAmiga12Bit, rgbToHex, drawAliasedLine } from '../../utils/hardware-constraints.js';
 
 export class PaulaSiliconBg {
     constructor() {
@@ -15,24 +14,115 @@ export class PaulaSiliconBg {
         this.computerType = ['amiga'];
         this.placementType = 'background';
         
-        // Canvas wird dynamisch im Render-Loop auf das Seitenverhältnis genormt
         this.offscreen = document.createElement('canvas');
         this.ctx = this.offscreen.getContext('2d', { alpha: false });
         
         this.lastT = 0;
         this.internalT = 0;
+
+        // Zero-Allocation Arrays & LUTs
+        this.skyPalettes = [];
+        this.stars = [];
+        this.sin32 = new Float32Array(32);
+        this.cos32 = new Float32Array(32);
+
+        this.initialized = false;
+        this.ensureInitialized();
+    }
+
+    ensureInitialized() {
+        if (this.initialized) return;
+
+        // --- 1. 32-POINT VECTOR CIRCLE LUT ---
+        for (let i = 0; i < 32; i++) {
+            let angle = (i / 32) * Math.PI * 2;
+            this.sin32[i] = Math.sin(angle);
+            this.cos32[i] = Math.cos(angle);
+        }
+
+        // --- 2. 20 STATIC CYCLING STARS ---
+        for (let i = 0; i < 20; i++) {
+            this.stars.push({
+                x: Math.random(),
+                y: Math.random() * 0.5, // Nur im oberen Himmel
+                phase: Math.random() * 10
+            });
+        }
+
+        // --- 3. PRE-CALCULATED COPPER SKY PALETTES (Tension 0.0 to 1.0) ---
+        // 11 Paletten (für 0% bis 100% Tension) à 16 harte OCS Farben
+        for (let t = 0; t <= 10; t++) {
+            let tension = t / 10.0;
+            let pal = [];
+            for (let i = 0; i < 16; i++) {
+                let r, g, b;
+                // Index 0 ist ganz oben (dunkel), Index 15 ist am Horizont (hell)
+                let pct = i / 15.0; 
+                
+                if (tension < 0.5) {
+                    // Deep Blue to Purple/Indigo (Idle/Playing)
+                    r = Math.floor(pct * 80 + tension * 100);
+                    g = Math.floor(pct * 20);
+                    b = Math.floor(50 + pct * 150);
+                } else {
+                    // Deep Purple to Fiery Orange/Red (Buildup/Climax)
+                    r = Math.floor(pct * 150 + tension * 105);
+                    g = Math.floor(pct * 120 * tension);
+                    b = Math.floor(50 + (1.0 - pct) * 80);
+                }
+                pal.push(rgbToHex(...quantizeAmiga12Bit(r, g, b)));
+            }
+            this.skyPalettes.push(pal);
+        }
+
+        this.floorColor = rgbToHex(...quantizeAmiga12Bit(5, 5, 17));
+        this.horizonLineColor = rgbToHex(...quantizeAmiga12Bit(255, 187, 0));
+        this.horizonBeatColor = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));
+
+        this.initialized = true;
     }
 
     resize(width, height) {}
 
+    // Echter Amiga Vector-Kreis über Bresenham-Linien und LUT
+    drawVectorCircle(ctx, cx, cy, r, color) {
+        let px = Math.floor(cx + r * this.cos32[0]);
+        let py = Math.floor(cy + r * this.sin32[0]);
+        for (let i = 1; i <= 32; i++) {
+            let nx = Math.floor(cx + r * this.cos32[i % 32]);
+            let ny = Math.floor(cy + r * this.sin32[i % 32]);
+            drawAliasedLine(ctx, px, py, nx, ny, color);
+            px = nx; 
+            py = ny;
+        }
+    }
+
+    // Isometrischer, handgepixelter A500 Pseudo-3D Block (Kein Alpha!)
+    drawPseudo3DBlock(ctx, x, y, w, h, depth, colFront, colSide, colTop) {
+        // Front
+        ctx.fillStyle = colFront;
+        ctx.fillRect(Math.floor(x - w / 2), Math.floor(y), Math.floor(w), Math.floor(h));
+        
+        // Right Side (Row by Row fillRect for perfect aliased diagonal)
+        ctx.fillStyle = colSide;
+        for (let d = 1; d <= depth; d++) {
+            ctx.fillRect(Math.floor(x + w / 2 + d - 1), Math.floor(y - d), 1, Math.floor(h));
+        }
+        
+        // Top (Row by Row)
+        ctx.fillStyle = colTop;
+        for (let d = 1; d <= depth; d++) {
+            ctx.fillRect(Math.floor(x - w / 2 + d), Math.floor(y - d), Math.floor(w), 1);
+        }
+    }
+
     render(mainCtx, width, height, t, state, stateTime, metrics) {
+        this.ensureInitialized();
+
         if (state === 'idle') { this.lastT = t; return; }
         let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
         this.lastT = t;
 
-// =========================================================
-        // GFX UPGRADE: DYNAMISCHE CHUNKY-AUFLÖSUNG
-        // =========================================================
         const TARGET_HEIGHT = 256;
         const aspect = width / height;
         const offW = Math.floor(TARGET_HEIGHT * aspect);
@@ -47,6 +137,7 @@ export class PaulaSiliconBg {
         const tension = metrics.tensionPct; 
         const vols = metrics.smooth; 
 
+        // Transition Fades
         let globalAlpha = 1.0;
         let speedMult = 1.0;
 
@@ -59,98 +150,103 @@ export class PaulaSiliconBg {
         const time = this.internalT;
 
         const ctx = this.ctx;
-        ctx.imageSmoothingEnabled = false;
-
-        // FIX: Horizont an den 55%-Split des Kefrens-Checkerboards anpassen (256 * 0.55 = 140)
+        
         const horizon = Math.floor(offH * 0.55); 
-        const cx = offW / 2; 
+        const cx = Math.floor(offW / 2); 
 
         // =========================================================
-        // 1. SKY GRADIENT
+        // 1. 16-COLOR COPPER SKY
         // =========================================================
-        for (let y = 0; y < horizon; y += 4) {
-            let r = 0, g = 0, b = 0;
-            if (tension < 0.5) {
-                b = 80 + y;
-                r = y * 0.5 + (tension * 100);
-            } else {
-                r = 100 + y + (tension * 155);
-                g = y * tension;
-                b = 50;
-            }
-            let hex = rgbToHex(...quantizeAmiga12Bit(r, g, b));
-            ctx.fillStyle = hex;
-            ctx.fillRect(0, y, offW, 4);
+        // Ermittle die vorab quantisierte Palette basierend auf Tension (0-10)
+        let palIdx = Math.floor(tension * 10);
+        if (palIdx > 10) palIdx = 10;
+        const activeSkyPalette = this.skyPalettes[palIdx];
+
+        const bandH = Math.ceil(horizon / 16);
+        for (let i = 0; i < 16; i++) {
+            ctx.fillStyle = activeSkyPalette[i];
+            let y = Math.floor(i * bandH);
+            ctx.fillRect(0, y, offW, bandH);
         }
 
         // =========================================================
-        // 2. MAGNETIC MOIRÉ INTERFERENCE
+        // 2. CYCLING STARS (20 Static Dots)
+        // =========================================================
+        const starColors = ['#ffffff', '#ffff00', '#ff8800', '#0055ff'];
+        for (let i = 0; i < this.stars.length; i++) {
+            let s = this.stars[i];
+            let sx = Math.floor(s.x * offW);
+            let sy = Math.floor(s.y * horizon);
+            
+            // Color Cycling basierend auf Zeit und Phase
+            let cIdx = Math.floor(time * 5.0 + s.phase) % starColors.length;
+            ctx.fillStyle = starColors[cIdx];
+            ctx.fillRect(sx, sy, 1, 1);
+        }
+
+        // =========================================================
+        // 3. MAGNETIC MOIRÉ INTERFERENCE (Vector Circles)
         // =========================================================
         if (tension > 0.2) {
             const intensity = (tension - 0.2) / 0.8; 
             const cx1 = cx + Math.sin(time) * (40 + intensity * 40);
-            // Zentren an das neue 140px Himmel-Muster anpassen (Mitte bei Y = 70 statt 64)
             const cy1 = 70 + Math.cos(time * 1.3) * 30;
             const cx2 = cx + Math.sin(time * 1.1 + Math.PI) * (40 + intensity * 40);
             const cy2 = 70 + Math.cos(time * 0.9 + Math.PI) * 30;
             
-            ctx.lineWidth = 1;
-            const rStep = 8 + intensity * 6;
+            const rStep = 10 + intensity * 8;
             
             let mColor = quantizeAmiga12Bit(100 * intensity, 50 + 100 * intensity, 255);
             if (state === 'climax') mColor = quantizeAmiga12Bit(255, 100, 0); 
+            const hexColor = rgbToHex(...mColor);
             
-            ctx.strokeStyle = rgbToHex(...mColor);
-            
-            ctx.beginPath();
             for (let r = 10; r < Math.max(200, offW/2); r += rStep) {
-                ctx.moveTo(cx1 + r, cy1);
-                ctx.arc(cx1, cy1, r, 0, Math.PI * 2);
-                ctx.moveTo(cx2 + r, cy2);
-                ctx.arc(cx2, cy2, r, 0, Math.PI * 2);
+                this.drawVectorCircle(ctx, cx1, cy1, r, hexColor);
+                this.drawVectorCircle(ctx, cx2, cy2, r, hexColor);
             }
-            ctx.stroke();
         }
 
         // =========================================================
-        // 3. 3D DATA BUS FLOOR
+        // 4. THE HORIZON RASTERLINE
         // =========================================================
+        ctx.fillStyle = (beat > 0.6) ? this.horizonBeatColor : this.horizonLineColor;
+        ctx.fillRect(0, horizon, offW, 1);
+
+        // =========================================================
+        // 5. WOBBLING 3D DATA BUS FLOOR
+        // =========================================================
+        ctx.fillStyle = this.floorColor;
+        ctx.fillRect(0, horizon + 1, offW, offH - horizon);
+
+        let gridR = Math.floor(0 + (100 + tension * 155));
+        let gridB = Math.floor(255 - tension * 100);
+        let gridHex = (state === 'climax') 
+            ? rgbToHex(...quantizeAmiga12Bit(255, 255, 255)) 
+            : rgbToHex(...quantizeAmiga12Bit(0, gridR, gridB));
+
+        ctx.fillStyle = gridHex;
+        
         const fov = 120 + tension * 50; 
         const camY = 30 + beat * 15; 
-        
-        ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(10, 5, 20));
-        ctx.fillRect(0, horizon, offW, offH - horizon);
-
-        let gridColor = quantizeAmiga12Bit(0, 100 + tension * 155, 255 - tension * 100);
-        if (state === 'climax') gridColor = quantizeAmiga12Bit(255, 255, 255);
-        ctx.strokeStyle = rgbToHex(...gridColor);
-        ctx.lineWidth = 1;
-        
         const zMax = 400;
         const zStep = 16; 
-        const speed = 150;
-        const scrollZ = (time * speed) % zStep;
+        const scrollZ = (time * 150) % zStep;
         
-        // Horizontale Querlinien
+        // Z-Linien (Horizontal)
         for (let z = zMax; z >= zStep; z -= zStep) {
             let pZ = z - scrollZ;
             if (pZ < 2.5) continue; 
             
             let py = horizon + (camY * fov) / pZ;
             if (py > offH) continue;
-
-            let alpha = Math.max(0, 1.0 - (pZ / zMax));
-            ctx.globalAlpha = alpha;
             
-            ctx.beginPath();
-            ctx.moveTo(0, py | 0);
-            ctx.lineTo(offW, py | 0);
-            ctx.stroke();
+            // Unperfekter Wobble-Effekt (Sinus der Z-Tiefe)
+            let wobbleY = Math.floor(Math.sin(pZ * 0.05 + time * 2) * 2);
+            
+            ctx.fillRect(0, Math.floor(py + wobbleY), offW, 1);
         }
 
-        // Vertikale Fluchtpunkt-Linien
-        ctx.globalAlpha = 0.5;
-        ctx.beginPath();
+        // X-Fluchtlinien
         const xRange = Math.max(400, offW * 1.5); 
         for (let x = -xRange; x <= xRange; x += 32) {
             let startZ = zStep - scrollZ;
@@ -162,16 +258,20 @@ export class PaulaSiliconBg {
             let pxEnd = cx + (x * fov) / zMax;
             let pyEnd = horizon + (camY * fov) / zMax;
             
-            ctx.moveTo(pxStart | 0, pyStart | 0);
-            ctx.lineTo(pxEnd | 0, pyEnd | 0);
+            drawAliasedLine(ctx, pxStart, pyStart, pxEnd, pyEnd, gridHex);
         }
-        ctx.stroke();
-        ctx.globalAlpha = 1.0;
+
+        // --- 5b. BITPLANE NOISE (RAM-Flimmern auf dem Boden) ---
+        if (Math.random() < 0.35) {
+            let nx = Math.floor(Math.random() * offW);
+            let ny = horizon + 2 + Math.floor(Math.random() * (offH - horizon - 2));
+            ctx.fillStyle = (Math.random() > 0.5) ? '#ffffff' : this.horizonLineColor;
+            ctx.fillRect(nx, ny, 2, 1);
+        }
 
         // =========================================================
-        // 4. THE 4 DMA MONOLITHS (Horizon-Anchored)
+        // 6. THE 4 DMA MONOLITHS (Pseudo-3D & Hardware Shading)
         // =========================================================
-        // Perspektivisch näher zusammen (am Fluchtpunkt)
         const span = Math.min(100, offW * 0.25); 
         const dmaX = [
             cx - span,        // DMA 0 (Left)
@@ -180,30 +280,35 @@ export class PaulaSiliconBg {
             cx - span * 0.35  // DMA 3 (Left)
         ];
         
+        // Farben für die 3D Monolithen (Dunkelblau bis Violett)
+        const mFront = rgbToHex(...quantizeAmiga12Bit(17, 17, 34));
+        const mSide  = rgbToHex(...quantizeAmiga12Bit(51, 51, 85));
+        const mTop   = rgbToHex(...quantizeAmiga12Bit(85, 85, 119));
+
         for (let i = 0; i < 4; i++) {
-            let x = dmaX[i];
+            let x = Math.floor(dmaX[i]);
             let vol = vols[i];
             let isLeft = (i === 0 || i === 3);
 
-            // Sockel stehen jetzt auf der Horizontlinie!
             const baseW = 28;
-            const baseH = 20;
+            const baseH = 24 + Math.floor(vol * 12); // Reagiert leicht
+            const depth3D = 8;
             const baseY = horizon - baseH;
 
-            ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(30, 30, 40));
-            ctx.fillRect(x - baseW/2, baseY, baseW, baseH);
-            
-            // Leuchtender Kern (Perspektivisch verkleinert)
+            // Pseudo-3D Monolith zeichnen
+            this.drawPseudo3DBlock(ctx, x, baseY, baseW, baseH, depth3D, mFront, mSide, mTop);
+
+            // Leuchtender Daten-Kern (Color Cycling basierend auf Volume)
             let coreColor = isLeft ? [0, 50 + vol*200, 255] : [255, 50 + vol*200, 0];
-            if (tension > 0.8) coreColor = [255, 255, 255]; 
+            if (tension > 0.8 && beat > 0.5) coreColor = [255, 255, 255]; 
             
             ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(...coreColor));
             ctx.fillRect(x - 8, baseY + 4, 16, 16);
 
+            // Aufsteigende Datenpakete (Kein Alpha! Blenden in die Himmelsfarbe)
             let fetchSpeed = 40 + vol * 150 + tension * 100;
             let numBlocks = Math.floor(vol * 8) + (tension > 0.5 ? 3 : 1);
             
-            // Datenpakete schießen nach OBEN in den Himmel
             for (let b = 0; b < numBlocks; b++) {
                 let yOffset = (time * fetchSpeed + b * 25) % horizon;
                 let blockY = baseY - yOffset;
@@ -212,32 +317,48 @@ export class PaulaSiliconBg {
                 
                 let jitterX = 0;
                 if (tension > 0.7 && vol > 0.4) {
-                    jitterX = (Math.random() - 0.5) * 6 * tension;
+                    jitterX = Math.floor((Math.random() - 0.5) * 6 * tension);
                 }
 
-                // Weiches Fade-Out, wenn sie die Decke erreichen
-                let bAlpha = 1.0;
-                if (blockY < 40) bAlpha = Math.max(0, blockY / 40);
-                
-                ctx.globalAlpha = bAlpha;
-                ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(...coreColor));
-                ctx.fillRect(x - 5 + jitterX, blockY, 10, Math.max(3, vol * 12));
-            }
-            ctx.globalAlpha = 1.0;
+                // Shading-Trick statt Alpha: Je höher das Paket, desto blasser
+                let hPct = blockY / horizon; // 0.0 (Top) to 1.0 (Bottom)
+                let br = Math.floor(coreColor[0] * hPct);
+                let bg = Math.floor(coreColor[1] * hPct);
+                let bb = Math.floor(coreColor[2] * hPct);
 
-            // Climax Laser schießen von der Basis zum Himmel
+                ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(br, bg, bb));
+                ctx.fillRect(x - 5 + jitterX, Math.floor(blockY), 10, Math.max(3, Math.floor(vol * 12)));
+            }
+
+            // =========================================================
+            // 7. CLIMAX COPPER BEAMS (Statt modernem weißen Laser)
+            // =========================================================
             if (state === 'climax' && beat > 0.3 && vol > 0.3) {
-                ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));
-                ctx.fillRect(x - 4, 0, 8, horizon); 
+                // Ein vertikaler Strahl, der aus dem Kern nach oben schießt
+                // Er dithered (Rastert) mit der Himmelsfarbe
+                for (let beamY = 0; beamY < baseY; beamY += 2) {
+                    if ((beamY + Math.floor(time * 50)) % 4 < 2) {
+                        ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));
+                        ctx.fillRect(x - 4, beamY, 8, 2);
+                    } else {
+                        ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 119, 0));
+                        ctx.fillRect(x - 4, beamY, 8, 2);
+                    }
+                }
             }
         }
 
         // =========================================================
-        // 5. STROBE FLASH
+        // 8. BLITTER GARBAGE (The Ultimate Retro Easter Egg)
         // =========================================================
-        if (state === 'climax' && beat > 0.8) {
-            ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));
-            ctx.fillRect(0, 0, offW, offH);
+        if (state !== 'idle' && Math.random() < 0.03) {
+            // Generiert einen bunten, 1-Frame Glitch-Block
+            let gx = Math.floor(Math.random() * offW);
+            let gy = Math.floor(Math.random() * offH);
+            ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 0, 255)); // Magenta Error
+            ctx.fillRect(gx, gy, 16, 2);
+            ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(0, 255, 0)); // Green Error
+            ctx.fillRect(gx + 4, gy + 2, 8, 2);
         }
 
         // =========================================================
