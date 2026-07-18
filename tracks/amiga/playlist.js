@@ -6,6 +6,7 @@
 
 import { loadModFile } from '../../js/parsers/mod-parser.js';
 import { loadXmFile } from '../../js/parsers/xm-parser.js'; 
+import { loadDwFile } from '../../js/parsers/dw-parser.js'; // <--- NEUER PARSER IMPORT!
 
 const myModFiles = [
     "ELYSIUM.MOD",          // Jester / Sanity (1)
@@ -13,6 +14,7 @@ const myModFiles = [
     "GSLINGER.MOD",         // Jogeir Liljedahl (3)
     "agony_intro.mod",      // Jochen Hippel (4)
     "turrican_2_title.xm",  // Chris Huelsbeck (5)
+    "beast1.title.dw",      // <--- NEU: David Whittakers unschlagbares Meisterwerk!
     "blood_money_title.mod",
     "moongazr.mod",
     "immortal.mod",
@@ -21,6 +23,11 @@ const myModFiles = [
 ];
 
 const composerMetadata = {
+    "beast1.title.dw": `
+        <h3>[ COMPOSER SPOTLIGHT: DAVID WHITTAKER ]</h3>
+        <p>Das Titelthema von <strong>Shadow of the Beast</strong> (1989), komponiert von <strong>David Whittaker</strong>, ist eine absolute Legende und gilt als einer der atmosphärisch dichtesten Amiga-Soundtracks aller Zeiten. Whittaker brachte mit diesem Track echten, cineastischen Synthesizer-Sound in die Videospielwelt.</p>
+        <p><strong>DSP-Fokus:</strong> Whittaker revolutionierte das Amiga-Trackwriting, indem er extrem lange, atmosphärische Panflöten- und Akustikgitarren-Samples in den Speicher lud. Da der Paula-Chip eine harte L-R-R-L-Stereotrennung besitzt (die unser cycle-genauer Core mit 3,5 % Übersprechen originalgetreu nachbildet), erzeugte Whittaker über mikro-verzögerte Echo-Effekte ein episches, beispiellos breites Klangpanorama.</p>
+    `,
     "ELYSIUM.MOD": `
         <h3>[ COMPOSER SPOTLIGHT: JESTER (SANITY) ]</h3>
         <p><strong>Elysium</strong> ist eine der wegweisendsten Demoscene-Hymnen aller Zeiten, komponiert 1992 von <strong>Volker Tripp (Jester)</strong> für die Sanity-Megademo <em>Interference</em>. Der Track zeigt die reinste Form des 4-Spur ProTracker-Handwerks: Extrem sauberes 8-Bit Sample-Slicing, tighte perkussive Beatzuweisung und jazzige, synkopierte Rhythmen, die ohne jegliche Pitch-Hüllkurven allein durch exzellente Volumensteuerung und Micro-Slides geformt wurden.</p>
@@ -45,7 +52,9 @@ const composerMetadata = {
 
 export const amigaPlaylist = myModFiles.map((filename, index) => {
     const isXm = filename.toLowerCase().endsWith('.xm');
-    const label = isXm ? "FASTTRACKER" : "PROTRACKER";
+    const isDw = filename.toLowerCase().endsWith('.dw'); // Check auf Whittaker Format
+    
+    const label = isXm ? "FASTTRACKER" : (isDw ? "CUSTOM DW" : "PROTRACKER");
     const metaInfo = composerMetadata[filename] || `
         <h3>[ CLASSIC AMIGA MODULE ]</h3>
         <p>Ein historisches Amiga-Tracker-Dokument. Geladen und emuliert direkt im RAM des Webbrowsers über unseren maßgeschneiderten, phasenstarres MOS Paula 8364 Core.</p>
@@ -58,9 +67,11 @@ export const amigaPlaylist = myModFiles.map((filename, index) => {
         loadAsync: async function() {
             if (isXm) {
                 return await loadXmFile(`tracks/amiga/${filename}`);
+            } else if (isDw) {
+                return await loadDwFile(`tracks/amiga/${filename}`); // <--- LÄDT DEN UWA PARSER!
             } else {
                 return await loadModFile(`tracks/amiga/${filename}`);
             }
         }
     };
-});
+});f
