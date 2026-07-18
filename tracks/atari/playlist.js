@@ -56,6 +56,16 @@ const myYmFiles = [
 ];
 
 const composerMetadata = {
+    "WINGLOAD.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Das Titelthema (Loader) des bahnbrechenden Shoot-'em-ups <strong>Wings of Death</strong> (1990) von Thalion ist ein unumstrittenes Meisterwerk der 16-Bit-Chiptune-Geschichte. Komponist Jochen Hippel trieb den YM2149F hier an seine absoluten physikalischen Grenzen.</p>
+        <p><strong>DSP-Fokus:</strong> Da der Atari ST keinen eingebauten D/A-Wandler für PCM-Samples besaß, hängte Hippel hochfrequente CPU-Interrupts (Timer-B) ein, um im Millisekundentakt das 4-Bit-Lautstärkeregister des Chips zu überschreiben (der berühmte "YM-Sample-Hack"). Die so injizierten Digidrums verleihen dem treibenden Synth-Rock-Track seinen unfassbar rohen, verzerrten 4-Bit-Grit, den unser cycle-genauer Atari-Mischer originalgetreu wiedergibt.</p>
+    `,
+    "WINGLEV1.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Das Titelthema für <strong>Level 1: Over the Trees</strong> aus <em>Wings of Death</em> (Atari ST, 1990). Jochen Hippel inszeniert hier eine dichte, treibende Melodieführung, die perfekt zum rasanten Fullscreen-Scrolling passt.</p>
+        <p><strong>DSP-Fokus:</strong> Achte auf die extrem tighten <strong>Buzzer-Bässe</strong>. Durch das rasant schnelle Beschreiben des Hardware-Envelopes (HEG Shape, Register 13) direkt über den VBLANK-Interrupt erzeugt Hippel einen fülligen, schwebenden Sägezahn-Effekt, der die nackte Dreistimmigkeit des PSG-Chips vergessen lässt.</p>
+    `,
     "EnchantedLands_Intro.YM": `
         <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
         <p>Das Intro-Thema des Thalion-Plattformers <strong>Enchanted Land</strong> (1990) von Jochen Hippel (Mad Max) ist ein Meisterwerk der melodischen YM2149-Synthese. Das Spiel selbst wurde von der legendären Demogruppe <strong>The Carebears (TCB)</strong> programmiert und setzte neue Maßstäbe für flüssiges ST-Fullscreen-Scrolling.</p>
