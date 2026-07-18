@@ -35,6 +35,11 @@ const mySidFiles = [
 ];
 
 const composerMetadata = {
+    "Myth.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: JEROEN TEL (MANIACS OF NOISE) ]</h3>
+        <p>Der Soundtrack zum System-3-Plattformer <strong>Myth: History in the Making</strong> (1989), komponiert von <strong>Jeroen Tel</strong> (Maniacs of Noise), ist ein unumstrittenes Meisterwerk düsterer Fantasy-Elektronik. Der Track verbindet mystische, getragene Klangteppiche mit extrem aggressiven, treibenden Beats und Melodie-Kaskaden.</p>
+        <p><strong>DSP-Fokus:</strong> Jeroen Tel zeigt hier seine absolute Beherrschung der <strong>kombinierten "illegalen" Wellenformen</strong> (Sägezahn + Puls + Rauschen). Durch das meisterhafte Ausnutzen des physischen Wire-AND-Kurzschlusses der DAC-Leitungen auf dem Silizium kreiert er metallische, unglaublich druckvolle Snares und Hi-Hats, die unser cycle-genauer Emulator absolut originalgetreu wiedergibt.</p>
+    `,
     "Lightforce.sid": `
         <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
         <p>Der Soundtrack zu <strong>Lightforce</strong> (1986), komponiert von <strong>Rob Hubbard</strong> für das FTL-Weltraum-Shoot-'em-up (Hewson Consultants), ist eine der meistgeliebten Melodie-Hymnen der C64-Geschichte. Der Track besticht durch seine heroische Energie, treibende Rhythmik und eine unnachahmliche harmonische Tiefe.</p>
