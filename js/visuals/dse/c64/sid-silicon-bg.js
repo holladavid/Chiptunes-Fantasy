@@ -348,22 +348,33 @@ export class SidSiliconBg {
         const span = Math.floor(Math.min(110, offW * 0.35)); 
         
         const oscX = Math.floor(cx - span);
-        const oscY = [42, 97, 153]; // Handgebuiltes Offset (Symmetriebruch!)
+        // OPTIMIERTES LAYOUT: Mathematisch perfekte Symmetrie für bolzengerades Routing!
+        // Stimme 2 sitzt auf 94 (Ausgang auf 100), Abstand ist exakt 59 Pixel.
+        const oscY = [35, 94, 153]; 
         const oscW = 46;
-        const oscH = 32;
 
         const vcfX = Math.floor(cx + span * 0.63);
-        const vcfY = 104; // Symmetriebruch!
         const vcfW = 56;
         const vcfH = 64;
+        // OPTIMIERTES LAYOUT: Perfekte vertikale Zentrierung für symmetrisches Bus-Routing!
+        const vcfY = Math.floor((offH - vcfH) / 2);
 
         // Leiterbahnen im Hintergrund zeichnen (Dunkles Violett 6)
         ctx.fillStyle = PAL[6];
         for (let i = 0; i < 3; i++) {
+            // Hauptbusse (Kompaktes, lückenloses Routing zum VCF)
             const midX = Math.floor(oscX + oscW + (vcfX - (oscX + oscW)) * 0.55);
-            ctx.fillRect(oscX + oscW, oscY[i] + 16, midX - (oscX + oscW), 2);
-            ctx.fillRect(midX, Math.min(oscY[i] + 16, vcfY + 20 + i * 12), 2, Math.abs((oscY[i] + 16) - (vcfY + 20 + i * 12)));
-            ctx.fillRect(midX, vcfY + 20 + i * 12, vcfX - midX, 2);
+            const yStart = oscY[i] + 6; // Exakt mittig aus dem neuen 40px Gehäuse
+            const yEnd = vcfY + 20 + i * 12;
+
+            ctx.fillRect(oscX + oscW, yStart, midX - (oscX + oscW), 2);
+            
+            // +2 an der Höhe schließt die "Ecken" der Leitungen perfekt ab
+            const vY = Math.min(yStart, yEnd);
+            const vH = Math.abs(yStart - yEnd) + 2;
+            ctx.fillRect(midX, vY, 2, vH);
+            
+            ctx.fillRect(midX, yEnd, vcfX - midX, 2);
         }
 
         // =========================================================
@@ -399,7 +410,8 @@ export class SidSiliconBg {
                         el.active = false;
                         el.pos = 0.0;
                     } else {
-                        this.drawElectron(ctx, oscX + oscW, oscY[v] + 16, vcfX, vcfY + 20 + v * 12, el.pos, el.type);
+                        // Fließweg der Elektronen exakt an das neue Gehäuse-Zentrum (oscY[v] + 6) gebunden!
+                        this.drawElectron(ctx, oscX + oscW, oscY[v] + 6, vcfX, vcfY + 20 + v * 12, el.pos, el.type);
                     }
                 }
             }
@@ -423,13 +435,15 @@ export class SidSiliconBg {
                 this.lfsr[v] = ((this.lfsr[v] << 1) & 0x7FFFFF) | bit;
             }
 
-            // Chip Gehäuse
-            this.drawAsymmetricBlock(ctx, oscX - 32, oscY[v] - 16, oscW + 36, oscH + 32, false);
+            // Chip Gehäuse (Kompakt! Höhe 40 statt 64, Y-Center verschoben)
+            this.drawAsymmetricBlock(ctx, oscX - 32, oscY[v] - 14, oscW + 36, 40, false);
 
-            this.drawOscillatingCore(ctx, oscX - 4, oscY[v] - 10, oscW + 4, oscH - 4, ctrl, pw12, this.phase[v], this.lfsr[v], envVal);
+            // Active Waveform Core (Höhe 28, perfekt eingefasst)
+            this.drawOscillatingCore(ctx, oscX - 4, oscY[v] - 8, oscW + 4, 28, ctrl, pw12, this.phase[v], this.lfsr[v], envVal);
 
+            // ADSR Live Flanken-Tracer
             let gate = (ctrl & 1) !== 0;
-            this.drawAdsrBlock(ctx, oscX - 26, oscY[v] + 4, 18, 12, gate, envVal, sr);
+            this.drawAdsrBlock(ctx, oscX - 26, oscY[v] + 2, 18, 12, gate, envVal, sr);
         }
 
         const cutoffReg = (regs[21] & 7) | (regs[22] << 3);

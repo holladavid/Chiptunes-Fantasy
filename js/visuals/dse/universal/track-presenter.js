@@ -80,6 +80,10 @@ export class TrackPresenter {
             const barH = 55; // 11 Bänder à 5 Pixel
             const targetY = Math.floor(horizon * 0.28);
             
+            // HIER ANPASSEN: Ein fester Randabstand (z.B. 16px auf Desktop, schrumpft dynamisch auf Mobile)
+            const marginX = Math.max(12, Math.floor(width * 0.08)); 
+            const boxW = width - (marginX * 2);
+
             let currentY = -barH - 10;
             if (state === 'starting') {
                 currentY = Math.floor((-barH - 10) + (targetY - (-barH - 10)) * ease);
@@ -89,19 +93,18 @@ export class TrackPresenter {
                 currentY = targetY;
             }
 
-            // Concentric VIC-II Rasterbar (Dunkelblau -> Blau -> Hellblau -> Grau -> Weiß)
             const rasterColors = [6, 6, 14, 14, 12, 1, 12, 14, 14, 6, 6].map(idx => rgbToHex(...C64_PALETTE[idx]));
             const bandH = 5;
             
-            // Raster-Interrupt-Split zeichnen
+            // Raster-Interrupt-Split mit dynamischem X-Offset zeichnen
             for (let i = 0; i < rasterColors.length; i++) {
                 let rY = currentY + i * bandH;
                 let wobbleX = Math.floor(Math.sin(rY * 0.08 + t * 4.0) * 3);
                 ctx.fillStyle = rasterColors[i];
-                ctx.fillRect(wobbleX, rY, width, bandH);
+                // Zeichnet die Rasterbar jetzt zentriert mit sauberem Randabstand!
+                ctx.fillRect(marginX + wobbleX, rY, boxW, bandH);
             }
 
-            // Schriftgrößen für C64 festlegen
             const fontTitle = isUltraNarrow ? "6px 'Press Start 2P', monospace" : "8px 'Press Start 2P', monospace";
             const fontSub = isUltraNarrow ? "5px 'Press Start 2P', monospace" : "8px 'Press Start 2P', monospace";
 
@@ -111,20 +114,20 @@ export class TrackPresenter {
             let textY1 = Math.floor(currentY + 18);
             let textY2 = Math.floor(currentY + 36);
 
-            let maxTextW = width - 16;
+            let maxTextW = boxW - 16;
             ctx.font = fontTitle;
             let textW = ctx.measureText(titleText).width;
 
-            // --- ZEILE 1: SCROLLING TITLE (Schwarz auf weißem Raster) ---
             if (textW > maxTextW) {
                 ctx.save();
                 ctx.beginPath();
-                ctx.rect(8, currentY + 4, maxTextW, barH - 8);
+                // Clip-Bereich an die neue Box-Breite angepasst
+                ctx.rect(marginX + 8, currentY + 4, maxTextW, barH - 8);
                 ctx.clip();
 
                 let scrollX = (t * 45) % (textW + maxTextW + 30);
-                let tx = Math.floor(width - 8 - scrollX);
-                ctx.fillStyle = rgbToHex(...C64_PALETTE[0]); // Tiefschwarz für perfekten Kontrast!
+                let tx = Math.floor(width - (marginX + 8) - scrollX);
+                ctx.fillStyle = rgbToHex(...C64_PALETTE[0]); 
                 ctx.fillText(titleText, tx, textY1);
                 ctx.restore();
             } else {
@@ -132,18 +135,13 @@ export class TrackPresenter {
                 ctx.fillText(titleText, cx, textY1);
             }
 
-            // --- ZEILE 2: COHESIVE SUBTRACK INFO (Dunkelblau auf hellem Raster) ---
             ctx.font = fontSub;
-            
-            // Dynamisch injizierte Subtrack-Nummer abfangen
             let curSub = this.trackInfo.currentSubsong || this.trackInfo.startSong || 1;
             let subtracksText = this.trackInfo.songs ? ` • SUB ${curSub}/${this.trackInfo.songs}` : "";
             let displaySub = authorText + subtracksText;
-            
-            // Failsafe: Auch den Subtext auf Handys sauber abschneiden
             let displaySubTruncated = truncateToFit(ctx, displaySub, maxTextW);
 
-            ctx.fillStyle = rgbToHex(...C64_PALETTE[6]); // C64-Dunkelblau
+            ctx.fillStyle = rgbToHex(...C64_PALETTE[6]); 
             ctx.fillText(displaySubTruncated, cx, textY2);
         }
 
