@@ -239,37 +239,57 @@ export class AtariRetroSunset {
             this.drawChunkyCloud(ctx, finalX, cy, rSize, this.cCloudW, this.cCloudP);
         }
 
-        // =========================================================
-        // 3. THE MOUNTAINS 
+// =========================================================
+        // 3. THE MOUNTAINS (Nearest-Neighbor Scanline-Rasterizer)
+        // KEINE weichen Pfade mehr! Wir zeichnen die Berge als scharfkantige 1px Spalten,
+        // um das unbarmherzige Browser-Anti-Aliasing an den Diagonalen hart zu blockieren.
         // =========================================================
         ctx.fillStyle = this.cMountain;
         
-        ctx.beginPath();
-        ctx.moveTo(0, horizon);
-        ctx.lineTo(0, horizon - Math.floor(horizon * 0.4));
-        ctx.lineTo(Math.floor(width * 0.15), horizon - Math.floor(horizon * 0.2));
-        ctx.lineTo(Math.floor(width * 0.35), horizon);
-        ctx.closePath();
-        ctx.fill();
+        // --- BERG 1 (Links) ---
+        const h1A = Math.floor(horizon * 0.4);
+        const h1B = Math.floor(horizon * 0.2);
+        const x1A = Math.floor(width * 0.15);
+        const x1B = Math.floor(width * 0.35);
 
-        ctx.beginPath();
-        ctx.moveTo(width, horizon);
-        ctx.lineTo(width, horizon - Math.floor(horizon * 0.35));
-        ctx.lineTo(Math.floor(width * 0.8), horizon - Math.floor(horizon * 0.15));
-        ctx.lineTo(Math.floor(width * 0.65), horizon);
-        ctx.closePath();
-        ctx.fill();
+        for (let x = 0; x <= x1B; x++) {
+            let h = 0;
+            if (x <= x1A) {
+                // Anstieg von h1A zu h1B
+                let pct = x / x1A;
+                h = Math.floor(h1A + (h1B - h1A) * pct);
+            } else {
+                // Abfall von h1B zu 0
+                let pct = (x - x1A) / (x1B - x1A);
+                h = Math.floor(h1B * (1.0 - pct));
+            }
+            if (h > 0) {
+                ctx.fillRect(x, horizon - h, 1, h);
+            }
+        }
 
-        ctx.fillStyle = this.cBuilding;
-        ctx.fillRect(Math.floor(width * 0.05), horizon - 6, 12, 6);
-        ctx.fillStyle = this.cStoneLine;
-        ctx.fillRect(Math.floor(width * 0.05) + 3, horizon - 4, 3, 4); 
+        // --- BERG 2 (Rechts) ---
+        const h2A = Math.floor(horizon * 0.35);
+        const h2B = Math.floor(horizon * 0.15);
+        const x2A = Math.floor(width * 0.8);
+        const x2B = Math.floor(width * 0.65);
+
+        for (let x = x2B; x <= width; x++) {
+            let h = 0;
+            if (x <= x2A) {
+                // Anstieg von 0 zu h2B
+                let pct = (x - x2B) / (x2A - x2B);
+                h = Math.floor(h2B * pct);
+            } else {
+                // Anstieg von h2B zu h2A am rechten Rand
+                let pct = (x - x2A) / (width - x2A);
+                h = Math.floor(h2B + (h2A - h2B) * pct);
+            }
+            if (h > 0) {
+                ctx.fillRect(x, horizon - h, 1, h);
+            }
+        }
         
-        ctx.fillStyle = this.cBuilding;
-        ctx.fillRect(Math.floor(width * 0.75), horizon - 8, 16, 8);
-        ctx.fillStyle = this.cStoneLine;
-        ctx.fillRect(Math.floor(width * 0.75) + 5, horizon - 5, 4, 5);
-
         // =========================================================
         // 4. THE PULSING SUN
         // =========================================================
