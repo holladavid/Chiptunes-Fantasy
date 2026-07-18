@@ -66,17 +66,18 @@ export class StageManager {
                     dse.stateTime = 0.0; 
                 }
             } else {
-                if (dse.state === 'idle' || dse.state === 'stopping') { 
-                    dse.state = 'starting'; 
-                    dse.stateTime = dse.state === 'stopping' ? Math.max(0.0, transitionTime - dse.stateTime) : 0.0; 
-                } else if (dse.state === 'starting' && dse.stateTime >= transitionTime) { 
-                    dse.state = macroState; 
-                    dse.stateTime = 0.0; 
-                } else if (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax') {
-                    if (dse.state !== macroState) { 
+                    if (dse.state === 'idle' || dse.state === 'stopping') { 
+                        dse.state = 'starting'; 
+                        dse.stateTime = dse.state === 'stopping' ? Math.max(0.0, transitionTime - dse.stateTime) : 0.0; 
+                    } else if (dse.state === 'starting' && dse.stateTime >= transitionTime) { 
                         dse.state = macroState; 
+                        dse.stateTime = 0.0; 
+                    // FIX: 'afterglow' als legalen, transitionierbaren Zustand in die Kette einreihen!
+                    } else if (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax' || dse.state === 'afterglow') {
+                        if (dse.state !== macroState) { 
+                            dse.state = macroState; 
+                        }
                     }
-                }
             }
         }
     }

@@ -149,7 +149,7 @@ export class TensionManager {
 
                 // Extrem feinfühlige Akkumulations-Geschwindigkeiten
                 let accumulationSpeed = 0.8;
-                if (info.system === 'c64') accumulationSpeed = 1.0;
+                if (info.system === 'c64') accumulationSpeed = 0.75;
                 else if (info.system === 'amiga') accumulationSpeed = 0.25; // Wunderbar geschmeidiger Amiga-Aufbau (vorher 0.24)
 
                 // ANTI-DEADLOCK: Tor-Sperre basiert nun auf echter Audio-Aktivität, nicht auf dem künstlichen Intensitätswert!
