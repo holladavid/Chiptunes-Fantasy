@@ -66,6 +66,11 @@ const myYmFiles = [
 ];
 
 const composerMetadata = {
+    "GOLDRUN.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
+        <p>Der legendäre Soundtrack zum vertikalen Shoot-'em-up-Klassiker <strong>Goldrunner</strong> (1987), programmiert von Steve Bak und Pete Lyon. Die Musik wurde vom C64-Rockgott <strong>Rob Hubbard</strong> höchstpersönlich für den ST arrangiert und basiert auf seinem wegweisenden C64-Track <em>Human Race</em>.</p>
+        <p><strong>DSP-Fokus:</strong> Hubbard portierte hier nicht nur Melodien, sondern sein gesamtes technisches Musik-Verständnis auf den ST. Der Track demonstriert, wie man mit einer schnellen, in Assembler handgeschriebenen Sound-Engine dichte, synkopierte Rhythmen und fließende Portamentos (Pitch-Slides) erzeugt. Unser zyklengenauer YM-Mischer löst die rasanten Tonhöhen-Sweeps absolut phasenstarr auf.</p>
+    `,
     "XN1.YM": `
         <h3>[ COMPOSER SPOTLIGHT: DAVID WHITTAKER ]</h3>
         <p>Das ikonische Titelthema (Main Title) des wegweisenden Bitmap-Brothers-Shoot-'em-ups <strong>Xenon</strong> (1988), komponiert von <strong>David Whittaker</strong>. Whittaker war einer der produktivsten und genialsten Pioniere der frühen ST- und Amiga-Ära, berühmt für seine pfeilschnellen, hochoptimierten Assembly-Treiber.</p>
