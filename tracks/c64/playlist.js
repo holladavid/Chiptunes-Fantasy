@@ -10,6 +10,7 @@ const mySidFiles = [
     "Commando.sid",                   // 1. Rob Hubbard
     "Wizball.sid",                    // 2. Martin Galway
     "Comic_Bakery.sid",               // <--- NEU: Martin Galways bahnbrechendes Meisterwerk!
+    "Arkanoid.sid",                   // <--- NEU: Martin Galways bahnbrechender Meilenstein!
     "Great_Giana_Sisters_PSID.sid",   // 3. Chris Hülsbeck
     "Bionic_Commando.sid",            // 4. Tim Follin
     "Last_Ninja.sid",                 // 5. Ben Daglish & Anthony Lees
@@ -31,6 +32,11 @@ const mySidFiles = [
 ];
 
 const composerMetadata = {
+    "Arkanoid.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: MARTIN GALWAY ]</h3>
+        <p>Der Soundtrack zur C64-Portierung von <strong>Arkanoid</strong> (1987), komponiert von <strong>Martin Galway</strong>, ist ein historisches Novum: Es war das <strong>allererste Mal in der Geschichte</strong>, dass echte, digitale PCM-Drums (Samples) innerhalb einer musikalischen Komposition auf dem Commodore 64 abgespielt wurden!</p>
+        <p><strong>DSP-Fokus:</strong> Das Titelthema basiert auf Galways eigener Speccy-Musik aus dem Spiel <em>Cobra</em>, wurde aber für den SID mit spektakulären, metallischen Digidrums veredelt. Durch das blitzschnelle Beschreiben des 4-Bit-Lautstärkeregisters erzeugte er den berühmten samplebasierten "Galway-Hack" ($D418), den unser cycle-genauer 1-MHz-Mischer originalgetreu emuliert.</p>
+    `,
     "Comic_Bakery.sid": `
         <h3>[ COMPOSER SPOTLIGHT: MARTIN GALWAY ]</h3>
         <p>Der Soundtrack zu <strong>Comic Bakery</strong> (1985), komponiert von <strong>Martin Galway</strong>, ist einer der einflussreichsten und meistgecoverten Meilensteine der Chiptune-Geschichte. Galway erschuf hier ein elektronisches Kunstwerk, das die Grenzen des SID-Chips sprengte.</p>

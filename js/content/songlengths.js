@@ -23,7 +23,7 @@ export const SID_SLDB = {
     "compilationi": { lengths: [311, 230, 215, 342] },
     "compilationii": { lengths: [482, 180, 240, 150] },
     "comicbakery": { lengths: [304, 131] },
-    // --- NEU: Jeroen Tel / Maniacs of Noise ---
+    "arkanoid": { lengths: [144, 34, 10, 10] },
     "cybernoidii": { lengths: [378, 10, 10] },
     "supremacy": { lengths: [316, 210, 180, 120] },
     "robocop3": { lengths: [185, 120, 105, 165, 110] },
