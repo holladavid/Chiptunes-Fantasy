@@ -3,6 +3,7 @@
 // SCENE-DJ SKILL: TENSION MANAGER (DEMO-DIRECTOR EDITION)
 // Hardware-Register Sniffing, Novelty/Freshness Tracking,
 // Event-based Climax with 50/50 Climax-Hold/Afterglow Split.
+// Calibrated Amiga Pacing (Anti-Deadlock Edition).
 // =========================================================
 
 const MIN_BUILDUP_TIME = 0.5;
@@ -65,7 +66,7 @@ export class TensionManager {
                 if (Math.abs(cut - lastCut) > 200) freshnessSpike += 0.2; // Filter-Fahrt
                 
             } else if (info.system === 'amiga') {
-                // Paula Events (Gedämpftes Spiking gegen Hyperaktivität!)
+                // Paula Events (Kalibriert: Gesunder Mittelweg gegen Sättigung)
                 for (let c = 0; c < 4; c++) {
                     let offset = c * 7;
                     let vol = chipRegs[offset + 6];
@@ -73,7 +74,7 @@ export class TensionManager {
                     let per = (chipRegs[offset + 4] << 8) | chipRegs[offset + 5];
                     let lastPer = (this.lastRegs[offset + 4] << 8) | this.lastRegs[offset + 5];
 
-                    if (vol > lastVol + 12) freshnessSpike += 0.08; 
+                    if (vol > lastVol + 12) freshnessSpike += 0.10; // Ausgewogene Trigger-Schwelle
                     if (vol > 0 && per !== lastPer && Math.abs(per - lastPer) > 12) freshnessSpike += 0.05; 
                 }
                 
@@ -91,9 +92,13 @@ export class TensionManager {
             }
         }
 
+        // Systemspezifischer Abbau (Amiga sachte beschleunigt auf 0.65)
+        let decaySpeed = 0.45;
+        if (info.system === 'amiga') decaySpeed = 0.65;
+
         // Freshness akkumulieren und abbauen
         this.freshness = Math.min(1.0, this.freshness + freshnessSpike);
-        this.freshness = Math.max(0.0, this.freshness - (dt * 0.45));
+        this.freshness = Math.max(0.0, this.freshness - (dt * decaySpeed));
 
         let targetState = this.macroState;
 
@@ -111,7 +116,7 @@ export class TensionManager {
 
             if (this.macroState === 'afterglow') {
                 // AFTERGLOW PHASE (Der Abkühlungs-Glow):
-                // Die Tension fällt absolut linear mit dem Afterglow-Timer ab!
+                // Die Tension fällt linear mit dem Afterglow-Timer ab
                 this.afterglowTimer -= dt;
                 
                 this.tension = TENSION_MAX * Math.max(0.0, this.afterglowTimer / halfHold);
@@ -123,7 +128,7 @@ export class TensionManager {
                 }
             } else if (this.isClimaxLocked) {
                 // CLIMAX PHASE (Die eigentliche Explosion):
-                // Zündet für exakt 50% der climaxHoldTime das pure Action-Feuerwerkt!
+                // Nutzt exakt 50% der climaxHoldTime für die Action
                 this.climaxTimer += dt;
                 this.tension = TENSION_MAX; // Bleibt auf Vollanschlag
 
@@ -145,10 +150,11 @@ export class TensionManager {
                 // Extrem feinfühlige Akkumulations-Geschwindigkeiten
                 let accumulationSpeed = 0.8;
                 if (info.system === 'c64') accumulationSpeed = 1.0;
-                else if (info.system === 'amiga') accumulationSpeed = 0.48; // Zügelt den rasanten Paula-Aufbau massiv
+                else if (info.system === 'amiga') accumulationSpeed = 0.35; // Wunderbar geschmeidiger Amiga-Aufbau (vorher 0.24)
 
-                if (visualIntensity > 0.15) {
-                    this.tension += visualIntensity * accumulationSpeed * dt * 5.0; 
+                // ANTI-DEADLOCK: Tor-Sperre basiert nun auf echter Audio-Aktivität, nicht auf dem künstlichen Intensitätswert!
+                if (energy > 0.25) {
+                    this.tension += visualIntensity * accumulationSpeed * dt * 4.0; 
                     
                     if (this.tension >= TENSION_MAX) {
                         this.tension = TENSION_MAX;
