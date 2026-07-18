@@ -1,13 +1,26 @@
 // === js/visuals/dse/c64/retro-sunset.js ===
+// =========================================================
+// DEMO-SCENE-ELEMENT: C64 RETRO SUNSET (v5.0.0 - Background Edition)
+// 100% Anti-Aliasing free. Pure fillRect() integer rendering.
+// Stripped down to pure background aesthetics: No competing raster 
+// bars. Uses inner-edge sun dithering, 1px horizon heat-haze, 
+// subtle sky band breathing and beat-reactive water cone reflections.
+// =========================================================
+
 import { C64_PALETTE, rgbToHex } from '../../utils/hardware-constraints.js';
 
 export class C64RetroSunset {
     constructor() {
+        this.name = 'C64 Retro Sunset';
+        this.computerType = ['c64'];
+        this.placementType = 'background';
+        
         this.internalT = 0;
         this.waterT = 0;
         this.smoothedSpeed = 1.0;
         this.smoothedWaveSpeed = 1.0;
         this.lastT = 0;
+        this.frameCounter = 0;
 
         // Statischer Farb-Cache zur Vermeidung von CPU-Lookups im Renderloop
         this.colDarkBlue  = rgbToHex(...C64_PALETTE[6]);
@@ -16,6 +29,10 @@ export class C64RetroSunset {
         this.colYellow    = rgbToHex(...C64_PALETTE[7]);
         this.colWhite     = rgbToHex(...C64_PALETTE[1]);
         this.colLightBlue = rgbToHex(...C64_PALETTE[14]);
+        
+        // 32-Bit Wasser-Muster (Deterministisch, KEIN Math.random!)
+        this.waterPattern = [1,0,1,1, 0,0,1,0, 1,0,0,0, 1,1,1,0, 0,1,0,0, 1,0,1,1, 0,1,0,0, 0,0,1,0];
+        this.patternLen = 32;
     }
 
     resize(width, height) {}
@@ -25,10 +42,11 @@ export class C64RetroSunset {
         let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
         this.lastT = t;
 
+        this.frameCounter++;
+
         let globalAlpha = 1.0;
         let targetSpeed = 1.0;
         let targetWaveSpeed = 1.0;
-        let beatIntensity = 0.0;
 
         if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
@@ -36,91 +54,134 @@ export class C64RetroSunset {
             globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
         } else if (state === 'buildup') {
             targetSpeed = 1.2;             
-            targetWaveSpeed = 1.5;         
-            beatIntensity = 0.25;           
+            targetWaveSpeed = 2.0;         
         } else if (state === 'climax') {
             targetSpeed = 2.2;
-            targetWaveSpeed = 5.0;         
-            beatIntensity = 1.0;           
+            targetWaveSpeed = 6.0; // Purer Geschwindigkeits-Boost     
         }
 
         this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * 0.05;
         this.smoothedWaveSpeed += (targetWaveSpeed - this.smoothedWaveSpeed) * 0.05;
         
         this.internalT += dt * this.smoothedSpeed;
-        this.waterT += dt * this.smoothedWaveSpeed;
-
-        const activeSunPulse = metrics.beat[0] * beatIntensity;
-        const activeBeatDistortion = metrics.beat[0] * beatIntensity * 4.0;
+        
+        // Beat pusht die Scrolling-Geschwindigkeit direkt an
+        let activeWaveSpeed = this.smoothedWaveSpeed + (metrics.beat[0] * 8.0);
+        this.waterT += dt * activeWaveSpeed;
 
         ctx.globalAlpha = globalAlpha;
         
         const horizon = Math.floor(height * 0.55); 
         const minDim = Math.min(width, height); 
+        const cx = Math.floor(width / 2);
 
-        // Symmetrisch lückenlose Himmelbänder
-        const y1 = Math.floor(horizon * 0.3);
-        const y2 = Math.floor(horizon * 0.6);
+        // =========================================================
+        // 1. DER HIMMEL (Subtiles VIC-II Breathing)
+        // =========================================================
+        const y1 = Math.floor(horizon * 0.28);
+        const y2 = Math.floor(horizon * 0.58);
         const y3 = Math.floor(horizon * 0.85);
 
-        ctx.fillStyle = this.colDarkBlue;  ctx.fillRect(0, 0, width, y1); 
+        // Subtiles Farb-Atmen: Bänder ändern alle paar Sekunden für 3 Frames die Farbe
+        let cSky1 = this.colDarkBlue;
+        if (this.frameCounter % 180 < 3) cSky1 = this.colLightBlue;
+
+        let cSky3 = this.colLightRed;
+        if ((this.frameCounter + 90) % 180 < 3) cSky3 = this.colRed;
+
+        ctx.fillStyle = cSky1;             ctx.fillRect(0, 0, width, y1); 
         ctx.fillStyle = this.colRed;       ctx.fillRect(0, y1, width, y2 - y1); 
-        ctx.fillStyle = this.colLightRed;  ctx.fillRect(0, y2, width, y3 - y2); 
+        ctx.fillStyle = cSky3;             ctx.fillRect(0, y2, width, y3 - y2); 
         ctx.fillStyle = this.colYellow;    ctx.fillRect(0, y3, width, horizon - y3);
-        
-        let sunR = Math.floor((minDim * 0.125) + (activeSunPulse * (minDim * 0.045))); 
-        let sx = Math.floor(width / 2); 
-        let sy = Math.floor(horizon - 12);
 
+        // =========================================================
+        // 2. HORIZON HEAT HAZE (1-Pixel Flimmern)
+        // =========================================================
+        // Simuliert flimmernde Hitze über dem Wasser - 1 Pixel stark, extrem effektiv!
+        ctx.fillStyle = (this.frameCounter % 6 < 3) ? this.colWhite : this.colYellow;
+        ctx.fillRect(0, horizon - 1, width, 1);
+
+        // =========================================================
+        // 3. DIE SONNE (Inner-Edge Dithering, keine Corona)
+        // =========================================================
+        let sunR = Math.floor(minDim * 0.16); 
+        // Sonne taucht tief in den Horizont ein
+        let sy = Math.floor(horizon + 12); 
         const blockSize = 4; 
-        const centerBlockX = Math.floor(sx / blockSize);
-        const centerBlockY = Math.floor(sy / blockSize);
+        const blockR = Math.floor(sunR / blockSize);
+        
+        for (let by = -blockR; by <= 0; by++) {
+            let drawY = sy + by * blockSize;
+            if (drawY >= horizon) continue; 
 
-        // 1. Phosphor-Corona
-        if (activeSunPulse > 0.05) {
-            let coronaR = Math.floor(sunR + (minDim * 0.035 * activeSunPulse));
-            const coronaBlockR = Math.round(coronaR / blockSize);
-            ctx.fillStyle = this.colLightRed; 
-            for (let by = -coronaBlockR; by <= coronaBlockR; by++) {
-                let dx = Math.round(Math.sqrt(coronaBlockR * coronaBlockR - by * by));
-                let screenY = (centerBlockY + by) * blockSize;
-                let startX = (centerBlockX - dx) * blockSize;
-                let endX = (centerBlockX + dx) * blockSize;
-                ctx.fillRect(startX, screenY, endX - startX, blockSize);
+            let dx = Math.round(Math.sqrt(blockR * blockR - by * by));
+            if (isNaN(dx)) dx = 0;
+
+            let startX = cx - dx * blockSize;
+            let endX = cx + dx * blockSize;
+
+            // Core (Weiß)
+            ctx.fillStyle = this.colWhite;
+            ctx.fillRect(startX, drawY, dx * 2 * blockSize, blockSize);
+
+            // Inner-Edge Dithering: Der Rand flirrt zwischen Gelb und Weiß
+            if (dx > 0) {
+                // Das Schachbrett-Muster verschiebt sich im Takt der Frames
+                let isYellowEdge = ((Math.abs(by) + Math.floor(this.frameCounter / 6)) % 2 === 0);
+                if (isYellowEdge) {
+                    ctx.fillStyle = this.colYellow;
+                    ctx.fillRect(startX, drawY, blockSize, blockSize);
+                    ctx.fillRect(endX - blockSize, drawY, blockSize, blockSize);
+                }
             }
         }
 
-        // 2. Sonnenkern (Integer Blocks)
-        const blockR = Math.round(sunR / blockSize);
-        ctx.fillStyle = this.colWhite;
-        for (let by = -blockR; by <= blockR; by++) {
-            let dx = Math.round(Math.sqrt(blockR * blockR - by * by));
-            let screenY = (centerBlockY + by) * blockSize;
-            let startX = (centerBlockX - dx) * blockSize;
-            let endX = (centerBlockX + dx) * blockSize;
-            ctx.fillRect(startX, screenY, endX - startX, blockSize);
-        }
+        // =========================================================
+        // 4. DAS WASSER (Deterministisches horizontales Parallax-Scrolling)
+        // =========================================================
+        ctx.fillStyle = this.colDarkBlue; 
+        ctx.fillRect(0, horizon, width, height - horizon);
 
-        // Wasserhintergrund
-        ctx.fillStyle = this.colDarkBlue; ctx.fillRect(0, horizon, width, height - horizon);
+        const blockW = 8; // Pixelbreite eines "Wasser-Sprites"
 
-        let waveSpeed = this.waterT * 10; 
-        const waveDisplacementAmp = metrics.tensionPct * 6.0;
-
-        for (let y = Math.floor(horizon); y < height; y += 4) {
-            let xDistort = Math.sin((y * 0.15) + (this.waterT * 0.8)) * waveDisplacementAmp;
-            let offset = Math.floor((waveSpeed + y * 2) % 40);
+        for (let y = horizon; y < height; y += 4) {
+            let dy = y - horizon;
             
-            for (let x = -40; x < width + 40; x += 40) {
-                let drawX = Math.floor(x - offset + xDistort);
+            // Parallax-Geschwindigkeit
+            let parallaxSpeed = this.waterT * (12 + dy * 0.35); 
+            
+            // Der Spiegelungs-Kegel pulsiert dezent mit dem Beat!
+            let coneBeatExpand = metrics.beat[0] * 12.0;
+            let coneW = Math.floor((minDim * 0.08) + dy * 1.25 + coneBeatExpand);
+            
+            let pixelOffset = Math.floor(parallaxSpeed);
+
+            for (let px = -(pixelOffset % blockW); px < width; px += blockW) {
+                let i = Math.floor((px + pixelOffset) / blockW);
+                let bitIdx = ((i % this.patternLen) + this.patternLen) % this.patternLen;
                 
-                if (Math.abs(drawX - sx) < sunR * 0.9 && y > horizon + 8) {
-                    let isBright = (activeBeatDistortion > 1.5) ? (Math.random() > 0.4) : (Math.random() > 0.15);
-                    ctx.fillStyle = isBright ? this.colYellow : this.colLightRed;
-                } else {
-                    ctx.fillStyle = this.colLightBlue; 
+                let isSolid = this.waterPattern[bitIdx] === 1;
+
+                if (isSolid) {
+                    let distToCenter = Math.abs(px - cx);
+
+                    if (distToCenter < coneW) {
+                        // Reflektion (Innerhalb des Kegels)
+                        // Bei Beat breitet sich der grell-weiße Glanzpunkt ein paar Zeilen weiter nach unten aus!
+                        let whiteDepth = 8 + metrics.beat[0] * 12;
+                        
+                        if (dy < whiteDepth && bitIdx % 3 === 0) {
+                            ctx.fillStyle = this.colWhite; 
+                        } else {
+                            ctx.fillStyle = (dy % 8 < 4) ? this.colYellow : this.colLightRed;
+                        }
+                    } else {
+                        // Normales Wasser
+                        ctx.fillStyle = this.colLightBlue;
+                    }
+                    
+                    ctx.fillRect(px, y, blockW, 2);
                 }
-                ctx.fillRect(drawX, Math.floor(y + 1), 10, 2); 
             }
         }
 
