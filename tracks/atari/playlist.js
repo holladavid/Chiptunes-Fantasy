@@ -56,6 +56,11 @@ const myYmFiles = [
 ];
 
 const composerMetadata = {
+    "EnchantedLands_Intro.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Das Intro-Thema des Thalion-Plattformers <strong>Enchanted Land</strong> (1990) von Jochen Hippel (Mad Max) ist ein Meisterwerk der melodischen YM2149-Synthese. Das Spiel selbst wurde von der legendären Demogruppe <strong>The Carebears (TCB)</strong> programmiert und setzte neue Maßstäbe für flüssiges ST-Fullscreen-Scrolling.</p>
+        <p><strong>DSP-Fokus:</strong> Hippel nutzt hier ausgefeilte Software-LFO-Modulationen und synchronisierte Pitch-Slides auf dem Yamaha-Chip. Da das Spiel von den talentiertesten Coder-Cracks der schwedischen Szene geschrieben wurde, durfte der Sound absolut keine CPU-Ressourcen verschwenden – und klingt dank Hippels genialer Register-Ökonomie dennoch wie ein orchestrales Synth-Gewitter.</p>
+    `,
     "thalion_loader.YM": `
         <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
         <p><strong>Jochen Hippel</strong> (Mad Max) von der Demogruppe <em>The Carebears</em> ist der unumstrittene Meister des Yamaha YM2149. Während die meisten Musiker den Chip für seine starren Rechteckwellen hassten, bog Hippel ihn durch brachiale CPU-Programmierung nach seinem Willen.</p>
