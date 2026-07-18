@@ -9,6 +9,7 @@ import { loadSidFile } from '../../js/parsers/sid-parser.js';
 const mySidFiles = [
     "Commando.sid",                   // 1. Rob Hubbard
     "Wizball.sid",                    // 2. Martin Galway
+    "Comic_Bakery.sid",               // <--- NEU: Martin Galways bahnbrechendes Meisterwerk!
     "Great_Giana_Sisters_PSID.sid",   // 3. Chris Hülsbeck
     "Bionic_Commando.sid",            // 4. Tim Follin
     "Last_Ninja.sid",                 // 5. Ben Daglish & Anthony Lees
@@ -30,6 +31,11 @@ const mySidFiles = [
 ];
 
 const composerMetadata = {
+    "Comic_Bakery.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: MARTIN GALWAY ]</h3>
+        <p>Der Soundtrack zu <strong>Comic Bakery</strong> (1985), komponiert von <strong>Martin Galway</strong>, ist einer der einflussreichsten und meistgecoverten Meilensteine der Chiptune-Geschichte. Galway erschuf hier ein elektronisches Kunstwerk, das die Grenzen des SID-Chips sprengte.</p>
+        <p><strong>DSP-Fokus:</strong> Das legendäre Hauptthema demonstriert das Potential von Galways charakteristischer <strong>Pulsweitenmodulation (PWM)</strong>. Durch gezieltes Software-LFO-Wobbeln der Rechteckbreite erzeugte er einen fetten, chorusschwebenden Synthesizer-Bass. Gekoppelt mit rasanten 50Hz-VBLANK-Arpeggios gaukelt der Track dem Ohr eine dichte, vielstimmige Anordnung vor, obwohl der SID nur 3 Oszillatoren besitzt.</p>
+    `,
     "Last_Ninja_2.sid": `
         <h3>[ COMPOSER SPOTLIGHT: MATT GRAY ]</h3>
         <p>Der Soundtrack zu <strong>Last Ninja 2: Back with a Vengeance</strong> (1988), komponiert von <strong>Matt Gray</strong>, ist eine absolute Chiptune-Ikone der C64-Geschichte. Gray verschmolz fernöstliche Harmonien mit wuchtigen, treibenden Funk/Synthwave-Basslines und schuf damit unvergessliche Tracks wie <em>Central Park</em> und <em>The Office</em>.</p>
