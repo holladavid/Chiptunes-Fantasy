@@ -3,7 +3,7 @@
 // SCENE-DJ SKILL: TENSION MANAGER (DEMO-DIRECTOR EDITION)
 // Hardware-Register Sniffing, Novelty/Freshness Tracking,
 // Event-based Climax with 50/50 Climax-Hold/Afterglow Split.
-// Calibrated Amiga Pacing (Anti-Deadlock Edition).
+// Calibrated Amiga Pacing & Instant-Wake-Up for Quiet Intos.
 // =========================================================
 
 const MIN_BUILDUP_TIME = 0.5;
@@ -109,6 +109,16 @@ export class TensionManager {
             targetState = 'idle';
         } else {
             // =========================================================
+            // ANTI-BLACKOUT: SOFORTIGES ERWACHEN AUS DEM IDLE-SCHLAF
+            // Wenn der Track läuft, MUSS das System sofort auf 'playing' 
+            // wechseln, völlig egal wie leise das Intro des Liedes ist!
+            // =========================================================
+            if (this.macroState === 'idle') {
+                targetState = 'playing';
+                this.tension = 0.0;
+            }
+
+            // =========================================================
             // 3. EVENT-ORIENTED STATE MACHINE
             // =========================================================
             let refHold = Math.max(2.0, this.currentClimaxHoldTime);
@@ -150,9 +160,9 @@ export class TensionManager {
                 // Extrem feinfühlige Akkumulations-Geschwindigkeiten
                 let accumulationSpeed = 0.8;
                 if (info.system === 'c64') accumulationSpeed = 0.75;
-                else if (info.system === 'amiga') accumulationSpeed = 0.25; // Wunderbar geschmeidiger Amiga-Aufbau (vorher 0.24)
+                else if (info.system === 'amiga') accumulationSpeed = 0.35; // Wunderbar geschmeidiger Amiga-Aufbau
 
-                // ANTI-DEADLOCK: Tor-Sperre basiert nun auf echter Audio-Aktivität, nicht auf dem künstlichen Intensitätswert!
+                // Tor-Sperre für den eigentlichen Tension-Anstieg
                 if (energy > 0.25) {
                     this.tension += visualIntensity * accumulationSpeed * dt * 4.0; 
                     
@@ -174,8 +184,13 @@ export class TensionManager {
                         }
                     }
                 } else {
+                    // Song ist leise -> Tension baut sich sachte ab, aber wir bleiben aktiv im 'playing'-Zustand!
                     this.tension = Math.max(0.0, this.tension - (dt * 3.0));
+                    
+                    // Sicherstellen, dass wir im 'playing'-Zustand bleiben oder dorthin zurückwechseln
                     if (this.macroState === 'buildup' && this.energyStateTimer > MIN_BUILDUP_TIME) {
+                        targetState = 'playing';
+                    } else if (this.macroState === 'idle') {
                         targetState = 'playing';
                     }
                 }
