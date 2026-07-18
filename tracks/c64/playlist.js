@@ -34,6 +34,11 @@ const mySidFiles = [
 ];
 
 const composerMetadata = {
+    "Delta.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
+        <p>Der Soundtrack zum Thalamus-Shoot-'em-up <strong>Delta</strong> (1987), komponiert von <strong>Rob Hubbard</strong>, ist eine absolute Chiptune-Sensation. Das Titelthema kombiniert Einflüsse aus Pink Floyds Synthesizer-Sequence <em>On the Run</em> (Album: Dark Side of the Moon) und Philip Glass' minimalistischen Strukturen zu einer epischen Space-Synth-Atmosphäre.</p>
+        <p><strong>DSP-Fokus:</strong> <em>Delta</em> ist ein Lehrstück für komplexe Sequenzer-Arpeggios und treibende Bass-Grooves. Hubbard nutzt hier im Sekundentakt wechselnde Pulsweitenmodulationen und sachte Filter-Sweeps, um dem Soundtrack seine spacige Breite zu verleihen. Unser cycle-genauer Emulator bringt diese dichten Registerdaten absolut phasenstarr und ohne Aliasing-Rauschen auf deine Lautsprecher.</p>
+    `,
     "Monty_on_the_Run.sid": `
         <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
         <p>Der Soundtrack zu <strong>Monty on the Run</strong> (1985), komponiert von <strong>Rob Hubbard</strong> für das Gremlin-Graphics-Plattformspiel, ist ein Meilenstein der programmierbaren Melodieführung. Der Track ist berühmt für sein atemberaubendes, rasend schnelles <strong>E-Geigen-Solo (Violin Solo)</strong>, das als eines der virtuosesten Stücke gilt, die je für den C64 geschrieben wurden.</p>
