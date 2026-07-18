@@ -24,6 +24,7 @@ export const SID_SLDB = {
     "compilationii": { lengths: [482, 180, 240, 150] },
     "comicbakery": { lengths: [304, 131] },
     "arkanoid": { lengths: [144, 34, 10, 10] },
+    "lightforce": { lengths: [214] },
     "cybernoidii": { lengths: [378, 10, 10] },
     "supremacy": { lengths: [316, 210, 180, 120] },
     "sanxion": { lengths: [325, 201] },

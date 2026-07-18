@@ -10,6 +10,7 @@ const mySidFiles = [
     "Commando.sid",                   // 1. Rob Hubbard
     "Crazy_Comets.sid",               // <--- NEU: Rob Hubbards legendäres Synthwave-Meisterwerk!    
     "Sanxion.sid",                    // <--- NEU: Rob Hubbards legendäre "Thalamusik"!
+    "Lightforce.sid",                 // <--- NEU: Rob Hubbards heroische Chiptune-Hymne!
     "Wizball.sid",                    // 2. Martin Galway
     "Comic_Bakery.sid",               // <--- NEU: Martin Galways bahnbrechendes Meisterwerk!
     "Arkanoid.sid",                   // <--- NEU: Martin Galways bahnbrechender Meilenstein!
@@ -34,6 +35,11 @@ const mySidFiles = [
 ];
 
 const composerMetadata = {
+    "Lightforce.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
+        <p>Der Soundtrack zu <strong>Lightforce</strong> (1986), komponiert von <strong>Rob Hubbard</strong> für das FTL-Weltraum-Shoot-'em-up (Hewson Consultants), ist eine der meistgeliebten Melodie-Hymnen der C64-Geschichte. Der Track besticht durch seine heroische Energie, treibende Rhythmik und eine unnachahmliche harmonische Tiefe.</p>
+        <p><strong>DSP-Fokus:</strong> Der Track glänzt durch eine extrem epische Lead-Stimme und Hubbards charakteristische, dichte Schlagzeug-Emulation. Unser cycle-genauer 1-MHz-Mischer verarbeitet die rasanten PWM-Breiten-Modulationen und die knackig gesnapten ADSR-Hüllkurven vollkommen phasenstarr und randscharf, was den hymnischen Charakter des Stücks eindrucksvoll zur Geltung bringt.</p>
+    `,
     "Delta.sid": `
         <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
         <p>Der Soundtrack zum Thalamus-Shoot-'em-up <strong>Delta</strong> (1987), komponiert von <strong>Rob Hubbard</strong>, ist eine absolute Chiptune-Sensation. Das Titelthema kombiniert Einflüsse aus Pink Floyds Synthesizer-Sequence <em>On the Run</em> (Album: Dark Side of the Moon) und Philip Glass' minimalistischen Strukturen zu einer epischen Space-Synth-Atmosphäre.</p>
