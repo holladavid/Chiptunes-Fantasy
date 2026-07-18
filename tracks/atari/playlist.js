@@ -27,6 +27,13 @@ const myYmFiles = [
     "WINGLEV8.YM",
     "WINGLEV9.YM",
     "WINGLOAD.YM",
+    "LethalXcess1.YM",
+    "LethalXcess2.YM",
+    "LethalXcess3.YM",
+    "LethalXcess4.YM",
+    "LethalXcess5.YM",
+    "LethalXcess6.YM",
+    "LethalXcess7.YM",
     "GOLDRUN.YM",
     "spherical_intro.YM",
     "Dragonflight_Title.YM",
@@ -56,6 +63,41 @@ const myYmFiles = [
 ];
 
 const composerMetadata = {
+    "LethalXcess1.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Das epische Titelthema (Main Title) von <strong>Lethal Xcess: Wings of Death II</strong> (1991), komponiert von Jochen Hippel (Mad Max). Dieses vertikale Thalion-Shoot-'em-up ist der direkte, wegweisende Nachfolger von <em>Wings of Death</em>.</p>
+        <p><strong>DSP-Fokus:</strong> Hippel nutzt hier seine absolute Peak-Erfahrung der späten ST-Ära. Der Track brilliert durch meisterhaft modulierte 4-Bit-PCM Digidrums und unglaublich dichte, schwebende Arpeggio-Kaskaden, die das absolute Maximum aus den Registern des YM2149F herausholen.</p>
+    `,
+    "LethalXcess2.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Die fesselnde Begleitmusik zu <strong>Level 1: Ruins of Methallycha</strong> aus <em>Lethal Xcess</em> (1991). Jochen Hippel inszeniert hier ein treibendes Chiptune-Epos, das perfekt zum hektischen Geschehen auf dem Bildschirm passt.</p>
+        <p><strong>DSP-Fokus:</strong> Hippel umgeht die starre Dreistimmigkeit des YM-Chips durch extrem schnellen Registerwechsel und den meisterhaften Einsatz des <strong>Buzzer-Effekts</strong> über den Hardware-Envelope (Register 13), was dem Bass eine phänomenale Wärme und Breite verleiht.</p>
+    `,
+    "LethalXcess3.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Die atmosphärische Begleitmusik zu <strong>Level 2: Desert of no Return</strong> aus <em>Lethal Xcess</em> (1991) von Jochen Hippel. Ein hervorragendes Beispiel für mystisch-schwebendes Melodie-Wobbeln auf dem Atari ST.</p>
+        <p><strong>DSP-Fokus:</strong> Der Track glänzt durch feine, pulsweitenmodulierte Sequenzen. Da unser Emulator die 2-MHz-Ebene phasenstarr auflöst, schwingen diese sachte gleitenden Tonhöhen-Modulationen vollkommen frei von digitalem Zittern oder Phasen-Glitchings.</p>
+    `,
+    "LethalXcess4.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Das melodische Thema zu <strong>Level 3: The evil Garden</strong> aus <em>Lethal Xcess</em> (1991), komponiert von Jochen Hippel. Der Track verbindet heroische Leads mit dichten, komplexen Bass-Rhythmen.</p>
+        <p><strong>DSP-Fokus:</strong> Hippel nutzt hier im VBLANK-Takt synchronisierte Pitch-Slides. Jedes Mal, wenn die Melodiestimme eine neue Note triggert, blitzt ein kurzes, registergesteuertes Signalpaket auf unserem Silicon-Analyzer auf und spiegelt das exakte Timing der 68000er CPU wider.</p>
+    `,
+    "LethalXcess5.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Das epische Thema zu <strong>Level 4: Vulcanic Plateaus</strong> aus <em>Lethal Xcess</em> (1991) von Jochen Hippel. Ein rasanter Track, der perfekt die flirrende, kochende Hitze feuriger Welten inszeniert.</p>
+        <p><strong>DSP-Fokus:</strong> Das absolute Highlight sind die dichten, rauen 4-Bit-Digidrums. Die virtuell in die YM-Lautstärkeregister injizierten PCM-Drums erzeugen genau jenen unnachahmlichen ST-Crunch, der den Soundtracks von Mad Max ihre legendäre Wucht und Durchsetzungskraft verlieh.</p>
+    `,
+    "LethalXcess6.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Das dramatische Thema zu <strong>Level 5: Fortress of Methallycha</strong> aus <em>Lethal Xcess</em> (1991). Jochen Hippel inszeniert hier die unerbittliche, mechanische Kälte der finalen Festung.</p>
+        <p><strong>DSP-Fokus:</strong> Der Track koppelt das "Weiße Rauschen" (Noise) extrem dicht mit den Bass-Oszillatoren, um metallisch klirrende, synthetische Snare-Hacks zu simulieren. Unser 17-Bit-LFSR-Rauschgenerator auf 2-MHz-Ebene fängt diesen rohen, atonale Klangcharakter perfekt ein.</p>
+    `,
+    "LethalXcess7.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Das glorreiche, melancholische <strong>End-Thema (Credits/End Tune)</strong> von <em>Lethal Xcess</em> (1991) von Jochen Hippel (Mad Max). Ein triumphaler Abschieds-Track für alle furchtlosen ST-Piloten, die das Spiel gemeistert haben.</p>
+        <p><strong>DSP-Fokus:</strong> Der Track glänzt durch seine breiten, orchestralen Akkord-Pads und schwebenden Ausklingphasen. Dank der Dynamic-Staging-Weiche unseres Emulators wandern die Stereo-Pan-Werte und der Nachhall fließend im Raum umher und verleihen dem Chiptune eine beispiellose, cineastische Tiefe.</p>
+    `,
     "WINGLOAD.YM": `
         <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
         <p>Das Titelthema (Loader) des bahnbrechenden Shoot-'em-ups <strong>Wings of Death</strong> (1990) von Thalion ist ein unumstrittenes Meisterwerk der 16-Bit-Chiptune-Geschichte. Komponist Jochen Hippel trieb den YM2149F hier an seine absoluten physikalischen Grenzen.</p>
