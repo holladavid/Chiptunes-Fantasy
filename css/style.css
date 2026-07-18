@@ -424,10 +424,11 @@ details[open] > summary::before { content: "[-] "; }
     background: var(--bg-color); 
     color: var(--panel-text);
     padding: 12px 4px; /* Etwas weniger horizontaler Padding-Verbrauch */
-    font-size: calc(var(--font-size-base) * 0.95); /* Schriftgröße minimal optimiert für den Textfluss */
+    font-size: calc(var(--font-size-base) * 1.05); /* Schriftgröße minimal optimiert für den Textfluss */
     letter-spacing: -0.5px; /* Verhindert das Auseinanderziehen von langen Begriffen */
     cursor: pointer;
     font-family: inherit;
+    white-space: nowrap; /* VERHINDERT HÄSSLICHE ZEILENUMBRÜCHE AUF DESKTOP KOMPLETT */
     
     border: none;
     border-top: 2px solid var(--chassis-light);
@@ -441,12 +442,16 @@ details[open] > summary::before { content: "[-] "; }
 
 /* GFX FIX: Spezifischer Scaler für die extrem breiten C64-Schriftzeichen */
 body.theme-c64 .controls button {
-    font-size: calc(var(--font-size-base) * 0.82); /* Leicht verkleinert, um Breitenüberlauf zu verhindern */
+    font-size: clamp(10.5px, 0.85vw, 12px) !important; /* Stabiles, scharfes C64-Schriftbild auf allen Monitoren */
 }
 
 /* Verhindert zuverlässig den Zeilenumbruch durch überproportionale Flex-Gewichtung */
 #btn-play {
     flex: 2.1 !important; 
+}
+
+#btn-eco {
+    flex: 1.3 !important; /* Gibt dem 8-Zeichen "HALT GFX" Button proportional mehr Raum auf Desktop */
 }
 
 .controls button:hover {
