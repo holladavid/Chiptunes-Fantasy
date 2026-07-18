@@ -73,8 +73,8 @@ export class SceneDJ {
         // 1. Audio-Analyse
         this.monitor.update(channelVolumes, dt);
 
-        // 2. Makro-Zustand berechnen
-        let didWakeUp = this.tension.update(this.monitor.dynamics, this.monitor.info, this.stage, dt);
+        // 2. Makro-Zustand berechnen (NEU: chipRegs an den Director übergeben!)
+        let didWakeUp = this.tension.update(this.monitor.dynamics, this.monitor.info, this.stage, dt, chipRegs);
 
         // 3. Setlist / Swaps würfeln
         if (isPlaying) {
