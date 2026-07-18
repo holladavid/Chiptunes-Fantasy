@@ -145,22 +145,25 @@ export class TrackPresenter {
             ctx.fillText(displaySubTruncated, cx, textY2);
         }
 
-        // =========================================================
+// =========================================================
         // PLATTLFORM-EXKLUSIVER RENDERER: AMIGA (COPPERLIST CURTAINS)
         // =========================================================
         if (isAmiga) {
-            const paneH = 64;
-            const targetY = Math.floor(horizon * 0.28);
+            const paneH = 44; // Schlankeres Lesefeld (von 64 auf 44 reduziert)
+            const targetY = Math.floor(horizon * 0.38); // Leicht nach unten versetzt für perfekte Zentrierung
             
-            let topY = -40;
-            let Math_floorY = height;
+            // Ein OCS-Verlauf besteht aus 6 Zeilen à 4 Pixel = exakt 24px Höhe!
+            const copLineH = 4; 
+            const curtainH = 24; 
+
+            let topY = -curtainH;
             let botY = height;
             
             if (state === 'starting') {
-                topY = Math.floor(-40 + (targetY + 40) * ease);
+                topY = Math.floor(-curtainH + (targetY + curtainH) * ease);
                 botY = Math.floor(height - (height - (targetY + paneH)) * ease);
             } else if (state === 'stopping') {
-                topY = Math.floor(targetY + (-40 - targetY) * ease);
+                topY = Math.floor(targetY + (-curtainH - targetY) * ease);
                 botY = Math.floor((targetY + paneH) + (height - (targetY + paneH)) * ease);
             } else {
                 topY = targetY;
@@ -171,14 +174,13 @@ export class TrackPresenter {
                 [0,0,34], [0,0,68], [85,0,85], [170,0,85], [255,102,0], [255,255,255]
             ].map(c => rgbToHex(...quantizeAmiga12Bit(c[0], c[1], c[2])));
 
-            // Top Curtain
-            let copLineH = Math.ceil((horizon * 0.5) / copColors.length);
+            // Top Curtain (Bündig nach oben gezeichnet)
             for (let i = 0; i < copColors.length; i++) {
                 ctx.fillStyle = copColors[i];
-                ctx.fillRect(0, Math.floor(topY - 40 + i * copLineH), width, copLineH);
+                ctx.fillRect(0, Math.floor(topY - curtainH + i * copLineH), width, copLineH);
             }
 
-            // Bottom Curtain
+            // Bottom Curtain (Bündig nach unten gezeichnet)
             for (let i = 0; i < copColors.length; i++) {
                 ctx.fillStyle = copColors[copColors.length - 1 - i];
                 ctx.fillRect(0, Math.floor(botY + i * copLineH), width, copLineH);
@@ -188,16 +190,16 @@ export class TrackPresenter {
             ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(17, 0, 34));
             ctx.fillRect(0, Math.floor(topY), width, Math.floor(botY - topY));
 
-            // Text zeichnen
+            // Text zeichnen (Perfekt mittig zentriert)
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
-            const fontTitle = isUltraNarrow ? "16px 'VT323', monospace" : "20px 'VT323', monospace";
-            const fontSub = isUltraNarrow ? "11px 'VT323', monospace" : "14px 'VT323', monospace";
+            const fontTitle = isUltraNarrow ? "14px 'VT323', monospace" : "18px 'VT323', monospace";
+            const fontSub = isUltraNarrow ? "11px 'VT323', monospace" : "13px 'VT323', monospace";
             ctx.font = fontTitle;
 
-            let textY1 = Math.floor(topY + (botY - topY) * 0.3);
-            let textY2 = Math.floor(topY + (botY - topY) * 0.7);
+            let textY1 = Math.floor(topY + (botY - topY) * 0.32);
+            let textY2 = Math.floor(topY + (botY - topY) * 0.68);
 
             let maxTextW = width - 20;
             let textW = ctx.measureText(titleText).width;
@@ -210,7 +212,7 @@ export class TrackPresenter {
 
                 let scrollX = (t * 50) % (textW + maxTextW + 30);
                 let tx = Math.floor(width - 10 - scrollX);
-                ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 119, 0)); // Orange Title
+                ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 119, 0)); 
                 ctx.fillText(titleText, tx, textY1);
                 ctx.restore();
             } else {
@@ -219,10 +221,10 @@ export class TrackPresenter {
             }
 
             ctx.font = fontSub;
-            ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 255, 255)); // White Subtext
+            ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 255, 255)); 
             ctx.fillText(authorText + " • " + typeText, cx, textY2);
         }
-
+        
         // =========================================================
         // PLATTLFORM-EXKLUSIVER RENDERER: ATARI ST (GEM DIALOG TRUNCATION)
         // =========================================================
