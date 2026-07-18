@@ -34,6 +34,9 @@ const myYmFiles = [
     "LethalXcess5.YM",
     "LethalXcess6.YM",
     "LethalXcess7.YM",
+    "XN1.YM",
+    "XN2.YM",
+    "XN3.YM",
     "GOLDRUN.YM",
     "spherical_intro.YM",
     "Dragonflight_Title.YM",
@@ -63,6 +66,21 @@ const myYmFiles = [
 ];
 
 const composerMetadata = {
+    "XN1.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: DAVID WHITTAKER ]</h3>
+        <p>Das ikonische Titelthema (Main Title) des wegweisenden Bitmap-Brothers-Shoot-'em-ups <strong>Xenon</strong> (1988), komponiert von <strong>David Whittaker</strong>. Whittaker war einer der produktivsten und genialsten Pioniere der frühen ST- und Amiga-Ära, berühmt für seine pfeilschnellen, hochoptimierten Assembly-Treiber.</p>
+        <p><strong>DSP-Fokus:</strong> Whittaker beweist hier seine absolute Beherrschung des YM2149F. Da 1988 komplexe Sample-Hacks noch in den Kinderschuhen steckten, zaubert er aus drei nackten PSG-Rechteckkanälen über präzise, mikro-verzögerte Lautstärke-Hüllkurven (Echo-Effekte auf einer einzigen Stimme) einen unfassbar dichten und treibenden Elektro-Groove.</p>
+    `,
+    "XN2.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: DAVID WHITTAKER ]</h3>
+        <p>Die fesselnde In-Game-Musik zu <strong>Xenon</strong> (1988) von David Whittaker. Der Track treibt den Spieler mit seinen unbarmherzigen, techno-artigen Sequenzen durch die vertikal scrollenden Sektoren.</p>
+        <p><strong>DSP-Fokus:</strong> Whittaker nutzt hier extrem schnelle Software-LFOs für schwebende Pitch-Modulationen. Jede Register-Frequenzänderung wird von unserem cycle-genauen Emulator absolut phasenstarr aufgelöst, was den markanten, schneidenden und kristallklaren Charakter der Whittaker-Leads perfekt bewahrt.</p>
+    `,
+    "XN3.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: DAVID WHITTAKER ]</h3>
+        <p>Das triumphale <strong>Highscore-/End-Thema (Game Over Tune)</strong> von <strong>Xenon</strong> (1988), komponiert von David Whittaker. Ein klassischer, erhabener Abschieds-Track für furchtlose ST-Sternenpiloten.</p>
+        <p><strong>DSP-Fokus:</strong> Der Track demonstriert Whittakers meisterhaften Einsatz der Hardware-Hüllkurve (HEG) des YM2149. Durch das extrem präzise Triggern von Register 13 im VBLANK-Takt erzeugt er einen voluminösen Bass-Effekt, der wie eine analoge Sägezahnwelle schwingt und dem Stück ein gewaltiges Fundament verleiht.</p>
+    `,
     "LethalXcess1.YM": `
         <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
         <p>Das epische Titelthema (Main Title) von <strong>Lethal Xcess: Wings of Death II</strong> (1991), komponiert von Jochen Hippel (Mad Max). Dieses vertikale Thalion-Shoot-'em-up ist der direkte, wegweisende Nachfolger von <em>Wings of Death</em>.</p>
