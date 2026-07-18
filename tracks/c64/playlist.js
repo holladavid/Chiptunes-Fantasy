@@ -8,6 +8,7 @@ import { loadSidFile } from '../../js/parsers/sid-parser.js';
 
 const mySidFiles = [
     "Commando.sid",                   // 1. Rob Hubbard
+    "Crazy_Comets.sid",               // <--- NEU: Rob Hubbards legendäres Synthwave-Meisterwerk!    
     "Sanxion.sid",                    // <--- NEU: Rob Hubbards legendäre "Thalamusik"!
     "Wizball.sid",                    // 2. Martin Galway
     "Comic_Bakery.sid",               // <--- NEU: Martin Galways bahnbrechendes Meisterwerk!
@@ -33,6 +34,11 @@ const mySidFiles = [
 ];
 
 const composerMetadata = {
+    "Crazy_Comets.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
+        <p>Der Soundtrack zu <strong>Crazy Comets</strong> (1985), komponiert von <strong>Rob Hubbard</strong> für das Martech-Weltraumspiel, gilt als eines der absolut wegbereitendsten Synthwave-Elektronik-Meisterwerke der Chiptune-Geschichte. Hubbard selbst bezeichnete den Track häufig als eine seiner besten Arbeiten.</p>
+        <p><strong>DSP-Fokus:</strong> Der Track glänzt durch eine extrem fette, treibende F-Dur-Bassline und hochkomplexe, metallische Drums, die den SID-Chip an seine physikalischen Grenzen bringen. Das absolute Highlight ist Hubbards legendäre Programmierung einer <strong>künstlichen, roboterhaften Alien-Stimme (Voice Synthesis)</strong> auf dem 6581, die durch blitzschnelle Register-Hacks im Millisekundentakt geformt wird – ein Meisterwerk der Programmierkunst, das unser cycle-genauer Emulator absolut fehlerfrei wiedergibt.</p>
+    `,
     "Sanxion.sid": `
         <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
         <p>Der Soundtrack zu <strong>Sanxion</strong> (1986), komponiert von <strong>Rob Hubbard</strong> für das erste Spiel des Publishers Thalamus, ist ein akustisches Denkmal. Subtune 1 (die berühmte Lademusik <em>Thalamusik</em>) wurde von Jean-Michel Jarres Album <em>Zoolook</em> inspiriert, während das Titelthema Sergei Prokofjews dramatischen <em>Tanz der Ritter</em> aus dem Ballett Romeo und Julia meisterhaft adaptiert.</p>
