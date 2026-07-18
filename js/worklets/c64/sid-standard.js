@@ -2,6 +2,7 @@
 // =========================================================
 // MOS TECHNOLOGY SID 6581 AUDIO WORKLET PROCESSOR
 // CPU-Optimized 1MHz Lockstep Core with Boxcar Decimation
+// Phase 8: Main Event Loop with Hardware Interrupt Tracking
 // =========================================================
 
 import { CPU6502 } from '../lib/cpu6502.js';
@@ -19,20 +20,20 @@ class SIDProcessor extends AudioWorkletProcessor {
         
         this.cpu = new CPU6502(this.sid);
         this.dcBlock = new DCBlocker();
-        this.outLp = 0; // Filter-State für Motherboard RC-Simulation
+        this.outLp = 0; 
 
-        this.trackData = null;
+        this.prgCode = null;
+        this.loadAddr = 0;
+        this.initAddress = 0;
+        this.playAddress = 0;
+        this.playSpeedCycles = 19705; 
+
         this.isPlaying = false;
         
         this.cycleAccumulator = 0.0;
-        this.vblankCycles = 19705; 
+        this.vblankTimer = 19705; 
         this.currentFrame = 0;
         
-        this.initAddress = 0;
-        this.playAddress = 0;
-        this.useCiaTimer = false; 
-        this.isIrqRoutine = false; 
-
         this.temperature = 55.0;
         this.cpuCyclesRemaining = 0;
         this.lastSampleValue = 0;
@@ -53,45 +54,49 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.outLp = 0;
                 this.dcBlock = new DCBlocker();
 
+                this.prgCode = msg.c64Code;
+                this.loadAddr = msg.loadAddress;
+                this.initAddress = msg.initAddress;
+
                 this.sid = new SIDChip();
                 this.sid.useJfetSaturation = false;
                 this.sid.temperature = this.temperature;
                 this.cpu = new CPU6502(this.sid);
 
-                this.cpu.reset(msg.loadAddress, msg.c64Code);
+                this.cpu.reset(this.loadAddr, this.prgCode);
 
-                this.initAddress = msg.initAddress;
-                this.playAddress = msg.playAddress;
-                this.isIrqRoutine = false; 
-                
                 let songIndex = (msg.startSong > 0 ? msg.startSong - 1 : 0) & 0xFF;
                 this.cpu.a = songIndex;
                 this.cpu.x = songIndex; 
                 this.cpu.y = 0;
-                this.cpu.p &= ~1;
                 
-                this.useCiaTimer = ((msg.speed >> songIndex) & 1) !== 0;
-                this.cpu.jsr(this.initAddress); 
-                this.isIrqRoutine = false;
+                this.cpu.push(0xEA);
+                this.cpu.push(0x30);
+                this.cpu.pc = this.initAddress;
 
+                let safety = 5000000;
+                while (this.cpu.pc !== 0xEA31 && safety-- > 0) {
+                    let c = this.cpu.step();
+                    this.cpu.clockHardware(c);
+                }
+                this.cpu.pc = 0xEA31; 
+                this.cpu.p &= ~0x04; 
+
+                this.playAddress = msg.playAddress;
                 if (this.playAddress === 0) {
                     this.playAddress = this.cpu.read(0x0314) | (this.cpu.read(0x0315) << 8); 
-                    if (this.playAddress === 0 || this.playAddress === 0xFFFF) {
-                        this.playAddress = this.cpu.read(0xFFFE) | (this.cpu.read(0xFFFF) << 8);
-                        if (this.playAddress !== 0 && this.playAddress !== 0xFFFF) {
-                            this.isIrqRoutine = true; 
-                        }
-                    }
-                    if (this.playAddress === 0 || this.playAddress === 0xFFFF) {
-                        this.playAddress = this.initAddress + 3; 
+                    if (this.playAddress === 0 || this.playAddress === 0xFFFF || this.playAddress === 0xEA31) {
+                        this.playAddress = 0; 
                     }
                 }
 
-                this.cycleAccumulator = 0.0;
-                this.vblankCycles = 19705;
-                this.cpuCyclesRemaining = 0;
-                this.cpu.isIdle = true;
+                let useCiaTimer = ((msg.speed >> songIndex) & 1) !== 0;
+                this.playSpeedCycles = useCiaTimer ? 19583 : 19705;
+                this.vblankTimer = this.playSpeedCycles;
 
+                this.cycleAccumulator = 0.0;
+                this.cpuCyclesRemaining = 0;
+                
                 this.currentFrame = 0;
                 this.maxFrames = msg.length || 7500;
                 this.isPlaying = true;
@@ -109,18 +114,29 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.sid.temperature = this.temperature;
                 this.cpu.sid = this.sid;
                 
+                this.cpu.reset(this.loadAddr, this.prgCode);
+                
                 let songIndex = (msg.frame > 0 ? msg.frame - 1 : 0) & 0xFF;
                 this.cpu.a = songIndex;
                 this.cpu.x = songIndex;
                 this.cpu.y = 0;
-                this.cpu.p &= ~1;
                 
-                this.cpu.jsr(this.initAddress);
+                this.cpu.push(0xEA);
+                this.cpu.push(0x30);
+                this.cpu.pc = this.initAddress;
                 
+                let safety = 5000000;
+                while (this.cpu.pc !== 0xEA31 && safety-- > 0) {
+                    let c = this.cpu.step();
+                    this.cpu.clockHardware(c);
+                }
+                this.cpu.pc = 0xEA31;
+                this.cpu.p &= ~0x04;
+                
+                this.vblankTimer = this.playSpeedCycles;
                 this.cycleAccumulator = 0.0;
-                this.vblankCycles = 19705;
                 this.cpuCyclesRemaining = 0;
-                this.cpu.isIdle = true;
+                
                 this.currentFrame = 0;
                 this.maxFrames = msg.length || 7500;
             }
@@ -138,81 +154,54 @@ class SIDProcessor extends AudioWorkletProcessor {
                 continue; 
             }
             
-            let cyclesToRun = 0;
-            if (this.isPlaying && this.playAddress > 0) {
-                this.cycleAccumulator += this.clock / sampleRate;
-                cyclesToRun = Math.floor(this.cycleAccumulator);
-                this.cycleAccumulator -= cyclesToRun;
+            this.cycleAccumulator += this.clock / sampleRate;
+            let cyclesToRun = Math.floor(this.cycleAccumulator);
+            this.cycleAccumulator -= cyclesToRun;
 
-                let sampleSum = 0;
-                for (let c = 0; c < cyclesToRun; c++) {
+            let sampleSum = 0;
+            for (let c = 0; c < cyclesToRun; c++) {
+                
+                this.vblankTimer--;
+                if (this.vblankTimer <= 0) {
+                    this.vblankTimer += this.playSpeedCycles;
                     
-                    if (this.useCiaTimer) {
-                        this.cpu.ciaTimerA--;
-                        if (this.cpu.ciaTimerA <= 0) {
-                            let timerPeriod = (this.cpu.ram[0xDC05] << 8) | this.cpu.ram[0xDC04];
-                            if (timerPeriod === 0) timerPeriod = 19583; 
-                            this.cpu.ciaTimerA += timerPeriod;
-                            
-                            if (this.cpu.isIdle) {
-                                this.cpu.isIdle = false;
-                                if (this.isIrqRoutine) {
-                                    this.cpu.push(0xFF); this.cpu.push(0xFE); this.cpu.push(this.cpu.p); 
-                                } else {
-                                    this.cpu.push(0xFF); this.cpu.push(0xFE);
-                                }
-                                this.cpu.pc = this.playAddress;
-                                this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
-                            }
-                        }
-                    } else {
-                        this.vblankCycles--;
-                        if (this.vblankCycles <= 0) {
-                            this.vblankCycles += 19705; 
-                            
-                            if (this.cpu.isIdle) {
-                                this.cpu.isIdle = false;
-                                if (this.isIrqRoutine) {
-                                    this.cpu.push(0xFF); this.cpu.push(0xFE); this.cpu.push(this.cpu.p); 
-                                } else {
-                                    this.cpu.push(0xFF); this.cpu.push(0xFE);
-                                }
-                                this.cpu.pc = this.playAddress;
-                                this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
-                            }
+                    if (this.playAddress !== 0) {
+                        if (this.cpu.pc === 0xEA31) { 
+                            this.cpu.push(0xEA);
+                            this.cpu.push(0x30);
+                            this.cpu.pc = this.playAddress;
                         }
                     }
-
-                    if (this.cpuCyclesRemaining <= 0) {
-                        if (!this.cpu.isIdle) {
-                            let cyclesUsed = this.cpu.step();
-                            this.cpuCyclesRemaining += cyclesUsed;
-                            if (this.cpu.pc === 0xFFFE || this.cpu.pc === 0xFFFF) {
-                                this.cpu.isIdle = true; 
-                            }
-                        }
-                    }
-                    if (this.cpuCyclesRemaining > 0) {
-                        this.cpuCyclesRemaining--;
-                    }
-                    
-                    this.sid.clock();
-                    sampleSum += this.sid.outputSample;
+                    this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                 }
-                
-                let finalSample = cyclesToRun > 0 ? sampleSum / cyclesToRun : this.lastSampleValue;
-                this.lastSampleValue = finalSample;
-                
-                finalSample = this.dcBlock.process(finalSample);
 
-                // --- C64 Motherboard Audio Filter (1-Pole RC, ca. 12.5 kHz) ---
-                this.outLp += 0.65 * (finalSample - this.outLp);
-                finalSample = this.outLp;
+                if (this.cpuCyclesRemaining <= 0) {
+                    if (this.cpu.pc !== 0xEA31 || this.cpu.irqPending) {
+                        let cyclesUsed = this.cpu.step();
+                        this.cpu.clockHardware(cyclesUsed);
+                        this.cpuCyclesRemaining = cyclesUsed;
+                    } else {
+                        this.cpu.clockHardware(1);
+                        this.cpuCyclesRemaining = 1;
+                    }
+                }
+                this.cpuCyclesRemaining--;
 
-                outL[i] = finalSample;
-                if (outR) outR[i] = finalSample;
-                if (i === 0) visualValue = finalSample;
+                this.sid.clock();
+                sampleSum += this.sid.outputSample;
             }
+            
+            let finalSample = cyclesToRun > 0 ? sampleSum / cyclesToRun : this.lastSampleValue;
+            this.lastSampleValue = finalSample;
+            
+            finalSample = this.dcBlock.process(finalSample);
+
+            this.outLp += 0.65 * (finalSample - this.outLp);
+            finalSample = this.outLp;
+
+            outL[i] = finalSample;
+            if (outR) outR[i] = finalSample;
+            if (i === 0) visualValue = finalSample;
         }
 
         this.visCounter = (this.visCounter || 0) + 1;
@@ -225,15 +214,9 @@ class SIDProcessor extends AudioWorkletProcessor {
                 view[2] = this.currentFrame;
                 view[3] = visualValue;
 
-                for (let r = 0; r < 29; r++) {
-                    view[4 + r] = this.sid.regs[r];
-                }
-
+                for (let r = 0; r < 29; r++) view[4 + r] = this.sid.regs[r];
                 view[33] = this.temperature;
-
-                for (let v = 0; v < 3; v++) {
-                    view[34 + v] = this.sid.voices[v].envelope_counter / 255.0;
-                }
+                for (let v = 0; v < 3; v++) view[34 + v] = this.sid.voices[v].envelope_counter / 255.0;
                 view[37] = 0.0;
 
                 this.port.postMessage(view);

@@ -2,36 +2,73 @@
 // =========================================================
 // 6502 CPU EMULATOR & C64 I/O INTERCEPTOR
 // High-Performance Zero-Allocation Edition
+// Phase 8: Cycle-Exact CIA/Raster Timers & Hardware Interrupts
 // =========================================================
 
 export class CPU6502 {
     constructor(sid) {
         this.ram = new Uint8Array(65536);
         this.sid = sid;
+        
+        // CPU Registers
         this.a = 0; this.x = 0; this.y = 0;
         this.sp = 0xFF; this.pc = 0;
-        this.p = 0x20; 
-        this.rasterLine = 0;
-        this.ciaTimerALow = 0;
-        this.ciaTimerA = 19583;
-        this.isIdle = true; 
+        this.p = 0x24; // I-Flag set
+        
+        // Hardware Timers & IRQ State
+        this.rasterCounter = 0;
+        this.rasterCycles = 0;
+        this.rasterIrqTarget = 0;
+        
+        this.cia1TimerA = 0xFFFF;
+        this.cia1TimerALatch = 0xFFFF;
+        this.cia1CtrlA = 0;
+        this.cia1Icr = 0;
+        this.cia1IrqMask = 0;
+        
+        this.irqPending = false;
     }
 
     reset(loadAddr, prgCode) {
         this.ram.fill(0);
-        this.ram[0x0000] = 0x2F; 
-        this.ram[0x0001] = 0x37; 
         
-        this.ram[0xEA31] = 0x40; // RTI Fallback
-        this.ram[0xEA81] = 0x40; // RTI Fallback
+        // --- THE PHANTOM KERNAL ROM ---
+        // Da wir kein echtes C64 Betriebssystem laden, müssen wir die 
+        // Interrupt-Hardware-Vektoren ($FFFE) simulieren, damit Player, 
+        // die sich in den RAM-Vektor $0314 einklinken, korrekt arbeiten.
+        
+        this.ram[0x0314] = 0x31; this.ram[0x0315] = 0xEA; // Default IRQ -> Idle Loop
+        this.ram[0x0318] = 0x31; this.ram[0x0319] = 0xEA; // Default NMI -> Idle Loop
+        
+        this.ram[0xFFFE] = 0x48; this.ram[0xFFFF] = 0xFF; // Hardware IRQ Vector
+        this.ram[0xFFFA] = 0x58; this.ram[0xFFFB] = 0xFF; // Hardware NMI Vector
+
+        // $FF48: JMP ($0314) -> Fängt den IRQ ab und leitet in den Player
+        this.ram[0xFF48] = 0x6C; this.ram[0xFF49] = 0x14; this.ram[0xFF4A] = 0x03;
+        // $FF58: JMP ($0318) -> Fängt den NMI ab
+        this.ram[0xFF58] = 0x6C; this.ram[0xFF59] = 0x18; this.ram[0xFF5A] = 0x03;
+
+        // $EA31: JMP $EA31 -> Die Idle-Schleife der CPU (wartet auf Interrupts)
+        this.ram[0xEA31] = 0x4C; this.ram[0xEA32] = 0x31; this.ram[0xEA33] = 0xEA;
         
         for (let i = 0; i < prgCode.length; i++) {
             this.ram[loadAddr + i] = prgCode[i];
         }
+        
         this.a = 0; this.x = 0; this.y = 0;
-        this.sp = 0xFF; this.p = 0x20;
-        this.isIdle = true;
-        this.ciaTimerA = 19583;
+        this.sp = 0xFF; 
+        this.p = 0x24; // I-Flag ist während des Boots gesetzt
+        
+        this.rasterCounter = 0;
+        this.rasterCycles = 0;
+        this.rasterIrqTarget = 0;
+        
+        this.cia1TimerA = 0xFFFF;
+        this.cia1TimerALatch = 0xFFFF;
+        this.cia1CtrlA = 0;
+        this.cia1Icr = 0;
+        this.cia1IrqMask = 0;
+        this.irqPending = false;
     }
 
     push(val) {
@@ -54,7 +91,6 @@ export class CPU6502 {
         return (addr1 & 0xFF00) !== (addr2 & 0xFF00);
     }
 
-    // --- OPTIMIERUNG: Fast-Path für RAM-Zugriffe unter $D000 ---
     read(addr) {
         if (addr < 0xD000) {
             if (addr === 0x0001) return this.ram[0x0001];
@@ -62,15 +98,27 @@ export class CPU6502 {
         }
         if (addr > 0xDFFF) return this.ram[addr];
         
-        // I/O Registerbereich ($D000 - $DFFF)
-        if (addr === 0xD019) return this.ram[0xD019] | 0x80; 
-        if (addr === 0xD012) {
-            this.rasterLine = (this.rasterLine + 1) % 263;
-            return this.rasterLine;
+        // --- I/O REGISTER INTERCEPTION ($D000 - $DFFF) ---
+        
+        // VIC-II
+        if (addr === 0xD011) {
+            let val = this.ram[0xD011] & 0x7F;
+            if (this.rasterCounter > 255) val |= 0x80;
+            return val;
         }
-        if (addr === 0xD011) return 0x1B | ((this.pc >> 8) & 0x80);
-        if (addr === 0xDC04 || addr === 0xDC05) return Math.floor(Math.random() * 256);
-        if (addr === 0xDC0D || addr === 0xDD0D) return 0x81;
+        if (addr === 0xD012) return this.rasterCounter & 0xFF;
+        if (addr === 0xD019) return this.ram[0xD019] | 0x70; // Hard-wired bits 4-6
+        
+        // CIA-1 (Martin Galways Arkanoid-Herzstück)
+        if (addr === 0xDC04) return this.cia1TimerA & 0xFF;
+        if (addr === 0xDC05) return (this.cia1TimerA >> 8) & 0xFF;
+        if (addr === 0xDC0D) {
+            let val = this.cia1Icr;
+            this.cia1Icr = 0; // Read-to-clear!
+            this.updateIrq();
+            return val;
+        }
+        if (addr === 0xDC0E) return this.cia1CtrlA;
         
         if (addr === 0xD41B) return this.sid.voices[2].waveOut8Bit || 0;
         if (addr === 0xD41C) return this.sid.voices[2].env8Bit || 0;
@@ -78,48 +126,107 @@ export class CPU6502 {
         return this.ram[addr];
     }
 
-    // --- OPTIMIERUNG: Fast-Path für RAM-Schreibzugriffe unter $D000 ---
     write(addr, val) {
         this.ram[addr] = val;
         if (addr < 0xD000 || addr > 0xDFFF) return;
         
-        // I/O Registerbereich
+        // --- I/O REGISTER INTERCEPTION ($D000 - $DFFF) ---
+        
+        // VIC-II
         if (addr >= 0xD400 && addr <= 0xD41C) {
             this.sid.writeReg(addr - 0xD400, val);
+        } else if (addr === 0xD011) {
+            this.rasterIrqTarget = (this.rasterIrqTarget & 0xFF) | ((val & 0x80) << 1);
+        } else if (addr === 0xD012) {
+            this.rasterIrqTarget = (this.rasterIrqTarget & 0x100) | val;
         } else if (addr === 0xD019) {
-            this.ram[0xD019] &= ~val; 
-        } else if (addr === 0xDC04) {
-            this.ciaTimerALow = val;
+            this.ram[0xD019] &= ~(val & 0x0F); // Schreiben einer 1 löscht das Bit!
+            this.updateIrq();
+        } else if (addr === 0xD01A) {
+            this.ram[0xD01A] = val & 0x0F;
+            this.updateIrq();
+        }
+        // CIA-1
+        else if (addr === 0xDC04) {
+            this.cia1TimerALatch = (this.cia1TimerALatch & 0xFF00) | val;
         } else if (addr === 0xDC05) {
-            this.ciaTimerA = (val << 8) | this.ciaTimerALow;
+            this.cia1TimerALatch = (this.cia1TimerALatch & 0x00FF) | (val << 8);
+        } else if (addr === 0xDC0D) {
+            if (val & 0x80) this.cia1IrqMask |= (val & 0x7F);
+            else this.cia1IrqMask &= ~(val & 0x7F);
+            this.updateIrq();
+        } else if (addr === 0xDC0E) {
+            this.cia1CtrlA = val;
+            if (val & 0x10) this.cia1TimerA = this.cia1TimerALatch; // Force Load
         }
     }
 
-    jsr(addr) {
-        if (addr === 0) return;
-        this.push(0xFF); 
-        this.push(0xFE); 
-        this.pc = addr;
+    updateIrq() {
+        let vicIrq = (this.ram[0xD019] & this.ram[0xD01A] & 0x0F) !== 0;
+        let ciaIrq = (this.cia1Icr & this.cia1IrqMask & 0x1F) !== 0;
         
-        let instructions = 0;
-        while (this.pc !== 0xFFFF && instructions < 500000) { 
-            this.step();
-            instructions++;
+        if (vicIrq) this.ram[0xD019] |= 0x80;
+        else this.ram[0xD019] &= 0x7F;
+
+        if (ciaIrq) this.cia1Icr |= 0x80;
+        else this.cia1Icr &= 0x7F;
+
+        this.irqPending = vicIrq || ciaIrq;
+    }
+
+    // =========================================================
+    // THE HARDWARE CLOCK MANAGER
+    // Fortschritt der physikalischen Zeit & Interrupt-Triggering
+    // =========================================================
+    clockHardware(cycles) {
+        // --- 1. CIA Timer A Fortschritt ---
+        if (this.cia1CtrlA & 0x01) { // Timer runs
+            this.cia1TimerA -= cycles;
+            while (this.cia1TimerA <= 0) {
+                this.cia1TimerA += (this.cia1TimerALatch === 0 ? 1 : this.cia1TimerALatch);
+                this.cia1Icr |= 0x01; // Timer A underflow flag
+                
+                if (this.cia1CtrlA & 0x08) { // One-shot mode
+                    this.cia1CtrlA &= ~0x01;
+                    break;
+                }
+            }
+            this.updateIrq();
+        }
+
+        // --- 2. VIC-II Raster Line Fortschritt ---
+        this.rasterCycles += cycles;
+        if (this.rasterCycles >= 63) {
+            let linesPassed = Math.floor(this.rasterCycles / 63);
+            this.rasterCycles %= 63;
+            
+            for (let i = 0; i < linesPassed; i++) {
+                this.rasterCounter++;
+                if (this.rasterCounter >= 312) this.rasterCounter = 0; // PAL C64 Max Line
+
+                if (this.rasterCounter === this.rasterIrqTarget) {
+                    this.ram[0xD019] |= 0x01; // Raster IRQ flag
+                    this.updateIrq();
+                }
+            }
+        }
+
+        // --- 3. Hardware Interrupt Pipeline ---
+        // Feuert nur, wenn das Interrupt Disable (I) Flag nicht gesetzt ist
+        if (this.irqPending && (this.p & 0x04) === 0) {
+            this.triggerHardwareIrq();
         }
     }
 
-    irq(addr) {
-        if (addr === 0) return;
-        this.push(0xFF);
-        this.push(0xFE);
-        this.push(this.p);
-        this.pc = addr;
+    triggerHardwareIrq() {
+        this.push(this.pc >> 8);
+        this.push(this.pc & 0xFF);
+        // Break-Flag löschen (0), ungenutztes Bit 5 setzen
+        this.push((this.p & 0xEF) | 0x20); 
+        this.p |= 0x04; // I-Flag setzen (Keine verschachtelten Hardware-IRQs!)
         
-        let instructions = 0;
-        while (this.pc !== 0xFFFE && this.pc !== 0xFFFF && instructions < 500000) { 
-            this.step();
-            instructions++;
-        }
+        // Vektor auslesen ($FFFE)
+        this.pc = this.read(0xFFFE) | (this.read(0xFFFF) << 8);
     }
 
     abs() { let l = this.read(this.pc++); let h = this.read(this.pc++); return l | (h << 8); }
@@ -231,7 +338,13 @@ export class CPU6502 {
             case 0x4C: this.pc = this.abs(); cycles = 3; break; // JMP abs
             case 0x6C: { let ptr = this.abs(); let low = this.read(ptr); let high = this.read((ptr & 0xFF00) | ((ptr + 1) & 0x00FF)); this.pc = low | (high << 8); cycles = 5; } break; // JMP (ind)
             case 0x60: { let low = this.pop(); let high = this.pop(); this.pc = (low | (high << 8)) + 1; cycles = 6; } break; // RTS
-            case 0x40: { this.p = this.pop(); let low = this.pop(); let high = this.pop(); this.pc = low | (high << 8); cycles = 6; } break; // RTI
+            case 0x40: { // RTI
+                this.p = (this.pop() & 0xEF) | 0x20; // B-Flag maskiert, Bit 5 gesetzt!
+                let low = this.pop(); 
+                let high = this.pop(); 
+                this.pc = low | (high << 8); 
+                cycles = 6; 
+            } break; 
 
             case 0xD0: cycles = this.branch((this.p & 2) === 0); break; // BNE
             case 0xF0: cycles = this.branch((this.p & 2) !== 0); break; // BEQ
@@ -302,21 +415,18 @@ export class CPU6502 {
         return cycles;
     }
 
-    // --- OPTIMIERUNG: Allokationsfreier, ultraschneller ALU-Befehlsdecoder ---
     handleALU(op) {
         let val = 0;
         let setVal = true;
         let cycles = 2;
 
         switch (op) {
-            // Immediate (cycles = 2)
             case 0x69: case 0xE9: case 0x29: case 0x09:
             case 0x49: case 0xC9: case 0xE0: case 0xC0:
                 val = this.read(this.pc++);
                 cycles = 2;
                 break;
 
-            // Zero Page (cycles = 3)
             case 0x65: case 0xE5: case 0x25: case 0x05:
             case 0x45: case 0xC5: case 0xE4: case 0xC4:
             case 0x24:
@@ -324,14 +434,12 @@ export class CPU6502 {
                 cycles = 3;
                 break;
 
-            // Zero Page, X (cycles = 4)
             case 0x75: case 0xF5: case 0x35: case 0x15:
             case 0x55: case 0xD5:
                 val = this.read(this.zpX());
                 cycles = 4;
                 break;
 
-            // Absolute (cycles = 4)
             case 0x6D: case 0xED: case 0x2D: case 0x0D:
             case 0x4D: case 0xCD: case 0xEC: case 0xCC:
             case 0x2C:
@@ -339,7 +447,6 @@ export class CPU6502 {
                 cycles = 4;
                 break;
 
-            // Absolute, X (cycles = 4 + page cross)
             case 0x7D: case 0xFD: case 0x3D: case 0x1D:
             case 0x5D: case 0xDD: {
                 let addr = this.abs();
@@ -349,7 +456,6 @@ export class CPU6502 {
                 break;
             }
 
-            // Absolute, Y (cycles = 4 + page cross)
             case 0x79: case 0xF9: case 0x39: case 0x19:
             case 0x59: case 0xD9: {
                 let addr = this.abs();
@@ -359,14 +465,12 @@ export class CPU6502 {
                 break;
             }
 
-            // Indexed Indirect X (cycles = 6)
             case 0x61: case 0xE1: case 0x21: case 0x01:
             case 0x41: case 0xC1:
                 val = this.read(this.indX());
                 cycles = 6;
                 break;
 
-            // Indirect Indexed Y (cycles = 5 + page cross)
             case 0x71: case 0xF1: case 0x31: case 0x11:
             case 0x51: case 0xD1: {
                 let z = this.zp();
