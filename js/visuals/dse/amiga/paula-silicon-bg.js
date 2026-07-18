@@ -37,11 +37,13 @@ export class PaulaSiliconBg {
     ensureInitialized() {
         if (this.initialized) return;
 
+        // NEU: Zerschlägt den Marsaglia-Gittereffekt durch echten, organischen Zufall bei System-Boot!
+        // Da dies nur einmalig geschieht, entstehen im Loop keinerlei CPU-Garbages.
         for (let i = 0; i < 20; i++) {
             this.stars.push({
-                x: this.nextLfsrFloat(),
-                y: this.nextLfsrFloat() * 0.5,
-                phase: this.nextLfsrFloat() * 10
+                x: Math.random(),
+                y: Math.random() * 0.5,
+                phase: Math.random() * 10
             });
         }
 
