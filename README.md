@@ -1,148 +1,102 @@
-
-
----
-
-### 📄 Aktualisiertes Dokument: `doc/_development_rules.md`
-
-```markdown
-# 💾 TECH-SPEC: DSE DEVELOPMENT & RENDERING PIPELINE (v1.4.0 Standard)
-
-Dieses Handbuch beschreibt die Programmier-Richtlinien und mathematischen Standards für die Entwicklung von Demo-Scene-Elements (DSE). Um die Ästhetik der 8- und 16-Bit-Ära akkurat im modernen Browser abzubilden, müssen alle visuellen Module die folgenden architektonischen Schutzschaltungen durchlaufen.
+# 💾 CHIPTUNES FANTASY (v1.4.0-beta.7)
+> **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
 
-## 1. Die Rendering-Pipeline & Der "Retro Blitter"
+## 🎯 The Vision ("Von Nerds für Nerds")
+**Chiptunes Fantasy** is not a simple music player. It is a high-fidelity, real-time emulated music disk that runs entirely in your web browser with 100% hardware accuracy and zero external framework dependencies. We do not play MP3s or pre-recorded audio. We parse genuine, vintage binary tracker formats (`.sid`, `.ym`, `.mod`, `.xm`) and synthesize every single waveform, filter, and envelope on-the-fly using highly optimized, low-latency asynchronous `AudioWorkletProcessors`.
 
-Um ein echtes, blockiges Pixelbild ohne modernes browser-seitiges Verwaschen zu erzeugen, arbeitet das Framework mit einer zweistufigen Skalierung:
+With the **v1.4.0 "Hardware Laboratory"** milestone, Chiptunes Fantasy transitions from a flat visualizer into an immersive, skeuomorphic measurement bay. Users don't just listen—they interact with the operational temperature of physical JFET resistors, watch raw binary data packets flow down copper buses, and observe the precise, mechanical rendering of late 80s demo graphics.
 
-```text
-┌─────────────────┐      Render      ┌─────────────────┐      Blit / Upscale      ┌─────────────────┐
-│  Audio-Trigger  │ ───────────────► │  Retro Buffer   │ ───────────────────────► │  High-Res View  │
-│    (SceneDJ)    │  (Low-Res ctx)   │  (200p / 256p)  │   (Nearest-Neighbor)     │  (1080p / 4K)   │
-└─────────────────┘                  └─────────────────┘                          └─────────────────┘
+---
+
+## 🎛️ The Three Soundchip Pillars
+
+### 1. MOS Technology SID 6581 (Commodore 64)
+Our cycle-exact 1MHz SID engine emulates the ultimate analog synthesizer chip:
+*   **6502 CPU Lockstep:** Runs a complete, highly optimized MOS 6502 CPU emulator inside the audio thread to execute original player routines in real time.
+*   **Thermal Physical Modeling:** Simulates JFET transistor resistance drift based on real operating temperatures (adjustable from 15°C to 75°C), warping the cutoff frequency and resonance.
+*   **Non-Linear Saturation:** Emulates non-linear NMOS triode saturation (`Math.tanh`) and asymmetric clipping, giving the low-end its legendary, warm growl.
+*   **Sustain-Drop & Pipeline Delay:** Replicates the historical hardware envelope bugs and the 1-cycle ADSR pipeline delay to guarantee authentic drum "snapping."
+*   **Analog Wire-ANDing:** Models the physical signal pull-down and bleeding of illegal combined waveforms.
+
+### 2. MOS Technology Paula 8364 (Amiga 500)
+A deep emulation of the Amiga’s legendary 4-channel DMA PCM engine:
+*   **192kHz Oversampling & ZOH:** Emulates the exact staircase wave-shapes of Paula's non-interpolating Zero-Order Hold (ZOH) DACs, capturing the iconic high-frequency "Amiga Shimmer."
+*   **Sinc-FIR Decimation:** Translates the oversampled 192kHz signal back to standard 48kHz using a studio-grade 255-tap polyphase Sinc-FIR filter, eradicating digital aliasing.
+*   **L-R-R-L Hard-Panning & Crosstalk:** Rigorously enforces the physical stereo routing of the Amiga motherboard, including a 3.5% inductive trace crosstalk.
+*   **Dual Analog Filtering:** Replicates the permanent 1-pole RC low-pass filter (4.42kHz) and the interactive, switchable 2-pole LED Butterworth filter (3.09kHz).
+
+### 3. Yamaha YM2149F (Atari ST)
+A cycle-exact 2MHz emulation of the ST's Programmable Sound Generator (PSG):
+*   **32-Step Logarithmic DAC:** Replicates the exact, measured voltage steps (-1.5dB per step) of the physical logarithmic D/A converter.
+*   **Hardware Envelope Generator (HEG):** Accurate 5-bit envelope shaping for butter-smooth "zipper" noise and volume sweeps.
+*   **Digidrum DAC Injection:** Simulates the legendary 4-bit sample-injection hacks by routing PCM samples directly through the logarithmic volume registers.
+*   **Dynamic Staging:** Analyzes registers to dynamically pan voices, apply simulated tape-flutter, and inject stereo-delay/reverb on-the-fly.
+
+---
+
+## 🔬 The Hardware Laboratory Paradigm
+
+The user interface represents a physical rack-mount oscilloscope and measurement bay:
+*   **Cherry-Switch System Tabs:** Weighted buttons with skeuomorphic 3D bevels, pressed states, and glowing, theme-colored LEDs.
+*   **"Living Silicon" Dies:** Modally swapped SVG chip maps showing the active silicon die. Data buses, pins, and filters physically glow, fade, and flicker in exact synchronization with active register writes.
+*   **Environmental Sensor Bay:** High-fidelity readouts next to the interactive Temperature Slider track real-time hardware variables (Voltage Sag, thermal noise floor, and transistor Bias drift).
+*   **Custom VFD Dropdown:** Custom styled, low-res vacuum fluorescent display terminal selector replacing native browser drop-down boxes.
+
+---
+
+## 🎨 DSE Visuals & The Blitter Philosophy (v1.5.0 Standard)
+
+Every visual Demo-Scene-Element (DSE) is subject to strict rendering limitations to preserve absolute historical authenticity:
+
+1.  **The Retro Blitter:** All GFX layers (background, floor, foreground) render to a tiny, offscreen canvas locked to the exact vertical resolutions of the era (200p for C64/ST, 256p for Amiga). The width scales dynamically with the monitor's aspect ratio to prevent squishing.
+2.  **Strictly Aliased (Nearest-Neighbor):** No native browser anti-aliasing is permitted. The low-res buffer is upscaled to high-res screens using crisp nearest-neighbor interpolation (`image-rendering: pixelated;` enforced via CSS).
+3.  **Bresenham & Scanline-Filling:** No curves or smooth lines are allowed. We use custom Bresenham line drawers and Scanline circle fillers to ensure every pixel is sharp, solid, and blocky.
+4.  **The Alpha-Blending Ban:** In accordance with 80s hardware, we use **zero alpha transparency** on GFX layers. Overlapping objects overwrite pixels opaquely. Transitions utilize mechanical vertical collapses, and inactive channels are hard-gated out (`if (vol < 0.04) continue;`).
+5.  **Event-Based Climax & Afterglow:** Visual climaxes are treated as finite, explosive events. After a climax peak (exactly 50% of the active DSE's hold time), the system drops into a calm **Afterglow** (cooldown) state for the remaining 50%, letting the tension bar and graphics slowly decay and breathe.
+6.  **Concentric Shading & Highlight Pulsing:** Standard CSS gradients are forbidden. Copperbars and limit-bars use discrete, quantized color lists. Sound volumes expand or compress the white-hot core of the shading palette, keeping the physical bar thickness constant on the screen.
+7.  **Deterministic Randomness:** No `Math.random()` inside the 60FPS loop to prevent "modern" noise. We emulate a 23-bit LFSR for SID noise, and use pre-allocated, constructor-shuffled offset arrays for organic water shimmer and starfield dispersion.
+
+---
+
+## ⚡ High-Speed Performance & Zero Allocation
+To achieve solid 60FPS visuals and jitter-free audio, the rendering and processing pipelines follow a strict **Zero-Allocation Paradigm**:
+*   No objects (`new`, `[]`, `{}`) are instantiated inside the 60Hz visual loops or the 1MHz audio loops to prevent Garbage Collection stutter.
+*   All temporary states are cached inside pre-allocated `Float32Arrays`, `Uint8Arrays`, or localized primitive variables.
+*   We use bitwise integer math (`| 0`, `& ~1`, `>>`) for high-speed coordinate clamping and clipping.
+*   Static visual elements (e.g. diagonal mountain peaks, grid floors) are pre-compiled onto offscreen canvases once on resize and blitted to the GPU in a single `drawImage` pass.
+
+---
+
+## 📂 Repository Structure
+*   `/tracks/` - Binary tracker playlists and format parsers (`sid-parser.js`, `mod-parser.js`, `ym-parser.js`).
+*   `/css/` - Tactile skeuomorphic stylesheet featuring responsive `clamp()` designs and CPU-level nearest-neighbor filters.
+*   `/js/worklets/` - Asynchronous, low-latency `AudioWorkletProcessors` running CPU-exact lockstep emulation.
+*   `/js/visuals/` - The standardized `Demo-Scene-Elements` (DSEs) and the central, render-free `Scene-DJ` coordinator.
+*   `/js/ui/` - Skeuomorphic HUD registers, "Living Silicon" strategies, and environmental diagnostics.
+
+---
+
+## 🛠️ Installation & Local Playback
+Because the emulator relies on ES6 Modules and native `AudioWorklet` threads, you must run it through a local web server (loading directly from `file://` is blocked by browser CORS security policies).
+
+### Quickstart (No installation needed if Python or NodeJS is present):
+**Using NodeJS:**
+```bash
+npx serve .
 ```
 
-### 1.1. Auflösungs-Limits (Retro-Buffer)
-Der `SceneDJ` zwingt die Rendering-Ebene in eine systemrelevante vertikale Maximalauflösung (`targetResY`), deklariert in `hardware-constraints.js`:
-*   **C64:** 200 Pixel (klassischer VIC-II Hires-Modus).
-*   **Atari ST:** 200 Pixel (Shifter Low-Res Modus).
-*   **Amiga:** 256 Pixel (Standard PAL Low-Res).
-
-Die horizontale Auflösung (`targetResX`) errechnet sich dynamisch anhand des aktuellen Monitor-Seitenverhältnisses, um eine Verzerrung (Squishing) der Pixel auf Breitbild- oder Smartphone-Displays zu verhindern:
-$$\text{targetResX} = \lfloor\text{targetResY} \cdot (\text{Monitor-Breite} / \text{Monitor-Höhe})\rfloor$$
-
-### 1.2. Aspect-Ratio Safe Scaling (`minDim`)
-Da die Höhe des Retro-Buffers starr bleibt (z. B. 200p), die Breite sich aber bei einer Handy-Rotation von Landscape (~355px) zu Portrait (~92px) drastisch verringert, müssen alle Radien und 3D-Skalierungen relativ zur kleinsten Bildschirmseite berechnet werden:
-$$\text{minDim} = \min(\text{width}, \text{height})$$
-
-```javascript
-// Negativ-Beispiel (Führt zu elliptischer Verzerrung oder Clipping):
-let fov = width * 1.2; 
-
-// Positiv-Beispiel (Proportional & Linear sicher):
-let fov = minDim * 1.2; 
+**Using Python:**
+```bash
+python3 -m http.server 8080
 ```
-
-### 1.3. Das "Aspect-Ratio Thickness" Phänomen (`thicknessScale`)
-Ein horizontaler Balken, der im Querformat flach und elegant wirkt, wird im extrem schmalen Hochformat optisch zu einem klobigen Block. Um die schlanke Ästhetik zu bewahren, müssen Balkendicken im Portrait-Modus proportional mit der Breite schrumpfen:
-$$\text{thicknessScale} = \min(1.0, \text{width} / \text{height})$$
+Then, open your browser and navigate to `http://localhost:8080` (or the port specified).
 
 ---
 
-## 2. Strikte Anti-Aliasing-Vermeidung
-
-HTML5 Canvas wendet bei Standard-Zeichenbefehlen (`ctx.arc()`, `ctx.stroke()`, `ctx.lineTo()`) auf Subpixel-Ebene automatisch ein weichzeichnendes Anti-Aliasing an. Beim Hochskalieren des Retro-Buffers führt dies zu verwaschenen Kanten.
-
-### 2.1. Eigene Zeichen-Primitive (Bresenham & Scanline)
-Alle DSEs müssen native Canvas-Pfade meiden und auf die pixel-genauen Hardware-Routinen aus `hardware-constraints.js` zurückgreifen:
-*   **Drahtgitter / Linien:** Verwende `drawAliasedLine(ctx, x0, y0, x1, y1, color)` (Bresenham-Algorithmus) für absolut scharfe 1-Pixel-Linien.
-*   **Kreise / Sonnen:** Verwende `fillAliasedCircle(ctx, xc, yc, r, color)`, welcher den Kreis mathematisch exakt zeilenweise (Scanline-Filling) zusammensetzt.
-
-### 2.2. Integer-Clamping (Subpixel-Killer)
-Alle Koordinaten ($X, Y$), Breiten und Höhen, die an `ctx.fillRect()` übergeben werden, müssen zwingend abgerundet werden.
-```javascript
-// Absolut verboten (Anti-Aliasing-Falle):
-ctx.fillRect(x + offset, y, width, height);
-
-// Korrekt (Harte Pixel-Zuweisung):
-ctx.fillRect(Math.floor(x + offset), Math.floor(y), Math.floor(width), Math.floor(height));
-```
-
----
-
-## 3. Hardware-Exakte Farbtiefen & Einschränkungen
-
-Die DSEs müssen sich den Farbräumen der originalen Grafikprozessoren unterwerfen. Modernes, freies Farb-Mischen im 24-Bit RGB-Raum ist untersagt.
-
-*   **C64 (VIC-II):** Nutze ausschließlich die vordefinierten 16 Hex-Farben aus `C64_PALETTE`. Nutze `getNearestC64Color(r, g, b)` für Color-Cycling und hartes Raster-Banding.
-*   **Amiga (OCS):** Quantisiere jeden errechneten Farbwert vor der Ausgabe per `quantizeAmiga12Bit(r, g, b)` (strikter 12-Bit-Farbraum / 4096 Farben).
-*   **Atari ST (Shifter):** Quantisiere jeden errechneten Farbwert vor der Ausgabe per `quantizeAtari9Bit(r, g, b)` (strikter 9-Bit-Farbraum / 512 Farben).
-
----
-
-## 4. Audio-Visual Reactivity (Musik-Kopplung)
-
-### 4.1. Makro-Dynamics (Tension)
-Der global vom `TensionManager` bereitgestellte Zustand (`state` bzw. `metrics.rawEnergyState`) steuert die Grundkomplexität:
-*   `playing` $\to$ Langsame, hypnotische Bewegungen.
-*   `buildup` $\to$ Beschleunigung der Animationsphasen.
-*   `climax` $\to$ Maximale Geschwindigkeit, harte Strobe-Whiteouts.
-
-### 4.2. Kontinuierliche Glättung (Continuous Math)
-Animations-Parameter (wie Rotationsgeschwindigkeiten) dürfen bei einem State-Wechsel niemals abrupt umspringen, sondern müssen per framerate-unabhängigem LERP angenähert werden:
-```javascript
-this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * Math.min(1.0, dt * 5.0);
-```
-
-### 4.3. Mikro-Dynamics (Beat-Pulsing)
-Der Beat-Envelope (`metrics.beat[0]`) liefert eine saubere, exponentiell abfallende Flanke bei jedem harten Transientenschlag. Verwende diesen Wert, um 3D-Geometrien zu pumpen oder Leuchtkraft (`illumination`) direkt zu addieren.
-
----
-
-## 5. Scene-DJ Orchestration & ECS Layering
-
-Das visuelle Ökosystem wird als striktes Entity-Component-System (ECS) verwaltet, geordnet nach der Eigenschaft `placementType`.
-
-| Layer | Z-Order | Typische DSEs | Verhalten |
-| :--- | :--- | :--- | :--- |
-| `background` | 0 | `Starfield`, `RetroSunset`, `PaulaSiliconBg` | Dauerhaft oder rotierend |
-| `floor` | 1 | `Copperbars`, `KefrensCheckerboard` | Dauerhaft oder rotierend |
-| `foreground` | 2 | `AmigaCube`, `AtariDotTorus` | Dauerhaft oder rotierend |
-| `overlay` | 3 | `LimitBar` | Permanent (`minPlayTime: Infinity`) |
-| `presenter` | 4 | `TrackPresenter` | One-Shot (Auto-Destruct) |
-
-Sollte der DJ für alle grafischen Ebenen einen `VoidElement` (unsichtbaren Platzhalter) würfeln, greift eine Black-Screen-Schutzschaltung, die sofort einen Re-Roll erzwingt.
-
----
-
-## 6. 3D-Geometrie & Die Horizont-Regel (Horizon Alignment)
-
-Um sicherzustellen, dass DSEs unterschiedlicher Schichten (z. B. `background` und `floor`) nahtlos ineinandergreifen, ohne dass Kanten clippen oder schwarze Lücken im Canvas entstehen, müssen folgende geometrische Gesetze beachtet werden:
-
-### 6.1. Die absolute 50%-Horizont-Regel
-Alle DSEs, die eine Boden-Fläche, ein Raster oder eine perspektivische Fluchtlinie zeichnen, müssen ihren mathematischen Horizont exakt auf **50% der vertikalen Auflösung** fixieren!
-```javascript
-// OBLIGATORISCH FÜR ALLE BACKGROUND/FLOOR DSEs:
-const horizon = Math.floor(height * 0.50); 
-// bzw. bei Offscreen-Rendering:
-const horizon = Math.floor(offH * 0.50);
-```
-Dadurch ist garantiert, dass z. B. ein Amiga `PaulaSiliconBg` lückenlos in ein aktives `KefrensCheckerboard` übergeht.
-
-### 6.2. Near-Plane Clipping (Z-Division Protection)
-Bei 3D-Flügen, in denen Z-Koordinaten auf die virtuelle Kamera zufliegen, nähert sich $Z$ irgendwann dem Wert $0$. Wird der Punkt nicht gekappt, springt der projizierte $Y$-Wert bei der Division ($\text{camY} / Z$) auf Unendlich, was zu gewaltigen Grafik-Glitches ("Popping") führt. 
-**Regel:** Setze immer ein Near-Plane-Limit von mindestens `2.5`:
-```javascript
-let pZ = z - scrollZ;
-if (pZ < 2.5) continue; // Verhindert Division-by-Zero Glitches!
-let py = horizon + (camY * fov) / pZ;
-```
-
-### 6.3. Skeuomorphismus bei "Living Silicon"
-DSEs, die Hardware emulieren, erfordern historische Akkuratesse:
-*   Berücksichtige korrekte DIP-Gehäuse (SID = 28 Pins, YM = 40 Pins, Paula = 48 Pins).
-*   Visualisiere den korrekten Signalfluss (z. B. Hard-Panning L-R-R-L bei Paula, Register-7-Mixer beim YM2149).
-*   Verwende zentrierte SVG-Text-Anker (`text-anchor="middle"`), um bei Skalierungen Clipping an den Rändern zu verhindern.
-```
-
----
+## 🎼 Curated Masterpiece Playlist
+Chiptunes Fantasy includes a carefully curated showcase of legendary tracks, demonstrating the absolute peak of 80s/90s chiptune composition:
+*   **SID (C64):** *Commando* (Rob Hubbard), *Wizball* (Martin Galway), *Last Ninja 1 & 2* (Matt Gray / Ben Daglish), *Comic Bakery* (Martin Galway), *Arkanoid* (Martin Galway - first ever PCM sample track in game history!), *Sanxion* & *Crazy Comets* (Rob Hubbard), and *Myth* (Jeroen Tel).
+*   **PAULA (Amiga):** *Elysium* (Jester/Sanity - the ultimate 4-channel ProTracker anthem), *Space Debris* (Captain), *Guitar Slinger* (Jogeir Liljedahl), *Agony Intro* (Jochen Hippel), and *Turrican II Title* (Chris Hülsbeck).
+*   **YM2149F (Atari ST):** *Thalion Loader* (Jochen Hippel), *Syntax Terror* (Big Alec/Delta Force), *Mega Apocalypse* (Rob Hubbard/Jochen Hippel - brutal 4-bit digidrum injection), *Bionic Commando* (Tim Follin), *Dragonflight* (Jochen Hippel), *Xenon 1-3* (David Whittaker), and his absolute RPG masterpiece *Amberstar 01-20*!
