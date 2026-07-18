@@ -30,9 +30,14 @@ export class C64RetroSunset {
         this.colWhite     = rgbToHex(...C64_PALETTE[1]);
         this.colLightBlue = rgbToHex(...C64_PALETTE[14]);
         
-        // 32-Bit Wasser-Muster (Deterministisch, KEIN Math.random!)
-        this.waterPattern = [1,0,1,1, 0,0,1,0, 1,0,0,0, 1,1,1,0, 0,1,0,0, 1,0,1,1, 0,1,0,0, 0,0,1,0];
+    this.waterPattern = [1,0,1,1, 0,0,1,0, 1,0,0,0, 1,1,1,0, 0,1,0,0, 1,0,1,1, 0,1,0,0, 0,0,1,0];
         this.patternLen = 32;
+
+        // NEU: Pre-allozierte, echte Zufalls-Offsets für jede Zeile bei der Initialisierung!
+        this.waterOffsets = new Float32Array(200); // 200p Maximalhöhe abgesichert
+        for (let i = 0; i < 200; i++) {
+            this.waterOffsets[i] = Math.floor(Math.random() * 256); // Verschiebt jede Zeile um bis zu 256px
+        }
     }
 
     resize(width, height) {}
@@ -147,19 +152,21 @@ export class C64RetroSunset {
         for (let y = horizon; y < height; y += 4) {
             let dy = y - horizon;
             
-            // Parallax-Geschwindigkeit
-            let parallaxSpeed = this.waterT * (12 + dy * 0.35); 
+            // Holt das bei Systemstart einmalig zufällig erzeugte Start-Offset für diese Zeile (Kein Moiré!)
+            let initOffset = this.waterOffsets[y % 200];
+            let pixelOffset = Math.floor(initOffset + this.waterT * (12 + dy * 0.35)); 
             
             // Der Spiegelungs-Kegel pulsiert dezent mit dem Beat!
             let coneBeatExpand = metrics.beat[0] * 12.0;
             let coneW = Math.floor((minDim * 0.08) + dy * 1.25 + coneBeatExpand);
-            
-            let pixelOffset = Math.floor(parallaxSpeed);
 
+            // Wir iterieren über das Raster
             for (let px = -(pixelOffset % blockW); px < width; px += blockW) {
+                
+                // Muster-Index berechnen (Ringt sich durch die 32 Bits)
                 let i = Math.floor((px + pixelOffset) / blockW);
                 let bitIdx = ((i % this.patternLen) + this.patternLen) % this.patternLen;
-                
+
                 let isSolid = this.waterPattern[bitIdx] === 1;
 
                 if (isSolid) {
