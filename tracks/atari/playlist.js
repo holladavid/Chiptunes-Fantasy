@@ -43,7 +43,24 @@ const myYmFiles = [
     "Dragonflight_City_2.YM",
     "Dragonflight_City_3.YM",
     "Dragonflight_unspec.YM",
-    "EnchantedLands_Intro.YM",
+    "EnchantedLands_Intro.YM",    
+    "AMBER01.YM",
+    "AMBER02.YM",
+    "AMBER03.YM",
+    "AMBER04.YM",
+    "AMBER05.YM",
+    "AMBER06.YM",
+    "AMBER07.YM",
+    "AMBER08.YM",
+    "AMBER09.YM",
+    "AMBER10.YM",
+    "AMBER11.YM",
+    "AMBER12.YM",
+    "AMBER13.YM",
+    "AMBER14.YM",
+    "AMBER15.YM",
+    "AMBER16.YM",
+    "AMBER17.YM",
     "Giana_Title.YM",
     "Giana_InGame1.YM",
     "Giana_InGame2.YM",
@@ -66,6 +83,90 @@ const myYmFiles = [
 ];
 
 const composerMetadata = {
+    "AMBER01.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Das legendäre Titelthema des epischen Rollenspiels <strong>Amberstar</strong> (Thalion, 1992), komponiert von Jochen Hippel (Mad Max). Der Soundtrack gilt weithin als das absolute <strong>Reife- und Meisterwerk</strong> in Hippels 16-Bit-Karriere und besitzt unter RPG-Enthusiasten einen unantastbaren Kultstatus.</p>
+        <p><strong>DSP-Fokus:</strong> Hippel inszeniert hier eine dichte, orchestrale Fantasy-Melodie, die an Erhabenheit kaum zu überbieten ist. Er knackt die Beschränkungen des YM2149F, indem er die drei Rechteckkanäle über präzise Software-ADSR-Hüllkurven und subtile Vibrato-LFOs in ein atmendes, fast analoges Synthesizer-Gespinst verwandelt.</p>
+    `,
+    "AMBER02.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Die unvergessliche Begleitmusik zur Startstadt <strong>Twinlake</strong> aus <em>Amberstar</em> (1992). Jochen Hippel entwirft hier eine warme, getragene Melodieführung, die das geschäftige Treiben der mittelalterlichen Fantasy-Metropole perfekt einfängt.</p>
+        <p><strong>DSP-Fokus:</strong> Der Track glänzt durch seine fließenden, beinahe geigenartigen Pitch-Slides und ein warmes Fundament. Unser cycle-genauer ST-Mischer verarbeitet die dichten Registerdaten völlig artefakt- und aliasingfrei, wodurch die feinen, chorusschwebenden Frequenzbuchtungen glasklar zur Geltung kommen.</p>
+    `,
+    "AMBER03.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Das mitreißende <strong>Tavernen- und Tanzthema (Dance Theme)</strong> aus <em>Amberstar</em> (1992) von Jochen Hippel. Ein absolut grooviges, fast schon folk-rockiges Chiptune-Stück, das in Lyramions Spelunken für Stimmung sorgt.</p>
+        <p><strong>DSP-Fokus:</strong> Hippel nutzt hier extrem knackig gesnapte ADSR-Softwarehüllkurven, um perkussive Kastagnetten- und Trommelakzente direkt auf den Rechteckoszillatoren zu simulieren. Das sorgt für ein ungemein tightes, rhythmisches Fundament.</p>
+    `,
+    "AMBER04.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Ein atmosphärisches Begleitthema aus dem Rollenspiel-Meisterwerk <strong>Amberstar</strong> (Thalion, 1992), komponiert von Jochen Hippel. Dieser Soundtrack gilt als sein absolutes chiptunetechnisches Magnum Opus.</p>
+        <p><strong>DSP-Fokus:</strong> Durch das meisterhafte, direkte Beschreiben der Register im 50Hz-Takt erzeugt Hippel orchestrale Synthesizer-Strukturen, die dem YM2149F eine bis dato unvorstellbare Tiefe entlocken. Unser stahlharter Emulator bringt diese dichten Registerdaten absolut phasenstarr zur Geltung.</p>
+    `,"AMBER05.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Ein atmosphärisches Begleitthema aus dem Rollenspiel-Meisterwerk <strong>Amberstar</strong> (Thalion, 1992), komponiert von Jochen Hippel. Dieser Soundtrack gilt als sein absolutes chiptunetechnisches Magnum Opus.</p>
+        <p><strong>DSP-Fokus:</strong> Durch das meisterhafte, direkte Beschreiben der Register im 50Hz-Takt erzeugt Hippel orchestrale Synthesizer-Strukturen, die dem YM2149F eine bis dato unvorstellbare Tiefe entlocken. Unser stahlharter Emulator bringt diese dichten Registerdaten absolut phasenstarr zur Geltung.</p>
+    `,
+    "AMBER06.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Ein atmosphärisches Begleitthema aus dem Rollenspiel-Meisterwerk <strong>Amberstar</strong> (Thalion, 1992), komponiert von Jochen Hippel. Dieser Soundtrack gilt als sein absolutes chiptunetechnisches Magnum Opus.</p>
+        <p><strong>DSP-Fokus:</strong> Durch das meisterhafte, direkte Beschreiben der Register im 50Hz-Takt erzeugt Hippel orchestrale Synthesizer-Strukturen, die dem YM2149F eine bis dato unvorstellbare Tiefe entlocken. Unser stahlharter Emulator bringt diese dichten Registerdaten absolut phasenstarr zur Geltung.</p>
+    `,
+    "AMBER07.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Ein atmosphärisches Begleitthema aus dem Rollenspiel-Meisterwerk <strong>Amberstar</strong> (Thalion, 1992), komponiert von Jochen Hippel. Dieser Soundtrack gilt als sein absolutes chiptunetechnisches Magnum Opus.</p>
+        <p><strong>DSP-Fokus:</strong> Durch das meisterhafte, direkte Beschreiben der Register im 50Hz-Takt erzeugt Hippel orchestrale Synthesizer-Strukturen, die dem YM2149F eine bis dato unvorstellbare Tiefe entlocken. Unser stahlharter Emulator bringt diese dichten Registerdaten absolut phasenstarr zur Geltung.</p>
+    `,
+    "AMBER08.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Ein atmosphärisches Begleitthema aus dem Rollenspiel-Meisterwerk <strong>Amberstar</strong> (Thalion, 1992), komponiert von Jochen Hippel. Dieser Soundtrack gilt als sein absolutes chiptunetechnisches Magnum Opus.</p>
+        <p><strong>DSP-Fokus:</strong> Durch das meisterhafte, direkte Beschreiben der Register im 50Hz-Takt erzeugt Hippel orchestrale Synthesizer-Strukturen, die dem YM2149F eine bis dato unvorstellbare Tiefe entlocken. Unser stahlharter Emulator bringt diese dichten Registerdaten absolut phasenstarr zur Geltung.</p>
+    `,
+    "AMBER09.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Ein atmosphärisches Begleitthema aus dem Rollenspiel-Meisterwerk <strong>Amberstar</strong> (Thalion, 1992), komponiert von Jochen Hippel. Dieser Soundtrack gilt als sein absolutes chiptunetechnisches Magnum Opus.</p>
+        <p><strong>DSP-Fokus:</strong> Durch das meisterhafte, direkte Beschreiben der Register im 50Hz-Takt erzeugt Hippel orchestrale Synthesizer-Strukturen, die dem YM2149F eine bis dato unvorstellbare Tiefe entlocken. Unser stahlharter Emulator bringt diese dichten Registerdaten absolut phasenstarr zur Geltung.</p>
+    `,
+    "AMBER10.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Ein atmosphärisches Begleitthema aus dem Rollenspiel-Meisterwerk <strong>Amberstar</strong> (Thalion, 1992), komponiert von Jochen Hippel. Dieser Soundtrack gilt als sein absolutes chiptunetechnisches Magnum Opus.</p>
+        <p><strong>DSP-Fokus:</strong> Durch das meisterhafte, direkte Beschreiben der Register im 50Hz-Takt erzeugt Hippel orchestrale Synthesizer-Strukturen, die dem YM2149F eine bis dato unvorstellbare Tiefe entlocken. Unser stahlharter Emulator bringt diese dichten Registerdaten absolut phasenstarr zur Geltung.</p>
+    `,
+    "AMBER11.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Ein atmosphärisches Begleitthema aus dem Rollenspiel-Meisterwerk <strong>Amberstar</strong> (Thalion, 1992), komponiert von Jochen Hippel. Dieser Soundtrack gilt als sein absolutes chiptunetechnisches Magnum Opus.</p>
+        <p><strong>DSP-Fokus:</strong> Durch das meisterhafte, direkte Beschreiben der Register im 50Hz-Takt erzeugt Hippel orchestrale Synthesizer-Strukturen, die dem YM2149F eine bis dato unvorstellbare Tiefe entlocken. Unser stahlharter Emulator bringt diese dichten Registerdaten absolut phasenstarr zur Geltung.</p>
+    `,
+    "AMBER12.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Ein atmosphärisches Begleitthema aus dem Rollenspiel-Meisterwerk <strong>Amberstar</strong> (Thalion, 1992), komponiert von Jochen Hippel. Dieser Soundtrack gilt als sein absolutes chiptunetechnisches Magnum Opus.</p>
+        <p><strong>DSP-Fokus:</strong> Durch das meisterhafte, direkte Beschreiben der Register im 50Hz-Takt erzeugt Hippel orchestrale Synthesizer-Strukturen, die dem YM2149F eine bis dato unvorstellbare Tiefe entlocken. Unser stahlharter Emulator bringt diese dichten Registerdaten absolut phasenstarr zur Geltung.</p>
+    `,
+    "AMBER13.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Ein atmosphärisches Begleitthema aus dem Rollenspiel-Meisterwerk <strong>Amberstar</strong> (Thalion, 1992), komponiert von Jochen Hippel. Dieser Soundtrack gilt als sein absolutes chiptunetechnisches Magnum Opus.</p>
+        <p><strong>DSP-Fokus:</strong> Durch das meisterhafte, direkte Beschreiben der Register im 50Hz-Takt erzeugt Hippel orchestrale Synthesizer-Strukturen, die dem YM2149F eine bis dato unvorstellbare Tiefe entlocken. Unser stahlharter Emulator bringt diese dichten Registerdaten absolut phasenstarr zur Geltung.</p>
+    `,
+    "AMBER14.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Ein atmosphärisches Begleitthema aus dem Rollenspiel-Meisterwerk <strong>Amberstar</strong> (Thalion, 1992), komponiert von Jochen Hippel. Dieser Soundtrack gilt als sein absolutes chiptunetechnisches Magnum Opus.</p>
+        <p><strong>DSP-Fokus:</strong> Durch das meisterhafte, direkte Beschreiben der Register im 50Hz-Takt erzeugt Hippel orchestrale Synthesizer-Strukturen, die dem YM2149F eine bis dato unvorstellbare Tiefe entlocken. Unser stahlharter Emulator bringt diese dichten Registerdaten absolut phasenstarr zur Geltung.</p>
+    `,
+    "AMBER15.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Ein atmosphärisches Begleitthema aus dem Rollenspiel-Meisterwerk <strong>Amberstar</strong> (Thalion, 1992), komponiert von Jochen Hippel. Dieser Soundtrack gilt als sein absolutes chiptunetechnisches Magnum Opus.</p>
+        <p><strong>DSP-Fokus:</strong> Durch das meisterhafte, direkte Beschreiben der Register im 50Hz-Takt erzeugt Hippel orchestrale Synthesizer-Strukturen, die dem YM2149F eine bis dato unvorstellbare Tiefe entlocken. Unser stahlharter Emulator bringt diese dichten Registerdaten absolut phasenstarr zur Geltung.</p>
+    `,
+    "AMBER16.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Ein atmosphärisches Begleitthema aus dem Rollenspiel-Meisterwerk <strong>Amberstar</strong> (Thalion, 1992), komponiert von Jochen Hippel. Dieser Soundtrack gilt als sein absolutes chiptunetechnisches Magnum Opus.</p>
+        <p><strong>DSP-Fokus:</strong> Durch das meisterhafte, direkte Beschreiben der Register im 50Hz-Takt erzeugt Hippel orchestrale Synthesizer-Strukturen, die dem YM2149F eine bis dato unvorstellbare Tiefe entlocken. Unser stahlharter Emulator bringt diese dichten Registerdaten absolut phasenstarr zur Geltung.</p>
+    `,
+    "AMBER17.YM": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Ein atmosphäoptisches Begleitthema aus dem Rollenspiel-Meisterwerk <strong>Amberstar</strong> (Thalion, 1992), komponiert von Jochen Hippel. Dieser Soundtrack gilt als sein absolutes chiptunetechnisches Magnum Opus.</p>
+        <p><strong>DSP-Fokus:</strong> Durch das meisterhafte, direkte Beschreiben der Register im 50Hz-Takt erzeugt Hippel orchestrale Synthesizer-Strukturen, die dem YM2149F eine bis dato unvorstellbare Tiefe entlocken. Unser stahlharter Emulator bringt diese dichten Registerdaten absolut phasenstarr zur Geltung.</p>
+    `,
     "GOLDRUN.YM": `
         <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
         <p>Der legendäre Soundtrack zum vertikalen Shoot-'em-up-Klassiker <strong>Goldrunner</strong> (1987), programmiert von Steve Bak und Pete Lyon. Die Musik wurde vom C64-Rockgott <strong>Rob Hubbard</strong> höchstpersönlich für den ST arrangiert und basiert auf seinem wegweisenden C64-Track <em>Human Race</em>.</p>
