@@ -96,24 +96,31 @@ export class SidSiliconBg {
             curY = endY;
         }
 
+        // Subpixel-Killer: Erzwingt knallharte Koordinaten
+        curX |= 0;
+        curY |= 0;
+
         // Draw unterschiedliche Paketformen je nach Registergruppe (Trick 11)
         if (type === 0) {
             // Freq-Write: Scharfes weißes 1x1 Pixel
             ctx.fillStyle = PAL[1];
-            ctx.fillRect(Math.floor(curX), Math.floor(curY), 1, 1);
+            ctx.fillRect(curX, curY, 1, 1);
         } else if (type === 1) {
             // PW-Write: Dickes, blockiges 2x2 Cyan-Paket
             ctx.fillStyle = PAL[3];
-            ctx.fillRect(Math.floor(curX - 1), Math.floor(curY - 1), 2, 2);
+            ctx.fillRect(curX - 1, curY - 1, 2, 2);
         } else {
             // ADSR-Write: Orangefarbene 3x1 Daten-Leiterbahn
             ctx.fillStyle = PAL[8];
-            ctx.fillRect(Math.floor(curX - 1), Math.floor(curY), 3, 1);
+            ctx.fillRect(curX - 1, curY, 3, 1);
         }
     }
 
     // Zeichnet die schwingende Wellenform gekoppelt an den ECHTEN internen SID-Zustand (Nerd Gold!)
     drawOscillatingCore(ctx, x, y, w, h, ctrl, pw12, phase, lfsr, vol) {
+        // Subpixel-Killer: Strikte Integer-Zuweisung für fillRect
+        x |= 0; y |= 0; w |= 0; h |= 0;
+
         ctx.fillStyle = PAL[0]; // Clear (Black)
         ctx.fillRect(x, y, w, h);
 
@@ -154,7 +161,7 @@ export class SidSiliconBg {
                 }
             }
         } else if (ctrl & 32) {
-            // SAWTOOTH: Plot linear ramp based on simulated phase!
+            // SAWTOOTH: Sägezahn gekoppelt an die ECHTE interpolierte CPU-Phase
             for (let px = x + 2; px < x + w - 2; px++) {
                 let localX = px - (x + 2);
                 let localPhase = (phase + localX / w) % 1.0;
@@ -184,10 +191,10 @@ export class SidSiliconBg {
 
     // Zeichnet den ECHTEN Hüllkurven-Pfad (Bresenham-Linien ohne Weichzeichnung!)
     drawAdsrBlock(ctx, x, y, w, h, gate, envVal, sr) {
-        const x0 = Math.floor(x);
-        const y0 = Math.floor(y);
-        const wVal = Math.floor(w);
-        const hVal = Math.floor(h);
+        const x0 = x | 0;
+        const y0 = y | 0;
+        const wVal = w | 0;
+        const hVal = h | 0;
 
         const xA = Math.floor(x0 + wVal * 0.20);
         const yA = y0;
@@ -201,7 +208,7 @@ export class SidSiliconBg {
         const xR = x0 + wVal;
         const yR = y0 + hVal;
 
-        // NEU: Draw 100% scharfe Bresenham-Linien anstelle des verwaschenen Canvas-Pfades!
+        // Draw 100% scharfe Bresenham-Linien
         drawAliasedLine(ctx, x0, y0 + hVal, xA, yA, PAL[12]); // Attack
         drawAliasedLine(ctx, xA, yA, xD, yD, PAL[12]);       // Decay
         drawAliasedLine(ctx, xD, yD, xS, yS, PAL[12]);       // Sustain
@@ -238,8 +245,10 @@ export class SidSiliconBg {
         ctx.fillRect(Math.floor(dotX - 1), Math.floor(dotY - 1), 3, 3);
     }
 
-    // Zeichnet den interaktiven VCF-Block (Resonanz & Cutoff - Trick 4)
+    // Zeichnet den interaktiven VCF-Block (Resonanz & Cutoff)
     drawVcfBlock(ctx, x, y, w, h, cutoffReg, resReg) {
+        x |= 0; y |= 0; w |= 0; h |= 0; // Subpixel-Killer
+
         ctx.fillStyle = PAL[0]; // Clear (Black)
         ctx.fillRect(x, y, w, h);
 
@@ -251,10 +260,10 @@ export class SidSiliconBg {
 
         // Frequenz-Nadel wandert weich nach Cutoff-Register
         let normCut = cutoffReg / 2047.0;
-        let cutX = x + 4 + normCut * (w - 12);
+        let cutX = Math.floor(x + 4 + normCut * (w - 12));
         
         ctx.fillStyle = PAL[10]; // Light Red (10)
-        ctx.fillRect(Math.floor(cutX - 1), y + 4, 3, h - 8);
+        ctx.fillRect(cutX - 1, y + 4, 3, h - 8);
 
         // VIC-II RESORASTER: Konzentrische Ringe weichen einem unruhigen Rasterkamm (||||||)
         ctx.fillStyle = PAL[7]; // Yellow (7)
@@ -266,6 +275,7 @@ export class SidSiliconBg {
 
     // Isometrischer, asymmetrischer Chip-Block
     drawAsymmetricBlock(ctx, x, y, w, h, isVcf) {
+        x |= 0; y |= 0; w |= 0; h |= 0; // Subpixel-Killer
         const colMain = isVcf ? 4 : 14; // Purple oder Light Blue
         
         // Schatten (Hard Drop)
@@ -317,7 +327,6 @@ export class SidSiliconBg {
 
         // =========================================================
         // 1. BACKGROUND: SILICON MICRO-GATES (Substratschicht)
-        // Sehr dezent scrollende Mikro-Pixel repräsentieren das Silizium-Die
         // =========================================================
         ctx.fillStyle = PAL[0]; // Black Out
         ctx.fillRect(0, 0, offW, 200);
@@ -333,17 +342,17 @@ export class SidSiliconBg {
 
         // =========================================================
         // 2. THE CHIP CORES (Asymmetry & Detailing)
-        // Handgebaute Koordinaten brechen die sterile CAD-Symmetrie
         // =========================================================
-        const cx = offW / 2;
-        const span = Math.min(110, offW * 0.35); 
+        // Subpixel-Killer: cx und span MÜSSEN ganzzahlig sein!
+        const cx = Math.floor(offW / 2);
+        const span = Math.floor(Math.min(110, offW * 0.35)); 
         
-        const oscX = cx - span;
+        const oscX = Math.floor(cx - span);
         const oscY = [42, 97, 153]; // Handgebuiltes Offset (Symmetriebruch!)
         const oscW = 46;
         const oscH = 32;
 
-        const vcfX = cx + span * 0.63;
+        const vcfX = Math.floor(cx + span * 0.63);
         const vcfY = 104; // Symmetriebruch!
         const vcfW = 56;
         const vcfH = 64;
@@ -351,7 +360,6 @@ export class SidSiliconBg {
         // Leiterbahnen im Hintergrund zeichnen (Dunkles Violett 6)
         ctx.fillStyle = PAL[6];
         for (let i = 0; i < 3; i++) {
-            // Hauptbusse (starr gezeichnet, dezent im Background)
             const midX = Math.floor(oscX + oscW + (vcfX - (oscX + oscW)) * 0.55);
             ctx.fillRect(oscX + oscW, oscY[i] + 16, midX - (oscX + oscW), 2);
             ctx.fillRect(midX, Math.min(oscY[i] + 16, vcfY + 20 + i * 12), 2, Math.abs((oscY[i] + 16) - (vcfY + 20 + i * 12)));
@@ -360,21 +368,17 @@ export class SidSiliconBg {
 
         // =========================================================
         // 3. REGISTER ACTIVITY & DATA PACKETS (Elektronenströme)
-        // Trigger-Weiche: Freq (schnell), PW (chunky/cyan), ADSR (langsam/orange)
         // =========================================================
         if (metrics.regs) {
             for (let v = 0; v < 3; v++) {
                 let base = v * 7;
                 
-                // Freq-Write (Register 0 & 1) -> Schickt Typ 0 (fast)
                 if (regs[base] !== this.lastRegs[base] || regs[base+1] !== this.lastRegs[base+1]) {
                     this.triggerElectron(v, 0);
                 }
-                // PW-Write (Register 2 & 3) -> Schickt Typ 1 (chunky)
                 if (regs[base+2] !== this.lastRegs[base+2] || regs[base+3] !== this.lastRegs[base+3]) {
                     this.triggerElectron(v, 1);
                 }
-                // ADSR-Write (Register 5 & 6) -> Schickt Typ 2 (slow)
                 if (regs[base+5] !== this.lastRegs[base+5] || regs[base+6] !== this.lastRegs[base+6]) {
                     this.triggerElectron(v, 2);
                 }
@@ -386,7 +390,6 @@ export class SidSiliconBg {
             }
         }
 
-        // Signal-Pakete entlang der Busse fließen lassen (Zero-Allocation Update)
         for (let v = 0; v < 3; v++) {
             for (let e = 0; e < 6; e++) {
                 let el = this.electrons[v][e];
@@ -396,7 +399,6 @@ export class SidSiliconBg {
                         el.active = false;
                         el.pos = 0.0;
                     } else {
-                        // Paket rendern!
                         this.drawElectron(ctx, oscX + oscW, oscY[v] + 16, vcfX, vcfY + 20 + v * 12, el.pos, el.type);
                     }
                 }
@@ -404,7 +406,7 @@ export class SidSiliconBg {
         }
 
         // =========================================================
-        // 4. THE WAVEFORM CHIP MODULES (DCO & VCF Emulator Link)
+        // 4. THE WAVEFORM CHIP MODULES
         // =========================================================
         for (let v = 0; v < 3; v++) {
             const ctrl = regs[v * 7 + 4];
@@ -413,13 +415,10 @@ export class SidSiliconBg {
             const sr = regs[v * 7 + 6];
             const envVal = vols[v]; // Hüllkurvenwert (0.0 bis 1.0)
 
-            // --- LOKALE CYCLIC EMULATION IN RENDERLOOP ---
-            // Wir updaten Phasenakkumulator und 23-Bit-LFSR absolut lockstep zur Framezeit!
             this.phase[v] = (this.phase[v] + freq * dt * 0.15) % 1.0;
             
             let overran = (this.phase[v] < (freq * dt * 0.15));
             if (overran && (ctrl & 128)) {
-                // 23-Bit LFSR Shift für echtes VIC-II Noise-Bandrauschen
                 let bit = ((this.lfsr[v] >> 22) ^ (this.lfsr[v] >> 17)) & 1;
                 this.lfsr[v] = ((this.lfsr[v] << 1) & 0x7FFFFF) | bit;
             }
@@ -427,23 +426,17 @@ export class SidSiliconBg {
             // Chip Gehäuse
             this.drawAsymmetricBlock(ctx, oscX - 32, oscY[v] - 16, oscW + 36, oscH + 32, false);
 
-            // Active Waveform Core linked to emulated SID phase, pw12 and lfsr! (Nerd Gold!)
             this.drawOscillatingCore(ctx, oscX - 4, oscY[v] - 10, oscW + 4, oscH - 4, ctrl, pw12, this.phase[v], this.lfsr[v], envVal);
 
-            // ADSR Live Flanken-Tracer (Punkt gleitet exakt auf ADSR-Kurve!)
             let gate = (ctrl & 1) !== 0;
             this.drawAdsrBlock(ctx, oscX - 26, oscY[v] + 4, 18, 12, gate, envVal, sr);
         }
 
-        // 4b. VCF Filter-Sweeper (Cutoff & Resonance Comb-Raster)
         const cutoffReg = (regs[21] & 7) | (regs[22] << 3);
         const resReg = regs[23] >> 4;
         this.drawAsymmetricBlock(ctx, vcfX - 6, vcfY - 12, vcfW + 12, vcfH + 24, true);
         this.drawVcfBlock(ctx, vcfX, vcfY, vcfW, vcfH, cutoffReg, resReg);
 
-        // =========================================================
-        // 5. STROBE FLASH
-        // =========================================================
         if (state === 'climax' && metrics.beat[0] > 0.85) {
             ctx.fillStyle = PAL[1]; 
             ctx.fillRect(0, 0, offW, 200);
@@ -451,11 +444,12 @@ export class SidSiliconBg {
 
         // =========================================================
         // BLIT TO MAIN CANVAS
+        // Wir entfernen den fehlerhaften imageSmoothingEnabled=true Aufruf am Ende,
+        // um den RetroCtx nicht aus Versehen aufzuweichen!
         // =========================================================
         mainCtx.globalAlpha = globalAlpha;
         mainCtx.imageSmoothingEnabled = false; 
         mainCtx.drawImage(this.offscreen, 0, 0, width, height);
-        mainCtx.imageSmoothingEnabled = true; 
         mainCtx.globalAlpha = 1.0;
     }
 }

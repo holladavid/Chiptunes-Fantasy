@@ -60,6 +60,20 @@ body.theme-atari {
     padding: 0;
 }
 
+/* =========================================================
+   GFX RETRO-BLITTER UPGRADE (Nearest-Neighbor Enforcement)
+   Zwingt die GPU des Browsers, beim Strecken oder Maximieren
+   des Canvas jegliche bilineare Filterung hart zu blockieren!
+   Garantiert 100% aliaster, knallharter Pixel-Art-Look auf 4K,
+   Retina-Displays und im Vollbild!
+   ========================================================= */
+canvas {
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-crisp-edges;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
 body, html {
     width: 100%;
     height: 100%;
