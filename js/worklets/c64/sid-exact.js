@@ -83,6 +83,13 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.ringIndex = 0;
                 this.dcBlock = new DCBlocker();
 
+                // KORREKTUR: Wir erzeugen eine frische, saubere SIDChip-Instanz (wie im Standard-Core),
+                // um Ghost-Register zu killen und das Temperatur-Setting sauber zu vererben!
+                this.sid = new SIDChip();
+                this.sid.useJfetSaturation = true;
+                this.sid.temperature = this.temperature; 
+                this.cpu = new CPU6502(this.sid);
+
                 this.cpu.reset(msg.loadAddress, msg.c64Code);
 
                 this.initAddress = msg.initAddress;
