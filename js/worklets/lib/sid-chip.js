@@ -1,13 +1,14 @@
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Phase 6: ADSR Pipeline Delay & True Sustain-Drop Hardware Bug
+// Phase 7: True Thermal Hardware Modeling
+// Exponential Cutoff Drift, Thermal DAC Gain/Offset,
+// JFET Temperature Saturation, and Dynamic Leakage.
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
 import { DAC_LUT, CUTOFF_LUT } from './sid-luts.js';
 
-// DSP UPGRADE: Es gibt keinen Sustain-State in Hardware!
 const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_RELEASE = 2; 
 const RATE_COUNTER_PERIOD = [9, 32, 63, 95, 149, 220, 267, 313, 392, 977, 1954, 3126, 3907, 11720, 19530, 31256];
 
@@ -32,13 +33,21 @@ export class SIDChip {
         }
         this.cutoff = 30; this.resonance = 0; this.filterMode = 0; this.masterVol = 0;
         this.filterLow = 0; this.filterBand = 0;
-        this._temperature = 55.0;
         this.outputSample = 0;
         this.useJfetSaturation = true; 
         
         this.g = 0;
         this.q = 1.0;
         this.activeCutoff = 30.0;
+
+        // Thermische Caches (Zero-Allocation Loop Optimization)
+        this._temperature = 55.0;
+        this.thermalDacGain = 1.0;
+        this.thermalDacOffset = 0.0;
+        this.thermalLeakage = 0.11;
+        this.thermalDcOffset = 0.0;
+        this.thermalJfetDrive = 0.8;
+
         this.updateFilterParameters();
     }
 
@@ -48,10 +57,16 @@ export class SIDChip {
         this.updateFilterParameters();
     }
 
+    // =========================================================
+    // THERMAL HARDWARE MODELING
+    // Alle temperaturabhängigen Werte werden vorab berechnet.
+    // =========================================================
     updateFilterParameters() {
         let cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
         let norm = cutoffReg / 2047.0;
-        let thermalCoefficient = 1.0 - (this._temperature - 55.0) * 0.0035;
+
+        // 1. Exponential Cutoff Drift
+        let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
 
         let fetCurve = 30.0 + 250.0 * norm + 8000.0 * (norm * norm) + 8000.0 * (norm * norm * norm);
         
@@ -59,13 +74,29 @@ export class SIDChip {
         if (this.activeCutoff < 30) this.activeCutoff = 30;
         if (this.activeCutoff > 16000) this.activeCutoff = 16000;
 
-        this.g = Math.PI * this.activeCutoff / 985248;
+        // 2. Integrator Drift
+        let baseG = Math.PI * this.activeCutoff / 985248;
+        this.g = baseG * (1.0 + (this._temperature - 55.0) * 0.0005);
         
         let resReg = this.regs[23] >> 4;
         let normRes = resReg / 15.0;
         let q = 1.0 - normRes * 0.92;
         let thermalDamp = 1.0 + (this._temperature - 55.0) * 0.0015;
         this.q = Math.min(1.0, Math.max(0.04, q * thermalDamp));
+
+        // 3. DAC Gain & Offset Drift
+        this.thermalDacGain = 1.0 - (this._temperature - 55.0) * 0.0008;
+        this.thermalDacOffset = (this._temperature - 55.0) * 0.0003;
+
+        // 4. VCF Leakage Steigerung bei Wärme
+        this.thermalLeakage = 0.09 + (this._temperature - 25.0) * 0.0008;
+
+        // 5. Hardware DC Offset Drift
+        this.thermalDcOffset = (this._temperature - 55.0) * 0.005;
+
+        // 6. JFET Saturation Drive (Warme Transistoren clippen früher/weicher)
+        this.thermalJfetDrive = 0.8 * (1.0 - (this._temperature - 55.0) * 0.004);
+        if (this.thermalJfetDrive < 0.1) this.thermalJfetDrive = 0.1; // Failsafe
     }
 
     writeReg(reg, val) {
@@ -85,17 +116,10 @@ export class SIDChip {
             let gate = (ch.ctrl & 1) !== 0;
             let prevGate = (prevCtrl & 1) !== 0;
             
-            // =========================================================
-            // DSP UPGRADE: ADSR PIPELINE DELAY & COUNTER RESET
-            // =========================================================
             if (gate !== prevGate) {
-                // Pipeline Delay für exakt 1 Cycle
                 ch.envDelay = 1;
                 ch.state = gate ? ENV_ATTACK : ENV_RELEASE;
                 
-                // Hardware-Bug: Gate-On friert nicht nur ein, es resettet 
-                // den Rate-Counter! Dadurch schlägt jeder Kickdrum-Attack
-                // phasenstarr und knackig ein, ohne auf Reste zu warten.
                 if (gate) {
                     ch.rate_counter = ch.attack_period;
                     ch.exponential_counter = 0;
@@ -115,9 +139,7 @@ export class SIDChip {
                 ch.sustain_level = (val >> 4) | ((val >> 4) << 4);
                 ch.release_period = RATE_COUNTER_PERIOD[val & 15];
             }
-        } else if (reg === 21 || reg === 22) {
-            this.updateFilterParameters();
-        } else if (reg === 23) {
+        } else if (reg === 21 || reg === 22 || reg === 23) {
             this.updateFilterParameters();
         } else if (reg === 24) {
             this.filterMode = val;
@@ -140,9 +162,8 @@ export class SIDChip {
 
         ch.rate_counter--;
         if (ch.rate_counter <= 0) {
-            ch.rate_counter = ratePeriod; // Wrap-around des 15-Bit Counters
+            ch.rate_counter = ratePeriod;
 
-            // Der pseudo-exponentielle Divider des SID
             let expPeriod = 1;
             if (ch.state !== ENV_ATTACK) {
                 let envVal = ch.envelope_counter;
@@ -165,13 +186,6 @@ export class SIDChip {
                         ch.state = ENV_DECAY;
                     }
                 } else if (ch.state === ENV_DECAY) {
-                    // =========================================================
-                    // DSP UPGRADE: SUSTAIN DROP BUG (NO SUSTAIN STATE)
-                    // =========================================================
-                    // Der SID stoppt das Decay lediglich, wenn envelope == sustain_level.
-                    // Wenn der Coder das Sustain-Level nachträglich ändert und
-                    // die Hüllkurve die Gleichheit verfehlt, bricht der Wert
-                    // gnadenlos bis auf 0 ein (Sustain Drop Bug).
                     if (ch.envelope_counter !== ch.sustain_level) {
                         if (ch.envelope_counter > 0) ch.envelope_counter--;
                     }
@@ -222,6 +236,10 @@ export class SIDChip {
         let waveDac = DAC_LUT[ch.waveOut8Bit];
 
         let waveOutFloat = (waveDac * 2.0) - 1.0;
+        
+        // Analog DAC Thermal Drift
+        waveOutFloat = waveOutFloat * this.thermalDacGain + this.thermalDacOffset;
+        
         return waveOutFloat * envDac;
     }
 
@@ -262,11 +280,13 @@ export class SIDChip {
         this.filterLow = lp;
         
         if (this.useJfetSaturation) {
-            // Stabiles asymmetrisches Clipping ohne Latch-Up
+            let driveP = this.thermalJfetDrive;
+            let driveN = driveP * 1.875; // Behält das klassische 1.5 zu 0.8 Asymmetrie-Verhältnis bei
+            
             if (bp > 0) {
-                this.filterBand = Math.tanh(bp * 0.8) / 0.8;
+                this.filterBand = Math.tanh(bp * driveP) / driveP;
             } else {
-                this.filterBand = Math.tanh(bp * 1.5) / 1.5;
+                this.filterBand = Math.tanh(bp * driveN) / driveN;
             }
         } else {
             this.filterBand = bp / (1.0 + Math.abs(bp) * 0.15); 
@@ -282,20 +302,19 @@ export class SIDChip {
         if (this.filterMode & 32) filterOut += this.filterBand; 
         if (this.filterMode & 64) filterOut += hp; 
 
-        let leakage = filteredSum * 0.11;
+        let leakage = filteredSum * this.thermalLeakage;
         let filteredMix = filterOut + leakage;
 
         let rawSum = unfilteredSum + filteredMix;
         let vcaIn = rawSum * 0.42; 
         
-        // VCA Warmth mit 2nd Harmonics Growl
         let vcaQuad = this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0;
         
         let finalMix = vcaIn > 0 
             ? Math.tanh(vcaIn + vcaQuad) 
             : Math.tanh(vcaIn * 0.85 + vcaQuad) / 0.85;
 
-        let dcLeakage = (this.masterVol - 0.5) * 1.5;
+        let dcLeakage = (this.masterVol - 0.5) * 1.5 + this.thermalDcOffset;
         this.outputSample = (finalMix * this.masterVol) + dcLeakage;
     }
 }
