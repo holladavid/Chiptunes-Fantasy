@@ -5,9 +5,10 @@
 // responsive aspect-ratio width. Strict 9-Bit Palette.
 // Features Log-DAC background stairs, live Square Wave cores,
 // smooth parallax LFSR Noise rain, and Timer-B glitches.
+// 100% Anti-Aliasing free (Zero Subpixel-Bleeding).
 // =========================================================
 
-import { quantizeAtari9Bit, rgbToHex } from '../../../visuals/utils/hardware-constraints.js';
+import { quantizeAtari9Bit, rgbToHex } from '../../utils/hardware-constraints.js';
 
 // Atari ST Neon Cyberpunk Palette (Strictly 9-Bit Quantized)
 const PAL = [
@@ -27,7 +28,6 @@ export class YmSiliconBg {
         this.computerType = ['atari'];
         this.placementType = 'background';
         
-        // Canvas wird dynamisch im Render-Loop auf das Seitenverhältnis genormt
         this.offscreen = document.createElement('canvas');
         this.ctx = this.offscreen.getContext('2d', { alpha: false });
         
@@ -49,19 +49,21 @@ export class YmSiliconBg {
 
     // Zeichnet eine harte Rechteckwelle (Square Wave) für die Oszillatoren
     drawSquareWave(ctx, cx, cy, width, height, vol, time) {
+        cx |= 0; cy |= 0; width |= 0; height |= 0; // Subpixel-Killer
+        
         const amp = (vol * height) | 0;
         if (amp < 2) {
-            this.drawHLine(ctx, cx - width/2, cy, width, 3); // Dark Green Idle Line
+            this.drawHLine(ctx, cx - Math.floor(width/2), cy, width, 3); // Dark Green Idle Line
             return;
         }
 
-        const period = 20 - (vol * 10); // Wellenlänge abhängig vom Pegel
-        const offset = (time * 50) % period;
-        const leftX = (cx - width/2) | 0;
-        const topY = (cy - amp/2) | 0;
-        const bottomY = (cy + amp/2) | 0;
+        const period = Math.floor(20 - (vol * 10)); // Wellenlänge abhängig vom Pegel
+        const offset = Math.floor(time * 50) % period;
+        const leftX = (cx - Math.floor(width/2)) | 0;
+        const topY = (cy - Math.floor(amp/2)) | 0;
+        const bottomY = (cy + Math.floor(amp/2)) | 0;
 
-        ctx.fillStyle = vol > 0.6 ? PAL[1] : PAL[2]; // White (Clipping) or Neon Green
+        ctx.fillStyle = vol > 0.6 ? PAL[1] : PAL[2]; // White or Neon Green
 
         let isHigh = false;
         for (let x = 0; x < width; x++) {
@@ -82,11 +84,6 @@ export class YmSiliconBg {
         let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
         this.lastT = t;
 
-        // =========================================================
-        // GFX UPGRADE: DYNAMISCHE RETRO-AUFLÖSUNG
-        // Sichert 200px vertikale Atari-Auflösung, passt die Breite
-        // exakt an den Monitor an, um schwarze Ränder zu eliminieren!
-        // =========================================================
         const TARGET_HEIGHT = 200;
         const aspect = width / height;
         const offW = Math.floor(TARGET_HEIGHT * aspect);
@@ -115,7 +112,9 @@ export class YmSiliconBg {
         const ctx = this.ctx;
         ctx.imageSmoothingEnabled = false;
 
-        const cx = offW / 2; // Dynamische horizontale Mitte
+        // Subpixel-Killer: Erzwingt unbestechliche Ganzzahlen
+        const cx = Math.floor(offW / 2); 
+        const span = Math.floor(Math.min(110, offW * 0.35)); 
 
         // =========================================================
         // 1. BACKGROUND: LOG-DAC STAIRCASE
@@ -135,28 +134,31 @@ export class YmSiliconBg {
         }
 
         // =========================================================
-        // 2. THE 3 SQUARE TONE CORES (Responsive Alignment & Scaling)
+        // 2. THE 3 SQUARE TONE CORES (Symmetrisch & Integrierend)
         // =========================================================
-        // GFX FIX: Core-Breite schrumpft auf Handys sachte mit, um Überlappung zu verhindern!
         const coreWidth = Math.min(60, Math.floor(offW * 0.18));
         const coreHeight = 120;
         const coreY = 40;
         
-        // Symmetrische Spreizung relativ zur Mitte (cx)
-        const span = Math.min(110, offW * 0.35); 
-        const coreX = [cx - span, cx, cx + span]; 
+        // Symmetrische Spreizung relativ zur Ganzzahl-Mitte (cx)
+        const coreX = [
+            Math.floor(cx - span), 
+            cx, 
+            Math.floor(cx + span)
+        ]; 
 
         for (let i = 0; i < 3; i++) {
             const currentCx = coreX[i];
             const vol = vols[i];
+            const halfCoreW = Math.floor(coreWidth / 2);
             
             ctx.fillStyle = PAL[3]; 
-            ctx.fillRect(currentCx - coreWidth/2 - 2, coreY - 2, coreWidth + 4, coreHeight + 4);
+            ctx.fillRect(currentCx - halfCoreW - 2, coreY - 2, coreWidth + 4, coreHeight + 4);
             ctx.fillStyle = PAL[0]; 
-            ctx.fillRect(currentCx - coreWidth/2, coreY, coreWidth, coreHeight);
+            ctx.fillRect(currentCx - halfCoreW, coreY, coreWidth, coreHeight);
 
             for(let gy = coreY; gy < coreY + coreHeight; gy += 8) {
-                this.drawHLine(ctx, currentCx - coreWidth/2, gy, coreWidth, 3);
+                this.drawHLine(ctx, currentCx - halfCoreW, gy, coreWidth, 3);
             }
 
             this.drawSquareWave(ctx, currentCx, coreY + coreHeight/2, coreWidth, coreHeight * 0.8, vol, time + i);
@@ -177,13 +179,9 @@ export class YmSiliconBg {
             
             ctx.fillStyle = PAL[4]; // Magenta
             for (let i = 0; i < dropCount; i++) {
-                // GFX FIX: X-Koordinate hängt starr vom Index ab -> kein links/rechts Flackern mehr!
                 let rx = Math.floor(((Math.sin(i * 45.12) * 0.5 + 0.5) * offW));
-                
-                // GFX FIX: Weiche, flüssige Fallbewegung gekoppelt an unterschiedliche Spurgeschwindigkeiten (Parallax)
                 let fallSpeed = 60 + (i % 5) * 15; 
                 let ry = Math.floor((i * 17 + time * fallSpeed) % offH);
-                
                 let len = (Math.random() * 4 + 2) | 0;
                 
                 ctx.fillRect(rx, ry, 2, len);
@@ -223,13 +221,12 @@ export class YmSiliconBg {
 
         // =========================================================
         // BLIT TO MAIN CANVAS
+        // Wir entfernen das imageSmoothingEnabled=true am Ende des Loops,
+        // um den glättungsfreien Vektor-Staat des Blitters zu erhalten!
         // =========================================================
         mainCtx.globalAlpha = globalAlpha;
         mainCtx.imageSmoothingEnabled = false; 
-        
         mainCtx.drawImage(this.offscreen, 0, 0, width, height);
-        
-        mainCtx.imageSmoothingEnabled = true; 
         mainCtx.globalAlpha = 1.0;
     }
 }

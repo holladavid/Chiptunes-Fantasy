@@ -1,6 +1,6 @@
 // === js/visuals/dse/amiga/retro-sunset.js ===
 // =========================================================
-// DEMO-SCENE-ELEMENT: AMIGA RETRO SUNSET (v3.1.0 - Polish Milestone)
+// DEMO-SCENE-ELEMENT: AMIGA RETRO SUNSET (v3.2.0 - Polish Milestone)
 // 100% Alpha-free! Features discrete beat counters, palette-accurate
 // clouds, Copper-Sun raster gaps, fixed-interval duties,
 // narrow water-shimmer ripples, and a 20s twinkling big star.
@@ -79,10 +79,12 @@ export class AmigaRetroSunset {
         this.cSunYellow = rgbToHex(...quantizeAmiga12Bit(255, 221, 0));   
         this.cSunOrange = rgbToHex(...quantizeAmiga12Bit(255, 119, 0));   
         this.cSunRed    = rgbToHex(...quantizeAmiga12Bit(204, 51, 0));       
+        this.cSunGlow   = rgbToHex(...quantizeAmiga12Bit(255, 150, 0)); // Warmes Glühen für den springenden Fisch
 
-        this.cMountain1 = rgbToHex(...quantizeAmiga12Bit(51, 17, 68));     
-        this.cMountain2 = rgbToHex(...quantizeAmiga12Bit(17, 0, 34));      
-        this.cMountOutl = rgbToHex(...quantizeAmiga12Bit(34, 17, 51));   
+        // HIGH CONTRAST BERGE: Höherer Kontrast für echten OCS Parallax-Sog!
+        this.cMountain1 = rgbToHex(...quantizeAmiga12Bit(68, 17, 102));   // Lichteres, sattes OCS-Lila für den Hintergrund
+        this.cMountain2 = rgbToHex(...quantizeAmiga12Bit(25, 5, 45));     // Tiefes, dunkles Violett für den Vordergrund
+        this.cMountOutl = rgbToHex(...quantizeAmiga12Bit(119, 68, 153));  // Strahlende OCS-Kanten-Highlight-Linie
         
         // Clouds: Klassische Amiga-Farben (Weiß, Orange-Grau, Dunkelgrau)
         this.cCloudCore = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));
@@ -104,6 +106,29 @@ export class AmigaRetroSunset {
         ].map(c => rgbToHex(...quantizeAmiga12Bit(c[0], c[1], c[2])));
 
         this.initialized = true;
+    }
+
+    // Hilfsmethode: Berechnet die scrolled Berghöhe an einer x-Position (Zero Allocation!)
+    getMountainHeightAt(width, horizon, points, scrollOffset, heightScale, x) {
+        let totalW = width;
+        let sOff = Math.floor(scrollOffset) % totalW;
+        let vx = (x + sOff) % totalW;
+        if (vx < 0) vx += totalW;
+        let pct = (vx / totalW) * 100;
+        
+        let p1, p2;
+        for (let i = 0; i < points.length - 1; i++) {
+            if (pct >= points[i].x && pct <= points[i+1].x) {
+                p1 = points[i]; p2 = points[i+1]; break;
+            }
+        }
+        if (!p1) return 0;
+        
+        let t = (pct - p1.x) / (p2.x - p1.x);
+        let tSmooth = (1 - Math.cos(t * Math.PI)) / 2;
+        let hPct = p1.y + (p2.y - p1.y) * tSmooth;
+        
+        return Math.floor(horizon * heightScale * (hPct / 100));
     }
 
     drawChunkyMountainRange(ctx, width, horizon, points, color, scrollOffset, heightScale, outlineColor = null) {
@@ -193,7 +218,6 @@ export class AmigaRetroSunset {
 
         if (isBeat) this.beatCounter++;
 
-        // Feste Zähler-Offsets für asynchrones Triggern
         const isFishTrigger = (this.beatCounter % 32 === 0) && isBeat;
         const isBirdTrigger = (this.beatCounter % 48 === 0) && isBeat;
 
@@ -257,11 +281,12 @@ export class AmigaRetroSunset {
             ctx.fillRect(lx, ly - lfScale*2, 1, lfScale*5);
         }
 
-        // --- LAYER 4: COPPER SUN ---
-        let sunR = Math.floor(minDim * 0.23); 
+        // --- LAYER 4: COPPER SUN (Farbumkehrung) ---
+        let sunR = Math.floor((minDim * 0.23) + (beat * minDim * 0.035)); // Sonne pumpt mit dem Kickdrum-Einschlag
         let sx = Math.floor(width * 0.44); 
         let sy = Math.floor(horizon - 10);
 
+        // Keine Kontrastrand-Outline mehr! Rein flach-schattierte Farbumkehrung (Inversion)
         for (let dy = -sunR; dy <= sunR; dy += 2) {
             let yLine = sy + dy;
             if (yLine >= horizon) continue; 
@@ -271,30 +296,36 @@ export class AmigaRetroSunset {
             }
 
             let dx = Math.round(Math.sqrt(sunR * sunR - dy * dy));
-            let rDist = Math.abs(dy) / sunR;
+            
+            // Normalized Y: -1.0 (oben) bis 1.0 (unten)
+            let yNorm = dy / sunR;
 
-            let sunColor = this.cSunCore;
-            if (rDist > 0.82) sunColor = this.cSunRed; 
-            else if (rDist > 0.55) sunColor = this.cSunOrange; 
-            else if (rDist > 0.28) sunColor = this.cSunYellow; 
+            // NEU: Lineare Inversion von hell nach dunkel (Weiß -> Gelb -> Orange -> Rot)
+            let sunColor = this.cSunRed; // Standard-Unterkante (Rot)
+            if (yNorm < -0.5) {
+                sunColor = this.cSunCore;   // Weiß-heißer Peak (contrasted genial vor dem dunklen Himmel)
+            } else if (yNorm < 0.0) {
+                sunColor = this.cSunYellow; // Mittig-oben (Gelb)
+            } else if (yNorm < 0.5) {
+                sunColor = this.cSunOrange; // Mittig-unten (Orange)
+            }
 
             ctx.fillStyle = sunColor;
             ctx.fillRect(sx - dx, yLine, dx * 2, 2);
         }
 
-        // --- LAYER 5: THE CLOUDS (100% Rect-Free, high-speed wrapping) ---
-        this.cloud2X += dt * (8.0 + speedMult * 4.0); // Beschleunigter Drift
+        // --- LAYER 5: THE CLOUDS ---
+        this.cloud2X += dt * (8.0 + speedMult * 4.0);
         
         let cloudW = 90; 
         let span = width + cloudW;
         let cx2 = Math.floor((this.cloud2X + cloudW) % span);
-        if (cx2 < 0) cx2 += span; // Mathematisch ausfallsicherer Wrap-Around
+        if (cx2 < 0) cx2 += span;
         cx2 -= cloudW;
         
         let cy2 = Math.floor(this.cloud2Y);
 
         const drawCloud = (x, y, colCore, colMid, colShad) => {
-            // Shadow (drawn first, shifted down/right)
             fillAliasedCircle(ctx, x, y + 2, 4, colShad);
             fillAliasedCircle(ctx, x + 8, y + 3, 6, colShad);
             fillAliasedCircle(ctx, x + 18, y - 1, 10, colShad);
@@ -304,7 +335,6 @@ export class AmigaRetroSunset {
             fillAliasedCircle(ctx, x + 68, y - 3, 9, colShad);
             fillAliasedCircle(ctx, x + 80, y + 4, 4, colShad);
 
-            // Mid/Highlight
             fillAliasedCircle(ctx, x, y + 1, 4, colMid);
             fillAliasedCircle(ctx, x + 8, y + 2, 6, colMid);
             fillAliasedCircle(ctx, x + 18, y - 2, 10, colMid);
@@ -314,7 +344,6 @@ export class AmigaRetroSunset {
             fillAliasedCircle(ctx, x + 68, y - 4, 9, colMid);
             fillAliasedCircle(ctx, x + 80, y + 3, 4, colMid);
 
-            // Core
             fillAliasedCircle(ctx, x, y, 3, colCore);
             fillAliasedCircle(ctx, x + 8, y + 1, 5, colCore);
             fillAliasedCircle(ctx, x + 18, y - 3, 9, colCore);
@@ -366,23 +395,50 @@ export class AmigaRetroSunset {
             }
         }
 
-        // --- LAYER 9: SHIMMERING WATER (Optimized Waves & Gaps) ---
+        // --- LAYER 9: SHIMMERING WATER ---
         ctx.fillStyle = this.cWaterBase; 
-        ctx.fillRect(0, horizon + 1, width, height - horizon);
+        ctx.fillRect(0, horizon, width, height - horizon);
+
+        // Berge-Silhouette unter der Sonne berechnen (Trick 3: Horizon-Masking)
+        let h1 = this.getMountainHeightAt(width, horizon, this.mountains1, this.bgScroll, 0.38, sx);
+        let h2 = this.getMountainHeightAt(width, horizon, this.mountains2, this.fgScroll, 0.25, sx);
+        let highestMountainHeight = Math.max(h1, h2);
+
+        // Die Spiegelung startet genau unter dem Bergrücken (Physikalisch exakt gespiegelt!)
+        // NEU: Reduziert auf ein sachtes, ästhetisch perfektes OCS-Maß, damit die Reflektion atmet
+        let reflectionStart = Math.max(4, Math.floor(highestMountainHeight * 0.25) + 1);
 
         const numLines = this.cachedWaterColors.length;
 
         for (let i = 0; i < numLines; i++) {
             let y = horizon + i * 2;
-            let depth = (y - horizon) / (height - horizon);
-            let waveWidth = (minDim * 0.065) + (depth * (minDim * 0.28));
+            
+            // Trick 1 & 6: Die ersten paar Zeilen sind eine reine dunkelblaue Tiefen-Zone
+            if (y < horizon + reflectionStart) {
+                ctx.fillStyle = this.cWaterStripe; // Sattes Dunkelblau
+                ctx.fillRect(0, y, width, 2);
+                continue;
+            }
 
+            let relativeY = y - (horizon + reflectionStart);
+            let depth = relativeY / (height - (horizon + reflectionStart));
+            if (depth < 0) depth = 0;
+            if (depth > 1) depth = 1;
+
+            // Trick 4: Quadratisches Breiten-Wachstum (Schmaler Start, breite Basis)
+            let waveWidth = 2.0 + (depth * depth) * (minDim * 0.35);
+
+            // Trick 2: Spiegelung wächst sachte über die ersten 12 Zeilen (Dither Fade)
+            let fade = Math.min(1.0, relativeY / 12.0);
+            waveWidth *= fade;
+
+            // Detail Fix: Oben ruhig, unten lebendig (Sway wächst quadratisch mit depth)
             let rawSway = Math.sin((y * 0.05) + (this.waterT * 2.0));
-            let sway = Math.floor(rawSway * 4) * (2 + depth * 5); 
+            let swayAmount = 1.0 + (depth * depth) * 12.0; 
+            let sway = Math.floor(rawSway * swayAmount);
 
             let shimmer = Math.sin((y * 0.45) + (this.waterT * 8.0));
             
-            // KORREKTUR: Schwelle auf -0.65 abgesenkt! Die Lücken sind nun wunderbar schmal.
             if (shimmer < -0.65) {
                 ctx.fillStyle = this.cachedWaterColors[i];
                 ctx.fillRect(0, y, width, 2);
@@ -394,11 +450,19 @@ export class AmigaRetroSunset {
 
             let lx = sx - (waveWidth / 2) + sway + hShift;
 
-            ctx.fillStyle = this.cachedRefColors[i];
+            // Trick 5: Specular Glanzpunkt (Erste Zeilen reinweiß)
+            let refColor = this.cachedRefColors[i];
+            if (relativeY < 4) {
+                refColor = this.cSunCore; // Strahlendes Weiß
+            } else if (relativeY < 10) {
+                refColor = this.cSunYellow; // Sonnen-Gelb
+            }
+
+            ctx.fillStyle = refColor;
             ctx.fillRect(Math.floor(lx), y, Math.floor(waveWidth), 2);
 
             let coreShimmer = Math.sin((y * 0.9) + (this.waterT * 12.0));
-            if (coreShimmer > 0.1) {
+            if (coreShimmer > 0.1 && relativeY >= 4) {
                 let coreW = waveWidth * 0.28 * (1.0 - depth * 0.45);
                 ctx.fillStyle = this.cSunCore;
                 ctx.fillRect(Math.floor(sx - (coreW / 2) + sway * 0.5 + hShift), y, Math.floor(coreW), 2);

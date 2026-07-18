@@ -16,15 +16,19 @@ export const SID_SLDB = {
     "megaapocalypsepsid": { lengths: [332, 10, 10] },
     "bioniccommando": { lengths: [127, 215, 378] },
     "lastninja": { lengths: [332, 231, 168] },
+    "lastninja2": { lengths: [107, 332, 179, 332, 123, 340, 107, 332, 123, 340, 107, 332, 27] },
     "miamivice": { lengths: [69] },
     "wayofthetiger": { lengths: [170, 48, 32, 12, 15, 15, 15, 15, 15, 15, 15] },
     "platoon": { lengths: [317] },
     "compilationi": { lengths: [311, 230, 215, 342] },
     "compilationii": { lengths: [482, 180, 240, 150] },
-    
-    // --- NEU: Jeroen Tel / Maniacs of Noise ---
+    "comicbakery": { lengths: [304, 131] },
+    "arkanoid": { lengths: [144, 34, 10, 10] },
+    "lightforce": { lengths: [214] },
     "cybernoidii": { lengths: [378, 10, 10] },
     "supremacy": { lengths: [316, 210, 180, 120] },
+    "sanxion": { lengths: [325, 201] },
+    "crazycomets": { lengths: [216] },
     "robocop3": { lengths: [185, 120, 105, 165, 110] },
     "myth": { lengths: [282, 120, 120, 120, 120] }
 };

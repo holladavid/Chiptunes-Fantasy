@@ -8,10 +8,16 @@ import { loadSidFile } from '../../js/parsers/sid-parser.js';
 
 const mySidFiles = [
     "Commando.sid",                   // 1. Rob Hubbard
+    "Crazy_Comets.sid",               // <--- NEU: Rob Hubbards legendäres Synthwave-Meisterwerk!    
+    "Sanxion.sid",                    // <--- NEU: Rob Hubbards legendäre "Thalamusik"!
+    "Lightforce.sid",                 // <--- NEU: Rob Hubbards heroische Chiptune-Hymne!
     "Wizball.sid",                    // 2. Martin Galway
+    "Comic_Bakery.sid",               // <--- NEU: Martin Galways bahnbrechendes Meisterwerk!
+    "Arkanoid.sid",                   // <--- NEU: Martin Galways bahnbrechender Meilenstein!
     "Great_Giana_Sisters_PSID.sid",   // 3. Chris Hülsbeck
     "Bionic_Commando.sid",            // 4. Tim Follin
     "Last_Ninja.sid",                 // 5. Ben Daglish & Anthony Lees
+    "Last_Ninja_2.sid",               // <--- NEU: Matt Grays Meisterwerk!
     "Cybernoid_II.sid",               // 6. Jeroen Tel
     "Supremacy.sid",                  // 7. Jeroen Tel
     "RoboCop_3.sid",                  // 8. Jeroen Tel
@@ -29,6 +35,51 @@ const mySidFiles = [
 ];
 
 const composerMetadata = {
+    "Myth.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: JEROEN TEL (MANIACS OF NOISE) ]</h3>
+        <p>Der Soundtrack zum System-3-Plattformer <strong>Myth: History in the Making</strong> (1989), komponiert von <strong>Jeroen Tel</strong> (Maniacs of Noise), ist ein unumstrittenes Meisterwerk düsterer Fantasy-Elektronik. Der Track verbindet mystische, getragene Klangteppiche mit extrem aggressiven, treibenden Beats und Melodie-Kaskaden.</p>
+        <p><strong>DSP-Fokus:</strong> Jeroen Tel zeigt hier seine absolute Beherrschung der <strong>kombinierten "illegalen" Wellenformen</strong> (Sägezahn + Puls + Rauschen). Durch das meisterhafte Ausnutzen des physischen Wire-AND-Kurzschlusses der DAC-Leitungen auf dem Silizium kreiert er metallische, unglaublich druckvolle Snares und Hi-Hats, die unser cycle-genauer Emulator absolut originalgetreu wiedergibt.</p>
+    `,
+    "Lightforce.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
+        <p>Der Soundtrack zu <strong>Lightforce</strong> (1986), komponiert von <strong>Rob Hubbard</strong> für das FTL-Weltraum-Shoot-'em-up (Hewson Consultants), ist eine der meistgeliebten Melodie-Hymnen der C64-Geschichte. Der Track besticht durch seine heroische Energie, treibende Rhythmik und eine unnachahmliche harmonische Tiefe.</p>
+        <p><strong>DSP-Fokus:</strong> Der Track glänzt durch eine extrem epische Lead-Stimme und Hubbards charakteristische, dichte Schlagzeug-Emulation. Unser cycle-genauer 1-MHz-Mischer verarbeitet die rasanten PWM-Breiten-Modulationen und die knackig gesnapten ADSR-Hüllkurven vollkommen phasenstarr und randscharf, was den hymnischen Charakter des Stücks eindrucksvoll zur Geltung bringt.</p>
+    `,
+    "Delta.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
+        <p>Der Soundtrack zum Thalamus-Shoot-'em-up <strong>Delta</strong> (1987), komponiert von <strong>Rob Hubbard</strong>, ist eine absolute Chiptune-Sensation. Das Titelthema kombiniert Einflüsse aus Pink Floyds Synthesizer-Sequence <em>On the Run</em> (Album: Dark Side of the Moon) und Philip Glass' minimalistischen Strukturen zu einer epischen Space-Synth-Atmosphäre.</p>
+        <p><strong>DSP-Fokus:</strong> <em>Delta</em> ist ein Lehrstück für komplexe Sequenzer-Arpeggios und treibende Bass-Grooves. Hubbard nutzt hier im Sekundentakt wechselnde Pulsweitenmodulationen und sachte Filter-Sweeps, um dem Soundtrack seine spacige Breite zu verleihen. Unser cycle-genauer Emulator bringt diese dichten Registerdaten absolut phasenstarr und ohne Aliasing-Rauschen auf deine Lautsprecher.</p>
+    `,
+    "Monty_on_the_Run.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
+        <p>Der Soundtrack zu <strong>Monty on the Run</strong> (1985), komponiert von <strong>Rob Hubbard</strong> für das Gremlin-Graphics-Plattformspiel, ist ein Meilenstein der programmierbaren Melodieführung. Der Track ist berühmt für sein atemberaubendes, rasend schnelles <strong>E-Geigen-Solo (Violin Solo)</strong>, das als eines der virtuosesten Stücke gilt, die je für den C64 geschrieben wurden.</p>
+        <p><strong>DSP-Fokus:</strong> Hubbard emuliert hier das physische Kratzen, Anreißen und schwebende Vibrato eines Geigenbogens. Er erreichte dies durch extrem optimierte, hochfrequente CPU-Interrupts (Timer-gesteuert), die die Oszillator-Wellenform und Filterhüllkurve über 100-mal pro Sekunde zur Laufzeit anpassen. Unser cycle-genauer 1-MHz-Mischer verarbeitet diese brutalen Hardware-Hacks phasenstarr und ohne Artefakte.</p>
+    `,
+    "Crazy_Comets.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
+        <p>Der Soundtrack zu <strong>Crazy Comets</strong> (1985), komponiert von <strong>Rob Hubbard</strong> für das Martech-Weltraumspiel, gilt als eines der absolut wegbereitendsten Synthwave-Elektronik-Meisterwerke der Chiptune-Geschichte. Hubbard selbst bezeichnete den Track häufig als eine seiner besten Arbeiten.</p>
+        <p><strong>DSP-Fokus:</strong> Der Track glänzt durch eine extrem fette, treibende F-Dur-Bassline und hochkomplexe, metallische Drums, die den SID-Chip an seine physikalischen Grenzen bringen. Das absolute Highlight ist Hubbards legendäre Programmierung einer <strong>künstlichen, roboterhaften Alien-Stimme (Voice Synthesis)</strong> auf dem 6581, die durch blitzschnelle Register-Hacks im Millisekundentakt geformt wird – ein Meisterwerk der Programmierkunst, das unser cycle-genauer Emulator absolut fehlerfrei wiedergibt.</p>
+    `,
+    "Sanxion.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
+        <p>Der Soundtrack zu <strong>Sanxion</strong> (1986), komponiert von <strong>Rob Hubbard</strong> für das erste Spiel des Publishers Thalamus, ist ein akustisches Denkmal. Subtune 1 (die berühmte Lademusik <em>Thalamusik</em>) wurde von Jean-Michel Jarres Album <em>Zoolook</em> inspiriert, während das Titelthema Sergei Prokofjews dramatischen <em>Tanz der Ritter</em> aus dem Ballett Romeo und Julia meisterhaft adaptiert.</p>
+        <p><strong>DSP-Fokus:</strong> <em>Thalamusik</em> glänzt durch seine fließenden, sphärischen Analogsounds und die unnachahmliche, beinahe jazzige Hubbard-Solostimme. Der Track nutzt das subtraktive Synthesepotential des 6581 voll aus, indem er extrem komplexe, LFO-artige PWM-Sweeps mit harten, bissigen Hüllkurven koppelt, die unser randscharfer Mischer vollkommen verzerrungsfrei wiedergibt.</p>
+    `,
+    "Arkanoid.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: MARTIN GALWAY ]</h3>
+        <p>Der Soundtrack zur C64-Portierung von <strong>Arkanoid</strong> (1987), komponiert von <strong>Martin Galway</strong>, ist ein historisches Novum: Es war das <strong>allererste Mal in der Geschichte</strong>, dass echte, digitale PCM-Drums (Samples) innerhalb einer musikalischen Komposition auf dem Commodore 64 abgespielt wurden!</p>
+        <p><strong>DSP-Fokus:</strong> Das Titelthema basiert auf Galways eigener Speccy-Musik aus dem Spiel <em>Cobra</em>, wurde aber für den SID mit spektakulären, metallischen Digidrums veredelt. Durch das blitzschnelle Beschreiben des 4-Bit-Lautstärkeregisters erzeugte er den berühmten samplebasierten "Galway-Hack" ($D418), den unser cycle-genauer 1-MHz-Mischer originalgetreu emuliert.</p>
+    `,
+    "Comic_Bakery.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: MARTIN GALWAY ]</h3>
+        <p>Der Soundtrack zu <strong>Comic Bakery</strong> (1985), komponiert von <strong>Martin Galway</strong>, ist einer der einflussreichsten und meistgecoverten Meilensteine der Chiptune-Geschichte. Galway erschuf hier ein elektronisches Kunstwerk, das die Grenzen des SID-Chips sprengte.</p>
+        <p><strong>DSP-Fokus:</strong> Das legendäre Hauptthema demonstriert das Potential von Galways charakteristischer <strong>Pulsweitenmodulation (PWM)</strong>. Durch gezieltes Software-LFO-Wobbeln der Rechteckbreite erzeugte er einen fetten, chorusschwebenden Synthesizer-Bass. Gekoppelt mit rasanten 50Hz-VBLANK-Arpeggios gaukelt der Track dem Ohr eine dichte, vielstimmige Anordnung vor, obwohl der SID nur 3 Oszillatoren besitzt.</p>
+    `,
+    "Last_Ninja_2.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: MATT GRAY ]</h3>
+        <p>Der Soundtrack zu <strong>Last Ninja 2: Back with a Vengeance</strong> (1988), komponiert von <strong>Matt Gray</strong>, ist eine absolute Chiptune-Ikone der C64-Geschichte. Gray verschmolz fernöstliche Harmonien mit wuchtigen, treibenden Funk/Synthwave-Basslines und schuf damit unvergessliche Tracks wie <em>Central Park</em> und <em>The Office</em>.</p>
+        <p><strong>DSP-Fokus:</strong> Matt Gray kitzelte das subtraktive Potential des 6581 meisterhaft heraus. Seine butterweichen, flötengleichen Hauptmelodien im Mittenbereich harmonieren perfekt mit den knallhart gesnapten ADSR-Hüllkurven der Percussions. Unser cycle-genauer Mischer verarbeitet diese dichten Registerfahrten absolut phasenstarr und knackig.</p>
+    `,
     "Commando.sid": `
         <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
         <p><strong>Rob Hubbard</strong> ist der unangefochtene Rockgott des C64. Als er 1985 den Soundtrack zum Arcade-Port <em>Commando</em> ablieferte, veränderte er die Spielmusik für immer. Anstatt die von Commodore mitgelieferten, trägen Basic-Routinen zu nutzen, schrieb Hubbard seinen eigenen pfeilschnellen Maschinencode-Treiber.</p>

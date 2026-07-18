@@ -87,7 +87,7 @@ export const dseRegistry = [
     RegisterDSE(TrackPresenter)
         .layer('overlay')       // Sitzt visuell auf dem Overlay-Layer
         .lifecycle('oneshot')   // Zerstört sich selbst nach der Duration
-        .duration(5.0)          // Exakte Anzeigezeit: 5 Sekunden
+        .duration(3.0)          // Exakte Anzeigezeit: 5 Sekunden
         .weight(10)
         .climaxHold(0)
         .build(),

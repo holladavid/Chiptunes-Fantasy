@@ -60,6 +60,20 @@ body.theme-atari {
     padding: 0;
 }
 
+/* =========================================================
+   GFX RETRO-BLITTER UPGRADE (Nearest-Neighbor Enforcement)
+   Zwingt die GPU des Browsers, beim Strecken oder Maximieren
+   des Canvas jegliche bilineare Filterung hart zu blockieren!
+   Garantiert 100% aliaster, knallharter Pixel-Art-Look auf 4K,
+   Retina-Displays und im Vollbild!
+   ========================================================= */
+canvas {
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-crisp-edges;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
 body, html {
     width: 100%;
     height: 100%;
@@ -407,6 +421,7 @@ details[open] > summary::before { content: "[-] "; }
     /* GFX FIX: Einzelne, perfekt austarierte 3D-Fuge statt unschöner doppelter Ränder */
     border-bottom: 1px solid var(--chassis-dark); 
     box-shadow: 0 1px 0 var(--chassis-light); /* Wirft das Licht-Highlight sauber nach unten */
+    flex-shrink: 0; /* Verhindert unkontrolliertes Strecken/Stauchen durch den parent Flexbox-Container */
 }
 
 /* Erweitert den Platz für die hardware-nahen Tasten */
@@ -414,6 +429,7 @@ details[open] > summary::before { content: "[-] "; }
     display: flex; 
     gap: 8px; 
     flex: 0 0 440px; /* Von 410px auf 440px vergrößert für ausfallsicheren Textfluss */
+    align-items: center; /* Verhindert, dass die Tasten bei vertikaler Ausdehnung der Bar ausbrechen */
 }
 
 /* Kompakteres Letter-Spacing für sauberen Textitz im Button-Gehäuse */
@@ -422,10 +438,11 @@ details[open] > summary::before { content: "[-] "; }
     background: var(--bg-color); 
     color: var(--panel-text);
     padding: 12px 4px; /* Etwas weniger horizontaler Padding-Verbrauch */
-    font-size: calc(var(--font-size-base) * 0.95); /* Schriftgröße minimal optimiert für den Textfluss */
+    font-size: calc(var(--font-size-base) * 1.05); /* Schriftgröße minimal optimiert für den Textfluss */
     letter-spacing: -0.5px; /* Verhindert das Auseinanderziehen von langen Begriffen */
     cursor: pointer;
     font-family: inherit;
+    white-space: nowrap; /* VERHINDERT HÄSSLICHE ZEILENUMBRÜCHE AUF DESKTOP KOMPLETT */
     
     border: none;
     border-top: 2px solid var(--chassis-light);
@@ -439,12 +456,16 @@ details[open] > summary::before { content: "[-] "; }
 
 /* GFX FIX: Spezifischer Scaler für die extrem breiten C64-Schriftzeichen */
 body.theme-c64 .controls button {
-    font-size: calc(var(--font-size-base) * 0.82); /* Leicht verkleinert, um Breitenüberlauf zu verhindern */
+    font-size: clamp(10.5px, 0.85vw, 12px) !important; /* Stabiles, scharfes C64-Schriftbild auf allen Monitoren */
 }
 
 /* Verhindert zuverlässig den Zeilenumbruch durch überproportionale Flex-Gewichtung */
 #btn-play {
     flex: 2.1 !important; 
+}
+
+#btn-eco {
+    flex: 1.3 !important; /* Gibt dem 8-Zeichen "HALT GFX" Button proportional mehr Raum auf Desktop */
 }
 
 .controls button:hover {
@@ -959,71 +980,108 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     #player-panel, #museum-panel { flex: none; width: 100%; }
     .museum-content { overflow-y: visible !important; }
 
-    #playback-bar {
-        position: -webkit-sticky; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; padding: 10px;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.8); align-items: center; 
+#playback-bar {
+        position: -webkit-sticky; 
+        position: sticky; 
+        top: 0; 
+        z-index: 100; 
+        display: flex !important;
+        flex-direction: column !important; /* Schaltet auf vertikale Spalte um, um Zeilen-Wrapping zu umgehen */
+        align-items: stretch !important;    /* Zwingt alle Kind-Reihen auf exakt 100% Breite */
+        padding: 12px 10px !important;     /* Taktiler, kompakter Rahmenabstand */
+        box-shadow: 0 5px 15px rgba(0,0,0,0.8); 
+        width: 100% !important;
+        box-sizing: border-box !important;
     }
     
-    /* =========================================================
+    #playback-bar {
+        position: -webkit-sticky; 
+        position: sticky; 
+        top: 0; 
+        z-index: 100; 
+        display: flex !important;
+        flex-direction: column !important; /* Stack rows vertically */
+        justify-content: flex-start !important; /* Vernichtet den space-between Verteilungs-Bug! */
+        align-items: stretch !important;    /* Force full width on all rows */
+        gap: 12px !important;              /* Hardware-nahes, enges Spacing zwischen den Steuerelementen */
+        padding: 12px 10px !important;     /* Äußerst kompakter Gehäuserahmen */
+        box-shadow: 0 5px 15px rgba(0,0,0,0.8); 
+        width: 100% !important;
+        height: auto !important;           /* Zwingt das Gehäuse, sich flach an den Inhalt anzuschmiegen */
+        flex: none !important;             /* Blockiert jegliches unkontrolliertes Aufblähen durch den parent Flexbox-Sog */
+        box-sizing: border-box !important;
+    }
+    
+/* =========================================================
        MOBILE PLAYBACK BAR FIX
-       Erzwingt volle Breite und proportionale Tasten
+       Erzwingt volle Breite und killt den Höhen-Blowout
     ========================================================= */
     #playback-bar .controls {
-        flex: 1 1 100% !important; /* Löst die starre 440px-Sperre auf Handys auf */
-        width: 100% !important;    /* Nutzt die volle verfügbare Breite des Viewports */
-        display: flex;
-        gap: 8px;
-        margin-bottom: 12px;       /* Schafft etwas Luft zur Timeline darunter */
+        flex: none !important;     /* <--- KILLT DIE VERTIKALE AUSDEHNUNG */
+        width: 100% !important;    
+        display: flex !important;
+        gap: 8px !important;
+        margin-bottom: 10px !important; 
+        box-sizing: border-box !important;
     }
 
     #playback-bar .controls button { 
-        padding: 14px 0 !important; 
-        font-size: clamp(8px, 2.4vw, 12px) !important; 
+        padding: 8px 0 !important; 
+        font-size: clamp(8px, 2.2vw, 10px) !important; 
         white-space: nowrap;
         letter-spacing: -0.5px;
-        min-width: 0; 
+        min-width: 0 !important; 
         overflow: hidden; 
         text-overflow: clip; 
     }
 
-        /* =========================================
-       GFX UPGRADE: Fullscreen Play-Controls auf Mobile drosseln
-       ========================================= */
-    body.theme-c64 #fs-playback-controls .fs-controls button {
-        font-size: clamp(6px, 1.8vw, 9px) !important; /* Extrem kompakt für den C64-Font */
-        padding: 6px 4px !important;
-        white-space: nowrap;
-    }
-
-    body.theme-amiga #fs-playback-controls .fs-controls button,
-    body.theme-atari #fs-playback-controls .fs-controls button {
-        font-size: clamp(11px, 3.2vw, 15px) !important; /* VT323 darf etwas größer sein */
-        padding: 6px 8px !important;
-        white-space: nowrap;
+    body.theme-amiga #playback-bar .controls button,
+    body.theme-atari #playback-bar .controls button {
+        font-size: clamp(12px, 3.5vw, 15px) !important; 
+        letter-spacing: 0px !important;
+        padding: 8px 0 !important; 
     }
 
     #playback-bar #btn-prev, 
     #playback-bar #btn-next, 
     #playback-bar #btn-eco { 
-        flex: 1 1 0 !important; /* Zwingt die Nebentasten, exakt gleich breit zu sein */
+        flex: 1 1 0% !important; 
     }
     
     #playback-bar #btn-play { 
-        flex: 1.6 1 0 !important; /* Der Play-Button wird exakt 1.6x breiter als die restlichen Tasten */
-    }
-    
-    #playback-bar .controls button { 
-        padding: 14px 0 !important; /* Vertikaler Touch-Bereich, 0 horizontales Padding für maximalen Textplatz */
-        font-size: clamp(8px, 2.4vw, 12px) !important; 
-        white-space: nowrap;
-        letter-spacing: -0.5px;
-        min-width: 0; /* Verhindert Flexbox-Blowout bei zu langem Text */
-        overflow: hidden; 
-        text-overflow: clip; 
+        flex: 1.6 1 0% !important; 
     }
 
-    #playback-bar .timeline-control { flex: 1 1 100%; width: 100%; margin-bottom: 10px; }
-    #playback-bar .volume-control { flex: 1 1 100%; width: 100%; justify-content: flex-start; margin-bottom: 8px; }
+    #playback-bar .timeline-control { 
+        flex: none !important;     /* <--- KILLT DIE VERTIKALE AUSDEHNUNG */
+        width: 100% !important; 
+        margin-bottom: 8px !important; 
+        box-sizing: border-box !important;
+    }
+    
+    #playback-bar .volume-control { 
+        flex: none !important;     /* <--- KILLT DIE VERTIKALE AUSDEHNUNG */
+        width: 100% !important; 
+        justify-content: flex-start !important; 
+        margin-bottom: 4px !important; 
+        box-sizing: border-box !important;
+    }
+    
+    /* =========================================
+    GFX UPGRADE: Fullscreen Play-Controls auf Mobile drosseln
+    ========================================= */
+    body.theme-c64 #fs-playback-controls .fs-controls button {
+        font-size: 10px !important; /* Exakter Match zum Vollbild-Button für ein symmetrisches Raster */
+        padding: 8px 14px !important; /* Großzügiges, treffsicheres Touch-Target */
+        white-space: nowrap;
+    }
+
+    body.theme-amiga #fs-playback-controls .fs-controls button,
+    body.theme-atari #fs-playback-controls .fs-controls button {
+        font-size: clamp(13px, 3.5vw, 16px) !important; /* Die schmale VT323 profitiert von etwas mehr Höhe */
+        padding: 8px 12px !important; /* Optimierte Touch-Präzision */
+        white-space: nowrap;
+    }
        
     #tracklist {
         max-height: 250px; 
