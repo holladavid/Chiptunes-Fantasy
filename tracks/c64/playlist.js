@@ -34,6 +34,11 @@ const mySidFiles = [
 ];
 
 const composerMetadata = {
+    "Monty_on_the_Run.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
+        <p>Der Soundtrack zu <strong>Monty on the Run</strong> (1985), komponiert von <strong>Rob Hubbard</strong> für das Gremlin-Graphics-Plattformspiel, ist ein Meilenstein der programmierbaren Melodieführung. Der Track ist berühmt für sein atemberaubendes, rasend schnelles <strong>E-Geigen-Solo (Violin Solo)</strong>, das als eines der virtuosesten Stücke gilt, die je für den C64 geschrieben wurden.</p>
+        <p><strong>DSP-Fokus:</strong> Hubbard emuliert hier das physische Kratzen, Anreißen und schwebende Vibrato eines Geigenbogens. Er erreichte dies durch extrem optimierte, hochfrequente CPU-Interrupts (Timer-gesteuert), die die Oszillator-Wellenform und Filterhüllkurve über 100-mal pro Sekunde zur Laufzeit anpassen. Unser cycle-genauer 1-MHz-Mischer verarbeitet diese brutalen Hardware-Hacks phasenstarr und ohne Artefakte.</p>
+    `,
     "Crazy_Comets.sid": `
         <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
         <p>Der Soundtrack zu <strong>Crazy Comets</strong> (1985), komponiert von <strong>Rob Hubbard</strong> für das Martech-Weltraumspiel, gilt als eines der absolut wegbereitendsten Synthwave-Elektronik-Meisterwerke der Chiptune-Geschichte. Hubbard selbst bezeichnete den Track häufig als eine seiner besten Arbeiten.</p>
