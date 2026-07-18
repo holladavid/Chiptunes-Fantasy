@@ -58,7 +58,7 @@ export class TrackPresenter {
         // 1. DISKRETES 15HZ "TICK" EASING
         // =========================================================
         const tQuant = Math.floor(stateTime * 15); 
-        const progress = Math.min(1.0, tQuant / 20); 
+        const progress = Math.min(1.0, tQuant / 15); // Von 20 auf 15 reduziert für eine knackige 1.0s Transition!
         const ease = (1.0 - Math.cos(progress * Math.PI)) * 0.5;
 
         // Horizont & Orientierung

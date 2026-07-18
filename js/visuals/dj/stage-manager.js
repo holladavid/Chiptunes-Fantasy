@@ -34,6 +34,9 @@ export class StageManager {
             let dse = this.activeDSEs[i];
             dse.stateTime += dt;
 
+            // NEU: Dynamische Übergangszeit (1.0s für Oneshots wie den Presenter, 1.5s für den Rest)
+            let transitionTime = dse.metadata.lifecycle === 'oneshot' ? 1.0 : TRANSITION_TIME;
+
             // ONE-SHOT AUTO-DESTRUCT (z.B. für TrackPresenter)
             if (dse.metadata.lifecycle === 'oneshot' && !dse._markedForRemoval) {
                 if (dse.stateTime >= dse.metadata.duration) {
@@ -45,7 +48,7 @@ export class StageManager {
                 if (dse.state !== 'stopping') { 
                     dse.state = 'stopping'; 
                     dse.stateTime = 0.0; 
-                } else if (dse.stateTime >= TRANSITION_TIME) {
+                } else if (dse.stateTime >= transitionTime) {
                     dse.state = 'idle'; 
                     dse.stateTime = 0.0; 
                     dse._markedForRemoval = false;
@@ -58,15 +61,15 @@ export class StageManager {
                 if (dse.state !== 'idle' && dse.state !== 'stopping') { 
                     dse.state = 'stopping'; 
                     dse.stateTime = 0.0; 
-                } else if (dse.state === 'stopping' && dse.stateTime >= TRANSITION_TIME) { 
+                } else if (dse.state === 'stopping' && dse.stateTime >= transitionTime) { 
                     dse.state = 'idle'; 
                     dse.stateTime = 0.0; 
                 }
             } else {
                 if (dse.state === 'idle' || dse.state === 'stopping') { 
                     dse.state = 'starting'; 
-                    dse.stateTime = dse.state === 'stopping' ? Math.max(0.0, TRANSITION_TIME - dse.stateTime) : 0.0; 
-                } else if (dse.state === 'starting' && dse.stateTime >= TRANSITION_TIME) { 
+                    dse.stateTime = dse.state === 'stopping' ? Math.max(0.0, transitionTime - dse.stateTime) : 0.0; 
+                } else if (dse.state === 'starting' && dse.stateTime >= transitionTime) { 
                     dse.state = macroState; 
                     dse.stateTime = 0.0; 
                 } else if (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax') {
