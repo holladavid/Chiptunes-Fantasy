@@ -8,6 +8,7 @@ import { loadSidFile } from '../../js/parsers/sid-parser.js';
 
 const mySidFiles = [
     "Commando.sid",                   // 1. Rob Hubbard
+    "Sanxion.sid",                    // <--- NEU: Rob Hubbards legendäre "Thalamusik"!
     "Wizball.sid",                    // 2. Martin Galway
     "Comic_Bakery.sid",               // <--- NEU: Martin Galways bahnbrechendes Meisterwerk!
     "Arkanoid.sid",                   // <--- NEU: Martin Galways bahnbrechender Meilenstein!
@@ -32,6 +33,11 @@ const mySidFiles = [
 ];
 
 const composerMetadata = {
+    "Sanxion.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
+        <p>Der Soundtrack zu <strong>Sanxion</strong> (1986), komponiert von <strong>Rob Hubbard</strong> für das erste Spiel des Publishers Thalamus, ist ein akustisches Denkmal. Subtune 1 (die berühmte Lademusik <em>Thalamusik</em>) wurde von Jean-Michel Jarres Album <em>Zoolook</em> inspiriert, während das Titelthema Sergei Prokofjews dramatischen <em>Tanz der Ritter</em> aus dem Ballett Romeo und Julia meisterhaft adaptiert.</p>
+        <p><strong>DSP-Fokus:</strong> <em>Thalamusik</em> glänzt durch seine fließenden, sphärischen Analogsounds und die unnachahmliche, beinahe jazzige Hubbard-Solostimme. Der Track nutzt das subtraktive Synthesepotential des 6581 voll aus, indem er extrem komplexe, LFO-artige PWM-Sweeps mit harten, bissigen Hüllkurven koppelt, die unser randscharfer Mischer vollkommen verzerrungsfrei wiedergibt.</p>
+    `,
     "Arkanoid.sid": `
         <h3>[ COMPOSER SPOTLIGHT: MARTIN GALWAY ]</h3>
         <p>Der Soundtrack zur C64-Portierung von <strong>Arkanoid</strong> (1987), komponiert von <strong>Martin Galway</strong>, ist ein historisches Novum: Es war das <strong>allererste Mal in der Geschichte</strong>, dass echte, digitale PCM-Drums (Samples) innerhalb einer musikalischen Komposition auf dem Commodore 64 abgespielt wurden!</p>

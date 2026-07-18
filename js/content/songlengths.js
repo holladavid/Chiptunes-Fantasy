@@ -26,6 +26,7 @@ export const SID_SLDB = {
     "arkanoid": { lengths: [144, 34, 10, 10] },
     "cybernoidii": { lengths: [378, 10, 10] },
     "supremacy": { lengths: [316, 210, 180, 120] },
+    "sanxion": { lengths: [325, 201] },
     "robocop3": { lengths: [185, 120, 105, 165, 110] },
     "myth": { lengths: [282, 120, 120, 120, 120] }
 };
