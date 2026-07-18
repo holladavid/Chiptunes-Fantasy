@@ -1,10 +1,9 @@
 // === js/visuals/dse/amiga/paula-silicon-bg.js ===
 // =========================================================
-// DEMO-SCENE-ELEMENT: PAULA 8364 MICROVERSE (BACKGROUND)
-// Authentic 256 PAL vertical resolution with dynamic 
-// responsive aspect-ratio width. 100% 12-Bit OCS Colors.
-// Features a depth-faded 3D perspective floor, Moiré magnetic
-// fields, and horizon-anchored L-R-R-L DMA monoliths.
+// DEMO-SCENE-ELEMENT: PAULA 8364 MICROVERSE (v2.3.0 - DMA Edition)
+// 100% Alpha & Anti-Aliasing free! Employs a direct-memory Software 
+// Rasterizer (ImageData) for instant Bresenham pre-compilation 
+// without browser API bottlenecks. 
 // =========================================================
 
 import { quantizeAmiga12Bit, rgbToHex } from '../../../visuals/utils/hardware-constraints.js';
@@ -15,32 +14,222 @@ export class PaulaSiliconBg {
         this.computerType = ['amiga'];
         this.placementType = 'background';
         
-        // Canvas wird dynamisch im Render-Loop auf das Seitenverhältnis genormt
         this.offscreen = document.createElement('canvas');
         this.ctx = this.offscreen.getContext('2d', { alpha: false });
+
+        this.moireCanvas = document.createElement('canvas');
+        this.climaxMoireCanvas = document.createElement('canvas');
+        this.gridCanvases = Array.from({ length: 16 }, () => document.createElement('canvas'));
         
         this.lastT = 0;
         this.internalT = 0;
+
+        this.skyPalettes = [];
+        this.stars = [];
+        this.leftFades = [];
+        this.rightFades = [];
+
+        this.lfsrSeed = 0xACE1;
+        this.initialized = false;
+        this.ensureInitialized();
     }
 
-    resize(width, height) {}
+    ensureInitialized() {
+        if (this.initialized) return;
+
+        for (let i = 0; i < 20; i++) {
+            this.stars.push({
+                x: this.nextLfsrFloat(),
+                y: this.nextLfsrFloat() * 0.5,
+                phase: this.nextLfsrFloat() * 10
+            });
+        }
+
+        for (let t = 0; t <= 10; t++) {
+            let tension = t / 10.0;
+            let pal = [];
+            for (let i = 0; i < 16; i++) {
+                let r, g, b, pct = i / 15.0; 
+                if (tension < 0.5) {
+                    r = Math.floor(pct * 80 + tension * 100); g = Math.floor(pct * 20); b = Math.floor(50 + pct * 150);
+                } else {
+                    r = Math.floor(pct * 150 + tension * 105); g = Math.floor(pct * 120 * tension); b = Math.floor(50 + (1.0 - pct) * 80);
+                }
+                pal.push(rgbToHex(...quantizeAmiga12Bit(r, g, b)));
+            }
+            this.skyPalettes.push(pal);
+        }
+
+        this.mFront = rgbToHex(...quantizeAmiga12Bit(34, 34, 68));
+        this.mHighlight = rgbToHex(...quantizeAmiga12Bit(68, 68, 102));
+        this.mShadow = rgbToHex(...quantizeAmiga12Bit(17, 17, 34));
+
+        this.floorColor = rgbToHex(...quantizeAmiga12Bit(5, 5, 17));
+        this.whiteColor = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));
+        this.reflectionColor = rgbToHex(...quantizeAmiga12Bit(255, 119, 0));
+        this.glitchColor = rgbToHex(...quantizeAmiga12Bit(255, 0, 255));
+        this.glitchColor2 = rgbToHex(...quantizeAmiga12Bit(0, 255, 0));
+
+        for (let i = 0; i < 16; i++) {
+            let pct = i / 15.0;
+            this.leftFades.push(rgbToHex(...quantizeAmiga12Bit(0, Math.floor(50 + pct * 200), 255)));
+            this.rightFades.push(rgbToHex(...quantizeAmiga12Bit(Math.floor(255 * pct), Math.floor(50 + pct * 100), 0)));
+        }
+
+        this.initialized = true;
+    }
+
+    nextLfsr() {
+        let bit = ((this.lfsrSeed >> 0) ^ (this.lfsrSeed >> 2) ^ (this.lfsrSeed >> 3) ^ (this.lfsrSeed >> 5)) & 1;
+        this.lfsrSeed = (this.lfsrSeed >> 1) | (bit << 15);
+        return this.lfsrSeed;
+    }
+
+    nextLfsrFloat() { return this.nextLfsr() / 65535.0; }
+
+    // =========================================================
+    // DIRECT-MEMORY SOFTWARE RASTERIZER (Zero API Overhead!)
+    // Plottet Bresenham und Kreise direkt als Bytes ins RAM. 
+    // Garantiert 100% Aliasing bei maximaler Geschwindigkeit.
+    // =========================================================
+    rebuildResizedCanvases(offW, offH, horizon) {
+        
+        // Helper: Hex String (#RRGGBB) zu RGBA Bytes parsen
+        const hexToRgba = (hex) => ({
+            r: parseInt(hex.slice(1, 3), 16),
+            g: parseInt(hex.slice(3, 5), 16),
+            b: parseInt(hex.slice(5, 7), 16),
+            a: 255
+        });
+
+        // 1. Moiré-Kreise Software Renderer
+        const rMax = 200;
+        const moireSize = rMax * 2;
+        
+        const drawSoftwareCircles = (canvas, colorHex) => {
+            canvas.width = moireSize; canvas.height = moireSize;
+            const ctx = canvas.getContext('2d');
+            let imgData = ctx.createImageData(moireSize, moireSize);
+            let data = imgData.data;
+            let c = hexToRgba(colorHex);
+            
+            const setPixel = (x, y) => {
+                if (x < 0 || x >= moireSize || y < 0 || y >= moireSize) return;
+                let idx = (y * moireSize + x) * 4;
+                data[idx] = c.r; data[idx+1] = c.g; data[idx+2] = c.b; data[idx+3] = c.a;
+            };
+
+            const drawMidpointCircle = (xc, yc, r) => {
+                let x = 0, y = r, d = 3 - 2 * r;
+                while (y >= x) {
+                    setPixel(xc + x, yc + y); setPixel(xc - x, yc + y);
+                    setPixel(xc + x, yc - y); setPixel(xc - x, yc - y);
+                    setPixel(xc + y, yc + x); setPixel(xc - y, yc + x);
+                    setPixel(xc + y, yc - x); setPixel(xc - y, yc - x);
+                    x++;
+                    if (d > 0) { y--; d = d + 4 * (x - y) + 10; } 
+                    else { d = d + 4 * x + 6; }
+                }
+            };
+
+            for (let r = 10; r < rMax; r += 14) drawMidpointCircle(rMax, rMax, r);
+            ctx.putImageData(imgData, 0, 0); // Einziger Grafik-API Aufruf!
+        };
+
+        drawSoftwareCircles(this.moireCanvas, rgbToHex(...quantizeAmiga12Bit(0, 140, 255)));
+        drawSoftwareCircles(this.climaxMoireCanvas, rgbToHex(...quantizeAmiga12Bit(255, 100, 0)));
+
+        // 2. 3D Grid Floor Software Renderer
+        const zMax = 400, zStep = 16, fov = 150, camY = 38;
+        const gridH = offH - horizon;
+        
+        if (gridH <= 0 || offW <= 0) return;
+
+        for (let f = 0; f < 16; f++) {
+            let gCanvas = this.gridCanvases[f];
+            gCanvas.width = offW; gCanvas.height = gridH;
+            let gCtx = gCanvas.getContext('2d');
+            
+            let imgData = gCtx.createImageData(offW, gridH);
+            let data = imgData.data;
+            let bg = hexToRgba(this.floorColor);
+            let ln = hexToRgba(rgbToHex(...quantizeAmiga12Bit(0, 140, 255)));
+
+            // High-Speed Background Fill
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = bg.r; data[i+1] = bg.g; data[i+2] = bg.b; data[i+3] = bg.a;
+            }
+
+            const setPixel = (x, y) => {
+                if (x < 0 || x >= offW || y < 0 || y >= gridH) return;
+                let idx = (y * offW + x) * 4;
+                data[idx] = ln.r; data[idx+1] = ln.g; data[idx+2] = ln.b; data[idx+3] = ln.a;
+            };
+
+            const drawBresenham = (x0, y0, x1, y1) => {
+                x0 = Math.floor(x0); y0 = Math.floor(y0);
+                x1 = Math.floor(x1); y1 = Math.floor(y1);
+                let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+                let dy = Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+                let err = (dx > dy ? dx : -dy) / 2;
+                while (true) {
+                    setPixel(x0, y0);
+                    if (x0 === x1 && y0 === y1) break;
+                    let e2 = err;
+                    if (e2 > -dx) { err -= dy; x0 += sx; }
+                    if (e2 < dy) { err += dx; y0 += sy; }
+                }
+            };
+
+            let scrollZ = f;
+            for (let z = zMax; z >= zStep; z -= zStep) {
+                let pZ = z - scrollZ;
+                if (pZ < 2.5) continue;
+                let py = Math.floor((camY * fov) / pZ);
+                if (py > gridH) continue;
+                // Turboschnelle Horizontal-Linie direkt im RAM
+                for (let px = 0; px < offW; px++) setPixel(px, py);
+            }
+
+            const xRange = Math.max(400, offW * 1.5);
+            const cx = offW / 2;
+            for (let x = -xRange; x <= xRange; x += 32) {
+                let startZ = zStep - scrollZ;
+                if (startZ < 2.5) startZ = 2.5;
+                let pxStart = cx + (x * fov) / startZ;
+                let pyStart = (camY * fov) / startZ;
+                let pxEnd = cx + (x * fov) / zMax;
+                let pyEnd = (camY * fov) / zMax;
+                drawBresenham(pxStart, pyStart, pxEnd, pyEnd);
+            }
+
+            gCtx.putImageData(imgData, 0, 0); // BAM! Im Bruchteil einer Millisekunde aufs Canvas!
+        }
+    }
 
     render(mainCtx, width, height, t, state, stateTime, metrics) {
+        this.ensureInitialized();
+
         if (state === 'idle') { this.lastT = t; return; }
+        
+        if (width <= 0 || height <= 0) return; 
+
         let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
         this.lastT = t;
 
-// =========================================================
-        // GFX UPGRADE: DYNAMISCHE CHUNKY-AUFLÖSUNG
-        // =========================================================
         const TARGET_HEIGHT = 256;
         const aspect = width / height;
+
+        if (!isFinite(aspect) || aspect <= 0) return;
+
         const offW = Math.floor(TARGET_HEIGHT * aspect);
         const offH = TARGET_HEIGHT;
 
+        const horizon = Math.floor(offH * 0.55); 
         if (this.offscreen.width !== offW || this.offscreen.height !== offH) {
             this.offscreen.width = offW;
             this.offscreen.height = offH;
+            this.rebuildResizedCanvases(offW, offH, horizon);
         }
 
         const beat = metrics.beat[0]; 
@@ -49,7 +238,6 @@ export class PaulaSiliconBg {
 
         let globalAlpha = 1.0;
         let speedMult = 1.0;
-
         if (state === 'starting') { globalAlpha = Math.min(1.0, stateTime / 1.5); } 
         else if (state === 'stopping') { globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5)); } 
         else if (state === 'buildup') { speedMult = 1.8; } 
@@ -60,194 +248,134 @@ export class PaulaSiliconBg {
 
         const ctx = this.ctx;
         ctx.imageSmoothingEnabled = false;
-
-        // FIX: Horizont an den 55%-Split des Kefrens-Checkerboards anpassen (256 * 0.55 = 140)
-        const horizon = Math.floor(offH * 0.55); 
         const cx = offW / 2; 
 
-        // =========================================================
-        // 1. SKY GRADIENT
-        // =========================================================
-        for (let y = 0; y < horizon; y += 4) {
-            let r = 0, g = 0, b = 0;
-            if (tension < 0.5) {
-                b = 80 + y;
-                r = y * 0.5 + (tension * 100);
-            } else {
-                r = 100 + y + (tension * 155);
-                g = y * tension;
-                b = 50;
-            }
-            let hex = rgbToHex(...quantizeAmiga12Bit(r, g, b));
-            ctx.fillStyle = hex;
-            ctx.fillRect(0, y, offW, 4);
+        let palIdx = Math.floor(tension * 10);
+        if (palIdx > 10) palIdx = 10;
+        const activeSkyPalette = this.skyPalettes[palIdx];
+
+        const bandH = Math.ceil(horizon / 16);
+        for (let i = 0; i < 16; i++) {
+            ctx.fillStyle = activeSkyPalette[i];
+            ctx.fillRect(0, i * bandH, offW, bandH);
         }
 
-        // =========================================================
-        // 2. MAGNETIC MOIRÉ INTERFERENCE
-        // =========================================================
+        const starColors = ['#ffffff', '#ffff00', '#ff8800', '#0055ff'];
+        for (let i = 0; i < this.stars.length; i++) {
+            let s = this.stars[i];
+            let sx = Math.floor(s.x * offW);
+            let sy = Math.floor(s.y * horizon);
+            let cIdx = Math.floor(time * 5.0 + s.phase) % 4;
+            ctx.fillStyle = starColors[cIdx];
+            ctx.fillRect(sx, sy, 1, 1);
+        }
+
         if (tension > 0.2) {
             const intensity = (tension - 0.2) / 0.8; 
-            const cx1 = cx + Math.sin(time) * (40 + intensity * 40);
-            // Zentren an das neue 140px Himmel-Muster anpassen (Mitte bei Y = 70 statt 64)
-            const cy1 = 70 + Math.cos(time * 1.3) * 30;
-            const cx2 = cx + Math.sin(time * 1.1 + Math.PI) * (40 + intensity * 40);
-            const cy2 = 70 + Math.cos(time * 0.9 + Math.PI) * 30;
+            const cx1 = Math.floor(cx + Math.sin(time) * (40 + intensity * 40));
+            const cy1 = Math.floor(70 + Math.cos(time * 1.3) * 30);
+            const cx2 = Math.floor(cx + Math.sin(time * 1.1 + Math.PI) * (40 + intensity * 40));
+            const cy2 = Math.floor(70 + Math.cos(time * 0.9 + Math.PI) * 30);
             
-            ctx.lineWidth = 1;
-            const rStep = 8 + intensity * 6;
+            const rMax = 200;
+            let activeMoire = (state === 'climax') ? this.climaxMoireCanvas : this.moireCanvas;
             
-            let mColor = quantizeAmiga12Bit(100 * intensity, 50 + 100 * intensity, 255);
-            if (state === 'climax') mColor = quantizeAmiga12Bit(255, 100, 0); 
-            
-            ctx.strokeStyle = rgbToHex(...mColor);
-            
-            ctx.beginPath();
-            for (let r = 10; r < Math.max(200, offW/2); r += rStep) {
-                ctx.moveTo(cx1 + r, cy1);
-                ctx.arc(cx1, cy1, r, 0, Math.PI * 2);
-                ctx.moveTo(cx2 + r, cy2);
-                ctx.arc(cx2, cy2, r, 0, Math.PI * 2);
-            }
-            ctx.stroke();
+            ctx.drawImage(activeMoire, cx1 - rMax, cy1 - rMax);
+            ctx.drawImage(activeMoire, cx2 - rMax, cy2 - rMax);
         }
 
-        // =========================================================
-        // 3. 3D DATA BUS FLOOR
-        // =========================================================
-        const fov = 120 + tension * 50; 
-        const camY = 30 + beat * 15; 
-        
-        ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(10, 5, 20));
-        ctx.fillRect(0, horizon, offW, offH - horizon);
+        let scrollZ = (time * 150) % 16;
+        let fIdx = Math.floor(scrollZ);
+        ctx.drawImage(this.gridCanvases[fIdx], 0, horizon);
 
-        let gridColor = quantizeAmiga12Bit(0, 100 + tension * 155, 255 - tension * 100);
-        if (state === 'climax') gridColor = quantizeAmiga12Bit(255, 255, 255);
-        ctx.strokeStyle = rgbToHex(...gridColor);
-        ctx.lineWidth = 1;
-        
-        const zMax = 400;
-        const zStep = 16; 
-        const speed = 150;
-        const scrollZ = (time * speed) % zStep;
-        
-        // Horizontale Querlinien
-        for (let z = zMax; z >= zStep; z -= zStep) {
-            let pZ = z - scrollZ;
-            if (pZ < 2.5) continue; 
-            
-            let py = horizon + (camY * fov) / pZ;
-            if (py > offH) continue;
-
-            let alpha = Math.max(0, 1.0 - (pZ / zMax));
-            ctx.globalAlpha = alpha;
-            
-            ctx.beginPath();
-            ctx.moveTo(0, py | 0);
-            ctx.lineTo(offW, py | 0);
-            ctx.stroke();
+        if (this.nextLfsrFloat() < 0.35) {
+            let nx = Math.floor(this.nextLfsrFloat() * offW);
+            let ny = horizon + 2 + Math.floor(this.nextLfsrFloat() * (offH - horizon - 2));
+            ctx.fillStyle = (this.nextLfsrFloat() > 0.5) ? this.whiteColor : this.horizonLineColor;
+            ctx.fillRect(nx, ny, 2, 1);
         }
 
-        // Vertikale Fluchtpunkt-Linien
-        ctx.globalAlpha = 0.5;
-        ctx.beginPath();
-        const xRange = Math.max(400, offW * 1.5); 
-        for (let x = -xRange; x <= xRange; x += 32) {
-            let startZ = zStep - scrollZ;
-            if (startZ < 2.5) startZ = 2.5; 
-            
-            let pxStart = cx + (x * fov) / startZ;
-            let pyStart = horizon + (camY * fov) / startZ;
-            
-            let pxEnd = cx + (x * fov) / zMax;
-            let pyEnd = horizon + (camY * fov) / zMax;
-            
-            ctx.moveTo(pxStart | 0, pyStart | 0);
-            ctx.lineTo(pxEnd | 0, pyEnd | 0);
-        }
-        ctx.stroke();
-        ctx.globalAlpha = 1.0;
-
-        // =========================================================
-        // 4. THE 4 DMA MONOLITHS (Horizon-Anchored)
-        // =========================================================
-        // Perspektivisch näher zusammen (am Fluchtpunkt)
         const span = Math.min(100, offW * 0.25); 
-        const dmaX = [
-            cx - span,        // DMA 0 (Left)
-            cx + span * 0.35, // DMA 1 (Right)
-            cx + span,        // DMA 2 (Right)
-            cx - span * 0.35  // DMA 3 (Left)
-        ];
-        
+        const dmaX = [cx - span, cx + span * 0.35, cx + span, cx - span * 0.35];
+
         for (let i = 0; i < 4; i++) {
-            let x = dmaX[i];
+            let x = Math.floor(dmaX[i]);
             let vol = vols[i];
             let isLeft = (i === 0 || i === 3);
 
-            // Sockel stehen jetzt auf der Horizontlinie!
-            const baseW = 28;
-            const baseH = 20;
-            const baseY = horizon - baseH;
+            const baseW = 24;
+            const baseH = 20 + Math.floor(vol * 15);
+            const baseY = horizon;
 
-            ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(30, 30, 40));
-            ctx.fillRect(x - baseW/2, baseY, baseW, baseH);
+            ctx.fillStyle = this.mShadow;
+            ctx.fillRect(x - baseW/2 - 4, baseY - 2, baseW + 8, 2);
             
-            // Leuchtender Kern (Perspektivisch verkleinert)
-            let coreColor = isLeft ? [0, 50 + vol*200, 255] : [255, 50 + vol*200, 0];
-            if (tension > 0.8) coreColor = [255, 255, 255]; 
+            ctx.fillStyle = this.mFront;
+            ctx.fillRect(x - baseW/2, baseY - baseH, baseW, baseH - 2);
             
-            ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(...coreColor));
-            ctx.fillRect(x - 8, baseY + 4, 16, 16);
+            ctx.fillStyle = this.mHighlight; 
+            ctx.fillRect(x - baseW/2, baseY - baseH, 2, baseH - 2);
+            
+            ctx.fillStyle = this.mShadow;    
+            ctx.fillRect(x + baseW/2 - 2, baseY - baseH, 2, baseH - 2);
+            
+            ctx.fillStyle = this.mHighlight; 
+            ctx.fillRect(x - baseW/2, baseY - baseH, baseW, 2);
+
+            let fadeArray = isLeft ? this.leftFades : this.rightFades;
+            let volIdx = Math.floor(vol * 15);
+            ctx.fillStyle = fadeArray[volIdx];
+            ctx.fillRect(x - 6, baseY - baseH + 6, 12, 12);
 
             let fetchSpeed = 40 + vol * 150 + tension * 100;
             let numBlocks = Math.floor(vol * 8) + (tension > 0.5 ? 3 : 1);
             
-            // Datenpakete schießen nach OBEN in den Himmel
             for (let b = 0; b < numBlocks; b++) {
                 let yOffset = (time * fetchSpeed + b * 25) % horizon;
-                let blockY = baseY - yOffset;
+                let blockY = (baseY - baseH) - yOffset;
                 
                 if (blockY < 0) continue; 
                 
                 let jitterX = 0;
                 if (tension > 0.7 && vol > 0.4) {
-                    jitterX = (Math.random() - 0.5) * 6 * tension;
+                    jitterX = Math.floor((this.nextLfsrFloat() - 0.5) * 6 * tension);
                 }
 
-                // Weiches Fade-Out, wenn sie die Decke erreichen
-                let bAlpha = 1.0;
-                if (blockY < 40) bAlpha = Math.max(0, blockY / 40);
+                let hPct = blockY / horizon; 
+                let blockVolIdx = Math.floor(volIdx * hPct);
                 
-                ctx.globalAlpha = bAlpha;
-                ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(...coreColor));
-                ctx.fillRect(x - 5 + jitterX, blockY, 10, Math.max(3, vol * 12));
+                ctx.fillStyle = fadeArray[blockVolIdx];
+                ctx.fillRect(x - 5 + jitterX, Math.floor(blockY), 10, Math.max(3, Math.floor(vol * 12)));
             }
-            ctx.globalAlpha = 1.0;
 
-            // Climax Laser schießen von der Basis zum Himmel
             if (state === 'climax' && beat > 0.3 && vol > 0.3) {
-                ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));
-                ctx.fillRect(x - 4, 0, 8, horizon); 
+                let beamYStart = 0;
+                let beamYEnd = baseY - baseH;
+                
+                ctx.fillStyle = this.whiteColor;
+                for (let beamY = beamYStart; beamY < beamYEnd; beamY += 4) {
+                    if ((beamY + Math.floor(time * 50)) % 8 < 4) ctx.fillRect(x - 4, beamY, 8, 2);
+                }
+                
+                ctx.fillStyle = this.reflectionColor;
+                for (let beamY = beamYStart; beamY < beamYEnd; beamY += 4) {
+                    if ((beamY + Math.floor(time * 50)) % 8 >= 4) ctx.fillRect(x - 4, beamY, 8, 2);
+                }
             }
         }
 
-        // =========================================================
-        // 5. STROBE FLASH
-        // =========================================================
-        if (state === 'climax' && beat > 0.8) {
-            ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));
-            ctx.fillRect(0, 0, offW, offH);
+        if (state !== 'idle' && this.nextLfsrFloat() < 0.03) {
+            let gx = Math.floor(this.nextLfsrFloat() * offW);
+            let gy = Math.floor(this.nextLfsrFloat() * offH);
+            ctx.fillStyle = this.glitchColor; 
+            ctx.fillRect(gx, gy, 16, 2);
+            ctx.fillStyle = this.glitchColor2; 
+            ctx.fillRect(gx + 4, gy + 2, 8, 2);
         }
 
-        // =========================================================
-        // BLIT TO MAIN CANVAS
-        // =========================================================
         mainCtx.globalAlpha = globalAlpha;
         mainCtx.imageSmoothingEnabled = false; 
-        
         mainCtx.drawImage(this.offscreen, 0, 0, width, height);
-        
         mainCtx.imageSmoothingEnabled = true; 
         mainCtx.globalAlpha = 1.0;
     }

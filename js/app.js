@@ -364,6 +364,7 @@ function changeC64Subsong(subsongId) {
             length: trackData.length 
         });
         currentSubsongIndex = subsongId;
+        trackData.metadata.currentSubsong = subsongId; // <<< DIESE ZEILE INJIZIEREN!
 
         let sldbLengths = trackData.lengths || [180];
         let songLengthSeconds = sldbLengths[subsongId - 1] || sldbLengths[0] || 180;
@@ -687,7 +688,8 @@ async function selectAndPlayTrack(index, system) {
                 trackData = parsedFile; 
 
                 currentSubsongIndex = parsedFile.startSong || 1; 
-                
+                trackData.metadata.currentSubsong = currentSubsongIndex; // <<< DIESE ZEILE INJIZIEREN!
+
                 let sldbLengths = trackData.lengths || [180];
                 let songLengthSeconds = sldbLengths[currentSubsongIndex - 1] || sldbLengths[0] || 180;
                 trackData.length = songLengthSeconds * 50; 

@@ -48,8 +48,12 @@ export class SceneDJ {
         }
     }
 
-// FIX: chipRegs Argument am Ende hinzugefügt
+    // FIX: chipRegs Argument am Ende hinzugefügt
     render(ctx, width, height, t, channelVolumes, isPlaying, sessionId, trackMetadata, chipRegs) {
+        
+        // --- SCHUTZSCHALTUNG 1: Abfangen von 0px, NaN oder Infinity Viewports ---
+        if (width <= 0 || height <= 0 || !isFinite(width / height)) return;
+
         let dt = 0.016; 
         if (this.lastTime !== 0) { 
             dt = t - this.lastTime; 
@@ -101,7 +105,8 @@ export class SceneDJ {
         const targetResY = SYSTEM_RESOLUTIONS[this.monitor.info.system] || 200;
         
         // Aspect-Ratio auf die Retro-Ebene übertragen (z.B. 355x200)
-        const targetResX = Math.floor(targetResY * (width / height)); 
+        // KORREKTUR: Math.max(8, ...) garantiert, dass das Canvas niemals eine ungültige Breite von 0px erhält!
+        const targetResX = Math.max(8, Math.floor(targetResY * (width / height))); 
 
         if (this.retroCanvas.width !== targetResX || this.retroCanvas.height !== targetResY) {
             this.retroCanvas.width = targetResX;

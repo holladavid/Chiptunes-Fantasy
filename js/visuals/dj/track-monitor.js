@@ -54,7 +54,7 @@ export class TrackMonitor {
 
         this.dynamics.masterEnergy[0] = totalEnergy / numActiveChannels;
 
-// =========================================================
+        // =========================================================
         // 2. HARDWARE TRIGGER DETECTION (Demoscene Precision)
         // =========================================================
         let isHardwareBeat = false;
@@ -120,12 +120,11 @@ export class TrackMonitor {
                 if (chipRegs[14] !== this.lastRegs[14] && chipRegs[14] > 0) isHardwareBeat = true;
                 if (chipRegs[15] !== this.lastRegs[15] && chipRegs[15] > 0) isHardwareBeat = true;
 
-            } else if (this.info.system === 'amiga') {
-                // --- AMIGA PAULA: THE ULTIMATE PROTRACKER BEAT CATCHER ---
+} else if (this.info.system === 'amiga') {
+                // --- AMIGA PAULA: THE ULTIMATE PROTRACKER & FASTTRACKER BEAT CATCHER ---
                 for (let c = 0; c < 4; c++) {
                     let offset = c * 7;
                     
-                    // Rekonstruiere die 16-Bit Wiedergabe-Adresse (enthält den pointer-Zustand)
                     let address = (chipRegs[offset] << 8) | chipRegs[offset + 1];
                     let lastAddress = (this.lastRegs[offset] << 8) | this.lastRegs[offset + 1];
                     
@@ -133,39 +132,34 @@ export class TrackMonitor {
                     let vol = chipRegs[offset + 6];
                     let lastVol = this.lastRegs[offset + 6];
 
-                    // 1. Harter Volume-Spike (Empfindlichkeit von +20 auf +12 gesenkt!)
-                    // Perfekt für Snares, Claps und Rimshots, die aus der Stille einschlagen
-                    if (vol > lastVol + 12) {
+                    // 1. Harter Volume-Spike (Empfindlichkeit von +12 auf +8 gesenkt!)
+                    // Fängt nun auch sanftere XM-Volume-Column-Befehle zuverlässig ab.
+                    if (vol > lastVol + 8) {
                         isHardwareBeat = true;
                     }
 
                     // 2. Note-Trigger-Analyse (DMA-Pointer Reset)
-                    // Wenn die Adresse plötzlich zurückspringt, wurde ein neues Sample getriggert!
                     if (address > 0 && lastAddress > 0 && address < lastAddress) {
-                        // Kicks und Basslines laufen klassisch auf den äußeren Spuren (Ch 0 & 3)
-                        if (c === 0 || c === 3) {
-                            // Filtert extrem hohe Frequenzen aus (Melodie-Gepiepe, Period < 150)
-                            if (period > 150 && vol > 20) {
-                                isHardwareBeat = true;
-                            }
-                        } else {
-                            // Auf den Kanälen 1 & 2 triggern wir nur, wenn das Sample 
-                            // mit maximaler Wucht (vol > 48) abgefeuert wird (z.B. dicke Orchestral-Hits)
-                            if (vol > 48) {
-                                isHardwareBeat = true;
-                            }
+                        // FastTracker II (XM) nutzt freies Panning! Drums können auf ALLEN Kanälen liegen.
+                        // Die alte Einschränkung (Nur Kanal 0 & 3) ist gelöscht.
+                        // Wir filtern lediglich extremes High-Pitch-Gepiepe heraus (Period < 120).
+                        if (period > 120 && vol > 16) {
+                            isHardwareBeat = true;
                         }
                     }
                 }
             }
-
+            
             // Register-Zustand für den nächsten Frame sichern
             for(let i=0; i<32; i++) this.lastRegs[i] = chipRegs[i];
         }
 
         // 3. Fallback: Strenger analoger Schmit-Trigger
-        // KORREKTUR: C64-Analog-Schwelle von 0.60 auf 0.48 gesenkt für bessere Dynamik
-        let pulseThresh = this.info.system === 'c64' ? 0.48 : (this.info.system === 'atari' ? 0.30 : 0.45);
+        // KORREKTUR: Amiga-Analog-Schwelle von 0.45 auf 0.34 drastisch gesenkt! 
+        // Das ist extrem wichtig für 7-Kanal XM-Tracks (wie Turrican 2). Kicks auf 
+        // den unsichtbaren Kanälen 4-7 leaken nun als Pegelwelle durch den Master-Out 
+        // und triggern das DSE-Netzwerk völlig problemlos von hinten herum!
+        let pulseThresh = this.info.system === 'c64' ? 0.48 : (this.info.system === 'atari' ? 0.30 : 0.34);
         let isAnalogBeat = (analogMaxPulse > pulseThresh);
 
         // Signal in die Pipeline schreiben
@@ -179,14 +173,13 @@ export class TrackMonitor {
         const energy = this.dynamics.masterEnergy[0];
         let buildupThresh = 0.40, overdriveThresh = 0.58;
         
-        // KORREKTUR: Tension zündet bei C64 nun früher!
         if (this.info.system === 'c64') { buildupThresh = 0.35; overdriveThresh = 0.60; } 
         else if (this.info.system === 'atari') { buildupThresh = 0.24; overdriveThresh = 0.48; }
 
         let isOverdrive = (energy > overdriveThresh && this.dynamics.transientPulse[0] > pulseThresh * 0.8);
         let isBuildup = (energy > buildupThresh);
         this.dynamics.rawEnergyState = isOverdrive ? 'climax' : (isBuildup ? 'buildup' : 'playing');
-
+        
         // 5. Perfect Micro-Dynamics (Beat Envelope)
         this.dynamics.beatCooldown -= dt;
         
