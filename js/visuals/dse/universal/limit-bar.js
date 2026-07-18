@@ -1,15 +1,33 @@
 // === js/visuals/dse/universal/limit-bar.js ===
-import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit } from '../../utils/hardware-constraints.js';
+// =========================================================
+// DEMO-SCENE-ELEMENT: LIMIT BAR (v3.0.0 - Alpha-Free Edition)
+// 100% Alpha-free. No modern composite operations.
+// C64: Chunk-raster blocks with VIC-II palette bindings.
+// Amiga: 12-Bit OCS stepped copperlists & opaque white-hot sweeps.
+// Atari: Deterministic vector sparks drawn via Bresenham drawAliasedLine.
+// Features structural vertical slide-out transition instead of transparency fade.
+// =========================================================
+
+import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit, drawAliasedLine } from '../../utils/hardware-constraints.js';
 
 export class LimitBar {
     constructor() {
         this.displayAlpha = 0.0; 
+        this.frameCounter = 0;
+
+        // Vorberechnete Sinus-Tabelle für deterministischen ST-Funkenflug
+        this.sinLUT = new Float32Array(256);
+        for (let i = 0; i < 256; i++) {
+            this.sinLUT[i] = Math.sin((i / 256) * Math.PI * 2);
+        }
     }
 
     resize(width, height) {}
 
     render(ctx, width, height, t, state, stateTime, metrics) {
         if (state === 'idle') return;
+
+        this.frameCounter++;
 
         let pct = metrics.tensionPct;
         let isFlashing = false;
@@ -35,14 +53,17 @@ export class LimitBar {
         else if (state === 'stopping') globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
         
         globalAlpha *= this.displayAlpha;
-        if (globalAlpha <= 0.01) return;
-        ctx.globalAlpha = globalAlpha;
 
-        // PROPORTIONS-FIX: Viel eleganterer, schmalerer Hardware-Balken!
+        // Bounding Box (Kompakt und ganzzahlig!)
         const w = Math.floor(width * 0.75);
-        const h = Math.max(4, Math.floor(height * 0.025)); // Nur noch ca. 4-6 Pixel hoch
+        const h = Math.max(4, Math.floor(height * 0.025)) | 0;
         const x = Math.floor((width - w) / 2);
-        const y = height - h - Math.floor(height * 0.06);  // Etwas mehr Luft nach unten
+        const y = height - h - Math.floor(height * 0.06);
+
+        // --- RETRO-UPGRADE: DER MECHANISCHE SCHLITTEN-EINZUG ---
+        // Statt transparent zu faden, rutscht der Balken am unteren Rand komplett raus!
+        let currentY = Math.floor(height - (height - y) * globalAlpha);
+        if (currentY >= height - 1) return; // Beendet Render-Prozess, wenn unsichtbar (CPU Boost!)
 
         if (metrics.system === 'c64') {
             // --- STRICT C64 PALETTE BINDING ---
@@ -52,73 +73,83 @@ export class LimitBar {
             let activeW = activeSegs > 0 ? (activeSegs * (segW + gap) - gap) : 0;
 
             if (animIntensity > 0.05 && activeW > 0) {
-                // PROPORTIONS-FIX: Dünnere Rahmen für 200p
                 let borderThick = Math.floor(1 + animIntensity * 2); 
                 let numStripes = 6;
                 let stripeH = (h + borderThick * 2) / numStripes;
                 
-                // Hardware Farben: [6: DarkBlue, 14: LightBlue, 15: LightGrey, 1: White, 10: LightRed, 7: Yellow]
-                const c64Colors = [6, 14, 15, 1, 10, 7].map(i => rgbToHex(...C64_PALETTE[i]));
+                const c64Colors = [6, 14, 15, 1, 10, 7].map(idx => rgbToHex(...C64_PALETTE[idx]));
                 
                 for (let i = 0; i < numStripes; i++) {
                     let colIdx = Math.floor((t * (5 + animIntensity * 15) + i) % 4);
-                    if (animIntensity >= 1.0 && metrics.beat[0] > 0.3) colIdx = 4 + Math.floor(Math.random() * 2); 
+                    // Deterministisches Flimmern statt Math.random()
+                    if (animIntensity >= 1.0 && metrics.beat[0] > 0.3) {
+                        colIdx = 4 + ((this.frameCounter + i) % 2); 
+                    }
                     
                     ctx.fillStyle = c64Colors[colIdx];
-                    ctx.fillRect(x - borderThick, Math.floor(y - borderThick + i * stripeH), activeW + borderThick * 2, Math.ceil(stripeH));
+                    ctx.fillRect(x - borderThick, Math.floor(currentY - borderThick + i * stripeH), activeW + borderThick * 2, Math.ceil(stripeH));
                 }
             }
 
             for (let i = 0; i < activeSegs; i++) {
-                let color = rgbToHex(...C64_PALETTE[14]); // 14: Light Blue
-                if (i >= 19) color = rgbToHex(...C64_PALETTE[10]);      // 10: Light Red (100%)
-                else if (i >= 10) color = rgbToHex(...C64_PALETTE[1]);  // 1: White (50%)
+                let color = rgbToHex(...C64_PALETTE[14]); 
+                if (i >= 19) color = rgbToHex(...C64_PALETTE[10]);      
+                else if (i >= 10) color = rgbToHex(...C64_PALETTE[1]);  
                 
                 if (isFlashing) color = rgbToHex(...C64_PALETTE[1]);
                 
                 ctx.fillStyle = color;
-                // Math.floor erzwingt kantenscharfes Rendering der Segmente
-                ctx.fillRect(Math.floor(x + i * (segW + gap)), Math.floor(y), Math.floor(segW), Math.floor(h)); 
+                ctx.fillRect(Math.floor(x + i * (segW + gap)), currentY, Math.floor(segW), h); 
             }
 
         } else if (metrics.system === 'amiga') {
-            // --- 12-BIT AMIGA COPPER GRADIENT ---
+            // --- 12-BIT AMIGA COPPERLIST STEPS (Absolut OCS-Banding!) ---
             let activeW = w * pct;
 
-            if (animIntensity > 0.05 && activeW > 0) {
-                let sweepSpeed = t * (2 + animIntensity * 8);
-                let sweepPos = (Math.sin(sweepSpeed) * 0.5 + 0.5) * activeW;
-                let glowAlpha = 0.2 + animIntensity * 0.5;
+            if (pct > 0) {
+                const cBlue = [0, 85, 255];
+                const cOrange = [255, 136, 0];
+                const cRed = [255, 0, 0];
                 
-                ctx.globalCompositeOperation = 'screen';
-                ctx.fillStyle = `rgba(255, 255, 255, ${glowAlpha})`;
-                // PROPORTIONS-FIX: Schmalerer Glow
-                ctx.fillRect(x + sweepPos - 5, y - 2, 10, h + 4);
-                ctx.globalCompositeOperation = 'source-over';
-                
-                if (animIntensity >= 1.0) {
-                    let bY = y + h/2 + Math.sin(t * 20) * 4;
-                    ctx.fillStyle = '#ffffff';
-                    // PROPORTIONS-FIX: Kleinere Peak-Sparks
-                    ctx.fillRect(x - 4, Math.floor(bY) - 1, 2, 2);
-                    ctx.fillRect(x + activeW + 2, Math.floor(bY) - 1, 2, 2);
+                let stepSize = 4; // 4-Pixel breite Copperlist Segmente (strikter OCS Look)
+                for (let px = 0; px < activeW; px += stepSize) {
+                    let pctColor = px / w; // Farbe verankert sich fest an der Balken-Gesamtbreite
+                    let r = 0, g = 0, b = 0;
+                    
+                    if (pctColor < 0.5) {
+                        let stepT = pctColor / 0.5;
+                        r = Math.floor(cBlue[0] + (cOrange[0] - cBlue[0]) * stepT);
+                        g = Math.floor(cBlue[1] + (cOrange[1] - cBlue[1]) * stepT);
+                        b = Math.floor(cBlue[2] + (cOrange[2] - cBlue[2]) * stepT);
+                    } else {
+                        let stepT = (pctColor - 0.5) / 0.5;
+                        r = Math.floor(cOrange[0] + (cRed[0] - cOrange[0]) * stepT);
+                        g = Math.floor(cOrange[1] + (cRed[1] - cOrange[1]) * stepT);
+                        b = Math.floor(cOrange[2] + (cRed[2] - cOrange[2]) * stepT);
+                    }
+                    
+                    let qColor = quantizeAmiga12Bit(r, g, b);
+                    ctx.fillStyle = rgbToHex(qColor[0], qColor[1], qColor[2]);
+                    
+                    let drawW = Math.min(stepSize, activeW - px);
+                    ctx.fillRect(x + px, currentY, drawW, h);
                 }
             }
 
-            if (pct > 0) {
-                // 12-Bit Quantisierte Color Stops
-                const cBlue = rgbToHex(...quantizeAmiga12Bit(0, 85, 255));
-                const cOrange = rgbToHex(...quantizeAmiga12Bit(255, 136, 0));
-                const cRed = rgbToHex(...quantizeAmiga12Bit(255, 0, 0));
+            // Opaque Sweep Highlight (Absolut 100% Alpha-frei!)
+            if (animIntensity > 0.05 && activeW > 0) {
+                let sweepSpeed = t * (2 + animIntensity * 8);
+                let sweepPos = Math.floor((Math.sin(sweepSpeed) * 0.5 + 0.5) * activeW);
                 
-                let grad = ctx.createLinearGradient(x, y, x + activeW, y);
-                grad.addColorStop(0.0, cBlue);
-                grad.addColorStop(0.5, cOrange); 
-                grad.addColorStop(0.95, cOrange); 
-                grad.addColorStop(1.0, cRed); 
+                // Draw pure, deckende weiße Blöcke (Wertüberschreibung im Farb-Register)
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(x + sweepPos - 4, currentY - 2, 8, h + 4);
                 
-                ctx.fillStyle = isFlashing ? '#ffffff' : grad;
-                ctx.fillRect(x, y, activeW, h); 
+                if (animIntensity >= 1.0) {
+                    let bY = currentY + h/2 + Math.floor(Math.sin(t * 20) * 4);
+                    ctx.fillRect(x - 4, bY - 1, 2, 2);
+                    ctx.fillRect(x + activeW + 2, bY - 1, 2, 2);
+                }
             }
 
         } else {
@@ -132,29 +163,36 @@ export class LimitBar {
             const cYellow = rgbToHex(...quantizeAtari9Bit(255, 255, 51));
             const cRed = rgbToHex(...quantizeAtari9Bit(255, 51, 51));
 
+            // Vektor-Sparks shooting out
             if (animIntensity > 0.05 && activeW > 0) {
-                ctx.strokeStyle = animIntensity >= 1.0 ? '#ffffff' : cGreen;
-                ctx.lineWidth = 1; // PROPORTIONS-FIX: 1 Pixel für harte Atari-Linien
-                
                 let numSparks = Math.floor(animIntensity * 12);
                 if (animIntensity >= 1.0) numSparks = 25; 
                 
-                ctx.beginPath();
                 for(let i=0; i < numSparks; i++) {
-                    let edge = Math.floor(Math.random() * 4);
+                    // Deterministischer Pseudo-Zufalls-Lookup über unsere Sinus-LUT
+                    let seed = (this.frameCounter * 37 + i * 59) & 255;
+                    let rVal1 = Math.abs(this.sinLUT[seed]);
+                    let rVal2 = Math.abs(this.sinLUT[(seed + 80) & 255]);
+                    let rVal3 = Math.abs(this.sinLUT[(seed + 160) & 255]);
+
+                    let edge = Math.floor(rVal1 * 4);
                     let sx, sy, dx, dy;
-                    // PROPORTIONS-FIX: Kürzere Funken
-                    let offset = (Math.random() - 0.5) * (4 + animIntensity * 5);
-                    let sparkLen = Math.random() * 4 * animIntensity;
                     
-                    if (edge === 0) { sx = x + Math.random() * activeW; sy = y - 4; dx = sx + offset; dy = sy - sparkLen; } 
-                    else if (edge === 1) { sx = x + Math.random() * activeW; sy = y + h + 4; dx = sx + offset; dy = sy + sparkLen; } 
-                    else if (edge === 2) { sx = x - 4; sy = y + Math.random() * h; dx = sx - sparkLen; dy = sy + offset; } 
-                    else { sx = x + activeW + 4; sy = y + Math.random() * h; dx = sx + sparkLen; dy = sy + offset; } 
+                    let offset = (rVal2 - 0.5) * (4 + animIntensity * 5);
+                    let sparkLen = rVal3 * 4 * animIntensity;
                     
-                    ctx.moveTo(sx, sy); ctx.lineTo(dx, dy);
+                    if (edge === 0) { sx = x + rVal1 * activeW; sy = currentY - 4; dx = sx + offset; dy = sy - sparkLen; } 
+                    else if (edge === 1) { sx = x + rVal1 * activeW; sy = currentY + h + 4; dx = sx + offset; dy = sy + sparkLen; } 
+                    else if (edge === 2) { sx = x - 4; sy = currentY + rVal1 * h; dx = sx - sparkLen; dy = sy + offset; } 
+                    else { sx = x + activeW + 4; sy = currentY + rVal1 * h; dx = sx + sparkLen; dy = sy + offset; } 
+                    
+                    let sparkColor = animIntensity >= 1.0 ? '#ffffff' : cGreen;
+                    
+                    // --- STRENGES ATARI-RESTRIKTION UPGRADE ---
+                    // Keine Kantenglättung über ctx.lineTo()! Wir zeichnen die Vektoren
+                    // über die pixelgenaue Bresenham-Routine (drawAliasedLine).
+                    drawAliasedLine(ctx, sx, sy, dx, dy, sparkColor);
                 }
-                ctx.stroke();
             }
 
             if (activeSegs > 0) {
@@ -166,10 +204,9 @@ export class LimitBar {
                     if (isFlashing) color = '#ffffff'; 
                     
                     ctx.fillStyle = color;
-                    ctx.fillRect(x + i * (segW + gap), y, segW, h); 
+                    ctx.fillRect(x + i * (segW + gap), currentY, segW, h); 
                 }
             }
         }
-        ctx.globalAlpha = 1.0;
     }
 }
