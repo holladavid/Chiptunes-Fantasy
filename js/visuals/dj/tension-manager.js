@@ -159,7 +159,7 @@ export class TensionManager {
 
                 // Extrem feinfühlige Akkumulations-Geschwindigkeiten
                 let accumulationSpeed = 0.8;
-                if (info.system === 'c64') accumulationSpeed = 0.75;
+                if (info.system === 'c64') accumulationSpeed = 0.45;
                 else if (info.system === 'amiga') accumulationSpeed = 0.35; // Wunderbar geschmeidiger Amiga-Aufbau
 
                 // Tor-Sperre für den eigentlichen Tension-Anstieg
