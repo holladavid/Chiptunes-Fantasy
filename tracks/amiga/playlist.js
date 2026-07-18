@@ -14,7 +14,6 @@ const myModFiles = [
     "GSLINGER.MOD",         // Jogeir Liljedahl (3)
     "agony_intro.mod",      // Jochen Hippel (4)
     "turrican_2_title.xm",  // Chris Huelsbeck (5)
-    "beast1.title.dw",      // <--- NEU: David Whittakers unschlagbares Meisterwerk!
     "blood_money_title.mod",
     "moongazr.mod",
     "immortal.mod",
@@ -52,9 +51,7 @@ const composerMetadata = {
 
 export const amigaPlaylist = myModFiles.map((filename, index) => {
     const isXm = filename.toLowerCase().endsWith('.xm');
-    const isDw = filename.toLowerCase().endsWith('.dw'); // Check auf Whittaker Format
-    
-    const label = isXm ? "FASTTRACKER" : (isDw ? "CUSTOM DW" : "PROTRACKER");
+    const label = isXm ? "FASTTRACKER" : "PROTRACKER";
     const metaInfo = composerMetadata[filename] || `
         <h3>[ CLASSIC AMIGA MODULE ]</h3>
         <p>Ein historisches Amiga-Tracker-Dokument. Geladen und emuliert direkt im RAM des Webbrowsers über unseren maßgeschneiderten, phasenstarres MOS Paula 8364 Core.</p>
@@ -67,11 +64,9 @@ export const amigaPlaylist = myModFiles.map((filename, index) => {
         loadAsync: async function() {
             if (isXm) {
                 return await loadXmFile(`tracks/amiga/${filename}`);
-            } else if (isDw) {
-                return await loadDwFile(`tracks/amiga/${filename}`); // <--- LÄDT DEN UWA PARSER!
             } else {
                 return await loadModFile(`tracks/amiga/${filename}`);
             }
         }
     };
-});f
+});
