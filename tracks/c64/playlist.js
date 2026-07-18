@@ -12,6 +12,7 @@ const mySidFiles = [
     "Great_Giana_Sisters_PSID.sid",   // 3. Chris Hülsbeck
     "Bionic_Commando.sid",            // 4. Tim Follin
     "Last_Ninja.sid",                 // 5. Ben Daglish & Anthony Lees
+    "Last_Ninja_2.sid",               // <--- NEU: Matt Grays Meisterwerk!
     "Cybernoid_II.sid",               // 6. Jeroen Tel
     "Supremacy.sid",                  // 7. Jeroen Tel
     "RoboCop_3.sid",                  // 8. Jeroen Tel
@@ -29,6 +30,11 @@ const mySidFiles = [
 ];
 
 const composerMetadata = {
+    "Last_Ninja_2.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: MATT GRAY ]</h3>
+        <p>Der Soundtrack zu <strong>Last Ninja 2: Back with a Vengeance</strong> (1988), komponiert von <strong>Matt Gray</strong>, ist eine absolute Chiptune-Ikone der C64-Geschichte. Gray verschmolz fernöstliche Harmonien mit wuchtigen, treibenden Funk/Synthwave-Basslines und schuf damit unvergessliche Tracks wie <em>Central Park</em> und <em>The Office</em>.</p>
+        <p><strong>DSP-Fokus:</strong> Matt Gray kitzelte das subtraktive Potential des 6581 meisterhaft heraus. Seine butterweichen, flötengleichen Hauptmelodien im Mittenbereich harmonieren perfekt mit den knallhart gesnapten ADSR-Hüllkurven der Percussions. Unser cycle-genauer Mischer verarbeitet diese dichten Registerfahrten absolut phasenstarr und knackig.</p>
+    `,
     "Commando.sid": `
         <h3>[ COMPOSER SPOTLIGHT: ROB HUBBARD ]</h3>
         <p><strong>Rob Hubbard</strong> ist der unangefochtene Rockgott des C64. Als er 1985 den Soundtrack zum Arcade-Port <em>Commando</em> ablieferte, veränderte er die Spielmusik für immer. Anstatt die von Commodore mitgelieferten, trägen Basic-Routinen zu nutzen, schrieb Hubbard seinen eigenen pfeilschnellen Maschinencode-Treiber.</p>

@@ -16,6 +16,7 @@ export const SID_SLDB = {
     "megaapocalypsepsid": { lengths: [332, 10, 10] },
     "bioniccommando": { lengths: [127, 215, 378] },
     "lastninja": { lengths: [332, 231, 168] },
+    "lastninja2": { lengths: [107, 332, 179, 332, 123, 340, 107, 332, 123, 340, 107, 332, 27] },
     "miamivice": { lengths: [69] },
     "wayofthetiger": { lengths: [170, 48, 32, 12, 15, 15, 15, 15, 15, 15, 15] },
     "platoon": { lengths: [317] },
