@@ -105,8 +105,8 @@ this.port.onmessage = (e) => {
                         }
                     }
                 }
-                this.cpu.pc = 0xEFFF; 
-                this.cpu.p &= ~0x04; 
+                this.cpu.pc = 0xEFFF; // Zwingt die CPU nach der Init-Phase in die sichere Host-Idle-Schleife ($EFFF)
+                this.cpu.p &= ~0x04;  // Gibt Hardware-Interrupts nach der Initialisierung frei
 
                 this.playAddress = msg.playAddress;
 
@@ -223,20 +223,19 @@ this.port.onmessage = (e) => {
                 
                 sampleSum += this.sid.outputSample; // Boxcar Summation für Standard-Mode
                 
-                // --- INTELLIGENT HOST CALL DETECTION (Wizball & Arkanoid Fix) ---
-                // Prüft ob der Track eigene Interrupts konfiguriert hat und den IRQ-Vektor umbog
+                 // 2. VBLANK / Host Player Call (Interrupt Hijack Detection)
+                // Prüft präzise, ob der Track den Standard-RAM-Vektor $0314 ($EA31) verändert hat
                 let irqHijacked = (this.cpu.ram[0x0314] !== 0x31) || (this.cpu.ram[0x0315] !== 0xEA);
                 let vicIrqEnabled = (this.cpu.ram[0xD01A] & 0x01) !== 0;
                 let cia1TimerAEnabled = (this.cpu.cia1IrqMask & 0x01) !== 0;
                 let isSelfDriving = irqHijacked && (vicIrqEnabled || cia1TimerAEnabled);
 
-                // 2. Host Player Call / CIA Sync
                 if (!this.useCiaTimer) {
                     this.vblankTimer--;
                     if (this.vblankTimer <= 0) {
                         this.vblankTimer += this.playSpeedCycles;
                         
-                        // Wenn der Track NICHT selbst fährt, übernimmt der Host den Call
+                        // Host-Injektion nur, wenn der Track sich nicht selbst über Interrupts taktet
                         if (!isSelfDriving && this.playAddress !== 0) {
                             this.hostPlayPending = true;
                         }
@@ -249,6 +248,7 @@ this.port.onmessage = (e) => {
                         this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                     }
                     
+                    // Wizball-Fix: Bei CIA-getakteten SIDs weichen wir präzise auf den Timer-A-Underflow aus
                     if (this.cpu.cia1TimerAUnderflowed) {
                         this.cpu.cia1TimerAUnderflowed = false;
                         if (!isSelfDriving && this.playAddress !== 0) {
