@@ -144,7 +144,6 @@ export class SIDChip {
         } else if (reg === 24) {
             this.filterMode = val;
             this.masterVol = (val & 15) / 15.0;
-            this.updateFilterParameters();
         }
     }
 

@@ -261,8 +261,12 @@ export class CPU6502 {
             return this.ram[addr]; 
         }
         
-        if (addr === 0xD41B) return this.sid.voices[2].waveOut8Bit || 0;
-        if (addr === 0xD41C) return this.sid.voices[2].env8Bit || 0;
+        // --- SID Register Mirroring ($D400 - $D7FF) ---
+        if (addr >= 0xD400 && addr <= 0xD7FF) {
+            let reg = addr & 0x1F;
+            if (reg === 27) return this.sid.voices[2].waveOut8Bit || 0; // $D41B mirror
+            if (reg === 28) return this.sid.voices[2].env8Bit || 0;     // $D41C mirror
+        }
 
         return this.ram[addr];
     }
@@ -275,8 +279,12 @@ export class CPU6502 {
         let ioEnabled = (p0001 === 5 || p0001 === 6 || p0001 === 7);
         if (!ioEnabled) return;
         
-        if (addr >= 0xD400 && addr <= 0xD41C) {
-            this.sid.writeReg(addr - 0xD400, val);
+        // --- SID Register Mirroring ($D400 - $D7FF) ---
+        if (addr >= 0xD400 && addr <= 0xD7FF) {
+            let reg = addr & 0x1F; // 32-Byte Mirroring
+            if (reg < 29) {
+                this.sid.writeReg(reg, val);
+            }
         } else if (addr === 0xD011) {
             this.ram[0xD011] = val; 
             this.rasterIrqTarget = (this.rasterIrqTarget & 0xFF) | ((val & 0x80) << 1);
@@ -340,7 +348,7 @@ export class CPU6502 {
                 if ((this.cia2CtrlB & 0x01) === 0) this.cia2TimerB = (this.cia2TimerB & 0xFF00) | val;
             } else if (addr === 0xDD07) {
                 this.cia2TimerBLatch = (this.cia2TimerBLatch & 0x00FF) | (val << 8);
-                if ((this.cia2CtrlB & 0x01) === 0) this.cia2TimerB = (this.cia2TimerB & 0x00FF) | (val << 8);
+                if ((this.cia2CtrlB === 0x01) === 0) this.cia2TimerB = (this.cia2TimerB & 0x00FF) | (val << 8);
             } else if (addr === 0xDD0D) {
                 let bit7 = (val & 0x80) !== 0;
                 let maskBits = val & 0x1F;
