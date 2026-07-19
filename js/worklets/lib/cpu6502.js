@@ -67,55 +67,55 @@ constructor(sid) {
         this.cia2CtrlB = 0;
     }
 
-    reset(loadAddr, prgCode) {
+reset(loadAddr, prgCode) {
         this.ram.fill(0);
         
-        // --- C64 MMU Default State ---
+        // C64 Memory Management Unit (MMU) Default State
         this.ram[0x0000] = 0x2F; 
         this.ram[0x0001] = 0x37; 
         
-        // --- 1. THE PHANTOM KERNAL ---
-        // Idle Loop
+        // --- SCHRITT 2: THE AUTHENTIC PHANTOM KERNAL (NMI-Stack-Fix) ---
+        // Eigene Host-Idle Schleife für unseren Emulator
         this.ram[0xEFFF] = 0x4C; this.ram[0xF000] = 0xFF; this.ram[0xF001] = 0xEF; // JMP $EFFF
         
-        // KERNAL IRQ Return (PLA, TAY, PLA, TAX, PLA, RTI)
+        // IRQ-Return mit Register-Wiederherstellung (PLA, TAY, PLA, TAX, PLA, RTI)
         const irqReturn = [ 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40 ]; 
         for (let i = 0; i < irqReturn.length; i++) this.ram[0xEA31 + i] = irqReturn[i];
-        
-        // Pure NMI Return (Nur RTI, da NMI keine Register pusht!)
+
+        // NMI-Return und reiner IRQ-Return (RTI)
         this.ram[0xEA81] = 0x40; // RTI
         
-        // Default RAM-Hooks
-        this.ram[0x0314] = 0x31; this.ram[0x0315] = 0xEA; // Default IRQ -> Pop & RTI
-        this.ram[0x0316] = 0x31; this.ram[0x0317] = 0xEA; // Default BRK -> Pop & RTI
-        this.ram[0x0318] = 0x81; this.ram[0x0319] = 0xEA; // Default NMI -> Pure RTI
+        // RAM-Vektoren initialisieren
+        this.ram[0x0314] = 0x31; this.ram[0x0315] = 0xEA; // Default IRQ -> Pop-Exit ($EA31)
+        this.ram[0x0316] = 0x31; this.ram[0x0317] = 0xEA; // Default BRK -> Pop-Exit ($EA31)
+        this.ram[0x0318] = 0x81; this.ram[0x0319] = 0xEA; // Default NMI -> Pure RTI ($EA81, NMI pusht nichts!)
 
-        // ROM Hardware Vectors ($FFFE = IRQ, $FFFA = NMI)
+        // ROM Hardware-Vektoren ($FFFE = IRQ, $FFFA = NMI)
         this.ram[0xFFFE] = 0x48; this.ram[0xFFFF] = 0xFF; 
-        this.ram[0xFFFA] = 0x43; this.ram[0xFFFB] = 0xFE; 
+        this.ram[0xFFFA] = 0x60; this.ram[0xFFFB] = 0xFF; 
 
-        // $FF48: Authentic IRQ Entry (Sichert A, X, Y und springt zu $0314)
+        // $FF48: Authentic IRQ Entry (Sichert A, X, Y und leitet zu $0314)
         const irqEntry = [
             0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
             0xBA, 0xBD, 0x04, 0x01,       // TSX, LDA $0104,X
             0x29, 0x10, 0xF0, 0x03,       // AND #$10, BEQ +3
-            0x6C, 0x16, 0x03,             // JMP ($0316) -> BRK Vector
-            0x6C, 0x14, 0x03              // JMP ($0314) -> IRQ Vector
+            0x6C, 0x16, 0x03,             // JMP ($0316) -> BRK
+            0x6C, 0x14, 0x03              // JMP ($0314) -> IRQ
         ];
         for (let i = 0; i < irqEntry.length; i++) this.ram[0xFF48 + i] = irqEntry[i];
 
-        // $FE43: Authentic NMI Entry (Sichert KEINE Register, springt direkt zu $0318)
+        // $FF60: Authentic NMI Entry (Sichert KEINE Register, leitet direkt zu $0318)
         const nmiEntry = [
             0x78,             // SEI
-            0x6C, 0x18, 0x03  // JMP ($0318)
+            0x6C, 0x18, 0x03  // JMP ($0318) -> NMI Vector
         ];
-        for (let i = 0; i < nmiEntry.length; i++) this.ram[0xFE43 + i] = nmiEntry[i];
+        for (let i = 0; i < nmiEntry.length; i++) this.ram[0xFF60 + i] = nmiEntry[i];
         
-        // --- 2. PRG CODE LADEN ---
+        // --- 2. DANACH DEN PRG-CODE LADEN (kann die Vektoren nun überschreiben!) ---
         for (let i = 0; i < prgCode.length; i++) {
             this.ram[loadAddr + i] = prgCode[i];
         }
-        
+                
         // CPU Reset State
         this.a = 0; this.x = 0; this.y = 0;
         this.sp = 0xFF; 
