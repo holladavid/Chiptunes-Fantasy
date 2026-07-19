@@ -2,7 +2,7 @@
 // =========================================================
 // MOS TECHNOLOGY SID 6581 AUDIO WORKLET PROCESSOR
 // CPU-Optimized 1MHz Lockstep Core with Boxcar Decimation
-// Phase 10: True 1MHz Micro-Stepping & Sync Timing
+// Phase 11: True 1MHz Micro-Stepping & Badline Timing Support (Step 1)
 // =========================================================
 
 import { CPU6502 } from '../lib/cpu6502.js';
@@ -77,11 +77,15 @@ class SIDProcessor extends AudioWorkletProcessor {
                     this.cpu.clockHardware();
                     this.sid.clock();
                     
-                    if (this.cpuCyclesRemaining <= 0) {
-                        let cyclesUsed = this.cpu.step();
-                        this.cpuCyclesRemaining = cyclesUsed - 1; 
+                    if (this.cpu.cpuStall > 0) {
+                        this.cpu.cpuStall--;
                     } else {
-                        this.cpuCyclesRemaining--;
+                        if (this.cpuCyclesRemaining <= 0) {
+                            let cyclesUsed = this.cpu.step();
+                            this.cpuCyclesRemaining = cyclesUsed - 1; 
+                        } else {
+                            this.cpuCyclesRemaining--;
+                        }
                     }
                 }
                 this.cpu.pc = 0xEA31; 
@@ -129,11 +133,15 @@ class SIDProcessor extends AudioWorkletProcessor {
                     this.cpu.clockHardware();
                     this.sid.clock();
                     
-                    if (this.cpuCyclesRemaining <= 0) {
-                        let cyclesUsed = this.cpu.step();
-                        this.cpuCyclesRemaining = cyclesUsed - 1; 
+                    if (this.cpu.cpuStall > 0) {
+                        this.cpu.cpuStall--;
                     } else {
-                        this.cpuCyclesRemaining--;
+                        if (this.cpuCyclesRemaining <= 0) {
+                            let cyclesUsed = this.cpu.step();
+                            this.cpuCyclesRemaining = cyclesUsed - 1; 
+                        } else {
+                            this.cpuCyclesRemaining--;
+                        }
                     }
                 }
                 this.cpu.pc = 0xEA31;
@@ -142,7 +150,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.vblankTimer = this.playSpeedCycles;
                 this.cycleAccumulator = 0.0;
                 this.cpuCyclesRemaining = 0;
-                
                 this.currentFrame = 0;
                 this.maxFrames = msg.length || 7500;
             }
@@ -185,20 +192,24 @@ class SIDProcessor extends AudioWorkletProcessor {
                 }
 
                 // 3. CPU Ausführung
-                if (this.cpuCyclesRemaining <= 0) {
-                    if (this.cpu.nmiPending) {
-                        this.cpu.nmiPending = false;
-                        this.cpu.triggerHardwareNmi();
-                        this.cpuCyclesRemaining = 7 - 1;
-                    } else if (this.cpu.irqPending && (this.cpu.p & 0x04) === 0) {
-                        this.cpu.triggerHardwareIrq();
-                        this.cpuCyclesRemaining = 7 - 1;
-                    } else {
-                        let cyclesUsed = this.cpu.step();
-                        this.cpuCyclesRemaining = cyclesUsed - 1;
-                    }
+                if (this.cpu.cpuStall > 0) {
+                    this.cpu.cpuStall--;
                 } else {
-                    this.cpuCyclesRemaining--;
+                    if (this.cpuCyclesRemaining <= 0) {
+                        if (this.cpu.nmiPending) {
+                            this.cpu.nmiPending = false;
+                            this.cpu.triggerHardwareNmi();
+                            this.cpuCyclesRemaining = 7 - 1;
+                        } else if (this.cpu.irqPending && (this.cpu.p & 0x04) === 0) {
+                            this.cpu.triggerHardwareIrq();
+                            this.cpuCyclesRemaining = 7 - 1;
+                        } else {
+                            let cyclesUsed = this.cpu.step();
+                            this.cpuCyclesRemaining = cyclesUsed - 1;
+                        }
+                    } else {
+                        this.cpuCyclesRemaining--;
+                    }
                 }
 
                 sampleSum += this.sid.outputSample;

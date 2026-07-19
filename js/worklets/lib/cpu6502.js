@@ -2,7 +2,7 @@
 // =========================================================
 // 6502 CPU EMULATOR & C64 I/O INTERCEPTOR
 // High-Performance Zero-Allocation Edition
-// Phase 10: True 1MHz Micro-Stepping & Sync Timing
+// Phase 11: VIC-II Badlines & Cycle Stealing (Step 1)
 // =========================================================
 
 export class CPU6502 {
@@ -29,6 +29,10 @@ export class CPU6502 {
         
         this.irqPending = false;
         this.nmiPending = false;
+
+        // --- SCHRITT 1: VIC-II BADLINE TIMING ---
+        this.cpuStall = 0;       // Verbleibende Halte-Zyklen für die CPU
+        this.isBadLine = false;  // Flag für die aktuelle Zeile
     }
 
     reset(loadAddr, prgCode) {
@@ -74,6 +78,10 @@ export class CPU6502 {
         
         this.irqPending = false;
         this.nmiPending = false;
+
+        // --- SCHRITT 1: VIC-II BADLINE TIMING ---
+        this.cpuStall = 0;
+        this.isBadLine = false;
     }
 
     push(val) {
@@ -137,7 +145,7 @@ export class CPU6502 {
         if (addr >= 0xD400 && addr <= 0xD41C) {
             this.sid.writeReg(addr - 0xD400, val);
         } else if (addr === 0xD011) {
-            this.ram[0xD011] = val; // Store value for bits 0-6
+            this.ram[0xD011] = val; // Wert muss gespeichert werden für Bit 0-6!
             this.rasterIrqTarget = (this.rasterIrqTarget & 0xFF) | ((val & 0x80) << 1);
         } else if (addr === 0xD012) {
             this.rasterIrqTarget = (this.rasterIrqTarget & 0x100) | val;
@@ -151,6 +159,7 @@ export class CPU6502 {
         // CIA-1
         else if (addr === 0xDC04) {
             this.cia1TimerALatch = (this.cia1TimerALatch & 0xFF00) | val;
+            // Wenn der Timer gestoppt ist, Counter sofort mitschreiben!
             if ((this.cia1CtrlA & 0x01) === 0) this.cia1TimerA = (this.cia1TimerA & 0xFF00) | val;
         } else if (addr === 0xDC05) {
             this.cia1TimerALatch = (this.cia1TimerALatch & 0x00FF) | (val << 8);
@@ -180,10 +189,10 @@ export class CPU6502 {
 
     // =========================================================
     // THE HARDWARE CLOCK MANAGER
-    // Wird nun EXAKT EINMAL pro 1MHz-Tick (Micro-Step) aufgerufen!
+    // Taktung von CIA-Timer, Raster und Badline-Evaluation
     // =========================================================
     clockHardware() {
-        // --- 1. CIA Timer A ---
+        // --- 1. CIA Timer A (Cycle-Exact) ---
         if (this.cia1CtrlA & 0x01) { 
             this.cia1TimerA--;
             if (this.cia1TimerA < 0) {
@@ -196,15 +205,32 @@ export class CPU6502 {
             }
         }
 
-        // --- 2. VIC-II Raster Line ---
+        // --- 2. VIC-II Raster Line (Cycle-Exact) ---
         this.rasterCycles++;
         if (this.rasterCycles >= this.cyclesPerLine) {
             this.rasterCycles = 0;
             this.rasterCounter++;
             if (this.rasterCounter >= 312) this.rasterCounter = 0; 
 
+            // Sync Bit 7 von D011
             if (this.rasterCounter > 255) this.ram[0xD011] |= 0x80;
             else this.ram[0xD011] &= 0x7F;
+        }
+        
+        // --- SCHRITT 1: BADLINE EVALUATION (Cycle 0) ---
+        // Die Bedingung wird am Zeilenanfang im sichtbaren Bereich evaluiert
+        if (this.rasterCycles === 0) {
+            let yscroll = this.ram[0xD011] & 0x07;
+            let displayEnabled = (this.ram[0xD011] & 0x10) !== 0;
+            this.isBadLine = displayEnabled && 
+                             (this.rasterCounter >= 0x30 && this.rasterCounter <= 0xF7) && 
+                             ((this.rasterCounter & 0x07) === yscroll);
+        }
+
+        // --- SCHRITT 1: CYCLE STEALING (Cycle 12) ---
+        // Der VIC-II nimmt der CPU ab Zyklus 12 für exakt 40 Takte den Bus weg
+        if (this.rasterCycles === 12 && this.isBadLine) {
+            this.cpuStall = 40;
         }
         
         // Raster IRQ triggert in Cycle 0 der Ziel-Linie
@@ -240,6 +266,16 @@ export class CPU6502 {
     indY() { let z = this.zp(); let addr = this.read(z) | (this.read((z+1)&0xFF) << 8); return (addr + this.y) & 0xFFFF; }
 
     step() {
+        if (this.nmiPending) {
+            this.nmiPending = false;
+            this.triggerHardwareNmi();
+            return 7;
+        }
+        if (this.irqPending && (this.p & 0x04) === 0) {
+            this.triggerHardwareIrq();
+            return 7;
+        }
+
         let op = this.read(this.pc++);
         let cycles = 2; 
 
@@ -350,7 +386,7 @@ export class CPU6502 {
             case 0x6C: { let ptr = this.abs(); let low = this.read(ptr); let high = this.read((ptr & 0xFF00) | ((ptr + 1) & 0x00FF)); this.pc = low | (high << 8); cycles = 5; } break; // JMP (ind)
             case 0x60: { let low = this.pop(); let high = this.pop(); this.pc = (low | (high << 8)) + 1; cycles = 6; } break; // RTS
             case 0x40: { // RTI
-                this.p = (this.pop() & 0xEF) | 0x20; // B-Flag 0, Bit 5 1
+                this.p = (this.pop() & 0xEF) | 0x20; 
                 let low = this.pop(); 
                 let high = this.pop(); 
                 this.pc = low | (high << 8); 

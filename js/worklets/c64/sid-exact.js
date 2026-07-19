@@ -3,7 +3,7 @@
 // MOS TECHNOLOGY SID 6581 AUDIO WORKLET PROCESSOR
 // High-Fidelity Cycle-Exact Lockstep Mischer
 // Studio-Grade Polyphase Sinc-FIR Decimator (Zero Aliasing)
-// Phase 10: True 1MHz Micro-Stepping & Sync Timing
+// Phase 11: True 1MHz Micro-Stepping & Badline Timing Support (Step 1)
 // =========================================================
 
 import { CPU6502 } from '../lib/cpu6502.js';
@@ -84,7 +84,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.x = songIndex; 
                 this.cpu.y = 0;
                 
-                // Init in die Routine drücken
                 this.cpu.push(0xEA); 
                 this.cpu.push(0x30); 
                 this.cpu.pc = this.initAddress;
@@ -94,16 +93,20 @@ class SIDProcessor extends AudioWorkletProcessor {
                     this.cpu.clockHardware();
                     this.sid.clock();
                     
-                    if (this.cpuCyclesRemaining <= 0) {
-                        let cyclesUsed = this.cpu.step();
-                        this.cpuCyclesRemaining = cyclesUsed - 1; 
+                    if (this.cpu.cpuStall > 0) {
+                        this.cpu.cpuStall--;
                     } else {
-                        this.cpuCyclesRemaining--;
+                        if (this.cpuCyclesRemaining <= 0) {
+                            let cyclesUsed = this.cpu.step();
+                            this.cpuCyclesRemaining = cyclesUsed - 1; 
+                        } else {
+                            this.cpuCyclesRemaining--;
+                        }
                     }
                 }
                 
-                this.cpu.pc = 0xEA31; // Idle State forcieren
-                this.cpu.p &= ~0x04;  // Hardware Interrupts erlauben!
+                this.cpu.pc = 0xEA31; 
+                this.cpu.p &= ~0x04;  
 
                 this.playAddress = msg.playAddress;
 
@@ -147,11 +150,15 @@ class SIDProcessor extends AudioWorkletProcessor {
                     this.cpu.clockHardware();
                     this.sid.clock();
                     
-                    if (this.cpuCyclesRemaining <= 0) {
-                        let cyclesUsed = this.cpu.step();
-                        this.cpuCyclesRemaining = cyclesUsed - 1; 
+                    if (this.cpu.cpuStall > 0) {
+                        this.cpu.cpuStall--;
                     } else {
-                        this.cpuCyclesRemaining--;
+                        if (this.cpuCyclesRemaining <= 0) {
+                            let cyclesUsed = this.cpu.step();
+                            this.cpuCyclesRemaining = cyclesUsed - 1; 
+                        } else {
+                            this.cpuCyclesRemaining--;
+                        }
                     }
                 }
                 this.cpu.pc = 0xEA31;
@@ -188,7 +195,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.clockHardware();
                 this.sid.clock();
                 
-                // 2. VBLANK / Host Player Call (Nur für Standard-PSIDs ohne Hardware-Interrupts)
+                // 2. VBLANK / Host Player Call
                 this.vblankTimer--;
                 if (this.vblankTimer <= 0) {
                     this.vblankTimer += this.playSpeedCycles;
@@ -201,23 +208,25 @@ class SIDProcessor extends AudioWorkletProcessor {
                     this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                 }
 
-                // 3. CPU Ausführung
-                if (this.cpuCyclesRemaining <= 0) {
-                    // Hardware Interrupts haben höchste Priorität!
-                    if (this.cpu.nmiPending) {
-                        this.cpu.nmiPending = false;
-                        this.cpu.triggerHardwareNmi();
-                        this.cpuCyclesRemaining = 7 - 1;
-                    } else if (this.cpu.irqPending && (this.cpu.p & 0x04) === 0) {
-                        this.cpu.triggerHardwareIrq();
-                        this.cpuCyclesRemaining = 7 - 1;
-                    } else {
-                        // Ganz normalen Opcode holen und ausführen
-                        let cyclesUsed = this.cpu.step();
-                        this.cpuCyclesRemaining = cyclesUsed - 1;
-                    }
+                // 3. CPU Ausführung mit Badline-Halt
+                if (this.cpu.cpuStall > 0) {
+                    this.cpu.cpuStall--; // CPU blockiert
                 } else {
-                    this.cpuCyclesRemaining--;
+                    if (this.cpuCyclesRemaining <= 0) {
+                        if (this.cpu.nmiPending) {
+                            this.cpu.nmiPending = false;
+                            this.cpu.triggerHardwareNmi();
+                            this.cpuCyclesRemaining = 7 - 1;
+                        } else if (this.cpu.irqPending && (this.cpu.p & 0x04) === 0) {
+                            this.cpu.triggerHardwareIrq();
+                            this.cpuCyclesRemaining = 7 - 1;
+                        } else {
+                            let cyclesUsed = this.cpu.step();
+                            this.cpuCyclesRemaining = cyclesUsed - 1;
+                        }
+                    } else {
+                        this.cpuCyclesRemaining--;
+                    }
                 }
                 
                 this.ringBuffer[this.ringIndex] = this.sid.outputSample;
