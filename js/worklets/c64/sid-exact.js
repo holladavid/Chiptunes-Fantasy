@@ -71,6 +71,8 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.prgCode = msg.c64Code;
                 this.loadAddr = msg.loadAddress;
                 this.initAddress = msg.initAddress;
+                // --- FIX: Speed-Flags für spätere Subsong-Wechsel speichern! ---
+                this.songSpeedFlags = msg.speed; 
 
                 this.sid = new SIDChip();
                 this.sid.useJfetSaturation = true;
@@ -83,35 +85,51 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.a = songIndex;
                 this.cpu.x = songIndex; 
                 this.cpu.y = 0;
-                this.hostPlayPending = false;
+                
                 this.cpu.push(0xEA); 
                 this.cpu.push(0x30); 
                 this.cpu.pc = this.initAddress;
 
                 let safety = 5000000;
                 while (this.cpu.pc !== 0xEA31 && safety-- > 0) {
-                    this.cpu.clockHardware();
+                    this.cpu.clockHardware(1);
                     this.sid.clock();
                     
-                    if (this.cpu.cpuStall > 0) {
-                        this.cpu.cpuStall--;
+                    if (this.cpuCyclesRemaining === 1) {
+                        this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
+                        this.cpu.nmiAccepted = this.cpu.nmiPending;
+                    }
+
+                    if (!this.cpu.rdy) {
+                        // CPU stall
                     } else {
                         if (this.cpuCyclesRemaining <= 0) {
-                            let cyclesUsed = this.cpu.step();
-                            this.cpuCyclesRemaining = cyclesUsed - 1; 
+                            if (this.cpu.nmiAccepted) {
+                                this.cpu.nmiAccepted = false;
+                                this.cpu.triggerHardwareNmi();
+                                this.cpuCyclesRemaining = 7 - 1; 
+                            } else if (this.cpu.irqAccepted) {
+                                this.cpu.irqAccepted = false;
+                                this.cpu.triggerHardwareIrq();
+                                this.cpuCyclesRemaining = 7 - 1;
+                            } else {
+                                let cyclesUsed = this.cpu.step();
+                                this.cpuCyclesRemaining = cyclesUsed - 1; 
+                            }
                         } else {
                             this.cpuCyclesRemaining--;
                         }
                     }
                 }
                 
-                this.cpu.pc = 0xEA31; 
-                this.cpu.p &= ~0x04;  
+                this.cpu.pc = 0xEA31;
+                this.cpu.p &= ~0x04; 
 
                 this.playAddress = msg.playAddress;
 
-                let useCiaTimer = ((msg.speed >> songIndex) & 1) !== 0;
-                this.playSpeedCycles = useCiaTimer ? 19583 : 19705;
+                // --- FIX: Nur noch EINE Zuweisung, sauber gekoppelt an die Instanz ---
+                this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
+                this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
                 this.vblankTimer = this.playSpeedCycles;
 
                 this.cycleAccumulator = 0.0;
@@ -119,7 +137,9 @@ class SIDProcessor extends AudioWorkletProcessor {
 
                 this.currentFrame = 0;
                 this.maxFrames = msg.length || 7500;
+                this.hostPlayPending = false;
                 this.isPlaying = true;
+                
             } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
             } else if (msg.type === 'RESUME_TRACK') {
@@ -135,7 +155,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.sid = this.sid;
                 
                 this.cpu.reset(this.loadAddr, this.prgCode);
-                this.hostPlayPending = false;
+                
                 let songIndex = (msg.frame > 0 ? msg.frame - 1 : 0) & 0xFF;
                 this.cpu.a = songIndex;
                 this.cpu.x = songIndex;
@@ -147,15 +167,30 @@ class SIDProcessor extends AudioWorkletProcessor {
                 
                 let safety = 5000000;
                 while (this.cpu.pc !== 0xEA31 && safety-- > 0) {
-                    this.cpu.clockHardware();
+                    this.cpu.clockHardware(1);
                     this.sid.clock();
                     
-                    if (this.cpu.cpuStall > 0) {
-                        this.cpu.cpuStall--;
+                    if (this.cpuCyclesRemaining === 1) {
+                        this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
+                        this.cpu.nmiAccepted = this.cpu.nmiPending;
+                    }
+
+                    if (!this.cpu.rdy) {
+                        // CPU stall
                     } else {
                         if (this.cpuCyclesRemaining <= 0) {
-                            let cyclesUsed = this.cpu.step();
-                            this.cpuCyclesRemaining = cyclesUsed - 1; 
+                            if (this.cpu.nmiAccepted) {
+                                this.cpu.nmiAccepted = false;
+                                this.cpu.triggerHardwareNmi();
+                                this.cpuCyclesRemaining = 7 - 1; 
+                            } else if (this.cpu.irqAccepted) {
+                                this.cpu.irqAccepted = false;
+                                this.cpu.triggerHardwareIrq();
+                                this.cpuCyclesRemaining = 7 - 1;
+                            } else {
+                                let cyclesUsed = this.cpu.step();
+                                this.cpuCyclesRemaining = cyclesUsed - 1; 
+                            }
                         } else {
                             this.cpuCyclesRemaining--;
                         }
@@ -164,11 +199,17 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.pc = 0xEA31;
                 this.cpu.p &= ~0x04;
                 
+                // --- FIX: Subsong Timer-Update nutzt nun die gespeicherten Flags ---
+                this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
+                this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
                 this.vblankTimer = this.playSpeedCycles;
+
                 this.cycleAccumulator = 0.0;
                 this.cpuCyclesRemaining = 0;
+                
                 this.currentFrame = 0;
                 this.maxFrames = msg.length || 7500;
+                this.hostPlayPending = false;
             }
         };
     }

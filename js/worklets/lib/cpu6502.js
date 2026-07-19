@@ -68,6 +68,16 @@ constructor(sid) {
     reset(loadAddr, prgCode) {
         this.ram.fill(0);
         
+        // --- FIX: C64 Memory Management Unit (MMU) Default State ---
+        this.ram[0x0000] = 0x2F; // Data direction register
+        this.ram[0x0001] = 0x37; // $37 = %00110111 -> I/O, KERNAL und BASIC sichtbar!
+        
+        // --- PHASE 12: THE AUTHENTIC PHANTOM KERNAL ---
+        // $EA31: Die Idle-Schleife der CPU (JMP $EA31)
+        this.ram[0xEA31] = 0x4C; this.ram[0xEA32] = 0x31; this.ram[0xEA33] = 0xEA;
+        
+        // $EA81 (IRQ Return) und $FE56 (NMI Return) stellen die Register wieder her!
+        
         // --- PHASE 12: THE AUTHENTIC PHANTOM KERNAL ---
         // $EA31: Die Idle-Schleife der CPU (JMP $EA31)
         this.ram[0xEA31] = 0x4C; this.ram[0xEA32] = 0x31; this.ram[0xEA33] = 0xEA;
@@ -178,6 +188,7 @@ constructor(sid) {
         return (addr1 & 0xFF00) !== (addr2 & 0xFF00);
     }
 
+
     read(addr) {
         if (addr < 0xD000) {
             if (addr === 0x0001) return this.ram[0x0001];
@@ -185,7 +196,13 @@ constructor(sid) {
         }
         if (addr > 0xDFFF) return this.ram[addr];
         
-        // VIC-II
+        // --- MEMORY MAPPING: I/O Abschaltung respektieren ---
+        // I/O ist nur sichtbar bei PLA-Konfigurationen 5, 6 oder 7
+        let p0001 = this.ram[0x0001] & 0x07;
+        let ioEnabled = (p0001 === 5 || p0001 === 6 || p0001 === 7);
+        if (!ioEnabled) return this.ram[addr];
+
+        // --- I/O REGISTER INTERCEPTION ($D000 - $DFFF) ---
         if (addr === 0xD011) {
             let val = this.ram[0xD011] & 0x7F;
             if (this.rasterCounter > 255) val |= 0x80;
@@ -264,10 +281,14 @@ constructor(sid) {
 
         return this.ram[addr];
     }
-
+    
     write(addr, val) {
         this.ram[addr] = val;
         if (addr < 0xD000 || addr > 0xDFFF) return;
+        
+        let p0001 = this.ram[0x0001] & 0x07;
+        let ioEnabled = (p0001 === 5 || p0001 === 6 || p0001 === 7);
+        if (!ioEnabled) return;
         
         // --- I/O REGISTER INTERCEPTION ($D000 - $DFFF) ---
         if (addr >= 0xD400 && addr <= 0xD41C) {
