@@ -6,6 +6,7 @@
 // JFET Temperature Saturation, and Dynamic Leakage.
 // Upgraded with historically accurate ADSR Phase-Transition Delay
 // Upgraded with Dynamic VCA DC-Leakage Activity Tracking
+// Upgraded with historically accurate Floating DAC Waveform Discharge
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -22,7 +23,8 @@ export class SIDChip {
             this.voices.push({
                 freq: 0, pw: 2048, ctrl: 0, env: 0, phase: 0,
                 state: ENV_RELEASE, prevGate: false,
-                waveOut8Bit: 0, env8Bit: 0, lfsr: 0x7FFFFF,
+                waveOut8Bit: 0x18, // Startet genau auf dem schwebenden DC-Ruhepegel (24)
+                env8Bit: 0, lfsr: 0x7FFFFF,
                 rate_counter: 0, exponential_counter: 0, envelope_counter: 0,
                 attack_period: RATE_COUNTER_PERIOD[0],
                 decay_period: RATE_COUNTER_PERIOD[0],
@@ -152,8 +154,6 @@ export class SIDChip {
             let newVol = (val & 15) / 15.0;
             
             // --- DETEKTION DER REGISTERRATEN-MODULATION ---
-            // Schreibt der Player im aktuellen Frame rasant Daten in $D418 (Wiggling),
-            // springt der Aktivitätswert sofort hoch.
             let delta = Math.abs(newVol - this.masterVol);
             if (delta > 0.01) {
                 this.volWiggleActivity = Math.min(1.0, this.volWiggleActivity + 0.15);
@@ -181,7 +181,7 @@ export class SIDChip {
         }
 
         if (ch.rate_counter === ratePeriod) {
-            ch.rate_counter = 0; // Reset nur bei exakter Koinzidenz
+            ch.rate_counter = 0; // Reset nur bei exakter Koinzidenz (Gleichheits-Match)
 
             let expPeriod = 1;
             if (ch.state !== ENV_ATTACK) {
@@ -248,11 +248,23 @@ export class SIDChip {
             ringMSB ^= (prevCh.phase >> 23) & 1;
         }
 
-        ch.waveOut8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, ch.pw, ch.lfsr, ringMSB);
+        // --- CYCLE-GENAUE FLOATING DAC ENTLADUNG ---
+        // Ist eine Wellenform selektiert, laden wir sie normal und sichern den Wert.
+        // Ist keine Welle selektiert ($00), blutet die Ladung des letzten Samples
+        // langsam in Richtung des schwebenden DC-Bias von 0x18 aus (ca. 15.5ms).
+        let hasWave = (ch.ctrl & 0xF0) !== 0;
+        if (hasWave) {
+            ch.waveOut8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, ch.pw, ch.lfsr, ringMSB);
+        } else {
+            ch.waveOut8Bit += (0x18 - ch.waveOut8Bit) * 0.00015;
+        }
+
         ch.env8Bit = ch.envelope_counter;
 
         let envDac = DAC_LUT[ch.env8Bit];
-        let waveDac = DAC_LUT[ch.waveOut8Bit];
+        
+        // Math.floor schützt den LUT-Index vor Float-Werten während des Fades
+        let waveDac = DAC_LUT[Math.floor(ch.waveOut8Bit)];
 
         let waveOutFloat = (waveDac * 2.0) - 1.0;
         
@@ -268,8 +280,6 @@ export class SIDChip {
         }
 
         // --- HIGH-SPEED EXPONENTIELLER ZERFALL (1 MHz) ---
-        // Verringert die Aktivitäts-Hüllkurve stetig und extrem performant (ohne Math.exp) 
-        // im Taktgefüge auf einen stabilen Nullwert (Halbwertszeit von ca. 20ms).
         this.volWiggleActivity *= 0.99995;
 
         let voice0 = this.synthesizeVoiceOneCycle(0);
@@ -338,10 +348,6 @@ export class SIDChip {
             ? Math.tanh(vcaIn + vcaQuad) 
             : Math.tanh(vcaIn * 0.85 + vcaQuad) / 0.85;
 
-        // --- DYNAMISCHER HIGH-PASS COOP ---
-        // Wenn ein Digidrum-Lauf detektiert wurde (Activity > 0), schwillt der Multiplikator
-        // auf bis zu 3.5 an (maximaler Galway Crunch). Bei normalen Melodien kühlt der Faktor
-        // weich auf ein sicheres Maß von 1.2 ab, um den Mischer von störendem DC-Offset zu entlasten.
         let dynamicGain = 1.2 + (this.volWiggleActivity * 2.3);
         let dcLeakage = (this.masterVol - 0.5) * dynamicGain + this.thermalDcOffset;
         this.outputSample = (finalMix * this.masterVol) + dcLeakage;
