@@ -68,47 +68,48 @@ constructor(sid) {
     reset(loadAddr, prgCode) {
         this.ram.fill(0);
         
-        // --- FIX: C64 Memory Management Unit (MMU) Default State ---
+        // C64 Memory Management Unit (MMU) Default State
         this.ram[0x0000] = 0x2F; 
         this.ram[0x0001] = 0x37; 
         
-        // 1. ZUERST den Track in den RAM laden!
-        for (let i = 0; i < prgCode.length; i++) {
-            this.ram[loadAddr + i] = prgCode[i];
-        }
+        // --- 1. ZUERST DAS PHANTOM KERNAL AUFBAUEN ---
+        // Eigene Host-Idle Schleife für unseren Emulator (sicher abgekoppelt vom C64 KERNAL)
+        this.ram[0xEFFF] = 0x4C; this.ram[0xF000] = 0xFF; this.ram[0xF001] = 0xEF; // JMP $EFFF
         
-        // 2. DANACH das Authentic Phantom KERNAL injizieren (überschreibt eventuellen Müll)
-        this.ram[0xEA31] = 0x4C; this.ram[0xEA32] = 0x31; this.ram[0xEA33] = 0xEA;
-        
-        const returnHandler = [ 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40 ];
+        // Authentischer KERNAL IRQ Exit ($EA31) und NMI Exit ($FE56)
+        const returnHandler = [ 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40 ]; // PLA, TAY, PLA, TAX, PLA, RTI
         for (let i = 0; i < returnHandler.length; i++) {
-            this.ram[0xEA81 + i] = returnHandler[i];
-            this.ram[0xFE56 + i] = returnHandler[i];
+            this.ram[0xEA31 + i] = returnHandler[i]; // Wichtig: Wizball springt hierhin!
+            this.ram[0xEA81 + i] = returnHandler[i]; 
+            this.ram[0xFE56 + i] = returnHandler[i]; 
         }
         
-        this.ram[0x0314] = 0x81; this.ram[0x0315] = 0xEA; 
+        this.ram[0x0314] = 0x31; this.ram[0x0315] = 0xEA; 
         this.ram[0x0316] = 0x81; this.ram[0x0317] = 0xEA; 
         this.ram[0x0318] = 0x56; this.ram[0x0319] = 0xFE; 
 
-        // FIX: NMI Vector auf $FF60 verschoben, um Overlap mit IRQ (19 Bytes) zu verhindern!
         this.ram[0xFFFE] = 0x48; this.ram[0xFFFF] = 0xFF; 
         this.ram[0xFFFA] = 0x60; this.ram[0xFFFB] = 0xFF; 
 
         const irqEntry = [
-            0x48, 0x8A, 0x48, 0x98, 0x48, 
-            0xBA, 0xBD, 0x04, 0x01,       
-            0x29, 0x10, 0xF0, 0x03,       
-            0x6C, 0x16, 0x03,             
-            0x6C, 0x14, 0x03              
+            0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
+            0xBA, 0xBD, 0x04, 0x01,       // TSX, LDA $0104,X
+            0x29, 0x10, 0xF0, 0x03,       // AND #$10, BEQ +3
+            0x6C, 0x16, 0x03,             // JMP ($0316) -> BRK Vector
+            0x6C, 0x14, 0x03              // JMP ($0314) -> IRQ Vector
         ];
         for (let i = 0; i < irqEntry.length; i++) this.ram[0xFF48 + i] = irqEntry[i];
 
         const nmiEntry = [
-            0x48, 0x8A, 0x48, 0x98, 0x48, 
-            0x6C, 0x18, 0x03              
+            0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
+            0x6C, 0x18, 0x03              // JMP ($0318) -> NMI Vector
         ];
-        // NMI Entry startet nun sicher ab $FF60
         for (let i = 0; i < nmiEntry.length; i++) this.ram[0xFF60 + i] = nmiEntry[i];
+        
+        // --- 2. DANACH DEN PRG-CODE LADEN (kann die Vektoren nun überschreiben!) ---
+        for (let i = 0; i < prgCode.length; i++) {
+            this.ram[loadAddr + i] = prgCode[i];
+        }
         
         this.a = 0; this.x = 0; this.y = 0;
         this.sp = 0xFF; 
@@ -138,6 +139,9 @@ constructor(sid) {
         this.nmiPending = false;
         this.irqAccepted = false;
         this.nmiAccepted = false;
+        
+        // NMI Edge Detection State
+        this.prevNmiLine = false;
 
         this.rdy = true;
         this.isBadLine = false;
@@ -350,23 +354,25 @@ constructor(sid) {
         }
     }
 
-    updateIrqState(cycleIndex = 0, totalCycles = 1) {
+updateIrqState(cycleIndex = 0, totalCycles = 1) {
         let vicIrq = (this.ram[0xD019] & this.ram[0xD01A] & 0x0F) !== 0;
         let ciaIrq = (this.cia1Icr & this.cia1IrqMask & 0x1F) !== 0;
-        
-        // --- PHASE 8: CIA-2 NMI STATUS ---
         let cia2Nmi = (this.cia2Icr & this.cia2IrqMask & 0x1F) !== 0;
         
         this.irqPending = vicIrq || ciaIrq;
-        this.nmiPending = cia2Nmi; // NMI direkt an CIA-2 koppeln
         
+        // --- NMI EDGE DETECTION (Behebt Arkanoid NMI Loop Crash!) ---
+        if (cia2Nmi && !this.prevNmiLine) {
+            this.nmiPending = true;
+        }
+        this.prevNmiLine = cia2Nmi;
+
         if (vicIrq) this.ram[0xD019] |= 0x80;
         else this.ram[0xD019] &= 0x7F;
 
         if (ciaIrq) this.cia1Icr |= 0x80;
         else this.cia1Icr &= 0x7F;
 
-        // CIA-2 NMI ICR Bit 7 (Global NMI Flag)
         if (cia2Nmi) this.cia2Icr |= 0x80;
         else this.cia2Icr &= 0x7F;
 
@@ -378,6 +384,14 @@ constructor(sid) {
         }
     }
 
+    triggerHardwareNmi() {
+        this.nmiPending = false; // Wir haben die Flanke konsumiert!
+        this.push(this.pc >> 8);
+        this.push(this.pc & 0xFF);
+        this.push((this.p & 0xEF) | 0x20);
+        this.p |= 0x04;
+        this.pc = this.read(0xFFFA) | (this.read(0xFFFB) << 8);
+    }
 
     // =========================================================
     // THE HARDWARE CLOCK MANAGER
@@ -520,14 +534,6 @@ constructor(sid) {
         this.push((this.p & 0xEF) | 0x20); // B-Flag 0, Bit 5 1
         this.p |= 0x04; // Set I flag
         this.pc = this.read(0xFFFE) | (this.read(0xFFFF) << 8);
-    }
-
-    triggerHardwareNmi() {
-        this.push(this.pc >> 8);
-        this.push(this.pc & 0xFF);
-        this.push((this.p & 0xEF) | 0x20);
-        this.p |= 0x04;
-        this.pc = this.read(0xFFFA) | (this.read(0xFFFB) << 8);
     }
 
     abs() { let l = this.read(this.pc++); let h = this.read(this.pc++); return l | (h << 8); }

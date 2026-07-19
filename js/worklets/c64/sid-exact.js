@@ -86,12 +86,13 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.x = songIndex; 
                 this.cpu.y = 0;
                 
-                this.cpu.push(0xEA); 
-                this.cpu.push(0x30); 
+                // Init in die Routine drücken
+                this.cpu.push(0xEF); 
+                this.cpu.push(0xFE); // Return to $EFFF (Host Idle Loop)
                 this.cpu.pc = this.initAddress;
 
                 let safety = 5000000;
-                while (this.cpu.pc !== 0xEA31 && safety-- > 0) {
+                while (this.cpu.pc !== 0xEFFF && safety-- > 0) { // <- Auf $EFFF abfragen!
                     this.cpu.clockHardware(1);
                     this.sid.clock();
                     
@@ -161,12 +162,13 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.x = songIndex;
                 this.cpu.y = 0;
                 
-                this.cpu.push(0xEA);
-                this.cpu.push(0x30);
+                // Init in die Routine drücken
+                this.cpu.push(0xEF); 
+                this.cpu.push(0xFE); // Return to $EFFF (Host Idle Loop)
                 this.cpu.pc = this.initAddress;
-                
+
                 let safety = 5000000;
-                while (this.cpu.pc !== 0xEA31 && safety-- > 0) {
+                while (this.cpu.pc !== 0xEFFF && safety-- > 0) { // <- Auf $EFFF abfragen!
                     this.cpu.clockHardware(1);
                     this.sid.clock();
                     
@@ -196,7 +198,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                         }
                     }
                 }
-                this.cpu.pc = 0xEA31;
+                this.cpu.pc = 0xEFFF; // <- Auf $EFFF zwingen!
                 this.cpu.p &= ~0x04;
                 
                 // --- FIX: Subsong Timer-Update nutzt nun die gespeicherten Flags ---
@@ -268,15 +270,13 @@ class SIDProcessor extends AudioWorkletProcessor {
                     // CPU blockiert
                 } else {
                     if (this.cpuCyclesRemaining <= 0) {
-                        // --- PHASE 12: SYNCHRONISIERTER HOST PLAY CALL ---
-                        // Wir injizieren den Play-Call NUR an Opcode-Grenzen und NUR, 
-                        // wenn die CPU gerade sicher in der Idle-Schleife ($EA31 bis $EA33) steht!
-                        if (this.hostPlayPending && this.cpu.pc >= 0xEA31 && this.cpu.pc <= 0xEA33) {
+                        // Der Host Play Call injiziert nur noch, wenn die CPU sicher im Host-Idle ist!
+                        if (this.hostPlayPending && this.cpu.pc >= 0xEFFF && this.cpu.pc <= 0xF001) {
                             this.hostPlayPending = false;
-                            this.cpu.push(0xEA);
-                            this.cpu.push(0x30); 
+                            this.cpu.push(0xEF);
+                            this.cpu.push(0xFE); 
                             this.cpu.pc = this.playAddress;
-                            this.cpuCyclesRemaining = 6 - 1; // 6 Zyklen für den JSR-Simulations-Takt
+                            this.cpuCyclesRemaining = 6 - 1; 
                         } else if (this.cpu.nmiAccepted) {
                             this.cpu.nmiAccepted = false;
                             this.cpu.triggerHardwareNmi();
