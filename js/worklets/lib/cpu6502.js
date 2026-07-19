@@ -2,7 +2,7 @@
 // =========================================================
 // 6502 CPU EMULATOR & C64 I/O INTERCEPTOR
 // High-Performance Zero-Allocation Edition
-// Phase 9: True Lockstep Hardware Timing (Arkanoid Ready)
+// Phase 10: True 1MHz Micro-Stepping & Sync Timing
 // =========================================================
 
 export class CPU6502 {
@@ -38,7 +38,7 @@ export class CPU6502 {
         // $EA31: Die Idle-Schleife der CPU (JMP $EA31)
         this.ram[0xEA31] = 0x4C; this.ram[0xEA32] = 0x31; this.ram[0xEA33] = 0xEA;
         
-        // $EA81: Die Rettungsleine (RTI) falls ein ungemappter IRQ/NMI durchrutscht
+        // $EA81: Die Rettungsleine (RTI)
         this.ram[0xEA81] = 0x40; 
         
         // Default-Vektoren für RAM-Hooks zeigen auf RTI
@@ -137,7 +137,7 @@ export class CPU6502 {
         if (addr >= 0xD400 && addr <= 0xD41C) {
             this.sid.writeReg(addr - 0xD400, val);
         } else if (addr === 0xD011) {
-            this.ram[0xD011] = val; // Wert muss gespeichert werden für Bit 0-6!
+            this.ram[0xD011] = val; // Store value for bits 0-6
             this.rasterIrqTarget = (this.rasterIrqTarget & 0xFF) | ((val & 0x80) << 1);
         } else if (addr === 0xD012) {
             this.rasterIrqTarget = (this.rasterIrqTarget & 0x100) | val;
@@ -151,7 +151,6 @@ export class CPU6502 {
         // CIA-1
         else if (addr === 0xDC04) {
             this.cia1TimerALatch = (this.cia1TimerALatch & 0xFF00) | val;
-            // Wenn der Timer gestoppt ist, Counter sofort mitschreiben!
             if ((this.cia1CtrlA & 0x01) === 0) this.cia1TimerA = (this.cia1TimerA & 0xFF00) | val;
         } else if (addr === 0xDC05) {
             this.cia1TimerALatch = (this.cia1TimerALatch & 0x00FF) | (val << 8);
@@ -181,42 +180,37 @@ export class CPU6502 {
 
     // =========================================================
     // THE HARDWARE CLOCK MANAGER
-    // Fortschritt der physikalischen Zeit & Interrupt-Triggering
+    // Wird nun EXAKT EINMAL pro 1MHz-Tick (Micro-Step) aufgerufen!
     // =========================================================
-    clockHardware(cycles) {
-        for (let i = 0; i < cycles; i++) {
-            // --- 1. CIA Timer A (Cycle-Exact) ---
-            if (this.cia1CtrlA & 0x01) { 
-                this.cia1TimerA--;
-                if (this.cia1TimerA < 0) {
-                    this.cia1Icr |= 0x01; // Underflow
-                    // Latch Reload (Bugfix: Tritt immer ein!)
-                    this.cia1TimerA = this.cia1TimerALatch === 0 ? 0xFFFF : this.cia1TimerALatch;
-                    
-                    if (this.cia1CtrlA & 0x08) { // One-shot stop
-                        this.cia1CtrlA &= ~0x01; 
-                    }
-                    this.updateIrq();
+    clockHardware() {
+        // --- 1. CIA Timer A ---
+        if (this.cia1CtrlA & 0x01) { 
+            this.cia1TimerA--;
+            if (this.cia1TimerA < 0) {
+                this.cia1Icr |= 0x01; // Underflow
+                this.cia1TimerA = this.cia1TimerALatch === 0 ? 0xFFFF : this.cia1TimerALatch;
+                if (this.cia1CtrlA & 0x08) { // One-shot stop
+                    this.cia1CtrlA &= ~0x01; 
                 }
-            }
-
-            // --- 2. VIC-II Raster Line (Cycle-Exact) ---
-            this.rasterCycles++;
-            if (this.rasterCycles >= this.cyclesPerLine) {
-                this.rasterCycles = 0;
-                this.rasterCounter++;
-                if (this.rasterCounter >= 312) this.rasterCounter = 0; 
-                
-                // Sync Bit 7 von D011
-                if (this.rasterCounter > 255) this.ram[0xD011] |= 0x80;
-                else this.ram[0xD011] &= 0x7F;
-            }
-            
-            // Raster IRQ löst jetzt exakt auf Zyklus 0 der Ziel-Zeile aus (Arkanoid Fix!)
-            if (this.rasterCycles === 0 && this.rasterCounter === this.rasterIrqTarget) {
-                this.ram[0xD019] |= 0x01; 
                 this.updateIrq();
             }
+        }
+
+        // --- 2. VIC-II Raster Line ---
+        this.rasterCycles++;
+        if (this.rasterCycles >= this.cyclesPerLine) {
+            this.rasterCycles = 0;
+            this.rasterCounter++;
+            if (this.rasterCounter >= 312) this.rasterCounter = 0; 
+
+            if (this.rasterCounter > 255) this.ram[0xD011] |= 0x80;
+            else this.ram[0xD011] &= 0x7F;
+        }
+        
+        // Raster IRQ triggert in Cycle 0 der Ziel-Linie
+        if (this.rasterCycles === 0 && this.rasterCounter === this.rasterIrqTarget) {
+            this.ram[0xD019] |= 0x01; 
+            this.updateIrq();
         }
     }
 
@@ -246,19 +240,6 @@ export class CPU6502 {
     indY() { let z = this.zp(); let addr = this.read(z) | (this.read((z+1)&0xFF) << 8); return (addr + this.y) & 0xFFFF; }
 
     step() {
-        // =========================================================
-        // PENDING HARDWARE INTERRUPTS WÄHREND DES FETCH-CYCLES ABFANGEN
-        // =========================================================
-        if (this.nmiPending) {
-            this.nmiPending = false;
-            this.triggerHardwareNmi();
-            return 7;
-        }
-        if (this.irqPending && (this.p & 0x04) === 0) {
-            this.triggerHardwareIrq();
-            return 7;
-        }
-
         let op = this.read(this.pc++);
         let cycles = 2; 
 
