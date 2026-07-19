@@ -172,64 +172,65 @@ class SIDProcessor extends AudioWorkletProcessor {
             this.cycleAccumulator -= cyclesToRun;
 
             let sampleSum = 0;
+
+            // --- THE NATIVE CYCLE-EXACT LOCKSTEP LOOP (1 MHz) ---
             for (let c = 0; c < cyclesToRun; c++) {
                 
-                // 1. Hardware Ticking
-                this.cpu.clockHardware();
-                this.sid.clock();
+                // 1. Hardware Ticking (Exakt 1 Takt pro Iteration)
+                this.cpu.clockHardware(1); // Taktet die Hardware um 1 Zyklus
+                this.sid.clock();          // Taktet den MOS 6581 Kern um 1 Takt
+                sampleSum += this.sid.outputSample; // Boxcar Summation
                 
                 // 2. VBLANK / Host Player Call
                 this.vblankTimer--;
                 if (this.vblankTimer <= 0) {
                     this.vblankTimer += this.playSpeedCycles;
                     
-                    if (this.playAddress !== 0 && this.cpu.pc === 0xEA31) { 
-                        this.cpu.push(0xEA);
-                        this.cpu.push(0x30);
-                        this.cpu.pc = this.playAddress;
+                    // JSR-Call wird nur injiziert, wenn playAddress ungleich 0 ist 
+                    // und sich die CPU in der Idle-Warteschleife ($EA31) befindet.
+                    if (this.playAddress !== 0) {
+                        if (this.cpu.pc === 0xEA31) { 
+                            this.cpu.push(0xEA);
+                            this.cpu.push(0x30); // Rücksprungadresse zu $EA31
+                            this.cpu.pc = this.playAddress;
+                        }
                     }
                     this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                 }
 
-                // 3. CPU Ausführung
-                if (this.cpu.cpuStall > 0) {
-                    this.cpu.cpuStall--;
-                } else {
-                    // --- SCHRITT 3: IRQ-LATENZ SAMPLING ---
-                    if (this.cpuCyclesRemaining === 1) {
-                        this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
-                        this.cpu.nmiAccepted = this.cpu.nmiPending;
-                    }
-
-                    // 3. CPU Ausführung
-                    // Der physikalische RDY-Halt wird nun direkt im step() abgefangen.
-                    if (this.cpuCyclesRemaining <= 0) {
-                        if (this.cpu.nmiAccepted) {
-                            this.cpu.nmiAccepted = false;
-                            this.cpu.triggerHardwareNmi();
-                            this.cpuCyclesRemaining = 7 - 1;
-                        } else if (this.cpu.irqAccepted) {
-                            this.cpu.irqAccepted = false;
-                            this.cpu.triggerHardwareIrq();
-                            this.cpuCyclesRemaining = 7 - 1;
-                        } else {
-                            let cyclesUsed = this.cpu.step(); // Gibt 1 zurück, falls !rdy
-                            this.cpuCyclesRemaining = cyclesUsed - 1;
-                        }
-                    } else {
-                        this.cpuCyclesRemaining--;
-                    }
-                    
-                    this.ringBuffer[this.ringIndex] = this.sid.outputSample;
+                // 3. CPU Ausführung mit Latenz-Prüfung und RDY-Halt
+                // Die Latenz-Prüfung geschieht im vorletzten Taktzyklus (T-1) des Befehls.
+                if (this.cpuCyclesRemaining === 1) {
+                    this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
+                    this.cpu.nmiAccepted = this.cpu.nmiPending;
                 }
-                sampleSum += this.sid.outputSample;
+
+                if (this.cpuCyclesRemaining <= 0) {
+                    // Interrupts werden erst ausgeführt, wenn sie laut Latenz-Sampling
+                    // im vorletzten Taktzyklus des vorherigen Befehls akzeptiert wurden.
+                    if (this.cpu.nmiAccepted) {
+                        this.cpu.nmiAccepted = false;
+                        this.cpu.triggerHardwareNmi();
+                        this.cpuCyclesRemaining = 7; 
+                    } else if (this.cpu.irqAccepted) {
+                        this.cpu.irqAccepted = false;
+                        this.cpu.triggerHardwareIrq();
+                        this.cpuCyclesRemaining = 7;
+                    } else {
+                        let cyclesUsed = this.cpu.step(); // Gibt 1 zurück, falls !rdy
+                        this.cpuCyclesRemaining = cyclesUsed;
+                    }
+                }
+                this.cpuCyclesRemaining--;
             }
             
+            // --- BOXCAR DECIMATION (CPU-freundliche Mittelwertbildung) ---
             let finalSample = cyclesToRun > 0 ? sampleSum / cyclesToRun : this.lastSampleValue;
             this.lastSampleValue = finalSample;
             
             finalSample = this.dcBlock.process(finalSample);
 
+            // --- C64 Motherboard Audio Filter (1-Pole RC, ca. 12.5 kHz) ---
             this.outLp += 0.65 * (finalSample - this.outLp);
             finalSample = this.outLp;
 
@@ -238,6 +239,7 @@ class SIDProcessor extends AudioWorkletProcessor {
             if (i === 0) visualValue = finalSample;
         }
 
+        // --- VISUALIZATION DATA DISPATCH ---
         this.visCounter = (this.visCounter || 0) + 1;
         if (this.visCounter % 4 === 0) {
             let isAudible = Math.abs(visualValue) > 0.001;

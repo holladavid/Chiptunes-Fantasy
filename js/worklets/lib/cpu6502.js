@@ -273,32 +273,56 @@ constructor(sid) {
         }
     }
 
-    updateIrq() {
+    // --- PHASE 3: INTERRUPT LATENCY BINDING ---
+    updateIrqState(cycleIndex = 0, totalCycles = 1) {
         let vicIrq = (this.ram[0xD019] & this.ram[0xD01A] & 0x0F) !== 0;
         let ciaIrq = (this.cia1Icr & this.cia1IrqMask & 0x1F) !== 0;
         
         this.irqPending = vicIrq || ciaIrq;
         
-        // Update VIC-II Interrupt Status Register ($D019) General IRQ Flag (Bit 7)
         if (vicIrq) {
             this.ram[0xD019] |= 0x80;
         } else {
             this.ram[0xD019] &= 0x7F;
         }
 
-        // Update CIA-1 Interrupt Control Register ($DC0D) General IRQ Flag (Bit 7)
         if (ciaIrq) {
             this.cia1Icr |= 0x80;
         } else {
             this.cia1Icr &= 0x7F;
         }
+
+        // Interrupt-Anerkennung mit exakter 6502-Latenz:
+        // Nur wenn das Ereignis vor dem vorletzten Zyklus (totalCycles - 2) auftritt,
+        // wird es für die direkt darauffolgende Instruktion akzeptiert.
+        if (this.irqPending) {
+            if (cycleIndex <= totalCycles - 3) {
+                this.irqAccepted = (this.p & 0x04) === 0;
+            }
+        }
+        if (this.nmiPending) {
+            if (cycleIndex <= totalCycles - 3) {
+                this.nmiAccepted = true;
+            }
+        }
     }
+
 
     // =========================================================
     // THE HARDWARE CLOCK MANAGER
     // Taktung von CIA-Timer A & B, Raster und Badline-Evaluation
     // =========================================================
-clockHardware(cycles) {
+    clockHardware(cycles) {
+        // --- PHASE 3: INTERRUPT LATENCY BINDING ---
+        // War ein IRQ/NMI bereits vor Beginn dieser Instruktion aktiv,
+        // wird er jetzt uneingeschränkt für das Ende dieser Instruktion akzeptiert.
+        if (this.irqPending) {
+            this.irqAccepted = (this.p & 0x04) === 0;
+        }
+        if (this.nmiPending) {
+            this.nmiAccepted = true;
+        }
+
         for (let i = 0; i < cycles; i++) {
             let timerBUnderflowTriggered = false;
 
@@ -312,7 +336,7 @@ clockHardware(cycles) {
                     if (this.cia1CtrlA & 0x08) { // One-shot stop
                         this.cia1CtrlA &= ~0x01; 
                     }
-                    this.updateIrq();
+                    this.updateIrqState(i, cycles); // Übergibt den Zyklus-Index
 
                     // --- SCHRITT 2: TIMER B KASKADIERUNGS-MODUS ---
                     if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x40)) {
@@ -339,19 +363,18 @@ clockHardware(cycles) {
                 if (this.cia1CtrlB & 0x08) { 
                     this.cia1CtrlB &= ~0x01; 
                 }
-                this.updateIrq();
+                this.updateIrqState(i, cycles);
             }
 
             // --- SCHRITT 5: CIA TOD CLOCK ---
             this.todCycleCounter--;
             if (this.todCycleCounter <= 0) {
-                // Bit 7 von CRA ($DC0E) bestimmt die Netzfrequenz: 1 = 50 Hz, 0 = 60 Hz
                 let is50Hz = (this.cia1CtrlA & 0x80) !== 0;
                 this.todCycleCounter += is50Hz ? 19705 : 16421;
                 this.incrementTod();
             }
 
-            // --- 3. VIC-II Raster Line (Cycle-Exact) ---            
+            // --- 3. VIC-II Raster Line (Cycle-Exact) ---
             this.rasterCycles++;
             if (this.rasterCycles >= this.cyclesPerLine) {
                 this.rasterCycles = 0;
@@ -373,7 +396,6 @@ clockHardware(cycles) {
             }
 
             // --- SCHRITT 6: RDY-LEITUNG FÜR CPU-HALT (Cycle 12 bis 51) ---
-            // Der VIC-II blockiert den Systembus auf Badlines von Cycle 12 bis exakt Cycle 51 (40 Zyklen)
             if (this.isBadLine && this.rasterCycles >= 12 && this.rasterCycles < 52) {
                 this.rdy = false;
             } else {
@@ -383,7 +405,7 @@ clockHardware(cycles) {
             // Raster IRQ triggert in Cycle 0 der Ziel-Linie
             if (this.rasterCycles === 0 && this.rasterCounter === this.rasterIrqTarget) {
                 this.ram[0xD019] |= 0x01; 
-                this.updateIrq();
+                this.updateIrqState(i, cycles);
             }
         }
     }
