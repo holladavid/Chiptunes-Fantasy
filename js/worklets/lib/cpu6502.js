@@ -52,6 +52,8 @@ constructor(sid) {
         this.todLatched = false;
         this.todHalted = false;
         this.todCycleCounter = 19705;
+        // --- FIX: CIA-1 Timer A Underflow Tracker für Host-Synchronisation ---
+        this.cia1TimerAUnderflowed = false;
 
         // --- PHASE 8: CIA-2 (NMI SUB-SYSTEM FÜR DIGIDRUMS) ---
         this.cia2TimerA = 0xFFFF;
@@ -418,11 +420,13 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
                     this.cia1Icr |= 0x01; // Timer A underflow flag
                     this.cia1TimerA = this.cia1TimerALatch === 0 ? 0xFFFF : this.cia1TimerALatch;
                     
+                    // Melde den Underflow an das AudioWorklet für CIA-synced PSID Tracks!
+                    this.cia1TimerAUnderflowed = true;
+
                     if (this.cia1CtrlA & 0x08) { // One-shot stop
                         this.cia1CtrlA &= ~0x01; 
                     }
-                    this.updateIrqState(i, cycles); // Übergibt den Zyklus-Index
-
+                    this.updateIrqState(i, cycles);
                     // --- SCHRITT 2: TIMER B KASKADIERUNGS-MODUS ---
                     if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x40)) {
                         this.cia1TimerB--;

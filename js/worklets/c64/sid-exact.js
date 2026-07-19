@@ -241,12 +241,18 @@ class SIDProcessor extends AudioWorkletProcessor {
                 // In sid-standard.js hier: sampleSum += this.sid.outputSample;
                 
                 // 2. VBLANK / Host Player Call
+                // Wir prüfen, ob der Track die Hardware-Vektoren umgebogen hat. 
+                // Wenn ja, feuert die Hardware den Track an. Der Host greift nicht mehr künstlich ein!
+                let irqHijacked = (this.cpu.ram[0x0314] !== 0x81) || (this.cpu.ram[0x0315] !== 0xEA) || 
+                                  (this.cpu.ram[0xFFFE] !== 0x48) || (this.cpu.ram[0xFFFF] !== 0xFF);
+                
                 if (!this.useCiaTimer) {
                     this.vblankTimer--;
                     if (this.vblankTimer <= 0) {
                         this.vblankTimer += this.playSpeedCycles;
-                        // Setze das Pending-Flag, anstatt sofort asynchron einzugreifen!
-                        if (this.playAddress !== 0) {
+                        
+                        // Injiziere den Host-Call NUR, wenn die Interrupts NICHT gekapert wurden!
+                        if (!irqHijacked && this.playAddress !== 0) {
                             this.hostPlayPending = true;
                         }
                         this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
@@ -257,8 +263,16 @@ class SIDProcessor extends AudioWorkletProcessor {
                         this.vblankTimer += this.playSpeedCycles;
                         this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                     }
+                    // CIA-SYNCED HOST CALL: Wizball-Fix! 
+                    // Feuert den Player exakt beim Hardware-Underflow des CIA Timers.
+                    if (this.cpu.cia1TimerAUnderflowed) {
+                        this.cpu.cia1TimerAUnderflowed = false;
+                        if (!irqHijacked && this.playAddress !== 0) {
+                            this.hostPlayPending = true;
+                        }
+                    }
                 }
-
+                
                 // --- SCHRITT 3: IRQ-LATENZ SAMPLING ---
                 if (this.cpuCyclesRemaining === 1) {
                     this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
