@@ -70,29 +70,31 @@ constructor(sid) {
     reset(loadAddr, prgCode) {
         this.ram.fill(0);
         
-        // C64 Memory Management Unit (MMU) Default State
+        // --- C64 MMU Default State ---
         this.ram[0x0000] = 0x2F; 
         this.ram[0x0001] = 0x37; 
         
-        // --- 1. ZUERST DAS PHANTOM KERNAL AUFBAUEN ---
-        // Eigene Host-Idle Schleife für unseren Emulator (sicher abgekoppelt vom C64 KERNAL)
+        // --- 1. THE PHANTOM KERNAL ---
+        // Idle Loop
         this.ram[0xEFFF] = 0x4C; this.ram[0xF000] = 0xFF; this.ram[0xF001] = 0xEF; // JMP $EFFF
         
-        // Authentischer KERNAL IRQ Exit ($EA31) und NMI Exit ($FE56)
-        const returnHandler = [ 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40 ]; // PLA, TAY, PLA, TAX, PLA, RTI
-        for (let i = 0; i < returnHandler.length; i++) {
-            this.ram[0xEA31 + i] = returnHandler[i]; // Wichtig: Wizball springt hierhin!
-            this.ram[0xEA81 + i] = returnHandler[i]; 
-            this.ram[0xFE56 + i] = returnHandler[i]; 
-        }
+        // KERNAL IRQ Return (PLA, TAY, PLA, TAX, PLA, RTI)
+        const irqReturn = [ 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40 ]; 
+        for (let i = 0; i < irqReturn.length; i++) this.ram[0xEA31 + i] = irqReturn[i];
         
-        this.ram[0x0314] = 0x31; this.ram[0x0315] = 0xEA; 
-        this.ram[0x0316] = 0x81; this.ram[0x0317] = 0xEA; 
-        this.ram[0x0318] = 0x56; this.ram[0x0319] = 0xFE; 
+        // Pure NMI Return (Nur RTI, da NMI keine Register pusht!)
+        this.ram[0xEA81] = 0x40; // RTI
+        
+        // Default RAM-Hooks
+        this.ram[0x0314] = 0x31; this.ram[0x0315] = 0xEA; // Default IRQ -> Pop & RTI
+        this.ram[0x0316] = 0x31; this.ram[0x0317] = 0xEA; // Default BRK -> Pop & RTI
+        this.ram[0x0318] = 0x81; this.ram[0x0319] = 0xEA; // Default NMI -> Pure RTI
 
+        // ROM Hardware Vectors ($FFFE = IRQ, $FFFA = NMI)
         this.ram[0xFFFE] = 0x48; this.ram[0xFFFF] = 0xFF; 
-        this.ram[0xFFFA] = 0x60; this.ram[0xFFFB] = 0xFF; 
+        this.ram[0xFFFA] = 0x43; this.ram[0xFFFB] = 0xFE; 
 
+        // $FF48: Authentic IRQ Entry (Sichert A, X, Y und springt zu $0314)
         const irqEntry = [
             0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
             0xBA, 0xBD, 0x04, 0x01,       // TSX, LDA $0104,X
@@ -102,17 +104,19 @@ constructor(sid) {
         ];
         for (let i = 0; i < irqEntry.length; i++) this.ram[0xFF48 + i] = irqEntry[i];
 
+        // $FE43: Authentic NMI Entry (Sichert KEINE Register, springt direkt zu $0318)
         const nmiEntry = [
-            0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
-            0x6C, 0x18, 0x03              // JMP ($0318) -> NMI Vector
+            0x78,             // SEI
+            0x6C, 0x18, 0x03  // JMP ($0318)
         ];
-        for (let i = 0; i < nmiEntry.length; i++) this.ram[0xFF60 + i] = nmiEntry[i];
+        for (let i = 0; i < nmiEntry.length; i++) this.ram[0xFE43 + i] = nmiEntry[i];
         
-        // --- 2. DANACH DEN PRG-CODE LADEN (kann die Vektoren nun überschreiben!) ---
+        // --- 2. PRG CODE LADEN ---
         for (let i = 0; i < prgCode.length; i++) {
             this.ram[loadAddr + i] = prgCode[i];
         }
         
+        // CPU Reset State
         this.a = 0; this.x = 0; this.y = 0;
         this.sp = 0xFF; 
         this.p = 0x24; 
@@ -141,9 +145,8 @@ constructor(sid) {
         this.nmiPending = false;
         this.irqAccepted = false;
         this.nmiAccepted = false;
-        
-        // NMI Edge Detection State
         this.prevNmiLine = false;
+        this.cia1TimerAUnderflowed = false;
 
         this.rdy = true;
         this.isBadLine = false;
@@ -397,12 +400,8 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
 
     // =========================================================
     // THE HARDWARE CLOCK MANAGER
-    // Taktung von CIA-Timer A & B, Raster und Badline-Evaluation
     // =========================================================
     clockHardware(cycles) {
-        // --- PHASE 3: INTERRUPT LATENCY BINDING ---
-        // War ein IRQ/NMI bereits vor Beginn dieser Instruktion aktiv,
-        // wird er jetzt uneingeschränkt für das Ende dieser Instruktion akzeptiert.
         if (this.irqPending) {
             this.irqAccepted = (this.p & 0x04) === 0;
         }
@@ -413,43 +412,50 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
         for (let i = 0; i < cycles; i++) {
             let timerBUnderflowTriggered = false;
 
-            // --- 1. CIA Timer A (Cycle-Exact) ---
+            // --- 1. CIA-1 Timer A (Music IRQ) ---
             if (this.cia1CtrlA & 0x01) { 
                 this.cia1TimerA--;
                 if (this.cia1TimerA < 0) {
-                    this.cia1Icr |= 0x01; // Timer A underflow flag
+                    this.cia1Icr |= 0x01; 
                     this.cia1TimerA = this.cia1TimerALatch === 0 ? 0xFFFF : this.cia1TimerALatch;
                     
-                    // Melde den Underflow an das AudioWorklet für CIA-synced PSID Tracks!
+                    // WICHTIG FÜR WIZBALL: Meldet den Hardware-Unterlauf an das Worklet!
                     this.cia1TimerAUnderflowed = true;
 
-                    if (this.cia1CtrlA & 0x08) { // One-shot stop
-                        this.cia1CtrlA &= ~0x01; 
-                    }
+                    if (this.cia1CtrlA & 0x08) this.cia1CtrlA &= ~0x01; 
                     this.updateIrqState(i, cycles);
-                    // --- SCHRITT 2: TIMER B KASKADIERUNGS-MODUS ---
+
                     if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x40)) {
                         this.cia1TimerB--;
-                        if (this.cia1TimerB < 0) {
-                            timerBUnderflowTriggered = true;
-                        }
+                        if (this.cia1TimerB < 0) timerBUnderflowTriggered = true;
                     }
                 }
             }
 
-            // --- PHASE 8: CIA-2 (NMI) CLOCKING ---
+            if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x00)) {
+                this.cia1TimerB--;
+                if (this.cia1TimerB < 0) timerBUnderflowTriggered = true;
+            }
+
+            if (timerBUnderflowTriggered) {
+                this.cia1Icr |= 0x02; 
+                this.cia1TimerB = this.cia1TimerBLatch === 0 ? 0xFFFF : this.cia1TimerBLatch;
+                if (this.cia1CtrlB & 0x08) this.cia1CtrlB &= ~0x01; 
+                this.updateIrqState(i, cycles);
+            }
+
+            // --- 2. CIA-2 Timer A & B (NMI / Arkanoid Digidrums) ---
             let cia2TimerBUnderflow = false;
 
             if (this.cia2CtrlA & 0x01) { 
                 this.cia2TimerA--;
                 if (this.cia2TimerA < 0) {
-                    this.cia2Icr |= 0x01; // Timer A underflow NMI flag
+                    this.cia2Icr |= 0x01; // Löst den NMI aus!
                     this.cia2TimerA = this.cia2TimerALatch === 0 ? 0xFFFF : this.cia2TimerALatch;
                     
                     if (this.cia2CtrlA & 0x08) this.cia2CtrlA &= ~0x01; 
                     this.updateIrqState(i, cycles);
 
-                    // CIA-2 Timer B Cascaded Mode
                     if ((this.cia2CtrlB & 0x01) && ((this.cia2CtrlB & 0x60) === 0x40)) {
                         this.cia2TimerB--;
                         if (this.cia2TimerB < 0) cia2TimerBUnderflow = true;
@@ -457,7 +463,6 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
                 }
             }
 
-            // CIA-2 Timer B System-Clock Mode
             if ((this.cia2CtrlB & 0x01) && ((this.cia2CtrlB & 0x60) === 0x00)) {
                 this.cia2TimerB--;
                 if (this.cia2TimerB < 0) cia2TimerBUnderflow = true;
@@ -470,25 +475,7 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
                 this.updateIrqState(i, cycles);
             }
 
-            // --- 2. CIA Timer B SYSTEM-CLOCK MODUS ---
-            if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x00)) {
-                this.cia1TimerB--;
-                if (this.cia1TimerB < 0) {
-                    timerBUnderflowTriggered = true;
-                }
-            }
-
-            // --- SCHRITT 2: TIMER B UNTERLAUF VERARBEITEN ---
-            if (timerBUnderflowTriggered) {
-                this.cia1Icr |= 0x02; 
-                this.cia1TimerB = this.cia1TimerBLatch === 0 ? 0xFFFF : this.cia1TimerBLatch;
-                if (this.cia1CtrlB & 0x08) { 
-                    this.cia1CtrlB &= ~0x01; 
-                }
-                this.updateIrqState(i, cycles);
-            }
-
-            // --- SCHRITT 5: CIA TOD CLOCK ---
+            // --- 3. TOD CLOCK ---
             this.todCycleCounter--;
             if (this.todCycleCounter <= 0) {
                 let is50Hz = (this.cia1CtrlA & 0x80) !== 0;
@@ -496,19 +483,16 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
                 this.incrementTod();
             }
 
-            // --- 3. VIC-II Raster Line (Cycle-Exact) ---
+            // --- 4. VIC-II Raster & Badlines ---
             this.rasterCycles++;
             if (this.rasterCycles >= this.cyclesPerLine) {
                 this.rasterCycles = 0;
                 this.rasterCounter++;
                 if (this.rasterCounter >= 312) this.rasterCounter = 0; 
-
-                // Sync Bit 7 von D011
                 if (this.rasterCounter > 255) this.ram[0xD011] |= 0x80;
                 else this.ram[0xD011] &= 0x7F;
             }
             
-            // --- SCHRITT 1: BADLINE EVALUATION (Cycle 0) ---
             if (this.rasterCycles === 0) {
                 let yscroll = this.ram[0xD011] & 0x07;
                 let displayEnabled = (this.ram[0xD011] & 0x10) !== 0;
@@ -517,14 +501,12 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
                                  ((this.rasterCounter & 0x07) === yscroll);
             }
 
-            // --- SCHRITT 6: RDY-LEITUNG FÜR CPU-HALT (Cycle 12 bis 51) ---
             if (this.isBadLine && this.rasterCycles >= 12 && this.rasterCycles < 52) {
                 this.rdy = false;
             } else {
                 this.rdy = true;
             }
             
-            // Raster IRQ triggert in Cycle 0 der Ziel-Linie
             if (this.rasterCycles === 0 && this.rasterCounter === this.rasterIrqTarget) {
                 this.ram[0xD019] |= 0x01; 
                 this.updateIrqState(i, cycles);

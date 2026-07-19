@@ -88,11 +88,12 @@ class SIDProcessor extends AudioWorkletProcessor {
                 
                 // Init in die Routine drücken
                 this.cpu.push(0xEF); 
-                this.cpu.push(0xFE); // Return to $EFFF (Host Idle Loop)
+                this.cpu.push(0xFE); 
                 this.cpu.pc = this.initAddress;
 
                 let safety = 5000000;
-                while (this.cpu.pc !== 0xEFFF && safety-- > 0) { // <- Auf $EFFF abfragen!
+                while (this.cpu.pc !== 0xEFFF && safety-- > 0) {
+
                     this.cpu.clockHardware(1);
                     this.sid.clock();
                     
@@ -123,7 +124,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                     }
                 }
                 
-                this.cpu.pc = 0xEA31;
+                this.cpu.pc = 0xEFFF;
                 this.cpu.p &= ~0x04; 
 
                 this.playAddress = msg.playAddress;
@@ -235,24 +236,23 @@ class SIDProcessor extends AudioWorkletProcessor {
             // --- THE NATIVE CYCLE-EXACT LOCKSTEP LOOP (1 MHz) ---
             for (let c = 0; c < cyclesToRun; c++) {
                 
-                // 1. Hardware Ticking (Exakt 1 Takt pro Iteration)
                 this.cpu.clockHardware(1); 
-                this.sid.clock();          
-                // In sid-standard.js hier: sampleSum += this.sid.outputSample;
-                
-                // 2. VBLANK / Host Player Call
-                // Wir prüfen, ob der Track die Hardware-Vektoren umgebogen hat. 
-                // Wenn ja, feuert die Hardware den Track an. Der Host greift nicht mehr künstlich ein!
-                let irqHijacked = (this.cpu.ram[0x0314] !== 0x81) || (this.cpu.ram[0x0315] !== 0xEA) || 
-                                  (this.cpu.ram[0xFFFE] !== 0x48) || (this.cpu.ram[0xFFFF] !== 0xFF);
-                
+                this.sid.clock();      
+
+                // Prüft ob der Track eigene Interrupts konfiguriert hat und den IRQ-Vektor umbog
+                let irqHijacked = (this.cpu.ram[0x0314] !== 0x31) || (this.cpu.ram[0x0315] !== 0xEA);
+                let vicIrqEnabled = (this.cpu.ram[0xD01A] & 0x01) !== 0;
+                let cia1TimerAEnabled = (this.cpu.cia1IrqMask & 0x01) !== 0;
+                let isSelfDriving = irqHijacked && (vicIrqEnabled || cia1TimerAEnabled);
+
+                // 2. Host Player Call / CIA Sync
                 if (!this.useCiaTimer) {
                     this.vblankTimer--;
                     if (this.vblankTimer <= 0) {
                         this.vblankTimer += this.playSpeedCycles;
                         
-                        // Injiziere den Host-Call NUR, wenn die Interrupts NICHT gekapert wurden!
-                        if (!irqHijacked && this.playAddress !== 0) {
+                        // Wenn der Track NICHT selbst fährt, übernimmt der Host den Call
+                        if (!isSelfDriving && this.playAddress !== 0) {
                             this.hostPlayPending = true;
                         }
                         this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
@@ -263,16 +263,15 @@ class SIDProcessor extends AudioWorkletProcessor {
                         this.vblankTimer += this.playSpeedCycles;
                         this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                     }
-                    // CIA-SYNCED HOST CALL: Wizball-Fix! 
-                    // Feuert den Player exakt beim Hardware-Underflow des CIA Timers.
+                    
                     if (this.cpu.cia1TimerAUnderflowed) {
                         this.cpu.cia1TimerAUnderflowed = false;
-                        if (!irqHijacked && this.playAddress !== 0) {
+                        if (!isSelfDriving && this.playAddress !== 0) {
                             this.hostPlayPending = true;
                         }
                     }
                 }
-                
+
                 // --- SCHRITT 3: IRQ-LATENZ SAMPLING ---
                 if (this.cpuCyclesRemaining === 1) {
                     this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
@@ -281,7 +280,7 @@ class SIDProcessor extends AudioWorkletProcessor {
 
                 // 3. CPU Ausführung
                 if (!this.cpu.rdy) {
-                    // CPU blockiert
+                    // CPU stall (Badlines)
                 } else {
                     if (this.cpuCyclesRemaining <= 0) {
                         // Der Host Play Call injiziert nur noch, wenn die CPU sicher im Host-Idle ist!
@@ -308,12 +307,11 @@ class SIDProcessor extends AudioWorkletProcessor {
                     }
                 }
                                 
-                // Schreibe den analogen SID-Spannungswert in den Ringpuffer
                 this.ringBuffer[this.ringIndex] = this.sid.outputSample;
                 this.ringIndex = (this.ringIndex + 1) & 511; 
             }
             
-            // --- THE POLYPHASE DECIMATION STAGE (48 kHz) ---
+            // --- DECIMATION ---
             let decimationSum = 0;
             for (let k = 0; k < this.FIR_TAPS; k++) {
                 let readIdx = (this.ringIndex - 1 - k + 512) & 511;
@@ -327,7 +325,6 @@ class SIDProcessor extends AudioWorkletProcessor {
             if (i === 0) visualValue = finalSample;
         }
 
-        // --- VISUALIZATION DATA DISPATCH ---
         this.visCounter = (this.visCounter || 0) + 1;
         if (this.visCounter % 4 === 0) {
             let isAudible = Math.abs(visualValue) > 0.001;
