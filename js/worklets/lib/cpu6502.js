@@ -61,6 +61,10 @@ export class CPU6502 {
         // --- SCHRITT 6: PHYSIKALISCHE RDY-LEITUNG ---
         this.rdy = true;         // True = CPU läuft, False = CPU angehalten (Bus gesperrt)
         this.isBadLine = false;
+
+        // --- SCHRITT 7: CIA ICR ---
+        this.cia1Icr = 0; // Interrupt Control Register (Read-to-Clear)
+        this.cia1IrqMask = 0; // Interrupt Enable Register
     }
 
     reset(loadAddr, prgCode) {
@@ -138,6 +142,10 @@ export class CPU6502 {
         // --- SCHRITT 6: PHYSIKALISCHE RDY-LEITUNG ---
         this.rdy = true;         // True = CPU läuft, False = CPU angehalten (Bus gesperrt)
         this.isBadLine = false;
+
+        // --- SCHRITT 7: CIA ICR ---
+        this.cia1Icr = 0; // Interrupt Control Register (Read-to-Clear)
+        this.cia1IrqMask = 0; // Interrupt Enable Register
     }
 
     push(val) {
@@ -203,11 +211,14 @@ export class CPU6502 {
         if (addr === 0xDC05) return (this.cia1TimerA >> 8) & 0xFF;
         // --- SCHRITT 2: CIA TIMER B ---
         if (addr === 0xDC06) return this.cia1TimerB & 0xFF;
+
         if (addr === 0xDC07) return (this.cia1TimerB >> 8) & 0xFF;
+        
+        // --- SCHRITT 7: CIA ICR ---
         if (addr === 0xDC0D) {
-            let val = this.cia1Icr;
-            this.cia1Icr = 0; // Read-to-clear!
-            this.updateIrq();
+            let val = this.cia1Icr; // Lese den aktuellen Interrupt-Status
+            this.cia1Icr = 0;       // Lösche den Status durch Lesen
+            this.updateIrq();       // Aktualisiere globale IRQ-Pending-Flags
             return val;
         }
         if (addr === 0xDC0E) return this.cia1CtrlA;
@@ -268,32 +279,43 @@ export class CPU6502 {
             this.cia1TimerBLatch = (this.cia1TimerBLatch & 0x00FF) | (val << 8);
             if ((this.cia1CtrlB & 0x01) === 0) this.cia1TimerB = (this.cia1TimerB & 0x00FF) | (val << 8);
         }
-        else if (addr === 0xDC0D) {
-            if (val & 0x80) this.cia1IrqMask |= (val & 0x7F);
-            else this.cia1IrqMask &= ~(val & 0x7F);
+        // --- SCHRITT 7: CIA ICR MASKING ---
+        else if (addr === 0xDC0D) { 
+            // Das Schreiben auf DC0D löscht Bits, die gesetzt sind.
+            // Nur die Latch-Bits werden hier beachtet.
+            // Das Maskieren geschieht über DC0E.
+            this.cia1Icr &= ~(val & 0x7F);
             this.updateIrq();
-        } else if (addr === 0xDC0E) {
+        }
+        // --- SCHRITT 5: CIA TOD CLOCK ---
+        else if (addr === 0xDC0E) {
             this.cia1CtrlA = val;
             if (val & 0x10) this.cia1TimerA = this.cia1TimerALatch === 0 ? 0xFFFF : this.cia1TimerALatch; 
         }
-        // --- SCHRITT 2: CIA TIMER B ---
-        else if (addr === 0xDC0F) {
-            this.cia1CtrlB = val;
+        // --- SCHRITT 7: CIA ICR MASKING ---
+        else if (addr === 0xDC0F) { // CIA Control Register B
+            this.cia1CtrlB = val; // Für Timer B Control
             if (val & 0x10) this.cia1TimerB = this.cia1TimerBLatch === 0 ? 0xFFFF : this.cia1TimerBLatch;
         }
     }
 
     updateIrq() {
+        // VIC IRQ wird durch das Lesen von D019 / D01A gesteuert
         let vicIrq = (this.ram[0xD019] & this.ram[0xD01A] & 0x0F) !== 0;
+        
+        // CIA IRQ: Prüfe, ob ein erkannten Interrupt (cia1Icr) auch maskiert ist (cia1IrqMask)
         let ciaIrq = (this.cia1Icr & this.cia1IrqMask & 0x1F) !== 0;
         
+        // Setze die globalen Pending-Flags basierend auf den individuellen Ereignissen
+        this.irqPending = vicIrq || ciaIrq;
+        
+        // Setze die Bits im VIC-Register D019 entsprechend dem Zustand
         if (vicIrq) this.ram[0xD019] |= 0x80;
         else this.ram[0xD019] &= 0x7F;
 
+        // Setze die Bits im CIA1 ICR Register entsprechend dem Zustand
         if (ciaIrq) this.cia1Icr |= 0x80;
         else this.cia1Icr &= 0x7F;
-
-        this.irqPending = vicIrq || ciaIrq;
     }
 
     // =========================================================

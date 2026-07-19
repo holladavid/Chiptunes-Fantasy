@@ -197,21 +197,23 @@ class SIDProcessor extends AudioWorkletProcessor {
                 } else {
                     // --- SCHRITT 3: IRQ-LATENZ SAMPLING ---
                     if (this.cpuCyclesRemaining === 1) {
-                        this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
+                        // Analysiere die Latency basierend auf den aktuellen Zuständen
+                        // Hier wird geprüft, ob ein IRQ oder NMI im nächsten Takt aktiv werden würde
+                        this.cpu.irqAccepted = (this.cpu.irqPending && (this.cpu.p & 0x04) === 0);
                         this.cpu.nmiAccepted = this.cpu.nmiPending;
                     }
 
-                    // 3. CPU Ausführung gekoppelt an die physikalische RDY-Leitung
-                    if (!this.cpu.rdy) {
-                        // CPU ist blockiert (VIC-II DMA aktiv). Wir frieren die Programmausführung ein,
-                        // aber die restliche Hardware (CIA, VIC, SID) taktet ungestört weiter!
+                    // 3. CPU Ausführung mit Badline-Halt
+                    if (this.cpu.cpuStall > 0) {
+                        this.cpu.cpuStall--;
                     } else {
                         if (this.cpuCyclesRemaining <= 0) {
                             // --- SCHRITT 3: INTERRUPT-ANERKENNUNG ---
+                            // Feuere den Interrupt erst jetzt, wenn die CPU bereit ist
                             if (this.cpu.nmiAccepted) {
                                 this.cpu.nmiAccepted = false;
                                 this.cpu.triggerHardwareNmi();
-                                this.cpuCyclesRemaining = 7 - 1;
+                                this.cpuCyclesRemaining = 7 - 1; 
                             } else if (this.cpu.irqAccepted) {
                                 this.cpu.irqAccepted = false;
                                 this.cpu.triggerHardwareIrq();
@@ -224,7 +226,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                             this.cpuCyclesRemaining--;
                         }
                     }
-                    
+
                     this.ringBuffer[this.ringIndex] = this.sid.outputSample;                
                 }
                 sampleSum += this.sid.outputSample;
