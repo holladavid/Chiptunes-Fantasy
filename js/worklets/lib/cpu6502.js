@@ -1059,6 +1059,57 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
                 cycles = 5 + (this.pageCrossed(addr, addrY) ? 1 : 0);
                 break;
             }
+            // =========================================================
+            // --- UNDOKUMENTIERTE OPCODES (LAX / SAX FÜR DIGIDRUMS) ---
+            // =========================================================
+            case 0xA7: { // LAX zp
+                let z = this.zp();
+                let v = this.read(z);
+                this.a = v; this.x = v;
+                this.setNZ(v);
+                cycles = 3;
+            } break;
+            case 0xAF: { // LAX abs
+                let a = this.abs();
+                let v = this.read(a);
+                this.a = v; this.x = v;
+                this.setNZ(v);
+                cycles = 4;
+            } break;
+            case 0xBF: { // LAX abs,Y
+                let a = this.abs();
+                let aY = (a + this.y) & 0xFFFF;
+                if (this.pageCrossed(a, aY)) {
+                    this.read((a & 0xFF00) | (aY & 0x00FF)); // Dummy Read
+                }
+                let v = this.read(aY);
+                this.a = v; this.x = v;
+                this.setNZ(v);
+                cycles = 4 + (this.pageCrossed(a, aY) ? 1 : 0);
+            } break;
+            case 0xB7: { // LAX zp,Y
+                let z = this.zpY();
+                let v = this.read(z);
+                this.a = v; this.x = v;
+                this.setNZ(v);
+                cycles = 4;
+            } break;
+
+            case 0x87: { // SAX zp
+                let z = this.zp();
+                this.write(z, this.a & this.x);
+                cycles = 3;
+            } break;
+            case 0x8F: { // SAX abs
+                let a = this.abs();
+                this.write(a, this.a & this.x);
+                cycles = 4;
+            } break;
+            case 0x97: { // SAX zp,Y
+                let z = this.zpY();
+                this.write(z, this.a & this.x);
+                cycles = 4;
+            } break;
 
             default:
                 setVal = false;
