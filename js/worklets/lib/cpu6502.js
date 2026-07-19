@@ -100,15 +100,16 @@ reset(loadAddr, prgCode) {
         this.ram[0xFFFE] = 0x48; this.ram[0xFFFF] = 0xFF; 
         this.ram[0xFFFA] = 0x60; this.ram[0xFFFB] = 0xFF; 
 
-        // $FF48: Authentic IRQ Entry (Sichert A, X, Y und leitet zu $0314)
+        // $FF48: Authentic IRQ Entry (Sichert A, X, Y, quittiert CIA-1 und leitet zu $0314)
         const irqEntry = [
             0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
             0xBA, 0xBD, 0x04, 0x01,       // TSX, LDA $0104,X
-            0x29, 0x10, 0xF0, 0x03,       // AND #$10, BEQ +3
-            0x6C, 0x16, 0x03,             // JMP ($0316) -> BRK
-            0x6C, 0x14, 0x03              // JMP ($0314) -> IRQ
+            0x29, 0x10, 0xF0, 0x03,       // AND #$10, BEQ +3 (Überspringt BRK-Vector, wenn Hardware-IRQ)
+            0x6C, 0x16, 0x03,             // JMP ($0316) -> BRK Vector
+            0xAD, 0x0D, 0xDC,             // LDA $DC0D    -> CIA-1 Interrupt quittieren (Acknowledge)!
+            0x6C, 0x14, 0x03              // JMP ($0314) -> IRQ Vector
         ];
-        for (let i = 0; i < irqEntry.length; i++) this.ram[0xFF48 + i] = irqEntry[i];
+        for (let i = 0; i < irqEntry.length; i++) this.ram[0xFF48 + i] = irqEntry[i];     
 
         // $FF60: Authentic NMI Entry (Sichert KEINE Register, leitet direkt zu $0318)
         const nmiEntry = [
