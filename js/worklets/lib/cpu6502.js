@@ -261,11 +261,17 @@ export class CPU6502 {
             return this.ram[addr]; 
         }
         
-        // --- SID Register Mirroring ($D400 - $D7FF) ---
+        // --- SID Register Mirroring & Open Bus Read ($D400 - $D7FF) ---
+        // Auf dem C64 sind nur die Paddle-Register ($D419/$D41A) sowie die Ausleseregister von 
+        // Voice 3 ($D41B/$D41C) elektrisch mit dem Lese-Bus verbunden.
+        // Liest die CPU ein schreibgeschütztes Register, bleibt der Bus ungetrieben und liefert
+        // durch seine kapazitive Trägheit das High-Byte der gerade aufgerufenen Adresse!
         if (addr >= 0xD400 && addr <= 0xD7FF) {
             let reg = addr & 0x1F;
             if (reg === 27) return this.sid.voices[2].waveOut8Bit || 0; // $D41B mirror
             if (reg === 28) return this.sid.voices[2].env8Bit || 0;     // $D41C mirror
+            if (reg === 25 || reg === 26) return 0xFF;                  // POTX/POTY
+            return (addr >> 8) & 0xFF;                                  // Dynamic Open Bus!
         }
 
         return this.ram[addr];
@@ -308,18 +314,7 @@ export class CPU6502 {
             if ((this.cia1CtrlB & 0x01) === 0) this.cia1TimerB = (this.cia1TimerB & 0xFF00) | val;
         } else if (addr === 0xDC07) {
             this.cia1TimerBLatch = (this.cia1TimerBLatch & 0x00FF) | (val << 8);
-            if ((this.cia1CtrlB & 0x01) === 0) this.cia1TimerB = (this.cia1TimerB & 0x00FF) | (val << 8);
-        } else if (addr === 0xDC08) {
-            this.todTenths = val & 0x0F;
-            this.todHalted = false; 
-            this.todLatched = false;
-        } else if (addr === 0xDC09) {
-            this.todSec = val & 0x7F;
-        } else if (addr === 0xDC0A) {
-            this.todMin = val & 0x7F;
-        } else if (addr === 0xDC0B) {
-            this.todHour = val & 0xFF;
-            this.todHalted = true;  
+            if ((this.cia1CtrlB === 0x01) === 0) this.cia1TimerB = (this.cia1TimerB & 0x00FF) | (val << 8);
         } else if (addr === 0xDC0D) {
             let bit7 = (val & 0x80) !== 0;
             let maskBits = val & 0x1F;
