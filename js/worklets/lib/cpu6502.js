@@ -69,59 +69,46 @@ constructor(sid) {
         this.ram.fill(0);
         
         // --- FIX: C64 Memory Management Unit (MMU) Default State ---
-        this.ram[0x0000] = 0x2F; // Data direction register
-        this.ram[0x0001] = 0x37; // $37 = %00110111 -> I/O, KERNAL und BASIC sichtbar!
+        this.ram[0x0000] = 0x2F; 
+        this.ram[0x0001] = 0x37; 
         
-        // --- PHASE 12: THE AUTHENTIC PHANTOM KERNAL ---
-        // $EA31: Die Idle-Schleife der CPU (JMP $EA31)
+        // 1. ZUERST den Track in den RAM laden!
+        for (let i = 0; i < prgCode.length; i++) {
+            this.ram[loadAddr + i] = prgCode[i];
+        }
+        
+        // 2. DANACH das Authentic Phantom KERNAL injizieren (überschreibt eventuellen Müll)
         this.ram[0xEA31] = 0x4C; this.ram[0xEA32] = 0x31; this.ram[0xEA33] = 0xEA;
         
-        // $EA81 (IRQ Return) und $FE56 (NMI Return) stellen die Register wieder her!
-        
-        // --- PHASE 12: THE AUTHENTIC PHANTOM KERNAL ---
-        // $EA31: Die Idle-Schleife der CPU (JMP $EA31)
-        this.ram[0xEA31] = 0x4C; this.ram[0xEA32] = 0x31; this.ram[0xEA33] = 0xEA;
-        
-        // $EA81 (IRQ Return) und $FE56 (NMI Return) stellen die Register wieder her!
-        const returnHandler = [
-            0x68, 0xA8, // PLA, TAY
-            0x68, 0xAA, // PLA, TAX
-            0x68, 0x40  // PLA, RTI
-        ];
+        const returnHandler = [ 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40 ];
         for (let i = 0; i < returnHandler.length; i++) {
             this.ram[0xEA81 + i] = returnHandler[i];
             this.ram[0xFE56 + i] = returnHandler[i];
         }
         
-        // Vektoren für RAM-Hooks
-        this.ram[0x0314] = 0x81; this.ram[0x0315] = 0xEA; // Default IRQ -> Return
-        this.ram[0x0316] = 0x81; this.ram[0x0317] = 0xEA; // Default BRK -> Return
-        this.ram[0x0318] = 0x56; this.ram[0x0319] = 0xFE; // Default NMI -> Return
+        this.ram[0x0314] = 0x81; this.ram[0x0315] = 0xEA; 
+        this.ram[0x0316] = 0x81; this.ram[0x0317] = 0xEA; 
+        this.ram[0x0318] = 0x56; this.ram[0x0319] = 0xFE; 
 
-        // ROM Hardware Vectors ($FFFE = IRQ, $FFFA = NMI)
+        // FIX: NMI Vector auf $FF60 verschoben, um Overlap mit IRQ (19 Bytes) zu verhindern!
         this.ram[0xFFFE] = 0x48; this.ram[0xFFFF] = 0xFF; 
-        this.ram[0xFFFA] = 0x58; this.ram[0xFFFB] = 0xFF; 
+        this.ram[0xFFFA] = 0x60; this.ram[0xFFFB] = 0xFF; 
 
-        // $FF48: Authentic IRQ Entry (Sichert A, X, Y auf dem Stack und springt zu $0314)
         const irqEntry = [
-            0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
-            0xBA, 0xBD, 0x04, 0x01,       // TSX, LDA $0104,X (Liest P vom Stack)
-            0x29, 0x10, 0xF0, 0x03,       // AND #$10, BEQ +3 (Überspringt BRK-Vector, wenn Hardware-IRQ)
-            0x6C, 0x16, 0x03,             // JMP ($0316) -> BRK Vector
-            0x6C, 0x14, 0x03              // JMP ($0314) -> IRQ Vector
+            0x48, 0x8A, 0x48, 0x98, 0x48, 
+            0xBA, 0xBD, 0x04, 0x01,       
+            0x29, 0x10, 0xF0, 0x03,       
+            0x6C, 0x16, 0x03,             
+            0x6C, 0x14, 0x03              
         ];
         for (let i = 0; i < irqEntry.length; i++) this.ram[0xFF48 + i] = irqEntry[i];
 
-        // $FF58: Authentic NMI Entry (Sichert A, X, Y und springt zu $0318)
         const nmiEntry = [
-            0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
-            0x6C, 0x18, 0x03              // JMP ($0318) -> NMI Vector
+            0x48, 0x8A, 0x48, 0x98, 0x48, 
+            0x6C, 0x18, 0x03              
         ];
-        for (let i = 0; i < nmiEntry.length; i++) this.ram[0xFF58 + i] = nmiEntry[i];
-        
-        for (let i = 0; i < prgCode.length; i++) {
-            this.ram[loadAddr + i] = prgCode[i];
-        }
+        // NMI Entry startet nun sicher ab $FF60
+        for (let i = 0; i < nmiEntry.length; i++) this.ram[0xFF60 + i] = nmiEntry[i];
         
         this.a = 0; this.x = 0; this.y = 0;
         this.sp = 0xFF; 
@@ -196,13 +183,10 @@ constructor(sid) {
         }
         if (addr > 0xDFFF) return this.ram[addr];
         
-        // --- MEMORY MAPPING: I/O Abschaltung respektieren ---
-        // I/O ist nur sichtbar bei PLA-Konfigurationen 5, 6 oder 7
         let p0001 = this.ram[0x0001] & 0x07;
         let ioEnabled = (p0001 === 5 || p0001 === 6 || p0001 === 7);
         if (!ioEnabled) return this.ram[addr];
 
-        // --- I/O REGISTER INTERCEPTION ($D000 - $DFFF) ---
         if (addr === 0xD011) {
             let val = this.ram[0xD011] & 0x7F;
             if (this.rasterCounter > 255) val |= 0x80;
@@ -211,10 +195,11 @@ constructor(sid) {
         if (addr === 0xD012) return this.rasterCounter & 0xFF;
         if (addr === 0xD019) return this.ram[0xD019] | 0x70; 
         
-        // --- SCHRITT 5: CIA TOD CLOCK (Latching-Freezer) ---
+        if (addr === 0xDC04) return this.cia1TimerA & 0xFF;
+        if (addr === 0xDC05) return (this.cia1TimerA >> 8) & 0xFF;
+        
         if (addr >= 0xDC08 && addr <= 0xDC0B) {
             if (addr === 0xDC0B) {
-                // Das Lesen der Stunden friert die Zeitanzeige ein
                 if (!this.todLatched) {
                     this.todLatchTenths = this.todTenths;
                     this.todLatchSec = this.todSec;
@@ -228,20 +213,23 @@ constructor(sid) {
             if (addr === 0xDC09) return this.todLatched ? this.todLatchSec : this.todSec;
             if (addr === 0xDC08) {
                 let val = this.todLatched ? this.todLatchTenths : this.todTenths;
-                this.todLatched = false; // Das Lesen der Zehntelsekunden hebt den Freeze auf
+                this.todLatched = false; 
                 return val;
             }
-        }  
+        }
 
-        // CIA-1 
-        if (addr === 0xDC04) return this.cia1TimerA & 0xFF;
-        if (addr === 0xDC05) return (this.cia1TimerA >> 8) & 0xFF;
-        // --- SCHRITT 2: CIA TIMER B ---
-        if (addr === 0xDC06) return this.cia1TimerB & 0xFF;
-
-        if (addr === 0xDC07) return (this.cia1TimerB >> 8) & 0xFF;
+        if (addr === 0xDC0D) {
+            let anyEnabled = (this.cia1Icr & this.cia1IrqMask & 0x1F) !== 0;
+            let val = this.cia1Icr & 0x1F;
+            if (anyEnabled) val |= 0x80; 
+            this.cia1Icr = 0; 
+            // FIX: Methode hieß im alten Code noch fälschlicherweise updateIrq()
+            this.updateIrqState(); 
+            return val;
+        }
+        if (addr === 0xDC0E) return this.cia1CtrlA;
+        if (addr === 0xDC0F) return this.cia1CtrlB;
         
-        // --- PHASE 8: CIA-2 (NMI) READ ---
         if (addr >= 0xDD00 && addr <= 0xDD0F) {
             if (addr === 0xDD04) return this.cia2TimerA & 0xFF;
             if (addr === 0xDD05) return (this.cia2TimerA >> 8) & 0xFF;
@@ -250,38 +238,23 @@ constructor(sid) {
             if (addr === 0xDD0D) {
                 let anyEnabled = (this.cia2Icr & this.cia2IrqMask & 0x1F) !== 0;
                 let val = this.cia2Icr & 0x1F;
-                if (anyEnabled) val |= 0x80; // Setze Bit 7 (NMI Flag)
-                this.cia2Icr = 0; // Read-to-clear!
+                if (anyEnabled) val |= 0x80; 
+                this.cia2Icr = 0; 
+                // FIX: Methode korrigiert!
                 this.updateIrqState(); 
                 return val;
             }
             if (addr === 0xDD0E) return this.cia2CtrlA;
             if (addr === 0xDD0F) return this.cia2CtrlB;
-            return this.ram[addr]; // Fallback für ungenutzte CIA-2 Register
+            return this.ram[addr]; 
         }
-
-        // --- PHASE 2: CIA ICR READ (Read-to-Clear) ---
-        if (addr === 0xDC0D) {
-            // Bit 7 wird nur gesetzt, wenn ein aktiver UND maskierter Interrupt vorliegt
-            let anyEnabled = (this.cia1Icr & this.cia1IrqMask & 0x1F) !== 0;
-            let val = this.cia1Icr & 0x1F;
-            if (anyEnabled) {
-                val |= 0x80; // Setze das globale IRQ-Flag (Bit 7)
-            }
-            this.cia1Icr = 0; // Read-to-clear: Löscht alle Statusflags
-            this.updateIrq(); // Aktualisiere den IRQ-Zustand der CPU
-            return val;
-        }
-
-        if (addr === 0xDC0E) return this.cia1CtrlA;
-        if (addr === 0xDC0F) return this.cia1CtrlB;
         
         if (addr === 0xD41B) return this.sid.voices[2].waveOut8Bit || 0;
         if (addr === 0xD41C) return this.sid.voices[2].env8Bit || 0;
 
         return this.ram[addr];
     }
-    
+
     write(addr, val) {
         this.ram[addr] = val;
         if (addr < 0xD000 || addr > 0xDFFF) return;
@@ -290,34 +263,37 @@ constructor(sid) {
         let ioEnabled = (p0001 === 5 || p0001 === 6 || p0001 === 7);
         if (!ioEnabled) return;
         
-        // --- I/O REGISTER INTERCEPTION ($D000 - $DFFF) ---
         if (addr >= 0xD400 && addr <= 0xD41C) {
             this.sid.writeReg(addr - 0xD400, val);
         } else if (addr === 0xD011) {
-            this.ram[0xD011] = val; // Wert muss gespeichert werden für Bit 0-6!
+            this.ram[0xD011] = val; 
             this.rasterIrqTarget = (this.rasterIrqTarget & 0xFF) | ((val & 0x80) << 1);
         } else if (addr === 0xD012) {
             this.rasterIrqTarget = (this.rasterIrqTarget & 0x100) | val;
         } else if (addr === 0xD019) {
-            this.ram[0xD019] &= ~(val & 0x0F); // Write 1 clears bit
-            this.updateIrq();
+            this.ram[0xD019] &= ~(val & 0x0F); 
+            // FIX: Methode korrigiert!
+            this.updateIrqState();
         } else if (addr === 0xD01A) {
             this.ram[0xD01A] = val & 0x0F;
-            this.updateIrq();
+            // FIX: Methode korrigiert!
+            this.updateIrqState();
         }
-
-        // CIA-1
         else if (addr === 0xDC04) {
             this.cia1TimerALatch = (this.cia1TimerALatch & 0xFF00) | val;
             if ((this.cia1CtrlA & 0x01) === 0) this.cia1TimerA = (this.cia1TimerA & 0xFF00) | val;
         } else if (addr === 0xDC05) {
             this.cia1TimerALatch = (this.cia1TimerALatch & 0x00FF) | (val << 8);
             if ((this.cia1CtrlA & 0x01) === 0) this.cia1TimerA = (this.cia1TimerA & 0x00FF) | (val << 8);
-        }
-        // --- SCHRITT 5: CIA TOD CLOCK (Einstell-Halt) ---
-        else if (addr === 0xDC08) {
+        } else if (addr === 0xDC06) {
+            this.cia1TimerBLatch = (this.cia1TimerBLatch & 0xFF00) | val;
+            if ((this.cia1CtrlB & 0x01) === 0) this.cia1TimerB = (this.cia1TimerB & 0xFF00) | val;
+        } else if (addr === 0xDC07) {
+            this.cia1TimerBLatch = (this.cia1TimerBLatch & 0x00FF) | (val << 8);
+            if ((this.cia1CtrlB & 0x01) === 0) this.cia1TimerB = (this.cia1TimerB & 0x00FF) | (val << 8);
+        } else if (addr === 0xDC08) {
             this.todTenths = val & 0x0F;
-            this.todHalted = false; // Das Schreiben der Zehntelsekunden startet die Uhr wieder
+            this.todHalted = false; 
             this.todLatched = false;
         } else if (addr === 0xDC09) {
             this.todSec = val & 0x7F;
@@ -325,30 +301,25 @@ constructor(sid) {
             this.todMin = val & 0x7F;
         } else if (addr === 0xDC0B) {
             this.todHour = val & 0xFF;
-            this.todHalted = true;  // Das Schreiben der Stunden hält die Uhr an
-        }
-        // --- SCHRITT 2: CIA TIMER B ---
-        else if (addr === 0xDC06) {
-            this.cia1TimerBLatch = (this.cia1TimerBLatch & 0xFF00) | val;
-            if ((this.cia1CtrlB & 0x01) === 0) this.cia1TimerB = (this.cia1TimerB & 0xFF00) | val;
-        } else if (addr === 0xDC07) {
-            this.cia1TimerBLatch = (this.cia1TimerBLatch & 0x00FF) | (val << 8);
-            if ((this.cia1CtrlB & 0x01) === 0) this.cia1TimerB = (this.cia1TimerB & 0x00FF) | (val << 8);
-        }
-        // --- PHASE 2: CIA IER WRITE (Mask Register) ---
-        else if (addr === 0xDC0D) {
+            this.todHalted = true;  
+        } else if (addr === 0xDC0D) {
             let bit7 = (val & 0x80) !== 0;
             let maskBits = val & 0x1F;
             if (bit7) {
-                this.cia1IrqMask |= maskBits;  // Bits auf 1 setzen (Aktivieren)
+                this.cia1IrqMask |= maskBits;  
             } else {
-                this.cia1IrqMask &= ~maskBits; // Bits auf 0 löschen (Deaktivieren)
+                this.cia1IrqMask &= ~maskBits; 
             }
-            this.updateIrq();
+            // FIX: Methode korrigiert!
+            this.updateIrqState();
+        } else if (addr === 0xDC0E) {
+            this.cia1CtrlA = val;
+            if (val & 0x10) this.cia1TimerA = this.cia1TimerALatch === 0 ? 0xFFFF : this.cia1TimerALatch; 
+        } else if (addr === 0xDC0F) {
+            this.cia1CtrlB = val; 
+            if (val & 0x10) this.cia1TimerB = this.cia1TimerBLatch === 0 ? 0xFFFF : this.cia1TimerBLatch;
         }
-
-        // --- PHASE 8: CIA-2 (NMI) WRITE ---
-        if (addr >= 0xDD00 && addr <= 0xDD0F) {
+        else if (addr >= 0xDD00 && addr <= 0xDD0F) {
             if (addr === 0xDD04) {
                 this.cia2TimerALatch = (this.cia2TimerALatch & 0xFF00) | val;
                 if ((this.cia2CtrlA & 0x01) === 0) this.cia2TimerA = (this.cia2TimerA & 0xFF00) | val;
@@ -366,6 +337,7 @@ constructor(sid) {
                 let maskBits = val & 0x1F;
                 if (bit7) this.cia2IrqMask |= maskBits;
                 else this.cia2IrqMask &= ~maskBits;
+                // FIX: Methode korrigiert!
                 this.updateIrqState();
             } else if (addr === 0xDD0E) {
                 this.cia2CtrlA = val;
@@ -375,17 +347,6 @@ constructor(sid) {
                 if (val & 0x10) this.cia2TimerB = this.cia2TimerBLatch === 0 ? 0xFFFF : this.cia2TimerBLatch;
             }
             return;
-        }
-
-        // --- SCHRITT 5: CIA TOD CLOCK ---
-        else if (addr === 0xDC0E) {
-            this.cia1CtrlA = val;
-            if (val & 0x10) this.cia1TimerA = this.cia1TimerALatch === 0 ? 0xFFFF : this.cia1TimerALatch; 
-        }
-        // --- SCHRITT 7: CIA ICR MASKING ---
-        else if (addr === 0xDC0F) { // CIA Control Register B
-            this.cia1CtrlB = val; // Für Timer B Control
-            if (val & 0x10) this.cia1TimerB = this.cia1TimerBLatch === 0 ? 0xFFFF : this.cia1TimerBLatch;
         }
     }
 
