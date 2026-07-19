@@ -524,6 +524,36 @@ export class CPU6502 {
     indX() { let z = this.zpX(); return this.read(z) | (this.read((z+1)&0xFF) << 8); }
     indY() { let z = this.zp(); let addr = this.read(z) | (this.read((z+1)&0xFF) << 8); return (addr + this.y) & 0xFFFF; }
 
+    sbcInternal(val) {
+        if (this.p & 0x08) { // Decimal Mode (BCD) aktiv
+            let result_dec, A, AL, B, C;
+            A = this.a;
+            C = this.p & 0x01;
+            B = val;
+            let val_inv = val ^ 0xFF;
+            result_dec = A + val_inv + C;
+            
+            if (result_dec > 0xFF) this.p |= 1; else this.p &= ~1;
+            if ((this.a ^ result_dec) & (val_inv ^ result_dec) & 0x80) this.p |= 64; else this.p &= ~64;
+            this.setNZ(result_dec & 0xFF);
+            
+            AL = (A & 0x0F) - (B & 0x0F) + C - 1;
+            if (AL < 0) AL = ((AL - 0x06) & 0x0F) - 0x10;
+            A = (A & 0xF0) - (B & 0xF0) + AL;
+            if (A < 0) A = A - 0x60;
+            this.a = A & 0xFF;
+        } else { // Standard Binary Mode
+            let val_inv = val ^ 0xFF; 
+            let carry = this.p & 1; 
+            let sum = this.a + val_inv + carry; 
+            let overflow = ((this.a ^ sum) & (val_inv ^ sum) & 0x80) !== 0; 
+            if (sum > 255) this.p |= 1; else this.p &= ~1; 
+            if (overflow) this.p |= 64; else this.p &= ~64; 
+            this.a = sum & 0xFF; 
+            this.setNZ(this.a); 
+        }
+    }
+
     step() {
         if (this.nmiPending) {
             this.nmiPending = false;
@@ -661,6 +691,157 @@ export class CPU6502 {
             } break; 
             case 0xDE: { 
                 let a = this.absX(); let v = this.read(a); this.write(a, v); v = (v - 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 7; 
+            } break;
+
+            // =========================================================
+            // ILLEGALE / UNDOKUMENTIERTE OPCODES (Martin Galway / Arkanoid Fix)
+            // =========================================================
+
+            // --- 1. LAX (LDA + LDX) ---
+            case 0xA7: { // LAX zp
+                let val = this.read(this.zp());
+                this.a = val; this.x = val;
+                this.setNZ(val);
+                cycles = 3;
+            } break;
+            case 0xB7: { // LAX zp,Y
+                let val = this.read(this.zpY());
+                this.a = val; this.x = val;
+                this.setNZ(val);
+                cycles = 4;
+            } break;
+            case 0xAF: { // LAX abs
+                let val = this.read(this.abs());
+                this.a = val; this.x = val;
+                this.setNZ(val);
+                cycles = 4;
+            } break;
+            case 0xBF: { // LAX abs,Y
+                let addr = this.abs();
+                let addrY = (addr + this.y) & 0xFFFF;
+                if (this.pageCrossed(addr, addrY)) this.read((addr & 0xFF00) | (addrY & 0x00FF));
+                let val = this.read(addrY);
+                this.a = val; this.x = val;
+                this.setNZ(val);
+                cycles = 4 + (this.pageCrossed(addr, addrY) ? 1 : 0);
+            } break;
+
+            // --- 2. SAX (STA & STX) ---
+            case 0x87: { // SAX zp
+                this.write(this.zp(), this.a & this.x);
+                cycles = 3;
+            } break;
+            case 0x97: { // SAX zp,Y
+                this.write(this.zpY(), this.a & this.x);
+                cycles = 4;
+            } break;
+            case 0x8F: { // SAX abs
+                this.write(this.abs(), this.a & this.x);
+                cycles = 4;
+            } break;
+
+            // --- 3. DCP (DEC + CMP) ---
+            case 0xC7: { // DCP zp
+                let z = this.zp();
+                let v = this.read(z);
+                this.write(z, v); // Dummy write
+                v = (v - 1) & 0xFF;
+                this.write(z, v);
+                let diff = this.a - v;
+                this.setNZ(diff & 0xFF);
+                if (this.a >= v) this.p |= 1; else this.p &= ~1;
+                cycles = 5;
+            } break;
+            case 0xD7: { // DCP zp,X
+                let z = this.zpX();
+                let v = this.read(z);
+                this.write(z, v);
+                v = (v - 1) & 0xFF;
+                this.write(z, v);
+                let diff = this.a - v;
+                this.setNZ(diff & 0xFF);
+                if (this.a >= v) this.p |= 1; else this.p &= ~1;
+                cycles = 6;
+            } break;
+            case 0xCF: { // DCP abs
+                let a = this.abs();
+                let v = this.read(a);
+                this.write(a, v);
+                v = (v - 1) & 0xFF;
+                this.write(a, v);
+                let diff = this.a - v;
+                this.setNZ(diff & 0xFF);
+                if (this.a >= v) this.p |= 1; else this.p &= ~1;
+                cycles = 6;
+            } break;
+            case 0xDF: { // DCP abs,X
+                let a = this.absX();
+                let v = this.read(a);
+                this.write(a, v);
+                v = (v - 1) & 0xFF;
+                this.write(a, v);
+                let diff = this.a - v;
+                this.setNZ(diff & 0xFF);
+                if (this.a >= v) this.p |= 1; else this.p &= ~1;
+                cycles = 7;
+            } break;
+            case 0xDB: { // DCP abs,Y
+                let a = this.absY();
+                let v = this.read(a);
+                this.write(a, v);
+                v = (v - 1) & 0xFF;
+                this.write(a, v);
+                let diff = this.a - v;
+                this.setNZ(diff & 0xFF);
+                if (this.a >= v) this.p |= 1; else this.p &= ~1;
+                cycles = 7;
+            } break;
+
+            // --- 4. ISC (INC + SBC) ---
+            case 0xE7: { // ISC zp
+                let z = this.zp();
+                let v = this.read(z);
+                this.write(z, v);
+                v = (v + 1) & 0xFF;
+                this.write(z, v);
+                this.sbcInternal(v);
+                cycles = 5;
+            } break;
+            case 0xF7: { // ISC zp,X
+                let z = this.zpX();
+                let v = this.read(z);
+                this.write(z, v);
+                v = (v + 1) & 0xFF;
+                this.write(z, v);
+                this.sbcInternal(v);
+                cycles = 6;
+            } break;
+            case 0xEF: { // ISC abs
+                let a = this.abs();
+                let v = this.read(a);
+                this.write(a, v);
+                v = (v + 1) & 0xFF;
+                this.write(a, v);
+                this.sbcInternal(v);
+                cycles = 6;
+            } break;
+            case 0xFF: { // ISC abs,X
+                let a = this.absX();
+                let v = this.read(a);
+                this.write(a, v);
+                v = (v + 1) & 0xFF;
+                this.write(a, v);
+                this.sbcInternal(v);
+                cycles = 7;
+            } break;
+            case 0xFB: { // ISC abs,Y
+                let a = this.absY();
+                let v = this.read(a);
+                this.write(a, v);
+                v = (v + 1) & 0xFF;
+                this.write(a, v);
+                this.sbcInternal(v);
+                cycles = 7;
             } break;
 
             case 0x20: { let target = this.abs(); this.push((this.pc - 1) >> 8); this.push((this.pc - 1) & 0xFF); this.pc = target; cycles = 6; } break; // JSR
