@@ -2,11 +2,11 @@
 // =========================================================
 // 6502 CPU EMULATOR & C64 I/O INTERCEPTOR
 // High-Performance Zero-Allocation Edition
-// Phase 11: VIC-II Badlines & Cycle Stealing (Step 1)
+// Phase 12: Complete Unified Hardware-Driven Architecture
 // =========================================================
 
 export class CPU6502 {
-constructor(sid) {
+    constructor(sid) {
         this.ram = new Uint8Array(65536);
         this.sid = sid;
         
@@ -21,25 +21,37 @@ constructor(sid) {
         this.rasterCycles = 0;
         this.rasterIrqTarget = 0;
         
-        // --- SCHRITT 1 (NEU): CIA-1 TIMING BOOT STATE ---
-        this.cia1TimerALatch = 19705; // PAL Standard-Takt (ca. 50Hz)
-        this.cia1TimerA = 19705;
-        this.cia1CtrlA = 0x01;        // Timer läuft standardmäßig beim Einschalten des Rechners!
-        this.cia1Icr = 0;             
-        this.cia1IrqMask = 0x01;      // Timer-A IRQs sind standardmäßig aktiv (Bit 0)
-        this.cia1TimerAUnderflowed = false; // Systemtakt-Melder für das AudioWorklet
+        // CIA-1 (IRQ)
+        this.cia1TimerA = 19705; // Standard PAL 50Hz Startup-Intervall
+        this.cia1TimerALatch = 19705;
+        this.cia1CtrlA = 0x01;   // Timer läuft standardmäßig beim Einschalten!
+        this.cia1Icr = 0; 
+        this.cia1IrqMask = 0x01; // Timer-A IRQs standardmäßig aktiv
+        this.cia1TimerAUnderflowed = false;
         
         this.cia1TimerB = 0xFFFF;
         this.cia1TimerBLatch = 0xFFFF;
         this.cia1CtrlB = 0;
 
+        // CIA-2 (NMI)
+        this.cia2TimerA = 0xFFFF;
+        this.cia2TimerALatch = 0xFFFF;
+        this.cia2CtrlA = 0;
+        this.cia2Icr = 0;
+        this.cia2IrqMask = 0;
+        
+        this.cia2TimerB = 0xFFFF;
+        this.cia2TimerBLatch = 0xFFFF;
+        this.cia2CtrlB = 0;
+
         this.irqPending = false;
         this.nmiPending = false;
         this.irqAccepted = false;
         this.nmiAccepted = false;
+        this.prevNmiLine = false;
 
-        // --- PHASE 1: PHYSIKALISCHE RDY-LEITUNG ---
-        this.rdy = true; // True = CPU läuft, False = CPU angehalten (Bus gesperrt)
+        // VIC-II RDY & Badlines
+        this.rdy = true; 
         this.isBadLine = false;
 
         // TOD-Clock
@@ -54,10 +66,78 @@ constructor(sid) {
         this.todLatched = false;
         this.todHalted = false;
         this.todCycleCounter = 19705;
-        // --- FIX: CIA-1 Timer A Underflow Tracker für Host-Synchronisation ---
-        this.cia1TimerAUnderflowed = false;
 
-        // --- PHASE 8: CIA-2 (NMI SUB-SYSTEM FÜR DIGIDRUMS) ---
+        // Dynamische Diagnostik-Vektoren für Host-Play-Checking
+        this.defaultIrqLo = 0x31; 
+        this.defaultIrqHi = 0xEA; 
+    }
+
+    reset(loadAddr, prgCode) {
+        this.ram.fill(0);
+        
+        // C64 Memory Management Unit (MMU) Default State
+        this.ram[0x0000] = 0x2F; 
+        this.ram[0x0001] = 0x37; 
+        
+        // --- 1. THE AUTHENTIC PHANTOM KERNAL VECTORS ---
+        // Eigene Host-Idle Schleife für unseren Emulator
+        this.ram[0xEFFF] = 0x4C; this.ram[0xF000] = 0xFF; this.ram[0xF001] = 0xEF; // JMP $EFFF
+        
+        // KERNAL IRQ Return ($EA31) und NMI Return ($FE56)
+        const returnHandler = [ 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40 ]; // PLA, TAY, PLA, TAX, PLA, RTI
+        for (let i = 0; i < returnHandler.length; i++) {
+            this.ram[0xEA31 + i] = returnHandler[i]; 
+            this.ram[0xEA81 + i] = returnHandler[i]; 
+            this.ram[0xFE56 + i] = returnHandler[i]; 
+        }
+        
+        this.ram[0x0314] = 0x31; this.ram[0x0315] = 0xEA; // Default IRQ -> Pop-Exit ($EA31)
+        this.ram[0x0316] = 0x31; this.ram[0x0317] = 0xEA; // Default BRK -> Pop-Exit ($EA31)
+        this.ram[0x0318] = 0x81; this.ram[0x0319] = 0xEA; // Default NMI -> Pure RTI ($EA81)
+
+        // ROM Hardware-Vektoren ($FFFE = IRQ, $FFFA = NMI)
+        this.ram[0xFFFE] = 0x48; this.ram[0xFFFF] = 0xFF; 
+        this.ram[0xFFFA] = 0x60; this.ram[0xFFFB] = 0xFF; 
+
+        // $FF48: Authentic IRQ Entry (Sichert A, X, Y, quittiert CIA-1 und leitet zu $0314)
+        const irqEntry = [
+            0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
+            0xBA, 0xBD, 0x04, 0x01,       // TSX, LDA $0104,X
+            0x29, 0x10, 0xF0, 0x03,       // AND #$10, BEQ +3
+            0x6C, 0x16, 0x03,             // JMP ($0316) -> BRK
+            0xAD, 0x0D, 0xDC,             // LDA $DC0D -> CIA-1 Acknowledge
+            0x6C, 0x14, 0x03              // JMP ($0314) -> IRQ
+        ];
+        for (let i = 0; i < irqEntry.length; i++) this.ram[0xFF48 + i] = irqEntry[i];
+
+        // $FF60: Authentic NMI Entry (Sichert keine Register, leitet direkt zu $0318)
+        const nmiEntry = [
+            0x78,             // SEI
+            0x6C, 0x18, 0x03  // JMP ($0318) -> NMI Vector
+        ];
+        for (let i = 0; i < nmiEntry.length; i++) this.ram[0xFF60 + i] = nmiEntry[i];
+        
+        // --- 2. DEN PRG-CODE LADEN (kann die Vektoren nun überschreiben!) ---
+        for (let i = 0; i < prgCode.length; i++) {
+            this.ram[loadAddr + i] = prgCode[i];
+        }
+        
+        // Reset Registers
+        this.a = 0; this.x = 0; this.y = 0;
+        this.sp = 0xFF; 
+        this.p = 0x24; 
+        
+        this.rasterCounter = 0;
+        this.rasterCycles = 0;
+        this.rasterIrqTarget = 0;
+        
+        this.cia1TimerA = 19705;
+        this.cia1TimerALatch = 19705;
+        this.cia1CtrlA = 0x01; // Gestartet
+        this.cia1Icr = 0;
+        this.cia1IrqMask = 0x01; 
+        this.cia1TimerAUnderflowed = false;
+        
         this.cia2TimerA = 0xFFFF;
         this.cia2TimerALatch = 0xFFFF;
         this.cia2CtrlA = 0;
@@ -68,90 +148,11 @@ constructor(sid) {
         this.cia2TimerBLatch = 0xFFFF;
         this.cia2CtrlB = 0;
 
-        // --- PHASE 12: DYNAMISCHE DIAGNOSTIK-VEKTOREN ---
-        this.defaultIrqLo = 0x31; // Entspricht $31 (LSB von $EA31)
-        this.defaultIrqHi = 0xEA; // Entspricht $EA (MSB von $EA31)
-    }
-
-reset(loadAddr, prgCode) {
-        this.ram.fill(0);
-        
-        // C64 Memory Management Unit (MMU) Default State
-        this.ram[0x0000] = 0x2F; 
-        this.ram[0x0001] = 0x37; 
-        
-        // --- SCHRITT 2: THE AUTHENTIC PHANTOM KERNAL (NMI-Stack-Fix) ---
-        // Eigene Host-Idle Schleife für unseren Emulator
-        this.ram[0xEFFF] = 0x4C; this.ram[0xF000] = 0xFF; this.ram[0xF001] = 0xEF; // JMP $EFFF
-        
-        // IRQ-Return mit Register-Wiederherstellung (PLA, TAY, PLA, TAX, PLA, RTI)
-        const irqReturn = [ 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40 ]; 
-        for (let i = 0; i < irqReturn.length; i++) this.ram[0xEA31 + i] = irqReturn[i];
-
-        // NMI-Return und reiner IRQ-Return (RTI)
-        this.ram[0xEA81] = 0x40; // RTI
-        
-        // RAM-Vektoren initialisieren
-        this.ram[0x0314] = 0x31; this.ram[0x0315] = 0xEA; // Default IRQ -> Pop-Exit ($EA31)
-        this.ram[0x0316] = 0x31; this.ram[0x0317] = 0xEA; // Default BRK -> Pop-Exit ($EA31)
-        this.ram[0x0318] = 0x81; this.ram[0x0319] = 0xEA; // Default NMI -> Pure RTI ($EA81, NMI pusht nichts!)
-
-        // ROM Hardware-Vektoren ($FFFE = IRQ, $FFFA = NMI)
-        this.ram[0xFFFE] = 0x48; this.ram[0xFFFF] = 0xFF; 
-        this.ram[0xFFFA] = 0x60; this.ram[0xFFFB] = 0xFF; 
-
-        // $FF48: Authentic IRQ Entry (Sichert A, X, Y, quittiert CIA-1 und leitet zu $0314)
-        const irqEntry = [
-            0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
-            0xBA, 0xBD, 0x04, 0x01,       // TSX, LDA $0104,X
-            0x29, 0x10, 0xF0, 0x03,       // AND #$10, BEQ +3 (Überspringt BRK-Vector, wenn Hardware-IRQ)
-            0x6C, 0x16, 0x03,             // JMP ($0316) -> BRK Vector
-            0xAD, 0x0D, 0xDC,             // LDA $DC0D    -> CIA-1 Interrupt quittieren (Acknowledge)!
-            0x6C, 0x14, 0x03              // JMP ($0314) -> IRQ Vector
-        ];
-        for (let i = 0; i < irqEntry.length; i++) this.ram[0xFF48 + i] = irqEntry[i];     
-
-        // $FF60: Authentic NMI Entry (Sichert KEINE Register, leitet direkt zu $0318)
-        const nmiEntry = [
-            0x78,             // SEI
-            0x6C, 0x18, 0x03  // JMP ($0318) -> NMI Vector
-        ];
-        for (let i = 0; i < nmiEntry.length; i++) this.ram[0xFF60 + i] = nmiEntry[i];
-        
-        // --- 2. DANACH DEN PRG-CODE LADEN (kann die Vektoren nun überschreiben!) ---
-        for (let i = 0; i < prgCode.length; i++) {
-            this.ram[loadAddr + i] = prgCode[i];
-        }
-                
-        // CPU Reset State
-        this.a = 0; this.x = 0; this.y = 0;
-        this.sp = 0xFF; 
-        this.p = 0x24; 
-        
-        this.rasterCounter = 0;
-        this.rasterCycles = 0;
-        this.rasterIrqTarget = 0;
-        
-        // --- SCHRITT 1 (NEU): CIA-1 TIMING RESET STATE ---
-        this.cia1TimerALatch = 19705;
-        this.cia1TimerA = 19705;
-        this.cia1CtrlA = 0x01; // Timer gestartet
-        this.cia1Icr = 0;
-        this.cia1IrqMask = 0x01; // Standardmäßig im KERNAL-IRQ eingebunden
-        this.cia1TimerAUnderflowed = false;
-        
-        this.cia2TimerA = 0xFFFF;
-        this.cia2TimerALatch = 0xFFFF;
-        this.cia2CtrlA = 0;
-        this.cia2Icr = 0;
-        this.cia2IrqMask = 0;
-
         this.irqPending = false;
         this.nmiPending = false;
         this.irqAccepted = false;
         this.nmiAccepted = false;
         this.prevNmiLine = false;
-        this.cia1TimerAUnderflowed = false;
 
         this.rdy = true;
         this.isBadLine = false;
@@ -188,7 +189,6 @@ reset(loadAddr, prgCode) {
     pageCrossed(addr1, addr2) {
         return (addr1 & 0xFF00) !== (addr2 & 0xFF00);
     }
-
 
     read(addr) {
         if (addr < 0xD000) {
@@ -237,7 +237,6 @@ reset(loadAddr, prgCode) {
             let val = this.cia1Icr & 0x1F;
             if (anyEnabled) val |= 0x80; 
             this.cia1Icr = 0; 
-            // FIX: Methode hieß im alten Code noch fälschlicherweise updateIrq()
             this.updateIrqState(); 
             return val;
         }
@@ -254,7 +253,6 @@ reset(loadAddr, prgCode) {
                 let val = this.cia2Icr & 0x1F;
                 if (anyEnabled) val |= 0x80; 
                 this.cia2Icr = 0; 
-                // FIX: Methode korrigiert!
                 this.updateIrqState(); 
                 return val;
             }
@@ -286,11 +284,9 @@ reset(loadAddr, prgCode) {
             this.rasterIrqTarget = (this.rasterIrqTarget & 0x100) | val;
         } else if (addr === 0xD019) {
             this.ram[0xD019] &= ~(val & 0x0F); 
-            // FIX: Methode korrigiert!
             this.updateIrqState();
         } else if (addr === 0xD01A) {
             this.ram[0xD01A] = val & 0x0F;
-            // FIX: Methode korrigiert!
             this.updateIrqState();
         }
         else if (addr === 0xDC04) {
@@ -324,7 +320,6 @@ reset(loadAddr, prgCode) {
             } else {
                 this.cia1IrqMask &= ~maskBits; 
             }
-            // FIX: Methode korrigiert!
             this.updateIrqState();
         } else if (addr === 0xDC0E) {
             this.cia1CtrlA = val;
@@ -351,7 +346,6 @@ reset(loadAddr, prgCode) {
                 let maskBits = val & 0x1F;
                 if (bit7) this.cia2IrqMask |= maskBits;
                 else this.cia2IrqMask &= ~maskBits;
-                // FIX: Methode korrigiert!
                 this.updateIrqState();
             } else if (addr === 0xDD0E) {
                 this.cia2CtrlA = val;
@@ -364,14 +358,13 @@ reset(loadAddr, prgCode) {
         }
     }
 
-updateIrqState(cycleIndex = 0, totalCycles = 1) {
+    updateIrqState(cycleIndex = 0, totalCycles = 1) {
         let vicIrq = (this.ram[0xD019] & this.ram[0xD01A] & 0x0F) !== 0;
         let ciaIrq = (this.cia1Icr & this.cia1IrqMask & 0x1F) !== 0;
         let cia2Nmi = (this.cia2Icr & this.cia2IrqMask & 0x1F) !== 0;
         
         this.irqPending = vicIrq || ciaIrq;
         
-        // --- NMI EDGE DETECTION (Behebt Arkanoid NMI Loop Crash!) ---
         if (cia2Nmi && !this.prevNmiLine) {
             this.nmiPending = true;
         }
@@ -395,7 +388,7 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
     }
 
     triggerHardwareNmi() {
-        this.nmiPending = false; // Wir haben die Flanke konsumiert!
+        this.nmiPending = false; 
         this.push(this.pc >> 8);
         this.push(this.pc & 0xFF);
         this.push((this.p & 0xEF) | 0x20);
@@ -403,9 +396,6 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
         this.pc = this.read(0xFFFA) | (this.read(0xFFFB) << 8);
     }
 
-    // =========================================================
-    // THE HARDWARE CLOCK MANAGER
-    // =========================================================
     clockHardware(cycles) {
         if (this.irqPending) {
             this.irqAccepted = (this.p & 0x04) === 0;
@@ -417,14 +407,11 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
         for (let i = 0; i < cycles; i++) {
             let timerBUnderflowTriggered = false;
 
-            // --- 1. CIA-1 Timer A (Music IRQ) ---
             if (this.cia1CtrlA & 0x01) { 
                 this.cia1TimerA--;
                 if (this.cia1TimerA < 0) {
                     this.cia1Icr |= 0x01; 
                     this.cia1TimerA = this.cia1TimerALatch === 0 ? 0xFFFF : this.cia1TimerALatch;
-                    
-                    // WICHTIG FÜR WIZBALL: Meldet den Hardware-Unterlauf an das Worklet!
                     this.cia1TimerAUnderflowed = true;
 
                     if (this.cia1CtrlA & 0x08) this.cia1CtrlA &= ~0x01; 
@@ -437,25 +424,11 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
                 }
             }
 
-            if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x00)) {
-                this.cia1TimerB--;
-                if (this.cia1TimerB < 0) timerBUnderflowTriggered = true;
-            }
-
-            if (timerBUnderflowTriggered) {
-                this.cia1Icr |= 0x02; 
-                this.cia1TimerB = this.cia1TimerBLatch === 0 ? 0xFFFF : this.cia1TimerBLatch;
-                if (this.cia1CtrlB & 0x08) this.cia1CtrlB &= ~0x01; 
-                this.updateIrqState(i, cycles);
-            }
-
-            // --- 2. CIA-2 Timer A & B (NMI / Arkanoid Digidrums) ---
             let cia2TimerBUnderflow = false;
-
             if (this.cia2CtrlA & 0x01) { 
                 this.cia2TimerA--;
                 if (this.cia2TimerA < 0) {
-                    this.cia2Icr |= 0x01; // Löst den NMI aus!
+                    this.cia2Icr |= 0x01; 
                     this.cia2TimerA = this.cia2TimerALatch === 0 ? 0xFFFF : this.cia2TimerALatch;
                     
                     if (this.cia2CtrlA & 0x08) this.cia2CtrlA &= ~0x01; 
@@ -480,7 +453,22 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
                 this.updateIrqState(i, cycles);
             }
 
-            // --- 3. TOD CLOCK ---
+            if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x00)) {
+                this.cia1TimerB--;
+                if (this.cia1TimerB < 0) {
+                    timerBUnderflowTriggered = true;
+                }
+            }
+
+            if (timerBUnderflowTriggered) {
+                this.cia1Icr |= 0x02; 
+                this.cia1TimerB = this.cia1TimerBLatch === 0 ? 0xFFFF : this.cia1TimerBLatch;
+                if (this.cia1CtrlB & 0x08) { 
+                    this.cia1CtrlB &= ~0x01; 
+                }
+                this.updateIrqState(i, cycles);
+            }
+
             this.todCycleCounter--;
             if (this.todCycleCounter <= 0) {
                 let is50Hz = (this.cia1CtrlA & 0x80) !== 0;
@@ -488,12 +476,12 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
                 this.incrementTod();
             }
 
-            // --- 4. VIC-II Raster & Badlines ---
             this.rasterCycles++;
             if (this.rasterCycles >= this.cyclesPerLine) {
                 this.rasterCycles = 0;
                 this.rasterCounter++;
                 if (this.rasterCounter >= 312) this.rasterCounter = 0; 
+
                 if (this.rasterCounter > 255) this.ram[0xD011] |= 0x80;
                 else this.ram[0xD011] &= 0x7F;
             }
@@ -522,8 +510,8 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
     triggerHardwareIrq() {
         this.push(this.pc >> 8);
         this.push(this.pc & 0xFF);
-        this.push((this.p & 0xEF) | 0x20); // B-Flag 0, Bit 5 1
-        this.p |= 0x04; // Set I flag
+        this.push((this.p & 0xEF) | 0x20); 
+        this.p |= 0x04; 
         this.pc = this.read(0xFFFE) | (this.read(0xFFFF) << 8);
     }
 
@@ -547,11 +535,7 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
             return 7;
         }
 
-        // --- PHASE 1: RDY-LEITUNG ---
-        // Wenn der VIC-II den Bus blockiert, steht die CPU für diesen Zyklus still.
-        if (!this.rdy) {
-            return 1; 
-        }
+        if (!this.rdy) return 1; 
 
         let op = this.read(this.pc++);
         let cycles = 2;
@@ -561,8 +545,8 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
                 this.pc = (this.pc + 1) & 0xFFFF;
                 this.push(this.pc >> 8);
                 this.push(this.pc & 0xFF);
-                this.push(this.p | 0x10); // B-flag set
-                this.p |= 0x04; // Set I flag
+                this.push(this.p | 0x10); 
+                this.p |= 0x04; 
                 this.pc = this.read(0xFFFE) | (this.read(0xFFFF) << 8);
                 cycles = 7;
             } break;
@@ -572,35 +556,29 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
             case 0xA5: this.a = this.read(this.zp()); this.setNZ(this.a); cycles = 3; break; // LDA zp
             case 0xB5: this.a = this.read(this.zpX()); this.setNZ(this.a); cycles = 4; break; // LDA zp,X
             case 0xAD: this.a = this.read(this.abs()); this.setNZ(this.a); cycles = 4; break; // LDA abs
-            case 0xBD: { // LDA abs,X
+            case 0xBD: { 
                 let addr = this.abs();
                 let addrX = (addr + this.x) & 0xFFFF;
-                if (this.pageCrossed(addr, addrX)) {
-                    this.read((addr & 0xFF00) | (addrX & 0x00FF)); // Dummy Read auf Zwischenadresse
-                }
+                if (this.pageCrossed(addr, addrX)) this.read((addr & 0xFF00) | (addrX & 0x00FF)); 
                 this.a = this.read(addrX);
                 this.setNZ(this.a);
                 cycles = 4 + (this.pageCrossed(addr, addrX) ? 1 : 0);
             } break; 
 
-            case 0xB9: { // LDA abs,Y
+            case 0xB9: { 
                 let addr = this.abs();
                 let addrY = (addr + this.y) & 0xFFFF;
-                if (this.pageCrossed(addr, addrY)) {
-                    this.read((addr & 0xFF00) | (addrY & 0x00FF)); // Dummy Read
-                }
+                if (this.pageCrossed(addr, addrY)) this.read((addr & 0xFF00) | (addrY & 0x00FF)); 
                 this.a = this.read(addrY);
                 this.setNZ(this.a);
                 cycles = 4 + (this.pageCrossed(addr, addrY) ? 1 : 0);
             } break; 
             case 0xA1: this.a = this.read(this.indX()); this.setNZ(this.a); cycles = 6; break; // LDA (zp,X)
-            case 0xB1: { // LDA (zp),Y
+            case 0xB1: { 
                 let z = this.zp();
                 let addr = this.read(z) | (this.read((z+1)&0xFF) << 8);
                 let addrY = (addr + this.y) & 0xFFFF;
-                if (this.pageCrossed(addr, addrY)) {
-                    this.read((addr & 0xFF00) | (addrY & 0x00FF)); // Dummy Read
-                }
+                if (this.pageCrossed(addr, addrY)) this.read((addr & 0xFF00) | (addrY & 0x00FF)); 
                 this.a = this.read(addrY);
                 this.setNZ(this.a);
                 cycles = 5 + (this.pageCrossed(addr, addrY) ? 1 : 0);
@@ -609,12 +587,10 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
             case 0xA6: this.x = this.read(this.zp()); this.setNZ(this.x); cycles = 3; break; // LDX zp
             case 0xB6: this.x = this.read(this.zpY()); this.setNZ(this.x); cycles = 4; break; // LDX zp,Y
             case 0xAE: this.x = this.read(this.abs()); this.setNZ(this.x); cycles = 4; break; // LDX abs
-            case 0xBE: { // LDX abs,Y
+            case 0xBE: { 
                 let addr = this.abs();
                 let addrY = (addr + this.y) & 0xFFFF;
-                if (this.pageCrossed(addr, addrY)) {
-                    this.read((addr & 0xFF00) | (addrY & 0x00FF)); // Dummy Read
-                }
+                if (this.pageCrossed(addr, addrY)) this.read((addr & 0xFF00) | (addrY & 0x00FF)); 
                 this.x = this.read(addrY);
                 this.setNZ(this.x);
                 cycles = 4 + (this.pageCrossed(addr, addrY) ? 1 : 0);
@@ -624,12 +600,10 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
             case 0xA4: this.y = this.read(this.zp()); this.setNZ(this.y); cycles = 3; break; // LDY zp
             case 0xB4: this.y = this.read(this.zpX()); this.setNZ(this.y); cycles = 4; break; // LDY zp,X
             case 0xAC: this.y = this.read(this.abs()); this.setNZ(this.y); cycles = 4; break; // LDY abs
-            case 0xBC: { // LDY abs,X
+            case 0xBC: { 
                 let addr = this.abs();
                 let addrX = (addr + this.x) & 0xFFFF;
-                if (this.pageCrossed(addr, addrX)) {
-                    this.read((addr & 0xFF00) | (addrX & 0x00FF)); // Dummy Read
-                }
+                if (this.pageCrossed(addr, addrX)) this.read((addr & 0xFF00) | (addrX & 0x00FF)); 
                 this.y = this.read(addrX);
                 this.setNZ(this.y);
                 cycles = 4 + (this.pageCrossed(addr, addrX) ? 1 : 0); 
@@ -663,78 +637,30 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
             case 0xC8: this.y = (this.y + 1) & 0xFF; this.setNZ(this.y); cycles = 2; break; 
             case 0x88: this.y = (this.y - 1) & 0xFF; this.setNZ(this.y); cycles = 2; break; 
 
-            case 0xE6: { // INC zp
-                let z = this.zp(); 
-                let v = this.read(z); 
-                this.write(z, v); // Dummy Write (alter Wert)
-                v = (v + 1) & 0xFF; 
-                this.write(z, v); // Real Write (neuer Wert)
-                this.setNZ(v); 
-                cycles = 5; 
+            case 0xE6: { 
+                let z = this.zp(); let v = this.read(z); this.write(z, v); v = (v + 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 5; 
             } break; 
-            case 0xF6: { // INC zp,X
-                let z = this.zpX(); 
-                let v = this.read(z); 
-                this.write(z, v); 
-                v = (v + 1) & 0xFF; 
-                this.write(z, v); 
-                this.setNZ(v); 
-                cycles = 6; 
+            case 0xF6: { 
+                let z = this.zpX(); let v = this.read(z); this.write(z, v); v = (v + 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 6; 
             } break; 
-            case 0xEE: { // INC abs
-                let a = this.abs(); 
-                let v = this.read(a); 
-                this.write(a, v); 
-                v = (v + 1) & 0xFF; 
-                this.write(a, v); 
-                this.setNZ(v); 
-                cycles = 6; 
+            case 0xEE: { 
+                let a = this.abs(); let v = this.read(a); this.write(a, v); v = (v + 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 6; 
             } break; 
-            case 0xFE: { // INC abs,X
-                let a = this.absX(); 
-                let v = this.read(a); 
-                this.write(a, v); 
-                v = (v + 1) & 0xFF; 
-                this.write(a, v); 
-                this.setNZ(v); 
-                cycles = 7; 
+            case 0xFE: { 
+                let a = this.absX(); let v = this.read(a); this.write(a, v); v = (v + 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 7; 
             } break; 
 
-            case 0xC6: { // DEC zp
-                let z = this.zp(); 
-                let v = this.read(z); 
-                this.write(z, v); 
-                v = (v - 1) & 0xFF; 
-                this.write(z, v); 
-                this.setNZ(v); 
-                cycles = 5; 
+            case 0xC6: { 
+                let z = this.zp(); let v = this.read(z); this.write(z, v); v = (v - 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 5; 
             } break; 
-            case 0xD6: { // DEC zp,X
-                let z = this.zpX(); 
-                let v = this.read(z); 
-                this.write(z, v); 
-                v = (v - 1) & 0xFF; 
-                this.write(z, v); 
-                this.setNZ(v); 
-                cycles = 6; 
+            case 0xD6: { 
+                let z = this.zpX(); let v = this.read(z); this.write(z, v); v = (v - 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 6; 
             } break; 
-            case 0xCE: { // DEC abs
-                let a = this.abs(); 
-                let v = this.read(a); 
-                this.write(a, v); 
-                v = (v - 1) & 0xFF; 
-                this.write(a, v); 
-                this.setNZ(v); 
-                cycles = 6; 
+            case 0xCE: { 
+                let a = this.abs(); let v = this.read(a); this.write(a, v); v = (v - 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 6; 
             } break; 
-            case 0xDE: { // DEC abs,X
-                let a = this.absX(); 
-                let v = this.read(a); 
-                this.write(a, v); 
-                v = (v - 1) & 0xFF; 
-                this.write(a, v); 
-                this.setNZ(v); 
-                cycles = 7; 
+            case 0xDE: { 
+                let a = this.absX(); let v = this.read(a); this.write(a, v); v = (v - 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 7; 
             } break;
 
             case 0x20: { let target = this.abs(); this.push((this.pc - 1) >> 8); this.push((this.pc - 1) & 0xFF); this.pc = target; cycles = 6; } break; // JSR
@@ -743,10 +669,7 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
             case 0x60: { let low = this.pop(); let high = this.pop(); this.pc = (low | (high << 8)) + 1; cycles = 6; } break; // RTS
             case 0x40: { // RTI
                 this.p = (this.pop() & 0xEF) | 0x20; 
-                let low = this.pop(); 
-                let high = this.pop(); 
-                this.pc = low | (high << 8); 
-                cycles = 6; 
+                let low = this.pop(); let high = this.pop(); this.pc = low | (high << 8); cycles = 6; 
             } break; 
 
             case 0xD0: cycles = this.branch((this.p & 2) === 0); break; // BNE
@@ -776,188 +699,88 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
             case 0x2A: { let c = this.p & 1; if (this.a & 128) this.p |= 1; else this.p &= ~1; this.a = ((this.a << 1) & 0xFF) | c; this.setNZ(this.a); cycles = 2; } break; // ROL A
             case 0x6A: { let c = this.p & 1; if (this.a & 1) this.p |= 1; else this.p &= ~1; this.a = (this.a >> 1) | (c << 7); this.setNZ(this.a); cycles = 2; } break; // ROR A
 
-            case 0x06: { // ASL zp
-                let z = this.zp(); 
-                let v = this.read(z); 
-                this.write(z, v); 
+            case 0x06: { 
+                let z = this.zp(); let v = this.read(z); this.write(z, v); 
                 if (v & 128) this.p |= 1; else this.p &= ~1; 
-                v = (v << 1) & 0xFF; 
-                this.write(z, v); 
-                this.setNZ(v); 
-                cycles = 5; 
+                v = (v << 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 5; 
             } break; 
-            
-            case 0x46: { // LSR zp
-                let z = this.zp(); 
-                let v = this.read(z); 
-                this.write(z, v); 
+            case 0x46: { 
+                let z = this.zp(); let v = this.read(z); this.write(z, v); 
                 if (v & 1) this.p |= 1; else this.p &= ~1; 
-                v = (v >> 1) & 0x7F; 
-                this.write(z, v); 
-                this.setNZ(v); 
-                cycles = 5; 
+                v = (v >> 1) & 0x7F; this.write(z, v); this.setNZ(v); cycles = 5; 
             } break; 
-            
-            case 0x26: { // ROL zp
-                let z = this.zp(); 
-                let v = this.read(z); 
-                this.write(z, v); 
-                let c = this.p & 1; 
+            case 0x26: { 
+                let z = this.zp(); let v = this.read(z); this.write(z, v); let c = this.p & 1; 
                 if (v & 128) this.p |= 1; else this.p &= ~1; 
-                v = ((v << 1) & 0xFF) | c; 
-                this.write(z, v); 
-                this.setNZ(v); 
-                cycles = 5; 
+                v = ((v << 1) & 0xFF) | c; this.write(z, v); this.setNZ(v); cycles = 5; 
             } break; 
-            
-            case 0x66: { // ROR zp
-                let z = this.zp(); 
-                let v = this.read(z); 
-                this.write(z, v); 
-                let c = this.p & 1; 
+            case 0x66: { 
+                let z = this.zp(); let v = this.read(z); this.write(z, v); let c = this.p & 1; 
                 if (v & 1) this.p |= 1; else this.p &= ~1; 
-                v = (v >> 1) | (c << 7); 
-                this.write(z, v); 
-                this.setNZ(v); 
-                cycles = 5; 
+                v = (v >> 1) | (c << 7); this.write(z, v); this.setNZ(v); cycles = 5; 
             } break; 
             
-            case 0x16: { // ASL zp,X
-                let z = this.zpX(); 
-                let v = this.read(z); 
-                this.write(z, v); 
+            case 0x16: { 
+                let z = this.zpX(); let v = this.read(z); this.write(z, v); 
                 if (v & 128) this.p |= 1; else this.p &= ~1; 
-                v = (v << 1) & 0xFF; 
-                this.write(z, v); 
-                this.setNZ(v); 
-                cycles = 6; 
+                v = (v << 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 6; 
             } break; 
-
-            case 0x56: { // LSR zp,X
-                let z = this.zpX(); 
-                let v = this.read(z); 
-                this.write(z, v); 
+            case 0x56: { 
+                let z = this.zpX(); let v = this.read(z); this.write(z, v); 
                 if (v & 1) this.p |= 1; else this.p &= ~1; 
-                v = (v >> 1) & 0x7F; 
-                this.write(z, v); 
-                this.setNZ(v); 
-                cycles = 6; 
+                v = (v >> 1) & 0x7F; this.write(z, v); this.setNZ(v); cycles = 6; 
             } break; 
-            
-            case 0x36: { // ROL zp,X
-                let z = this.zpX(); 
-                let v = this.read(z); 
-                this.write(z, v); 
-                let c = this.p & 1; 
+            case 0x36: { 
+                let z = this.zpX(); let v = this.read(z); this.write(z, v); let c = this.p & 1; 
                 if (v & 128) this.p |= 1; else this.p &= ~1; 
-                v = ((v << 1) & 0xFF) | c; 
-                this.write(z, v); 
-                this.setNZ(v); 
-                cycles = 6; 
+                v = ((v << 1) & 0xFF) | c; this.write(z, v); this.setNZ(v); cycles = 6; 
             } break; 
-                        
-            case 0x76: { // ROR zp,X
-                let z = this.zpX(); 
-                let v = this.read(z); 
-                this.write(z, v); 
-                let c = this.p & 1; 
+            case 0x76: { 
+                let z = this.zpX(); let v = this.read(z); this.write(z, v); let c = this.p & 1; 
                 if (v & 1) this.p |= 1; else this.p &= ~1; 
-                v = (v >> 1) | (c << 7); 
-                this.write(z, v); 
-                this.setNZ(v); 
-                cycles = 6; 
-            } break; 
-
-            case 0x0E: { // ASL abs
-                let a = this.abs(); 
-                let v = this.read(a); 
-                this.write(a, v); 
-                if (v & 128) this.p |= 1; else this.p &= ~1; 
-                v = (v << 1) & 0xFF; 
-                this.write(a, v); 
-                this.setNZ(v); 
-                cycles = 6; 
+                v = (v >> 1) | (c << 7); this.write(z, v); this.setNZ(v); cycles = 6; 
             } break; 
             
-            case 0x4E: { // LSR abs
-                let a = this.abs(); 
-                let v = this.read(a); 
-                this.write(a, v); 
+            case 0x0E: { 
+                let a = this.abs(); let v = this.read(a); this.write(a, v); 
+                if (v & 128) this.p |= 1; else this.p &= ~1; 
+                v = (v << 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 6; 
+            } break; 
+            case 0x4E: { 
+                let a = this.abs(); let v = this.read(a); this.write(a, v); 
                 if (v & 1) this.p |= 1; else this.p &= ~1; 
-                v = (v >> 1) & 0x7F; 
-                this.write(a, v); 
-                this.setNZ(v); 
-                cycles = 6; 
+                v = (v >> 1) & 0x7F; this.write(a, v); this.setNZ(v); cycles = 6; 
             } break; 
-            
-            case 0x2E: { // ROL abs
-                let a = this.abs(); 
-                let v = this.read(a); 
-                this.write(a, v); 
-                let c = this.p & 1; 
+            case 0x2E: { 
+                let a = this.abs(); let v = this.read(a); this.write(a, v); let c = this.p & 1; 
                 if (v & 128) this.p |= 1; else this.p &= ~1; 
-                v = ((v << 1) & 0xFF) | c; 
-                this.write(a, v); 
-                this.setNZ(v); 
-                cycles = 6; 
+                v = ((v << 1) & 0xFF) | c; this.write(a, v); this.setNZ(v); cycles = 6; 
             } break; 
-            
-            case 0x6E: { // ROR abs
-                let a = this.abs(); 
-                let v = this.read(a); 
-                this.write(a, v); 
-                let c = this.p & 1; 
+            case 0x6E: { 
+                let a = this.abs(); let v = this.read(a); this.write(a, v); let c = this.p & 1; 
                 if (v & 1) this.p |= 1; else this.p &= ~1; 
-                v = (v >> 1) | (c << 7); 
-                this.write(a, v); 
-                this.setNZ(v); 
-                cycles = 6; 
+                v = (v >> 1) | (c << 7); this.write(a, v); this.setNZ(v); cycles = 6; 
             } break; 
             
-            case 0x1E: { // ASL abs,X
-                let a = this.absX(); 
-                let v = this.read(a); 
-                this.write(a, v); 
+            case 0x1E: { 
+                let a = this.absX(); let v = this.read(a); this.write(a, v); 
                 if (v & 128) this.p |= 1; else this.p &= ~1; 
-                v = (v << 1) & 0xFF; 
-                this.write(a, v); 
-                this.setNZ(v); 
-                cycles = 7; 
+                v = (v << 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 7; 
             } break;
-            
-            case 0x5E: { // LSR abs,X
-                let a = this.absX(); 
-                let v = this.read(a); 
-                this.write(a, v); 
+            case 0x5E: { 
+                let a = this.absX(); let v = this.read(a); this.write(a, v); 
                 if (v & 1) this.p |= 1; else this.p &= ~1; 
-                v = (v >> 1) & 0x7F; 
-                this.write(a, v); 
-                this.setNZ(v); 
-                cycles = 7; 
+                v = (v >> 1) & 0x7F; this.write(a, v); this.setNZ(v); cycles = 7; 
             } break;
-            
-            case 0x3E: { // ROL abs,X
-                let a = this.absX(); 
-                let v = this.read(a); 
-                this.write(a, v); 
-                let c = this.p & 1; 
+            case 0x3E: { 
+                let a = this.absX(); let v = this.read(a); this.write(a, v); let c = this.p & 1; 
                 if (v & 128) this.p |= 1; else this.p &= ~1; 
-                v = ((v << 1) & 0xFF) | c; 
-                this.write(a, v); 
-                this.setNZ(v); 
-                cycles = 7; 
+                v = ((v << 1) & 0xFF) | c; this.write(a, v); this.setNZ(v); cycles = 7; 
             } break;
-            
-            case 0x7E: { // ROR abs,X
-                let a = this.absX(); 
-                let v = this.read(a); 
-                this.write(a, v); 
-                let c = this.p & 1; 
+            case 0x7E: { 
+                let a = this.absX(); let v = this.read(a); this.write(a, v); let c = this.p & 1; 
                 if (v & 1) this.p |= 1; else this.p &= ~1; 
-                v = (v >> 1) | (c << 7); 
-                this.write(a, v); 
-                this.setNZ(v); 
-                cycles = 7; 
+                v = (v >> 1) | (c << 7); this.write(a, v); this.setNZ(v); cycles = 7; 
             } break;
 
             default: 
@@ -1014,7 +837,6 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
                 cycles = 4;
                 break;
 
-            // Absolute, X (cycles = 4 + page cross)
             case 0x7D: case 0xFD: case 0x3D: case 0x1D:
             case 0x5D: case 0xDD: {
                 let addr = this.abs();
@@ -1027,7 +849,6 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
                 break;
             }
 
-            // Absolute, Y (cycles = 4 + page cross)
             case 0x79: case 0xF9: case 0x39: case 0x19:
             case 0x59: case 0xD9: {
                 let addr = this.abs();
@@ -1046,7 +867,6 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
                 cycles = 6;
                 break;
 
-            // Indirect Indexed Y (cycles = 5 + page cross)
             case 0x71: case 0xF1: case 0x31: case 0x11:
             case 0x51: case 0xD1: {
                 let z = this.zp();
@@ -1059,57 +879,6 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
                 cycles = 5 + (this.pageCrossed(addr, addrY) ? 1 : 0);
                 break;
             }
-            // =========================================================
-            // --- UNDOKUMENTIERTE OPCODES (LAX / SAX FÜR DIGIDRUMS) ---
-            // =========================================================
-            case 0xA7: { // LAX zp
-                let z = this.zp();
-                let v = this.read(z);
-                this.a = v; this.x = v;
-                this.setNZ(v);
-                cycles = 3;
-            } break;
-            case 0xAF: { // LAX abs
-                let a = this.abs();
-                let v = this.read(a);
-                this.a = v; this.x = v;
-                this.setNZ(v);
-                cycles = 4;
-            } break;
-            case 0xBF: { // LAX abs,Y
-                let a = this.abs();
-                let aY = (a + this.y) & 0xFFFF;
-                if (this.pageCrossed(a, aY)) {
-                    this.read((a & 0xFF00) | (aY & 0x00FF)); // Dummy Read
-                }
-                let v = this.read(aY);
-                this.a = v; this.x = v;
-                this.setNZ(v);
-                cycles = 4 + (this.pageCrossed(a, aY) ? 1 : 0);
-            } break;
-            case 0xB7: { // LAX zp,Y
-                let z = this.zpY();
-                let v = this.read(z);
-                this.a = v; this.x = v;
-                this.setNZ(v);
-                cycles = 4;
-            } break;
-
-            case 0x87: { // SAX zp
-                let z = this.zp();
-                this.write(z, this.a & this.x);
-                cycles = 3;
-            } break;
-            case 0x8F: { // SAX abs
-                let a = this.abs();
-                this.write(a, this.a & this.x);
-                cycles = 4;
-            } break;
-            case 0x97: { // SAX zp,Y
-                let z = this.zpY();
-                this.write(z, this.a & this.x);
-                cycles = 4;
-            } break;
 
             default:
                 setVal = false;
@@ -1133,27 +902,17 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
                         A = this.a;
                         result_dec = A + val + (this.p & 0x01);
                         
-                        // Addition der Low-Nibbles
                         AL = (A & 0x0F) + (val & 0x0F) + (this.p & 0x01);
-                        if (AL >= 0x0A) {
-                            AL = ((AL + 0x06) & 0x0F) + 0x10;
-                        }
+                        if (AL >= 0x0A) AL = ((AL + 0x06) & 0x0F) + 0x10;
                         A = (A & 0xF0) + (val & 0xF0) + AL;
                         
-                        // NMOS setzt Sign (N) und Overflow (V) anhand des binären Ergebnisses
                         if (A & 0x80) this.p |= 128; else this.p &= ~128;
                         if ((this.a ^ A) & (val ^ A) & 0x80) this.p |= 64; else this.p &= ~64;
                         
-                        // BCD-Kompensation für High-Nibble
-                        if (A >= 0x1A0) {
-                            A += 0x60;
-                        }
+                        if (A >= 0x1A0) A += 0x60;
                         
-                        // Carry wird anhand des Decimal-Ergebnisses berechnet
                         let carryLimit = (this.p & 0x01) ? 0x199 : 0x19F;
                         if (result_dec > carryLimit) this.p |= 1; else this.p &= ~1;
-                        
-                        // Z-Flag wird auf Basis des BINÄREN Zwischenergebnisses gesetzt!
                         if (result_dec & 0xFF) this.p &= ~2; else this.p |= 2;
                         
                         this.a = A & 0xFF;
@@ -1180,20 +939,14 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
                         let val_inv = val ^ 0xFF;
                         result_dec = A + val_inv + C;
                         
-                        // Flags (C, V, N, Z) werden beim NMOS-SBC binär berechnet
                         if (result_dec > 0xFF) this.p |= 1; else this.p &= ~1;
                         if ((this.a ^ result_dec) & (val_inv ^ result_dec) & 0x80) this.p |= 64; else this.p &= ~64;
                         this.setNZ(result_dec & 0xFF);
                         
-                        // BCD-Kompensation (NMOS Sequence 3)
                         AL = (A & 0x0F) - (B & 0x0F) + C - 1;
-                        if (AL < 0) {
-                            AL = ((AL - 0x06) & 0x0F) - 0x10;
-                        }
+                        if (AL < 0) AL = ((AL - 0x06) & 0x0F) - 0x10;
                         A = (A & 0xF0) - (B & 0xF0) + AL;
-                        if (A < 0) {
-                            A = A - 0x60;
-                        }
+                        if (A < 0) A = A - 0x60;
                         this.a = A & 0xFF;
                     } else { // Standard Binary Mode
                         let val_inv = val ^ 0xFF; 
@@ -1214,7 +967,6 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
         return cycles;
     }
 
-    // --- SCHRITT 5: BCD ARITHMETIK HILFSMETHODEN ---
     addBcd(val, add) {
         let low = (val & 0x0F) + add;
         let high = (val >> 4);
@@ -1247,7 +999,7 @@ updateIrqState(cycleIndex = 0, totalCycles = 1) {
                         hBcd = 1;
                     }
                     if (hBcd === 0x12) {
-                        pm ^= 0x80; // Toggle AM/PM Flag bei 12 Uhr
+                        pm ^= 0x80; 
                     }
                     this.todHour = hBcd | pm;
                 }

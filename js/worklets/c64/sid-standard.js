@@ -1,10 +1,4 @@
 // === js/worklets/c64/sid-standard.js ===
-// =========================================================
-// MOS TECHNOLOGY SID 6581 AUDIO WORKLET PROCESSOR
-// CPU-Optimized 1MHz Lockstep Core with Boxcar Decimation
-// Phase 11: True 1MHz Micro-Stepping & Badline Timing Support (Step 1)
-// =========================================================
-
 import { CPU6502 } from '../lib/cpu6502.js';
 import { SIDChip } from '../lib/sid-chip.js';
 import { DCBlocker } from '../lib/dsp-utils.js';
@@ -25,9 +19,11 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.initAddress = 0;
         this.playAddress = 0;
         this.playSpeedCycles = 19705; 
-
+        this.songSpeedFlags = 0;
+        
         this.isPlaying = false;
         this.hostPlayPending = false;
+        
         this.cycleAccumulator = 0.0;
         this.vblankTimer = 19705; 
         this.currentFrame = 0;
@@ -38,7 +34,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         
         this.visualView = new Float32Array(40);
 
-this.port.onmessage = (e) => {
+        this.port.onmessage = (e) => {
             const msg = e.data;
             
             if (msg.type === 'SET_TEMPERATURE') {
@@ -69,9 +65,8 @@ this.port.onmessage = (e) => {
                 this.cpu.x = songIndex; 
                 this.cpu.y = 0;
                 
-                // Init in die Routine drücken
-                this.cpu.push(0xEF); 
-                this.cpu.push(0xFE); 
+                this.cpu.push(0xEF);
+                this.cpu.push(0xFE);
                 this.cpu.pc = this.initAddress;
 
                 let safety = 5000000;
@@ -97,23 +92,33 @@ this.port.onmessage = (e) => {
                                 this.cpu.triggerHardwareIrq();
                                 this.cpuCyclesRemaining = 7 - 1;
                             } else {
-                                let cyclesUsed = this.cpu.step();
-                                this.cpuCyclesRemaining = cyclesUsed - 1; 
+                                let cyclesUsed = this.cpu.step(); 
+                                this.cpuCyclesRemaining = cyclesUsed - 1;
                             }
                         } else {
                             this.cpuCyclesRemaining--;
                         }
                     }
                 }
-               this.cpu.pc = 0xEFFF; // Zwingt die CPU nach der Init-Phase in die sichere Host-Idle-Schleife ($EFFF)
-                this.cpu.p &= ~0x04;  // Gibt Hardware-Interrupts nach der Initialisierung frei
+                this.cpu.pc = 0xEFFF; 
+                this.cpu.p &= ~0x04; 
 
                 this.playAddress = msg.playAddress;
 
-                // --- FIX: useCiaTimer Zuweisung ---
                 this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
                 this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
                 this.vblankTimer = this.playSpeedCycles;
+
+                let bootMsg = `==================================================\n` +
+                              `[LAB-BOOT] Core: ${this.constructor.name}\n` +
+                              `[LAB-BOOT] Subsong-Index: ${songIndex} | Address-Range: $${this.loadAddr.toString(16).toUpperCase()} - $${(this.loadAddr + this.prgCode.length).toString(16).toUpperCase()}\n` +
+                              `[LAB-BOOT] Play-Address: $${this.playAddress.toString(16).toUpperCase()}\n` +
+                              `[LAB-BOOT] Vector $0314 (IRQ): $${this.cpu.ram[0x0314].toString(16).toUpperCase().padStart(2, '0')}${this.cpu.ram[0x0315].toString(16).toUpperCase().padStart(2, '0')}\n` +
+                              `[LAB-BOOT] Vector $0318 (NMI): $${this.cpu.ram[0x0318].toString(16).toUpperCase().padStart(2, '0')}${this.cpu.ram[0x0319].toString(16).toUpperCase().padStart(2, '0')}\n` +
+                              `[LAB-BOOT] VIC Mask $D01A: $${this.cpu.ram[0xD01A].toString(16).toUpperCase()} | CIA-1 Mask $DC0D: $${this.cpu.cia1IrqMask.toString(16).toUpperCase()}\n` +
+                              `[LAB-BOOT] Speedflags: %${this.songSpeedFlags.toString(2)} | useCiaTimer: ${this.useCiaTimer}\n` +
+                              `==================================================`;
+                this.port.postMessage({ type: 'LAB_LOG', msg: bootMsg });
 
                 this.cycleAccumulator = 0.0;
                 this.cpuCyclesRemaining = 0;
@@ -144,13 +149,12 @@ this.port.onmessage = (e) => {
                 this.cpu.x = songIndex;
                 this.cpu.y = 0;
                 
-                // Init in die Routine drücken
-                this.cpu.push(0xEF); 
-                this.cpu.push(0xFE); // Return to $EFFF (Host Idle Loop)
+                this.cpu.push(0xEF);
+                this.cpu.push(0xFE);
                 this.cpu.pc = this.initAddress;
-
+                
                 let safety = 5000000;
-                while (this.cpu.pc !== 0xEFFF && safety-- > 0) { // <- Auf $EFFF abfragen!
+                while (this.cpu.pc !== 0xEFFF && safety-- > 0) {
                     this.cpu.clockHardware(1);
                     this.sid.clock();
                     
@@ -172,16 +176,15 @@ this.port.onmessage = (e) => {
                                 this.cpu.triggerHardwareIrq();
                                 this.cpuCyclesRemaining = 7 - 1;
                             } else {
-                                let cyclesUsed = this.cpu.step();
-                                this.cpuCyclesRemaining = cyclesUsed - 1; 
+                                let cyclesUsed = this.cpu.step(); 
+                                this.cpuCyclesRemaining = cyclesUsed - 1;
                             }
                         } else {
                             this.cpuCyclesRemaining--;
                         }
                     }
                 }
-
-                this.cpu.pc = 0xEFFF; // <- Auf $EFFF zwingen!
+                this.cpu.pc = 0xEFFF; 
                 this.cpu.p &= ~0x04;
                 
                 this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
@@ -198,11 +201,15 @@ this.port.onmessage = (e) => {
         };
     }
 
-    // In js/worklets/c64/sid-standard.js:
     process(inputs, outputs) {
         const outL = outputs[0][0];
         const outR = outputs[0].length > 1 ? outputs[0][1] : null;
         let visualValue = 0;
+
+        let irqHijacked = false;
+        let vicIrqEnabled = false;
+        let cia1TimerAEnabled = false;
+        let isSelfDriving = false;
 
         for (let i = 0; i < outL.length; i++) {
             if (!this.isPlaying) {
@@ -220,24 +227,19 @@ this.port.onmessage = (e) => {
             for (let c = 0; c < cyclesToRun; c++) {
                 
                 this.cpu.clockHardware(1); 
-                this.sid.clock();     
+                this.sid.clock();          
+                sampleSum += this.sid.outputSample; 
                 
-                sampleSum += this.sid.outputSample; // Boxcar Summation für Standard-Mode
-                
-                // 2. VBLANK / Host Player Call (Interrupt Hijack Detection)
-                // Prüft präzise, ob der Track den RAM-Vektor $0314 ($EA31) verändert hat
-                let irqHijacked = (this.cpu.ram[0x0314] !== 0x31) || (this.cpu.ram[0x0315] !== 0xEA);
-                let vicIrqEnabled = (this.cpu.ram[0xD01A] & 0x01) !== 0;
-                let cia1TimerAEnabled = (this.cpu.cia1IrqMask & 0x01) !== 0;
-                let isSelfDriving = irqHijacked && (vicIrqEnabled || cia1TimerAEnabled);
+                irqHijacked = (this.cpu.ram[0x0314] !== this.cpu.defaultIrqLo) || (this.cpu.ram[0x0315] !== this.cpu.defaultIrqHi);
+                vicIrqEnabled = (this.cpu.ram[0xD01A] & 0x01) !== 0;
+                cia1TimerAEnabled = (this.cpu.cia1IrqMask & 0x01) !== 0;
+                isSelfDriving = irqHijacked && (vicIrqEnabled || cia1TimerAEnabled);
 
                 if (!this.useCiaTimer) {
                     this.vblankTimer--;
                     if (this.vblankTimer <= 0) {
                         this.vblankTimer += this.playSpeedCycles;
-                        
-                        // Injektion nur, wenn der Track sich nicht selbst über Hardware taktet
-                        if (!isSelfDriving && this.playAddress !== 0) {
+                        if (this.playAddress !== 0) {
                             this.hostPlayPending = true;
                         }
                         this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
@@ -249,27 +251,23 @@ this.port.onmessage = (e) => {
                         this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                     }
                     
-                    // Wizball-Fix: Bei CIA-getakteten SIDs weichen wir präzise auf den Timer-A-Underflow aus
                     if (this.cpu.cia1TimerAUnderflowed) {
                         this.cpu.cia1TimerAUnderflowed = false;
-                        if (!isSelfDriving && this.playAddress !== 0) {
+                        if (this.playAddress !== 0) {
                             this.hostPlayPending = true;
                         }
                     }
                 }
-                
-                // --- SCHRITT 3: IRQ-LATENZ SAMPLING ---
+
                 if (this.cpuCyclesRemaining === 1) {
                     this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
                     this.cpu.nmiAccepted = this.cpu.nmiPending;
                 }
 
-                // 3. CPU Ausführung
                 if (!this.cpu.rdy) {
-                    // CPU stall (Badlines)
+                    // CPU stall
                 } else {
                     if (this.cpuCyclesRemaining <= 0) {
-                        // Der Host Play Call injiziert nur noch, wenn die CPU sicher im Host-Idle ist!
                         if (this.hostPlayPending && this.cpu.pc >= 0xEFFF && this.cpu.pc <= 0xF001) {
                             this.hostPlayPending = false;
                             this.cpu.push(0xEF);
@@ -294,13 +292,9 @@ this.port.onmessage = (e) => {
                 }
             }
             
-            // --- BOXCAR DECIMATION & MOTHERBOARD FILTERING ---
             let finalSample = cyclesToRun > 0 ? sampleSum / cyclesToRun : this.lastSampleValue;
             this.lastSampleValue = finalSample;
-            
             finalSample = this.dcBlock.process(finalSample);
-
-            // C64 Motherboard Audio Filter (1-Pole RC, ca. 12.5 kHz)
             this.outLp += 0.65 * (finalSample - this.outLp);
             finalSample = this.outLp;
 
@@ -309,7 +303,6 @@ this.port.onmessage = (e) => {
             if (i === 0) visualValue = finalSample;
         }
 
-        // --- VISUALIZATION DATA DISPATCH ---
         this.visCounter = (this.visCounter || 0) + 1;
         if (this.visCounter % 4 === 0) {
             let isAudible = Math.abs(visualValue) > 0.001;
