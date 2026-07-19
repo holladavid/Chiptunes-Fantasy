@@ -179,13 +179,19 @@ constructor(sid) {
 
         if (addr === 0xDC07) return (this.cia1TimerB >> 8) & 0xFF;
         
-        // --- SCHRITT 7: CIA ICR ---
+        // --- PHASE 2: CIA ICR READ (Read-to-Clear) ---
         if (addr === 0xDC0D) {
-            let val = this.cia1Icr; // Lese den aktuellen Interrupt-Status
-            this.cia1Icr = 0;       // Lösche den Status durch Lesen
-            this.updateIrq();       // Aktualisiere globale IRQ-Pending-Flags
+            // Bit 7 wird nur gesetzt, wenn ein aktiver UND maskierter Interrupt vorliegt
+            let anyEnabled = (this.cia1Icr & this.cia1IrqMask & 0x1F) !== 0;
+            let val = this.cia1Icr & 0x1F;
+            if (anyEnabled) {
+                val |= 0x80; // Setze das globale IRQ-Flag (Bit 7)
+            }
+            this.cia1Icr = 0; // Read-to-clear: Löscht alle Statusflags
+            this.updateIrq(); // Aktualisiere den IRQ-Zustand der CPU
             return val;
         }
+
         if (addr === 0xDC0E) return this.cia1CtrlA;
         if (addr === 0xDC0F) return this.cia1CtrlB;
         
@@ -244,12 +250,15 @@ constructor(sid) {
             this.cia1TimerBLatch = (this.cia1TimerBLatch & 0x00FF) | (val << 8);
             if ((this.cia1CtrlB & 0x01) === 0) this.cia1TimerB = (this.cia1TimerB & 0x00FF) | (val << 8);
         }
-        // --- SCHRITT 7: CIA ICR MASKING ---
-        else if (addr === 0xDC0D) { 
-            // Das Schreiben auf DC0D löscht Bits, die gesetzt sind.
-            // Nur die Latch-Bits werden hier beachtet.
-            // Das Maskieren geschieht über DC0E.
-            this.cia1Icr &= ~(val & 0x7F);
+        // --- PHASE 2: CIA IER WRITE (Mask Register) ---
+        else if (addr === 0xDC0D) {
+            let bit7 = (val & 0x80) !== 0;
+            let maskBits = val & 0x1F;
+            if (bit7) {
+                this.cia1IrqMask |= maskBits;  // Bits auf 1 setzen (Aktivieren)
+            } else {
+                this.cia1IrqMask &= ~maskBits; // Bits auf 0 löschen (Deaktivieren)
+            }
             this.updateIrq();
         }
         // --- SCHRITT 5: CIA TOD CLOCK ---
@@ -265,22 +274,24 @@ constructor(sid) {
     }
 
     updateIrq() {
-        // VIC IRQ wird durch das Lesen von D019 / D01A gesteuert
         let vicIrq = (this.ram[0xD019] & this.ram[0xD01A] & 0x0F) !== 0;
-        
-        // CIA IRQ: Prüfe, ob ein erkannten Interrupt (cia1Icr) auch maskiert ist (cia1IrqMask)
         let ciaIrq = (this.cia1Icr & this.cia1IrqMask & 0x1F) !== 0;
         
-        // Setze die globalen Pending-Flags basierend auf den individuellen Ereignissen
         this.irqPending = vicIrq || ciaIrq;
         
-        // Setze die Bits im VIC-Register D019 entsprechend dem Zustand
-        if (vicIrq) this.ram[0xD019] |= 0x80;
-        else this.ram[0xD019] &= 0x7F;
+        // Update VIC-II Interrupt Status Register ($D019) General IRQ Flag (Bit 7)
+        if (vicIrq) {
+            this.ram[0xD019] |= 0x80;
+        } else {
+            this.ram[0xD019] &= 0x7F;
+        }
 
-        // Setze die Bits im CIA1 ICR Register entsprechend dem Zustand
-        if (ciaIrq) this.cia1Icr |= 0x80;
-        else this.cia1Icr &= 0x7F;
+        // Update CIA-1 Interrupt Control Register ($DC0D) General IRQ Flag (Bit 7)
+        if (ciaIrq) {
+            this.cia1Icr |= 0x80;
+        } else {
+            this.cia1Icr &= 0x7F;
+        }
     }
 
     // =========================================================
