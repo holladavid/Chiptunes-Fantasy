@@ -5,6 +5,7 @@
 // Exponential Cutoff Drift, Thermal DAC Gain/Offset,
 // JFET Temperature Saturation, and Dynamic Leakage.
 // Upgraded with Hardware-Accurate ADSR Delay-Bug Emulation
+// Upgraded with Cycle-Exact 15-Bit LFSR Rate Counter Wrapping
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -162,11 +163,15 @@ export class SIDChip {
         if (ch.state === ENV_ATTACK) ratePeriod = ch.attack_period;
         else if (ch.state === ENV_DECAY) ratePeriod = ch.decay_period;
 
-        // --- HARDWARE-ACCURATE UP-COUNTER (15-Bit LFSR-Annäherung) ---
-        // Zählt kontinuierlich hoch und maskiert bei 15-Bit (0 bis 32767).
-        // Wird bei Gate-Änderungen oder Register-Writes nicht manipuliert.
+        // --- HARDWARE-ACCURATE UP-COUNTER (15-Bit LFSR-Überlauf) ---
+        // Wenn der Counter 32767 (0x7FFF) überschreitet, setzt das Hardware-LFSR 
+        // Bit 15 (0x8000). Die Logik inkrementiert den Zähler daraufhin sofort 
+        // ein zweites Mal, wodurch er den Zustand 0 überspringt und bei 1 weiterzählt.
+        // Das führt beim Einrasten auf neue Raten (ADSR delay-bug) zu exakt rate_period - 1 Zyklen Latenz.
         ch.rate_counter++;
-        ch.rate_counter &= 0x7FFF; 
+        if (ch.rate_counter & 0x8000) {
+            ch.rate_counter = (ch.rate_counter + 1) & 0x7FFF;
+        }
 
         if (ch.rate_counter === ratePeriod) {
             ch.rate_counter = 0; // Reset nur bei exakter Koinzidenz (Gleichheits-Match)
