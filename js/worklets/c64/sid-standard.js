@@ -195,20 +195,37 @@ class SIDProcessor extends AudioWorkletProcessor {
                 if (this.cpu.cpuStall > 0) {
                     this.cpu.cpuStall--;
                 } else {
-                    if (this.cpuCyclesRemaining <= 0) {
-                        if (this.cpu.nmiPending) {
-                            this.cpu.nmiPending = false;
-                            this.cpu.triggerHardwareNmi();
-                            this.cpuCyclesRemaining = 7 - 1;
-                        } else if (this.cpu.irqPending && (this.cpu.p & 0x04) === 0) {
-                            this.cpu.triggerHardwareIrq();
-                            this.cpuCyclesRemaining = 7 - 1;
-                        } else {
-                            let cyclesUsed = this.cpu.step();
-                            this.cpuCyclesRemaining = cyclesUsed - 1;
-                        }
+                    // --- SCHRITT 3: IRQ-LATENZ SAMPLING ---
+                    // Die IRQ/NMI-Leitungen werden im vorletzten Zyklus (T-1) der 
+                    // aktuellen Instruktion für den kommenden Befehls-Fetch gesampelt.
+                    if (this.cpuCyclesRemaining === 1) {
+                        this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
+                        this.cpu.nmiAccepted = this.cpu.nmiPending;
+                    }
+
+                    // 3. CPU Ausführung mit Badline-Halt
+                    if (this.cpu.cpuStall > 0) {
+                        this.cpu.cpuStall--; // CPU blockiert
                     } else {
-                        this.cpuCyclesRemaining--;
+                        if (this.cpuCyclesRemaining <= 0) {
+                            // --- SCHRITT 3: INTERRUPT-ANERKENNUNG ---
+                            // Hat das Sampling im vorletzten Zyklus angeschlagen,
+                            // wird nun die 7-Cycle Interrupt-Sequenz gestartet.
+                            if (this.cpu.nmiAccepted) {
+                                this.cpu.nmiAccepted = false;
+                                this.cpu.triggerHardwareNmi();
+                                this.cpuCyclesRemaining = 7 - 1;
+                            } else if (this.cpu.irqAccepted) {
+                                this.cpu.irqAccepted = false;
+                                this.cpu.triggerHardwareIrq();
+                                this.cpuCyclesRemaining = 7 - 1;
+                            } else {
+                                let cyclesUsed = this.cpu.step();
+                                this.cpuCyclesRemaining = cyclesUsed - 1;
+                            }
+                        } else {
+                            this.cpuCyclesRemaining--;
+                        }
                     }
                 }
 

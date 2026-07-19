@@ -33,6 +33,15 @@ export class CPU6502 {
         // --- SCHRITT 1: VIC-II BADLINE TIMING ---
         this.cpuStall = 0;       // Verbleibende Halte-Zyklen für die CPU
         this.isBadLine = false;  // Flag für die aktuelle Zeile
+
+        // --- SCHRITT 2: CIA TIMER B ---
+        this.cia1TimerB = 0xFFFF;
+        this.cia1TimerBLatch = 0xFFFF;
+        this.cia1CtrlB = 0;
+
+        // --- SCHRITT 3: IRQ-LATENZ & ANERKENNUNG ---
+        this.irqAccepted = false;
+        this.nmiAccepted = false;
     }
 
     reset(loadAddr, prgCode) {
@@ -87,6 +96,10 @@ export class CPU6502 {
         this.cia1TimerB = 0xFFFF;
         this.cia1TimerBLatch = 0xFFFF;
         this.cia1CtrlB = 0;
+
+        // --- SCHRITT 3: IRQ-LATENZ & ANERKENNUNG ---
+        this.irqAccepted = false;
+        this.nmiAccepted = false;
     }
 
     push(val) {
