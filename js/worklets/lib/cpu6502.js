@@ -973,8 +973,90 @@ constructor(sid) {
             if (high === 0xC0 || high === 0xD0) { if(low!==0&&low!==8&&low!==0xA&&op!==0xD8) { let diff = this.a - val; this.setNZ(diff & 0xFF); if (this.a >= val) this.p |= 1; else this.p &= ~1; return cycles; } }
             if (op===0xE0||op===0xE4||op===0xEC) { let diff = this.x - val; this.setNZ(diff & 0xFF); if (this.x >= val) this.p |= 1; else this.p &= ~1; return cycles; }
             if (op===0xC0||op===0xC4||op===0xCC) { let diff = this.y - val; this.setNZ(diff & 0xFF); if (this.y >= val) this.p |= 1; else this.p &= ~1; return cycles; }
-            if (high === 0x60 || high === 0x70) { if(op!==0x60&&op!==0x68&&op!==0x6A&&op!==0x78&&op!==0x70) { let carry = this.p & 1; let sum = this.a + val + carry; let overflow = ((this.a ^ sum) & (val ^ sum) & 0x80) !== 0; if (sum > 255) this.p |= 1; else this.p &= ~1; if (overflow) this.p |= 64; else this.p &= ~64; this.a = sum & 0xFF; this.setNZ(this.a); return cycles; } }
-            if (high === 0xE0 || high === 0xF0) { if(op!==0xE0&&op!==0xE4&&op!==0xE8&&op!==0xEA&&op!==0xEC&&op!==0xF8&&op!==0xF0) { let val_inv = val ^ 0xFF; let carry = this.p & 1; let sum = this.a + val_inv + carry; let overflow = ((this.a ^ sum) & (val_inv ^ sum) & 0x80) !== 0; if (sum > 255) this.p |= 1; else this.p &= ~1; if (overflow) this.p |= 64; else this.p &= ~64; this.a = sum & 0xFF; this.setNZ(this.a); return cycles; } }
+
+            if (high === 0x60 || high === 0x70) { 
+                if(op!==0x60&&op!==0x68&&op!==0x6A&&op!==0x78&&op!==0x70) { 
+                    if (this.p & 0x08) { // Decimal Mode (BCD) aktiv
+                        let AL, A, result_dec;
+                        A = this.a;
+                        result_dec = A + val + (this.p & 0x01);
+                        
+                        // Addition der Low-Nibbles
+                        AL = (A & 0x0F) + (val & 0x0F) + (this.p & 0x01);
+                        if (AL >= 0x0A) {
+                            AL = ((AL + 0x06) & 0x0F) + 0x10;
+                        }
+                        A = (A & 0xF0) + (val & 0xF0) + AL;
+                        
+                        // NMOS setzt Sign (N) und Overflow (V) anhand des binären Ergebnisses
+                        if (A & 0x80) this.p |= 128; else this.p &= ~128;
+                        if ((this.a ^ A) & (val ^ A) & 0x80) this.p |= 64; else this.p &= ~64;
+                        
+                        // BCD-Kompensation für High-Nibble
+                        if (A >= 0x1A0) {
+                            A += 0x60;
+                        }
+                        
+                        // Carry wird anhand des Decimal-Ergebnisses berechnet
+                        let carryLimit = (this.p & 0x01) ? 0x199 : 0x19F;
+                        if (result_dec > carryLimit) this.p |= 1; else this.p &= ~1;
+                        
+                        // Z-Flag wird auf Basis des BINÄREN Zwischenergebnisses gesetzt!
+                        if (result_dec & 0xFF) this.p &= ~2; else this.p |= 2;
+                        
+                        this.a = A & 0xFF;
+                    } else { // Standard Binary Mode
+                        let carry = this.p & 1; 
+                        let sum = this.a + val + carry; 
+                        let overflow = ((this.a ^ sum) & (val ^ sum) & 0x80) !== 0; 
+                        if (sum > 255) this.p |= 1; else this.p &= ~1; 
+                        if (overflow) this.p |= 64; else this.p &= ~64; 
+                        this.a = sum & 0xFF; 
+                        this.setNZ(this.a); 
+                    }
+                    return cycles; 
+                } 
+            }
+
+if (high === 0xE0 || high === 0xF0) { 
+                if(op!==0xE0&&op!==0xE4&&op!==0xE8&&op!==0xEA&&op!==0xEC&&op!==0xF8&&op!==0xF0) { 
+                    if (this.p & 0x08) { // Decimal Mode (BCD) aktiv
+                        let result_dec, A, AL, B, C;
+                        A = this.a;
+                        C = this.p & 0x01;
+                        B = val;
+                        let val_inv = val ^ 0xFF;
+                        result_dec = A + val_inv + C;
+                        
+                        // Flags (C, V, N, Z) werden beim NMOS-SBC binär berechnet
+                        if (result_dec > 0xFF) this.p |= 1; else this.p &= ~1;
+                        if ((this.a ^ result_dec) & (val_inv ^ result_dec) & 0x80) this.p |= 64; else this.p &= ~64;
+                        this.setNZ(result_dec & 0xFF);
+                        
+                        // BCD-Kompensation (NMOS Sequence 3)
+                        AL = (A & 0x0F) - (B & 0x0F) + C - 1;
+                        if (AL < 0) {
+                            AL = ((AL - 0x06) & 0x0F) - 0x10;
+                        }
+                        A = (A & 0xF0) - (B & 0xF0) + AL;
+                        if (A < 0) {
+                            A = A - 0x60;
+                        }
+                        this.a = A & 0xFF;
+                    } else { // Standard Binary Mode
+                        let val_inv = val ^ 0xFF; 
+                        let carry = this.p & 1; 
+                        let sum = this.a + val_inv + carry; 
+                        let overflow = ((this.a ^ sum) & (val_inv ^ sum) & 0x80) !== 0; 
+                        if (sum > 255) this.p |= 1; else this.p &= ~1; 
+                        if (overflow) this.p |= 64; else this.p &= ~64; 
+                        this.a = sum & 0xFF; 
+                        this.setNZ(this.a); 
+                    }
+                    return cycles; 
+                } 
+            }
+                        
             if (op === 0x24 || op === 0x2C) { if (val & 0x80) this.p |= 128; else this.p &= ~128; if (val & 0x40) this.p |= 64; else this.p &= ~64; if ((val & this.a) === 0) this.p |= 2; else this.p &= ~2; return cycles; }
         }
         return cycles;
