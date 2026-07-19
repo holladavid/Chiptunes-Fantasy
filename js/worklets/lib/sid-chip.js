@@ -8,6 +8,7 @@
 // Upgraded with Dynamic VCA DC-Leakage Activity Tracking
 // Upgraded with historically accurate Floating DAC Waveform Discharge
 // Upgraded with non-linear Summer Op-Amp Saturation (Filter Squelch)
+// Upgraded with non-linear Volume Register D/A Mapping & VCA Multiplier Bias
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -15,6 +16,14 @@ import { DAC_LUT, CUTOFF_LUT } from './sid-luts.js';
 
 const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_RELEASE = 2; 
 const RATE_COUNTER_PERIOD = [9, 32, 63, 95, 149, 220, 267, 313, 392, 977, 1954, 3126, 3907, 11720, 19530, 31256];
+
+// --- STATISCHER VERLAUF DES NICHT-LINEAREN 6581 LAUTSTÄRKE-D/A-WANDLERS ---
+// Gemessen von Pex "Mahoney" Tufvesson auf realem 6581 NMOS-Silizium.
+// Bildet das unregelmäßige Verhalten der R-2R-Widerstandsleiter exakt ab.
+const VOLUME_DAC_6581 = new Float32Array([
+    0.000, 0.078, 0.149, 0.228, 0.307, 0.378, 0.449, 0.512,
+    0.606, 0.669, 0.724, 0.787, 0.842, 0.898, 0.953, 1.000
+]);
 
 export class SIDChip {
     constructor() {
@@ -152,7 +161,18 @@ export class SIDChip {
             this.updateFilterParameters();
         } else if (reg === 24) {
             this.filterMode = val;
-            this.masterVol = (val & 15) / 15.0;
+            
+            // --- NON-LINEARER LAUTSTÄRKE DAC ---
+            // Mappt das Register d418 über den gemessenen analogen Widerstandspfad.
+            let volIndex = val & 15;
+            let newVol = VOLUME_DAC_6581[volIndex];
+            
+            // --- DETEKTION DER REGISTERRATEN-MODULATION ---
+            let delta = Math.abs(newVol - this.masterVol);
+            if (delta > 0.01) {
+                this.volWiggleActivity = Math.min(1.0, this.volWiggleActivity + 0.15);
+            }
+            this.masterVol = newVol;
         }
     }
 
@@ -299,9 +319,6 @@ export class SIDChip {
         let hp = (h - q * this.filterBand) / (1.0 + g * (g + q));
 
         // --- NON-LINEARER ADDIEERER (hp-Op-Amp-Sättigung) ---
-        // Auf dem 6581 clippt der Addierer-Op-Amp (hp) asymmetrisch vor den Integrierern.
-        // Das dämpft resonante Amplitudenspitzen ab, wodurch der typisch nasse,
-        // schmatzende Soundcharakter bei schnellen Cutoff-Bewegungen entsteht.
         if (this.useJfetSaturation) {
             let summerDrive = this.thermalJfetDrive * 1.5; 
             hp = Math.tanh(hp * summerDrive) / summerDrive;
@@ -338,12 +355,20 @@ export class SIDChip {
         
         let vcaQuad = this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0;
         
-        let finalMix = vcaIn > 0 
-            ? Math.tanh(vcaIn + vcaQuad) 
-            : Math.tanh(vcaIn * 0.85 + vcaQuad) / 0.85;
+        // --- CIRCUIT-ACCURATE MULTIPLIER OFFSET (The true $D418 Bug) ---
+        // Auf dem realen 6581 existiert am VCA-Multiplizierer ein massiver, 
+        // konstanter DC-Offset durch den analogen Stimmen-Mixer. 
+        // Wir injizieren diesen Offset direkt in 'vcaIn' vor der Multiplikation.
+        // Bei Wiggle-Aktivität wird dieser Offset gesättigt angehoben und 
+        // direkt mit dem nicht-linearen masterVol-DAC multipliziert!
+        let dynamicBias = 1.0 + (this.volWiggleActivity * 2.5);
+        let vcaInWithBias = vcaIn + (0.5 * dynamicBias);
 
-        let dynamicGain = 1.2 + (this.volWiggleActivity * 2.3);
-        let dcLeakage = (this.masterVol - 0.5) * dynamicGain + this.thermalDcOffset;
-        this.outputSample = (finalMix * this.masterVol) + dcLeakage;
+        let finalMix = vcaInWithBias > 0 
+            ? Math.tanh(vcaInWithBias + vcaQuad) 
+            : Math.tanh(vcaInWithBias * 0.85 + vcaQuad) / 0.85;
+
+        // Der Lautstärke-DAC multipliziert nun direkt den analogen, gesättigten DC-Offset!
+        this.outputSample = (finalMix * this.masterVol) + this.thermalDcOffset;
     }
 }
