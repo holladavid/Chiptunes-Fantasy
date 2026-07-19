@@ -313,7 +313,10 @@ export class SIDChip {
             ? Math.tanh(vcaIn + vcaQuad) 
             : Math.tanh(vcaIn * 0.85 + vcaQuad) / 0.85;
 
-        let dcLeakage = (this.masterVol - 0.5) * 1.5 + this.thermalDcOffset;
+        // --- RETRO-BOOST: DC Leakage Gain angehoben ---
+        // Erhöht von 1.5 auf 3.5, um Galways prozeduralen Digidrum-Flanken exakt die
+        // nötige Amplitude und Durchsetzungskraft im analogen Mix zu geben.
+        let dcLeakage = (this.masterVol - 0.5) * 3.5 + this.thermalDcOffset;
         this.outputSample = (finalMix * this.masterVol) + dcLeakage;
     }
 }
