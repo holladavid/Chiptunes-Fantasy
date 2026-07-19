@@ -6,7 +6,7 @@
 // =========================================================
 
 export class CPU6502 {
-    constructor(sid) {
+constructor(sid) {
         this.ram = new Uint8Array(65536);
         this.sid = sid;
         
@@ -24,71 +24,50 @@ export class CPU6502 {
         this.cia1TimerA = 0xFFFF;
         this.cia1TimerALatch = 0xFFFF;
         this.cia1CtrlA = 0;
-        this.cia1Icr = 0;
-        this.cia1IrqMask = 0;
+        this.cia1Icr = 0; // Interrupt Control Register (Read-to-Clear)
+        this.cia1IrqMask = 0; // Interrupt Enable Register
         
-        this.irqPending = false;
-        this.nmiPending = false;
-
-        // --- SCHRITT 1: VIC-II BADLINE TIMING ---
-        this.cpuStall = 0;       // Verbleibende Halte-Zyklen für die CPU
-        this.isBadLine = false;  // Flag für die aktuelle Zeile
-
-        // --- SCHRITT 2: CIA TIMER B ---
         this.cia1TimerB = 0xFFFF;
         this.cia1TimerBLatch = 0xFFFF;
         this.cia1CtrlB = 0;
 
-        // --- SCHRITT 3: IRQ-LATENZ & ANERKENNUNG ---
+        this.irqPending = false;
+        this.nmiPending = false;
         this.irqAccepted = false;
         this.nmiAccepted = false;
 
-        // --- SCHRITT 5: CIA TOD CLOCK ---
+        // --- PHASE 1: PHYSIKALISCHE RDY-LEITUNG ---
+        this.rdy = true; // True = CPU läuft, False = CPU angehalten (Bus gesperrt)
+        this.isBadLine = false;
+
+        // TOD-Clock
         this.todTenths = 0;
         this.todSec = 0;
         this.todMin = 0;
-        this.todHour = 1; // Startet standardmäßig bei 1 AM (BCD)
-        
+        this.todHour = 1; // 1 AM
         this.todLatchTenths = 0;
         this.todLatchSec = 0;
         this.todLatchMin = 0;
         this.todLatchHour = 1;
         this.todLatched = false;
         this.todHalted = false;
-        
-        this.todCycleCounter = 19705; // Standard 50Hz (PAL)
-
-        // --- SCHRITT 6: PHYSIKALISCHE RDY-LEITUNG ---
-        this.rdy = true;         // True = CPU läuft, False = CPU angehalten (Bus gesperrt)
-        this.isBadLine = false;
-
-        // --- SCHRITT 7: CIA ICR ---
-        this.cia1Icr = 0; // Interrupt Control Register (Read-to-Clear)
-        this.cia1IrqMask = 0; // Interrupt Enable Register
+        this.todCycleCounter = 19705;
     }
 
     reset(loadAddr, prgCode) {
         this.ram.fill(0);
         
-        // --- THE PHANTOM KERNAL ROM ---
-        // $EA31: Die Idle-Schleife der CPU (JMP $EA31)
-        this.ram[0xEA31] = 0x4C; this.ram[0xEA32] = 0x31; this.ram[0xEA33] = 0xEA;
-        
-        // $EA81: Die Rettungsleine (RTI)
-        this.ram[0xEA81] = 0x40; 
-        
-        // Default-Vektoren für RAM-Hooks zeigen auf RTI
         this.ram[0x0314] = 0x81; this.ram[0x0315] = 0xEA; 
         this.ram[0x0318] = 0x81; this.ram[0x0319] = 0xEA; 
 
-        // ROM Hardware Vectors
         this.ram[0xFFFE] = 0x48; this.ram[0xFFFF] = 0xFF; // Hardware IRQ -> $FF48
         this.ram[0xFFFA] = 0x58; this.ram[0xFFFB] = 0xFF; // Hardware NMI -> $FF58
 
-        // $FF48: JMP ($0314) -> Leitet den IRQ in den Player (oder auf RTI)
         this.ram[0xFF48] = 0x6C; this.ram[0xFF49] = 0x14; this.ram[0xFF4A] = 0x03;
-        // $FF58: JMP ($0318) -> Leitet den NMI ab
         this.ram[0xFF58] = 0x6C; this.ram[0xFF59] = 0x18; this.ram[0xFF5A] = 0x03;
+
+        this.ram[0xEA31] = 0x4C; this.ram[0xEA32] = 0x31; this.ram[0xEA33] = 0xEA;
+        this.ram[0xEA81] = 0x40; 
         
         for (let i = 0; i < prgCode.length; i++) {
             this.ram[loadAddr + i] = prgCode[i];
@@ -108,44 +87,30 @@ export class CPU6502 {
         this.cia1Icr = 0;
         this.cia1IrqMask = 0;
         
-        this.irqPending = false;
-        this.nmiPending = false;
-
-        // --- SCHRITT 1: VIC-II BADLINE TIMING ---
-        this.cpuStall = 0;
-        this.isBadLine = false;
-
-        // --- SCHRITT 2: CIA TIMER B ---
         this.cia1TimerB = 0xFFFF;
         this.cia1TimerBLatch = 0xFFFF;
         this.cia1CtrlB = 0;
-
-        // --- SCHRITT 3: IRQ-LATENZ & ANERKENNUNG ---
+        
+        this.irqPending = false;
+        this.nmiPending = false;
         this.irqAccepted = false;
         this.nmiAccepted = false;
 
-        // --- SCHRITT 5: CIA TOD CLOCK ---
+        // --- PHASE 1: PHYSIKALISCHE RDY-LEITUNG ---
+        this.rdy = true;
+        this.isBadLine = false;
+
         this.todTenths = 0;
         this.todSec = 0;
         this.todMin = 0;
-        this.todHour = 1; // Startet standardmäßig bei 1 AM (BCD)
-        
+        this.todHour = 1;
         this.todLatchTenths = 0;
         this.todLatchSec = 0;
         this.todLatchMin = 0;
         this.todLatchHour = 1;
         this.todLatched = false;
         this.todHalted = false;
-        
-        this.todCycleCounter = 19705; // Standard 50Hz (PAL)
-
-        // --- SCHRITT 6: PHYSIKALISCHE RDY-LEITUNG ---
-        this.rdy = true;         // True = CPU läuft, False = CPU angehalten (Bus gesperrt)
-        this.isBadLine = false;
-
-        // --- SCHRITT 7: CIA ICR ---
-        this.cia1Icr = 0; // Interrupt Control Register (Read-to-Clear)
-        this.cia1IrqMask = 0; // Interrupt Enable Register
+        this.todCycleCounter = 19705;
     }
 
     push(val) {
@@ -448,8 +413,14 @@ clockHardware(cycles) {
             return 7;
         }
 
+        // --- PHASE 1: RDY-LEITUNG ---
+        // Wenn der VIC-II den Bus blockiert, steht die CPU für diesen Zyklus still.
+        if (!this.rdy) {
+            return 1; 
+        }
+
         let op = this.read(this.pc++);
-        let cycles = 2; 
+        let cycles = 2;
 
         switch (op) {
             case 0x00: { // BRK

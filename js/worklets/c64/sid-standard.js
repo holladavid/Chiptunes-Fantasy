@@ -197,37 +197,30 @@ class SIDProcessor extends AudioWorkletProcessor {
                 } else {
                     // --- SCHRITT 3: IRQ-LATENZ SAMPLING ---
                     if (this.cpuCyclesRemaining === 1) {
-                        // Analysiere die Latency basierend auf den aktuellen Zuständen
-                        // Hier wird geprüft, ob ein IRQ oder NMI im nächsten Takt aktiv werden würde
-                        this.cpu.irqAccepted = (this.cpu.irqPending && (this.cpu.p & 0x04) === 0);
+                        this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
                         this.cpu.nmiAccepted = this.cpu.nmiPending;
                     }
 
-                    // 3. CPU Ausführung mit Badline-Halt
-                    if (this.cpu.cpuStall > 0) {
-                        this.cpu.cpuStall--;
-                    } else {
-                        if (this.cpuCyclesRemaining <= 0) {
-                            // --- SCHRITT 3: INTERRUPT-ANERKENNUNG ---
-                            // Feuere den Interrupt erst jetzt, wenn die CPU bereit ist
-                            if (this.cpu.nmiAccepted) {
-                                this.cpu.nmiAccepted = false;
-                                this.cpu.triggerHardwareNmi();
-                                this.cpuCyclesRemaining = 7 - 1; 
-                            } else if (this.cpu.irqAccepted) {
-                                this.cpu.irqAccepted = false;
-                                this.cpu.triggerHardwareIrq();
-                                this.cpuCyclesRemaining = 7 - 1;
-                            } else {
-                                let cyclesUsed = this.cpu.step();
-                                this.cpuCyclesRemaining = cyclesUsed - 1;
-                            }
+                    // 3. CPU Ausführung
+                    // Der physikalische RDY-Halt wird nun direkt im step() abgefangen.
+                    if (this.cpuCyclesRemaining <= 0) {
+                        if (this.cpu.nmiAccepted) {
+                            this.cpu.nmiAccepted = false;
+                            this.cpu.triggerHardwareNmi();
+                            this.cpuCyclesRemaining = 7 - 1;
+                        } else if (this.cpu.irqAccepted) {
+                            this.cpu.irqAccepted = false;
+                            this.cpu.triggerHardwareIrq();
+                            this.cpuCyclesRemaining = 7 - 1;
                         } else {
-                            this.cpuCyclesRemaining--;
+                            let cyclesUsed = this.cpu.step(); // Gibt 1 zurück, falls !rdy
+                            this.cpuCyclesRemaining = cyclesUsed - 1;
                         }
+                    } else {
+                        this.cpuCyclesRemaining--;
                     }
-
-                    this.ringBuffer[this.ringIndex] = this.sid.outputSample;                
+                    
+                    this.ringBuffer[this.ringIndex] = this.sid.outputSample;
                 }
                 sampleSum += this.sid.outputSample;
             }
