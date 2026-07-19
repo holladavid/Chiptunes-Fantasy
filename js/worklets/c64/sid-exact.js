@@ -213,21 +213,18 @@ class SIDProcessor extends AudioWorkletProcessor {
                     this.cpu.cpuStall--; // CPU blockiert
                 } else {
                     // --- SCHRITT 3: IRQ-LATENZ SAMPLING ---
-                    // Die IRQ/NMI-Leitungen werden im vorletzten Zyklus (T-1) der 
-                    // aktuellen Instruktion für den kommenden Befehls-Fetch gesampelt.
                     if (this.cpuCyclesRemaining === 1) {
                         this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
                         this.cpu.nmiAccepted = this.cpu.nmiPending;
                     }
 
-                    // 3. CPU Ausführung mit Badline-Halt
-                    if (this.cpu.cpuStall > 0) {
-                        this.cpu.cpuStall--; // CPU blockiert
+                    // 3. CPU Ausführung gekoppelt an die physikalische RDY-Leitung
+                    if (!this.cpu.rdy) {
+                        // CPU ist blockiert (VIC-II DMA aktiv). Wir frieren die Programmausführung ein,
+                        // aber die restliche Hardware (CIA, VIC, SID) taktet ungestört weiter!
                     } else {
                         if (this.cpuCyclesRemaining <= 0) {
                             // --- SCHRITT 3: INTERRUPT-ANERKENNUNG ---
-                            // Hat das Sampling im vorletzten Zyklus angeschlagen,
-                            // wird nun die 7-Cycle Interrupt-Sequenz gestartet.
                             if (this.cpu.nmiAccepted) {
                                 this.cpu.nmiAccepted = false;
                                 this.cpu.triggerHardwareNmi();
@@ -244,9 +241,10 @@ class SIDProcessor extends AudioWorkletProcessor {
                             this.cpuCyclesRemaining--;
                         }
                     }
-                }
                 
-                this.ringBuffer[this.ringIndex] = this.sid.outputSample;
+                    this.ringBuffer[this.ringIndex] = this.sid.outputSample; 
+                }               
+                
                 this.ringIndex = (this.ringIndex + 1) & 511; 
             }
             

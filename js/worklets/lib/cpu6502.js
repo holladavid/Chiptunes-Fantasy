@@ -57,6 +57,10 @@ export class CPU6502 {
         this.todHalted = false;
         
         this.todCycleCounter = 19705; // Standard 50Hz (PAL)
+
+        // --- SCHRITT 6: PHYSIKALISCHE RDY-LEITUNG ---
+        this.rdy = true;         // True = CPU läuft, False = CPU angehalten (Bus gesperrt)
+        this.isBadLine = false;
     }
 
     reset(loadAddr, prgCode) {
@@ -130,6 +134,10 @@ export class CPU6502 {
         this.todHalted = false;
         
         this.todCycleCounter = 19705; // Standard 50Hz (PAL)
+
+        // --- SCHRITT 6: PHYSIKALISCHE RDY-LEITUNG ---
+        this.rdy = true;         // True = CPU läuft, False = CPU angehalten (Bus gesperrt)
+        this.isBadLine = false;
     }
 
     push(val) {
@@ -366,9 +374,12 @@ clockHardware(cycles) {
                                  ((this.rasterCounter & 0x07) === yscroll);
             }
 
-            // --- SCHRITT 1: CYCLE STEALING (Cycle 12) ---
-            if (this.rasterCycles === 12 && this.isBadLine) {
-                this.cpuStall = 40;
+            // --- SCHRITT 6: RDY-LEITUNG FÜR CPU-HALT (Cycle 12 bis 51) ---
+            // Der VIC-II blockiert den Systembus auf Badlines von Cycle 12 bis exakt Cycle 51 (40 Zyklen)
+            if (this.isBadLine && this.rasterCycles >= 12 && this.rasterCycles < 52) {
+                this.rdy = false;
+            } else {
+                this.rdy = true;
             }
             
             // Raster IRQ triggert in Cycle 0 der Ziel-Linie
