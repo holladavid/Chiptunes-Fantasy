@@ -4,6 +4,7 @@
 // Phase 7: True Thermal Hardware Modeling
 // Exponential Cutoff Drift, Thermal DAC Gain/Offset,
 // JFET Temperature Saturation, and Dynamic Leakage.
+// Upgraded with Hardware-Accurate ADSR Delay-Bug Emulation
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -121,7 +122,9 @@ export class SIDChip {
                 ch.state = gate ? ENV_ATTACK : ENV_RELEASE;
                 
                 if (gate) {
-                    ch.rate_counter = ch.attack_period;
+                    // --- ADSR DELAY BUG EMULATION ---
+                    // Im originalen SID wird der rate_counter bei Gate-On NICHT zurückgesetzt!
+                    // Er zählt stattdessen kontinuierlich weiter, was den Bug erzeugt.
                     ch.exponential_counter = 0;
                 }
             }
@@ -159,9 +162,14 @@ export class SIDChip {
         if (ch.state === ENV_ATTACK) ratePeriod = ch.attack_period;
         else if (ch.state === ENV_DECAY) ratePeriod = ch.decay_period;
 
-        ch.rate_counter--;
-        if (ch.rate_counter <= 0) {
-            ch.rate_counter = ratePeriod;
+        // --- HARDWARE-ACCURATE UP-COUNTER (15-Bit LFSR-Annäherung) ---
+        // Zählt kontinuierlich hoch und maskiert bei 15-Bit (0 bis 32767).
+        // Wird bei Gate-Änderungen oder Register-Writes nicht manipuliert.
+        ch.rate_counter++;
+        ch.rate_counter &= 0x7FFF; 
+
+        if (ch.rate_counter === ratePeriod) {
+            ch.rate_counter = 0; // Reset nur bei exakter Koinzidenz (Gleichheits-Match)
 
             let expPeriod = 1;
             if (ch.state !== ENV_ATTACK) {
