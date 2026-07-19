@@ -361,53 +361,68 @@ export class CPU6502 {
             case 0xA5: this.a = this.read(this.zp()); this.setNZ(this.a); cycles = 3; break; // LDA zp
             case 0xB5: this.a = this.read(this.zpX()); this.setNZ(this.a); cycles = 4; break; // LDA zp,X
             case 0xAD: this.a = this.read(this.abs()); this.setNZ(this.a); cycles = 4; break; // LDA abs
-            case 0xBD: {
+            case 0xBD: { // LDA abs,X
                 let addr = this.abs();
                 let addrX = (addr + this.x) & 0xFFFF;
+                if (this.pageCrossed(addr, addrX)) {
+                    this.read((addr & 0xFF00) | (addrX & 0x00FF)); // Dummy Read auf Zwischenadresse
+                }
                 this.a = this.read(addrX);
                 this.setNZ(this.a);
                 cycles = 4 + (this.pageCrossed(addr, addrX) ? 1 : 0);
-            } break; // LDA abs,X
-            case 0xB9: {
+            } break; 
+
+            case 0xB9: { // LDA abs,Y
                 let addr = this.abs();
                 let addrY = (addr + this.y) & 0xFFFF;
+                if (this.pageCrossed(addr, addrY)) {
+                    this.read((addr & 0xFF00) | (addrY & 0x00FF)); // Dummy Read
+                }
                 this.a = this.read(addrY);
                 this.setNZ(this.a);
                 cycles = 4 + (this.pageCrossed(addr, addrY) ? 1 : 0);
-            } break; // LDA abs,Y
+            } break; 
             case 0xA1: this.a = this.read(this.indX()); this.setNZ(this.a); cycles = 6; break; // LDA (zp,X)
-            case 0xB1: {
+            case 0xB1: { // LDA (zp),Y
                 let z = this.zp();
                 let addr = this.read(z) | (this.read((z+1)&0xFF) << 8);
                 let addrY = (addr + this.y) & 0xFFFF;
+                if (this.pageCrossed(addr, addrY)) {
+                    this.read((addr & 0xFF00) | (addrY & 0x00FF)); // Dummy Read
+                }
                 this.a = this.read(addrY);
                 this.setNZ(this.a);
                 cycles = 5 + (this.pageCrossed(addr, addrY) ? 1 : 0);
-            } break; // LDA (zp),Y
-
+            } break; 
             case 0xA2: this.x = this.read(this.pc++); this.setNZ(this.x); cycles = 2; break; // LDX imm
             case 0xA6: this.x = this.read(this.zp()); this.setNZ(this.x); cycles = 3; break; // LDX zp
             case 0xB6: this.x = this.read(this.zpY()); this.setNZ(this.x); cycles = 4; break; // LDX zp,Y
             case 0xAE: this.x = this.read(this.abs()); this.setNZ(this.x); cycles = 4; break; // LDX abs
-            case 0xBE: {
+            case 0xBE: { // LDX abs,Y
                 let addr = this.abs();
                 let addrY = (addr + this.y) & 0xFFFF;
+                if (this.pageCrossed(addr, addrY)) {
+                    this.read((addr & 0xFF00) | (addrY & 0x00FF)); // Dummy Read
+                }
                 this.x = this.read(addrY);
                 this.setNZ(this.x);
                 cycles = 4 + (this.pageCrossed(addr, addrY) ? 1 : 0);
-            } break; // LDX abs,Y
+            } break; 
 
             case 0xA0: this.y = this.read(this.pc++); this.setNZ(this.y); cycles = 2; break; // LDY imm
             case 0xA4: this.y = this.read(this.zp()); this.setNZ(this.y); cycles = 3; break; // LDY zp
             case 0xB4: this.y = this.read(this.zpX()); this.setNZ(this.y); cycles = 4; break; // LDY zp,X
             case 0xAC: this.y = this.read(this.abs()); this.setNZ(this.y); cycles = 4; break; // LDY abs
-            case 0xBC: {
+            case 0xBC: { // LDY abs,X
                 let addr = this.abs();
                 let addrX = (addr + this.x) & 0xFFFF;
+                if (this.pageCrossed(addr, addrX)) {
+                    this.read((addr & 0xFF00) | (addrX & 0x00FF)); // Dummy Read
+                }
                 this.y = this.read(addrX);
                 this.setNZ(this.y);
                 cycles = 4 + (this.pageCrossed(addr, addrX) ? 1 : 0); 
-            } break; 
+            } break;
 
             case 0x85: this.write(this.zp(), this.a); cycles = 3; break; 
             case 0x95: this.write(this.zpX(), this.a); cycles = 4; break; 
@@ -437,15 +452,79 @@ export class CPU6502 {
             case 0xC8: this.y = (this.y + 1) & 0xFF; this.setNZ(this.y); cycles = 2; break; 
             case 0x88: this.y = (this.y - 1) & 0xFF; this.setNZ(this.y); cycles = 2; break; 
 
-            case 0xE6: { let z = this.zp(); let v = (this.read(z) + 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 5; } break; 
-            case 0xF6: { let z = this.zpX(); let v = (this.read(z) + 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 6; } break; 
-            case 0xEE: { let a = this.abs(); let v = (this.read(a) + 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 6; } break; 
-            case 0xFE: { let a = this.absX(); let v = (this.read(a) + 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 7; } break; 
+            case 0xE6: { // INC zp
+                let z = this.zp(); 
+                let v = this.read(z); 
+                this.write(z, v); // Dummy Write (alter Wert)
+                v = (v + 1) & 0xFF; 
+                this.write(z, v); // Real Write (neuer Wert)
+                this.setNZ(v); 
+                cycles = 5; 
+            } break; 
+            case 0xF6: { // INC zp,X
+                let z = this.zpX(); 
+                let v = this.read(z); 
+                this.write(z, v); 
+                v = (v + 1) & 0xFF; 
+                this.write(z, v); 
+                this.setNZ(v); 
+                cycles = 6; 
+            } break; 
+            case 0xEE: { // INC abs
+                let a = this.abs(); 
+                let v = this.read(a); 
+                this.write(a, v); 
+                v = (v + 1) & 0xFF; 
+                this.write(a, v); 
+                this.setNZ(v); 
+                cycles = 6; 
+            } break; 
+            case 0xFE: { // INC abs,X
+                let a = this.absX(); 
+                let v = this.read(a); 
+                this.write(a, v); 
+                v = (v + 1) & 0xFF; 
+                this.write(a, v); 
+                this.setNZ(v); 
+                cycles = 7; 
+            } break; 
 
-            case 0xC6: { let z = this.zp(); let v = (this.read(z) - 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 5; } break; 
-            case 0xD6: { let z = this.zpX(); let v = (this.read(z) - 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 6; } break; 
-            case 0xCE: { let a = this.abs(); let v = (this.read(a) - 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 6; } break; 
-            case 0xDE: { let a = this.absX(); let v = (this.read(a) - 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 7; } break; 
+            case 0xC6: { // DEC zp
+                let z = this.zp(); 
+                let v = this.read(z); 
+                this.write(z, v); 
+                v = (v - 1) & 0xFF; 
+                this.write(z, v); 
+                this.setNZ(v); 
+                cycles = 5; 
+            } break; 
+            case 0xD6: { // DEC zp,X
+                let z = this.zpX(); 
+                let v = this.read(z); 
+                this.write(z, v); 
+                v = (v - 1) & 0xFF; 
+                this.write(z, v); 
+                this.setNZ(v); 
+                cycles = 6; 
+            } break; 
+            case 0xCE: { // DEC abs
+                let a = this.abs(); 
+                let v = this.read(a); 
+                this.write(a, v); 
+                v = (v - 1) & 0xFF; 
+                this.write(a, v); 
+                this.setNZ(v); 
+                cycles = 6; 
+            } break; 
+            case 0xDE: { // DEC abs,X
+                let a = this.absX(); 
+                let v = this.read(a); 
+                this.write(a, v); 
+                v = (v - 1) & 0xFF; 
+                this.write(a, v); 
+                this.setNZ(v); 
+                cycles = 7; 
+            } break;
 
             case 0x20: { let target = this.abs(); this.push((this.pc - 1) >> 8); this.push((this.pc - 1) & 0xFF); this.pc = target; cycles = 6; } break; // JSR
             case 0x4C: this.pc = this.abs(); cycles = 3; break; // JMP abs
@@ -486,25 +565,189 @@ export class CPU6502 {
             case 0x2A: { let c = this.p & 1; if (this.a & 128) this.p |= 1; else this.p &= ~1; this.a = ((this.a << 1) & 0xFF) | c; this.setNZ(this.a); cycles = 2; } break; // ROL A
             case 0x6A: { let c = this.p & 1; if (this.a & 1) this.p |= 1; else this.p &= ~1; this.a = (this.a >> 1) | (c << 7); this.setNZ(this.a); cycles = 2; } break; // ROR A
 
-            case 0x06: { let z = this.zp(); let v = this.read(z); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 5; } break; // ASL zp
-            case 0x46: { let z = this.zp(); let v = this.read(z); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.write(z, v); this.setNZ(v); cycles = 5; } break; // LSR zp
-            case 0x26: { let z = this.zp(); let v = this.read(z); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.write(z, v); this.setNZ(v); cycles = 5; } break; // ROL zp
-            case 0x66: { let z = this.zp(); let v = this.read(z); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.write(z, v); this.setNZ(v); cycles = 5; } break; // ROR zp
+            case 0x06: { // ASL zp
+                let z = this.zp(); 
+                let v = this.read(z); 
+                this.write(z, v); 
+                if (v & 128) this.p |= 1; else this.p &= ~1; 
+                v = (v << 1) & 0xFF; 
+                this.write(z, v); 
+                this.setNZ(v); 
+                cycles = 5; 
+            } break; 
             
-            case 0x16: { let z = this.zpX(); let v = this.read(z); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 6; } break; // ASL zp,X
-            case 0x56: { let z = this.zpX(); let v = this.read(z); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.write(z, v); this.setNZ(v); cycles = 6; } break; // LSR zp,X
-            case 0x36: { let z = this.zpX(); let v = this.read(z); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.write(z, v); this.setNZ(v); cycles = 6; } break; // ROL zp,X
-            case 0x76: { let z = this.zpX(); let v = this.read(z); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.write(z, v); this.setNZ(v); cycles = 6; } break; // ROR zp,X
+            case 0x46: { // LSR zp
+                let z = this.zp(); 
+                let v = this.read(z); 
+                this.write(z, v); 
+                if (v & 1) this.p |= 1; else this.p &= ~1; 
+                v = (v >> 1) & 0x7F; 
+                this.write(z, v); 
+                this.setNZ(v); 
+                cycles = 5; 
+            } break; 
             
-            case 0x0E: { let a = this.abs(); let v = this.read(a); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 6; } break; // ASL abs
-            case 0x4E: { let a = this.abs(); let v = this.read(a); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.write(a, v); this.setNZ(v); cycles = 6; } break; // LSR abs
-            case 0x2E: { let a = this.abs(); let v = this.read(a); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.write(a, v); this.setNZ(v); cycles = 6; } break; // ROL abs
-            case 0x6E: { let a = this.abs(); let v = this.read(a); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.write(a, v); this.setNZ(v); cycles = 6; } break; // ROR abs
+            case 0x26: { // ROL zp
+                let z = this.zp(); 
+                let v = this.read(z); 
+                this.write(z, v); 
+                let c = this.p & 1; 
+                if (v & 128) this.p |= 1; else this.p &= ~1; 
+                v = ((v << 1) & 0xFF) | c; 
+                this.write(z, v); 
+                this.setNZ(v); 
+                cycles = 5; 
+            } break; 
             
-            case 0x1E: { let a = this.absX(); let v = this.read(a); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 7; } break; // ASL abs,X
-            case 0x5E: { let a = this.absX(); let v = this.read(a); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.write(a, v); this.setNZ(v); cycles = 7; } break; // LSR abs,X
-            case 0x3E: { let a = this.absX(); let v = this.read(a); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.write(a, v); this.setNZ(v); cycles = 7; } break; // ROL abs,X
-            case 0x7E: { let a = this.absX(); let v = this.read(a); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.write(a, v); this.setNZ(v); cycles = 7; } break; // ROR abs,X
+            case 0x66: { // ROR zp
+                let z = this.zp(); 
+                let v = this.read(z); 
+                this.write(z, v); 
+                let c = this.p & 1; 
+                if (v & 1) this.p |= 1; else this.p &= ~1; 
+                v = (v >> 1) | (c << 7); 
+                this.write(z, v); 
+                this.setNZ(v); 
+                cycles = 5; 
+            } break; 
+            
+            case 0x16: { // ASL zp,X
+                let z = this.zpX(); 
+                let v = this.read(z); 
+                this.write(z, v); 
+                if (v & 128) this.p |= 1; else this.p &= ~1; 
+                v = (v << 1) & 0xFF; 
+                this.write(z, v); 
+                this.setNZ(v); 
+                cycles = 6; 
+            } break; 
+
+            case 0x56: { // LSR zp,X
+                let z = this.zpX(); 
+                let v = this.read(z); 
+                this.write(z, v); 
+                if (v & 1) this.p |= 1; else this.p &= ~1; 
+                v = (v >> 1) & 0x7F; 
+                this.write(z, v); 
+                this.setNZ(v); 
+                cycles = 6; 
+            } break; 
+            
+            case 0x36: { // ROL zp,X
+                let z = this.zpX(); 
+                let v = this.read(z); 
+                this.write(z, v); 
+                let c = this.p & 1; 
+                if (v & 128) this.p |= 1; else this.p &= ~1; 
+                v = ((v << 1) & 0xFF) | c; 
+                this.write(z, v); 
+                this.setNZ(v); 
+                cycles = 6; 
+            } break; 
+                        
+            case 0x76: { // ROR zp,X
+                let z = this.zpX(); 
+                let v = this.read(z); 
+                this.write(z, v); 
+                let c = this.p & 1; 
+                if (v & 1) this.p |= 1; else this.p &= ~1; 
+                v = (v >> 1) | (c << 7); 
+                this.write(z, v); 
+                this.setNZ(v); 
+                cycles = 6; 
+            } break; 
+
+            case 0x0E: { // ASL abs
+                let a = this.abs(); 
+                let v = this.read(a); 
+                this.write(a, v); 
+                if (v & 128) this.p |= 1; else this.p &= ~1; 
+                v = (v << 1) & 0xFF; 
+                this.write(a, v); 
+                this.setNZ(v); 
+                cycles = 6; 
+            } break; 
+            
+            case 0x4E: { // LSR abs
+                let a = this.abs(); 
+                let v = this.read(a); 
+                this.write(a, v); 
+                if (v & 1) this.p |= 1; else this.p &= ~1; 
+                v = (v >> 1) & 0x7F; 
+                this.write(a, v); 
+                this.setNZ(v); 
+                cycles = 6; 
+            } break; 
+            
+            case 0x2E: { // ROL abs
+                let a = this.abs(); 
+                let v = this.read(a); 
+                this.write(a, v); 
+                let c = this.p & 1; 
+                if (v & 128) this.p |= 1; else this.p &= ~1; 
+                v = ((v << 1) & 0xFF) | c; 
+                this.write(a, v); 
+                this.setNZ(v); 
+                cycles = 6; 
+            } break; 
+            
+            case 0x6E: { // ROR abs
+                let a = this.abs(); 
+                let v = this.read(a); 
+                this.write(a, v); 
+                let c = this.p & 1; 
+                if (v & 1) this.p |= 1; else this.p &= ~1; 
+                v = (v >> 1) | (c << 7); 
+                this.write(a, v); 
+                this.setNZ(v); 
+                cycles = 6; 
+            } break; 
+            
+            case 0x1E: { // ASL abs,X
+                let a = this.absX(); 
+                let v = this.read(a); 
+                this.write(a, v); 
+                if (v & 128) this.p |= 1; else this.p &= ~1; 
+                v = (v << 1) & 0xFF; 
+                this.write(a, v); 
+                this.setNZ(v); 
+                cycles = 7; 
+            } break;
+            
+            case 0x5E: { // LSR abs,X
+                let a = this.absX(); 
+                let v = this.read(a); 
+                this.write(a, v); 
+                if (v & 1) this.p |= 1; else this.p &= ~1; 
+                v = (v >> 1) & 0x7F; 
+                this.write(a, v); 
+                this.setNZ(v); 
+                cycles = 7; 
+            } break;
+            
+            case 0x3E: { // ROL abs,X
+                let a = this.absX(); 
+                let v = this.read(a); 
+                this.write(a, v); 
+                let c = this.p & 1; 
+                if (v & 128) this.p |= 1; else this.p &= ~1; 
+                v = ((v << 1) & 0xFF) | c; 
+                this.write(a, v); 
+                this.setNZ(v); 
+                cycles = 7; 
+            } break;
+            
+            case 0x7E: { // ROR abs,X
+                let a = this.absX(); 
+                let v = this.read(a); 
+                this.write(a, v); 
+                let c = this.p & 1; 
+                if (v & 1) this.p |= 1; else this.p &= ~1; 
+                v = (v >> 1) | (c << 7); 
+                this.write(a, v); 
+                this.setNZ(v); 
+                cycles = 7; 
+            } break;
 
             default: 
                 cycles = this.handleALU(op); 
@@ -560,19 +803,27 @@ export class CPU6502 {
                 cycles = 4;
                 break;
 
+            // Absolute, X (cycles = 4 + page cross)
             case 0x7D: case 0xFD: case 0x3D: case 0x1D:
             case 0x5D: case 0xDD: {
                 let addr = this.abs();
                 let addrX = (addr + this.x) & 0xFFFF;
+                if (this.pageCrossed(addr, addrX)) {
+                    this.read((addr & 0xFF00) | (addrX & 0x00FF)); // Dummy Read
+                }
                 val = this.read(addrX);
                 cycles = 4 + (this.pageCrossed(addr, addrX) ? 1 : 0);
                 break;
             }
 
+            // Absolute, Y (cycles = 4 + page cross)
             case 0x79: case 0xF9: case 0x39: case 0x19:
             case 0x59: case 0xD9: {
                 let addr = this.abs();
                 let addrY = (addr + this.y) & 0xFFFF;
+                if (this.pageCrossed(addr, addrY)) {
+                    this.read((addr & 0xFF00) | (addrY & 0x00FF)); // Dummy Read
+                }
                 val = this.read(addrY);
                 cycles = 4 + (this.pageCrossed(addr, addrY) ? 1 : 0);
                 break;
@@ -584,11 +835,15 @@ export class CPU6502 {
                 cycles = 6;
                 break;
 
+            // Indirect Indexed Y (cycles = 5 + page cross)
             case 0x71: case 0xF1: case 0x31: case 0x11:
             case 0x51: case 0xD1: {
                 let z = this.zp();
                 let addr = this.read(z) | (this.read((z+1)&0xFF) << 8);
                 let addrY = (addr + this.y) & 0xFFFF;
+                if (this.pageCrossed(addr, addrY)) {
+                    this.read((addr & 0xFF00) | (addrY & 0x00FF)); // Dummy Read
+                }
                 val = this.read(addrY);
                 cycles = 5 + (this.pageCrossed(addr, addrY) ? 1 : 0);
                 break;
