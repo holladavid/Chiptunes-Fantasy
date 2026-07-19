@@ -172,6 +172,8 @@ class SIDProcessor extends AudioWorkletProcessor {
             }
         };
     }
+    // In js/worklets/c64/sid-exact.js:
+
     process(inputs, outputs) {
         const outL = outputs[0][0];
         const outR = outputs[0].length > 1 ? outputs[0][1] : null;
@@ -194,52 +196,58 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.clockHardware(1); // Taktet CIA, VIC und evaluierte IRQs um 1 Takt
                 this.sid.clock();          // Taktet den MOS 6581 Kern um 1 Takt
                 
-                // 2. VBLANK / Host Player Call
-                // Der vblankTimer dekrementiert nun absolut phasensynchron pro Taktzyklus.
-                this.vblankTimer--;
-                if (this.vblankTimer <= 0) {
-                    this.vblankTimer += this.playSpeedCycles;
-                    
-                    // Ein JSR-Call wird nur injiziert, wenn playAddress ungleich 0 ist 
-                    // und sich die CPU in der Idle-Warteschleife ($EA31) befindet.
-                    if (this.playAddress !== 0) {
-                        if (this.cpu.pc === 0xEA31) { 
+                // 2. VBLANK / Host Player Call (NUR wenn NICHT über CIA getaktet)
+                // Verhindert doppeltes Triggering und Phasen-Kollisionen bei Timer-basierten Tracks wie Wizball!
+                if (!this.useCiaTimer) {
+                    this.vblankTimer--;
+                    if (this.vblankTimer <= 0) {
+                        this.vblankTimer += this.playSpeedCycles;
+                        
+                        if (this.playAddress !== 0 && this.cpu.pc === 0xEA31) { 
                             this.cpu.push(0xEA);
-                            this.cpu.push(0x30); // Rücksprungadresse zu $EA31
+                            this.cpu.push(0x30); 
                             this.cpu.pc = this.playAddress;
                         }
+                        this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                     }
-                    this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
+                } else {
+                    // Bei CIA-basierten Tracks übernimmt der CIA-Timer die Taktung.
+                    // Wir zählen die Frames hier lediglich zur Visualisierung im UI weiter.
+                    this.vblankTimer--;
+                    if (this.vblankTimer <= 0) {
+                        this.vblankTimer += this.playSpeedCycles;
+                        this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
+                    }
                 }
 
                 // --- SCHRITT 3: IRQ-LATENZ SAMPLING ---
-                // Die IRQ/NMI-Leitungen werden im vorletzten Zyklus (T-1) der 
-                // aktuellen Instruktion für den kommenden Befehls-Fetch gesampelt.
                 if (this.cpuCyclesRemaining === 1) {
                     this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
                     this.cpu.nmiAccepted = this.cpu.nmiPending;
                 }
 
-                // 3. CPU Ausführung
-                // Der physikalische RDY-Halt wird direkt im step() abgefangen. 
-                // Ist rdy auf false, steht die Programmausführung ein, aber die Hardware tickt weiter.
-                if (this.cpuCyclesRemaining <= 0) {
-                    // Interrupts werden erst ausgeführt, wenn sie laut Latenz-Sampling
-                    // im vorletzten Taktzyklus des vorherigen Befehls akzeptiert wurden.
-                    if (this.cpu.nmiAccepted) {
-                        this.cpu.nmiAccepted = false;
-                        this.cpu.triggerHardwareNmi();
-                        this.cpuCyclesRemaining = 7; 
-                    } else if (this.cpu.irqAccepted) {
-                        this.cpu.irqAccepted = false;
-                        this.cpu.triggerHardwareIrq();
-                        this.cpuCyclesRemaining = 7;
-                    } else {
-                        let cyclesUsed = this.cpu.step(); // Gibt 1 zurück, falls !rdy
-                        this.cpuCyclesRemaining = cyclesUsed;
+                // 3. CPU Ausführung gekoppelt an die physikalische RDY-Leitung
+                if (!this.cpu.rdy) {
+                    // CPU ist blockiert (VIC-II DMA aktiv). Wir frieren die Programmausführung ein,
+                    // aber die restliche Hardware (CIA, VIC, SID) taktet ungestört weiter!
+                } else {
+                    if (this.cpuCyclesRemaining <= 0) {
+                        // --- SCHRITT 3: INTERRUPT-ANERKENNUNG ---
+                        if (this.cpu.nmiAccepted) {
+                            this.cpu.nmiAccepted = false;
+                            this.cpu.triggerHardwareNmi();
+                            this.cpuRemaining = 7; 
+                        } else if (this.cpu.irqAccepted) {
+                            this.cpu.irqAccepted = false;
+                            this.cpu.triggerHardwareIrq();
+                            this.cpuCyclesRemaining = 7;
+                        } else {
+                            let cyclesUsed = this.cpu.step(); // Gibt 1 zurück, falls !rdy
+                            this.cpuCyclesRemaining = cyclesUsed;
+                        }
                     }
+                    this.cpuCyclesRemaining--;
                 }
-                this.cpuCyclesRemaining--;
                 
                 // Schreibe den analogen SID-Spannungswert in den Ringpuffer
                 this.ringBuffer[this.ringIndex] = this.sid.outputSample;
@@ -247,7 +255,6 @@ class SIDProcessor extends AudioWorkletProcessor {
             }
             
             // --- THE POLYPHASE DECIMATION STAGE (48 kHz) ---
-            // Sinc-Faltung des 1-MHz-Ringpuffers zur aliasingfreien Audio-Ausgabe
             let decimationSum = 0;
             for (let k = 0; k < this.FIR_TAPS; k++) {
                 let readIdx = (this.ringIndex - 1 - k + 512) & 511;

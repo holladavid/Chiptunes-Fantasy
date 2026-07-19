@@ -156,6 +156,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         };
     }
 
+    // In js/worklets/c64/sid-standard.js:
     process(inputs, outputs) {
         const outL = outputs[0][0];
         const outR = outputs[0].length > 1 ? outputs[0][1] : null;
@@ -181,50 +182,58 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.sid.clock();          // Taktet den MOS 6581 Kern um 1 Takt
                 sampleSum += this.sid.outputSample; // Boxcar Summation
                 
-                // 2. VBLANK / Host Player Call
-                this.vblankTimer--;
-                if (this.vblankTimer <= 0) {
-                    this.vblankTimer += this.playSpeedCycles;
-                    
-                    // JSR-Call wird nur injiziert, wenn playAddress ungleich 0 ist 
-                    // und sich die CPU in der Idle-Warteschleife ($EA31) befindet.
-                    if (this.playAddress !== 0) {
-                        if (this.cpu.pc === 0xEA31) { 
+                // 2. VBLANK / Host Player Call (NUR wenn NICHT über CIA getaktet)
+                if (!this.useCiaTimer) {
+                    this.vblankTimer--;
+                    if (this.vblankTimer <= 0) {
+                        this.vblankTimer += this.playSpeedCycles;
+                        
+                        if (this.playAddress !== 0 && this.cpu.pc === 0xEA31) { 
                             this.cpu.push(0xEA);
-                            this.cpu.push(0x30); // Rücksprungadresse zu $EA31
+                            this.cpu.push(0x30); 
                             this.cpu.pc = this.playAddress;
                         }
+                        this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                     }
-                    this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
+                } else {
+                    this.vblankTimer--;
+                    if (this.vblankTimer <= 0) {
+                        this.vblankTimer += this.playSpeedCycles;
+                        this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
+                    }
                 }
 
-                // 3. CPU Ausführung mit Latenz-Prüfung und RDY-Halt
-                // Die Latenz-Prüfung geschieht im vorletzten Taktzyklus (T-1) des Befehls.
+                // --- SCHRITT 3: IRQ-LATENZ SAMPLING ---
                 if (this.cpuCyclesRemaining === 1) {
                     this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
                     this.cpu.nmiAccepted = this.cpu.nmiPending;
                 }
 
-                if (this.cpuCyclesRemaining <= 0) {
-                    // Interrupts werden erst ausgeführt, wenn sie laut Latenz-Sampling
-                    // im vorletzten Taktzyklus des vorherigen Befehls akzeptiert wurden.
-                    if (this.cpu.nmiAccepted) {
-                        this.cpu.nmiAccepted = false;
-                        this.cpu.triggerHardwareNmi();
-                        this.cpuCyclesRemaining = 7; 
-                    } else if (this.cpu.irqAccepted) {
-                        this.cpu.irqAccepted = false;
-                        this.cpu.triggerHardwareIrq();
-                        this.cpuCyclesRemaining = 7;
-                    } else {
-                        let cyclesUsed = this.cpu.step(); // Gibt 1 zurück, falls !rdy
-                        this.cpuCyclesRemaining = cyclesUsed;
+                // 3. CPU Ausführung gekoppelt an die physikalische RDY-Leitung
+                if (!this.cpu.rdy) {
+                    // CPU ist blockiert (VIC-II DMA aktiv). Wir frieren die Programmausführung ein,
+                    // aber die restliche Hardware (CIA, VIC, SID) taktet ungestört weiter!
+                } else {
+                    if (this.cpuCyclesRemaining <= 0) {
+                        // --- SCHRITT 3: INTERRUPT-ANERKENNUNG ---
+                        if (this.cpu.nmiAccepted) {
+                            this.cpu.nmiAccepted = false;
+                            this.cpu.triggerHardwareNmi();
+                            this.cpuCyclesRemaining = 7; 
+                        } else if (this.cpu.irqAccepted) {
+                            this.cpu.irqAccepted = false;
+                            this.cpu.triggerHardwareIrq();
+                            this.cpuCyclesRemaining = 7;
+                        } else {
+                            let cyclesUsed = this.cpu.step(); // Gibt 1 zurück, falls !rdy
+                            this.cpuCyclesRemaining = cyclesUsed;
+                        }
                     }
+                    this.cpuCyclesRemaining--;
                 }
-                this.cpuCyclesRemaining--;
             }
             
-            // --- BOXCAR DECIMATION (CPU-freundliche Mittelwertbildung) ---
+            // --- BOXCAR DECIMATION (Mittelwert-Bildung) ---
             let finalSample = cyclesToRun > 0 ? sampleSum / cyclesToRun : this.lastSampleValue;
             this.lastSampleValue = finalSample;
             

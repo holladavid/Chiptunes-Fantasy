@@ -1018,7 +1018,7 @@ constructor(sid) {
                 } 
             }
 
-if (high === 0xE0 || high === 0xF0) { 
+            if (high === 0xE0 || high === 0xF0) { 
                 if(op!==0xE0&&op!==0xE4&&op!==0xE8&&op!==0xEA&&op!==0xEC&&op!==0xF8&&op!==0xF0) { 
                     if (this.p & 0x08) { // Decimal Mode (BCD) aktiv
                         let result_dec, A, AL, B, C;
@@ -1056,7 +1056,7 @@ if (high === 0xE0 || high === 0xF0) {
                     return cycles; 
                 } 
             }
-                        
+
             if (op === 0x24 || op === 0x2C) { if (val & 0x80) this.p |= 128; else this.p &= ~128; if (val & 0x40) this.p |= 64; else this.p &= ~64; if ((val & this.a) === 0) this.p |= 2; else this.p &= ~2; return cycles; }
         }
         return cycles;
