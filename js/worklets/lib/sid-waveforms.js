@@ -3,6 +3,7 @@
 // MOS 6581 WAVEFORM GENERATOR & BIT-LOGIC
 // Hardware-accurate 8-Bit DAC quantization & Floating DC Bias
 // Phase 5: Analog Wire-AND Simulation for Illegal Waveforms
+// Upgraded with historically accurate 6581 LFSR Noise Taps
 // =========================================================
 
 export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
@@ -30,14 +31,18 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
     }
 
     if (ctrl & 128) {
-        noise = ((lfsr23 & 0x400000) >> 15) | 
-                ((lfsr23 & 0x100000) >> 14) | 
-                ((lfsr23 & 0x010000) >> 11) | 
-                ((lfsr23 & 0x002000) >>  9) | 
-                ((lfsr23 & 0x000800) >>  8) | 
-                ((lfsr23 & 0x000080) >>  5) | 
-                ((lfsr23 & 0x000010) >>  3) | 
-                ((lfsr23 & 0x000004) >>  2);  
+        // --- HARDWARE-EXAKTE LFSR NOISE-TAPS ---
+        // Extrahiert die physisch verbundenen Bits des 23-Bit-Fibonacci-Schieberegisters (0-indexed)
+        // und mappt sie in der historisch korrekten Reihenfolge auf das 8-Bit-Ausgangsbyte:
+        // LFSR-Bits: 20, 18, 14, 11, 9, 5, 2, 0 -> Noise-Bits: 7, 6, 5, 4, 3, 2, 1, 0
+        noise = ((lfsr23 & 0x100000) >> 13) | // LFSR Bit 20 -> Noise Bit 7
+                ((lfsr23 & 0x040000) >> 12) | // LFSR Bit 18 -> Noise Bit 6
+                ((lfsr23 & 0x004000) >>  9) | // LFSR Bit 14 -> Noise Bit 5
+                ((lfsr23 & 0x000800) >>  7) | // LFSR Bit 11 -> Noise Bit 4
+                ((lfsr23 & 0x000200) >>  6) | // LFSR Bit 9  -> Noise Bit 3
+                ((lfsr23 & 0x000020) >>  3) | // LFSR Bit 5  -> Noise Bit 2
+                ((lfsr23 & 0x000004) >>  1) | // LFSR Bit 2  -> Noise Bit 1
+                (lfsr23 & 0x000001);          // LFSR Bit 0  -> Noise Bit 0
         hasWave = true;
     }
 
