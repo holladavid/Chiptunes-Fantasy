@@ -2,7 +2,7 @@
 // =========================================================
 // MOS TECHNOLOGY SID 6581 AUDIO WORKLET PROCESSOR
 // CPU-Optimized 1MHz Lockstep Core with Boxcar Decimation
-// Phase 8: Main Event Loop with Hardware Interrupt Tracking
+// Phase 9: True Lockstep Main Event Loop
 // =========================================================
 
 import { CPU6502 } from '../lib/cpu6502.js';
@@ -15,9 +15,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.clock = 985248; 
         this.sid = new SIDChip();
         
-        // Deaktiviere die teure analoge JFET-Sättigung für den Standard-Core
         this.sid.useJfetSaturation = false;
-        
         this.cpu = new CPU6502(this.sid);
         this.dcBlock = new DCBlocker();
         this.outLp = 0; 
@@ -176,7 +174,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 }
 
                 if (this.cpuCyclesRemaining <= 0) {
-                    if (this.cpu.pc !== 0xEA31 || this.cpu.irqPending) {
+                    if (this.cpu.pc !== 0xEA31 || this.cpu.irqPending || this.cpu.nmiPending) {
                         let cyclesUsed = this.cpu.step();
                         this.cpu.clockHardware(cyclesUsed);
                         this.cpuCyclesRemaining = cyclesUsed;

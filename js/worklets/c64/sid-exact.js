@@ -3,7 +3,7 @@
 // MOS TECHNOLOGY SID 6581 AUDIO WORKLET PROCESSOR
 // High-Fidelity Cycle-Exact Lockstep Mischer
 // Studio-Grade Polyphase Sinc-FIR Decimator (Zero Aliasing)
-// Phase 8: Main Event Loop with Hardware Interrupt Tracking
+// Phase 9: True Lockstep Main Event Loop
 // =========================================================
 
 import { CPU6502 } from '../lib/cpu6502.js';
@@ -16,9 +16,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.clock = 985248; // PAL C64 Clock
         this.sid = new SIDChip();
         
-        // Aktiviere die authentische analoge JFET-Sättigung für den Exact-Core
         this.sid.useJfetSaturation = true;
-        
         this.cpu = new CPU6502(this.sid);
         this.dcBlock = new DCBlocker();
 
@@ -37,13 +35,8 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.temperature = 55.0;
         this.cpuCyclesRemaining = 0;
         
-        // =========================================================
-        // DSP UPGRADE: 255-TAP POLYPHASE SINC-FIR DECIMATOR
-        // =========================================================
         this.FIR_TAPS = 255;
         this.firKernel = new Float32Array(this.FIR_TAPS);
-        
-        // Wir nutzen eine Zweierpotenz (512) für den Ringpuffer, um mit Bitwise-AND maskieren zu können
         this.ringBuffer = new Float32Array(512); 
         this.ringIndex = 0;
         
@@ -54,14 +47,10 @@ class SIDProcessor extends AudioWorkletProcessor {
             let x = i - (this.FIR_TAPS - 1) / 2;
             let sinc = (x === 0) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
             let window = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / (this.FIR_TAPS - 1)) + 0.08 * Math.cos(4 * Math.PI * i / (this.FIR_TAPS - 1));
-            
             this.firKernel[i] = sinc * window;
             sum += this.firKernel[i];
         }
-        
-        for (let i = 0; i < this.FIR_TAPS; i++) {
-            this.firKernel[i] /= sum; 
-        }
+        for (let i = 0; i < this.FIR_TAPS; i++) this.firKernel[i] /= sum; 
 
         this.visualView = new Float32Array(40);
 
@@ -95,26 +84,25 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.x = songIndex; 
                 this.cpu.y = 0;
                 
-                // Rufe INIT-Routine über Phantom-ROM Return auf
+                // Init in die Routine drücken
                 this.cpu.push(0xEA); 
                 this.cpu.push(0x30); 
                 this.cpu.pc = this.initAddress;
 
-                // Init-Execution sofort ausführen (Blocking, max 5 Mio Zyklen)
                 let safety = 5000000;
                 while (this.cpu.pc !== 0xEA31 && safety-- > 0) {
                     let c = this.cpu.step();
                     this.cpu.clockHardware(c);
                 }
                 
-                this.cpu.pc = 0xEA31; // Erzwinge Idle State
-                this.cpu.p &= ~0x04;  // I-Flag LÖSCHEN! Hardware Interrupts ab jetzt erlaubt!
+                this.cpu.pc = 0xEA31; // Idle State forcieren
+                this.cpu.p &= ~0x04;  // Hardware Interrupts erlauben!
 
                 this.playAddress = msg.playAddress;
                 if (this.playAddress === 0) {
                     this.playAddress = this.cpu.read(0x0314) | (this.cpu.read(0x0315) << 8); 
                     if (this.playAddress === 0 || this.playAddress === 0xFFFF || this.playAddress === 0xEA31) {
-                        this.playAddress = 0; // Der Track nutzt pure Hardware IRQs
+                        this.playAddress = 0; 
                     }
                 }
 
@@ -192,11 +180,11 @@ class SIDProcessor extends AudioWorkletProcessor {
                 if (this.vblankTimer <= 0) {
                     this.vblankTimer += this.playSpeedCycles;
                     
-                    // PSID Routine via JSR aufrufen (aber nur wenn die CPU gerade wartet)
+                    // Host Player Call (für simple PSIDs)
                     if (this.playAddress !== 0) {
                         if (this.cpu.pc === 0xEA31) { 
                             this.cpu.push(0xEA);
-                            this.cpu.push(0x30);
+                            this.cpu.push(0x30); 
                             this.cpu.pc = this.playAddress;
                         }
                     }
@@ -204,12 +192,12 @@ class SIDProcessor extends AudioWorkletProcessor {
                 }
 
                 if (this.cpuCyclesRemaining <= 0) {
-                    if (this.cpu.pc !== 0xEA31 || this.cpu.irqPending) {
+                    if (this.cpu.pc !== 0xEA31 || this.cpu.irqPending || this.cpu.nmiPending) {
                         let cyclesUsed = this.cpu.step();
                         this.cpu.clockHardware(cyclesUsed);
                         this.cpuCyclesRemaining = cyclesUsed;
                     } else {
-                        // CPU Idle? Wir müssen die Hardware-Timer trotzdem takten!
+                        // CPU Idle im KERNAL -> Takte nur Hardware
                         this.cpu.clockHardware(1);
                         this.cpuCyclesRemaining = 1;
                     }
@@ -222,7 +210,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.ringIndex = (this.ringIndex + 1) & 511; 
             }
             
-            // --- THE POLYPHASE DECIMATION STAGE (48 kHz) ---
+            // Decimation
             let decimationSum = 0;
             for (let k = 0; k < this.FIR_TAPS; k++) {
                 let readIdx = (this.ringIndex - 1 - k + 512) & 511;
