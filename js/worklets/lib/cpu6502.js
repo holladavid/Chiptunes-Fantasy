@@ -42,6 +42,21 @@ export class CPU6502 {
         // --- SCHRITT 3: IRQ-LATENZ & ANERKENNUNG ---
         this.irqAccepted = false;
         this.nmiAccepted = false;
+
+        // --- SCHRITT 5: CIA TOD CLOCK ---
+        this.todTenths = 0;
+        this.todSec = 0;
+        this.todMin = 0;
+        this.todHour = 1; // Startet standardmäßig bei 1 AM (BCD)
+        
+        this.todLatchTenths = 0;
+        this.todLatchSec = 0;
+        this.todLatchMin = 0;
+        this.todLatchHour = 1;
+        this.todLatched = false;
+        this.todHalted = false;
+        
+        this.todCycleCounter = 19705; // Standard 50Hz (PAL)
     }
 
     reset(loadAddr, prgCode) {
@@ -100,6 +115,21 @@ export class CPU6502 {
         // --- SCHRITT 3: IRQ-LATENZ & ANERKENNUNG ---
         this.irqAccepted = false;
         this.nmiAccepted = false;
+
+        // --- SCHRITT 5: CIA TOD CLOCK ---
+        this.todTenths = 0;
+        this.todSec = 0;
+        this.todMin = 0;
+        this.todHour = 1; // Startet standardmäßig bei 1 AM (BCD)
+        
+        this.todLatchTenths = 0;
+        this.todLatchSec = 0;
+        this.todLatchMin = 0;
+        this.todLatchHour = 1;
+        this.todLatched = false;
+        this.todHalted = false;
+        
+        this.todCycleCounter = 19705; // Standard 50Hz (PAL)
     }
 
     push(val) {
@@ -129,7 +159,7 @@ export class CPU6502 {
         }
         if (addr > 0xDFFF) return this.ram[addr];
         
-        // --- I/O REGISTER INTERCEPTION ($D000 - $DFFF) ---
+        // VIC-II
         if (addr === 0xD011) {
             let val = this.ram[0xD011] & 0x7F;
             if (this.rasterCounter > 255) val |= 0x80;
@@ -138,6 +168,28 @@ export class CPU6502 {
         if (addr === 0xD012) return this.rasterCounter & 0xFF;
         if (addr === 0xD019) return this.ram[0xD019] | 0x70; 
         
+        // --- SCHRITT 5: CIA TOD CLOCK (Latching-Freezer) ---
+        if (addr >= 0xDC08 && addr <= 0xDC0B) {
+            if (addr === 0xDC0B) {
+                // Das Lesen der Stunden friert die Zeitanzeige ein
+                if (!this.todLatched) {
+                    this.todLatchTenths = this.todTenths;
+                    this.todLatchSec = this.todSec;
+                    this.todLatchMin = this.todMin;
+                    this.todLatchHour = this.todHour;
+                    this.todLatched = true;
+                }
+                return this.todLatchHour;
+            }
+            if (addr === 0xDC0A) return this.todLatched ? this.todLatchMin : this.todMin;
+            if (addr === 0xDC09) return this.todLatched ? this.todLatchSec : this.todSec;
+            if (addr === 0xDC08) {
+                let val = this.todLatched ? this.todLatchTenths : this.todTenths;
+                this.todLatched = false; // Das Lesen der Zehntelsekunden hebt den Freeze auf
+                return val;
+            }
+        }  
+
         // CIA-1 
         if (addr === 0xDC04) return this.cia1TimerA & 0xFF;
         if (addr === 0xDC05) return (this.cia1TimerA >> 8) & 0xFF;
@@ -187,6 +239,19 @@ export class CPU6502 {
             this.cia1TimerALatch = (this.cia1TimerALatch & 0x00FF) | (val << 8);
             if ((this.cia1CtrlA & 0x01) === 0) this.cia1TimerA = (this.cia1TimerA & 0x00FF) | (val << 8);
         }
+        // --- SCHRITT 5: CIA TOD CLOCK (Einstell-Halt) ---
+        else if (addr === 0xDC08) {
+            this.todTenths = val & 0x0F;
+            this.todHalted = false; // Das Schreiben der Zehntelsekunden startet die Uhr wieder
+            this.todLatched = false;
+        } else if (addr === 0xDC09) {
+            this.todSec = val & 0x7F;
+        } else if (addr === 0xDC0A) {
+            this.todMin = val & 0x7F;
+        } else if (addr === 0xDC0B) {
+            this.todHour = val & 0xFF;
+            this.todHalted = true;  // Das Schreiben der Stunden hält die Uhr an
+        }
         // --- SCHRITT 2: CIA TIMER B ---
         else if (addr === 0xDC06) {
             this.cia1TimerBLatch = (this.cia1TimerBLatch & 0xFF00) | val;
@@ -227,7 +292,7 @@ export class CPU6502 {
     // THE HARDWARE CLOCK MANAGER
     // Taktung von CIA-Timer A & B, Raster und Badline-Evaluation
     // =========================================================
-    clockHardware(cycles) {
+clockHardware(cycles) {
         for (let i = 0; i < cycles; i++) {
             let timerBUnderflowTriggered = false;
 
@@ -243,7 +308,7 @@ export class CPU6502 {
                     }
                     this.updateIrq();
 
-                    // --- SCHRITT 2: TIMER B KASKADIERUNGS-MODUS (Triggered by Timer A Underflow) ---
+                    // --- SCHRITT 2: TIMER B KASKADIERUNGS-MODUS ---
                     if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x40)) {
                         this.cia1TimerB--;
                         if (this.cia1TimerB < 0) {
@@ -253,7 +318,7 @@ export class CPU6502 {
                 }
             }
 
-            // --- 2. CIA Timer B SYSTEM-CLOCK MODUS (Taktet mit dem CPU-Takt) ---
+            // --- 2. CIA Timer B SYSTEM-CLOCK MODUS ---
             if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x00)) {
                 this.cia1TimerB--;
                 if (this.cia1TimerB < 0) {
@@ -263,16 +328,24 @@ export class CPU6502 {
 
             // --- SCHRITT 2: TIMER B UNTERLAUF VERARBEITEN ---
             if (timerBUnderflowTriggered) {
-                this.cia1Icr |= 0x02; // Set Timer B Interrupt Flag in Register $DC0D
+                this.cia1Icr |= 0x02; 
                 this.cia1TimerB = this.cia1TimerBLatch === 0 ? 0xFFFF : this.cia1TimerBLatch;
-                
-                if (this.cia1CtrlB & 0x08) { // One-shot stop
+                if (this.cia1CtrlB & 0x08) { 
                     this.cia1CtrlB &= ~0x01; 
                 }
                 this.updateIrq();
             }
 
-            // --- 3. VIC-II Raster Line (Cycle-Exact) ---
+            // --- SCHRITT 5: CIA TOD CLOCK ---
+            this.todCycleCounter--;
+            if (this.todCycleCounter <= 0) {
+                // Bit 7 von CRA ($DC0E) bestimmt die Netzfrequenz: 1 = 50 Hz, 0 = 60 Hz
+                let is50Hz = (this.cia1CtrlA & 0x80) !== 0;
+                this.todCycleCounter += is50Hz ? 19705 : 16421;
+                this.incrementTod();
+            }
+
+            // --- 3. VIC-II Raster Line (Cycle-Exact) ---            
             this.rasterCycles++;
             if (this.rasterCycles >= this.cyclesPerLine) {
                 this.rasterCycles = 0;
@@ -868,5 +941,46 @@ export class CPU6502 {
             if (op === 0x24 || op === 0x2C) { if (val & 0x80) this.p |= 128; else this.p &= ~128; if (val & 0x40) this.p |= 64; else this.p &= ~64; if ((val & this.a) === 0) this.p |= 2; else this.p &= ~2; return cycles; }
         }
         return cycles;
+    }
+
+    // --- SCHRITT 5: BCD ARITHMETIK HILFSMETHODEN ---
+    addBcd(val, add) {
+        let low = (val & 0x0F) + add;
+        let high = (val >> 4);
+        if (low >= 10) {
+            low -= 10;
+            high++;
+        }
+        return (high << 4) | low;
+    }
+
+    incrementTod() {
+        if (this.todHalted) return;
+
+        this.todTenths++;
+        if (this.todTenths > 9) {
+            this.todTenths = 0;
+            
+            this.todSec = this.addBcd(this.todSec, 1);
+            if (this.todSec >= 0x60) {
+                this.todSec = 0;
+                
+                this.todMin = this.addBcd(this.todMin, 1);
+                if (this.todMin >= 0x60) {
+                    this.todMin = 0;
+                    
+                    let hBcd = this.todHour & 0x7F;
+                    let pm = this.todHour & 0x80;
+                    hBcd = this.addBcd(hBcd, 1);
+                    if (hBcd > 0x12) {
+                        hBcd = 1;
+                    }
+                    if (hBcd === 0x12) {
+                        pm ^= 0x80; // Toggle AM/PM Flag bei 12 Uhr
+                    }
+                    this.todHour = hBcd | pm;
+                }
+            }
+        }
     }
 }
