@@ -27,7 +27,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.playSpeedCycles = 19705; 
         
         this.isPlaying = false;
-        
+        this.hostPlayPending = false;
         this.cycleAccumulator = 0.0;
         this.vblankTimer = 19705; 
         this.currentFrame = 0;
@@ -83,7 +83,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.a = songIndex;
                 this.cpu.x = songIndex; 
                 this.cpu.y = 0;
-                
+                this.hostPlayPending = false;
                 this.cpu.push(0xEA); 
                 this.cpu.push(0x30); 
                 this.cpu.pc = this.initAddress;
@@ -135,7 +135,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.sid = this.sid;
                 
                 this.cpu.reset(this.loadAddr, this.prgCode);
-                
+                this.hostPlayPending = false;
                 let songIndex = (msg.frame > 0 ? msg.frame - 1 : 0) & 0xFF;
                 this.cpu.a = songIndex;
                 this.cpu.x = songIndex;
@@ -193,26 +193,22 @@ class SIDProcessor extends AudioWorkletProcessor {
             for (let c = 0; c < cyclesToRun; c++) {
                 
                 // 1. Hardware Ticking (Exakt 1 Takt pro Iteration)
-                this.cpu.clockHardware(1); // Taktet CIA, VIC und evaluierte IRQs um 1 Takt
-                this.sid.clock();          // Taktet den MOS 6581 Kern um 1 Takt
+                this.cpu.clockHardware(1); 
+                this.sid.clock();          
+                // In sid-standard.js hier: sampleSum += this.sid.outputSample;
                 
-                // 2. VBLANK / Host Player Call (NUR wenn NICHT über CIA getaktet)
-                // Verhindert doppeltes Triggering und Phasen-Kollisionen bei Timer-basierten Tracks wie Wizball!
+                // 2. VBLANK / Host Player Call
                 if (!this.useCiaTimer) {
                     this.vblankTimer--;
                     if (this.vblankTimer <= 0) {
                         this.vblankTimer += this.playSpeedCycles;
-                        
-                        if (this.playAddress !== 0 && this.cpu.pc === 0xEA31) { 
-                            this.cpu.push(0xEA);
-                            this.cpu.push(0x30); 
-                            this.cpu.pc = this.playAddress;
+                        // Setze das Pending-Flag, anstatt sofort asynchron einzugreifen!
+                        if (this.playAddress !== 0) {
+                            this.hostPlayPending = true;
                         }
                         this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                     }
                 } else {
-                    // Bei CIA-basierten Tracks übernimmt der CIA-Timer die Taktung.
-                    // Wir zählen die Frames hier lediglich zur Visualisierung im UI weiter.
                     this.vblankTimer--;
                     if (this.vblankTimer <= 0) {
                         this.vblankTimer += this.playSpeedCycles;
@@ -226,29 +222,37 @@ class SIDProcessor extends AudioWorkletProcessor {
                     this.cpu.nmiAccepted = this.cpu.nmiPending;
                 }
 
-                // 3. CPU Ausführung gekoppelt an die physikalische RDY-Leitung
+                // 3. CPU Ausführung
                 if (!this.cpu.rdy) {
-                    // CPU ist blockiert (VIC-II DMA aktiv). Wir frieren die Programmausführung ein,
-                    // aber die restliche Hardware (CIA, VIC, SID) taktet ungestört weiter!
+                    // CPU blockiert
                 } else {
                     if (this.cpuCyclesRemaining <= 0) {
-                        // --- SCHRITT 3: INTERRUPT-ANERKENNUNG ---
-                        if (this.cpu.nmiAccepted) {
+                        // --- PHASE 12: SYNCHRONISIERTER HOST PLAY CALL ---
+                        // Wir injizieren den Play-Call NUR an Opcode-Grenzen und NUR, 
+                        // wenn die CPU gerade sicher in der Idle-Schleife ($EA31 bis $EA33) steht!
+                        if (this.hostPlayPending && this.cpu.pc >= 0xEA31 && this.cpu.pc <= 0xEA33) {
+                            this.hostPlayPending = false;
+                            this.cpu.push(0xEA);
+                            this.cpu.push(0x30); 
+                            this.cpu.pc = this.playAddress;
+                            this.cpuCyclesRemaining = 6 - 1; // 6 Zyklen für den JSR-Simulations-Takt
+                        } else if (this.cpu.nmiAccepted) {
                             this.cpu.nmiAccepted = false;
                             this.cpu.triggerHardwareNmi();
-                            this.cpuRemaining = 7; 
+                            this.cpuCyclesRemaining = 7 - 1; 
                         } else if (this.cpu.irqAccepted) {
                             this.cpu.irqAccepted = false;
                             this.cpu.triggerHardwareIrq();
-                            this.cpuCyclesRemaining = 7;
+                            this.cpuCyclesRemaining = 7 - 1;
                         } else {
-                            let cyclesUsed = this.cpu.step(); // Gibt 1 zurück, falls !rdy
-                            this.cpuCyclesRemaining = cyclesUsed;
+                            let cyclesUsed = this.cpu.step(); 
+                            this.cpuCyclesRemaining = cyclesUsed - 1;
                         }
+                    } else {
+                        this.cpuCyclesRemaining--;
                     }
-                    this.cpuCyclesRemaining--;
                 }
-                
+                                
                 // Schreibe den analogen SID-Spannungswert in den Ringpuffer
                 this.ringBuffer[this.ringIndex] = this.sid.outputSample;
                 this.ringIndex = (this.ringIndex + 1) & 511; 

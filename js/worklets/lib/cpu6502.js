@@ -68,17 +68,46 @@ constructor(sid) {
     reset(loadAddr, prgCode) {
         this.ram.fill(0);
         
-        this.ram[0x0314] = 0x81; this.ram[0x0315] = 0xEA; 
-        this.ram[0x0318] = 0x81; this.ram[0x0319] = 0xEA; 
-
-        this.ram[0xFFFE] = 0x48; this.ram[0xFFFF] = 0xFF; // Hardware IRQ -> $FF48
-        this.ram[0xFFFA] = 0x58; this.ram[0xFFFB] = 0xFF; // Hardware NMI -> $FF58
-
-        this.ram[0xFF48] = 0x6C; this.ram[0xFF49] = 0x14; this.ram[0xFF4A] = 0x03;
-        this.ram[0xFF58] = 0x6C; this.ram[0xFF59] = 0x18; this.ram[0xFF5A] = 0x03;
-
+        // --- PHASE 12: THE AUTHENTIC PHANTOM KERNAL ---
+        // $EA31: Die Idle-Schleife der CPU (JMP $EA31)
         this.ram[0xEA31] = 0x4C; this.ram[0xEA32] = 0x31; this.ram[0xEA33] = 0xEA;
-        this.ram[0xEA81] = 0x40; 
+        
+        // $EA81 (IRQ Return) und $FE56 (NMI Return) stellen die Register wieder her!
+        const returnHandler = [
+            0x68, 0xA8, // PLA, TAY
+            0x68, 0xAA, // PLA, TAX
+            0x68, 0x40  // PLA, RTI
+        ];
+        for (let i = 0; i < returnHandler.length; i++) {
+            this.ram[0xEA81 + i] = returnHandler[i];
+            this.ram[0xFE56 + i] = returnHandler[i];
+        }
+        
+        // Vektoren für RAM-Hooks
+        this.ram[0x0314] = 0x81; this.ram[0x0315] = 0xEA; // Default IRQ -> Return
+        this.ram[0x0316] = 0x81; this.ram[0x0317] = 0xEA; // Default BRK -> Return
+        this.ram[0x0318] = 0x56; this.ram[0x0319] = 0xFE; // Default NMI -> Return
+
+        // ROM Hardware Vectors ($FFFE = IRQ, $FFFA = NMI)
+        this.ram[0xFFFE] = 0x48; this.ram[0xFFFF] = 0xFF; 
+        this.ram[0xFFFA] = 0x58; this.ram[0xFFFB] = 0xFF; 
+
+        // $FF48: Authentic IRQ Entry (Sichert A, X, Y auf dem Stack und springt zu $0314)
+        const irqEntry = [
+            0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
+            0xBA, 0xBD, 0x04, 0x01,       // TSX, LDA $0104,X (Liest P vom Stack)
+            0x29, 0x10, 0xF0, 0x03,       // AND #$10, BEQ +3 (Überspringt BRK-Vector, wenn Hardware-IRQ)
+            0x6C, 0x16, 0x03,             // JMP ($0316) -> BRK Vector
+            0x6C, 0x14, 0x03              // JMP ($0314) -> IRQ Vector
+        ];
+        for (let i = 0; i < irqEntry.length; i++) this.ram[0xFF48 + i] = irqEntry[i];
+
+        // $FF58: Authentic NMI Entry (Sichert A, X, Y und springt zu $0318)
+        const nmiEntry = [
+            0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
+            0x6C, 0x18, 0x03              // JMP ($0318) -> NMI Vector
+        ];
+        for (let i = 0; i < nmiEntry.length; i++) this.ram[0xFF58 + i] = nmiEntry[i];
         
         for (let i = 0; i < prgCode.length; i++) {
             this.ram[loadAddr + i] = prgCode[i];
@@ -98,16 +127,21 @@ constructor(sid) {
         this.cia1Icr = 0;
         this.cia1IrqMask = 0;
         
-        this.cia1TimerB = 0xFFFF;
-        this.cia1TimerBLatch = 0xFFFF;
-        this.cia1CtrlB = 0;
+        this.cia2TimerA = 0xFFFF;
+        this.cia2TimerALatch = 0xFFFF;
+        this.cia2CtrlA = 0;
+        this.cia2Icr = 0;
+        this.cia2IrqMask = 0;
         
+        this.cia2TimerB = 0xFFFF;
+        this.cia2TimerBLatch = 0xFFFF;
+        this.cia2CtrlB = 0;
+
         this.irqPending = false;
         this.nmiPending = false;
         this.irqAccepted = false;
         this.nmiAccepted = false;
 
-        // --- PHASE 1: PHYSIKALISCHE RDY-LEITUNG ---
         this.rdy = true;
         this.isBadLine = false;
 
@@ -122,17 +156,6 @@ constructor(sid) {
         this.todLatched = false;
         this.todHalted = false;
         this.todCycleCounter = 19705;
-
-        // --- PHASE 8: CIA-2 (NMI SUB-SYSTEM FÜR DIGIDRUMS) ---
-        this.cia2TimerA = 0xFFFF;
-        this.cia2TimerALatch = 0xFFFF;
-        this.cia2CtrlA = 0;
-        this.cia2Icr = 0;
-        this.cia2IrqMask = 0;
-        
-        this.cia2TimerB = 0xFFFF;
-        this.cia2TimerBLatch = 0xFFFF;
-        this.cia2CtrlB = 0;
     }
 
     push(val) {
