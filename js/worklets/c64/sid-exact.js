@@ -129,7 +129,7 @@ class SIDProcessor extends AudioWorkletProcessor {
 
                 this.playAddress = msg.playAddress;
 
-                // --- FIX: Nur noch EINE Zuweisung, sauber gekoppelt an die Instanz ---
+                // --- FIX: useCiaTimer Zuweisung ---
                 this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
                 this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
                 this.vblankTimer = this.playSpeedCycles;
@@ -240,7 +240,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.sid.clock();      
 
                 // 2. VBLANK / Host Player Call (Interrupt Hijack Detection)
-                // Prüft präzise, ob der Track den Standard-RAM-Vektor $0314 ($EA31) verändert hat
+                // Prüft präzise, ob der Track den RAM-Vektor $0314 ($EA31) verändert hat
                 let irqHijacked = (this.cpu.ram[0x0314] !== 0x31) || (this.cpu.ram[0x0315] !== 0xEA);
                 let vicIrqEnabled = (this.cpu.ram[0xD01A] & 0x01) !== 0;
                 let cia1TimerAEnabled = (this.cpu.cia1IrqMask & 0x01) !== 0;
@@ -251,7 +251,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                     if (this.vblankTimer <= 0) {
                         this.vblankTimer += this.playSpeedCycles;
                         
-                        // Host-Injektion nur, wenn der Track sich nicht selbst über Interrupts taktet
+                        // Injektion nur, wenn der Track sich nicht selbst über Hardware taktet
                         if (!isSelfDriving && this.playAddress !== 0) {
                             this.hostPlayPending = true;
                         }
@@ -272,7 +272,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                         }
                     }
                 }
-                
+                                
                 // --- SCHRITT 3: IRQ-LATENZ SAMPLING ---
                 if (this.cpuCyclesRemaining === 1) {
                     this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;

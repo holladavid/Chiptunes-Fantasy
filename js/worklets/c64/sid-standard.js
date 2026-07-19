@@ -105,11 +105,12 @@ this.port.onmessage = (e) => {
                         }
                     }
                 }
-                this.cpu.pc = 0xEFFF; // Zwingt die CPU nach der Init-Phase in die sichere Host-Idle-Schleife ($EFFF)
+               this.cpu.pc = 0xEFFF; // Zwingt die CPU nach der Init-Phase in die sichere Host-Idle-Schleife ($EFFF)
                 this.cpu.p &= ~0x04;  // Gibt Hardware-Interrupts nach der Initialisierung frei
 
                 this.playAddress = msg.playAddress;
 
+                // --- FIX: useCiaTimer Zuweisung ---
                 this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
                 this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
                 this.vblankTimer = this.playSpeedCycles;
@@ -223,8 +224,8 @@ this.port.onmessage = (e) => {
                 
                 sampleSum += this.sid.outputSample; // Boxcar Summation für Standard-Mode
                 
-                 // 2. VBLANK / Host Player Call (Interrupt Hijack Detection)
-                // Prüft präzise, ob der Track den Standard-RAM-Vektor $0314 ($EA31) verändert hat
+                // 2. VBLANK / Host Player Call (Interrupt Hijack Detection)
+                // Prüft präzise, ob der Track den RAM-Vektor $0314 ($EA31) verändert hat
                 let irqHijacked = (this.cpu.ram[0x0314] !== 0x31) || (this.cpu.ram[0x0315] !== 0xEA);
                 let vicIrqEnabled = (this.cpu.ram[0xD01A] & 0x01) !== 0;
                 let cia1TimerAEnabled = (this.cpu.cia1IrqMask & 0x01) !== 0;
@@ -235,7 +236,7 @@ this.port.onmessage = (e) => {
                     if (this.vblankTimer <= 0) {
                         this.vblankTimer += this.playSpeedCycles;
                         
-                        // Host-Injektion nur, wenn der Track sich nicht selbst über Interrupts taktet
+                        // Injektion nur, wenn der Track sich nicht selbst über Hardware taktet
                         if (!isSelfDriving && this.playAddress !== 0) {
                             this.hostPlayPending = true;
                         }
@@ -256,7 +257,7 @@ this.port.onmessage = (e) => {
                         }
                     }
                 }
-
+                
                 // --- SCHRITT 3: IRQ-LATENZ SAMPLING ---
                 if (this.cpuCyclesRemaining === 1) {
                     this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
