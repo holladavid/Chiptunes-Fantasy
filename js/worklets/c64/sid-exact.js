@@ -99,12 +99,8 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.p &= ~0x04;  // Hardware Interrupts erlauben!
 
                 this.playAddress = msg.playAddress;
-                if (this.playAddress === 0) {
-                    this.playAddress = this.cpu.read(0x0314) | (this.cpu.read(0x0315) << 8); 
-                    if (this.playAddress === 0 || this.playAddress === 0xFFFF || this.playAddress === 0xEA31) {
-                        this.playAddress = 0; 
-                    }
-                }
+                // PSID Spezifikation: Wenn playAddress 0 ist, nutzt der Track Hardware-Interrupts.
+                // Das Auslesen von $0314 entfällt komplett. Wir vertrauen der Emulation!
 
                 let useCiaTimer = ((msg.speed >> songIndex) & 1) !== 0;
                 this.playSpeedCycles = useCiaTimer ? 19583 : 19705;
@@ -180,14 +176,15 @@ class SIDProcessor extends AudioWorkletProcessor {
                 if (this.vblankTimer <= 0) {
                     this.vblankTimer += this.playSpeedCycles;
                     
-                    // Host Player Call (für simple PSIDs)
+                    // Host Player Call NUR für einfache PSIDs (Wizball / Arkanoid werden hier ignoriert!)
                     if (this.playAddress !== 0) {
                         if (this.cpu.pc === 0xEA31) { 
                             this.cpu.push(0xEA);
-                            this.cpu.push(0x30); 
+                            this.cpu.push(0x30);
                             this.cpu.pc = this.playAddress;
                         }
                     }
+                    // Framezähler für das Visualizer-UI hochziehen
                     this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                 }
 
