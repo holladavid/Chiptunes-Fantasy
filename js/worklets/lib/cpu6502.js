@@ -65,6 +65,10 @@ constructor(sid) {
         this.cia2TimerB = 0xFFFF;
         this.cia2TimerBLatch = 0xFFFF;
         this.cia2CtrlB = 0;
+
+        // --- PHASE 12: DYNAMISCHE DIAGNOSTIK-VEKTOREN ---
+        this.defaultIrqLo = 0x31; // Entspricht $31 (LSB von $EA31)
+        this.defaultIrqHi = 0xEA; // Entspricht $EA (MSB von $EA31)
     }
 
 reset(loadAddr, prgCode) {

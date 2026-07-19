@@ -134,6 +134,20 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
                 this.vblankTimer = this.playSpeedCycles;
 
+                // --- SCHRITT 1: SYSTEM-DIAGNOSE BEIM HOOTEN ---
+                let bootMsg = `==================================================\n` +
+                              `[LAB-BOOT] Core: ${this.constructor.name}\n` +
+                              `[LAB-BOOT] Subsong-Index: ${songIndex} | Address-Range: $${this.loadAddr.toString(16).toUpperCase()} - $${(this.loadAddr + this.prgCode.length).toString(16).toUpperCase()}\n` +
+                              `[LAB-BOOT] Play-Address: $${this.playAddress.toString(16).toUpperCase()}\n` +
+                              `[LAB-BOOT] Vector $0314 (IRQ): $${this.cpu.ram[0x0314].toString(16).toUpperCase().padStart(2, '0')}${this.cpu.ram[0x0315].toString(16).toUpperCase().padStart(2, '0')}\n` +
+                              `[LAB-BOOT] Vector $0318 (NMI): $${this.cpu.ram[0x0318].toString(16).toUpperCase().padStart(2, '0')}${this.cpu.ram[0x0319].toString(16).toUpperCase().padStart(2, '0')}\n` +
+                              `[LAB-BOOT] VIC Mask $D01A: $${this.cpu.ram[0xD01A].toString(16).toUpperCase()} | CIA-1 Mask $DC0D: $${this.cpu.cia1IrqMask.toString(16).toUpperCase()}\n` +
+                              `[LAB-BOOT] Speedflags: %${this.songSpeedFlags.toString(2)} | useCiaTimer: ${this.useCiaTimer}\n` +
+                              `==================================================`;
+                
+                this.port.postMessage({ type: 'LAB_LOG', msg: bootMsg });
+
+
                 this.cycleAccumulator = 0.0;
                 this.cpuCyclesRemaining = 0;
 
@@ -218,10 +232,18 @@ class SIDProcessor extends AudioWorkletProcessor {
     }
     // In js/worklets/c64/sid-exact.js:
 
+// In js/worklets/c64/sid-exact.js:
+
     process(inputs, outputs) {
         const outL = outputs[0][0];
         const outR = outputs[0].length > 1 ? outputs[0][1] : null;
         let visualValue = 0;
+
+        // --- SCHRITT 1: LOCAL DIAGNOSTIC VARIABLES (SCOPE PROTECTION) ---
+        let irqHijacked = false;
+        let vicIrqEnabled = false;
+        let cia1TimerAEnabled = false;
+        let isSelfDriving = false;
 
         for (let i = 0; i < outL.length; i++) {
             if (!this.isPlaying) {
@@ -236,22 +258,22 @@ class SIDProcessor extends AudioWorkletProcessor {
             // --- THE NATIVE CYCLE-EXACT LOCKSTEP LOOP (1 MHz) ---
             for (let c = 0; c < cyclesToRun; c++) {
                 
+                // 1. Hardware Ticking
                 this.cpu.clockHardware(1); 
-                this.sid.clock();      
-
+                this.sid.clock();          
+                // (Hinweis für sid-standard.js: sampleSum += this.sid.outputSample; hier stehen lassen!)
+                
                 // 2. VBLANK / Host Player Call (Interrupt Hijack Detection)
-                // Prüft präzise, ob der Track den RAM-Vektor $0314 ($EA31) verändert hat
-                let irqHijacked = (this.cpu.ram[0x0314] !== 0x31) || (this.cpu.ram[0x0315] !== 0xEA);
-                let vicIrqEnabled = (this.cpu.ram[0xD01A] & 0x01) !== 0;
-                let cia1TimerAEnabled = (this.cpu.cia1IrqMask & 0x01) !== 0;
-                let isSelfDriving = irqHijacked && (vicIrqEnabled || cia1TimerAEnabled);
+                irqHijacked = (this.cpu.ram[0x0314] !== this.cpu.defaultIrqLo) || (this.cpu.ram[0x0315] !== this.cpu.defaultIrqHi);
+                vicIrqEnabled = (this.cpu.ram[0xD01A] & 0x01) !== 0;
+                cia1TimerAEnabled = (this.cpu.cia1IrqMask & 0x01) !== 0;
+                isSelfDriving = irqHijacked && (vicIrqEnabled || cia1TimerAEnabled);
 
                 if (!this.useCiaTimer) {
                     this.vblankTimer--;
                     if (this.vblankTimer <= 0) {
                         this.vblankTimer += this.playSpeedCycles;
                         
-                        // Injektion nur, wenn der Track sich nicht selbst über Hardware taktet
                         if (!isSelfDriving && this.playAddress !== 0) {
                             this.hostPlayPending = true;
                         }
@@ -264,7 +286,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                         this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                     }
                     
-                    // Wizball-Fix: Bei CIA-getakteten SIDs weichen wir präzise auf den Timer-A-Underflow aus
                     if (this.cpu.cia1TimerAUnderflowed) {
                         this.cpu.cia1TimerAUnderflowed = false;
                         if (!isSelfDriving && this.playAddress !== 0) {
@@ -272,8 +293,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                         }
                     }
                 }
-                                
-                // --- SCHRITT 3: IRQ-LATENZ SAMPLING ---
+
                 if (this.cpuCyclesRemaining === 1) {
                     this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
                     this.cpu.nmiAccepted = this.cpu.nmiPending;
@@ -281,10 +301,9 @@ class SIDProcessor extends AudioWorkletProcessor {
 
                 // 3. CPU Ausführung
                 if (!this.cpu.rdy) {
-                    // CPU stall (Badlines)
+                    // CPU stall
                 } else {
                     if (this.cpuCyclesRemaining <= 0) {
-                        // Der Host Play Call injiziert nur noch, wenn die CPU sicher im Host-Idle ist!
                         if (this.hostPlayPending && this.cpu.pc >= 0xEFFF && this.cpu.pc <= 0xF001) {
                             this.hostPlayPending = false;
                             this.cpu.push(0xEF);
@@ -307,12 +326,12 @@ class SIDProcessor extends AudioWorkletProcessor {
                         this.cpuCyclesRemaining--;
                     }
                 }
-
-                this.ringBuffer[this.ringIndex] = this.sid.outputSample;
-                this.ringIndex = (this.ringIndex + 1) & 511; 
+                
+                // (Hinweis für sid-exact.js: Behalte hier 'this.ringBuffer[this.ringIndex] = this.sid.outputSample;' bei!)
             }
             
             // --- DECIMATION ---
+            // (Hinweis für sid-exact.js: Behalte die Sinc-Filter Faltung hier bei!)
             let decimationSum = 0;
             for (let k = 0; k < this.FIR_TAPS; k++) {
                 let readIdx = (this.ringIndex - 1 - k + 512) & 511;
@@ -326,25 +345,20 @@ class SIDProcessor extends AudioWorkletProcessor {
             if (i === 0) visualValue = finalSample;
         }
 
-        this.visCounter = (this.visCounter || 0) + 1;
-        if (this.visCounter % 4 === 0) {
-            let isAudible = Math.abs(visualValue) > 0.001;
-            if (isAudible || this.wasAudible) {
-                const view = this.visualView;
-                view[0] = 0; 
-                view[1] = this.isPlaying ? 1 : 0;
-                view[2] = this.currentFrame;
-                view[3] = visualValue;
+        // --- SCHRITT 1: DIAGNOSTISCHER ECHTZEIT-LOG (GEDROSSELT AUF 1HZ) ---
+        this.logThrottle = (this.logThrottle || 0) + 1;
+        if (this.logThrottle >= 375) {
+            this.logThrottle = 0;
+            
+            let logMsg = `[LAB-LIVE] PC: $${this.cpu.pc.toString(16).toUpperCase().padStart(4, '0')} | P: $${this.cpu.p.toString(16).toUpperCase()} | SP: $${this.cpu.sp.toString(16).toUpperCase()} | RDY: ${this.cpu.rdy}\n` +
+                         `[LAB-LIVE] HostPending: ${this.hostPlayPending} | SelfDriving: ${isSelfDriving} | useCiaTimer: ${this.useCiaTimer}\n` +
+                         `[LAB-LIVE] CIA-1 Timer A: $${this.cpu.cia1TimerA.toString(16).toUpperCase()} | Latch: $${this.cpu.cia1TimerALatch.toString(16).toUpperCase()} | Mask: $${this.cpu.cia1IrqMask.toString(16).toUpperCase()}\n` +
+                         `[LAB-LIVE] CIA-2 Timer A: $${this.cpu.cia2TimerA.toString(16).toUpperCase()} | Latch: $${this.cpu.cia2TimerALatch.toString(16).toUpperCase()} | Mask: $${this.cpu.cia2IrqMask.toString(16).toUpperCase()}\n` +
+                         `[LAB-LIVE] Memory Port $0001: $${this.cpu.ram[0x0001].toString(16).toUpperCase()}`;
 
-                for (let r = 0; r < 29; r++) view[4 + r] = this.sid.regs[r];
-                view[33] = this.temperature;
-                for (let v = 0; v < 3; v++) view[34 + v] = this.sid.voices[v].envelope_counter / 255.0;
-                view[37] = 0.0;
-
-                this.port.postMessage(view);
-            }
-            this.wasAudible = isAudible;
+            this.port.postMessage({ type: 'LAB_LOG', msg: logMsg });
         }
+
         return true;
     }
 }
