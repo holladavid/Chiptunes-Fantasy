@@ -52,6 +52,17 @@ constructor(sid) {
         this.todLatched = false;
         this.todHalted = false;
         this.todCycleCounter = 19705;
+
+        // --- PHASE 8: CIA-2 (NMI SUB-SYSTEM FÜR DIGIDRUMS) ---
+        this.cia2TimerA = 0xFFFF;
+        this.cia2TimerALatch = 0xFFFF;
+        this.cia2CtrlA = 0;
+        this.cia2Icr = 0;
+        this.cia2IrqMask = 0;
+        
+        this.cia2TimerB = 0xFFFF;
+        this.cia2TimerBLatch = 0xFFFF;
+        this.cia2CtrlB = 0;
     }
 
     reset(loadAddr, prgCode) {
@@ -111,6 +122,17 @@ constructor(sid) {
         this.todLatched = false;
         this.todHalted = false;
         this.todCycleCounter = 19705;
+
+        // --- PHASE 8: CIA-2 (NMI SUB-SYSTEM FÜR DIGIDRUMS) ---
+        this.cia2TimerA = 0xFFFF;
+        this.cia2TimerALatch = 0xFFFF;
+        this.cia2CtrlA = 0;
+        this.cia2Icr = 0;
+        this.cia2IrqMask = 0;
+        
+        this.cia2TimerB = 0xFFFF;
+        this.cia2TimerBLatch = 0xFFFF;
+        this.cia2CtrlB = 0;
     }
 
     push(val) {
@@ -179,6 +201,25 @@ constructor(sid) {
 
         if (addr === 0xDC07) return (this.cia1TimerB >> 8) & 0xFF;
         
+        // --- PHASE 8: CIA-2 (NMI) READ ---
+        if (addr >= 0xDD00 && addr <= 0xDD0F) {
+            if (addr === 0xDD04) return this.cia2TimerA & 0xFF;
+            if (addr === 0xDD05) return (this.cia2TimerA >> 8) & 0xFF;
+            if (addr === 0xDD06) return this.cia2TimerB & 0xFF;
+            if (addr === 0xDD07) return (this.cia2TimerB >> 8) & 0xFF;
+            if (addr === 0xDD0D) {
+                let anyEnabled = (this.cia2Icr & this.cia2IrqMask & 0x1F) !== 0;
+                let val = this.cia2Icr & 0x1F;
+                if (anyEnabled) val |= 0x80; // Setze Bit 7 (NMI Flag)
+                this.cia2Icr = 0; // Read-to-clear!
+                this.updateIrqState(); 
+                return val;
+            }
+            if (addr === 0xDD0E) return this.cia2CtrlA;
+            if (addr === 0xDD0F) return this.cia2CtrlB;
+            return this.ram[addr]; // Fallback für ungenutzte CIA-2 Register
+        }
+
         // --- PHASE 2: CIA ICR READ (Read-to-Clear) ---
         if (addr === 0xDC0D) {
             // Bit 7 wird nur gesetzt, wenn ein aktiver UND maskierter Interrupt vorliegt
@@ -261,6 +302,37 @@ constructor(sid) {
             }
             this.updateIrq();
         }
+
+        // --- PHASE 8: CIA-2 (NMI) WRITE ---
+        if (addr >= 0xDD00 && addr <= 0xDD0F) {
+            if (addr === 0xDD04) {
+                this.cia2TimerALatch = (this.cia2TimerALatch & 0xFF00) | val;
+                if ((this.cia2CtrlA & 0x01) === 0) this.cia2TimerA = (this.cia2TimerA & 0xFF00) | val;
+            } else if (addr === 0xDD05) {
+                this.cia2TimerALatch = (this.cia2TimerALatch & 0x00FF) | (val << 8);
+                if ((this.cia2CtrlA & 0x01) === 0) this.cia2TimerA = (this.cia2TimerA & 0x00FF) | (val << 8);
+            } else if (addr === 0xDD06) {
+                this.cia2TimerBLatch = (this.cia2TimerBLatch & 0xFF00) | val;
+                if ((this.cia2CtrlB & 0x01) === 0) this.cia2TimerB = (this.cia2TimerB & 0xFF00) | val;
+            } else if (addr === 0xDD07) {
+                this.cia2TimerBLatch = (this.cia2TimerBLatch & 0x00FF) | (val << 8);
+                if ((this.cia2CtrlB & 0x01) === 0) this.cia2TimerB = (this.cia2TimerB & 0x00FF) | (val << 8);
+            } else if (addr === 0xDD0D) {
+                let bit7 = (val & 0x80) !== 0;
+                let maskBits = val & 0x1F;
+                if (bit7) this.cia2IrqMask |= maskBits;
+                else this.cia2IrqMask &= ~maskBits;
+                this.updateIrqState();
+            } else if (addr === 0xDD0E) {
+                this.cia2CtrlA = val;
+                if (val & 0x10) this.cia2TimerA = this.cia2TimerALatch === 0 ? 0xFFFF : this.cia2TimerALatch;
+            } else if (addr === 0xDD0F) {
+                this.cia2CtrlB = val;
+                if (val & 0x10) this.cia2TimerB = this.cia2TimerBLatch === 0 ? 0xFFFF : this.cia2TimerBLatch;
+            }
+            return;
+        }
+
         // --- SCHRITT 5: CIA TOD CLOCK ---
         else if (addr === 0xDC0E) {
             this.cia1CtrlA = val;
@@ -273,37 +345,31 @@ constructor(sid) {
         }
     }
 
-    // --- PHASE 3: INTERRUPT LATENCY BINDING ---
     updateIrqState(cycleIndex = 0, totalCycles = 1) {
         let vicIrq = (this.ram[0xD019] & this.ram[0xD01A] & 0x0F) !== 0;
         let ciaIrq = (this.cia1Icr & this.cia1IrqMask & 0x1F) !== 0;
         
-        this.irqPending = vicIrq || ciaIrq;
+        // --- PHASE 8: CIA-2 NMI STATUS ---
+        let cia2Nmi = (this.cia2Icr & this.cia2IrqMask & 0x1F) !== 0;
         
-        if (vicIrq) {
-            this.ram[0xD019] |= 0x80;
-        } else {
-            this.ram[0xD019] &= 0x7F;
-        }
+        this.irqPending = vicIrq || ciaIrq;
+        this.nmiPending = cia2Nmi; // NMI direkt an CIA-2 koppeln
+        
+        if (vicIrq) this.ram[0xD019] |= 0x80;
+        else this.ram[0xD019] &= 0x7F;
 
-        if (ciaIrq) {
-            this.cia1Icr |= 0x80;
-        } else {
-            this.cia1Icr &= 0x7F;
-        }
+        if (ciaIrq) this.cia1Icr |= 0x80;
+        else this.cia1Icr &= 0x7F;
 
-        // Interrupt-Anerkennung mit exakter 6502-Latenz:
-        // Nur wenn das Ereignis vor dem vorletzten Zyklus (totalCycles - 2) auftritt,
-        // wird es für die direkt darauffolgende Instruktion akzeptiert.
+        // CIA-2 NMI ICR Bit 7 (Global NMI Flag)
+        if (cia2Nmi) this.cia2Icr |= 0x80;
+        else this.cia2Icr &= 0x7F;
+
         if (this.irqPending) {
-            if (cycleIndex <= totalCycles - 3) {
-                this.irqAccepted = (this.p & 0x04) === 0;
-            }
+            if (cycleIndex <= totalCycles - 3) this.irqAccepted = (this.p & 0x04) === 0;
         }
         if (this.nmiPending) {
-            if (cycleIndex <= totalCycles - 3) {
-                this.nmiAccepted = true;
-            }
+            if (cycleIndex <= totalCycles - 3) this.nmiAccepted = true;
         }
     }
 
@@ -346,6 +412,39 @@ constructor(sid) {
                         }
                     }
                 }
+            }
+
+            // --- PHASE 8: CIA-2 (NMI) CLOCKING ---
+            let cia2TimerBUnderflow = false;
+
+            if (this.cia2CtrlA & 0x01) { 
+                this.cia2TimerA--;
+                if (this.cia2TimerA < 0) {
+                    this.cia2Icr |= 0x01; // Timer A underflow NMI flag
+                    this.cia2TimerA = this.cia2TimerALatch === 0 ? 0xFFFF : this.cia2TimerALatch;
+                    
+                    if (this.cia2CtrlA & 0x08) this.cia2CtrlA &= ~0x01; 
+                    this.updateIrqState(i, cycles);
+
+                    // CIA-2 Timer B Cascaded Mode
+                    if ((this.cia2CtrlB & 0x01) && ((this.cia2CtrlB & 0x60) === 0x40)) {
+                        this.cia2TimerB--;
+                        if (this.cia2TimerB < 0) cia2TimerBUnderflow = true;
+                    }
+                }
+            }
+
+            // CIA-2 Timer B System-Clock Mode
+            if ((this.cia2CtrlB & 0x01) && ((this.cia2CtrlB & 0x60) === 0x00)) {
+                this.cia2TimerB--;
+                if (this.cia2TimerB < 0) cia2TimerBUnderflow = true;
+            }
+
+            if (cia2TimerBUnderflow) {
+                this.cia2Icr |= 0x02; 
+                this.cia2TimerB = this.cia2TimerBLatch === 0 ? 0xFFFF : this.cia2TimerBLatch;
+                if (this.cia2CtrlB & 0x08) this.cia2CtrlB &= ~0x01; 
+                this.updateIrqState(i, cycles);
             }
 
             // --- 2. CIA Timer B SYSTEM-CLOCK MODUS ---
