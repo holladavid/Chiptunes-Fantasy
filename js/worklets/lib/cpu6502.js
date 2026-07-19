@@ -21,11 +21,13 @@ constructor(sid) {
         this.rasterCycles = 0;
         this.rasterIrqTarget = 0;
         
-        this.cia1TimerA = 0xFFFF;
-        this.cia1TimerALatch = 0xFFFF;
-        this.cia1CtrlA = 0;
-        this.cia1Icr = 0; // Interrupt Control Register (Read-to-Clear)
-        this.cia1IrqMask = 0; // Interrupt Enable Register
+        // --- SCHRITT 1 (NEU): CIA-1 TIMING BOOT STATE ---
+        this.cia1TimerALatch = 19705; // PAL Standard-Takt (ca. 50Hz)
+        this.cia1TimerA = 19705;
+        this.cia1CtrlA = 0x01;        // Timer läuft standardmäßig beim Einschalten des Rechners!
+        this.cia1Icr = 0;             
+        this.cia1IrqMask = 0x01;      // Timer-A IRQs sind standardmäßig aktiv (Bit 0)
+        this.cia1TimerAUnderflowed = false; // Systemtakt-Melder für das AudioWorklet
         
         this.cia1TimerB = 0xFFFF;
         this.cia1TimerBLatch = 0xFFFF;
@@ -129,21 +131,19 @@ reset(loadAddr, prgCode) {
         this.rasterCycles = 0;
         this.rasterIrqTarget = 0;
         
-        this.cia1TimerA = 0xFFFF;
-        this.cia1TimerALatch = 0xFFFF;
-        this.cia1CtrlA = 0;
+        // --- SCHRITT 1 (NEU): CIA-1 TIMING RESET STATE ---
+        this.cia1TimerALatch = 19705;
+        this.cia1TimerA = 19705;
+        this.cia1CtrlA = 0x01; // Timer gestartet
         this.cia1Icr = 0;
-        this.cia1IrqMask = 0;
+        this.cia1IrqMask = 0x01; // Standardmäßig im KERNAL-IRQ eingebunden
+        this.cia1TimerAUnderflowed = false;
         
         this.cia2TimerA = 0xFFFF;
         this.cia2TimerALatch = 0xFFFF;
         this.cia2CtrlA = 0;
         this.cia2Icr = 0;
         this.cia2IrqMask = 0;
-        
-        this.cia2TimerB = 0xFFFF;
-        this.cia2TimerBLatch = 0xFFFF;
-        this.cia2CtrlB = 0;
 
         this.irqPending = false;
         this.nmiPending = false;
