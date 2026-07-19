@@ -34,6 +34,10 @@ class SIDProcessor extends AudioWorkletProcessor {
         
         this.visualView = new Float32Array(40);
 
+        // --- DIGIDRUM VOL-WIGGLE DETECTOR STATE ---
+        this.lastMasterVol = 0.0;
+        this.volWiggleActivity = 0.0;
+
         this.port.onmessage = (e) => {
             const msg = e.data;
             
@@ -211,6 +215,8 @@ class SIDProcessor extends AudioWorkletProcessor {
         let cia1TimerAEnabled = false;
         let isSelfDriving = false;
 
+        const dt = 1.0 / sampleRate;
+
         for (let i = 0; i < outL.length; i++) {
             if (!this.isPlaying) {
                 outL[i] = 0; if (outR) outR[i] = 0;
@@ -294,7 +300,28 @@ class SIDProcessor extends AudioWorkletProcessor {
             
             let finalSample = cyclesToRun > 0 ? sampleSum / cyclesToRun : this.lastSampleValue;
             this.lastSampleValue = finalSample;
-            finalSample = this.dcBlock.process(finalSample);
+
+            // =========================================================
+            // DYNAMISCHER HIGH-PASS COOP (Galway Volume-Wiggle Protection)
+            // =========================================================
+            const currentMasterVol = this.sid.masterVol;
+            const deltaVol = Math.abs(currentMasterVol - this.lastMasterVol);
+            this.lastMasterVol = currentMasterVol;
+
+            if (deltaVol > 0.01) {
+                this.volWiggleActivity = Math.min(1.0, this.volWiggleActivity + 0.15);
+            } else {
+                this.volWiggleActivity *= Math.exp(-dt * 45.0);
+            }
+
+            const activeAlpha = 0.995 + (this.volWiggleActivity * 0.0046);
+            
+            // DC Blocker Ausführung inline, um dsp-utils.js Abhängigkeiten zu umgehen!
+            let outSample = finalSample - this.dcBlock.lastIn + activeAlpha * this.dcBlock.lastOut;
+            this.dcBlock.lastIn = finalSample;
+            this.dcBlock.lastOut = outSample;
+            finalSample = outSample;
+
             this.outLp += 0.65 * (finalSample - this.outLp);
             finalSample = this.outLp;
 

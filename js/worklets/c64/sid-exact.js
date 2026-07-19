@@ -49,6 +49,10 @@ class SIDProcessor extends AudioWorkletProcessor {
 
         this.visualView = new Float32Array(40);
 
+        // --- DIGIDRUM VOL-WIGGLE DETECTOR STATE ---
+        this.lastMasterVol = 0.0;
+        this.volWiggleActivity = 0.0;
+
         this.port.onmessage = (e) => {
             const msg = e.data;
             
@@ -107,7 +111,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                                 this.cpu.triggerHardwareIrq();
                                 this.cpuCyclesRemaining = 7 - 1;
                             } else {
-                                let cyclesUsed = this.cpu.step();
+                                let cyclesUsed = this.cpu.step(); 
                                 this.cpuCyclesRemaining = cyclesUsed - 1; 
                             }
                         } else {
@@ -191,7 +195,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                                 this.cpu.triggerHardwareIrq();
                                 this.cpuCyclesRemaining = 7 - 1;
                             } else {
-                                let cyclesUsed = this.cpu.step();
+                                let cyclesUsed = this.cpu.step(); 
                                 this.cpuCyclesRemaining = cyclesUsed - 1; 
                             }
                         } else {
@@ -226,6 +230,8 @@ class SIDProcessor extends AudioWorkletProcessor {
         let cia1TimerAEnabled = false;
         let isSelfDriving = false;
 
+        const dt = 1.0 / sampleRate;
+
         for (let i = 0; i < outL.length; i++) {
             if (!this.isPlaying) {
                 outL[i] = 0; if (outR) outR[i] = 0;
@@ -247,15 +253,10 @@ class SIDProcessor extends AudioWorkletProcessor {
                 cia1TimerAEnabled = (this.cpu.cia1IrqMask & 0x01) !== 0;
                 isSelfDriving = irqHijacked && (vicIrqEnabled || cia1TimerAEnabled);
 
-                // Wenn der Track die Vektoren modifiziert hat ODER keinen Play-Call braucht (0x0000) -> nicht triggern!
-                // FIX: Auch die Hardware PlayAddress muss immer vom Host getriggert werden, wenn es KEIN eigener Timer ist!
                 if (!this.useCiaTimer) {
                     this.vblankTimer--;
                     if (this.vblankTimer <= 0) {
                         this.vblankTimer += this.playSpeedCycles;
-                        // PSID-REGEL: Die Host-Routine wird auch bei modifizierten Interrupts gefeuert, 
-                        // WENN es sich um einen PlayAddress-Track handelt, solange der Track nicht *explizit* 
-                        // sagt, dass er vollkommen autark ist (playAddress == 0).
                         if (this.playAddress !== 0) {
                             this.hostPlayPending = true;
                         }
@@ -301,7 +302,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                             this.cpuCyclesRemaining = 7 - 1;
                         } else {
                             let cyclesUsed = this.cpu.step(); 
-                            this.cpuCyclesRemaining = cyclesUsed - 1;
+                            this.cpuCyclesRemaining = cyclesUsed - 1; 
                         }
                     } else {
                         this.cpuCyclesRemaining--;
@@ -319,7 +320,29 @@ class SIDProcessor extends AudioWorkletProcessor {
                 decimationSum += this.ringBuffer[readIdx] * this.firKernel[k];
             }
             
-            let finalSample = this.dcBlock.process(decimationSum);
+            // =========================================================
+            // DYNAMISCHER HIGH-PASS COOP (Galway Volume-Wiggle Protection)
+            // =========================================================
+            const currentMasterVol = this.sid.masterVol;
+            const deltaVol = Math.abs(currentMasterVol - this.lastMasterVol);
+            this.lastMasterVol = currentMasterVol;
+
+            if (deltaVol > 0.01) {
+                // Schnelle Erhöhung der Aktivitäts-Hüllkurve
+                this.volWiggleActivity = Math.min(1.0, this.volWiggleActivity + 0.15);
+            } else {
+                // Exponentielles Abklingen bei Stille
+                this.volWiggleActivity *= Math.exp(-dt * 45.0);
+            }
+
+            // Weiche Überblendung des DC-Blocker Koeffizienten:
+            // 0.995 (Standard ~38 Hz) bis 0.9996 (Galway Bypass ~3 Hz)
+            const activeAlpha = 0.995 + (this.volWiggleActivity * 0.0046);
+            
+            // DC Blocker Ausführung inline, um dsp-utils.js Abhängigkeiten zu umgehen!
+            let finalSample = decimationSum - this.dcBlock.lastIn + activeAlpha * this.dcBlock.lastOut;
+            this.dcBlock.lastIn = decimationSum;
+            this.dcBlock.lastOut = finalSample;
 
             outL[i] = finalSample;
             if (outR) outR[i] = finalSample;
