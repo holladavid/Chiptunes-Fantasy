@@ -82,6 +82,11 @@ export class CPU6502 {
         // --- SCHRITT 1: VIC-II BADLINE TIMING ---
         this.cpuStall = 0;
         this.isBadLine = false;
+
+        // --- SCHRITT 2: CIA TIMER B ---
+        this.cia1TimerB = 0xFFFF;
+        this.cia1TimerBLatch = 0xFFFF;
+        this.cia1CtrlB = 0;
     }
 
     push(val) {
@@ -123,6 +128,9 @@ export class CPU6502 {
         // CIA-1 
         if (addr === 0xDC04) return this.cia1TimerA & 0xFF;
         if (addr === 0xDC05) return (this.cia1TimerA >> 8) & 0xFF;
+        // --- SCHRITT 2: CIA TIMER B ---
+        if (addr === 0xDC06) return this.cia1TimerB & 0xFF;
+        if (addr === 0xDC07) return (this.cia1TimerB >> 8) & 0xFF;
         if (addr === 0xDC0D) {
             let val = this.cia1Icr;
             this.cia1Icr = 0; // Read-to-clear!
@@ -130,6 +138,7 @@ export class CPU6502 {
             return val;
         }
         if (addr === 0xDC0E) return this.cia1CtrlA;
+        if (addr === 0xDC0F) return this.cia1CtrlB;
         
         if (addr === 0xD41B) return this.sid.voices[2].waveOut8Bit || 0;
         if (addr === 0xD41C) return this.sid.voices[2].env8Bit || 0;
@@ -156,21 +165,35 @@ export class CPU6502 {
             this.ram[0xD01A] = val & 0x0F;
             this.updateIrq();
         }
+
         // CIA-1
         else if (addr === 0xDC04) {
             this.cia1TimerALatch = (this.cia1TimerALatch & 0xFF00) | val;
-            // Wenn der Timer gestoppt ist, Counter sofort mitschreiben!
             if ((this.cia1CtrlA & 0x01) === 0) this.cia1TimerA = (this.cia1TimerA & 0xFF00) | val;
         } else if (addr === 0xDC05) {
             this.cia1TimerALatch = (this.cia1TimerALatch & 0x00FF) | (val << 8);
             if ((this.cia1CtrlA & 0x01) === 0) this.cia1TimerA = (this.cia1TimerA & 0x00FF) | (val << 8);
-        } else if (addr === 0xDC0D) {
+        }
+        // --- SCHRITT 2: CIA TIMER B ---
+        else if (addr === 0xDC06) {
+            this.cia1TimerBLatch = (this.cia1TimerBLatch & 0xFF00) | val;
+            if ((this.cia1CtrlB & 0x01) === 0) this.cia1TimerB = (this.cia1TimerB & 0xFF00) | val;
+        } else if (addr === 0xDC07) {
+            this.cia1TimerBLatch = (this.cia1TimerBLatch & 0x00FF) | (val << 8);
+            if ((this.cia1CtrlB & 0x01) === 0) this.cia1TimerB = (this.cia1TimerB & 0x00FF) | (val << 8);
+        }
+        else if (addr === 0xDC0D) {
             if (val & 0x80) this.cia1IrqMask |= (val & 0x7F);
             else this.cia1IrqMask &= ~(val & 0x7F);
             this.updateIrq();
         } else if (addr === 0xDC0E) {
             this.cia1CtrlA = val;
             if (val & 0x10) this.cia1TimerA = this.cia1TimerALatch === 0 ? 0xFFFF : this.cia1TimerALatch; 
+        }
+        // --- SCHRITT 2: CIA TIMER B ---
+        else if (addr === 0xDC0F) {
+            this.cia1CtrlB = val;
+            if (val & 0x10) this.cia1TimerB = this.cia1TimerBLatch === 0 ? 0xFFFF : this.cia1TimerBLatch;
         }
     }
 
@@ -189,54 +212,84 @@ export class CPU6502 {
 
     // =========================================================
     // THE HARDWARE CLOCK MANAGER
-    // Taktung von CIA-Timer, Raster und Badline-Evaluation
+    // Taktung von CIA-Timer A & B, Raster und Badline-Evaluation
     // =========================================================
-    clockHardware() {
-        // --- 1. CIA Timer A (Cycle-Exact) ---
-        if (this.cia1CtrlA & 0x01) { 
-            this.cia1TimerA--;
-            if (this.cia1TimerA < 0) {
-                this.cia1Icr |= 0x01; // Underflow
-                this.cia1TimerA = this.cia1TimerALatch === 0 ? 0xFFFF : this.cia1TimerALatch;
-                if (this.cia1CtrlA & 0x08) { // One-shot stop
-                    this.cia1CtrlA &= ~0x01; 
+    clockHardware(cycles) {
+        for (let i = 0; i < cycles; i++) {
+            let timerBUnderflowTriggered = false;
+
+            // --- 1. CIA Timer A (Cycle-Exact) ---
+            if (this.cia1CtrlA & 0x01) { 
+                this.cia1TimerA--;
+                if (this.cia1TimerA < 0) {
+                    this.cia1Icr |= 0x01; // Timer A underflow flag
+                    this.cia1TimerA = this.cia1TimerALatch === 0 ? 0xFFFF : this.cia1TimerALatch;
+                    
+                    if (this.cia1CtrlA & 0x08) { // One-shot stop
+                        this.cia1CtrlA &= ~0x01; 
+                    }
+                    this.updateIrq();
+
+                    // --- SCHRITT 2: TIMER B KASKADIERUNGS-MODUS (Triggered by Timer A Underflow) ---
+                    if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x40)) {
+                        this.cia1TimerB--;
+                        if (this.cia1TimerB < 0) {
+                            timerBUnderflowTriggered = true;
+                        }
+                    }
+                }
+            }
+
+            // --- 2. CIA Timer B SYSTEM-CLOCK MODUS (Taktet mit dem CPU-Takt) ---
+            if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x00)) {
+                this.cia1TimerB--;
+                if (this.cia1TimerB < 0) {
+                    timerBUnderflowTriggered = true;
+                }
+            }
+
+            // --- SCHRITT 2: TIMER B UNTERLAUF VERARBEITEN ---
+            if (timerBUnderflowTriggered) {
+                this.cia1Icr |= 0x02; // Set Timer B Interrupt Flag in Register $DC0D
+                this.cia1TimerB = this.cia1TimerBLatch === 0 ? 0xFFFF : this.cia1TimerBLatch;
+                
+                if (this.cia1CtrlB & 0x08) { // One-shot stop
+                    this.cia1CtrlB &= ~0x01; 
                 }
                 this.updateIrq();
             }
-        }
 
-        // --- 2. VIC-II Raster Line (Cycle-Exact) ---
-        this.rasterCycles++;
-        if (this.rasterCycles >= this.cyclesPerLine) {
-            this.rasterCycles = 0;
-            this.rasterCounter++;
-            if (this.rasterCounter >= 312) this.rasterCounter = 0; 
+            // --- 3. VIC-II Raster Line (Cycle-Exact) ---
+            this.rasterCycles++;
+            if (this.rasterCycles >= this.cyclesPerLine) {
+                this.rasterCycles = 0;
+                this.rasterCounter++;
+                if (this.rasterCounter >= 312) this.rasterCounter = 0; 
 
-            // Sync Bit 7 von D011
-            if (this.rasterCounter > 255) this.ram[0xD011] |= 0x80;
-            else this.ram[0xD011] &= 0x7F;
-        }
-        
-        // --- SCHRITT 1: BADLINE EVALUATION (Cycle 0) ---
-        // Die Bedingung wird am Zeilenanfang im sichtbaren Bereich evaluiert
-        if (this.rasterCycles === 0) {
-            let yscroll = this.ram[0xD011] & 0x07;
-            let displayEnabled = (this.ram[0xD011] & 0x10) !== 0;
-            this.isBadLine = displayEnabled && 
-                             (this.rasterCounter >= 0x30 && this.rasterCounter <= 0xF7) && 
-                             ((this.rasterCounter & 0x07) === yscroll);
-        }
+                // Sync Bit 7 von D011
+                if (this.rasterCounter > 255) this.ram[0xD011] |= 0x80;
+                else this.ram[0xD011] &= 0x7F;
+            }
+            
+            // --- SCHRITT 1: BADLINE EVALUATION (Cycle 0) ---
+            if (this.rasterCycles === 0) {
+                let yscroll = this.ram[0xD011] & 0x07;
+                let displayEnabled = (this.ram[0xD011] & 0x10) !== 0;
+                this.isBadLine = displayEnabled && 
+                                 (this.rasterCounter >= 0x30 && this.rasterCounter <= 0xF7) && 
+                                 ((this.rasterCounter & 0x07) === yscroll);
+            }
 
-        // --- SCHRITT 1: CYCLE STEALING (Cycle 12) ---
-        // Der VIC-II nimmt der CPU ab Zyklus 12 für exakt 40 Takte den Bus weg
-        if (this.rasterCycles === 12 && this.isBadLine) {
-            this.cpuStall = 40;
-        }
-        
-        // Raster IRQ triggert in Cycle 0 der Ziel-Linie
-        if (this.rasterCycles === 0 && this.rasterCounter === this.rasterIrqTarget) {
-            this.ram[0xD019] |= 0x01; 
-            this.updateIrq();
+            // --- SCHRITT 1: CYCLE STEALING (Cycle 12) ---
+            if (this.rasterCycles === 12 && this.isBadLine) {
+                this.cpuStall = 40;
+            }
+            
+            // Raster IRQ triggert in Cycle 0 der Ziel-Linie
+            if (this.rasterCycles === 0 && this.rasterCounter === this.rasterIrqTarget) {
+                this.ram[0xD019] |= 0x01; 
+                this.updateIrq();
+            }
         }
     }
 
