@@ -7,6 +7,7 @@
 // Upgraded with historically accurate ADSR Phase-Transition Delay
 // Upgraded with Dynamic VCA DC-Leakage Activity Tracking
 // Upgraded with historically accurate Floating DAC Waveform Discharge
+// Upgraded with non-linear Summer Op-Amp Saturation (Filter Squelch)
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -151,14 +152,7 @@ export class SIDChip {
             this.updateFilterParameters();
         } else if (reg === 24) {
             this.filterMode = val;
-            let newVol = (val & 15) / 15.0;
-            
-            // --- DETEKTION DER REGISTERRATEN-MODULATION ---
-            let delta = Math.abs(newVol - this.masterVol);
-            if (delta > 0.01) {
-                this.volWiggleActivity = Math.min(1.0, this.volWiggleActivity + 0.15);
-            }
-            this.masterVol = newVol;
+            this.masterVol = (val & 15) / 15.0;
         }
     }
 
@@ -181,7 +175,7 @@ export class SIDChip {
         }
 
         if (ch.rate_counter === ratePeriod) {
-            ch.rate_counter = 0; // Reset nur bei exakter Koinzidenz (Gleichheits-Match)
+            ch.rate_counter = 0; // Reset nur bei exakter Koinzidenz
 
             let expPeriod = 1;
             if (ch.state !== ENV_ATTACK) {
@@ -249,9 +243,6 @@ export class SIDChip {
         }
 
         // --- CYCLE-GENAUE FLOATING DAC ENTLADUNG ---
-        // Ist eine Wellenform selektiert, laden wir sie normal und sichern den Wert.
-        // Ist keine Welle selektiert ($00), blutet die Ladung des letzten Samples
-        // langsam in Richtung des schwebenden DC-Bias von 0x18 aus (ca. 15.5ms).
         let hasWave = (ch.ctrl & 0xF0) !== 0;
         if (hasWave) {
             ch.waveOut8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, ch.pw, ch.lfsr, ringMSB);
@@ -262,8 +253,6 @@ export class SIDChip {
         ch.env8Bit = ch.envelope_counter;
 
         let envDac = DAC_LUT[ch.env8Bit];
-        
-        // Math.floor schützt den LUT-Index vor Float-Werten während des Fades
         let waveDac = DAC_LUT[Math.floor(ch.waveOut8Bit)];
 
         let waveOutFloat = (waveDac * 2.0) - 1.0;
@@ -308,6 +297,16 @@ export class SIDChip {
 
         let h = filteredSum - this.filterLow;
         let hp = (h - q * this.filterBand) / (1.0 + g * (g + q));
+
+        // --- NON-LINEARER ADDIEERER (hp-Op-Amp-Sättigung) ---
+        // Auf dem 6581 clippt der Addierer-Op-Amp (hp) asymmetrisch vor den Integrierern.
+        // Das dämpft resonante Amplitudenspitzen ab, wodurch der typisch nasse,
+        // schmatzende Soundcharakter bei schnellen Cutoff-Bewegungen entsteht.
+        if (this.useJfetSaturation) {
+            let summerDrive = this.thermalJfetDrive * 1.5; 
+            hp = Math.tanh(hp * summerDrive) / summerDrive;
+        }
+
         let bp = this.filterBand + g * hp;
         let lp = this.filterLow + g * bp;
         
@@ -325,11 +324,6 @@ export class SIDChip {
         } else {
             this.filterBand = bp / (1.0 + Math.abs(bp) * 0.15); 
         }
-        
-        if (this.filterBand > 4.0) this.filterBand = 4.0;
-        if (this.filterBand < -4.0) this.filterBand = -4.0;
-        if (this.filterLow > 4.0) this.filterLow = 4.0;
-        if (this.filterLow < -4.0) this.filterLow = -4.0;
 
         let filterOut = 0;
         if (this.filterMode & 16) filterOut += this.filterLow; 
