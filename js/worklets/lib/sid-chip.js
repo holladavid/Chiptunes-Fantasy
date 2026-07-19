@@ -5,6 +5,7 @@
 // Exponential Cutoff Drift, Thermal DAC Gain/Offset,
 // JFET Temperature Saturation, and Dynamic Leakage.
 // Upgraded with historically accurate ADSR Phase-Transition Delay
+// Upgraded with Dynamic VCA DC-Leakage Activity Tracking
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -48,6 +49,9 @@ export class SIDChip {
         this.thermalLeakage = 0.11;
         this.thermalDcOffset = 0.0;
         this.thermalJfetDrive = 0.8;
+
+        // --- DYNAMISCHE DIGIDRUM AKTIVITÄTS-VARIABLEN ---
+        this.volWiggleActivity = 0.0;
 
         this.updateFilterParameters();
     }
@@ -122,9 +126,7 @@ export class SIDChip {
                 ch.state = gate ? ENV_ATTACK : ENV_RELEASE;
                 
                 if (gate) {
-                    // --- KORREKTUR: GATE-ON RESET ---
-                    // Auf dem echten MOS 6581 WIRD der Counter bei Gate-On auf 0 gesetzt!
-                    // Noten starten immer sofort. Der Bug betrifft NUR Phasenübergänge.
+                    // --- GATE-ON RESET ---
                     ch.rate_counter = 0;
                     ch.exponential_counter = 0;
                 }
@@ -136,9 +138,6 @@ export class SIDChip {
                 ch.lfsr = 0x7FFFFF;
             }
 
-            // Wenn R5 oder R6 überschrieben werden, WÄHREND die Hüllkurve läuft, 
-            // ändert sich die Ziel-Periode, ABER der rate_counter wird nicht resetet!
-            // Hier greift nun der perfekte 15-Bit Bug im clockEnvelopeOneCycle.
             if (reg === base + 5) { 
                 ch.attack_period = RATE_COUNTER_PERIOD[val >> 4];
                 ch.decay_period = RATE_COUNTER_PERIOD[val & 15];
@@ -150,7 +149,16 @@ export class SIDChip {
             this.updateFilterParameters();
         } else if (reg === 24) {
             this.filterMode = val;
-            this.masterVol = (val & 15) / 15.0;
+            let newVol = (val & 15) / 15.0;
+            
+            // --- DETEKTION DER REGISTERRATEN-MODULATION ---
+            // Schreibt der Player im aktuellen Frame rasant Daten in $D418 (Wiggling),
+            // springt der Aktivitätswert sofort hoch.
+            let delta = Math.abs(newVol - this.masterVol);
+            if (delta > 0.01) {
+                this.volWiggleActivity = Math.min(1.0, this.volWiggleActivity + 0.15);
+            }
+            this.masterVol = newVol;
         }
     }
 
@@ -167,17 +175,13 @@ export class SIDChip {
         else if (ch.state === ENV_DECAY) ratePeriod = ch.decay_period;
 
         // --- HARDWARE-ACCURATE 15-BIT UP-COUNTER WRAP ---
-        // Dies verursacht den berüchtigten "Sustain Drop Bug":
-        // Wechselt die Phase z.B. von Attack zu Decay, ändert sich 'ratePeriod'.
-        // Der Counter wird nicht genullt. Ist er größer als die neue Periode,
-        // läuft er über (32767), setzt Bit 15 und überspringt die 0.
         ch.rate_counter++;
         if (ch.rate_counter & 0x8000) {
             ch.rate_counter = (ch.rate_counter + 1) & 0x7FFF;
         }
 
         if (ch.rate_counter === ratePeriod) {
-            ch.rate_counter = 0; // Reset nur bei exakter Koinzidenz (Gleichheits-Match)
+            ch.rate_counter = 0; // Reset nur bei exakter Koinzidenz
 
             let expPeriod = 1;
             if (ch.state !== ENV_ATTACK) {
@@ -198,7 +202,7 @@ export class SIDChip {
                     ch.envelope_counter++;
                     if (ch.envelope_counter >= 255) {
                         ch.envelope_counter = 255;
-                        ch.state = ENV_DECAY; // Phasenwechsel -> Delay Bug auslösbar
+                        ch.state = ENV_DECAY;
                     }
                 } else if (ch.state === ENV_DECAY) {
                     if (ch.envelope_counter !== ch.sustain_level) {
@@ -263,6 +267,11 @@ export class SIDChip {
             this.clockEnvelopeOneCycle(v);
         }
 
+        // --- HIGH-SPEED EXPONENTIELLER ZERFALL (1 MHz) ---
+        // Verringert die Aktivitäts-Hüllkurve stetig und extrem performant (ohne Math.exp) 
+        // im Taktgefüge auf einen stabilen Nullwert (Halbwertszeit von ca. 20ms).
+        this.volWiggleActivity *= 0.99995;
+
         let voice0 = this.synthesizeVoiceOneCycle(0);
         let voice1 = this.synthesizeVoiceOneCycle(1);
         let voice2 = this.synthesizeVoiceOneCycle(2);
@@ -296,7 +305,7 @@ export class SIDChip {
         
         if (this.useJfetSaturation) {
             let driveP = this.thermalJfetDrive;
-            let driveN = driveP * 1.875; // Behält das klassische 1.5 zu 0.8 Asymmetrie-Verhältnis bei
+            let driveN = driveP * 1.875; 
             
             if (bp > 0) {
                 this.filterBand = Math.tanh(bp * driveP) / driveP;
@@ -329,10 +338,12 @@ export class SIDChip {
             ? Math.tanh(vcaIn + vcaQuad) 
             : Math.tanh(vcaIn * 0.85 + vcaQuad) / 0.85;
 
-        // --- RETRO-BOOST: DC Leakage Gain angehoben ---
-        // Erhöht von 1.5 auf 3.5, um Galways prozeduralen Digidrum-Flanken exakt die
-        // nötige Amplitude und Durchsetzungskraft im analogen Mix zu geben.
-        let dcLeakage = (this.masterVol - 0.5) * 3.5 + this.thermalDcOffset;
+        // --- DYNAMISCHER HIGH-PASS COOP ---
+        // Wenn ein Digidrum-Lauf detektiert wurde (Activity > 0), schwillt der Multiplikator
+        // auf bis zu 3.5 an (maximaler Galway Crunch). Bei normalen Melodien kühlt der Faktor
+        // weich auf ein sicheres Maß von 1.2 ab, um den Mischer von störendem DC-Offset zu entlasten.
+        let dynamicGain = 1.2 + (this.volWiggleActivity * 2.3);
+        let dcLeakage = (this.masterVol - 0.5) * dynamicGain + this.thermalDcOffset;
         this.outputSample = (finalMix * this.masterVol) + dcLeakage;
     }
 }

@@ -1,4 +1,3 @@
-// === js/worklets/c64/sid-exact.js ===
 import { CPU6502 } from '../lib/cpu6502.js';
 import { SIDChip } from '../lib/sid-chip.js';
 import { DCBlocker } from '../lib/dsp-utils.js';
@@ -48,10 +47,6 @@ class SIDProcessor extends AudioWorkletProcessor {
         for (let i = 0; i < this.FIR_TAPS; i++) this.firKernel[i] /= sum; 
 
         this.visualView = new Float32Array(40);
-
-        // --- DIGIDRUM VOL-WIGGLE DETECTOR STATE ---
-        this.lastMasterVol = 0.0;
-        this.volWiggleActivity = 0.0;
 
         this.port.onmessage = (e) => {
             const msg = e.data;
@@ -230,8 +225,6 @@ class SIDProcessor extends AudioWorkletProcessor {
         let cia1TimerAEnabled = false;
         let isSelfDriving = false;
 
-        const dt = 1.0 / sampleRate;
-
         for (let i = 0; i < outL.length; i++) {
             if (!this.isPlaying) {
                 outL[i] = 0; if (outR) outR[i] = 0;
@@ -320,29 +313,11 @@ class SIDProcessor extends AudioWorkletProcessor {
                 decimationSum += this.ringBuffer[readIdx] * this.firKernel[k];
             }
             
-            // =========================================================
-            // DYNAMISCHER HIGH-PASS COOP (Galway Volume-Wiggle Protection)
-            // =========================================================
-            const currentMasterVol = this.sid.masterVol;
-            const deltaVol = Math.abs(currentMasterVol - this.lastMasterVol);
-            this.lastMasterVol = currentMasterVol;
-
-            if (deltaVol > 0.01) {
-                // Schnelle Erhöhung der Aktivitäts-Hüllkurve
-                this.volWiggleActivity = Math.min(1.0, this.volWiggleActivity + 0.15);
-            } else {
-                // Exponentielles Abklingen bei Stille
-                this.volWiggleActivity *= Math.exp(-dt * 45.0);
-            }
-
-            // Weiche Überblendung des DC-Blocker Koeffizienten:
-            // 0.995 (Standard ~38 Hz) bis 0.9996 (Galway Bypass ~3 Hz)
-            const activeAlpha = 0.995 + (this.volWiggleActivity * 0.0046);
-            
-            // DC Blocker Ausführung inline, um dsp-utils.js Abhängigkeiten zu umgehen!
-            let finalSample = decimationSum - this.dcBlock.lastIn + activeAlpha * this.dcBlock.lastOut;
-            this.dcBlock.lastIn = decimationSum;
-            this.dcBlock.lastOut = finalSample;
+            // --- REIN RECHTLINIGER DC-BLOCKER ---
+            // Da die Wiggle-Erkennung nun vollkommen autonom und extrem hochauflösend
+            // in der 1-MHz-Schleife der sid-chip.js arbeitet, läuft der DC-Blocker 
+            // im Wrapper wieder absolut standardkonform und stabil.
+            let finalSample = this.dcBlock.process(decimationSum);
 
             outL[i] = finalSample;
             if (outR) outR[i] = finalSample;
