@@ -4,8 +4,7 @@
 // Phase 7: True Thermal Hardware Modeling
 // Exponential Cutoff Drift, Thermal DAC Gain/Offset,
 // JFET Temperature Saturation, and Dynamic Leakage.
-// Upgraded with Hardware-Accurate ADSR Delay-Bug Emulation
-// Upgraded with Cycle-Exact 15-Bit LFSR Rate Counter Wrapping
+// Upgraded with historically accurate ADSR Phase-Transition Delay
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -123,9 +122,10 @@ export class SIDChip {
                 ch.state = gate ? ENV_ATTACK : ENV_RELEASE;
                 
                 if (gate) {
-                    // --- ADSR DELAY BUG EMULATION ---
-                    // Im originalen SID wird der rate_counter bei Gate-On NICHT zurückgesetzt!
-                    // Er zählt stattdessen kontinuierlich weiter, was den Bug erzeugt.
+                    // --- KORREKTUR: GATE-ON RESET ---
+                    // Auf dem echten MOS 6581 WIRD der Counter bei Gate-On auf 0 gesetzt!
+                    // Noten starten immer sofort. Der Bug betrifft NUR Phasenübergänge.
+                    ch.rate_counter = 0;
                     ch.exponential_counter = 0;
                 }
             }
@@ -136,6 +136,9 @@ export class SIDChip {
                 ch.lfsr = 0x7FFFFF;
             }
 
+            // Wenn R5 oder R6 überschrieben werden, WÄHREND die Hüllkurve läuft, 
+            // ändert sich die Ziel-Periode, ABER der rate_counter wird nicht resetet!
+            // Hier greift nun der perfekte 15-Bit Bug im clockEnvelopeOneCycle.
             if (reg === base + 5) { 
                 ch.attack_period = RATE_COUNTER_PERIOD[val >> 4];
                 ch.decay_period = RATE_COUNTER_PERIOD[val & 15];
@@ -163,11 +166,11 @@ export class SIDChip {
         if (ch.state === ENV_ATTACK) ratePeriod = ch.attack_period;
         else if (ch.state === ENV_DECAY) ratePeriod = ch.decay_period;
 
-        // --- HARDWARE-ACCURATE UP-COUNTER (15-Bit LFSR-Überlauf) ---
-        // Wenn der Counter 32767 (0x7FFF) überschreitet, setzt das Hardware-LFSR 
-        // Bit 15 (0x8000). Die Logik inkrementiert den Zähler daraufhin sofort 
-        // ein zweites Mal, wodurch er den Zustand 0 überspringt und bei 1 weiterzählt.
-        // Das führt beim Einrasten auf neue Raten (ADSR delay-bug) zu exakt rate_period - 1 Zyklen Latenz.
+        // --- HARDWARE-ACCURATE 15-BIT UP-COUNTER WRAP ---
+        // Dies verursacht den berüchtigten "Sustain Drop Bug":
+        // Wechselt die Phase z.B. von Attack zu Decay, ändert sich 'ratePeriod'.
+        // Der Counter wird nicht genullt. Ist er größer als die neue Periode,
+        // läuft er über (32767), setzt Bit 15 und überspringt die 0.
         ch.rate_counter++;
         if (ch.rate_counter & 0x8000) {
             ch.rate_counter = (ch.rate_counter + 1) & 0x7FFF;
@@ -195,7 +198,7 @@ export class SIDChip {
                     ch.envelope_counter++;
                     if (ch.envelope_counter >= 255) {
                         ch.envelope_counter = 255;
-                        ch.state = ENV_DECAY;
+                        ch.state = ENV_DECAY; // Phasenwechsel -> Delay Bug auslösbar
                     }
                 } else if (ch.state === ENV_DECAY) {
                     if (ch.envelope_counter !== ch.sustain_level) {
