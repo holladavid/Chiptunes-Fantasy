@@ -19,7 +19,6 @@ export class StageManager {
     clearNonPermanentDSEs() {
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
-            // Nur 'managed' Elemente löschen! 'permanent' und 'oneshot' (Presenter) bleiben unangetastet.
             if (dse.metadata.lifecycle === 'managed') {
                 dse.state = 'idle';
                 dse.stateTime = 0.0;
@@ -32,12 +31,23 @@ export class StageManager {
     updateCrossfades(macroState, dt) {
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
+            
+            // --- DIAGNOSTISCHER DIAG-HARD-KILL (Debugging) ---
+            // Wenn ein Element während der HMR (Hot Module Replacement) oder im Live-Betrieb
+            // auf "disabled()" geschaltet wird, weichen wir das weiche Ausfaden auf und
+            // reißen das Element im aktuellen Frame sofort geräuschlos vom Monitor.
+            if (dse.metadata.isDisabled) {
+                dse.state = 'idle';
+                dse.stateTime = 0.0;
+                dse._markedForRemoval = false;
+                this.activeDSEs.splice(i, 1);
+                continue;
+            }
+
             dse.stateTime += dt;
 
-            // NEU: Dynamische Übergangszeit (1.0s für Oneshots wie den Presenter, 1.5s für den Rest)
             let transitionTime = dse.metadata.lifecycle === 'oneshot' ? 1.0 : TRANSITION_TIME;
 
-            // ONE-SHOT AUTO-DESTRUCT (z.B. für TrackPresenter)
             if (dse.metadata.lifecycle === 'oneshot' && !dse._markedForRemoval) {
                 if (dse.stateTime >= dse.metadata.duration) {
                     dse._markedForRemoval = true;
@@ -66,23 +76,21 @@ export class StageManager {
                     dse.stateTime = 0.0; 
                 }
             } else {
-                    if (dse.state === 'idle' || dse.state === 'stopping') { 
-                        dse.state = 'starting'; 
-                        dse.stateTime = dse.state === 'stopping' ? Math.max(0.0, transitionTime - dse.stateTime) : 0.0; 
-                    } else if (dse.state === 'starting' && dse.stateTime >= transitionTime) { 
+                if (dse.state === 'idle' || dse.state === 'stopping') { 
+                    dse.state = 'starting'; 
+                    dse.stateTime = dse.state === 'stopping' ? Math.max(0.0, transitionTime - dse.stateTime) : 0.0; 
+                } else if (dse.state === 'starting' && dse.stateTime >= transitionTime) { 
+                    dse.state = macroState; 
+                    dse.stateTime = 0.0; 
+                } else if (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax' || dse.state === 'afterglow') {
+                    if (dse.state !== macroState) { 
                         dse.state = macroState; 
-                        dse.stateTime = 0.0; 
-                    // FIX: 'afterglow' als legalen, transitionierbaren Zustand in die Kette einreihen!
-                    } else if (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax' || dse.state === 'afterglow') {
-                        if (dse.state !== macroState) { 
-                            dse.state = macroState; 
-                        }
                     }
+                }
             }
         }
     }
 
-    // EINZIGER DURCHLAUF: Alle DSEs werden in den übergebenen Canvas gerendert
     renderAll(ctx, width, height, t, dynamics, info, metricsWrapper) {
         metricsWrapper.energy = dynamics.masterEnergy;
         metricsWrapper.pulse = dynamics.transientPulse;
