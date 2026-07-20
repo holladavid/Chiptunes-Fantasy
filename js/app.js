@@ -230,6 +230,12 @@ progressSlider.addEventListener('change', (e) => {
 });
 
 function handleWorkletMessage(e) {
+    // --- NEU: LAB-LOGS AUS DEM HINTERGRUND-THREAD ABFANGEN ---
+    if (e.data && e.data.type === 'LAB_LOG') {
+        console.log(e.data.msg);
+        return;
+    }
+
     if (e.data && e.data.constructor && e.data.constructor.name === 'Float32Array') {
         const view = e.data;
         const systemId = view[0];

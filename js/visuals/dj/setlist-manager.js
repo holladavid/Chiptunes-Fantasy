@@ -3,6 +3,7 @@
 // SCENE-DJ SKILL: SETLIST MANAGER (Fatigue Edition)
 // Flawless Anti-Blackout prevention at source and organic
 // Round-Robin weight recovery (Fatigue System).
+// Upgraded with Diagnostic Testing constraints (disabled & exclusive)
 // =========================================================
 
 export class SetlistManager {
@@ -14,23 +15,16 @@ export class SetlistManager {
         dse.state = 'idle';
         dse.stateTime = 0.0;
         dse._markedForRemoval = false;
-        // Dynamisches Gewicht für das Roulette (startet auf Basiswert)
         dse.currentWeight = dse.metadata.weight || 10.0;
         this.registeredDSEs.push(dse);
     }
 
-    // =========================================================
-    // FATIGUE SYSTEM (Ersetzt hard-coded Penaltys)
-    // Wenn ein Effekt gewählt wird, fällt er ans Ende der Schlange.
-    // Alle Konkurrenten erholen ihre Gewichte sachte.
-    // =========================================================
     applyFatigue(selectedDse) {
         selectedDse.currentWeight = 0.1; // Erschöpfung!
         
         for (let d of this.registeredDSEs) {
             if (d !== selectedDse && d.metadata.layer === selectedDse.metadata.layer) {
                 let baseWeight = d.metadata.weight || 10.0;
-                // Erholt sich um 50% der Basis pro verpasstem Swap (Maximal BaseWeight)
                 d.currentWeight = Math.min(baseWeight, d.currentWeight + (baseWeight * 0.5));
             }
         }
@@ -65,10 +59,16 @@ export class SetlistManager {
 
         const layers = ['background', 'floor', 'foreground', 'overlay'];
         
+        // --- PRÜFUNG AUF EXKLUSIVES TEST-ELEMENT ---
+        const hasExclusive = this.registeredDSEs.some(d => 
+            d.metadata.isExclusive && 
+            !d.metadata.isDisabled && 
+            (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
+        );
+
         for (let layer of layers) {
             if (!layerFilled[layer]) {
                 
-                // ANTI-BLACKOUT: Wieviele sichtbare Elemente sind BEREITS im Aufbau/Aktiv?
                 let visibleCount = stageManager.activeDSEs.filter(d => 
                     !d._markedForRemoval && 
                     d.metadata.lifecycle === 'managed' && 
@@ -76,17 +76,19 @@ export class SetlistManager {
                 ).length;
 
                 let candidates = this.registeredDSEs.filter(alt => {
+                    // 1. Diagnose-Ausschluss (Hart genullt)
+                    if (alt.metadata.isDisabled) return false;
+
+                    // 2. Exklusives Testing-Gate (Sperrt alle anderen managed Elemente)
+                    if (hasExclusive && alt.metadata.lifecycle === 'managed' && !alt.metadata.isExclusive) {
+                        return false;
+                    }
+
                     if (alt.state !== 'idle' || alt._markedForRemoval) return false;
                     if (alt.metadata.layer !== layer) return false;
-                    
-                    // KORREKTUR: Nur 'oneshot' ausschließen! 
-                    // Erlaubt 'managed' und 'permanent' (z.B. LimitBar) das Eintreten auf die Bühne.
                     if (alt.metadata.lifecycle === 'oneshot') return false; 
-                    
                     if (!alt.metadata.systems.includes(info.system) && !alt.metadata.systems.includes('all')) return false;
                     if ((activeInstanceCount[alt.metadata.name] || 0) >= alt.metadata.maxInstances) return false;
-                    
-                    // ANTI-BLACKOUT: Ist dies das einzige Element, darf es nicht Void sein!
                     if (alt.metadata.isVoid && visibleCount === 0) return false;
 
                     return true;
@@ -94,7 +96,7 @@ export class SetlistManager {
                 
                 if (candidates.length > 0) {
                     let chosen = this.selectWeightedDSE(candidates);
-                    this.applyFatigue(chosen); // Verringert Wahrscheinlichkeit beim nächsten Roll
+                    this.applyFatigue(chosen); 
                     
                     chosen.state = initialState;
                     chosen.stateTime = 0.0;
@@ -119,7 +121,6 @@ export class SetlistManager {
             }
         }
         
-        // Frischer Start beim Systemwechsel: Gewichte normalisieren
         for (let d of this.registeredDSEs) {
             d.currentWeight = d.metadata.weight || 10.0;
         }
@@ -128,8 +129,23 @@ export class SetlistManager {
     }
 
     manageSwaps(stageManager, info, macroState, dt) {
+        // --- PRÜFUNG AUF EXKLUSIVES TEST-ELEMENT ---
+        const hasExclusive = this.registeredDSEs.some(d => 
+            d.metadata.isExclusive && 
+            !d.metadata.isDisabled && 
+            (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
+        );
+
         for (let dse of stageManager.activeDSEs) {
             if (dse._markedForRemoval) continue;
+            
+            // --- EXKLUSIVES TESTING-FADE-OUT ---
+            // Sobald ein exklusiver Test aktiv wird, blenden wir alle anderen aktiven,
+            // nicht-exklusiven managed Elemente sofort weich aus.
+            if (hasExclusive && dse.metadata.lifecycle === 'managed' && !dse.metadata.isExclusive) {
+                dse._markedForRemoval = true;
+                continue;
+            }
             
             if (dse.metadata.lifecycle === 'managed' && (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax')) {
                 if (dse.stateTime >= dse.metadata.duration) {
@@ -138,7 +154,6 @@ export class SetlistManager {
 
                     if (Math.random() < swapChance) {
                         
-                        // ANTI-BLACKOUT: Wieviele ANDERE Elemente halten das Bild gerade lebendig?
                         let otherVisibleCount = stageManager.activeDSEs.filter(d => 
                             d !== dse && 
                             !d._markedForRemoval && 
@@ -147,13 +162,19 @@ export class SetlistManager {
                         ).length;
 
                         let candidates = this.registeredDSEs.filter(alt => {
+                            // 1. Diagnose-Ausschluss (Hart genullt)
+                            if (alt.metadata.isDisabled) return false;
+
+                            // 2. Exklusives Testing-Gate
+                            if (hasExclusive && alt.metadata.lifecycle === 'managed' && !alt.metadata.isExclusive) {
+                                return false;
+                            }
+
                             if (alt._markedForRemoval) return false;
                             if (alt.state !== 'idle' && alt !== dse) return false;
                             if (alt.metadata.layer !== dse.metadata.layer) return false;
                             if (alt.metadata.lifecycle !== 'managed') return false;
                             if (!alt.metadata.systems.includes(info.system) && !alt.metadata.systems.includes('all')) return false;
-                            
-                            // Wenn alles andere auf der Bühne Void ist, darf der Nachfolger von 'dse' nicht ebenfalls Void sein!
                             if (alt.metadata.isVoid && otherVisibleCount === 0) return false;
 
                             return true;
@@ -163,14 +184,10 @@ export class SetlistManager {
                             let chosen = this.selectWeightedDSE(candidates);
                             
                             if (chosen === dse) {
-                                // Hat sich selbst gezogen (z.B. weil es mangels Alternativen das einzige DSE ist).
-                                // Darf weiterspielen! Timer Reset + Fatigue anwenden
                                 dse.stateTime = 0.0;
                                 this.applyFatigue(dse);
                             } else {
-                                // Neuer Star auf der Bühne! Alter geht ab.
                                 dse._markedForRemoval = true;
-                                
                                 this.applyFatigue(chosen);
                                 
                                 chosen.state = 'starting';
@@ -188,6 +205,8 @@ export class SetlistManager {
 
     triggerPresenter(stageManager, info, trackMetadata) {
         let candidates = this.registeredDSEs.filter(d => 
+            // Diagnose-Ausschluss
+            !d.metadata.isDisabled && 
             d.metadata.lifecycle === 'oneshot' &&
             (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
         );

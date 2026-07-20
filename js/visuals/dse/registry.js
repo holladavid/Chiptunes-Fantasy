@@ -3,6 +3,7 @@
 // DEMO-SCENE-ELEMENT (DSE) REGISTRY & METADATA SCHEMAS
 // Features a fluent Builder Pattern for strict separation of
 // Z-Order (layer), behavior (lifecycle), and concurrency limits.
+// Upgraded with Diagnostic Testing features (disabled & exclusive)
 // =========================================================
 
 import { LimitBar } from './universal/limit-bar.js';
@@ -40,7 +41,9 @@ class DseBuilder {
             weight: 10,                // Roulette-Gewichtung
             duration: 15.0,            // Mindest-Laufzeit (managed) oder absolute Lebensdauer (oneshot)
             climaxHold: 10.0,          // Nachbrennzeit des Climax
-            isVoid: false              // Marker für unsichtbare Platzhalter
+            isVoid: false,             // Marker für unsichtbare Platzhalter
+            isDisabled: false,         // Schaltet das Element für Tests komplett ab
+            isExclusive: false         // Blendet alle anderen managed Elemente für Tests aus
         };
     }
 
@@ -53,6 +56,10 @@ class DseBuilder {
     duration(val) { this.meta.duration = val; return this; }
     climaxHold(val) { this.meta.climaxHold = val; return this; }
     isVoid() { this.meta.isVoid = true; return this; }
+    
+    // --- DIAGNOSE FUNKTIONEN FÜR TESTING/DEBUGGING ---
+    disabled() { this.meta.isDisabled = true; return this; }
+    exclusive() { this.meta.isExclusive = true; return this; }
 
     build() {
         // Compile-Time Validierung, schützt vor fehlerhafter DSE-Deklaration
@@ -81,13 +88,14 @@ export const dseRegistry = [
         .weight(1)
         .duration(0)
         .climaxHold(0)
+        .disabled()
         .build(),
 
     // --- PRESENTERS (One-Shot Overlays) ---
     RegisterDSE(TrackPresenter)
-        .layer('overlay')       // Sitzt visuell auf dem Overlay-Layer
-        .lifecycle('oneshot')   // Zerstört sich selbst nach der Duration
-        .duration(3.0)          // Exakte Anzeigezeit: 5 Sekunden
+        .layer('overlay')       
+        .lifecycle('oneshot')   
+        .duration(3.0)          
         .weight(10)
         .climaxHold(0)
         .build(),
@@ -196,7 +204,7 @@ export const dseRegistry = [
         .weight(10)
         .duration(15.0)
         .climaxHold(15.0)
-        .maxInstances(1) // Hier könnten wir künftig "2" setzen für duale Objekte!
+        .maxInstances(1) 
         .build(),
 
     RegisterDSE(AmigaBoingBall)
@@ -231,11 +239,11 @@ export const dseRegistry = [
         .climaxHold(10.0)
         .build(),
 
-    // NEU: Der rotierende, interaktive C64 Vektor-Stern
+    // Der rotierende, interaktive C64 Vektor-Stern
     RegisterDSE(C64VectorStar)
         .systems('c64')
         .layer('foreground')
-        .weight(12) // Zieht oft
+        .weight(12) 
         .duration(12.0)
         .climaxHold(15.0)
         .build(),
