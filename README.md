@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.4.0)
+# 💾 CHIPTUNES FANTASY (v1.4.1)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
