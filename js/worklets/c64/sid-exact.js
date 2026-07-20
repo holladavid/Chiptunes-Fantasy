@@ -34,10 +34,6 @@ class SIDProcessor extends AudioWorkletProcessor {
         
         this.visualView = new Float32Array(40);
 
-        // --- DIGIDRUM VOL-WIGGLE DETECTOR STATE ---
-        this.lastMasterVol = 0.0;
-        this.volWiggleActivity = 0.0;
-
         // --- RUNTIME DIAGNOSTICS CORES (Allokationsfreie Tracker) ---
         this.diagCycles = 0;
         this.diagInstructions = 0;
@@ -76,13 +72,11 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.x = songIndex; 
                 this.cpu.y = 0;
                 
-                // --- FIX: Sicherer Rücksprung in die Host-Idle-Schleife bei $FFE0 ---
-                this.cpu.push(0xFF); // High Byte ($FF)
-                this.cpu.push(0xDF); // Low Byte ($DF) -> RTS addiert 1 = $FFE0
+                this.cpu.push(0xFF); 
+                this.cpu.push(0xDF); 
                 this.cpu.pc = this.initAddress;
 
                 let safety = 5000000;
-                // Wait for Init to reach the safe idle loop
                 while (this.cpu.pc !== 0xFFE0 && safety-- > 0) {
                     this.cpu.clockHardware(1);
                     this.sid.clock();
@@ -114,7 +108,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                     }
                 }
                 
-                this.cpu.pc = 0xFFE0; // Reset PC hard onto the idle loop
+                this.cpu.pc = 0xFFE0; 
                 this.cpu.p &= ~0x04;  
 
                 this.playAddress = msg.playAddress;
@@ -162,7 +156,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.x = songIndex;
                 this.cpu.y = 0;
                 
-                // --- FIX: Sicherer Rücksprung in die Host-Idle-Schleife ---
                 this.cpu.push(0xFF); 
                 this.cpu.push(0xDF); 
                 this.cpu.pc = this.initAddress;
@@ -178,7 +171,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                     }
 
                     if (!this.cpu.rdy) {
-                        // CPU stall
                     } else {
                         if (this.cpuCyclesRemaining <= 0) {
                             if (this.cpu.nmiAccepted) {
@@ -239,7 +231,6 @@ class SIDProcessor extends AudioWorkletProcessor {
 
             let sampleSum = 0;
 
-            // --- THE NATIVE CYCLE-EXACT LOCKSTEP LOOP (1 MHz) ---
             for (let c = 0; c < cyclesToRun; c++) {
                 this.diagCycles++; 
                 
@@ -289,8 +280,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                     // CPU stall
                 } else {
                     if (this.cpuCyclesRemaining <= 0) {
-                        
-                        // --- FIX: Host Play Trigger Checks bound to the new safe Idle Loop ($FFE0) ---
                         if (this.hostPlayPending && this.cpu.pc >= 0xFFE0 && this.cpu.pc <= 0xFFE2) {
                             this.hostPlayPending = false;
                             this.cpu.push(0xFF);
@@ -324,19 +313,8 @@ class SIDProcessor extends AudioWorkletProcessor {
             // Analog Output Filter (16 kHz Butterworth pass)
             let analogSample = this.c64Output.process(decimatedSample);
 
-            const currentMasterVol = this.sid.masterVol;
-            const deltaVol = Math.abs(currentMasterVol - this.lastMasterVol);
-            this.lastMasterVol = currentMasterVol;
-
-            if (deltaVol > 0.01) {
-                this.volWiggleActivity = Math.min(1.0, this.volWiggleActivity + 0.15);
-            } else {
-                this.volWiggleActivity *= Math.exp(-dt * 45.0);
-            }
-
-            const activeAlpha = 0.995 + (this.volWiggleActivity * 0.0046);
-            
-            let finalSample = analogSample - this.dcBlock.lastIn + activeAlpha * this.dcBlock.lastOut;
+            // DC Blocker (R=0.998 fängt das 400mV Bias ab, lässt 4-Bit-Drums aber glasklar durch)
+            let finalSample = analogSample - this.dcBlock.lastIn + 0.998 * this.dcBlock.lastOut;
             this.dcBlock.lastIn = analogSample;
             this.dcBlock.lastOut = finalSample;
 

@@ -34,9 +34,6 @@ class SIDProcessor extends AudioWorkletProcessor {
         
         this.visualView = new Float32Array(40);
 
-        this.lastMasterVol = 0.0;
-        this.volWiggleActivity = 0.0;
-
         this.port.onmessage = (e) => {
             const msg = e.data;
             
@@ -68,7 +65,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.x = songIndex; 
                 this.cpu.y = 0;
                 
-                // --- FIX: Sicherer Rücksprung in die Host-Idle-Schleife bei $FFE0 ---
                 this.cpu.push(0xFF); 
                 this.cpu.push(0xDF);
                 this.cpu.pc = this.initAddress;
@@ -84,7 +80,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                     }
 
                     if (!this.cpu.rdy) {
-                        // CPU stall
                     } else {
                         if (this.cpuCyclesRemaining <= 0) {
                             if (this.cpu.nmiAccepted) {
@@ -142,7 +137,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.x = songIndex;
                 this.cpu.y = 0;
                 
-                // --- FIX: Sicherer Rücksprung in die Host-Idle-Schleife ---
                 this.cpu.push(0xFF);
                 this.cpu.push(0xDF);
                 this.cpu.pc = this.initAddress;
@@ -158,7 +152,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                     }
 
                     if (!this.cpu.rdy) {
-                        // CPU stall
                     } else {
                         if (this.cpuCyclesRemaining <= 0) {
                             if (this.cpu.nmiAccepted) {
@@ -263,7 +256,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                     // CPU stall
                 } else {
                     if (this.cpuCyclesRemaining <= 0) {
-                        // --- FIX: Host Play Trigger Checks bound to the safe ROM Idle Loop ---
                         if (this.hostPlayPending && this.cpu.pc >= 0xFFE0 && this.cpu.pc <= 0xFFE2) {
                             this.hostPlayPending = false;
                             this.cpu.push(0xFF);
@@ -295,24 +287,14 @@ class SIDProcessor extends AudioWorkletProcessor {
             // Analog Output Filter (16 kHz Butterworth pass)
             let analogSample = this.c64Output.process(decimatedSample);
 
-            const currentMasterVol = this.sid.masterVol;
-            const deltaVol = Math.abs(currentMasterVol - this.lastMasterVol);
-            this.lastMasterVol = currentMasterVol;
-
-            if (deltaVol > 0.01) {
-                this.volWiggleActivity = Math.min(1.0, this.volWiggleActivity + 0.15);
-            } else {
-                this.volWiggleActivity *= Math.exp(-dt * 45.0);
-            }
-
-            const activeAlpha = 0.995 + (this.volWiggleActivity * 0.0046);
-            let outSample = analogSample - this.dcBlock.lastIn + activeAlpha * this.dcBlock.lastOut;
+            // DC Blocker (R=0.998 fängt das 400mV Bias ab, lässt 4-Bit-Drums aber glasklar durch)
+            let finalSample = analogSample - this.dcBlock.lastIn + 0.998 * this.dcBlock.lastOut;
             this.dcBlock.lastIn = analogSample;
-            this.dcBlock.lastOut = outSample;
+            this.dcBlock.lastOut = finalSample;
 
-            outL[i] = outSample;
-            if (outR) outR[i] = outSample;
-            if (i === 0) visualValue = outSample;
+            outL[i] = finalSample;
+            if (outR) outR[i] = finalSample;
+            if (i === 0) visualValue = finalSample;
         }
 
         this.visCounter = (this.visCounter || 0) + 1;
