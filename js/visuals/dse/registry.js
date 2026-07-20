@@ -1,4 +1,3 @@
-===== FILE: js/visuals/dse/registry.js =====
 // === js/visuals/dse/registry.js ===
 // =========================================================
 // DEMO-SCENE-ELEMENT (DSE) REGISTRY & METADATA SCHEMAS
@@ -169,8 +168,8 @@ export const dseRegistry = [
     RegisterDSE(VoidElement)
         .name('VoidBackground')
         .layer('background')
-        .weight(15) // Erhöht von 5 auf 15 für mehr Isolation
-        .duration(15.0)
+        .weight(10) // Erhöht von 5 auf 10 für mehr Isolation
+        .duration(10.0)
         .isVoid()
         .build(),
 
