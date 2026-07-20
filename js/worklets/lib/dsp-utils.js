@@ -1,3 +1,4 @@
+// === js/worklets/lib/dsp-utils.js ===
 // =========================================================
 // DSP UTILITIES & FILTERS
 // Das Effekt-Rack für alle Worklets
@@ -71,6 +72,36 @@ export class DCBlocker {
         let out = input - this.lastIn + 0.995 * this.lastOut;
         this.lastIn = input; this.lastOut = out;
         return out;
+    }
+}
+
+// C64 Analog Motherboard Output Filter
+export class C64AnalogFilter {
+    constructor(sampleRate) {
+        // Simuliert den physikalischen RC Tiefpass des C64 am Video/Audio-Port
+        // Cutoff bei ca. 16 kHz (2-Pole Butterworth für sauberes Anti-Aliasing)
+        const fc = 16000.0;
+        const q = 0.707;
+        const w0 = 2 * Math.PI * fc / sampleRate;
+        const alpha = Math.sin(w0) / (2 * q);
+        const cosw0 = Math.cos(w0);
+
+        const a0 = 1 + alpha;
+        this.b0 = ((1 - cosw0) / 2) / a0;
+        this.b1 = (1 - cosw0) / a0;
+        this.b2 = ((1 - cosw0) / 2) / a0;
+        this.a1 = (-2 * cosw0) / a0;
+        this.a2 = (1 - alpha) / a0;
+
+        this.x1 = 0; this.x2 = 0;
+        this.y1 = 0; this.y2 = 0;
+    }
+
+    process(x) {
+        let y = this.b0 * x + this.b1 * this.x1 + this.b2 * this.x2 - this.a1 * this.y1 - this.a2 * this.y2;
+        this.x2 = this.x1; this.x1 = x;
+        this.y2 = this.y1; this.y1 = y;
+        return y;
     }
 }
 

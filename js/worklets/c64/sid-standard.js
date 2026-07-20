@@ -1,7 +1,7 @@
 // === js/worklets/c64/sid-standard.js ===
 import { CPU6502 } from '../lib/cpu6502.js';
 import { SIDChip } from '../lib/sid-chip.js';
-import { DCBlocker } from '../lib/dsp-utils.js';
+import { DCBlocker, C64AnalogFilter } from '../lib/dsp-utils.js';
 
 class SIDProcessor extends AudioWorkletProcessor {
     constructor() {
@@ -12,7 +12,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.sid.useJfetSaturation = false;
         this.cpu = new CPU6502(this.sid);
         this.dcBlock = new DCBlocker();
-        this.outLp = 0; 
+        this.c64Output = new C64AnalogFilter(sampleRate);
 
         this.prgCode = null;
         this.loadAddr = 0;
@@ -48,7 +48,7 @@ class SIDProcessor extends AudioWorkletProcessor {
 
             if (msg.isSidFile) {
                 this.lastSampleValue = 0;
-                this.outLp = 0;
+                this.c64Output = new C64AnalogFilter(sampleRate);
                 this.dcBlock = new DCBlocker();
 
                 this.prgCode = msg.c64Code;
@@ -127,7 +127,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.isPlaying = true;
             } else if (msg.type === 'CHANGE_SUBSONG') {
                 this.lastSampleValue = 0;
-                this.outLp = 0;
+                this.c64Output = new C64AnalogFilter(sampleRate);
                 this.dcBlock = new DCBlocker();
 
                 this.sid = new SIDChip();
@@ -288,8 +288,12 @@ class SIDProcessor extends AudioWorkletProcessor {
                 }
             }
             
-            let finalSample = cyclesToRun > 0 ? sampleSum / cyclesToRun : this.lastSampleValue;
-            this.lastSampleValue = finalSample;
+            // --- BOXCAR DECIMATION (Integrate & Dump) ---
+            let decimatedSample = cyclesToRun > 0 ? sampleSum / cyclesToRun : this.lastSampleValue;
+            this.lastSampleValue = decimatedSample;
+
+            // Analog Output Filter (16 kHz Butterworth pass)
+            let analogSample = this.c64Output.process(decimatedSample);
 
             const currentMasterVol = this.sid.masterVol;
             const deltaVol = Math.abs(currentMasterVol - this.lastMasterVol);
@@ -302,17 +306,13 @@ class SIDProcessor extends AudioWorkletProcessor {
             }
 
             const activeAlpha = 0.995 + (this.volWiggleActivity * 0.0046);
-            let outSample = finalSample - this.dcBlock.lastIn + activeAlpha * this.dcBlock.lastOut;
-            this.dcBlock.lastIn = finalSample;
+            let outSample = analogSample - this.dcBlock.lastIn + activeAlpha * this.dcBlock.lastOut;
+            this.dcBlock.lastIn = analogSample;
             this.dcBlock.lastOut = outSample;
-            finalSample = outSample;
 
-            this.outLp += 0.65 * (finalSample - this.outLp);
-            finalSample = this.outLp;
-
-            outL[i] = finalSample;
-            if (outR) outR[i] = finalSample;
-            if (i === 0) visualValue = finalSample;
+            outL[i] = outSample;
+            if (outR) outR[i] = outSample;
+            if (i === 0) visualValue = outSample;
         }
 
         this.visCounter = (this.visCounter || 0) + 1;
