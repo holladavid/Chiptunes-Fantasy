@@ -102,7 +102,7 @@ Auf echter 8/16-Bit-Hardware gab es kein Alpha-Blending. Jedes gezeichnete Pixel
 ### 4.1. Hardware-Register-Sniffing (Nerd Gold)
 Koppele die GFX-Elemente nicht bloß an das globale Volumen, sondern lies direkt die emulierten Soundchip-Register aus (`metrics.regs`):
 *   Zeichne schwingende Oscillator-Kerne basierend auf den Wavetable-Bits (SID `$D404`).
-*   Bringe ADSR-Tracer auf echten Hüllkurven-Pfaden zum Gleiten (Envelope-Sniffing).
+*   Bringe ADSR-Tracer auf echten Hüllkurven-Pfaden zum Glenz-Gleiten (Envelope-Sniffing).
 *   Verzögere oder beschleunige 3D-Rotationen (Atari) direkt gekoppelt an die Lautstärkeregister (R8, R9, R10) des YM2149F.
 
 ### 4.2. Event-based Climax & Afterglow-Dramaturgie
@@ -136,7 +136,7 @@ Sollte der DJ für alle grafischen Ebenen einen `VoidElement` (unsichtbaren Plat
 Um sicherzustellen, dass DSEs unterschiedlicher Schichten (z. B. `background` und `floor`) nahtlos ineinandergreifen, ohne dass Kanten clippen oder schwarze Lücken im Canvas entstehen, müssen folgende geometrische Gesetze beachtet werden:
 
 ### 6.1. Die absolute 50%-Horizont-Regel
-Alle DSEs, die eine Boden-Fläche, ein Raster oder eine perspektivische Fluchtlinie zeichnen, müssen ihren mathematischen Horizont exakt auf **50% der vertikalen Auflösung** fixieren!
+Alle DSEs, die eine Boden-Fläche, uneben oder flach, ein Raster oder eine perspektivische Fluchtlinie zeichnen, müssen ihren mathematischen Horizont exakt auf **50% der vertikalen Auflösung** fixieren!
 
 ```javascript
 // OBLIGATORISCH FÜR ALLE BACKGROUND/FLOOR DSEs:
@@ -215,8 +215,8 @@ Tritt ein temporärer DOM-Kollaps auf, bricht die CPU das Zeichnen sofort ab, ü
 Echte Retro-Hardware war mechanisch. Kontinuierlich fließende floating-point Animationen, ununterbrochen pumpende Kreise oder voll-analoge Audio-Dämpfungen zerstören die Demoszene-Ästhetik der 80er Jahre.
 
 ### 10.1. "Klick"-Zustandswechsel & Spuren-Verzicht
-*   **Rotation:** Nutze feste LUT-Tabellen (z. B. 256 oder 1024 Indizes) und übernimm Winkel-Inkremente unregelmäßig (z. B. nur alle 3 Frames), um das typische ruckelige "Tick-Tick-Tick" der 8- und 16-Bit-Engines zu emulieren.
-*   **Kein ständiges Atmen:** Ändere Größen oder Radien nicht kontinuierlich zum Takt. Lass den Beat stattdessen sprunghafte, unregelmäßige "Klicks" (Winkel-Inversionen, abrupte Pattern-Swaps, Farbpaletten-Rotationen oder kurzfristige Vertex-Explosionen mit LERP-Bounces) triggern.
+*   **Rotation:** Feste LUT-Tabellen (z. B. 256 oder 1024 Indizes) nutzen und Winkel-Inkremente unregelmäßig (z. B. nur alle 3 Frames) übernehmen, um das typische ruckelige "Tick-Tick-Tick" der 8- und 16-Bit-Engines zu emulieren.
+*   **Kein ständiges Atmen:** Größen oder Radien nicht kontinuierlich zum Takt ändern. Der Beat soll stattdessen sprunghafte, unregelmäßige "Klicks" (Winkel-Inversionen, abrupte Pattern-Swaps, Farbpaletten-Rotationen oder kurzfristige Vertex-Explosionen mit LERP-Bounces) triggern.
 *   **Symmetriebruch:** Ein perfekt zentriertes, absolut spiegelgleiches Bild wirkt unnatürlich und steril. Verschiebe die mathematische Mittelachse von Hauptelementen (wie der Boing-Sonne oder dem Torii-Tor) gezielt um 5–8 % nach links oder rechts, um sofort mehr künstlerische Spannung aufzubauen.
 
 ### 10.2. Kein `Math.random()` im Render-Loop!
@@ -224,3 +224,30 @@ Echte Retro-Hardware war mechanisch. Kontinuierlich fließende floating-point An
 *   Nutze einen emulierten **23-Bit LFSR** (Linear-feedback shift register) für echtes C64-Rauschen.
 *   Für Sternengeburt oder Partikelsysteme: Generiere Pseudozufall deterministisch aus einem Frame-Counter und einem festen Array.
 *   *Ausnahme:* In der einmaligen Initialisierungs-Phase (`ensureInitialized` oder Constructor) ist `Math.random()` erlaubt, um Moiré-Effekte (Marsaglia-Lattice) oder synchrone Start-Phasen (Wasser-Zufalls-Offsets) einmalig auszuwürfeln.
+
+---
+
+## 11. Diagnose- & Teststeuerungen für Entwickler (Debugging-Tools)
+
+Um die Erstellung, Justierung und klangliche Kalibrierung neuer DSE-Komponenten zu vereinfachen, stellt die `DseBuilder`-Schnittstelle in `registry.js` zwei Fluent-Methoden zur Teststeuerung bereit:
+
+### 11.1. Deaktivierung (`.disabled()`)
+Fügt der Metadaten-Konfiguration des Elements die Eigenschaft `isDisabled: true` hinzu. 
+*   **Laufzeit-Verhalten:** Das Gimmick wird vom `SetlistManager` bei der automatischen Wurf-Auswahl (Roulette) vollständig ignoriert. 
+*   **Diag-Hard-Kill:** Sollte das Element im HMR-Betrieb (Hot Module Replacement) oder während des Debuggings im aktiven Render-Pool des `StageManagers` laufen und auf `disabled` geschaltet werden, bricht die Engine das weiche Ausblenden (Crossfade) ab und löscht das Element augenblicklich im aktuellen Frame, um Speicherlecks und Fehler-Hänger zu verhindern.
+
+### 11.2. Exklusiver Testfokus (`.exclusive()`)
+Fügt der Metadaten-Konfiguration des Elements die Eigenschaft `isExclusive: true` hinzu.
+*   **Laufzeit-Verhalten:** Sobald *mindestens ein* registriertes Gimmick im System exklusiv geschaltet ist, sperrt der `SetlistManager` alle anderen, nicht-exklusiven Wellenformen im `managed` Lifecycle-Pool.
+*   **Exklusives Testing-Fade-Out:** Um das isolierte Testen eines Moduls ohne Störeinflüsse anderer Layer zu ermöglichen, zwingt diese Weiche alle anderen aktiven und nicht-exklusiven `managed` Layer sofort in die `stopping`-Phase des `StageManagers`, wo sie innerhalb von 1.5 Sekunden weich ausblenden und dem exklusiven Fokus-Modul Platz machen.
+
+```javascript
+// Beispiel für eine isolierte Diagnose-Registrierung in registry.js:
+RegisterDSE(MeinNeuesDSE)
+    .systems('c64')
+    .layer('foreground')
+    .weight(10)
+    .exclusive() // <--- Sichert den ungestörten, exklusiven Test-Fokus
+    // .disabled() // <--- Deaktiviert das Modul temporär für andere Tests
+    .build()
+```

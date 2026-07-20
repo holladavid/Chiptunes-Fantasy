@@ -88,6 +88,7 @@ export const dseRegistry = [
         .weight(1)
         .duration(0)
         .climaxHold(0)
+        .disabled()
         .build(),
 
     // --- PRESENTERS (One-Shot Overlays) ---
