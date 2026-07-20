@@ -1,3 +1,4 @@
+// === js/worklets/c64/sid-exact.js ===
 import { CPU6502 } from '../lib/cpu6502.js';
 import { SIDChip } from '../lib/sid-chip.js';
 import { DCBlocker } from '../lib/dsp-utils.js';
@@ -48,6 +49,17 @@ class SIDProcessor extends AudioWorkletProcessor {
 
         this.visualView = new Float32Array(40);
 
+        // --- DIGIDRUM VOL-WIGGLE DETECTOR STATE ---
+        this.lastMasterVol = 0.0;
+        this.volWiggleActivity = 0.0;
+
+        // --- RUNTIME DIAGNOSTICS CORES (Allokationsfreie Tracker) ---
+        this.diagCycles = 0;
+        this.diagInstructions = 0;
+        this.diagTimer = 0.0;
+        this.diagIrqCount = 0;
+        this.diagNmiCount = 0;
+
         this.port.onmessage = (e) => {
             const msg = e.data;
             
@@ -79,12 +91,14 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.x = songIndex; 
                 this.cpu.y = 0;
                 
-                this.cpu.push(0xEF); 
-                this.cpu.push(0xFE); 
+                // --- FIX: Sicherer Rücksprung in die Host-Idle-Schleife bei $FFE0 ---
+                this.cpu.push(0xFF); // High Byte ($FF)
+                this.cpu.push(0xDF); // Low Byte ($DF) -> RTS addiert 1 = $FFE0
                 this.cpu.pc = this.initAddress;
 
                 let safety = 5000000;
-                while (this.cpu.pc !== 0xEFFF && safety-- > 0) {
+                // Wait for Init to reach the safe idle loop
+                while (this.cpu.pc !== 0xFFE0 && safety-- > 0) {
                     this.cpu.clockHardware(1);
                     this.sid.clock();
                     
@@ -115,7 +129,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                     }
                 }
                 
-                this.cpu.pc = 0xEFFF; 
+                this.cpu.pc = 0xFFE0; // Reset PC hard onto the idle loop
                 this.cpu.p &= ~0x04;  
 
                 this.playAddress = msg.playAddress;
@@ -163,12 +177,13 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.x = songIndex;
                 this.cpu.y = 0;
                 
-                this.cpu.push(0xEF); 
-                this.cpu.push(0xFE); 
+                // --- FIX: Sicherer Rücksprung in die Host-Idle-Schleife ---
+                this.cpu.push(0xFF); 
+                this.cpu.push(0xDF); 
                 this.cpu.pc = this.initAddress;
                 
                 let safety = 5000000;
-                while (this.cpu.pc !== 0xEFFF && safety-- > 0) {
+                while (this.cpu.pc !== 0xFFE0 && safety-- > 0) {
                     this.cpu.clockHardware(1);
                     this.sid.clock();
                     
@@ -198,7 +213,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                         }
                     }
                 }
-                this.cpu.pc = 0xEFFF; 
+                this.cpu.pc = 0xFFE0; 
                 this.cpu.p &= ~0x04;
                 
                 this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
@@ -225,6 +240,8 @@ class SIDProcessor extends AudioWorkletProcessor {
         let cia1TimerAEnabled = false;
         let isSelfDriving = false;
 
+        const dt = 1.0 / sampleRate;
+
         for (let i = 0; i < outL.length; i++) {
             if (!this.isPlaying) {
                 outL[i] = 0; if (outR) outR[i] = 0;
@@ -237,6 +254,7 @@ class SIDProcessor extends AudioWorkletProcessor {
 
             // --- THE NATIVE CYCLE-EXACT LOCKSTEP LOOP (1 MHz) ---
             for (let c = 0; c < cyclesToRun; c++) {
+                this.diagCycles++; 
                 
                 this.cpu.clockHardware(1); 
                 this.sid.clock();          
@@ -270,6 +288,9 @@ class SIDProcessor extends AudioWorkletProcessor {
                     }
                 }
 
+                if (this.cpu.irqAccepted && this.cpuCyclesRemaining === 0) this.diagIrqCount++;
+                if (this.cpu.nmiAccepted && this.cpuCyclesRemaining === 0) this.diagNmiCount++;
+
                 if (this.cpuCyclesRemaining === 1) {
                     this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
                     this.cpu.nmiAccepted = this.cpu.nmiPending;
@@ -279,12 +300,15 @@ class SIDProcessor extends AudioWorkletProcessor {
                     // CPU stall
                 } else {
                     if (this.cpuCyclesRemaining <= 0) {
-                        if (this.hostPlayPending && this.cpu.pc >= 0xEFFF && this.cpu.pc <= 0xF001) {
+                        
+                        // --- FIX: Host Play Trigger Checks bound to the new safe Idle Loop ($FFE0) ---
+                        if (this.hostPlayPending && this.cpu.pc >= 0xFFE0 && this.cpu.pc <= 0xFFE2) {
                             this.hostPlayPending = false;
-                            this.cpu.push(0xEF);
-                            this.cpu.push(0xFE); 
+                            this.cpu.push(0xFF);
+                            this.cpu.push(0xDF); 
                             this.cpu.pc = this.playAddress;
                             this.cpuCyclesRemaining = 6 - 1; 
+                            this.diagInstructions++;
                         } else if (this.cpu.nmiAccepted) {
                             this.cpu.nmiAccepted = false;
                             this.cpu.triggerHardwareNmi();
@@ -296,6 +320,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                         } else {
                             let cyclesUsed = this.cpu.step(); 
                             this.cpuCyclesRemaining = cyclesUsed - 1; 
+                            this.diagInstructions++; 
                         }
                     } else {
                         this.cpuCyclesRemaining--;
@@ -313,15 +338,50 @@ class SIDProcessor extends AudioWorkletProcessor {
                 decimationSum += this.ringBuffer[readIdx] * this.firKernel[k];
             }
             
-            // --- REIN RECHTLINIGER DC-BLOCKER ---
-            // Da die Wiggle-Erkennung nun vollkommen autonom und extrem hochauflösend
-            // in der 1-MHz-Schleife der sid-chip.js arbeitet, läuft der DC-Blocker 
-            // im Wrapper wieder absolut standardkonform und stabil.
-            let finalSample = this.dcBlock.process(decimationSum);
+            const currentMasterVol = this.sid.masterVol;
+            const deltaVol = Math.abs(currentMasterVol - this.lastMasterVol);
+            this.lastMasterVol = currentMasterVol;
+
+            if (deltaVol > 0.01) {
+                this.volWiggleActivity = Math.min(1.0, this.volWiggleActivity + 0.15);
+            } else {
+                this.volWiggleActivity *= Math.exp(-dt * 45.0);
+            }
+
+            const activeAlpha = 0.995 + (this.volWiggleActivity * 0.0046);
+            
+            let finalSample = decimationSum - this.dcBlock.lastIn + activeAlpha * this.dcBlock.lastOut;
+            this.dcBlock.lastIn = decimationSum;
+            this.dcBlock.lastOut = finalSample;
 
             outL[i] = finalSample;
             if (outR) outR[i] = finalSample;
             if (i === 0) visualValue = finalSample;
+        }
+
+        this.diagTimer += outL.length / sampleRate;
+        if (this.diagTimer >= 1.0) {
+            this.diagTimer -= 1.0;
+            
+            let activeRegs = Array.from(this.sid.regs).map(r => r.toString(16).toUpperCase().padStart(2, '0')).join(' ');
+            
+            let runtimeMsg = `--- [LAB-RUNTIME DIAGNOSTICS] ---\n` +
+                             `[STATUS] Frame: ${this.currentFrame} | IsPlaying: ${this.isPlaying}\n` +
+                             `[CPU] PC: $${this.cpu.pc.toString(16).toUpperCase().padStart(4, '0')} | SP: $${this.cpu.sp.toString(16).toUpperCase().padStart(2, '0')} | P: $${this.cpu.p.toString(16).toUpperCase().padStart(2, '0')}\n` +
+                             `[CPU] Instructions/sec: ${this.diagInstructions} | Cycles/sec: ${this.diagCycles}\n` +
+                             `[IRQ] Pending: ${this.cpu.irqPending} | Accepted: ${this.cpu.irqAccepted} | Count/sec: ${this.diagIrqCount}\n` +
+                             `[NMI] Pending: ${this.cpu.nmiPending} | Accepted: ${this.cpu.nmiAccepted} | Count/sec: ${this.diagNmiCount}\n` +
+                             `[VECTORS] $0314 (IRQ): $${this.cpu.ram[0x0314].toString(16).toUpperCase().padStart(2, '0')}${this.cpu.ram[0x0315].toString(16).toUpperCase().padStart(2, '0')}\n` +
+                             `[TIMERS] CIA1-TimerA: ${this.cpu.cia1TimerA} | Latch: ${this.cpu.cia1TimerALatch} | CtrlA: $${this.cpu.cia1CtrlA.toString(16).toUpperCase().padStart(2, '0')}\n` +
+                             `[TIMERS] VIC-Raster: ${this.cpu.rasterCounter} | Target: ${this.cpu.rasterIrqTarget} | Enabled: ${this.cpu.ram[0xD01A]}\n` +
+                             `[SID REGS] $D400: ${activeRegs}\n` +
+                             `---------------------------------`;
+            this.port.postMessage({ type: 'LAB_LOG', msg: runtimeMsg });
+            
+            this.diagCycles = 0;
+            this.diagInstructions = 0;
+            this.diagIrqCount = 0;
+            this.diagNmiCount = 0;
         }
 
         this.visCounter = (this.visCounter || 0) + 1;

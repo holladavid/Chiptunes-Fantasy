@@ -168,8 +168,8 @@ export const dseRegistry = [
     RegisterDSE(VoidElement)
         .name('VoidBackground')
         .layer('background')
-        .weight(5)
-        .duration(15.0)
+        .weight(10) // Erhöht von 5 auf 10 für mehr Isolation
+        .duration(10.0)
         .isVoid()
         .build(),
 
@@ -192,7 +192,7 @@ export const dseRegistry = [
     RegisterDSE(VoidElement)
         .name('VoidFloor')
         .layer('floor')
-        .weight(8)
+        .weight(15) // Erhöht von 8 auf 15 für mehr Isolation
         .duration(15.0)
         .isVoid()
         .build(),
@@ -239,7 +239,6 @@ export const dseRegistry = [
         .climaxHold(10.0)
         .build(),
 
-    // Der rotierende, interaktive C64 Vektor-Stern
     RegisterDSE(C64VectorStar)
         .systems('c64')
         .layer('foreground')
@@ -251,7 +250,7 @@ export const dseRegistry = [
     RegisterDSE(VoidElement)
         .name('VoidForeground')
         .layer('foreground')
-        .weight(5)
+        .weight(15) // Erhöht von 5 auf 15 für mehr Isolation
         .duration(15.0)
         .isVoid()
         .build()
