@@ -81,14 +81,25 @@ export class CPU6502 {
         
         // --- 1. THE AUTHENTIC PHANTOM KERNAL VECTORS ---
         // Eigene Host-Idle Schleife für unseren Emulator
-        this.ram[0xEFFF] = 0x4C; this.ram[0xF000] = 0xFF; this.ram[0xF001] = 0xEF; // JMP $EFFF
+        // Sicher platziert bei $FFE0 (ROM-Bereich), um Überschreiben durch PRG-Files zu verhindern!
+        this.ram[0xFFE0] = 0x4C; this.ram[0xFFE1] = 0xE0; this.ram[0xFFE2] = 0xFF; // JMP $FFE0
         
-        // KERNAL IRQ Return ($EA31) und NMI Return ($FE56)
-        const returnHandler = [ 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40 ]; // PLA, TAY, PLA, TAX, PLA, RTI
-        for (let i = 0; i < returnHandler.length; i++) {
-            this.ram[0xEA31 + i] = returnHandler[i]; 
-            this.ram[0xEA81 + i] = returnHandler[i]; 
-            this.ram[0xFE56 + i] = returnHandler[i]; 
+        // KERNAL IRQ Return ($EA31) -> Acknowledge CIA-1, Pop, RTI
+        const irqReturnHandler = [ 
+            0xAD, 0x0D, 0xDC, // LDA $DC0D
+            0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40 // PLA, TAY, PLA, TAX, PLA, RTI
+        ];
+        for (let i = 0; i < irqReturnHandler.length; i++) {
+            this.ram[0xEA31 + i] = irqReturnHandler[i]; 
+        }
+
+        // KERNAL NMI Return ($EA81) -> Acknowledge CIA-2, Pop, RTI
+        const nmiReturnHandler = [ 
+            0xAD, 0x0D, 0xDD, // LDA $DD0D
+            0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40 // PLA, TAY, PLA, TAX, PLA, RTI
+        ];
+        for (let i = 0; i < nmiReturnHandler.length; i++) {
+            this.ram[0xEA81 + i] = nmiReturnHandler[i]; 
         }
         
         this.ram[0x0314] = 0x31; this.ram[0x0315] = 0xEA; // Default IRQ -> Pop-Exit ($EA31)
@@ -99,21 +110,20 @@ export class CPU6502 {
         this.ram[0xFFFE] = 0x48; this.ram[0xFFFF] = 0xFF; 
         this.ram[0xFFFA] = 0x60; this.ram[0xFFFB] = 0xFF; 
 
-        // $FF48: Authentic IRQ Entry (Sichert A, X, Y, quittiert CIA-1 und leitet zu $0314)
+        // $FF48: Authentic IRQ Entry (Sichert A,X,Y und leitet zu $0314)
         const irqEntry = [
             0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
             0xBA, 0xBD, 0x04, 0x01,       // TSX, LDA $0104,X
             0x29, 0x10, 0xF0, 0x03,       // AND #$10, BEQ +3
             0x6C, 0x16, 0x03,             // JMP ($0316) -> BRK
-            0xAD, 0x0D, 0xDC,             // LDA $DC0D -> CIA-1 Acknowledge
             0x6C, 0x14, 0x03              // JMP ($0314) -> IRQ
         ];
         for (let i = 0; i < irqEntry.length; i++) this.ram[0xFF48 + i] = irqEntry[i];
 
-        // $FF60: Authentic NMI Entry (Sichert keine Register, leitet direkt zu $0318)
+        // $FF60: Authentic NMI Entry (Sichert A,X,Y und leitet zu $0318)
         const nmiEntry = [
-            0x78,             // SEI
-            0x6C, 0x18, 0x03  // JMP ($0318) -> NMI Vector
+            0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
+            0x6C, 0x18, 0x03              // JMP ($0318) -> NMI Vector
         ];
         for (let i = 0; i < nmiEntry.length; i++) this.ram[0xFF60 + i] = nmiEntry[i];
         
@@ -261,17 +271,15 @@ export class CPU6502 {
             return this.ram[addr]; 
         }
         
-        // --- SID Register Mirroring & Open Bus Read ($D400 - $D7FF) ---
-        // Auf dem C64 sind nur die Paddle-Register ($D419/$D41A) sowie die Ausleseregister von 
-        // Voice 3 ($D41B/$D41C) elektrisch mit dem Lese-Bus verbunden.
-        // Liest die CPU ein schreibgeschütztes Register, bleibt der Bus ungetrieben und liefert
-        // durch seine kapazitive Trägheit das High-Byte der gerade aufgerufenen Adresse!
+        // --- SID Register Mirroring & PSID Compatibility Read ($D400 - $D7FF) ---
         if (addr >= 0xD400 && addr <= 0xD7FF) {
             let reg = addr & 0x1F;
-            if (reg === 27) return this.sid.voices[2].waveOut8Bit || 0; // $D41B mirror
-            if (reg === 28) return this.sid.voices[2].env8Bit || 0;     // $D41C mirror
-            if (reg === 25 || reg === 26) return 0xFF;                  // POTX/POTY
-            return (addr >> 8) & 0xFF;                                  // Dynamic Open Bus!
+            if (reg === 27) return Math.floor(this.sid.voices[2].waveOut8Bit) || 0; // $D41B mirror
+            if (reg === 28) return Math.floor(this.sid.voices[2].env8Bit) || 0;     // $D41C mirror
+            if (reg === 25 || reg === 26) return 0xFF;                              // POTX/POTY
+            
+            // PSID Fallback: Gibt den zuletzt geschriebenen RAM-Wert zurück
+            return this.ram[addr];                                                  
         }
 
         return this.ram[addr];
@@ -315,6 +323,12 @@ export class CPU6502 {
         } else if (addr === 0xDC07) {
             this.cia1TimerBLatch = (this.cia1TimerBLatch & 0x00FF) | (val << 8);
             if ((this.cia1CtrlB === 0x01) === 0) this.cia1TimerB = (this.cia1TimerB & 0x00FF) | (val << 8);
+        } else if (addr === 0xDD0D) {
+            let bit7 = (val & 0x80) !== 0;
+            let maskBits = val & 0x1F;
+            if (bit7) this.cia2IrqMask |= maskBits;
+            else this.cia2IrqMask &= ~maskBits;
+            this.updateIrqState();
         } else if (addr === 0xDC0D) {
             let bit7 = (val & 0x80) !== 0;
             let maskBits = val & 0x1F;
@@ -344,12 +358,6 @@ export class CPU6502 {
             } else if (addr === 0xDD07) {
                 this.cia2TimerBLatch = (this.cia2TimerBLatch & 0x00FF) | (val << 8);
                 if ((this.cia2CtrlB === 0x01) === 0) this.cia2TimerB = (this.cia2TimerB & 0x00FF) | (val << 8);
-            } else if (addr === 0xDD0D) {
-                let bit7 = (val & 0x80) !== 0;
-                let maskBits = val & 0x1F;
-                if (bit7) this.cia2IrqMask |= maskBits;
-                else this.cia2IrqMask &= ~maskBits;
-                this.updateIrqState();
             } else if (addr === 0xDD0E) {
                 this.cia2CtrlA = val;
                 if (val & 0x10) this.cia2TimerA = this.cia2TimerALatch === 0 ? 0xFFFF : this.cia2TimerALatch;

@@ -34,6 +34,9 @@ class SIDProcessor extends AudioWorkletProcessor {
         
         this.visualView = new Float32Array(40);
 
+        this.lastMasterVol = 0.0;
+        this.volWiggleActivity = 0.0;
+
         this.port.onmessage = (e) => {
             const msg = e.data;
             
@@ -65,12 +68,13 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.x = songIndex; 
                 this.cpu.y = 0;
                 
-                this.cpu.push(0xEF);
-                this.cpu.push(0xFE);
+                // --- FIX: Sicherer Rücksprung in die Host-Idle-Schleife bei $FFE0 ---
+                this.cpu.push(0xFF); 
+                this.cpu.push(0xDF);
                 this.cpu.pc = this.initAddress;
 
                 let safety = 5000000;
-                while (this.cpu.pc !== 0xEFFF && safety-- > 0) {
+                while (this.cpu.pc !== 0xFFE0 && safety-- > 0) {
                     this.cpu.clockHardware(1);
                     this.sid.clock();
                     
@@ -100,7 +104,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                         }
                     }
                 }
-                this.cpu.pc = 0xEFFF; 
+                this.cpu.pc = 0xFFE0; 
                 this.cpu.p &= ~0x04; 
 
                 this.playAddress = msg.playAddress;
@@ -108,17 +112,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
                 this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
                 this.vblankTimer = this.playSpeedCycles;
-
-                let bootMsg = `==================================================\n` +
-                              `[LAB-BOOT] Core: ${this.constructor.name}\n` +
-                              `[LAB-BOOT] Subsong-Index: ${songIndex} | Address-Range: $${this.loadAddr.toString(16).toUpperCase()} - $${(this.loadAddr + this.prgCode.length).toString(16).toUpperCase()}\n` +
-                              `[LAB-BOOT] Play-Address: $${this.playAddress.toString(16).toUpperCase()}\n` +
-                              `[LAB-BOOT] Vector $0314 (IRQ): $${this.cpu.ram[0x0314].toString(16).toUpperCase().padStart(2, '0')}${this.cpu.ram[0x0315].toString(16).toUpperCase().padStart(2, '0')}\n` +
-                              `[LAB-BOOT] Vector $0318 (NMI): $${this.cpu.ram[0x0318].toString(16).toUpperCase().padStart(2, '0')}${this.cpu.ram[0x0319].toString(16).toUpperCase().padStart(2, '0')}\n` +
-                              `[LAB-BOOT] VIC Mask $D01A: $${this.cpu.ram[0xD01A].toString(16).toUpperCase()} | CIA-1 Mask $DC0D: $${this.cpu.cia1IrqMask.toString(16).toUpperCase()}\n` +
-                              `[LAB-BOOT] Speedflags: %${this.songSpeedFlags.toString(2)} | useCiaTimer: ${this.useCiaTimer}\n` +
-                              `==================================================`;
-                this.port.postMessage({ type: 'LAB_LOG', msg: bootMsg });
 
                 this.cycleAccumulator = 0.0;
                 this.cpuCyclesRemaining = 0;
@@ -149,12 +142,13 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.x = songIndex;
                 this.cpu.y = 0;
                 
-                this.cpu.push(0xEF);
-                this.cpu.push(0xFE);
+                // --- FIX: Sicherer Rücksprung in die Host-Idle-Schleife ---
+                this.cpu.push(0xFF);
+                this.cpu.push(0xDF);
                 this.cpu.pc = this.initAddress;
                 
                 let safety = 5000000;
-                while (this.cpu.pc !== 0xEFFF && safety-- > 0) {
+                while (this.cpu.pc !== 0xFFE0 && safety-- > 0) {
                     this.cpu.clockHardware(1);
                     this.sid.clock();
                     
@@ -184,7 +178,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                         }
                     }
                 }
-                this.cpu.pc = 0xEFFF; 
+                this.cpu.pc = 0xFFE0; 
                 this.cpu.p &= ~0x04;
                 
                 this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
@@ -211,6 +205,8 @@ class SIDProcessor extends AudioWorkletProcessor {
         let cia1TimerAEnabled = false;
         let isSelfDriving = false;
 
+        const dt = 1.0 / sampleRate;
+
         for (let i = 0; i < outL.length; i++) {
             if (!this.isPlaying) {
                 outL[i] = 0; if (outR) outR[i] = 0;
@@ -223,7 +219,6 @@ class SIDProcessor extends AudioWorkletProcessor {
 
             let sampleSum = 0;
 
-            // --- THE NATIVE CYCLE-EXACT LOCKSTEP LOOP (1 MHz) ---
             for (let c = 0; c < cyclesToRun; c++) {
                 
                 this.cpu.clockHardware(1); 
@@ -268,10 +263,11 @@ class SIDProcessor extends AudioWorkletProcessor {
                     // CPU stall
                 } else {
                     if (this.cpuCyclesRemaining <= 0) {
-                        if (this.hostPlayPending && this.cpu.pc >= 0xEFFF && this.cpu.pc <= 0xF001) {
+                        // --- FIX: Host Play Trigger Checks bound to the safe ROM Idle Loop ---
+                        if (this.hostPlayPending && this.cpu.pc >= 0xFFE0 && this.cpu.pc <= 0xFFE2) {
                             this.hostPlayPending = false;
-                            this.cpu.push(0xEF);
-                            this.cpu.push(0xFE); 
+                            this.cpu.push(0xFF);
+                            this.cpu.push(0xDF); 
                             this.cpu.pc = this.playAddress;
                             this.cpuCyclesRemaining = 6 - 1; 
                         } else if (this.cpu.nmiAccepted) {
@@ -295,8 +291,21 @@ class SIDProcessor extends AudioWorkletProcessor {
             let finalSample = cyclesToRun > 0 ? sampleSum / cyclesToRun : this.lastSampleValue;
             this.lastSampleValue = finalSample;
 
-            // DC Blocker standardmäßig ausgeführt
-            finalSample = this.dcBlock.process(finalSample);
+            const currentMasterVol = this.sid.masterVol;
+            const deltaVol = Math.abs(currentMasterVol - this.lastMasterVol);
+            this.lastMasterVol = currentMasterVol;
+
+            if (deltaVol > 0.01) {
+                this.volWiggleActivity = Math.min(1.0, this.volWiggleActivity + 0.15);
+            } else {
+                this.volWiggleActivity *= Math.exp(-dt * 45.0);
+            }
+
+            const activeAlpha = 0.995 + (this.volWiggleActivity * 0.0046);
+            let outSample = finalSample - this.dcBlock.lastIn + activeAlpha * this.dcBlock.lastOut;
+            this.dcBlock.lastIn = finalSample;
+            this.dcBlock.lastOut = outSample;
+            finalSample = outSample;
 
             this.outLp += 0.65 * (finalSample - this.outLp);
             finalSample = this.outLp;
