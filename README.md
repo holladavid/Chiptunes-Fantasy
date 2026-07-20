@@ -19,6 +19,13 @@ Our cycle-exact 1MHz SID engine emulates the ultimate analog synthesizer chip:
 *   **Non-Linear Saturation:** Emulates non-linear NMOS triode saturation (`Math.tanh`) and asymmetric clipping, giving the low-end its legendary, warm growl.
 *   **Sustain-Drop & Pipeline Delay:** Replicates the historical hardware envelope bugs and the 1-cycle ADSR pipeline delay to guarantee authentic drum "snapping."
 *   **Analog Wire-ANDing:** Models the physical signal pull-down and bleeding of illegal combined waveforms.
+*   **Analog Combined Waveforms ($30, $50, $60, $70):** Modelliert das diskrete, asymmetrische NMOS-Pull-Down-Verhalten und Sickerströme (Leakage) kombinierter Wellenformen anstelle pauschaler Binär-Mischungen – essenziell für Galways charakteristische Leads.
+*   **Historically Accurate Noise Taps:** Nutzt die physisch korrekten 23-Bit-LFSR-Ausgangskontakte (Bits 20, 18, 14, 11, 9, 5, 2, 0) für das originale, seidig glänzende Rauschspektrum.
+*   **15-Bit ADSR Rate Counter (Phase-Transition Delay):** Emuliert das freilaufende LFSR-Register, das bei `0x8000` überläuft und die Null überspringt, wodurch die Hüllkurve bei schnellen Rate-Wechseln und Phasenübergängen originalgetreu "hängenbleibt" (Sustain Lock).
+*   **Floating DAC Discharge:** Simuliert die kapazitive Ladungsspeicherung der DAC-Gatter beim Deaktivieren aller Wellenformen (Wellenform `$00`), was ein weiches, analoges Ausbluten des Signals über ca. 15,5 ms bewirkt.
+*   **VCF Squelch (Filter Memory):** Modelliert das asymmetrische Übersteuerungsverhalten des analogen Addierer-Op-Amps (`hp`), was bei starker Resonanz zu einem dynamischen Pegel-Ausweichen ("Schmatzen") führt.
+*   **Volume DAC Bug & VCA Offset:** Bildet die unregelmäßigen 16 Stufen des R-2R-Lautstärke-Wandlers über gemessene Tabellenwerte ab, gekoppelt mit einem dynamisch ansteigenden Gleichspannungs-Offset des Stimmenmischers für knackige prozedurale Trommeln.
+*   **Floating Open Bus:** Lesezugriffe auf schreibgeschützte SID-Register spiegeln die kapazitive Trägheit des C64-Datenbusses wider und geben das High-Byte der gerade ausgeführten Befehlsadresse zurück.
 
 ### 2. MOS Technology Paula 8364 (Amiga 500)
 A deep emulation of the Amiga’s legendary 4-channel DMA PCM engine:
@@ -43,6 +50,7 @@ The user interface represents a physical rack-mount oscilloscope and measurement
 *   **"Living Silicon" Dies:** Modally swapped SVG chip maps showing the active silicon die. Data buses, pins, and filters physically glow, fade, and flicker in exact synchronization with active register writes.
 *   **Environmental Sensor Bay:** High-fidelity readouts next to the interactive Temperature Slider track real-time hardware variables (Voltage Sag, thermal noise floor, and transistor Bias drift).
 *   **Custom VFD Dropdown:** Custom styled, low-res vacuum fluorescent display terminal selector replacing native browser drop-down boxes.
+*   **Fluent Builder Diagnostic Suite:** Entwickler können in der `registry.js` Gimmicks über `.disabled()` vollständig deinstallieren oder über `.exclusive()` isolieren, um das Verhalten einzelner Demo-Szenen-Elemente ohne Störeinflüsse anderer managed Layer zu debuggen.
 
 ---
 
