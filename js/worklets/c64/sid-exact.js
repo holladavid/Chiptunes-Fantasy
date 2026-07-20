@@ -1,7 +1,7 @@
 // === js/worklets/c64/sid-exact.js ===
 import { CPU6502 } from '../lib/cpu6502.js';
 import { SIDChip } from '../lib/sid-chip.js';
-import { DCBlocker } from '../lib/dsp-utils.js';
+import { DCBlocker, C64AnalogFilter } from '../lib/dsp-utils.js';
 
 class SIDProcessor extends AudioWorkletProcessor {
     constructor() {
@@ -12,6 +12,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.sid.useJfetSaturation = true;
         this.cpu = new CPU6502(this.sid);
         this.dcBlock = new DCBlocker();
+        this.c64Output = new C64AnalogFilter(sampleRate);
 
         this.prgCode = null;
         this.loadAddr = 0;
@@ -29,29 +30,9 @@ class SIDProcessor extends AudioWorkletProcessor {
         
         this.temperature = 55.0;
         this.cpuCyclesRemaining = 0;
+        this.lastSampleValue = 0;
         
-        this.FIR_TAPS = 255;
-        this.firKernel = new Float32Array(this.FIR_TAPS);
-        this.ringBuffer = new Float32Array(512); 
-        this.ringIndex = 0;
-        
-        let fc = 12500.0 / this.clock; 
-        let sum = 0;
-        
-        for (let i = 0; i < this.FIR_TAPS; i++) {
-            let x = i - (this.FIR_TAPS - 1) / 2;
-            let sinc = (x === 0) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
-            let window = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / (this.FIR_TAPS - 1)) + 0.08 * Math.cos(4 * Math.PI * i / (this.FIR_TAPS - 1));
-            this.firKernel[i] = sinc * window;
-            sum += this.firKernel[i];
-        }
-        for (let i = 0; i < this.FIR_TAPS; i++) this.firKernel[i] /= sum; 
-
         this.visualView = new Float32Array(40);
-
-        // --- DIGIDRUM VOL-WIGGLE DETECTOR STATE ---
-        this.lastMasterVol = 0.0;
-        this.volWiggleActivity = 0.0;
 
         // --- RUNTIME DIAGNOSTICS CORES (Allokationsfreie Tracker) ---
         this.diagCycles = 0;
@@ -70,9 +51,9 @@ class SIDProcessor extends AudioWorkletProcessor {
             }
 
             if (msg.isSidFile) {
-                this.ringBuffer.fill(0);
-                this.ringIndex = 0;
+                this.c64Output = new C64AnalogFilter(sampleRate);
                 this.dcBlock = new DCBlocker();
+                this.lastSampleValue = 0;
 
                 this.prgCode = msg.c64Code;
                 this.loadAddr = msg.loadAddress;
@@ -91,13 +72,11 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.x = songIndex; 
                 this.cpu.y = 0;
                 
-                // --- FIX: Sicherer Rücksprung in die Host-Idle-Schleife bei $FFE0 ---
-                this.cpu.push(0xFF); // High Byte ($FF)
-                this.cpu.push(0xDF); // Low Byte ($DF) -> RTS addiert 1 = $FFE0
+                this.cpu.push(0xFF); 
+                this.cpu.push(0xDF); 
                 this.cpu.pc = this.initAddress;
 
                 let safety = 5000000;
-                // Wait for Init to reach the safe idle loop
                 while (this.cpu.pc !== 0xFFE0 && safety-- > 0) {
                     this.cpu.clockHardware(1);
                     this.sid.clock();
@@ -129,7 +108,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                     }
                 }
                 
-                this.cpu.pc = 0xFFE0; // Reset PC hard onto the idle loop
+                this.cpu.pc = 0xFFE0; 
                 this.cpu.p &= ~0x04;  
 
                 this.playAddress = msg.playAddress;
@@ -161,9 +140,9 @@ class SIDProcessor extends AudioWorkletProcessor {
             } else if (msg.type === 'RESUME_TRACK') {
                 this.isPlaying = true;
             } else if (msg.type === 'CHANGE_SUBSONG') {
-                this.ringBuffer.fill(0);
-                this.ringIndex = 0;
+                this.c64Output = new C64AnalogFilter(sampleRate);
                 this.dcBlock = new DCBlocker();
+                this.lastSampleValue = 0;
 
                 this.sid = new SIDChip();
                 this.sid.useJfetSaturation = true;
@@ -177,7 +156,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.x = songIndex;
                 this.cpu.y = 0;
                 
-                // --- FIX: Sicherer Rücksprung in die Host-Idle-Schleife ---
                 this.cpu.push(0xFF); 
                 this.cpu.push(0xDF); 
                 this.cpu.pc = this.initAddress;
@@ -193,7 +171,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                     }
 
                     if (!this.cpu.rdy) {
-                        // CPU stall
                     } else {
                         if (this.cpuCyclesRemaining <= 0) {
                             if (this.cpu.nmiAccepted) {
@@ -252,12 +229,15 @@ class SIDProcessor extends AudioWorkletProcessor {
             let cyclesToRun = Math.floor(this.cycleAccumulator);
             this.cycleAccumulator -= cyclesToRun;
 
-            // --- THE NATIVE CYCLE-EXACT LOCKSTEP LOOP (1 MHz) ---
+            let sampleSum = 0;
+
             for (let c = 0; c < cyclesToRun; c++) {
                 this.diagCycles++; 
                 
                 this.cpu.clockHardware(1); 
                 this.sid.clock();          
+                
+                sampleSum += this.sid.outputSample;
                 
                 irqHijacked = (this.cpu.ram[0x0314] !== this.cpu.defaultIrqLo) || (this.cpu.ram[0x0315] !== this.cpu.defaultIrqHi);
                 vicIrqEnabled = (this.cpu.ram[0xD01A] & 0x01) !== 0;
@@ -300,8 +280,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                     // CPU stall
                 } else {
                     if (this.cpuCyclesRemaining <= 0) {
-                        
-                        // --- FIX: Host Play Trigger Checks bound to the new safe Idle Loop ($FFE0) ---
                         if (this.hostPlayPending && this.cpu.pc >= 0xFFE0 && this.cpu.pc <= 0xFFE2) {
                             this.hostPlayPending = false;
                             this.cpu.push(0xFF);
@@ -326,32 +304,18 @@ class SIDProcessor extends AudioWorkletProcessor {
                         this.cpuCyclesRemaining--;
                     }
                 }
-                
-                this.ringBuffer[this.ringIndex] = this.sid.outputSample;
-                this.ringIndex = (this.ringIndex + 1) & 511; 
             }
             
-            // --- DECIMATION ---
-            let decimationSum = 0;
-            for (let k = 0; k < this.FIR_TAPS; k++) {
-                let readIdx = (this.ringIndex - 1 - k + 512) & 511;
-                decimationSum += this.ringBuffer[readIdx] * this.firKernel[k];
-            }
-            
-            const currentMasterVol = this.sid.masterVol;
-            const deltaVol = Math.abs(currentMasterVol - this.lastMasterVol);
-            this.lastMasterVol = currentMasterVol;
+            // --- BOXCAR DECIMATION (Integrate & Dump) ---
+            let decimatedSample = cyclesToRun > 0 ? sampleSum / cyclesToRun : this.lastSampleValue;
+            this.lastSampleValue = decimatedSample;
 
-            if (deltaVol > 0.01) {
-                this.volWiggleActivity = Math.min(1.0, this.volWiggleActivity + 0.15);
-            } else {
-                this.volWiggleActivity *= Math.exp(-dt * 45.0);
-            }
+            // Analog Output Filter (16 kHz Butterworth pass)
+            let analogSample = this.c64Output.process(decimatedSample);
 
-            const activeAlpha = 0.995 + (this.volWiggleActivity * 0.0046);
-            
-            let finalSample = decimationSum - this.dcBlock.lastIn + activeAlpha * this.dcBlock.lastOut;
-            this.dcBlock.lastIn = decimationSum;
+            // DC Blocker (R=0.998 fängt das 400mV Bias ab, lässt 4-Bit-Drums aber glasklar durch)
+            let finalSample = analogSample - this.dcBlock.lastIn + 0.998 * this.dcBlock.lastOut;
+            this.dcBlock.lastIn = analogSample;
             this.dcBlock.lastOut = finalSample;
 
             outL[i] = finalSample;

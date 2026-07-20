@@ -29,6 +29,11 @@ Our cycle-exact 1MHz SID engine is arguably one of the deepest analogue emulatio
 *   **ADSR Delay Bug (15-Bit Wrap):** Hardware-accurate 15-bit LFSR up-counter wrapping guarantees exact micro-timing delays during phase transitions.
 *   **Floating DAC Discharge:** Opaque, analog charge bleeding. When oscillators are muted, the DAC capacitance discharges slowly over ~15.5ms against a floating DC bias, creating incredibly warm, soft note releases.
 *   **Filter Squelch:** Simulates the asymmetric clipping of the overworked analog summer op-amp, creating the famous wet "smacking" sound of SID resonance sweeps.
+*   **Hardware-Level Decimation & Analog Filtering (New in v1.4.1):** 
+    *   **Zero-Aliasing Boxcar Decimation:** Replaced the legacy, flawed 255-tap FIR filter with a high-performance integrate-and-dump decimation pass. We now sum all 1MHz clock cycles per output frame directly, capturing 100% of transients without localized window skipping.
+    *   **C64 Analog Motherboard Filter:** Added a dedicated 2nd-order Butterworth reconstruction filter at 16 kHz, simulating the combined impedance of the SID output stage and Commodore 64 RF modulator to naturally smooth high-frequency clock stepping.
+*   **True DC-Bias VCA Injection (New in v1.4.1):** We eradicated the legacy, artificial digital "Volume Wiggle" hack. The engine now models a constant, hardware-accurate ~400mV analog mixer DC offset directly at the VCA input. Modulating `$D418` (master volume) directly multiplies this static DC leakage against our non-linear 6581 DAC curve, bringing Martin Galway's procedural *Arkanoid* title drums to life with their authentic, biting punch.
+*   **Discrete Wire-AND NMOS Logic (New in v1.4.1):** The calculations for combined "illegal" waveforms (`$30`, `$50`, `$60`, `$70`) have been rewritten. We eliminated all floating-point approximations in favor of pure bitwise integer shift-and-bleed masks, emulating the analog pull-down behavior of the NMOS silicon gates. This delivers Jeroen Tel's signature, tearing "Maniacs of Noise" basslines with uncompromising grit.
 
 ### 2. MOS Technology Paula 8364 (Amiga 500)
 A deep emulation of the Amiga’s legendary 4-channel DMA PCM engine:

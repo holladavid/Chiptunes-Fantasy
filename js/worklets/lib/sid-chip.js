@@ -1,14 +1,9 @@
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Phase 7: True Thermal Hardware Modeling
-// Exponential Cutoff Drift, Thermal DAC Gain/Offset,
-// JFET Temperature Saturation, and Dynamic Leakage.
-// Upgraded with historically accurate ADSR Phase-Transition Delay
-// Upgraded with Dynamic VCA DC-Leakage Activity Tracking
-// Upgraded with historically accurate Floating DAC Waveform Discharge
-// Upgraded with non-linear Summer Op-Amp Saturation (Filter Squelch)
-// Upgraded with non-linear Volume Register D/A Mapping & VCA Multiplier Bias
+// Phase 8: True Hardware DC-Bias VCA Injection
+// Removed digital wiggle-hacks. Added authentic 400mV Mux offset
+// for physically accurate $D418 Digidrum amplification.
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -61,9 +56,6 @@ export class SIDChip {
         this.thermalLeakage = 0.11;
         this.thermalDcOffset = 0.0;
         this.thermalJfetDrive = 0.8;
-
-        // --- DYNAMISCHE DIGIDRUM AKTIVITÄTS-VARIABLEN ---
-        this.volWiggleActivity = 0.0;
 
         this.updateFilterParameters();
     }
@@ -165,14 +157,7 @@ export class SIDChip {
             // --- NON-LINEARER LAUTSTÄRKE DAC ---
             // Mappt das Register d418 über den gemessenen analogen Widerstandspfad.
             let volIndex = val & 15;
-            let newVol = VOLUME_DAC_6581[volIndex];
-            
-            // --- DETEKTION DER REGISTERRATEN-MODULATION ---
-            let delta = Math.abs(newVol - this.masterVol);
-            if (delta > 0.01) {
-                this.volWiggleActivity = Math.min(1.0, this.volWiggleActivity + 0.15);
-            }
-            this.masterVol = newVol;
+            this.masterVol = VOLUME_DAC_6581[volIndex];
         }
     }
 
@@ -288,9 +273,6 @@ export class SIDChip {
             this.clockEnvelopeOneCycle(v);
         }
 
-        // --- HIGH-SPEED EXPONENTIELLER ZERFALL (1 MHz) ---
-        this.volWiggleActivity *= 0.99995;
-
         let voice0 = this.synthesizeVoiceOneCycle(0);
         let voice1 = this.synthesizeVoiceOneCycle(1);
         let voice2 = this.synthesizeVoiceOneCycle(2);
@@ -356,13 +338,10 @@ export class SIDChip {
         let vcaQuad = this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0;
         
         // --- CIRCUIT-ACCURATE MULTIPLIER OFFSET (The true $D418 Bug) ---
-        // Auf dem realen 6581 existiert am VCA-Multiplizierer ein massiver, 
-        // konstanter DC-Offset durch den analogen Stimmen-Mixer. 
-        // Wir injizieren diesen Offset direkt in 'vcaIn' vor der Multiplikation.
-        // Bei Wiggle-Aktivität wird dieser Offset gesättigt angehoben und 
-        // direkt mit dem nicht-linearen masterVol-DAC multipliziert!
-        let dynamicBias = 1.0 + (this.volWiggleActivity * 2.5);
-        let vcaInWithBias = vcaIn + (0.5 * dynamicBias);
+        // Der echte 6581 Mischer hat einen permanenten DC-Offset von ca. 400mV.
+        // Wenn $D418 rasant umgeschaltet wird, wird dieser konstante Gleichstrom mit dem 
+        // neuen Lautstärkewert multipliziert. Das IST der berühmte Arkanoid Digidrum-Hack!
+        let vcaInWithBias = vcaIn + 0.45;
 
         let finalMix = vcaInWithBias > 0 
             ? Math.tanh(vcaInWithBias + vcaQuad) 
