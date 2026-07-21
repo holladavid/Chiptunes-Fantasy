@@ -292,17 +292,24 @@ export class SIDChip {
         let g = this.g;
         let q = this.q;
         
+        // --- PRIO 4: OP-AMP BANDWIDTH LIMITS (Analog Voodoo) ---
+        // Resonanz bricht bei sehr tiefen und sehr hohen Frequenzen physikalisch ein
         if (this.activeCutoff < 800.0) {
             let damp = (800.0 - this.activeCutoff) / 800.0; 
             q += damp * 0.55; 
+        } else if (this.activeCutoff > 10000.0) {
+            let damp = (this.activeCutoff - 10000.0) / 6000.0;
+            q += damp * 0.8; // Harter Resonanz-Verlust im High-End
         }
 
         let h = filteredSum - this.filterLow;
         let hp = (h - q * this.filterBand) / (1.0 + g * (g + q));
 
-        // --- NON-LINEARER ADDIEERER (hp-Op-Amp-Sättigung) ---
+        // --- NON-LINEARER ADDIEERER (hp-Op-Amp-Sättigung / Filter Squelch) ---
         if (this.useJfetSaturation) {
-            let summerDrive = this.thermalJfetDrive * 1.5; 
+            // Die Resonanz (inverses q) treibt den Op-Amp in die asymmetrische Sättigung
+            let qDrive = 1.0 / (q + 0.1); 
+            let summerDrive = this.thermalJfetDrive * (1.2 + qDrive * 0.15); 
             hp = Math.tanh(hp * summerDrive) / summerDrive;
         }
 
@@ -324,10 +331,18 @@ export class SIDChip {
             this.filterBand = bp / (1.0 + Math.abs(bp) * 0.15); 
         }
 
-        let filterOut = 0;
-        if (this.filterMode & 16) filterOut += this.filterLow; 
-        if (this.filterMode & 32) filterOut += this.filterBand; 
-        if (this.filterMode & 64) filterOut += hp; 
+        // --- PRIO 4: PHASE ERROR MIXING (The Hubbard Notch) ---
+        // Wenn LP und HP gemischt werden (Notch), ist der Highpass auf dem echten 
+        // 6581 aufgrund von Bauteiltoleranzen leicht phasenverschoben und gedämpft.
+        let outLP = (this.filterMode & 16) ? this.filterLow : 0;
+        let outBP = (this.filterMode & 32) ? this.filterBand : 0;
+        let outHP = (this.filterMode & 64) ? hp : 0;
+
+        if ((this.filterMode & 80) === 80) { // Notch-Filter (LP + HP)
+            outHP *= 0.85; // Asymmetrische Dämpfung erzeugt den echten Hubbard-Phaser-Klang
+        }
+
+        let filterOut = outLP + outBP + outHP;
 
         let leakage = filteredSum * this.thermalLeakage;
         let filteredMix = filterOut + leakage;
