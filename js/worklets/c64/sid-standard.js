@@ -43,11 +43,10 @@ class SIDProcessor extends AudioWorkletProcessor {
                 return;
             }
 
-
             if (msg.isSidFile) {
+                this.lastSampleValue = 0;
                 this.c64Output = new C64AnalogFilter(sampleRate);
                 this.dcBlock = new DCBlocker();
-                this.lastSampleValue = 0;
 
                 this.prgCode = msg.c64Code;
                 this.loadAddr = msg.loadAddress;
@@ -56,11 +55,10 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.songSpeedFlags = msg.speed; 
 
                 this.sid = new SIDChip();
-                this.sid.useJfetSaturation = true;
-                this.sid.temperature = this.temperature; 
+                this.sid.useJfetSaturation = false;
+                this.sid.temperature = this.temperature;
                 this.cpu = new CPU6502(this.sid);
 
-                // --- FIX: Parameter erweitert für das MMU-Switching ---
                 this.cpu.reset(this.loadAddr, this.prgCode, this.initAddress, this.playAddress);
 
                 let songIndex = (msg.startSong > 0 ? msg.startSong - 1 : 0) & 0xFF;
@@ -69,11 +67,12 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.y = 0;
                 
                 this.cpu.push(0xFF); 
-                this.cpu.push(0xDF); 
+                this.cpu.push(0xDF);
                 this.cpu.pc = this.initAddress;
 
-                let safety = 5000000;
-                while (this.cpu.pc !== 0xFFE0 && safety-- > 0) {
+                let initSafety = 2000000;
+                while (this.cpu.pc !== 0xFFE0 && initSafety > 0) {
+                    initSafety--;
                     this.cpu.clockHardware(1);
                     this.sid.clock();
                     
@@ -82,33 +81,28 @@ class SIDProcessor extends AudioWorkletProcessor {
                         this.cpu.nmiAccepted = this.cpu.nmiPending;
                     }
 
-                    if (!this.cpu.rdy) {
-                    } else {
-                        if (this.cpuCyclesRemaining <= 0) {
-                            if (this.cpu.nmiAccepted) {
-                                this.cpu.nmiAccepted = false;
-                                this.cpu.triggerHardwareNmi();
-                                this.cpuCyclesRemaining = 7 - 1; 
-                            } else if (this.cpu.irqAccepted) {
-                                this.cpu.irqAccepted = false;
-                                this.cpu.triggerHardwareIrq();
-                                this.cpuCyclesRemaining = 7 - 1;
-                            } else {
-                                let cyclesUsed = this.cpu.step(); 
-                                this.cpuCyclesRemaining = cyclesUsed - 1; 
-                            }
+                    if (this.cpu.rdy && this.cpuCyclesRemaining <= 0) {
+                        if (this.cpu.nmiAccepted) {
+                            this.cpu.nmiAccepted = false;
+                            this.cpu.triggerHardwareNmi();
+                            this.cpuCyclesRemaining = 7 - 1; 
+                        } else if (this.cpu.irqAccepted) {
+                            this.cpu.irqAccepted = false;
+                            this.cpu.triggerHardwareIrq();
+                            this.cpuCyclesRemaining = 7 - 1;
                         } else {
-                            this.cpuCyclesRemaining--;
+                            let cyclesUsed = this.cpu.step(); 
+                            this.cpuCyclesRemaining = cyclesUsed - 1;
                         }
+                    } else if (this.cpu.rdy) {
+                        this.cpuCyclesRemaining--;
                     }
                 }
-                
+
                 this.cpu.pc = 0xFFE0; 
-                this.cpu.p &= ~0x04;  
+                this.cpu.p &= ~0x04; 
 
                 this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
-                
-                // --- FIX: Wenn CIA-Timer vom PSID gefordert wird, MÜSSEN wir ihn zwingend starten! ---
                 if (this.useCiaTimer) {
                     this.cpu.cia1CtrlA |= 0x01; 
                 }
@@ -129,16 +123,15 @@ class SIDProcessor extends AudioWorkletProcessor {
             } else if (msg.type === 'RESUME_TRACK') {
                 this.isPlaying = true;
             } else if (msg.type === 'CHANGE_SUBSONG') {
+                this.lastSampleValue = 0;
                 this.c64Output = new C64AnalogFilter(sampleRate);
                 this.dcBlock = new DCBlocker();
-                this.lastSampleValue = 0;
 
                 this.sid = new SIDChip();
-                this.sid.useJfetSaturation = true;
+                this.sid.useJfetSaturation = false;
                 this.sid.temperature = this.temperature;
                 this.cpu.sid = this.sid;
                 
-                // --- FIX ---
                 this.cpu.reset(this.loadAddr, this.prgCode, this.initAddress, this.playAddress);
                 
                 let songIndex = (msg.frame > 0 ? msg.frame - 1 : 0) & 0xFF;
@@ -146,12 +139,13 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.x = songIndex;
                 this.cpu.y = 0;
                 
-                this.cpu.push(0xFF); 
-                this.cpu.push(0xDF); 
+                this.cpu.push(0xFF);
+                this.cpu.push(0xDF);
                 this.cpu.pc = this.initAddress;
                 
-                let safety = 5000000;
-                while (this.cpu.pc !== 0xFFE0 && safety-- > 0) {
+                let initSafety = 2000000;
+                while (this.cpu.pc !== 0xFFE0 && initSafety > 0) {
+                    initSafety--;
                     this.cpu.clockHardware(1);
                     this.sid.clock();
                     
@@ -160,36 +154,32 @@ class SIDProcessor extends AudioWorkletProcessor {
                         this.cpu.nmiAccepted = this.cpu.nmiPending;
                     }
 
-                    if (!this.cpu.rdy) {
-                    } else {
-                        if (this.cpuCyclesRemaining <= 0) {
-                            if (this.cpu.nmiAccepted) {
-                                this.cpu.nmiAccepted = false;
-                                this.cpu.triggerHardwareNmi();
-                                this.cpuCyclesRemaining = 7 - 1; 
-                            } else if (this.cpu.irqAccepted) {
-                                this.cpu.irqAccepted = false;
-                                this.cpu.triggerHardwareIrq();
-                                this.cpuCyclesRemaining = 7 - 1;
-                            } else {
-                                let cyclesUsed = this.cpu.step(); 
-                                this.cpuCyclesRemaining = cyclesUsed - 1; 
-                            }
+                    if (this.cpu.rdy && this.cpuCyclesRemaining <= 0) {
+                        if (this.cpu.nmiAccepted) {
+                            this.cpu.nmiAccepted = false;
+                            this.cpu.triggerHardwareNmi();
+                            this.cpuCyclesRemaining = 7 - 1; 
+                        } else if (this.cpu.irqAccepted) {
+                            this.cpu.irqAccepted = false;
+                            this.cpu.triggerHardwareIrq();
+                            this.cpuCyclesRemaining = 7 - 1;
                         } else {
-                            this.cpuCyclesRemaining--;
+                            let cyclesUsed = this.cpu.step(); 
+                            this.cpuCyclesRemaining = cyclesUsed - 1;
                         }
+                    } else if (this.cpu.rdy) {
+                        this.cpuCyclesRemaining--;
                     }
                 }
+
                 this.cpu.pc = 0xFFE0; 
                 this.cpu.p &= ~0x04;
-                
+
                 this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
-                
-                // --- FIX ---
                 if (this.useCiaTimer) {
                     this.cpu.cia1CtrlA |= 0x01; 
                 }
-                
+
                 this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
                 this.vblankTimer = this.playSpeedCycles;
 
@@ -208,13 +198,6 @@ class SIDProcessor extends AudioWorkletProcessor {
         const outR = outputs[0].length > 1 ? outputs[0][1] : null;
         let visualValue = 0;
 
-        let irqHijacked = false;
-        let vicIrqEnabled = false;
-        let cia1TimerAEnabled = false;
-        let isSelfDriving = false;
-
-        const dt = 1.0 / sampleRate;
-
         for (let i = 0; i < outL.length; i++) {
             if (!this.isPlaying) {
                 outL[i] = 0; if (outR) outR[i] = 0;
@@ -232,31 +215,24 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.clockHardware(1); 
                 this.sid.clock();          
                 sampleSum += this.sid.outputSample; 
-                
-                irqHijacked = (this.cpu.ram[0x0314] !== this.cpu.defaultIrqLo) || (this.cpu.ram[0x0315] !== this.cpu.defaultIrqHi);
-                vicIrqEnabled = (this.cpu.ram[0xD01A] & 0x01) !== 0;
-                cia1TimerAEnabled = (this.cpu.cia1IrqMask & 0x01) !== 0;
-                isSelfDriving = irqHijacked && (vicIrqEnabled || cia1TimerAEnabled);
 
-                if (!this.useCiaTimer) {
+                // --- FIX: VBLANK / CIA TIMER MANAGEMENT GEHÖRT IN DEN 1-MHZ CYCLE LOOP! ---
+                if (this.playAddress === 0) {
                     this.vblankTimer--;
                     if (this.vblankTimer <= 0) {
                         this.vblankTimer += this.playSpeedCycles;
-                        if (this.playAddress !== 0) {
-                            this.hostPlayPending = true;
-                        }
                         this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                     }
                 } else {
-                    this.vblankTimer--;
-                    if (this.vblankTimer <= 0) {
-                        this.vblankTimer += this.playSpeedCycles;
-                        this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
-                    }
-                    
-                    if (this.cpu.cia1TimerAUnderflowed) {
-                        this.cpu.cia1TimerAUnderflowed = false;
-                        if (this.playAddress !== 0) {
+                    if (!this.useCiaTimer) {
+                        this.vblankTimer--;
+                        if (this.vblankTimer <= 0) {
+                            this.vblankTimer += this.playSpeedCycles;
+                            this.hostPlayPending = true;
+                        }
+                    } else {
+                        if (this.cpu.cia1TimerAUnderflowed) {
+                            this.cpu.cia1TimerAUnderflowed = false;
                             this.hostPlayPending = true;
                         }
                     }
@@ -277,6 +253,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                             this.cpu.push(0xDF); 
                             this.cpu.pc = this.playAddress;
                             this.cpuCyclesRemaining = 6 - 1; 
+                            this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                         } else if (this.cpu.nmiAccepted) {
                             this.cpu.nmiAccepted = false;
                             this.cpu.triggerHardwareNmi();
@@ -295,14 +272,11 @@ class SIDProcessor extends AudioWorkletProcessor {
                 }
             }
             
-            // --- BOXCAR DECIMATION (Integrate & Dump) ---
             let decimatedSample = cyclesToRun > 0 ? sampleSum / cyclesToRun : this.lastSampleValue;
             this.lastSampleValue = decimatedSample;
 
-            // Analog Output Filter (16 kHz Butterworth pass)
             let analogSample = this.c64Output.process(decimatedSample);
 
-            // DC Blocker (R=0.998 fängt das 400mV Bias ab, lässt 4-Bit-Drums aber glasklar durch)
             let finalSample = analogSample - this.dcBlock.lastIn + 0.998 * this.dcBlock.lastOut;
             this.dcBlock.lastIn = analogSample;
             this.dcBlock.lastOut = finalSample;
