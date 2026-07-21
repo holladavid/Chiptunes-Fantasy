@@ -34,8 +34,8 @@ export class MoogFilter {
         if (f > 1.9 - q) f = 1.9 - q; 
         
         this.low += f * this.band;
-        let high = input - this.low - q * this.band;
-        this.band += f * high;
+        let hp = input - this.low - q * this.band;
+        this.band += f * hp;
         
         if (isNaN(this.low)) { this.low = 0; this.band = 0; }
         return this.low; 
@@ -80,23 +80,24 @@ export class DCBlocker {
 // =========================================================
 export class C64AnalogFilter {
     constructor(sampleRate) {
-        // 1. Sinc-Droop Equalizer Kompensator
-        // Gleicht den Hochton-Abfall des Boxcar-Decimators bis 16 kHz exakt aus
-        this.cComp = 0.18;
+        // 1. Sinc-Droop Equalizer Pre-Emphasis (+2.5 dB bei 16 kHz)
+        // Gleicht den mathematischen Hochton-Abfall des Boxcar-Decimators exakt aus
+        this.cComp = 0.22;
         this.lastX = 0;
 
-        // 2. Physikalisch getreuer 1-Pole C64 Audio Output RC-Filter (~18 kHz Cutoff)
-        const fc = 18000.0;
+        // 2. Physikalisch getreuer 1-Pole C64 Audio Output RC-Filter (~16 kHz Cutoff)
+        // Entspricht der R=1k / C=10nF Schaltung am Video/Audio-Port des Motherboards
+        const fc = 16000.0;
         this.alpha = Math.exp(-2.0 * Math.PI * fc / sampleRate);
         this.lastLp = 0;
     }
 
     process(x) {
-        // A) Sinc-Droop Kompensation (+2.4 dB Pre-Emphasis bei 18 kHz)
+        // A) Sinc-Droop Pre-Equalization
         let comp = (1.0 + this.cComp) * x - this.cComp * this.lastX;
         this.lastX = x;
 
-        // B) Sanfter 1-Pole RC Tiefpass (C64 Mainboard Audio-Buchse)
+        // B) Sanfter 1-Pole RC Tiefpass (6 dB/Okt Steilheit)
         let lp = (1.0 - this.alpha) * comp + this.alpha * this.lastLp;
         this.lastLp = lp;
 
