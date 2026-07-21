@@ -286,37 +286,40 @@ export class SIDChip {
         let voice1 = this.synthesizeVoiceOneCycle(1);
         let voice2 = this.synthesizeVoiceOneCycle(2);
 
+        // --- INTER-VOICE CROSSTALK (Die Substrate Leakage) ---
+        // Reine Überlagerung vor dem Filter
+        let bleed0 = voice0 + voice1 * 0.008 + voice2 * 0.004;
+        let bleed1 = voice1 + voice0 * 0.008 + voice2 * 0.008;
+        let bleed2 = voice2 + voice1 * 0.008 + voice0 * 0.004;
+
         let filteredSum = 0;
         let unfilteredSum = 0;
 
         const isVoice3Off = (this.filterMode & 128) !== 0;
 
-        if (this.regs[23] & 1) filteredSum += voice0; else unfilteredSum += voice0;
-        if (this.regs[23] & 2) filteredSum += voice1; else unfilteredSum += voice1;
+        if (this.regs[23] & 1) filteredSum += bleed0; else unfilteredSum += bleed0;
+        if (this.regs[23] & 2) filteredSum += bleed1; else unfilteredSum += bleed1;
 
         if (!isVoice3Off) {
-            if (this.regs[23] & 4) filteredSum += voice2; else unfilteredSum += voice2;
+            if (this.regs[23] & 4) filteredSum += bleed2; else unfilteredSum += bleed2;
         }
 
         let g = this.g;
         let q = this.q;
         
-        // --- PRIO 4: OP-AMP BANDWIDTH LIMITS (Analog Voodoo) ---
-        // Resonanz bricht bei sehr tiefen und sehr hohen Frequenzen physikalisch ein
+        // --- STABILES VCF (PHASE 4 ZURÜCKGESTELLT) ---
         if (this.activeCutoff < 800.0) {
             let damp = (800.0 - this.activeCutoff) / 800.0; 
             q += damp * 0.55; 
         } else if (this.activeCutoff > 10000.0) {
             let damp = (this.activeCutoff - 10000.0) / 6000.0;
-            q += damp * 0.8; // Harter Resonanz-Verlust im High-End
+            q += damp * 0.8; 
         }
 
         let h = filteredSum - this.filterLow;
         let hp = (h - q * this.filterBand) / (1.0 + g * (g + q));
 
-        // --- NON-LINEARER ADDIEERER (hp-Op-Amp-Sättigung / Filter Squelch) ---
         if (this.useJfetSaturation) {
-            // Die Resonanz (inverses q) treibt den Op-Amp in die asymmetrische Sättigung
             let qDrive = 1.0 / (q + 0.1); 
             let summerDrive = this.thermalJfetDrive * (1.2 + qDrive * 0.15); 
             hp = Math.tanh(hp * summerDrive) / summerDrive;
@@ -330,7 +333,7 @@ export class SIDChip {
         if (this.useJfetSaturation) {
             let driveP = this.thermalJfetDrive;
             let driveN = driveP * 1.875; 
-            
+
             if (bp > 0) {
                 this.filterBand = Math.tanh(bp * driveP) / driveP;
             } else {
@@ -340,15 +343,12 @@ export class SIDChip {
             this.filterBand = bp / (1.0 + Math.abs(bp) * 0.15); 
         }
 
-        // --- PRIO 4: PHASE ERROR MIXING (The Hubbard Notch) ---
-        // Wenn LP und HP gemischt werden (Notch), ist der Highpass auf dem echten 
-        // 6581 aufgrund von Bauteiltoleranzen leicht phasenverschoben und gedämpft.
         let outLP = (this.filterMode & 16) ? this.filterLow : 0;
         let outBP = (this.filterMode & 32) ? this.filterBand : 0;
         let outHP = (this.filterMode & 64) ? hp : 0;
 
-        if ((this.filterMode & 80) === 80) { // Notch-Filter (LP + HP)
-            outHP *= 0.85; // Asymmetrische Dämpfung erzeugt den echten Hubbard-Phaser-Klang
+        if ((this.filterMode & 80) === 80) { 
+            outHP *= 0.85; 
         }
 
         let filterOut = outLP + outBP + outHP;
@@ -361,17 +361,12 @@ export class SIDChip {
         
         let vcaQuad = this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0;
         
-        // --- CIRCUIT-ACCURATE MULTIPLIER OFFSET (The true $D418 Bug) ---
-        // Der echte 6581 Mischer hat einen permanenten DC-Offset von ca. 400mV.
-        // Wenn $D418 rasant umgeschaltet wird, wird dieser konstante Gleichstrom mit dem 
-        // neuen Lautstärkewert multipliziert. Das IST der berühmte Arkanoid Digidrum-Hack!
         let vcaInWithBias = vcaIn + 0.45;
 
         let finalMix = vcaInWithBias > 0 
             ? Math.tanh(vcaInWithBias + vcaQuad) 
             : Math.tanh(vcaInWithBias * 0.85 + vcaQuad) / 0.85;
 
-        // Der Lautstärke-DAC multipliziert nun direkt den analogen, gesättigten DC-Offset!
         this.outputSample = (finalMix * this.masterVol) + this.thermalDcOffset;
     }
 }
