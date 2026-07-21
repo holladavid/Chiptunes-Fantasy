@@ -2,38 +2,35 @@
 // =========================================================
 // 6502 CPU EMULATOR & C64 I/O INTERCEPTOR
 // High-Performance Zero-Allocation Edition
-// Phase 12: Complete Unified Hardware-Driven Architecture
+// Phase 14: Dynamic MMU Bank-Switching & Safe RAM Vectors
 // =========================================================
 
 export class CPU6502 {
     constructor(sid) {
         this.ram = new Uint8Array(65536);
+        this.kernalRom = new Uint8Array(8192); 
         this.sid = sid;
         
-        // CPU Registers
         this.a = 0; this.x = 0; this.y = 0;
         this.sp = 0xFF; this.pc = 0;
-        this.p = 0x24; // I-Flag set
+        this.p = 0x24; 
         
-        // Hardware Timers & IRQ State
-        this.cyclesPerLine = 63; // PAL Standard
+        this.cyclesPerLine = 63; 
         this.rasterCounter = 0;
         this.rasterCycles = 0;
         this.rasterIrqTarget = 0;
         
-        // CIA-1 (IRQ)
-        this.cia1TimerA = 19705; // Standard PAL 50Hz Startup-Intervall
+        this.cia1TimerA = 19705; 
         this.cia1TimerALatch = 19705;
-        this.cia1CtrlA = 0x01;   // Timer läuft standardmäßig beim Einschalten!
+        this.cia1CtrlA = 0x00;   
         this.cia1Icr = 0; 
-        this.cia1IrqMask = 0x01; // Timer-A IRQs standardmäßig aktiv
+        this.cia1IrqMask = 0x00; 
         this.cia1TimerAUnderflowed = false;
         
         this.cia1TimerB = 0xFFFF;
         this.cia1TimerBLatch = 0xFFFF;
         this.cia1CtrlB = 0;
 
-        // CIA-2 (NMI)
         this.cia2TimerA = 0xFFFF;
         this.cia2TimerALatch = 0xFFFF;
         this.cia2CtrlA = 0;
@@ -50,15 +47,13 @@ export class CPU6502 {
         this.nmiAccepted = false;
         this.prevNmiLine = false;
 
-        // VIC-II RDY & Badlines
         this.rdy = true; 
         this.isBadLine = false;
 
-        // TOD-Clock
         this.todTenths = 0;
         this.todSec = 0;
         this.todMin = 0;
-        this.todHour = 1; // 1 AM
+        this.todHour = 1; 
         this.todLatchTenths = 0;
         this.todLatchSec = 0;
         this.todLatchMin = 0;
@@ -67,72 +62,83 @@ export class CPU6502 {
         this.todHalted = false;
         this.todCycleCounter = 19705;
 
-        // Dynamische Diagnostik-Vektoren für Host-Play-Checking
         this.defaultIrqLo = 0x31; 
         this.defaultIrqHi = 0xEA; 
     }
 
-    reset(loadAddr, prgCode) {
+    reset(loadAddr, prgCode, initAddr = 0, playAddr = 0) {
         this.ram.fill(0);
+        this.kernalRom.fill(0);
         
-        // C64 Memory Management Unit (MMU) Default State
-        this.ram[0x0000] = 0x2F; 
-        this.ram[0x0001] = 0x37; 
-        
-        // --- 1. THE AUTHENTIC PHANTOM KERNAL VECTORS ---
-        // Eigene Host-Idle Schleife für unseren Emulator
-        // Sicher platziert bei $FFE0 (ROM-Bereich), um Überschreiben durch PRG-Files zu verhindern!
-        this.ram[0xFFE0] = 0x4C; this.ram[0xFFE1] = 0xE0; this.ram[0xFFE2] = 0xFF; // JMP $FFE0
-        
-        // KERNAL IRQ Return ($EA31) -> Acknowledge CIA-1, Pop, RTI
-        const irqReturnHandler = [ 
-            0xAD, 0x0D, 0xDC, // LDA $DC0D
-            0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40 // PLA, TAY, PLA, TAX, PLA, RTI
-        ];
-        for (let i = 0; i < irqReturnHandler.length; i++) {
-            this.ram[0xEA31 + i] = irqReturnHandler[i]; 
-        }
-
-        // KERNAL NMI Return ($EA81) -> Acknowledge CIA-2, Pop, RTI
-        const nmiReturnHandler = [ 
-            0xAD, 0x0D, 0xDD, // LDA $DD0D
-            0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40 // PLA, TAY, PLA, TAX, PLA, RTI
-        ];
-        for (let i = 0; i < nmiReturnHandler.length; i++) {
-            this.ram[0xEA81 + i] = nmiReturnHandler[i]; 
-        }
-        
-        this.ram[0x0314] = 0x31; this.ram[0x0315] = 0xEA; // Default IRQ -> Pop-Exit ($EA31)
-        this.ram[0x0316] = 0x31; this.ram[0x0317] = 0xEA; // Default BRK -> Pop-Exit ($EA31)
-        this.ram[0x0318] = 0x81; this.ram[0x0319] = 0xEA; // Default NMI -> Pure RTI ($EA81)
-
-        // ROM Hardware-Vektoren ($FFFE = IRQ, $FFFA = NMI)
-        this.ram[0xFFFE] = 0x48; this.ram[0xFFFF] = 0xFF; 
-        this.ram[0xFFFA] = 0x60; this.ram[0xFFFB] = 0xFF; 
-
-        // $FF48: Authentic IRQ Entry (Sichert A,X,Y und leitet zu $0314)
-        const irqEntry = [
-            0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
-            0xBA, 0xBD, 0x04, 0x01,       // TSX, LDA $0104,X
-            0x29, 0x10, 0xF0, 0x03,       // AND #$10, BEQ +3
-            0x6C, 0x16, 0x03,             // JMP ($0316) -> BRK
-            0x6C, 0x14, 0x03              // JMP ($0314) -> IRQ
-        ];
-        for (let i = 0; i < irqEntry.length; i++) this.ram[0xFF48 + i] = irqEntry[i];
-
-        // $FF60: Authentic NMI Entry (Sichert A,X,Y und leitet zu $0318)
-        const nmiEntry = [
-            0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
-            0x6C, 0x18, 0x03              // JMP ($0318) -> NMI Vector
-        ];
-        for (let i = 0; i < nmiEntry.length; i++) this.ram[0xFF60 + i] = nmiEntry[i];
-        
-        // --- 2. DEN PRG-CODE LADEN (kann die Vektoren nun überschreiben!) ---
+        // --- 1. DEN PRG-CODE ZUERST LADEN ---
         for (let i = 0; i < prgCode.length; i++) {
             this.ram[loadAddr + i] = prgCode[i];
         }
+
+        // --- 2. DYNAMIC BANK-SWITCHING (MMU) ---
+        let p0001 = 0x37; // Standard: Alle ROMs an
+        let prgEnd = loadAddr + prgCode.length;
         
-        // Reset Registers
+        // Prüfen ob der Track das KERNAL ROM ($E000-$FFFF) überlappt
+        let overlapsKernal = (loadAddr < 0x10000 && prgEnd > 0xE000) || 
+                             (initAddr >= 0xE000 && initAddr < 0x10000) ||
+                             (playAddr >= 0xE000 && playAddr < 0x10000);
+        
+        if (overlapsKernal) {
+            p0001 &= ~2; // KERNAL ROM per Hardware abschalten (Miami Vice Fix)
+        }
+        
+        this.ram[0x0000] = 0x2F; 
+        this.ram[0x0001] = p0001; 
+
+        // --- 3. PHANTOM VECTORS & HANDLERS ---
+        this.ram[0xFFE0] = 0x4C; this.ram[0xFFE1] = 0xE0; this.ram[0xFFE2] = 0xFF; 
+        this.kernalRom[0x1FE0] = 0x4C; this.kernalRom[0x1FE1] = 0xE0; this.kernalRom[0x1FE2] = 0xFF; 
+        
+        // SAFE RAM HANDLERS (Gespeichert in ungenutzter Zero-Page/Stack Lücke bei $0220)
+        // Überleben jeden Cruncher/Packer!
+        const safeIrqReturn = [0xAD, 0x0D, 0xDC, 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40];
+        for (let i = 0; i < safeIrqReturn.length; i++) {
+            this.ram[0x0220 + i] = safeIrqReturn[i]; 
+            this.kernalRom[0x0A31 + i] = safeIrqReturn[i]; // Standard-Position im ROM
+        }
+
+        const safeNmiReturn = [0xAD, 0x0D, 0xDD, 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40];
+        for (let i = 0; i < safeNmiReturn.length; i++) {
+            this.ram[0x0240 + i] = safeNmiReturn[i];
+            this.kernalRom[0x0A81 + i] = safeNmiReturn[i];
+        }
+        
+        // Routen der Interrupt-Vektoren abhängig davon, ob das ROM an ist
+        let defaultIrq = overlapsKernal ? 0x0220 : 0xEA31;
+        let defaultNmi = overlapsKernal ? 0x0240 : 0xEA81;
+
+        this.defaultIrqLo = defaultIrq & 0xFF;
+        this.defaultIrqHi = (defaultIrq >> 8) & 0xFF;
+
+        this.ram[0x0314] = this.defaultIrqLo; this.ram[0x0315] = this.defaultIrqHi; 
+        this.ram[0x0316] = this.defaultIrqLo; this.ram[0x0317] = this.defaultIrqHi; 
+        this.ram[0x0318] = defaultNmi & 0xFF; this.ram[0x0319] = (defaultNmi >> 8) & 0xFF; 
+
+        // Hardware Vectors
+        this.ram[0xFFFE] = 0x48; this.ram[0xFFFF] = 0xFF; 
+        this.ram[0xFFFA] = 0x60; this.ram[0xFFFB] = 0xFF; 
+        this.kernalRom[0x1FFE] = 0x48; this.kernalRom[0x1FFF] = 0xFF; 
+        this.kernalRom[0x1FFA] = 0x60; this.kernalRom[0x1FFB] = 0xFF; 
+
+        const irqEntry = [0x48, 0x8A, 0x48, 0x98, 0x48, 0xBA, 0xBD, 0x04, 0x01, 0x29, 0x10, 0xF0, 0x03, 0x6C, 0x16, 0x03, 0x6C, 0x14, 0x03];
+        for (let i = 0; i < irqEntry.length; i++) {
+            this.ram[0xFF48 + i] = irqEntry[i];
+            this.kernalRom[0x1F48 + i] = irqEntry[i];
+        }
+
+        const nmiEntry = [0x48, 0x8A, 0x48, 0x98, 0x48, 0x6C, 0x18, 0x03];
+        for (let i = 0; i < nmiEntry.length; i++) {
+            this.ram[0xFF60 + i] = nmiEntry[i];
+            this.kernalRom[0x1F60 + i] = nmiEntry[i];
+        }
+
+        // --- 4. RESET RUNTIME STATE ---
         this.a = 0; this.x = 0; this.y = 0;
         this.sp = 0xFF; 
         this.p = 0x24; 
@@ -143,9 +149,9 @@ export class CPU6502 {
         
         this.cia1TimerA = 19705;
         this.cia1TimerALatch = 19705;
-        this.cia1CtrlA = 0x01; // Gestartet
+        this.cia1CtrlA = 0x00;   // PSID Standard: Stopped by default
         this.cia1Icr = 0;
-        this.cia1IrqMask = 0x01; 
+        this.cia1IrqMask = 0x00; // PSID Standard: Masked by default
         this.cia1TimerAUnderflowed = false;
         
         this.cia2TimerA = 0xFFFF;
@@ -167,17 +173,9 @@ export class CPU6502 {
         this.rdy = true;
         this.isBadLine = false;
 
-        this.todTenths = 0;
-        this.todSec = 0;
-        this.todMin = 0;
-        this.todHour = 1;
-        this.todLatchTenths = 0;
-        this.todLatchSec = 0;
-        this.todLatchMin = 0;
-        this.todLatchHour = 1;
-        this.todLatched = false;
-        this.todHalted = false;
-        this.todCycleCounter = 19705;
+        this.todTenths = 0; this.todSec = 0; this.todMin = 0; this.todHour = 1;
+        this.todLatchTenths = 0; this.todLatchSec = 0; this.todLatchMin = 0; this.todLatchHour = 1;
+        this.todLatched = false; this.todHalted = false; this.todCycleCounter = 19705;
     }
 
     push(val) {
@@ -205,10 +203,19 @@ export class CPU6502 {
             if (addr === 0x0001) return this.ram[0x0001];
             return this.ram[addr];
         }
-        if (addr > 0xDFFF) return this.ram[addr];
-        
+
         let p0001 = this.ram[0x0001] & 0x07;
-        let ioEnabled = (p0001 === 5 || p0001 === 6 || p0001 === 7);
+
+        // KERNAL ROM Bank Switching ($E000-$FFFF)
+        if (addr >= 0xE000) {
+            let kernalEnabled = (p0001 & 2) !== 0; 
+            if (kernalEnabled) {
+                return this.kernalRom[addr - 0xE000];
+            }
+            return this.ram[addr]; 
+        }
+
+        let ioEnabled = (p0001 & 4) !== 0 && (p0001 & 3) !== 0;
         if (!ioEnabled) return this.ram[addr];
 
         if (addr === 0xD011) {
@@ -271,14 +278,11 @@ export class CPU6502 {
             return this.ram[addr]; 
         }
         
-        // --- SID Register Mirroring & PSID Compatibility Read ($D400 - $D7FF) ---
         if (addr >= 0xD400 && addr <= 0xD7FF) {
             let reg = addr & 0x1F;
-            if (reg === 27) return Math.floor(this.sid.voices[2].waveOut8Bit) || 0; // $D41B mirror
-            if (reg === 28) return Math.floor(this.sid.voices[2].env8Bit) || 0;     // $D41C mirror
-            if (reg === 25 || reg === 26) return 0xFF;                              // POTX/POTY
-            
-            // PSID Fallback: Gibt den zuletzt geschriebenen RAM-Wert zurück
+            if (reg === 27) return Math.floor(this.sid.voices[2].waveOut8Bit) || 0; 
+            if (reg === 28) return Math.floor(this.sid.voices[2].env8Bit) || 0;     
+            if (reg === 25 || reg === 26) return 0xFF;                              
             return this.ram[addr];                                                  
         }
 
@@ -286,16 +290,16 @@ export class CPU6502 {
     }
 
     write(addr, val) {
-        this.ram[addr] = val;
+        this.ram[addr] = val; // Physisch auf echter Hardware fließen Schreibzugriffe IMMER ins RAM!
+        
         if (addr < 0xD000 || addr > 0xDFFF) return;
         
         let p0001 = this.ram[0x0001] & 0x07;
-        let ioEnabled = (p0001 === 5 || p0001 === 6 || p0001 === 7);
+        let ioEnabled = (p0001 & 4) !== 0 && (p0001 & 3) !== 0;
         if (!ioEnabled) return;
         
-        // --- SID Register Mirroring ($D400 - $D7FF) ---
         if (addr >= 0xD400 && addr <= 0xD7FF) {
-            let reg = addr & 0x1F; // 32-Byte Mirroring
+            let reg = addr & 0x1F; 
             if (reg < 29) {
                 this.sid.writeReg(reg, val);
             }
@@ -368,6 +372,7 @@ export class CPU6502 {
             return;
         }
     }
+
 
     updateIrqState(cycleIndex = 0, totalCycles = 1) {
         let vicIrq = (this.ram[0xD019] & this.ram[0xD01A] & 0x0F) !== 0;

@@ -43,22 +43,25 @@ class SIDProcessor extends AudioWorkletProcessor {
                 return;
             }
 
+
             if (msg.isSidFile) {
-                this.lastSampleValue = 0;
                 this.c64Output = new C64AnalogFilter(sampleRate);
                 this.dcBlock = new DCBlocker();
+                this.lastSampleValue = 0;
 
                 this.prgCode = msg.c64Code;
                 this.loadAddr = msg.loadAddress;
                 this.initAddress = msg.initAddress;
+                this.playAddress = msg.playAddress;
                 this.songSpeedFlags = msg.speed; 
 
                 this.sid = new SIDChip();
-                this.sid.useJfetSaturation = false;
-                this.sid.temperature = this.temperature;
+                this.sid.useJfetSaturation = true;
+                this.sid.temperature = this.temperature; 
                 this.cpu = new CPU6502(this.sid);
 
-                this.cpu.reset(this.loadAddr, this.prgCode);
+                // --- FIX: Parameter erweitert für das MMU-Switching ---
+                this.cpu.reset(this.loadAddr, this.prgCode, this.initAddress, this.playAddress);
 
                 let songIndex = (msg.startSong > 0 ? msg.startSong - 1 : 0) & 0xFF;
                 this.cpu.a = songIndex;
@@ -66,7 +69,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.y = 0;
                 
                 this.cpu.push(0xFF); 
-                this.cpu.push(0xDF);
+                this.cpu.push(0xDF); 
                 this.cpu.pc = this.initAddress;
 
                 let safety = 5000000;
@@ -92,19 +95,24 @@ class SIDProcessor extends AudioWorkletProcessor {
                                 this.cpuCyclesRemaining = 7 - 1;
                             } else {
                                 let cyclesUsed = this.cpu.step(); 
-                                this.cpuCyclesRemaining = cyclesUsed - 1;
+                                this.cpuCyclesRemaining = cyclesUsed - 1; 
                             }
                         } else {
                             this.cpuCyclesRemaining--;
                         }
                     }
                 }
+                
                 this.cpu.pc = 0xFFE0; 
-                this.cpu.p &= ~0x04; 
-
-                this.playAddress = msg.playAddress;
+                this.cpu.p &= ~0x04;  
 
                 this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
+                
+                // --- FIX: Wenn CIA-Timer vom PSID gefordert wird, MÜSSEN wir ihn zwingend starten! ---
+                if (this.useCiaTimer) {
+                    this.cpu.cia1CtrlA |= 0x01; 
+                }
+
                 this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
                 this.vblankTimer = this.playSpeedCycles;
 
@@ -121,24 +129,25 @@ class SIDProcessor extends AudioWorkletProcessor {
             } else if (msg.type === 'RESUME_TRACK') {
                 this.isPlaying = true;
             } else if (msg.type === 'CHANGE_SUBSONG') {
-                this.lastSampleValue = 0;
                 this.c64Output = new C64AnalogFilter(sampleRate);
                 this.dcBlock = new DCBlocker();
+                this.lastSampleValue = 0;
 
                 this.sid = new SIDChip();
-                this.sid.useJfetSaturation = false;
+                this.sid.useJfetSaturation = true;
                 this.sid.temperature = this.temperature;
                 this.cpu.sid = this.sid;
                 
-                this.cpu.reset(this.loadAddr, this.prgCode);
+                // --- FIX ---
+                this.cpu.reset(this.loadAddr, this.prgCode, this.initAddress, this.playAddress);
                 
                 let songIndex = (msg.frame > 0 ? msg.frame - 1 : 0) & 0xFF;
                 this.cpu.a = songIndex;
                 this.cpu.x = songIndex;
                 this.cpu.y = 0;
                 
-                this.cpu.push(0xFF);
-                this.cpu.push(0xDF);
+                this.cpu.push(0xFF); 
+                this.cpu.push(0xDF); 
                 this.cpu.pc = this.initAddress;
                 
                 let safety = 5000000;
@@ -164,7 +173,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                                 this.cpuCyclesRemaining = 7 - 1;
                             } else {
                                 let cyclesUsed = this.cpu.step(); 
-                                this.cpuCyclesRemaining = cyclesUsed - 1;
+                                this.cpuCyclesRemaining = cyclesUsed - 1; 
                             }
                         } else {
                             this.cpuCyclesRemaining--;
@@ -175,6 +184,12 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.p &= ~0x04;
                 
                 this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
+                
+                // --- FIX ---
+                if (this.useCiaTimer) {
+                    this.cpu.cia1CtrlA |= 0x01; 
+                }
+                
                 this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
                 this.vblankTimer = this.playSpeedCycles;
 

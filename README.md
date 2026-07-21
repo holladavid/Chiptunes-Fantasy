@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.4.1)
+# 💾 CHIPTUNES FANTASY (v1.4.2)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -34,6 +34,8 @@ Our cycle-exact 1MHz SID engine is arguably one of the deepest analogue emulatio
     *   **C64 Analog Motherboard Filter:** Added a dedicated 2nd-order Butterworth reconstruction filter at 16 kHz, simulating the combined impedance of the SID output stage and Commodore 64 RF modulator to naturally smooth high-frequency clock stepping.
 *   **True DC-Bias VCA Injection (New in v1.4.1):** We eradicated the legacy, artificial digital "Volume Wiggle" hack. The engine now models a constant, hardware-accurate ~400mV analog mixer DC offset directly at the VCA input. Modulating `$D418` (master volume) directly multiplies this static DC leakage against our non-linear 6581 DAC curve, bringing Martin Galway's procedural *Arkanoid* title drums to life with their authentic, biting punch.
 *   **Discrete Wire-AND NMOS Logic (New in v1.4.1):** The calculations for combined "illegal" waveforms (`$30`, `$50`, `$60`, `$70`) have been rewritten. We eliminated all floating-point approximations in favor of pure bitwise integer shift-and-bleed masks, emulating the analog pull-down behavior of the NMOS silicon gates. This delivers Jeroen Tel's signature, tearing "Maniacs of Noise" basslines with uncompromising grit.
+*   **Analog Voodoo (Filter Squelch & Hubbard Notch)(New in v1.4.2):** Resonance (Q-factor) now dynamically collapses at high/low bandwidth extremes due to simulated op-amp failure. Mixing Highpass and Lowpass (Notch) introduces asymmetric phase attenuation, perfectly recreating Rob Hubbard's signature phaser sweeps.
+*   **Dynamic MMU & Phantom KERNAL Integrity(New in v1.4.2):** Implemented authentic C64 Memory Bank Switching. The engine now detects if a packed `.sid` payload (like *Platoon* or *Miami Vice*) overwrites the upper memory during decompression and safely disables the KERNAL ROM while shifting the hardware IRQ/NMI vectors to safe RAM zones.
 
 ### 2. MOS Technology Paula 8364 (Amiga 500)
 A deep emulation of the Amiga’s legendary 4-channel DMA PCM engine:
