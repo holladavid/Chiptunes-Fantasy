@@ -30,5 +30,6 @@ export const SID_SLDB = {
     "sanxion": { lengths: [325, 201] },
     "crazycomets": { lengths: [216] },
     "robocop3": { lengths: [185, 120, 105, 165, 110] },
-    "myth": { lengths: [282, 120, 120, 120, 120] }
+    "myth": { lengths: [282, 120, 120, 120, 120] },
+    "turbooutrun": { lengths: [225, 195, 180, 150, 120] }
 };
