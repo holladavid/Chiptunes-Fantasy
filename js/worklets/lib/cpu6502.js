@@ -2,21 +2,19 @@
 // =========================================================
 // 6502 CPU EMULATOR & C64 I/O INTERCEPTOR
 // High-Performance Zero-Allocation Edition
-// Phase 13: Hardware MMU & KERNAL ROM Protection
+// Phase 14: Dynamic MMU Bank-Switching & Safe RAM Vectors
 // =========================================================
 
 export class CPU6502 {
     constructor(sid) {
         this.ram = new Uint8Array(65536);
-        this.kernalRom = new Uint8Array(8192); // NEU: Isoliertes 8KB KERNAL ROM ($E000-$FFFF)
+        this.kernalRom = new Uint8Array(8192); 
         this.sid = sid;
         
-        // CPU Registers
         this.a = 0; this.x = 0; this.y = 0;
         this.sp = 0xFF; this.pc = 0;
-        this.p = 0x24; // I-Flag set
+        this.p = 0x24; 
         
-        // Hardware Timers & IRQ State
         this.cyclesPerLine = 63; 
         this.rasterCounter = 0;
         this.rasterCycles = 0;
@@ -24,9 +22,9 @@ export class CPU6502 {
         
         this.cia1TimerA = 19705; 
         this.cia1TimerALatch = 19705;
-        this.cia1CtrlA = 0x01;   
+        this.cia1CtrlA = 0x00;   
         this.cia1Icr = 0; 
-        this.cia1IrqMask = 0x01; 
+        this.cia1IrqMask = 0x00; 
         this.cia1TimerAUnderflowed = false;
         
         this.cia1TimerB = 0xFFFF;
@@ -68,70 +66,79 @@ export class CPU6502 {
         this.defaultIrqHi = 0xEA; 
     }
 
-    reset(loadAddr, prgCode) {
+    reset(loadAddr, prgCode, initAddr = 0, playAddr = 0) {
         this.ram.fill(0);
         this.kernalRom.fill(0);
         
-        // C64 MMU Default State (ROMs Enabled)
-        this.ram[0x0000] = 0x2F; 
-        this.ram[0x0001] = 0x37; 
-        
+        // --- 1. DEN PRG-CODE ZUERST LADEN ---
         for (let i = 0; i < prgCode.length; i++) {
             this.ram[loadAddr + i] = prgCode[i];
         }
 
-        // =========================================================
-        // PHANTOM KERNAL ROM ($E000 - $FFFF)
-        // Schreibgeschützt! Verhindert, dass Packer wie bei Platoon
-        // unsere IRQ-Handler während der Decompression überschreiben.
-        // =========================================================
+        // --- 2. DYNAMIC BANK-SWITCHING (MMU) ---
+        let p0001 = 0x37; // Standard: Alle ROMs an
+        let prgEnd = loadAddr + prgCode.length;
         
-        // Host-Idle Loop bei $FFE0
+        // Prüfen ob der Track das KERNAL ROM ($E000-$FFFF) überlappt
+        let overlapsKernal = (loadAddr < 0x10000 && prgEnd > 0xE000) || 
+                             (initAddr >= 0xE000 && initAddr < 0x10000) ||
+                             (playAddr >= 0xE000 && playAddr < 0x10000);
+        
+        if (overlapsKernal) {
+            p0001 &= ~2; // KERNAL ROM per Hardware abschalten (Miami Vice Fix)
+        }
+        
+        this.ram[0x0000] = 0x2F; 
+        this.ram[0x0001] = p0001; 
+
+        // --- 3. PHANTOM VECTORS & HANDLERS ---
+        this.ram[0xFFE0] = 0x4C; this.ram[0xFFE1] = 0xE0; this.ram[0xFFE2] = 0xFF; 
         this.kernalRom[0x1FE0] = 0x4C; this.kernalRom[0x1FE1] = 0xE0; this.kernalRom[0x1FE2] = 0xFF; 
         
-        // KERNAL IRQ Return ($EA31)
-        const irqReturnHandler = [ 
-            0xAD, 0x0D, 0xDC, // LDA $DC0D
-            0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40 // PLA, TAY, PLA, TAX, PLA, RTI
-        ];
-        for (let i = 0; i < irqReturnHandler.length; i++) this.kernalRom[0x0A31 + i] = irqReturnHandler[i]; 
+        // SAFE RAM HANDLERS (Gespeichert in ungenutzter Zero-Page/Stack Lücke bei $0220)
+        // Überleben jeden Cruncher/Packer!
+        const safeIrqReturn = [0xAD, 0x0D, 0xDC, 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40];
+        for (let i = 0; i < safeIrqReturn.length; i++) {
+            this.ram[0x0220 + i] = safeIrqReturn[i]; 
+            this.kernalRom[0x0A31 + i] = safeIrqReturn[i]; // Standard-Position im ROM
+        }
 
-        // KERNAL NMI Return ($EA81)
-        const nmiReturnHandler = [ 
-            0xAD, 0x0D, 0xDD, // LDA $DD0D
-            0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40 // PLA, TAY, PLA, TAX, PLA, RTI
-        ];
-        for (let i = 0; i < nmiReturnHandler.length; i++) this.kernalRom[0x0A81 + i] = nmiReturnHandler[i]; 
+        const safeNmiReturn = [0xAD, 0x0D, 0xDD, 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40];
+        for (let i = 0; i < safeNmiReturn.length; i++) {
+            this.ram[0x0240 + i] = safeNmiReturn[i];
+            this.kernalRom[0x0A81 + i] = safeNmiReturn[i];
+        }
+        
+        // Routen der Interrupt-Vektoren abhängig davon, ob das ROM an ist
+        let defaultIrq = overlapsKernal ? 0x0220 : 0xEA31;
+        let defaultNmi = overlapsKernal ? 0x0240 : 0xEA81;
 
-        // ROM Hardware-Vektoren ($FFFE = IRQ, $FFFA = NMI)
+        this.defaultIrqLo = defaultIrq & 0xFF;
+        this.defaultIrqHi = (defaultIrq >> 8) & 0xFF;
+
+        this.ram[0x0314] = this.defaultIrqLo; this.ram[0x0315] = this.defaultIrqHi; 
+        this.ram[0x0316] = this.defaultIrqLo; this.ram[0x0317] = this.defaultIrqHi; 
+        this.ram[0x0318] = defaultNmi & 0xFF; this.ram[0x0319] = (defaultNmi >> 8) & 0xFF; 
+
+        // Hardware Vectors
+        this.ram[0xFFFE] = 0x48; this.ram[0xFFFF] = 0xFF; 
+        this.ram[0xFFFA] = 0x60; this.ram[0xFFFB] = 0xFF; 
         this.kernalRom[0x1FFE] = 0x48; this.kernalRom[0x1FFF] = 0xFF; 
         this.kernalRom[0x1FFA] = 0x60; this.kernalRom[0x1FFB] = 0xFF; 
 
-        // $FF48: Authentic IRQ Entry
-        const irqEntry = [
-            0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
-            0xBA, 0xBD, 0x04, 0x01,       // TSX, LDA $0104,X
-            0x29, 0x10, 0xF0, 0x03,       // AND #$10, BEQ +3
-            0x6C, 0x16, 0x03,             // JMP ($0316) -> BRK
-            0x6C, 0x14, 0x03              // JMP ($0314) -> IRQ
-        ];
-        for (let i = 0; i < irqEntry.length; i++) this.kernalRom[0x1F48 + i] = irqEntry[i];
+        const irqEntry = [0x48, 0x8A, 0x48, 0x98, 0x48, 0xBA, 0xBD, 0x04, 0x01, 0x29, 0x10, 0xF0, 0x03, 0x6C, 0x16, 0x03, 0x6C, 0x14, 0x03];
+        for (let i = 0; i < irqEntry.length; i++) {
+            this.ram[0xFF48 + i] = irqEntry[i];
+            this.kernalRom[0x1F48 + i] = irqEntry[i];
+        }
 
-        // $FF60: Authentic NMI Entry
-        const nmiEntry = [
-            0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
-            0x6C, 0x18, 0x03              // JMP ($0318) -> NMI Vector
-        ];
-        for (let i = 0; i < nmiEntry.length; i++) this.kernalRom[0x1F60 + i] = nmiEntry[i];
+        const nmiEntry = [0x48, 0x8A, 0x48, 0x98, 0x48, 0x6C, 0x18, 0x03];
+        for (let i = 0; i < nmiEntry.length; i++) {
+            this.ram[0xFF60 + i] = nmiEntry[i];
+            this.kernalRom[0x1F60 + i] = nmiEntry[i];
+        }
 
-        // --- RAM FALLBACKS & VECTORS ---
-        // Diese liegen im unteren Speicher und dürfen von der SID manipuliert werden.
-        this.ram[0xFFE0] = 0x4C; this.ram[0xFFE1] = 0xE0; this.ram[0xFFE2] = 0xFF; // Fallback-RAM Loop
-        this.ram[0x0314] = 0x31; this.ram[0x0315] = 0xEA; 
-        this.ram[0x0316] = 0x31; this.ram[0x0317] = 0xEA; 
-        this.ram[0x0318] = 0x81; this.ram[0x0319] = 0xEA; 
-
-        // Reset Registers
+        // --- 4. RESET RUNTIME STATE ---
         this.a = 0; this.x = 0; this.y = 0;
         this.sp = 0xFF; 
         this.p = 0x24; 
@@ -142,9 +149,9 @@ export class CPU6502 {
         
         this.cia1TimerA = 19705;
         this.cia1TimerALatch = 19705;
-        this.cia1CtrlA = 0x01; 
+        this.cia1CtrlA = 0x00;   // PSID Standard: Stopped by default
         this.cia1Icr = 0;
-        this.cia1IrqMask = 0x01; 
+        this.cia1IrqMask = 0x00; // PSID Standard: Masked by default
         this.cia1TimerAUnderflowed = false;
         
         this.cia2TimerA = 0xFFFF;
@@ -166,17 +173,9 @@ export class CPU6502 {
         this.rdy = true;
         this.isBadLine = false;
 
-        this.todTenths = 0;
-        this.todSec = 0;
-        this.todMin = 0;
-        this.todHour = 1;
-        this.todLatchTenths = 0;
-        this.todLatchSec = 0;
-        this.todLatchMin = 0;
-        this.todLatchHour = 1;
-        this.todLatched = false;
-        this.todHalted = false;
-        this.todCycleCounter = 19705;
+        this.todTenths = 0; this.todSec = 0; this.todMin = 0; this.todHour = 1;
+        this.todLatchTenths = 0; this.todLatchSec = 0; this.todLatchMin = 0; this.todLatchHour = 1;
+        this.todLatched = false; this.todHalted = false; this.todCycleCounter = 19705;
     }
 
     push(val) {
@@ -200,7 +199,6 @@ export class CPU6502 {
     }
 
     read(addr) {
-        // Unterhalb des I/O Blocks ($0000-$CFFF)
         if (addr < 0xD000) {
             if (addr === 0x0001) return this.ram[0x0001];
             return this.ram[addr];
@@ -208,19 +206,15 @@ export class CPU6502 {
 
         let p0001 = this.ram[0x0001] & 0x07;
 
-        // =========================================================
-        // KERNAL ROM BANK SWITCHING ($E000-$FFFF)
-        // Schützt die Vektoren vor Crunchern wie Platoon/Miami Vice
-        // =========================================================
+        // KERNAL ROM Bank Switching ($E000-$FFFF)
         if (addr >= 0xE000) {
-            let kernalEnabled = (p0001 & 2) !== 0; // Bit 1 = HIRAM
+            let kernalEnabled = (p0001 & 2) !== 0; 
             if (kernalEnabled) {
                 return this.kernalRom[addr - 0xE000];
             }
-            return this.ram[addr]; // RAM under ROM
+            return this.ram[addr]; 
         }
 
-        // I/O Block Bank Switching ($D000-$DFFF)
         let ioEnabled = (p0001 & 4) !== 0 && (p0001 & 3) !== 0;
         if (!ioEnabled) return this.ram[addr];
 

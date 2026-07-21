@@ -50,6 +50,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 return;
             }
 
+
             if (msg.isSidFile) {
                 this.c64Output = new C64AnalogFilter(sampleRate);
                 this.dcBlock = new DCBlocker();
@@ -58,6 +59,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.prgCode = msg.c64Code;
                 this.loadAddr = msg.loadAddress;
                 this.initAddress = msg.initAddress;
+                this.playAddress = msg.playAddress;
                 this.songSpeedFlags = msg.speed; 
 
                 this.sid = new SIDChip();
@@ -65,7 +67,8 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.sid.temperature = this.temperature; 
                 this.cpu = new CPU6502(this.sid);
 
-                this.cpu.reset(this.loadAddr, this.prgCode);
+                // --- FIX: Parameter erweitert für das MMU-Switching ---
+                this.cpu.reset(this.loadAddr, this.prgCode, this.initAddress, this.playAddress);
 
                 let songIndex = (msg.startSong > 0 ? msg.startSong - 1 : 0) & 0xFF;
                 this.cpu.a = songIndex;
@@ -87,7 +90,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                     }
 
                     if (!this.cpu.rdy) {
-                        // CPU stall
                     } else {
                         if (this.cpuCyclesRemaining <= 0) {
                             if (this.cpu.nmiAccepted) {
@@ -111,9 +113,13 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.pc = 0xFFE0; 
                 this.cpu.p &= ~0x04;  
 
-                this.playAddress = msg.playAddress;
-
                 this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
+                
+                // --- FIX: Wenn CIA-Timer vom PSID gefordert wird, MÜSSEN wir ihn zwingend starten! ---
+                if (this.useCiaTimer) {
+                    this.cpu.cia1CtrlA |= 0x01; 
+                }
+
                 this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
                 this.vblankTimer = this.playSpeedCycles;
 
@@ -149,7 +155,8 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.sid.temperature = this.temperature;
                 this.cpu.sid = this.sid;
                 
-                this.cpu.reset(this.loadAddr, this.prgCode);
+                // --- FIX ---
+                this.cpu.reset(this.loadAddr, this.prgCode, this.initAddress, this.playAddress);
                 
                 let songIndex = (msg.frame > 0 ? msg.frame - 1 : 0) & 0xFF;
                 this.cpu.a = songIndex;
@@ -194,6 +201,12 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.p &= ~0x04;
                 
                 this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
+                
+                // --- FIX ---
+                if (this.useCiaTimer) {
+                    this.cpu.cia1CtrlA |= 0x01; 
+                }
+                
                 this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
                 this.vblankTimer = this.playSpeedCycles;
 
