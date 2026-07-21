@@ -34,8 +34,8 @@ export class MoogFilter {
         if (f > 1.9 - q) f = 1.9 - q; 
         
         this.low += f * this.band;
-        let high = input - this.low - q * this.band;
-        this.band += f * high;
+        let hp = input - this.low - q * this.band;
+        this.band += f * hp;
         
         if (isNaN(this.low)) { this.low = 0; this.band = 0; }
         return this.low; 
@@ -75,59 +75,49 @@ export class DCBlocker {
     }
 }
 
-// C64 Analog Motherboard Output Filter
+// =========================================================
+// C64 ANALOG OUTPUT STAGE (1-Pole RC + Sinc-Droop Equalizer)
+// =========================================================
 export class C64AnalogFilter {
     constructor(sampleRate) {
-        // Simuliert den physikalischen RC Tiefpass des C64 am Video/Audio-Port
-        // Cutoff bei ca. 16 kHz (2-Pole Butterworth für sauberes Anti-Aliasing)
+        // 1. Sinc-Droop Equalizer Pre-Emphasis (+2.5 dB bei 16 kHz)
+        // Gleicht den mathematischen Hochton-Abfall des Boxcar-Decimators exakt aus
+        this.cComp = 0.22;
+        this.lastX = 0;
+
+        // 2. Physikalisch getreuer 1-Pole C64 Audio Output RC-Filter (~16 kHz Cutoff)
+        // Entspricht der R=1k / C=10nF Schaltung am Video/Audio-Port des Motherboards
         const fc = 16000.0;
-        const q = 0.707;
-        const w0 = 2 * Math.PI * fc / sampleRate;
-        const alpha = Math.sin(w0) / (2 * q);
-        const cosw0 = Math.cos(w0);
-
-        const a0 = 1 + alpha;
-        this.b0 = ((1 - cosw0) / 2) / a0;
-        this.b1 = (1 - cosw0) / a0;
-        this.b2 = ((1 - cosw0) / 2) / a0;
-        this.a1 = (-2 * cosw0) / a0;
-        this.a2 = (1 - alpha) / a0;
-
-        this.x1 = 0; this.x2 = 0;
-        this.y1 = 0; this.y2 = 0;
+        this.alpha = Math.exp(-2.0 * Math.PI * fc / sampleRate);
+        this.lastLp = 0;
     }
 
     process(x) {
-        let y = this.b0 * x + this.b1 * this.x1 + this.b2 * this.x2 - this.a1 * this.y1 - this.a2 * this.y2;
-        this.x2 = this.x1; this.x1 = x;
-        this.y2 = this.y1; this.y1 = y;
-        return y;
+        // A) Sinc-Droop Pre-Equalization
+        let comp = (1.0 + this.cComp) * x - this.cComp * this.lastX;
+        this.lastX = x;
+
+        // B) Sanfter 1-Pole RC Tiefpass (6 dB/Okt Steilheit)
+        let lp = (1.0 - this.alpha) * comp + this.alpha * this.lastLp;
+        this.lastLp = lp;
+
+        return lp;
     }
 }
 
 /**
  * Erkennt Digidrum-Trigger innerhalb eines YM5/YM6-Register-Frames.
- * Liefert die 1-basierte Sample-Nummer oder 0, falls kein Trigger vorliegt.
- * 
- * @param {Uint8Array} frame - Das aktuelle 16-Byte Register-Frame
- * @returns {number} 1-basierter Index für die Digidrum (0 = kein Trigger)
  */
 export function detectDigidrum(frame) {
     let activeDigiTrigger = 0;
 
-    // YM6 Spezialeffekt 1 (gespeichert in R1)
-    // Bit 6-7: Typ (00: SID, 01: Digidrum, 10: Sinus SID, 11: Sync-Buzzer)
-    // Bit 4-5: Kanal (01: Voice A, 10: Voice B, 11: Voice C)
     const fx1Type = (frame[1] & 0xC0) >> 6;
     const fx1Voice = (frame[1] & 0x30) >> 4;
 
     if (fx1Type === 1 && fx1Voice > 0) {
-        // Das Lautstärkeregister des Kanals (R8, R9 oder R10) enthält die Sample-ID in Bit 0-4
         const sampleReg = 8 + fx1Voice - 1;
         activeDigiTrigger = (frame[sampleReg] & 0x1F) + 1;
     } else {
-        // YM6 Spezialeffekt 2 (gespeichert in R3)
-        // Bit 6-7: Typ, Bit 4-5: Kanal
         const fx2Type = (frame[3] & 0xC0) >> 6;
         const fx2Voice = (frame[3] & 0x30) >> 4;
 
@@ -137,7 +127,6 @@ export function detectDigidrum(frame) {
         }
     }
 
-    // Fallback: Direkte Abfrage der virtuellen Register R14/R15
     if (activeDigiTrigger === 0) {
         if (frame[15] > 0) activeDigiTrigger = frame[15];
         else if (frame[14] > 0) activeDigiTrigger = frame[14];
@@ -146,12 +135,6 @@ export function detectDigidrum(frame) {
     return activeDigiTrigger;
 }
 
-/**
- * Ermittelt, welcher YM-Kanal (1: Voice A, 2: Voice B, 3: Voice C, 0: Keiner) die Digidrum triggert.
- * 
- * @param {Uint8Array} frame - Das aktuelle 16-Byte Register-Frame
- * @returns {number} 1-basierter Kanalindex (0 = kein Kanal oder Fallback)
- */
 export function detectDigidrumVoice(frame) {
     const fx1Type = (frame[1] & 0xC0) >> 6;
     const fx1Voice = (frame[1] & 0x30) >> 4;
@@ -161,16 +144,9 @@ export function detectDigidrumVoice(frame) {
     const fx2Voice = (frame[3] & 0x30) >> 4;
     if (fx2Type === 1 && fx2Voice > 0) return fx2Voice;
 
-    return 0; // Kein direkter Kanal gemappt (z. B. Fallback)
+    return 0; 
 }
 
-// =========================================================
-// ATARI ST / YAMAHA YM2149F HARDWARE UTILS
-// =========================================================
-
-// Gemessene 32-Step Voltage-Tabelle eines echten YM2149F.
-// Ersetzt die ungenaue mathematische Logarithmus-Näherung.
-// Basiert auf Oszilloskop-Messungen der Demoszene-Community (Nuked/Hatari).
 export const YM2149_DAC32 = new Float32Array([
     0.0000, 0.0043, 0.0061, 0.0084, 0.0119, 0.0163, 0.0242, 0.0345,
     0.0483, 0.0682, 0.0988, 0.1384, 0.1983, 0.2831, 0.3984, 0.5510,
@@ -178,28 +154,21 @@ export const YM2149_DAC32 = new Float32Array([
     0.8845, 0.8988, 0.9155, 0.9348, 0.9573, 0.9830, 0.9950, 1.0000
 ]);
 
-// Physisches Modell der analogen Ausgangsstufe des Atari ST (Motherboard)
-// YM-Mix -> Mischwiderstände -> RC Tiefpass (~15.9 kHz) -> OpAmp (LM324) -> Ausgangskondensator
 export class AtariAnalogFilter {
     constructor(sampleRate) {
         this.lpAlpha = Math.exp(-2.0 * Math.PI * 15900.0 / sampleRate);
-        this.hpAlpha = Math.exp(-2.0 * Math.PI * 25.0 / sampleRate); // Ausgangskondensator DC-Block
+        this.hpAlpha = Math.exp(-2.0 * Math.PI * 25.0 / sampleRate); 
         this.lastLp = 0;
         this.lastHpIn = 0;
         this.lastHpOut = 0;
     }
     
     process(input) {
-        // 1. RC Tiefpass (nimmt dem YM2149 die digitale Härte)
         let lp = (1.0 - this.lpAlpha) * input + this.lpAlpha * this.lastLp;
         this.lastLp = lp;
-        
-        // 2. Highpass / Kondensator (Entfernt Hardware-Gleichspannung)
         let hp = this.hpAlpha * (this.lastHpOut + lp - this.lastHpIn);
         this.lastHpIn = lp;
         this.lastHpOut = hp;
-        
-        // 3. OpAmp Sättigung (LM324) - Gibt dem Bass Wärme und limitiert sanft
         return Math.tanh(hp * 1.25) / 1.25;
     }
 }

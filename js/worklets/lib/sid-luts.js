@@ -9,18 +9,7 @@ export const CUTOFF_LUT = new Float32Array(2048);
 export const PWM_LUT = new Uint16Array(4096);
 
 // 1. GENERATE 6581 DAC CURVE (256 Entries)
-// Simuliert die fehlerhaften Widerstände des analogen R-2R Leiter-Netzwerks auf dem Die.
-// Anstatt einer reinen Parabel gewichten wir jedes Bit mit winzigen Hardware-Toleranzen.
-const bitWeights = [
-    1.00,   // Bit 0
-    2.01,   // Bit 1
-    3.98,   // Bit 2
-    8.05,   // Bit 3
-    15.90,  // Bit 4
-    32.15,  // Bit 5
-    63.70,  // Bit 6
-    128.50  // Bit 7
-];
+const bitWeights = [1.00, 2.01, 3.98, 8.05, 15.90, 32.15, 63.70, 128.50];
 let maxWeight = 0;
 for (let b of bitWeights) maxWeight += b;
 
@@ -30,37 +19,25 @@ for (let i = 0; i < 256; i++) {
         if (i & (1 << b)) sum += bitWeights[b];
     }
     let v = sum / maxWeight;
-    // Zusätzlich: Der charakteristische, leichte Bowing-Effekt des Ausgangsverstärkers
     DAC_LUT[i] = v + 0.12 * v * (1.0 - v);
 }
 
-// 2. GENERATE 6581 FILTER CUTOFF CURVE (2048 Entries)
-// Bildet die gemessene, krumme FET-Kennlinie des originalen Filters nach:
-// Flaches Plateau -> harter Knick -> massiver Sprung -> Sättigung im High-End
+// 2. GENERATE REAL 6581 FILTER CUTOFF CURVE (2048 Entries)
+// Real MOS 6581 R2/R4 FET Range: 30 Hz (Sub-Bass) bis ~5800 Hz (Max Cutoff)
+// Beseitigt den Maultrommel-Effekt und gibt dem Bass seine echte C64-Tiefe!
 for (let i = 0; i < 2048; i++) {
     let norm = i / 2047.0;
-    let hz;
     
-    if (norm < 0.2) {
-        hz = 30.0 + norm * 500.0; // Flat start (Plateau)
-    } else if (norm < 0.6) {
-        hz = 130.0 + Math.pow((norm - 0.2) / 0.4, 2.0) * 3000.0; // Sharp knee (Knick)
-    } else if (norm < 0.9) {
-        hz = 3130.0 + Math.pow((norm - 0.6) / 0.3, 1.5) * 8000.0; // Jump (Sprung)
-    } else {
-        hz = 11130.0 + ((norm - 0.9) / 0.1) * 4870.0; // Saturation (Top end)
-    }
+    // Gemessene 6581 NMOS FET-Kurve (30Hz bis 5800Hz)
+    let hz = 30.0 + (Math.pow(norm, 1.5) * 5770.0);
     
     if (hz < 30) hz = 30;
-    if (hz > 16000) hz = 16000;
+    if (hz > 5800) hz = 5800;
     CUTOFF_LUT[i] = hz;
 }
 
 // 3. GENERATE PWM COMPARATOR OFFSET (4096 Entries)
-// Der analoge Komparator des 6581 ist asymmetrisch. Eine programmierte 50% Pulswelle (0x800)
-// ist in der Hardware leicht verschoben, was Sweeps charakteristisch unrund macht.
 for (let i = 0; i < 4096; i++) {
-    // Hardware DC-Offset von ca. 1.8% in die Vergleichslogik injizieren
     let shifted = i + 76; 
     if (shifted > 4095) shifted = 4095;
     PWM_LUT[i] = shifted;

@@ -8,16 +8,17 @@ import { loadSidFile } from '../../js/parsers/sid-parser.js';
 
 const mySidFiles = [
     "Commando.sid",                   // 1. Rob Hubbard
-    "Crazy_Comets.sid",               // <--- NEU: Rob Hubbards legendäres Synthwave-Meisterwerk!    
-    "Sanxion.sid",                    // <--- NEU: Rob Hubbards legendäre "Thalamusik"!
-    "Lightforce.sid",                 // <--- NEU: Rob Hubbards heroische Chiptune-Hymne!
+    "Crazy_Comets.sid",               // Rob Hubbards Synthwave-Meisterwerk
+    "Sanxion.sid",                    // Rob Hubbards Thalamusik
+    "Lightforce.sid",                 // Rob Hubbards Chiptune-Hymne
     "Wizball.sid",                    // 2. Martin Galway
-    "Comic_Bakery.sid",               // <--- NEU: Martin Galways bahnbrechendes Meisterwerk!
-    "Arkanoid.sid",                   // <--- NEU: Martin Galways bahnbrechender Meilenstein!
+    "Comic_Bakery.sid",               // Martin Galways Meisterwerk
+    "Arkanoid.sid",                   // Martin Galways $D418 Digidrum Meilenstein
     "Great_Giana_Sisters_PSID.sid",   // 3. Chris Hülsbeck
     "Bionic_Commando.sid",            // 4. Tim Follin
     "Last_Ninja.sid",                 // 5. Ben Daglish & Anthony Lees
-    "Last_Ninja_2.sid",               // <--- NEU: Matt Grays Meisterwerk!
+    "Last_Ninja_2.sid",               // Matt Grays Meisterwerk
+    "Turbo_Outrun.sid",               // <--- NEU: Jeroen Tels Zero-Page Digi-Benchmark!
     "Cybernoid_II.sid",               // 6. Jeroen Tel
     "Supremacy.sid",                  // 7. Jeroen Tel
     "RoboCop_3.sid",                  // 8. Jeroen Tel
@@ -35,6 +36,11 @@ const mySidFiles = [
 ];
 
 const composerMetadata = {
+    "Turbo_Outrun.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: JEROEN TEL (MANIACS OF NOISE) ]</h3>
+        <p>Der Soundtrack zu <strong>Turbo Outrun</strong> (1989), komponiert von <strong>Jeroen Tel</strong> (Maniacs of Noise), ist ein technisches Meisterwerk. Er nutzt eine hybride Zero-Page-Sample-Routine, die im Sub-Frame-Takt 4-Bit-Digidrums direkt in den SID-Chip feuert.</p>
+        <p><strong>DSP-Fokus:</strong> Dieser Track testet die flankengetriggerte CIA-2 NMI-Emulation und simultane $D418-Schreibzugriffe (Filter-Bits + Sample-Volume) unter extremen Bedingungen. Unser zyklenexakter Core führt die Zero-Page-Routinen ohne Verzögerung aus.</p>
+    `,
     "Myth.sid": `
         <h3>[ COMPOSER SPOTLIGHT: JEROEN TEL (MANIACS OF NOISE) ]</h3>
         <p>Der Soundtrack zum System-3-Plattformer <strong>Myth: History in the Making</strong> (1989), komponiert von <strong>Jeroen Tel</strong> (Maniacs of Noise), ist ein unumstrittenes Meisterwerk düsterer Fantasy-Elektronik. Der Track verbindet mystische, getragene Klangteppiche mit extrem aggressiven, treibenden Beats und Melodie-Kaskaden.</p>
@@ -112,7 +118,6 @@ const composerMetadata = {
     `
 };
 
-// Verwende die Cybernoid-Beschreibung für alle Jeroen Tel Tracks als Referenz
 composerMetadata["Supremacy.sid"] = composerMetadata["Cybernoid_II.sid"];
 composerMetadata["RoboCop_3.sid"] = composerMetadata["Cybernoid_II.sid"];
 composerMetadata["Myth.sid"] = composerMetadata["Cybernoid_II.sid"];

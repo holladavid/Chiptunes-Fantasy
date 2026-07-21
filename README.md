@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.4.2)
+# 💾 CHIPTUNES FANTASY (v1.4.3)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -36,6 +36,13 @@ Our cycle-exact 1MHz SID engine is arguably one of the deepest analogue emulatio
 *   **Discrete Wire-AND NMOS Logic (New in v1.4.1):** The calculations for combined "illegal" waveforms (`$30`, `$50`, `$60`, `$70`) have been rewritten. We eliminated all floating-point approximations in favor of pure bitwise integer shift-and-bleed masks, emulating the analog pull-down behavior of the NMOS silicon gates. This delivers Jeroen Tel's signature, tearing "Maniacs of Noise" basslines with uncompromising grit.
 *   **Analog Voodoo (Filter Squelch & Hubbard Notch)(New in v1.4.2):** Resonance (Q-factor) now dynamically collapses at high/low bandwidth extremes due to simulated op-amp failure. Mixing Highpass and Lowpass (Notch) introduces asymmetric phase attenuation, perfectly recreating Rob Hubbard's signature phaser sweeps.
 *   **Dynamic MMU & Phantom KERNAL Integrity(New in v1.4.2):** Implemented authentic C64 Memory Bank Switching. The engine now detects if a packed `.sid` payload (like *Platoon* or *Miami Vice*) overwrites the upper memory during decompression and safely disables the KERNAL ROM while shifting the hardware IRQ/NMI vectors to safe RAM zones.
+*   **Zero-Allocation Boxcar Decimation & Sinc-Droop Compensation:** Replaced the heavy 255-tap FIR with an ultra-fast 1MHz Integrate-and-Dump (Boxcar) decimator, paired with a 1-pole 16kHz RC output stage and a Sinc-Droop pre-emphasis equalizer (+2.5dB at 16kHz). High-frequency overtones, ring-modulation bells (*Giana Sisters*), and bright leads now sparkle with 100% C64 line-out clarity.
+*   **The Galway $D418 Digidrum Bug (400mV DC-Bias VCA):** Modulating `$D418` now directly multiplies a physical 400mV DC-offset at the analog mixer stage through the non-linear R-2R `VOLUME_DAC_6581` ladder. 4-bit PCM digidrums (*Arkanoid*, *Turbo Outrun*, *Mega Apocalypse*) crunch with raw, authentic speaker-shredding power.
+*   **Bitwise Wire-AND Combined Waveforms:** Replaced float approximations in `sid-waveforms.js` with pure integer bit-shifts (`>> 2`, `>> 3`) modeling the physical NMOS transistor pull-down channel resistance ($R_{on}$) and LSB bleed on combined waves ($30, $50, $60, $70). *Maniacs of Noise* basses (*Cybernoid II*, *Myth*) deliver maximum aggressive "kreissägen" texture.
+*   **6581 VCF 5.8kHz Boundary & Headroom Tuning:** Restricted maximum filter cutoff to the physical 6581 NMOS FET limit (~5.8kHz via `CUTOFF_LUT`), completely eliminating shrill 8580-style high-frequency harshness. Balanced JFET integrator drive to 1.92V headroom and applied a hardware-matched $Q$-factor table ($Q_{\text{max}} = 8.6$) so *Wizball Subsong 4* sweeps sing smoothly without tipping, ringing overshoots, or choked drum transients.
+*   **Complete 256-Opcode Matrix & Cycle-Exact Timing:** Fully implemented all 256 MOS 6502 opcodes, including multi-byte illegal NOPs (`$04`, `$0C`, `$1C`), RMW instructions (`SLO`, `RLA`, `SRE`, `RRA`), and exact branch page-crossing penalties. Martin Galway's polled delay-loop sample drivers (*Combat School*, *Wizball*) run with 100% pitch-exact timing.
+*   **Dynamic MMU & Phantom KERNAL Isolation:** Implemented C64 memory bank-switching (register `$0001`) and isolated Phantom KERNAL ROM vectors. Packed SIDs (*Platoon*, *Miami Vice*) can no longer corrupt system IRQ/NMI return handlers in RAM during decompression.
+*   **CIA-2 (NMI) Subsystem Overhaul:** Hardware-accurate CIA-2 Timer A/B latch reloading, edge-triggered NMIs, and `$DD0D` ICR read-acknowledgement for seamless NMI-driven 4-bit sample playback (*Turbo Outrun*, *BMX Kidz*).
 
 ### 2. MOS Technology Paula 8364 (Amiga 500)
 A deep emulation of the Amiga’s legendary 4-channel DMA PCM engine:

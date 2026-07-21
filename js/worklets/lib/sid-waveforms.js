@@ -2,8 +2,8 @@
 // =========================================================
 // MOS 6581 WAVEFORM GENERATOR & BIT-LOGIC
 // Hardware-accurate 8-Bit DAC quantization & Floating DC Bias
-// Phase 3: Pure Bitwise Integer Math for Wire-AND (Zero Floats)
-// 100% Maniacs-of-Noise / Jeroen Tel Accuracy.
+// Phase 4: NMOS Transistor Bit-Weighted Pull-Down (Wire-AND Bleed)
+// 100% Integer Bitwise Operations (Zero Allocations / Zero Floats)
 // =========================================================
 
 export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
@@ -57,59 +57,69 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
     if (waveMask === 0x80) return noise;
 
     // =========================================================
-    // ANALOG DISCRETE COMBINED WAVEFORM MODELS (MOS 6581)
-    // 100% Integer Math (Bitwise Shifts) for Jeroen Tel / MoN crunch!
+    // NMOS TRANSISTOR BIT-WEIGHTED WIRE-AND (MOS 6581)
+    // MSBs (Bits 4-7) haben größere Transistoren -> starrer Pull-Down.
+    // LSBs (Bits 0-3) haben höheren Ron -> Sicker-Signal / Bleed.
     // =========================================================
 
     // 1. TRIANGLE + SAWTOOTH ($30)
-    // Bitweises AND dominiert, aber analoger Bleed hebt die Senken an.
     if (waveMask === 0x30) {
-        let bitAnd = tri & saw;
-        // ~75% AND + ~12% (Tri+Saw)
-        return bitAnd - (bitAnd >> 2) + ((tri + saw) >> 3);
+        let andVal = tri & saw;
+        let xorVal = tri ^ saw;
+        let bleed = ((xorVal & 0x0F) >> 1) + ((xorVal & 0xF0) >> 3);
+        return Math.min(255, andVal + bleed + 0x04);
     }
 
     // 2. TRIANGLE + PULSE ($50)
     if (waveMask === 0x50) {
-        if (pulse === 0xFF) return tri - (tri >> 3) + 0x0C; // ~87%
-        return (tri >> 2) + 0x08; // ~25% Sicker-Signal
+        if (pulse === 0xFF) {
+            let xorVal = tri ^ 0xFF;
+            let bleed = ((xorVal & 0x0F) >> 1) + ((xorVal & 0xF0) >> 3);
+            return Math.min(255, tri + bleed + 0x06);
+        }
+        let bleed = ((tri & 0x0F) >> 1) + ((tri & 0xF0) >> 3);
+        return Math.min(255, bleed + 0x08);
     }
 
     // 3. SAWTOOTH + PULSE ($60) - THE MON / GALWAY BASS!
-    // Der stärkste NMOS-Pull-Down.
     if (waveMask === 0x60) {
-        if (pulse === 0xFF) return saw - (saw >> 4) + 0x0A; // ~93%
-        return (saw >> 2) + 0x0E; // ~25%
+        if (pulse === 0xFF) {
+            let xorVal = saw ^ 0xFF;
+            let bleed = ((xorVal & 0x0F) >> 1) + ((xorVal & 0xF0) >> 3);
+            return Math.min(255, saw + bleed + 0x06);
+        }
+        let bleed = ((saw & 0x0F) >> 1) + ((saw & 0xF0) >> 3);
+        return Math.min(255, bleed + 0x0B);
     }
 
     // 4. TRIANGLE + SAWTOOTH + PULSE ($70)
     if (waveMask === 0x70) {
         let triSaw = tri & saw;
-        if (pulse === 0xFF) return triSaw - (triSaw >> 2) + (triSaw >> 4) + 0x12; // ~81%
-        return (triSaw >> 3) + (triSaw >> 4) + 0x0A; // ~18%
+        if (pulse === 0xFF) {
+            let xorVal = triSaw ^ 0xFF;
+            let bleed = ((xorVal & 0x0F) >> 1) + ((xorVal & 0xF0) >> 3);
+            return Math.min(255, triSaw + bleed + 0x08);
+        }
+        let bleed = ((triSaw & 0x0F) >> 1) + ((triSaw & 0xF0) >> 3);
+        return Math.min(255, bleed + 0x0A);
     }
 
     // 5. NOISE + COMBINED WAVEFORMS (0x90, 0xA0, 0xC0, 0xD0, 0xE0, 0xF0)
     let bitAnd = 0xFF;
-    let sum = 0;
-    let count = 0;
+    let xorSum = 0;
 
-    if (ctrl & 16) { bitAnd &= tri; sum += tri; count++; }
-    if (ctrl & 32) { bitAnd &= saw; sum += saw; count++; }
-    if (ctrl & 64) { bitAnd &= pulse; sum += pulse; count++; }
-    if (ctrl & 128) { bitAnd &= noise; sum += noise; count++; }
+    if (ctrl & 16) { bitAnd &= tri; xorSum |= tri; }
+    if (ctrl & 32) { bitAnd &= saw; xorSum |= saw; }
+    if (ctrl & 64) { bitAnd &= pulse; xorSum |= pulse; }
+    if (ctrl & 128) { bitAnd &= noise; xorSum |= noise; }
 
-    let avg = (sum / count) | 0; // Strikte Integer Division
-    let bleed = (avg - bitAnd) >> 2; // ~25% Bleed
+    let xorVal = xorSum ^ bitAnd;
+    let bleed = ((xorVal & 0x0F) >> 1) + ((xorVal & 0xF0) >> 3);
 
     if ((ctrl & 64) && pulse === 0) {
-        bleed >>= 1; // Pulldown halbiert den Bleed
+        bleed >>= 1; 
     }
 
-    // ~75% AND + ~75% Bleed + DC Offset
-    let out = bitAnd - (bitAnd >> 2) + bleed - (bleed >> 2) + 0x18;
-    
-    if (out > 255) return 255;
-    if (out < 0) return 0;
-    return out;
+    let out = bitAnd + bleed + 0x12;
+    return Math.min(255, Math.max(0, out));
 }
