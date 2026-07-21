@@ -1,9 +1,8 @@
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Phase 8: True Hardware DC-Bias VCA Injection
-// Removed digital wiggle-hacks. Added authentic 400mV Mux offset
-// for physically accurate $D418 Digidrum amplification.
+// Phase 25: 100% Symmetric JFET Saturation & AC/DC VCA Separation
+// Eliminates low-level decay raspiness and restores full Wizball 4 "singing"
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -12,9 +11,6 @@ import { DAC_LUT, CUTOFF_LUT } from './sid-luts.js';
 const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_RELEASE = 2; 
 const RATE_COUNTER_PERIOD = [9, 32, 63, 95, 149, 220, 267, 313, 392, 977, 1954, 3126, 3907, 11720, 19530, 31256];
 
-// --- STATISCHER VERLAUF DES NICHT-LINEAREN 6581 LAUTSTÄRKE-D/A-WANDLERS ---
-// Gemessen von Pex "Mahoney" Tufvesson auf realem 6581 NMOS-Silizium.
-// Bildet das unregelmäßige Verhalten der R-2R-Widerstandsleiter exakt ab.
 const VOLUME_DAC_6581 = new Float32Array([
     0.000, 0.078, 0.149, 0.228, 0.307, 0.378, 0.449, 0.512,
     0.606, 0.669, 0.724, 0.787, 0.842, 0.898, 0.953, 1.000
@@ -28,7 +24,7 @@ export class SIDChip {
             this.voices.push({
                 freq: 0, pw: 2048, ctrl: 0, env: 0, phase: 0,
                 state: ENV_RELEASE, prevGate: false,
-                waveOut8Bit: 0x18, // Startet genau auf dem schwebenden DC-Ruhepegel (24)
+                waveOut8Bit: 0x18, 
                 env8Bit: 0, lfsr: 0x7FFFFF,
                 rate_counter: 0, exponential_counter: 0, envelope_counter: 0,
                 attack_period: RATE_COUNTER_PERIOD[0],
@@ -49,17 +45,15 @@ export class SIDChip {
         this.q = 1.0;
         this.activeCutoff = 30.0;
 
-        // Thermische Caches (Zero-Allocation Loop Optimization)
         this._temperature = 55.0;
         this.thermalDacGain = 1.0;
         this.thermalDacOffset = 0.0;
-        this.thermalLeakage = 0.11;
+        this.thermalLeakage = 0.03; 
         this.thermalDcOffset = 0.0;
         this.thermalJfetDrive = 0.8;
 
-        // --- DYNAMISCHE DIGIDRUM AKTIVITÄTS-VARIABLEN ---
         this.volWiggleActivity = 0.0;
-        this.d418Writes = 0; // NEU: Hardware Labor Telemetrie
+        this.d418Writes = 0; 
 
         this.updateFilterParameters();
     }
@@ -70,46 +64,32 @@ export class SIDChip {
         this.updateFilterParameters();
     }
 
-    // =========================================================
-    // THERMAL HARDWARE MODELING
-    // Alle temperaturabhängigen Werte werden vorab berechnet.
-    // =========================================================
     updateFilterParameters() {
         let cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
         let norm = cutoffReg / 2047.0;
 
-        // 1. Exponential Cutoff Drift
         let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
-
         let fetCurve = 30.0 + 250.0 * norm + 8000.0 * (norm * norm) + 8000.0 * (norm * norm * norm);
         
         this.activeCutoff = fetCurve * thermalCoefficient;
         if (this.activeCutoff < 30) this.activeCutoff = 30;
         if (this.activeCutoff > 16000) this.activeCutoff = 16000;
 
-        // 2. Integrator Drift
         let baseG = Math.PI * this.activeCutoff / 985248;
         this.g = baseG * (1.0 + (this._temperature - 55.0) * 0.0005);
         
         let resReg = this.regs[23] >> 4;
         let normRes = resReg / 15.0;
-        let q = 1.0 - normRes * 0.92;
+        let q = 1.0 - normRes * 0.945;
         let thermalDamp = 1.0 + (this._temperature - 55.0) * 0.0015;
-        this.q = Math.min(1.0, Math.max(0.04, q * thermalDamp));
+        this.q = Math.min(1.0, Math.max(0.035, q * thermalDamp));
 
-        // 3. DAC Gain & Offset Drift
         this.thermalDacGain = 1.0 - (this._temperature - 55.0) * 0.0008;
         this.thermalDacOffset = (this._temperature - 55.0) * 0.0003;
-
-        // 4. VCF Leakage Steigerung bei Wärme
         this.thermalLeakage = 0.09 + (this._temperature - 25.0) * 0.0008;
-
-        // 5. Hardware DC Offset Drift
         this.thermalDcOffset = (this._temperature - 55.0) * 0.005;
-
-        // 6. JFET Saturation Drive (Warme Transistoren clippen früher/weicher)
         this.thermalJfetDrive = 0.8 * (1.0 - (this._temperature - 55.0) * 0.004);
-        if (this.thermalJfetDrive < 0.1) this.thermalJfetDrive = 0.1; // Failsafe
+        if (this.thermalJfetDrive < 0.1) this.thermalJfetDrive = 0.1; 
     }
 
     writeReg(reg, val) {
@@ -134,7 +114,6 @@ export class SIDChip {
                 ch.state = gate ? ENV_ATTACK : ENV_RELEASE;
                 
                 if (gate) {
-                    // --- GATE-ON RESET ---
                     ch.rate_counter = 0;
                     ch.exponential_counter = 0;
                 }
@@ -157,7 +136,7 @@ export class SIDChip {
             this.updateFilterParameters();
         } else if (reg === 24) {
             this.filterMode = val;
-            this.d418Writes++; // NEU: Trackt jeden einzelnen Digidrum-Write!
+            this.d418Writes++; 
             
             let volIndex = val & 15;
             let newVol = VOLUME_DAC_6581[volIndex];
@@ -182,14 +161,13 @@ export class SIDChip {
         if (ch.state === ENV_ATTACK) ratePeriod = ch.attack_period;
         else if (ch.state === ENV_DECAY) ratePeriod = ch.decay_period;
 
-        // --- HARDWARE-ACCURATE 15-BIT UP-COUNTER WRAP ---
         ch.rate_counter++;
         if (ch.rate_counter & 0x8000) {
             ch.rate_counter = (ch.rate_counter + 1) & 0x7FFF;
         }
 
         if (ch.rate_counter === ratePeriod) {
-            ch.rate_counter = 0; // Reset nur bei exakter Koinzidenz
+            ch.rate_counter = 0; 
 
             let expPeriod = 1;
             if (ch.state !== ENV_ATTACK) {
@@ -256,7 +234,6 @@ export class SIDChip {
             ringMSB ^= (prevCh.phase >> 23) & 1;
         }
 
-        // --- CYCLE-GENAUE FLOATING DAC ENTLADUNG ---
         let hasWave = (ch.ctrl & 0xF0) !== 0;
         if (hasWave) {
             ch.waveOut8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, ch.pw, ch.lfsr, ringMSB);
@@ -271,7 +248,6 @@ export class SIDChip {
 
         let waveOutFloat = (waveDac * 2.0) - 1.0;
         
-        // Analog DAC Thermal Drift
         waveOutFloat = waveOutFloat * this.thermalDacGain + this.thermalDacOffset;
         
         return waveOutFloat * envDac;
@@ -286,8 +262,7 @@ export class SIDChip {
         let voice1 = this.synthesizeVoiceOneCycle(1);
         let voice2 = this.synthesizeVoiceOneCycle(2);
 
-        // --- INTER-VOICE CROSSTALK (Die Substrate Leakage) ---
-        // Reine Überlagerung vor dem Filter
+        // --- INTER-VOICE CROSSTALK ---
         let bleed0 = voice0 + voice1 * 0.008 + voice2 * 0.004;
         let bleed1 = voice1 + voice0 * 0.008 + voice2 * 0.008;
         let bleed2 = voice2 + voice1 * 0.008 + voice0 * 0.004;
@@ -307,7 +282,6 @@ export class SIDChip {
         let g = this.g;
         let q = this.q;
         
-        // --- STABILES VCF (PHASE 4 ZURÜCKGESTELLT) ---
         if (this.activeCutoff < 800.0) {
             let damp = (800.0 - this.activeCutoff) / 800.0; 
             q += damp * 0.55; 
@@ -331,14 +305,10 @@ export class SIDChip {
         this.filterLow = lp;
         
         if (this.useJfetSaturation) {
-            let driveP = this.thermalJfetDrive;
-            let driveN = driveP * 1.875; 
-
-            if (bp > 0) {
-                this.filterBand = Math.tanh(bp * driveP) / driveP;
-            } else {
-                this.filterBand = Math.tanh(bp * driveN) / driveN;
-            }
+            // FIX 1: 100% Symmetrische JFET-Sättigung! 
+            // Verhindert die DC-Gleichrichtung bei leisen Fades und macht die Decays seidenglatt.
+            let driveP = this.thermalJfetDrive * 0.65;
+            this.filterBand = Math.tanh(bp * driveP) / driveP;
         } else {
             this.filterBand = bp / (1.0 + Math.abs(bp) * 0.15); 
         }
@@ -361,11 +331,10 @@ export class SIDChip {
         
         let vcaQuad = this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0;
         
-        let vcaInWithBias = vcaIn + 0.45;
-
-        let finalMix = vcaInWithBias > 0 
-            ? Math.tanh(vcaInWithBias + vcaQuad) 
-            : Math.tanh(vcaInWithBias * 0.85 + vcaQuad) / 0.85;
+        // FIX 2: Symmetrische VCA AC-Sättigung vor dem D418 DC-Bias!
+        // Verhindert 2nd Harmonic Crossover Distortion an leisen Stellen.
+        let acSaturated = Math.tanh(vcaIn + vcaQuad);
+        let finalMix = acSaturated + 0.45;
 
         this.outputSample = (finalMix * this.masterVol) + this.thermalDcOffset;
     }
