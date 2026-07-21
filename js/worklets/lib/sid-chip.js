@@ -57,6 +57,10 @@ export class SIDChip {
         this.thermalDcOffset = 0.0;
         this.thermalJfetDrive = 0.8;
 
+        // --- DYNAMISCHE DIGIDRUM AKTIVITÄTS-VARIABLEN ---
+        this.volWiggleActivity = 0.0;
+        this.d418Writes = 0; // NEU: Hardware Labor Telemetrie
+
         this.updateFilterParameters();
     }
 
@@ -153,11 +157,16 @@ export class SIDChip {
             this.updateFilterParameters();
         } else if (reg === 24) {
             this.filterMode = val;
+            this.d418Writes++; // NEU: Trackt jeden einzelnen Digidrum-Write!
             
-            // --- NON-LINEARER LAUTSTÄRKE DAC ---
-            // Mappt das Register d418 über den gemessenen analogen Widerstandspfad.
             let volIndex = val & 15;
-            this.masterVol = VOLUME_DAC_6581[volIndex];
+            let newVol = VOLUME_DAC_6581[volIndex];
+            
+            let delta = Math.abs(newVol - this.masterVol);
+            if (delta > 0.01) {
+                this.volWiggleActivity = Math.min(1.0, this.volWiggleActivity + 0.15);
+            }
+            this.masterVol = newVol;
         }
     }
 

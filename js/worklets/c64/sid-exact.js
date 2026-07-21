@@ -319,6 +319,10 @@ class SIDProcessor extends AudioWorkletProcessor {
         if (this.diagTimer >= 1.0) {
             this.diagTimer -= 1.0;
             
+            // NEU: Digidrum-Frequenz auslesen und zurücksetzen
+            let digiRate = this.sid.d418Writes;
+            this.sid.d418Writes = 0;
+            
             let activeRegs = Array.from(this.sid.regs).map(r => r.toString(16).toUpperCase().padStart(2, '0')).join(' ');
             
             let runtimeMsg = `--- [LAB-RUNTIME DIAGNOSTICS] ---\n` +
@@ -327,6 +331,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                              `[CPU] Instructions/sec: ${this.diagInstructions} | Cycles/sec: ${this.diagCycles}\n` +
                              `[IRQ] Pending: ${this.cpu.irqPending} | Accepted: ${this.cpu.irqAccepted} | Count/sec: ${this.diagIrqCount}\n` +
                              `[NMI] Pending: ${this.cpu.nmiPending} | Accepted: ${this.cpu.nmiAccepted} | Count/sec: ${this.diagNmiCount}\n` +
+                             `[DIGI] $D418 Writes/sec: ${digiRate} Hz (Effective Sample Rate)\n` + // <<< NEU!
                              `[VECTORS] $0314 (IRQ): $${this.cpu.ram[0x0314].toString(16).toUpperCase().padStart(2, '0')}${this.cpu.ram[0x0315].toString(16).toUpperCase().padStart(2, '0')}\n` +
                              `[TIMERS] CIA1-TimerA: ${this.cpu.cia1TimerA} | Latch: ${this.cpu.cia1TimerALatch} | CtrlA: $${this.cpu.cia1CtrlA.toString(16).toUpperCase().padStart(2, '0')}\n` +
                              `[TIMERS] VIC-Raster: ${this.cpu.rasterCounter} | Target: ${this.cpu.rasterIrqTarget} | Enabled: ${this.cpu.ram[0xD01A]}\n` +
