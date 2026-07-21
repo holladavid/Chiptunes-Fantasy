@@ -2,7 +2,7 @@
 // =========================================================
 // 6502 CPU EMULATOR & C64 I/O INTERCEPTOR
 // High-Performance Zero-Allocation Edition
-// Phase 14: Dynamic MMU Bank-Switching & Safe RAM Vectors
+// Phase 15: Precise CIA-1/CIA-2 Latch Reloads & NMI Subsystem
 // =========================================================
 
 export class CPU6502 {
@@ -70,22 +70,21 @@ export class CPU6502 {
         this.ram.fill(0);
         this.kernalRom.fill(0);
         
-        // --- 1. DEN PRG-CODE ZUERST LADEN ---
+        // --- 1. PRG CODE LADEN ---
         for (let i = 0; i < prgCode.length; i++) {
             this.ram[loadAddr + i] = prgCode[i];
         }
 
         // --- 2. DYNAMIC BANK-SWITCHING (MMU) ---
-        let p0001 = 0x37; // Standard: Alle ROMs an
+        let p0001 = 0x37; 
         let prgEnd = loadAddr + prgCode.length;
         
-        // Prüfen ob der Track das KERNAL ROM ($E000-$FFFF) überlappt
         let overlapsKernal = (loadAddr < 0x10000 && prgEnd > 0xE000) || 
                              (initAddr >= 0xE000 && initAddr < 0x10000) ||
                              (playAddr >= 0xE000 && playAddr < 0x10000);
         
         if (overlapsKernal) {
-            p0001 &= ~2; // KERNAL ROM per Hardware abschalten (Miami Vice Fix)
+            p0001 &= ~2; // KERNAL ROM per Hardware abschalten
         }
         
         this.ram[0x0000] = 0x2F; 
@@ -95,12 +94,11 @@ export class CPU6502 {
         this.ram[0xFFE0] = 0x4C; this.ram[0xFFE1] = 0xE0; this.ram[0xFFE2] = 0xFF; 
         this.kernalRom[0x1FE0] = 0x4C; this.kernalRom[0x1FE1] = 0xE0; this.kernalRom[0x1FE2] = 0xFF; 
         
-        // SAFE RAM HANDLERS (Gespeichert in ungenutzter Zero-Page/Stack Lücke bei $0220)
-        // Überleben jeden Cruncher/Packer!
+        // SAFE RAM HANDLERS bei $0220 / $0240
         const safeIrqReturn = [0xAD, 0x0D, 0xDC, 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40];
         for (let i = 0; i < safeIrqReturn.length; i++) {
             this.ram[0x0220 + i] = safeIrqReturn[i]; 
-            this.kernalRom[0x0A31 + i] = safeIrqReturn[i]; // Standard-Position im ROM
+            this.kernalRom[0x0A31 + i] = safeIrqReturn[i]; 
         }
 
         const safeNmiReturn = [0xAD, 0x0D, 0xDD, 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40];
@@ -109,7 +107,6 @@ export class CPU6502 {
             this.kernalRom[0x0A81 + i] = safeNmiReturn[i];
         }
         
-        // Routen der Interrupt-Vektoren abhängig davon, ob das ROM an ist
         let defaultIrq = overlapsKernal ? 0x0220 : 0xEA31;
         let defaultNmi = overlapsKernal ? 0x0240 : 0xEA81;
 
@@ -147,22 +144,18 @@ export class CPU6502 {
         this.rasterCycles = 0;
         this.rasterIrqTarget = 0;
         
-        this.cia1TimerA = 19705;
-        this.cia1TimerALatch = 19705;
-        this.cia1CtrlA = 0x00;   // PSID Standard: Stopped by default
-        this.cia1Icr = 0;
-        this.cia1IrqMask = 0x00; // PSID Standard: Masked by default
+        // PSID Compliance: Timers gestoppt und Masken gecleart
+        this.cia1TimerA = 19705; this.cia1TimerALatch = 19705;
+        this.cia1CtrlA = 0x00;   
+        this.cia1Icr = 0; this.cia1IrqMask = 0x00; 
         this.cia1TimerAUnderflowed = false;
         
-        this.cia2TimerA = 0xFFFF;
-        this.cia2TimerALatch = 0xFFFF;
-        this.cia2CtrlA = 0;
-        this.cia2Icr = 0;
-        this.cia2IrqMask = 0;
+        this.cia2TimerA = 0xFFFF; this.cia2TimerALatch = 0xFFFF;
+        this.cia2CtrlA = 0x00;
+        this.cia2Icr = 0; this.cia2IrqMask = 0x00;
         
-        this.cia2TimerB = 0xFFFF;
-        this.cia2TimerBLatch = 0xFFFF;
-        this.cia2CtrlB = 0;
+        this.cia2TimerB = 0xFFFF; this.cia2TimerBLatch = 0xFFFF;
+        this.cia2CtrlB = 0x00;
 
         this.irqPending = false;
         this.nmiPending = false;
@@ -206,7 +199,6 @@ export class CPU6502 {
 
         let p0001 = this.ram[0x0001] & 0x07;
 
-        // KERNAL ROM Bank Switching ($E000-$FFFF)
         if (addr >= 0xE000) {
             let kernalEnabled = (p0001 & 2) !== 0; 
             if (kernalEnabled) {
@@ -226,8 +218,11 @@ export class CPU6502 {
         if (addr === 0xD012) return this.rasterCounter & 0xFF;
         if (addr === 0xD019) return this.ram[0xD019] | 0x70; 
         
+        // --- CIA-1 READS ($DC00 - $DC0F) ---
         if (addr === 0xDC04) return this.cia1TimerA & 0xFF;
         if (addr === 0xDC05) return (this.cia1TimerA >> 8) & 0xFF;
+        if (addr === 0xDC06) return this.cia1TimerB & 0xFF;
+        if (addr === 0xDC07) return (this.cia1TimerB >> 8) & 0xFF;
         
         if (addr >= 0xDC08 && addr <= 0xDC0B) {
             if (addr === 0xDC0B) {
@@ -257,9 +252,10 @@ export class CPU6502 {
             this.updateIrqState(); 
             return val;
         }
-        if (addr === 0xDC0E) return this.cia1CtrlA;
-        if (addr === 0xDC0F) return this.cia1CtrlB;
+        if (addr === 0xDC0E) return this.cia1CtrlA & 0xEF; // Strobe bit Bit 4 liest immer 0
+        if (addr === 0xDC0F) return this.cia1CtrlB & 0xEF;
         
+        // --- CIA-2 READS ($DD00 - $DD0F) ---
         if (addr >= 0xDD00 && addr <= 0xDD0F) {
             if (addr === 0xDD04) return this.cia2TimerA & 0xFF;
             if (addr === 0xDD05) return (this.cia2TimerA >> 8) & 0xFF;
@@ -273,8 +269,8 @@ export class CPU6502 {
                 this.updateIrqState(); 
                 return val;
             }
-            if (addr === 0xDD0E) return this.cia2CtrlA;
-            if (addr === 0xDD0F) return this.cia2CtrlB;
+            if (addr === 0xDD0E) return this.cia2CtrlA & 0xEF; // Strobe bit Bit 4 liest immer 0
+            if (addr === 0xDD0F) return this.cia2CtrlB & 0xEF;
             return this.ram[addr]; 
         }
         
@@ -290,8 +286,7 @@ export class CPU6502 {
     }
 
     write(addr, val) {
-        this.ram[addr] = val; // Physisch auf echter Hardware fließen Schreibzugriffe IMMER ins RAM!
-        
+        this.ram[addr] = val; 
         if (addr < 0xD000 || addr > 0xDFFF) return;
         
         let p0001 = this.ram[0x0001] & 0x07;
@@ -315,64 +310,64 @@ export class CPU6502 {
             this.ram[0xD01A] = val & 0x0F;
             this.updateIrqState();
         }
+        
+        // --- CIA-1 WRITES ($DC04 - $DC0F) ---
         else if (addr === 0xDC04) {
+            // Schreibzugriff auf Low-Byte aktualisiert NUR den Latch!
             this.cia1TimerALatch = (this.cia1TimerALatch & 0xFF00) | val;
-            if ((this.cia1CtrlA & 0x01) === 0) this.cia1TimerA = (this.cia1TimerA & 0xFF00) | val;
         } else if (addr === 0xDC05) {
+            // Schreibzugriff auf High-Byte lädt bei gestopptem Timer das Gesamtergebnis!
             this.cia1TimerALatch = (this.cia1TimerALatch & 0x00FF) | (val << 8);
-            if ((this.cia1CtrlA & 0x01) === 0) this.cia1TimerA = (this.cia1TimerA & 0x00FF) | (val << 8);
+            if ((this.cia1CtrlA & 0x01) === 0) this.cia1TimerA = this.cia1TimerALatch;
         } else if (addr === 0xDC06) {
             this.cia1TimerBLatch = (this.cia1TimerBLatch & 0xFF00) | val;
-            if ((this.cia1CtrlB & 0x01) === 0) this.cia1TimerB = (this.cia1TimerB & 0xFF00) | val;
         } else if (addr === 0xDC07) {
             this.cia1TimerBLatch = (this.cia1TimerBLatch & 0x00FF) | (val << 8);
-            if ((this.cia1CtrlB === 0x01) === 0) this.cia1TimerB = (this.cia1TimerB & 0x00FF) | (val << 8);
-        } else if (addr === 0xDD0D) {
-            let bit7 = (val & 0x80) !== 0;
-            let maskBits = val & 0x1F;
-            if (bit7) this.cia2IrqMask |= maskBits;
-            else this.cia2IrqMask &= ~maskBits;
-            this.updateIrqState();
+            if ((this.cia1CtrlB & 0x01) === 0) this.cia1TimerB = this.cia1TimerBLatch;
         } else if (addr === 0xDC0D) {
             let bit7 = (val & 0x80) !== 0;
             let maskBits = val & 0x1F;
-            if (bit7) {
-                this.cia1IrqMask |= maskBits;  
-            } else {
-                this.cia1IrqMask &= ~maskBits; 
-            }
+            if (bit7) this.cia1IrqMask |= maskBits;
+            else this.cia1IrqMask &= ~maskBits;
             this.updateIrqState();
         } else if (addr === 0xDC0E) {
-            this.cia1CtrlA = val;
-            if (val & 0x10) this.cia1TimerA = this.cia1TimerALatch === 0 ? 0xFFFF : this.cia1TimerALatch; 
+            this.cia1CtrlA = val & 0xEF; // Strobe Bit 4 maskieren
+            if (val & 0x10) this.cia1TimerA = this.cia1TimerALatch; // Force Load
         } else if (addr === 0xDC0F) {
-            this.cia1CtrlB = val; 
-            if (val & 0x10) this.cia1TimerB = this.cia1TimerBLatch === 0 ? 0xFFFF : this.cia1TimerBLatch;
+            this.cia1CtrlB = val & 0xEF; 
+            if (val & 0x10) this.cia1TimerB = this.cia1TimerBLatch;
         }
+        
+        // --- CIA-2 WRITES ($DD00 - $DD0F) ---
         else if (addr >= 0xDD00 && addr <= 0xDD0F) {
             if (addr === 0xDD04) {
+                // Low-Byte schreibt NUR in den Latch
                 this.cia2TimerALatch = (this.cia2TimerALatch & 0xFF00) | val;
-                if ((this.cia2CtrlA & 0x01) === 0) this.cia2TimerA = (this.cia2TimerA & 0xFF00) | val;
             } else if (addr === 0xDD05) {
+                // High-Byte lädt den Timer, falls er gestoppt ist
                 this.cia2TimerALatch = (this.cia2TimerALatch & 0x00FF) | (val << 8);
-                if ((this.cia2CtrlA & 0x01) === 0) this.cia2TimerA = (this.cia2TimerA & 0x00FF) | (val << 8);
+                if ((this.cia2CtrlA & 0x01) === 0) this.cia2TimerA = this.cia2TimerALatch;
             } else if (addr === 0xDD06) {
                 this.cia2TimerBLatch = (this.cia2TimerBLatch & 0xFF00) | val;
-                if ((this.cia2CtrlB & 0x01) === 0) this.cia2TimerB = (this.cia2TimerB & 0xFF00) | val;
             } else if (addr === 0xDD07) {
                 this.cia2TimerBLatch = (this.cia2TimerBLatch & 0x00FF) | (val << 8);
-                if ((this.cia2CtrlB === 0x01) === 0) this.cia2TimerB = (this.cia2TimerB & 0x00FF) | (val << 8);
+                if ((this.cia2CtrlB & 0x01) === 0) this.cia2TimerB = this.cia2TimerBLatch;
+            } else if (addr === 0xDD0D) {
+                let bit7 = (val & 0x80) !== 0;
+                let maskBits = val & 0x1F;
+                if (bit7) this.cia2IrqMask |= maskBits;
+                else this.cia2IrqMask &= ~maskBits;
+                this.updateIrqState();
             } else if (addr === 0xDD0E) {
-                this.cia2CtrlA = val;
-                if (val & 0x10) this.cia2TimerA = this.cia2TimerALatch === 0 ? 0xFFFF : this.cia2TimerALatch;
+                this.cia2CtrlA = val & 0xEF; // Strobe Bit 4 maskieren
+                if (val & 0x10) this.cia2TimerA = this.cia2TimerALatch; // Force Load
             } else if (addr === 0xDD0F) {
-                this.cia2CtrlB = val;
-                if (val & 0x10) this.cia2TimerB = this.cia2TimerBLatch === 0 ? 0xFFFF : this.cia2TimerBLatch;
+                this.cia2CtrlB = val & 0xEF;
+                if (val & 0x10) this.cia2TimerB = this.cia2TimerBLatch;
             }
             return;
         }
     }
-
 
     updateIrqState(cycleIndex = 0, totalCycles = 1) {
         let vicIrq = (this.ram[0xD019] & this.ram[0xD01A] & 0x0F) !== 0;
@@ -381,6 +376,7 @@ export class CPU6502 {
         
         this.irqPending = vicIrq || ciaIrq;
         
+        // CIA-2 NMI Flankenerkennung
         if (cia2Nmi && !this.prevNmiLine) {
             this.nmiPending = true;
         }
@@ -407,7 +403,7 @@ export class CPU6502 {
         this.nmiPending = false; 
         this.push(this.pc >> 8);
         this.push(this.pc & 0xFF);
-        this.push((this.p & 0xEF) | 0x20);
+        this.push((this.p & 0xEF) | 0x20); // B-Flag 0, Unused Bit 5 = 1
         this.p |= 0x04;
         this.pc = this.read(0xFFFA) | (this.read(0xFFFB) << 8);
     }
@@ -423,14 +419,15 @@ export class CPU6502 {
         for (let i = 0; i < cycles; i++) {
             let timerBUnderflowTriggered = false;
 
+            // --- CIA-1 TIMER A ---
             if (this.cia1CtrlA & 0x01) { 
                 this.cia1TimerA--;
                 if (this.cia1TimerA < 0) {
                     this.cia1Icr |= 0x01; 
-                    this.cia1TimerA = this.cia1TimerALatch === 0 ? 0xFFFF : this.cia1TimerALatch;
+                    this.cia1TimerA = this.cia1TimerALatch;
                     this.cia1TimerAUnderflowed = true;
 
-                    if (this.cia1CtrlA & 0x08) this.cia1CtrlA &= ~0x01; 
+                    if (this.cia1CtrlA & 0x08) this.cia1CtrlA &= ~0x01; // One-Shot
                     this.updateIrqState(i, cycles);
 
                     if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x40)) {
@@ -440,14 +437,28 @@ export class CPU6502 {
                 }
             }
 
+            // --- CIA-1 TIMER B ---
+            if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x00)) {
+                this.cia1TimerB--;
+                if (this.cia1TimerB < 0) timerBUnderflowTriggered = true;
+            }
+
+            if (timerBUnderflowTriggered) {
+                this.cia1Icr |= 0x02; 
+                this.cia1TimerB = this.cia1TimerBLatch;
+                if (this.cia1CtrlB & 0x08) this.cia1CtrlB &= ~0x01; 
+                this.updateIrqState(i, cycles);
+            }
+
+            // --- CIA-2 TIMER A ---
             let cia2TimerBUnderflow = false;
             if (this.cia2CtrlA & 0x01) { 
                 this.cia2TimerA--;
                 if (this.cia2TimerA < 0) {
                     this.cia2Icr |= 0x01; 
-                    this.cia2TimerA = this.cia2TimerALatch === 0 ? 0xFFFF : this.cia2TimerALatch;
+                    this.cia2TimerA = this.cia2TimerALatch;
                     
-                    if (this.cia2CtrlA & 0x08) this.cia2CtrlA &= ~0x01; 
+                    if (this.cia2CtrlA & 0x08) this.cia2CtrlA &= ~0x01; // One-Shot
                     this.updateIrqState(i, cycles);
 
                     if ((this.cia2CtrlB & 0x01) && ((this.cia2CtrlB & 0x60) === 0x40)) {
@@ -457,6 +468,7 @@ export class CPU6502 {
                 }
             }
 
+            // --- CIA-2 TIMER B ---
             if ((this.cia2CtrlB & 0x01) && ((this.cia2CtrlB & 0x60) === 0x00)) {
                 this.cia2TimerB--;
                 if (this.cia2TimerB < 0) cia2TimerBUnderflow = true;
@@ -464,24 +476,8 @@ export class CPU6502 {
 
             if (cia2TimerBUnderflow) {
                 this.cia2Icr |= 0x02; 
-                this.cia2TimerB = this.cia2TimerBLatch === 0 ? 0xFFFF : this.cia2TimerBLatch;
+                this.cia2TimerB = this.cia2TimerBLatch;
                 if (this.cia2CtrlB & 0x08) this.cia2CtrlB &= ~0x01; 
-                this.updateIrqState(i, cycles);
-            }
-
-            if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x00)) {
-                this.cia1TimerB--;
-                if (this.cia1TimerB < 0) {
-                    timerBUnderflowTriggered = true;
-                }
-            }
-
-            if (timerBUnderflowTriggered) {
-                this.cia1Icr |= 0x02; 
-                this.cia1TimerB = this.cia1TimerBLatch === 0 ? 0xFFFF : this.cia1TimerBLatch;
-                if (this.cia1CtrlB & 0x08) { 
-                    this.cia1CtrlB &= ~0x01; 
-                }
                 this.updateIrqState(i, cycles);
             }
 
