@@ -36,8 +36,9 @@ for (let i = 0; i < 2048; i++) {
 }
 
 // 3. GENERATE PWM COMPARATOR OFFSET (4096 Entries)
+// NMOS comparator offset & FET propagation delay in MOS 6581
 for (let i = 0; i < 4096; i++) {
     let shifted = i + 76; 
-    if (shifted > 4095) shifted = 4095;
+    if (shifted > 4096) shifted = 4096;
     PWM_LUT[i] = shifted;
 }

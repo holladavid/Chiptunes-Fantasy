@@ -2,9 +2,11 @@
 // =========================================================
 // MOS 6581 WAVEFORM GENERATOR & BIT-LOGIC
 // Hardware-accurate 8-Bit DAC quantization & Floating DC Bias
-// Phase 4: NMOS Transistor Bit-Weighted Pull-Down (Wire-AND Bleed)
+// Phase 5: PWM_LUT NMOS Comparator Integration & Wire-AND Bleed
 // 100% Integer Bitwise Operations (Zero Allocations / Zero Floats)
 // =========================================================
+
+import { PWM_LUT } from './sid-luts.js';
 
 export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
     let hasWave = false;
@@ -26,7 +28,9 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
 
     if (ctrl & 64) {
         let testPhase = (phase24 >> 12) & 0xFFF;
-        pulse = (testPhase <= pw12) ? 0xFF : 0x00;
+        // Map 12-bit PW value through NMOS comparator LUT with strict < threshold
+        let pwMapped = PWM_LUT[pw12 & 0xFFF];
+        pulse = (testPhase < pwMapped) ? 0xFF : 0x00;
         hasWave = true;
     }
 
