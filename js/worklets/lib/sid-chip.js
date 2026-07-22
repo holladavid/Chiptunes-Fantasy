@@ -1,9 +1,9 @@
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Final Chiptunes Fantasy Edition: 100% Unconditionally Stable SVF
-// Features Silicon Lottery Offsets, Breathing High-Q Resonance,
-// Register Micro-Glide, MSB-Replace Ring Mod & True Analog Combinations.
+// Phase 35: Zero-Lag Instantaneous Register Updates
+// Eliminates register smoothing lag to restore Huelsbeck's fast
+// ADSR attacks, continuous PWM sweeps & glassy lead transients.
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -23,9 +23,7 @@ export class SIDChip {
         this.voices = [];
         for (let i = 0; i < 3; i++) {
             this.voices.push({
-                freq: 0, target_freq: 0, 
-                pw: 2048, target_pw: 2048,
-                ctrl: 0, env: 0, phase: 0,
+                freq: 0, pw: 2048, ctrl: 0, env: 0, phase: 0,
                 state: ENV_RELEASE, prevGate: false,
                 waveOut8Bit: 0x18, 
                 env8Bit: 0, lfsr: 0x7FFFFF,
@@ -49,7 +47,6 @@ export class SIDChip {
         this.activeCutoff = 30.0;
         
         // Silicon Lottery VCF Offset (+/- 40Hz)
-        // Gives each chip instance a unique, imperfect analog character.
         this.vcfOffset = (Math.random() - 0.5) * 80.0;
 
         this._temperature = 55.0;
@@ -82,10 +79,8 @@ export class SIDChip {
         let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
         
         // Balanced 6581 FET Cutoff Curve: Provides open midrange (850Hz - 3500Hz)
-        // for low register values so filtered basslines retain harmonic clarity.
-        let fetCurve = 120.0 + 1200.0 * norm + 7000.0 * (norm * norm) + 7680.0 * (norm * norm * norm);
+        let fetCurve = 30.0 + 400.0 * norm + 7200.0 * (norm * norm) + 7680.0 * (norm * norm * norm);
         
-        // Add inherent chip static offset
         this.activeCutoff = Math.max(30.0, Math.min(16000.0, fetCurve * thermalCoefficient + this.vcfOffset));
 
         let baseG = Math.PI * this.activeCutoff / 985248;
@@ -104,7 +99,6 @@ export class SIDChip {
         this.thermalJfetDrive = 0.8 * (1.0 - (this._temperature - 55.0) * 0.004);
         if (this.thermalJfetDrive < 0.1) this.thermalJfetDrive = 0.1; 
 
-        // Thermal VCA leakage and bias pre-calculations
         let tempNorm = (this._temperature - 15.0) / 40.0;
         this.thermalVoiceDcLeakage = 0.003 + Math.pow(Math.max(0.0, tempNorm), 1.6) * 0.012;
         this.thermalMasterDcBias = 0.45 + (this._temperature - 55.0) * 0.002;
@@ -119,9 +113,9 @@ export class SIDChip {
             let ch = this.voices[vIdx];
             let base = vIdx * 7;
             
-            // Write to TARGET registers. Slew is applied during clocking.
-            ch.target_freq = this.regs[base] | (this.regs[base+1] << 8);
-            ch.target_pw = this.regs[base+2] | ((this.regs[base+3] & 15) << 8);
+            // Immediate 100% instantaneous hardware register updates (NO SMOOTHING / NO GLIDE)
+            ch.freq = this.regs[base] | (this.regs[base+1] << 8);
+            ch.pw = this.regs[base+2] | ((this.regs[base+3] & 15) << 8);
             
             let prevCtrl = ch.ctrl;
             ch.ctrl = this.regs[base+4];
@@ -226,13 +220,9 @@ export class SIDChip {
     synthesizeVoiceOneCycle(v) {
         let ch = this.voices[v];
 
-        // Analog Register Latency (Micro-Glide)
-        // Extremely fast arpeggios melt together microscopically, eliminating digital clicking.
-        ch.freq += (ch.target_freq - ch.freq) * 0.35;
-        ch.pw += (ch.target_pw - ch.pw) * 0.35;
-        
-        let freqInt = Math.round(ch.freq);
-        let pwInt = Math.round(ch.pw);
+        // 100% Instantaneous hardware registers (Zero lag/smoothing for sharp attack transients and exact PWM)
+        let freqInt = ch.freq;
+        let pwInt = ch.pw;
 
         if ((ch.ctrl & 8) === 0) {
             let oldAcc = ch.phase;
@@ -250,16 +240,21 @@ export class SIDChip {
             if (!oldStep && newStep) {
                 let bit = ((ch.lfsr >> 22) ^ (ch.lfsr >> 17)) & 1;
 
-                // Combined Waveform Noise LFSR Lockup
-                // When Noise (bit 7) is combined with Saw/Pulse/Tri (bits 4-6),
-                // NMOS bus pull-down forces the shift feedback bit to 0 during low phases.
-                if ((ch.ctrl & 0x80) && (ch.ctrl & 0x70) !== 0) {
-                    let testPhase = (ch.phase >> 12) & 0xFFF;
-                    let pwMapped = PWM_LUT[pwInt & 0xFFF];
-                    let isPulseLow = (ch.ctrl & 0x40) && (testPhase >= pwMapped);
-                    
-                    if (isPulseLow || (ch.ctrl & 0x30)) {
-                        bit = 0; // Forced feedback suppression -> LFSR drains to 0
+                // Physical MOS 6581 Combined Waveform LFSR Feedback Suppression:
+                // Feedback bit is suppressed ONLY during the low phase of the accompanying wave.
+                if (ch.ctrl & 0x80) {
+                    let combined = ch.ctrl & 0x70;
+                    if (combined !== 0) {
+                        let testPhase = (ch.phase >> 12) & 0xFFF;
+                        let pwMapped = PWM_LUT[pwInt & 0xFFF];
+                        
+                        let isPulseLow = (ch.ctrl & 0x40) && (testPhase >= pwMapped);
+                        let isSawLow   = (ch.ctrl & 0x20) && ((ch.phase & 0x800000) === 0);
+                        let isTriLow   = (ch.ctrl & 0x10) && ((ch.phase & 0x400000) === 0);
+
+                        if (isPulseLow || isSawLow || isTriLow) {
+                            bit = 0; // Forced feedback suppression only during low wave phases
+                        }
                     }
                 }
 
@@ -270,10 +265,12 @@ export class SIDChip {
         }
 
         // Physical MOS 6581 Ring Modulation:
-        // When Ring Mod (bit 2) is active, the voice's own MSB is REPLACED by the carrier voice's MSB.
+        // Substitutes the voice's MSB with the EXCLUSIVE-OR of its own MSB and the carrier's MSB.
         let prevIdx = v === 0 ? 2 : v - 1;
         let prevCh = this.voices[prevIdx];
-        let ringMSB = (ch.ctrl & 4) ? ((prevCh.phase >> 23) & 1) : ((ch.phase >> 23) & 1);
+        let ownMSB = (ch.phase >> 23) & 1;
+        let prevMSB = (prevCh.phase >> 23) & 1;
+        let ringMSB = (ch.ctrl & 4) ? (ownMSB ^ prevMSB) : ownMSB;
 
         let hasWave = (ch.ctrl & 0xF0) !== 0;
         if (hasWave) {
@@ -323,7 +320,7 @@ export class SIDChip {
 
         let g = this.g;
         let q = this.q;
-        
+
         // Dynamic resonance shaping across frequency range (Resonance Quenching & Mid-Range Squelch)
         if (this.activeCutoff < 250.0) {
             let damp = (250.0 - this.activeCutoff) / 250.0; 
@@ -331,15 +328,12 @@ export class SIDChip {
         } else if (this.activeCutoff > 4500.0) {
             let damp = (this.activeCutoff - 4500.0) / 1700.0;
             // "Breathing" resonance at high cutoffs for glassy instability
-            // Uses Voice 0's LFSR noise to organically flutter the Q-factor
             let breath = ((this.voices[0].lfsr & 0xFF) / 255.0 - 0.5) * 0.06;
             q += damp * (0.20 + breath); 
         }
 
         // =========================================================
         // 100% UNCONDITIONALLY STABLE EXPLICIT CHAMBERLIN SVF (1 MHz)
-        // Divisor (1 + g*(g+q)) bounds poles analytically, completely 
-        // eliminating iterative limit cycles and "blubbern".
         // =========================================================
         let h = filteredSum - this.filterLow;
         let hp = (h - q * this.filterBand) / (1.0 + g * (g + q));
@@ -362,7 +356,6 @@ export class SIDChip {
             this.filterBand = bp / (1.0 + Math.abs(bp) * 0.15); 
         }
 
-        // Restore 1:1 Lowpass gain balance so master VCA saturation does not compress voice 2
         let outLP = (this.filterMode & 16) ? this.filterLow : 0;
         let outBP = (this.filterMode & 32) ? this.filterBand : 0;
         let outHP = (this.filterMode & 64) ? hp : 0;
@@ -377,7 +370,7 @@ export class SIDChip {
         let filteredMix = filterOut + leakage;
 
         let rawSum = unfilteredSum + filteredMix;
-        
+
         // Expand linear headroom (0.28x) so loud basslines don't crush the delicate synths
         let vcaIn = rawSum * 0.28; 
         
