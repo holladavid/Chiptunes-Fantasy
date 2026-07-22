@@ -1,8 +1,8 @@
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Phase 31: 100% Unconditionally Stable Explicit SVF Filter
-// Integrated Balanced Cutoff Curve, LFSR Lockup & Thermal DC-Bias
+// Phase 32: Physical MSB-Replacement Ring Modulation
+// Corrects Chris Huelsbeck's glassy lead sound in Giana Sisters
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -74,10 +74,9 @@ export class SIDChip {
 
         let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
         
-        // Calibrated 6581 FET Cutoff Curve: Trimmed low-end offset (60Hz base)
-        // to eliminate boomy sub-bass mud while keeping midrange harmonics (1.2kHz - 3.2kHz) open.
-        let fetCurve = 60.0 + 600.0 * norm + 7800.0 * (norm * norm) + 7500.0 * (norm * norm * norm);
-
+        // Calibrated 6581 FET Cutoff Curve: Natural 30Hz base floor for tight, clean bass
+        let fetCurve = 30.0 + 400.0 * norm + 7200.0 * (norm * norm) + 7680.0 * (norm * norm * norm);
+        
         this.activeCutoff = Math.max(30.0, Math.min(16000.0, fetCurve * thermalCoefficient));
 
         let baseG = Math.PI * this.activeCutoff / 985248;
@@ -250,12 +249,11 @@ export class SIDChip {
             ch.msbRisingEdge = false;
         }
 
-        let ringMSB = (ch.phase >> 23) & 1;
-        if ((ch.ctrl & 4) !== 0) { 
-            let prevIdx = v === 0 ? 2 : v - 1;
-            let prevCh = this.voices[prevIdx];
-            ringMSB ^= (prevCh.phase >> 23) & 1;
-        }
+        // Physical MOS 6581 Ring Modulation:
+        // When Ring Mod (bit 2) is active, the voice's own MSB is REPLACED by the carrier voice's MSB.
+        let prevIdx = v === 0 ? 2 : v - 1;
+        let prevCh = this.voices[prevIdx];
+        let ringMSB = (ch.ctrl & 4) ? ((prevCh.phase >> 23) & 1) : ((ch.phase >> 23) & 1);
 
         let hasWave = (ch.ctrl & 0xF0) !== 0;
         if (hasWave) {
@@ -355,12 +353,15 @@ export class SIDChip {
         let filteredMix = filterOut + leakage;
 
         let rawSum = unfilteredSum + filteredMix;
-        let vcaIn = rawSum * 0.42; 
+
+        // Expand master VCA linear headroom (0.28x) so loud basslines do not compress
+        // delicate high-frequency arpeggios and guitar/banjo plucks (Giana Highscore).
+        let vcaIn = rawSum * 0.28; 
         
         let vcaQuad = this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0;
         
         let acSaturated = Math.tanh(vcaIn + vcaQuad);
-        let finalMix = acSaturated + this.thermalMasterDcBias;
+        let finalMix = (acSaturated * 1.35) + this.thermalMasterDcBias;
 
         this.outputSample = (finalMix * this.masterVol) + this.thermalDcOffset;
     }
