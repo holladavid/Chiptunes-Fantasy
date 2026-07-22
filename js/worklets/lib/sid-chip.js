@@ -1,8 +1,8 @@
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Phase 26: Asymmetric NMOS JFET Saturation & Real CUTOFF_LUT Integration
-// Restores authentic 5.8kHz FET cutoff boundary & wet resonant "schmatzen"
+// Preserved Open Baseline VCF Filter Response with Integrated
+// Silicon Upgrades (LFSR Lockup, Voice 3 Leakage, Thermal VCA Bias)
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -51,13 +51,13 @@ export class SIDChip {
         this.thermalLeakage = 0.03; 
         this.thermalDcOffset = 0.0;
         this.thermalJfetDrive = 0.8;
-        
-        // Trick 3: Thermally modulated VCA properties
+
+        // Thermal VCA Properties
         this.thermalVoiceDcLeakage = 0.012;
         this.thermalMasterDcBias = 0.45;
 
         this.volWiggleActivity = 0.0;
-        this.d418Writes = 0;
+        this.d418Writes = 0; 
 
         this.updateFilterParameters();
     }
@@ -70,19 +70,21 @@ export class SIDChip {
 
     updateFilterParameters() {
         let cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
-        
-        // Bind cutoff directly to measured physical 6581 JFET LUT (30Hz - 5800Hz)
-        let baseCutoff = CUTOFF_LUT[cutoffReg];
+        let norm = cutoffReg / 2047.0;
+
         let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
+        let fetCurve = 30.0 + 250.0 * norm + 8000.0 * (norm * norm) + 8000.0 * (norm * norm * norm);
         
-        this.activeCutoff = Math.max(30.0, Math.min(6500.0, baseCutoff * thermalCoefficient));
+        this.activeCutoff = fetCurve * thermalCoefficient;
+        if (this.activeCutoff < 30) this.activeCutoff = 30;
+        if (this.activeCutoff > 16000) this.activeCutoff = 16000;
 
         let baseG = Math.PI * this.activeCutoff / 985248;
         this.g = baseG * (1.0 + (this._temperature - 55.0) * 0.0005);
         
         let resReg = this.regs[23] >> 4;
         let normRes = resReg / 15.0;
-        let q = 1.0 - normRes * 0.955;
+        let q = 1.0 - normRes * 0.945;
         let thermalDamp = 1.0 + (this._temperature - 55.0) * 0.0015;
         this.q = Math.min(1.0, Math.max(0.035, q * thermalDamp));
 
@@ -93,8 +95,8 @@ export class SIDChip {
         this.thermalJfetDrive = 0.8 * (1.0 - (this._temperature - 55.0) * 0.004);
         if (this.thermalJfetDrive < 0.1) this.thermalJfetDrive = 0.1; 
 
-        // Trick 3: Non-linear thermal modulation of voice VCA DC leakage offset and master VCA bias
-        let tempNorm = (this._temperature - 15.0) / 40.0; // 0.0 at 15°C, 1.0 at 55°C, 1.5 at 75°C
+        // Thermal VCA leakage and bias pre-calculations
+        let tempNorm = (this._temperature - 15.0) / 40.0;
         this.thermalVoiceDcLeakage = 0.003 + Math.pow(Math.max(0.0, tempNorm), 1.6) * 0.012;
         this.thermalMasterDcBias = 0.45 + (this._temperature - 55.0) * 0.002;
     }
@@ -229,10 +231,9 @@ export class SIDChip {
             if (!oldStep && newStep) {
                 let bit = ((ch.lfsr >> 22) ^ (ch.lfsr >> 17)) & 1;
 
-                // Trick 2: Combined Waveform Noise LFSR Lockup
+                // Combined Waveform Noise LFSR Lockup
                 // When Noise (bit 7) is combined with Saw/Pulse/Tri (bits 4-6),
                 // NMOS bus pull-down forces the shift feedback bit to 0 during low phases.
-                // This drains the 23-bit shift register to 0 (Lockup) until re-seeded by Test Bit.
                 if ((ch.ctrl & 0x80) && (ch.ctrl & 0x70) !== 0) {
                     let testPhase = (ch.phase >> 12) & 0xFFF;
                     let pwMapped = PWM_LUT[ch.pw & 0xFFF];
@@ -272,8 +273,7 @@ export class SIDChip {
         
         waveOutFloat = waveOutFloat * this.thermalDacGain + this.thermalDacOffset;
         
-        // Trick 3: Inject thermally modulated Voice VCA DC offset before envelope multiplication.
-        // Opening envelope multiplies the DC offset, creating physical Note-On transient pops scaling with temperature.
+        // Inject thermally modulated Voice VCA DC offset before envelope multiplication
         return (waveOutFloat + this.thermalVoiceDcLeakage) * envDac;
     }
 
@@ -305,38 +305,26 @@ export class SIDChip {
 
         let g = this.g;
 
-        // Trick 1: Parasitic Voice 3 VCF Cutoff Modulation (Substrate Power Rail Droop)
-        // Voice 3's output voltage bleeds into the JFET gate control bias,
-        // modulating filter integrator gain 'g' by ~1.2% even when Voice 3 is muted (isVoice3Off).
+        // Parasitic Voice 3 VCF Cutoff Modulation (Substrate Power Rail Droop)
         g *= (1.0 + voice2 * 0.012);
 
         let q = this.q;
-
-        // Dynamic resonance shaping across frequency range (Resonance Quenching & Mid-Range Squelch)
-        if (this.activeCutoff < 600.0) {
-            // Low-frequency quenching: FET channel resistance rises, dampening feedback
-            let damp = (600.0 - this.activeCutoff) / 600.0; 
-            q += damp * 0.45; 
-        } else if (this.activeCutoff > 3500.0) {
-            // High-frequency dampening near the 5.8kHz NMOS boundary
-            let damp = (this.activeCutoff - 3500.0) / 2300.0;
-            q += damp * 0.35; 
+        
+        if (this.activeCutoff < 800.0) {
+            let damp = (800.0 - this.activeCutoff) / 800.0; 
+            q += damp * 0.55; 
+        } else if (this.activeCutoff > 10000.0) {
+            let damp = (this.activeCutoff - 10000.0) / 6000.0;
+            q += damp * 0.8; 
         }
 
         let h = filteredSum - this.filterLow;
         let hp = (h - q * this.filterBand) / (1.0 + g * (g + q));
 
         if (this.useJfetSaturation) {
-            let qDrive = 1.0 / (q + 0.08); 
-            let summerDrive = this.thermalJfetDrive * (1.1 + qDrive * 0.18); 
-            
-            // Asymmetric NMOS Summer Op-Amp Saturation (Generates 2nd & 4th harmonics for wet squelch)
-            let dx = hp * summerDrive;
-            if (dx < 0) {
-                hp = Math.tanh(dx + 0.14 * dx * dx) / summerDrive;
-            } else {
-                hp = Math.tanh(dx - 0.06 * dx * dx) / summerDrive;
-            }
+            let qDrive = 1.0 / (q + 0.1); 
+            let summerDrive = this.thermalJfetDrive * (1.2 + qDrive * 0.15); 
+            hp = Math.tanh(hp * summerDrive) / summerDrive;
         }
 
         let bp = this.filterBand + g * hp;
@@ -345,14 +333,8 @@ export class SIDChip {
         this.filterLow = lp;
         
         if (this.useJfetSaturation) {
-            // Asymmetric Bandpass Integrator Saturation
             let driveP = this.thermalJfetDrive * 0.65;
-            let dbp = bp * driveP;
-            if (dbp < 0) {
-                this.filterBand = Math.tanh(dbp + 0.10 * dbp * dbp) / driveP;
-            } else {
-                this.filterBand = Math.tanh(dbp - 0.04 * dbp * dbp) / driveP;
-            }
+            this.filterBand = Math.tanh(bp * driveP) / driveP;
         } else {
             this.filterBand = bp / (1.0 + Math.abs(bp) * 0.15); 
         }
@@ -362,9 +344,7 @@ export class SIDChip {
         let outHP = (this.filterMode & 64) ? hp : 0;
 
         if ((this.filterMode & 80) === 80) { 
-            // Mode $50 (Notch Filter = LP + HP):
-            // Emulates non-ideal op-amp phase cancellation for Rob Hubbard's phaser sweeps
-            outHP *= 0.88; 
+            outHP *= 0.85; 
         }
 
         let filterOut = outLP + outBP + outHP;
@@ -378,8 +358,6 @@ export class SIDChip {
         let vcaQuad = this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0;
         
         let acSaturated = Math.tanh(vcaIn + vcaQuad);
-        
-        // Trick 3: Apply pre-calculated thermally biased Master VCA DC level
         let finalMix = acSaturated + this.thermalMasterDcBias;
 
         this.outputSample = (finalMix * this.masterVol) + this.thermalDcOffset;
