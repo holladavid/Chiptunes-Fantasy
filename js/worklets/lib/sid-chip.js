@@ -6,7 +6,7 @@
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
-import { DAC_LUT, CUTOFF_LUT } from './sid-luts.js';
+import { DAC_LUT, CUTOFF_LUT, PWM_LUT } from './sid-luts.js';
 
 const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_RELEASE = 2; 
 const RATE_COUNTER_PERIOD = [9, 32, 63, 95, 149, 220, 267, 313, 392, 977, 1954, 3126, 3907, 11720, 19530, 31256];
@@ -228,6 +228,21 @@ export class SIDChip {
             let newStep = ch.phase & 0x080000;
             if (!oldStep && newStep) {
                 let bit = ((ch.lfsr >> 22) ^ (ch.lfsr >> 17)) & 1;
+
+                // Trick 2: Combined Waveform Noise LFSR Lockup
+                // When Noise (bit 7) is combined with Saw/Pulse/Tri (bits 4-6),
+                // NMOS bus pull-down forces the shift feedback bit to 0 during low phases.
+                // This drains the 23-bit shift register to 0 (Lockup) until re-seeded by Test Bit.
+                if ((ch.ctrl & 0x80) && (ch.ctrl & 0x70) !== 0) {
+                    let testPhase = (ch.phase >> 12) & 0xFFF;
+                    let pwMapped = PWM_LUT[ch.pw & 0xFFF];
+                    let isPulseLow = (ch.ctrl & 0x40) && (testPhase >= pwMapped);
+                    
+                    if (isPulseLow || (ch.ctrl & 0x30)) {
+                        bit = 0; // Forced feedback suppression -> LFSR drains to 0
+                    }
+                }
+
                 ch.lfsr = ((ch.lfsr << 1) & 0x7FFFFF) | bit;
             }
         } else {
