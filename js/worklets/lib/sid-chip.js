@@ -68,38 +68,36 @@ export class SIDChip {
         this.updateFilterParameters();
     }
 
-    updateFilterParameters() {
-        let cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
-        let norm = cutoffReg / 2047.0;
+updateFilterParameters() {
+    let cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
+    
+    // Bind cutoff directly to physical 6581 S-curve JFET LUT (30Hz - 6200Hz)
+    let baseCutoff = CUTOFF_LUT[cutoffReg];
+    let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
+    
+    this.activeCutoff = Math.max(30.0, Math.min(6800.0, baseCutoff * thermalCoefficient));
 
-        let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
-        let fetCurve = 30.0 + 250.0 * norm + 8000.0 * (norm * norm) + 8000.0 * (norm * norm * norm);
-        
-        this.activeCutoff = fetCurve * thermalCoefficient;
-        if (this.activeCutoff < 30) this.activeCutoff = 30;
-        if (this.activeCutoff > 16000) this.activeCutoff = 16000;
+    let baseG = Math.PI * this.activeCutoff / 985248;
+    this.g = baseG * (1.0 + (this._temperature - 55.0) * 0.0005);
+    
+    let resReg = this.regs[23] >> 4;
+    let normRes = resReg / 15.0;
+    let q = 1.0 - normRes * 0.945;
+    let thermalDamp = 1.0 + (this._temperature - 55.0) * 0.0015;
+    this.q = Math.min(1.0, Math.max(0.035, q * thermalDamp));
 
-        let baseG = Math.PI * this.activeCutoff / 985248;
-        this.g = baseG * (1.0 + (this._temperature - 55.0) * 0.0005);
-        
-        let resReg = this.regs[23] >> 4;
-        let normRes = resReg / 15.0;
-        let q = 1.0 - normRes * 0.945;
-        let thermalDamp = 1.0 + (this._temperature - 55.0) * 0.0015;
-        this.q = Math.min(1.0, Math.max(0.035, q * thermalDamp));
+    this.thermalDacGain = 1.0 - (this._temperature - 55.0) * 0.0008;
+    this.thermalDacOffset = (this._temperature - 55.0) * 0.0003;
+    this.thermalLeakage = 0.09 + (this._temperature - 25.0) * 0.0008;
+    this.thermalDcOffset = (this._temperature - 55.0) * 0.005;
+    this.thermalJfetDrive = 0.8 * (1.0 - (this._temperature - 55.0) * 0.004);
+    if (this.thermalJfetDrive < 0.1) this.thermalJfetDrive = 0.1; 
 
-        this.thermalDacGain = 1.0 - (this._temperature - 55.0) * 0.0008;
-        this.thermalDacOffset = (this._temperature - 55.0) * 0.0003;
-        this.thermalLeakage = 0.09 + (this._temperature - 25.0) * 0.0008;
-        this.thermalDcOffset = (this._temperature - 55.0) * 0.005;
-        this.thermalJfetDrive = 0.8 * (1.0 - (this._temperature - 55.0) * 0.004);
-        if (this.thermalJfetDrive < 0.1) this.thermalJfetDrive = 0.1; 
-
-        // Thermal VCA leakage and bias pre-calculations
-        let tempNorm = (this._temperature - 15.0) / 40.0;
-        this.thermalVoiceDcLeakage = 0.003 + Math.pow(Math.max(0.0, tempNorm), 1.6) * 0.012;
-        this.thermalMasterDcBias = 0.45 + (this._temperature - 55.0) * 0.002;
-    }
+    // Thermal VCA leakage and bias pre-calculations
+    let tempNorm = (this._temperature - 15.0) / 40.0;
+    this.thermalVoiceDcLeakage = 0.003 + Math.pow(Math.max(0.0, tempNorm), 1.6) * 0.012;
+    this.thermalMasterDcBias = 0.45 + (this._temperature - 55.0) * 0.002;
+}
 
     writeReg(reg, val) {
         if (reg >= 29) return;
@@ -310,12 +308,13 @@ export class SIDChip {
 
         let q = this.q;
         
-        if (this.activeCutoff < 800.0) {
-            let damp = (800.0 - this.activeCutoff) / 800.0; 
-            q += damp * 0.55; 
-        } else if (this.activeCutoff > 10000.0) {
-            let damp = (this.activeCutoff - 10000.0) / 6000.0;
-            q += damp * 0.8; 
+        // Dynamic resonance shaping across frequency range (Resonance Quenching & Mid-Range Squelch)
+        if (this.activeCutoff < 250.0) {
+            let damp = (250.0 - this.activeCutoff) / 250.0; 
+            q += damp * 0.15; 
+        } else if (this.activeCutoff > 4500.0) {
+            let damp = (this.activeCutoff - 4500.0) / 1700.0;
+            q += damp * 0.20; 
         }
 
         let h = filteredSum - this.filterLow;

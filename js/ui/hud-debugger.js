@@ -465,13 +465,13 @@ export function updateChipHUD(stateGetters) {
         let fcut = (r[21] & 7) | (r[22] << 3);
         let norm = fcut / 2047.0;
 
-        // Cubic JFET transfer curve matching MOS 6581 CUTOFF_LUT (30Hz to 5800Hz)
-        let baseHz = 30.0 + (120.0 * norm) + (2200.0 * norm * norm) + (3450.0 * norm * norm * norm);
-        if (baseHz > 5800.0) baseHz = 5800.0;
+        // S-curve JFET transfer matching MOS 6581 CUTOFF_LUT (30Hz to 6200Hz)
+        let baseHz = 30.0 + (1200.0 * norm) + (7200.0 * norm * norm) - (2230.0 * norm * norm * norm);
+        if (baseHz > 6200.0) baseHz = 6200.0;
 
         // Exponential thermal semiconductor drift matching sid-chip.js
         let thermalCoefficient = Math.exp(-(temp - 55.0) * 0.003);
-        let fhz = Math.max(30.0, Math.min(6500.0, baseHz * thermalCoefficient));
+        let fhz = Math.max(30.0, Math.min(6800.0, baseHz * thermalCoefficient));
 
         document.getElementById('c64-cut-bar').style.width = (fcut / 2047 * 100) + '%';
         document.getElementById('c64-cut-val').innerText = `${Math.round(fhz)} Hz (${temp}°C)`;

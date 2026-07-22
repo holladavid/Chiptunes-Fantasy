@@ -23,15 +23,15 @@ for (let i = 0; i < 256; i++) {
 }
 
 // 2. GENERATE REAL 6581 FILTER CUTOFF CURVE (2048 Entries)
-// Measured MOS 6581 R2/R4 JFET Curve: 30 Hz (Sub-Bass) to ~5800 Hz (Max FET Cutoff)
+// Midrange-preserving S-curve JFET mapping: 30 Hz (Sub-Bass) to ~6200 Hz (Max 6581 NMOS Cutoff)
 for (let i = 0; i < 2048; i++) {
     let norm = i / 2047.0;
     
-    // Cubic JFET transfer curve matching physical 6581 NMOS channel resistance
-    let hz = 30.0 + (120.0 * norm) + (2200.0 * norm * norm) + (3450.0 * norm * norm * norm);
+    // S-curve formula: keeps lowpass wide open (1.2kHz - 3.8kHz) for midrange register values
+    let hz = 30.0 + (1200.0 * norm) + (7200.0 * norm * norm) - (2230.0 * norm * norm * norm);
     
     if (hz < 30) hz = 30;
-    if (hz > 5800) hz = 5800;
+    if (hz > 6200) hz = 6200;
     CUTOFF_LUT[i] = hz;
 }
 
