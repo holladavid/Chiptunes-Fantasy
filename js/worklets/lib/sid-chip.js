@@ -1,12 +1,13 @@
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Phase 32: Physical MSB-Replacement Ring Modulation
-// Corrects Chris Huelsbeck's glassy lead sound in Giana Sisters
+// Final Chiptunes Fantasy Edition: 100% Unconditionally Stable SVF
+// Features Silicon Lottery Offsets, Breathing High-Q Resonance,
+// Register Micro-Glide, MSB-Replace Ring Mod & True Analog Combinations.
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
-import { DAC_LUT, CUTOFF_LUT } from './sid-luts.js';
+import { DAC_LUT, CUTOFF_LUT, PWM_LUT } from './sid-luts.js';
 
 const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_RELEASE = 2; 
 const RATE_COUNTER_PERIOD = [9, 32, 63, 95, 149, 220, 267, 313, 392, 977, 1954, 3126, 3907, 11720, 19530, 31256];
@@ -22,7 +23,9 @@ export class SIDChip {
         this.voices = [];
         for (let i = 0; i < 3; i++) {
             this.voices.push({
-                freq: 0, pw: 2048, ctrl: 0, env: 0, phase: 0,
+                freq: 0, target_freq: 0, 
+                pw: 2048, target_pw: 2048,
+                ctrl: 0, env: 0, phase: 0,
                 state: ENV_RELEASE, prevGate: false,
                 waveOut8Bit: 0x18, 
                 env8Bit: 0, lfsr: 0x7FFFFF,
@@ -44,6 +47,10 @@ export class SIDChip {
         this.g = 0;
         this.q = 1.0;
         this.activeCutoff = 30.0;
+        
+        // Silicon Lottery VCF Offset (+/- 40Hz)
+        // Gives each chip instance a unique, imperfect analog character.
+        this.vcfOffset = (Math.random() - 0.5) * 80.0;
 
         this._temperature = 55.0;
         this.thermalDacGain = 1.0;
@@ -74,10 +81,12 @@ export class SIDChip {
 
         let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
         
-        // Calibrated 6581 FET Cutoff Curve: Natural 30Hz base floor for tight, clean bass
-        let fetCurve = 30.0 + 400.0 * norm + 7200.0 * (norm * norm) + 7680.0 * (norm * norm * norm);
+        // Balanced 6581 FET Cutoff Curve: Provides open midrange (850Hz - 3500Hz)
+        // for low register values so filtered basslines retain harmonic clarity.
+        let fetCurve = 120.0 + 1200.0 * norm + 7000.0 * (norm * norm) + 7680.0 * (norm * norm * norm);
         
-        this.activeCutoff = Math.max(30.0, Math.min(16000.0, fetCurve * thermalCoefficient));
+        // Add inherent chip static offset
+        this.activeCutoff = Math.max(30.0, Math.min(16000.0, fetCurve * thermalCoefficient + this.vcfOffset));
 
         let baseG = Math.PI * this.activeCutoff / 985248;
         this.g = baseG * (1.0 + (this._temperature - 55.0) * 0.0005);
@@ -109,8 +118,10 @@ export class SIDChip {
         if (vIdx < 3) {
             let ch = this.voices[vIdx];
             let base = vIdx * 7;
-            ch.freq = this.regs[base] | (this.regs[base+1] << 8);
-            ch.pw = this.regs[base+2] | ((this.regs[base+3] & 15) << 8);
+            
+            // Write to TARGET registers. Slew is applied during clocking.
+            ch.target_freq = this.regs[base] | (this.regs[base+1] << 8);
+            ch.target_pw = this.regs[base+2] | ((this.regs[base+3] & 15) << 8);
             
             let prevCtrl = ch.ctrl;
             ch.ctrl = this.regs[base+4];
@@ -215,9 +226,17 @@ export class SIDChip {
     synthesizeVoiceOneCycle(v) {
         let ch = this.voices[v];
 
+        // Analog Register Latency (Micro-Glide)
+        // Extremely fast arpeggios melt together microscopically, eliminating digital clicking.
+        ch.freq += (ch.target_freq - ch.freq) * 0.35;
+        ch.pw += (ch.target_pw - ch.pw) * 0.35;
+        
+        let freqInt = Math.round(ch.freq);
+        let pwInt = Math.round(ch.pw);
+
         if ((ch.ctrl & 8) === 0) {
             let oldAcc = ch.phase;
-            let newAcc = (ch.phase + ch.freq) & 0xFFFFFF;
+            let newAcc = (ch.phase + freqInt) & 0xFFFFFF;
 
             let prevIdx = v === 0 ? 2 : v - 1;
             let prevCh = this.voices[prevIdx];
@@ -236,7 +255,8 @@ export class SIDChip {
                 // NMOS bus pull-down forces the shift feedback bit to 0 during low phases.
                 if ((ch.ctrl & 0x80) && (ch.ctrl & 0x70) !== 0) {
                     let testPhase = (ch.phase >> 12) & 0xFFF;
-                    let isPulseLow = (ch.ctrl & 0x40) && (testPhase >= (ch.pw & 0xFFF));
+                    let pwMapped = PWM_LUT[pwInt & 0xFFF];
+                    let isPulseLow = (ch.ctrl & 0x40) && (testPhase >= pwMapped);
                     
                     if (isPulseLow || (ch.ctrl & 0x30)) {
                         bit = 0; // Forced feedback suppression -> LFSR drains to 0
@@ -257,7 +277,7 @@ export class SIDChip {
 
         let hasWave = (ch.ctrl & 0xF0) !== 0;
         if (hasWave) {
-            ch.waveOut8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, ch.pw, ch.lfsr, ringMSB);
+            ch.waveOut8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, pwInt, ch.lfsr, ringMSB);
         } else {
             ch.waveOut8Bit += (0x18 - ch.waveOut8Bit) * 0.00015;
         }
@@ -303,20 +323,23 @@ export class SIDChip {
 
         let g = this.g;
         let q = this.q;
-
+        
         // Dynamic resonance shaping across frequency range (Resonance Quenching & Mid-Range Squelch)
         if (this.activeCutoff < 250.0) {
             let damp = (250.0 - this.activeCutoff) / 250.0; 
             q += damp * 0.15; 
         } else if (this.activeCutoff > 4500.0) {
             let damp = (this.activeCutoff - 4500.0) / 1700.0;
-            q += damp * 0.20; 
+            // "Breathing" resonance at high cutoffs for glassy instability
+            // Uses Voice 0's LFSR noise to organically flutter the Q-factor
+            let breath = ((this.voices[0].lfsr & 0xFF) / 255.0 - 0.5) * 0.06;
+            q += damp * (0.20 + breath); 
         }
 
         // =========================================================
         // 100% UNCONDITIONALLY STABLE EXPLICIT CHAMBERLIN SVF (1 MHz)
         // Divisor (1 + g*(g+q)) bounds poles analytically, completely 
-        // eliminating Newton-Raphson iteration limit cycles and "blubbern".
+        // eliminating iterative limit cycles and "blubbern".
         // =========================================================
         let h = filteredSum - this.filterLow;
         let hp = (h - q * this.filterBand) / (1.0 + g * (g + q));
@@ -339,6 +362,7 @@ export class SIDChip {
             this.filterBand = bp / (1.0 + Math.abs(bp) * 0.15); 
         }
 
+        // Restore 1:1 Lowpass gain balance so master VCA saturation does not compress voice 2
         let outLP = (this.filterMode & 16) ? this.filterLow : 0;
         let outBP = (this.filterMode & 32) ? this.filterBand : 0;
         let outHP = (this.filterMode & 64) ? hp : 0;
@@ -353,9 +377,8 @@ export class SIDChip {
         let filteredMix = filterOut + leakage;
 
         let rawSum = unfilteredSum + filteredMix;
-
-        // Expand master VCA linear headroom (0.28x) so loud basslines do not compress
-        // delicate high-frequency arpeggios and guitar/banjo plucks (Giana Highscore).
+        
+        // Expand linear headroom (0.28x) so loud basslines don't crush the delicate synths
         let vcaIn = rawSum * 0.28; 
         
         let vcaQuad = this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0;
