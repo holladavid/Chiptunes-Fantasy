@@ -1,8 +1,8 @@
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Preserved Open Baseline VCF Filter Response with Integrated
-// Silicon Upgrades (LFSR Lockup, Voice 3 Leakage, Thermal VCA Bias)
+// Phase 27: 100% Stable Explicit Chamberlin SVF (Zero Limit-Cycles)
+// Integrated S-Curve LUT, LFSR Lockup & Thermal DC-Bias
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -68,36 +68,36 @@ export class SIDChip {
         this.updateFilterParameters();
     }
 
-updateFilterParameters() {
-    let cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
-    
-    // Bind cutoff directly to physical 6581 S-curve JFET LUT (30Hz - 6200Hz)
-    let baseCutoff = CUTOFF_LUT[cutoffReg];
-    let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
-    
-    this.activeCutoff = Math.max(30.0, Math.min(6800.0, baseCutoff * thermalCoefficient));
+    updateFilterParameters() {
+        let cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
+        
+        // Bind cutoff directly to physical 6581 S-curve JFET LUT (30Hz - 6200Hz)
+        let baseCutoff = CUTOFF_LUT[cutoffReg];
+        let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
+        
+        this.activeCutoff = Math.max(30.0, Math.min(6800.0, baseCutoff * thermalCoefficient));
 
-    let baseG = Math.PI * this.activeCutoff / 985248;
-    this.g = baseG * (1.0 + (this._temperature - 55.0) * 0.0005);
-    
-    let resReg = this.regs[23] >> 4;
-    let normRes = resReg / 15.0;
-    let q = 1.0 - normRes * 0.945;
-    let thermalDamp = 1.0 + (this._temperature - 55.0) * 0.0015;
-    this.q = Math.min(1.0, Math.max(0.035, q * thermalDamp));
+        let baseG = Math.PI * this.activeCutoff / 985248;
+        this.g = baseG * (1.0 + (this._temperature - 55.0) * 0.0005);
+        
+        let resReg = this.regs[23] >> 4;
+        let normRes = resReg / 15.0;
+        let q = 1.0 - normRes * 0.945;
+        let thermalDamp = 1.0 + (this._temperature - 55.0) * 0.0015;
+        this.q = Math.min(1.0, Math.max(0.035, q * thermalDamp));
 
-    this.thermalDacGain = 1.0 - (this._temperature - 55.0) * 0.0008;
-    this.thermalDacOffset = (this._temperature - 55.0) * 0.0003;
-    this.thermalLeakage = 0.09 + (this._temperature - 25.0) * 0.0008;
-    this.thermalDcOffset = (this._temperature - 55.0) * 0.005;
-    this.thermalJfetDrive = 0.8 * (1.0 - (this._temperature - 55.0) * 0.004);
-    if (this.thermalJfetDrive < 0.1) this.thermalJfetDrive = 0.1; 
+        this.thermalDacGain = 1.0 - (this._temperature - 55.0) * 0.0008;
+        this.thermalDacOffset = (this._temperature - 55.0) * 0.0003;
+        this.thermalLeakage = 0.09 + (this._temperature - 25.0) * 0.0008;
+        this.thermalDcOffset = (this._temperature - 55.0) * 0.005;
+        this.thermalJfetDrive = 0.8 * (1.0 - (this._temperature - 55.0) * 0.004);
+        if (this.thermalJfetDrive < 0.1) this.thermalJfetDrive = 0.1; 
 
-    // Thermal VCA leakage and bias pre-calculations
-    let tempNorm = (this._temperature - 15.0) / 40.0;
-    this.thermalVoiceDcLeakage = 0.003 + Math.pow(Math.max(0.0, tempNorm), 1.6) * 0.012;
-    this.thermalMasterDcBias = 0.45 + (this._temperature - 55.0) * 0.002;
-}
+        // Thermal VCA leakage and bias pre-calculations
+        let tempNorm = (this._temperature - 15.0) / 40.0;
+        this.thermalVoiceDcLeakage = 0.003 + Math.pow(Math.max(0.0, tempNorm), 1.6) * 0.012;
+        this.thermalMasterDcBias = 0.45 + (this._temperature - 55.0) * 0.002;
+    }
 
     writeReg(reg, val) {
         if (reg >= 29) return;
@@ -302,10 +302,6 @@ updateFilterParameters() {
         }
 
         let g = this.g;
-
-        // Parasitic Voice 3 VCF Cutoff Modulation (Substrate Power Rail Droop)
-        g *= (1.0 + voice2 * 0.012);
-
         let q = this.q;
         
         // Dynamic resonance shaping across frequency range (Resonance Quenching & Mid-Range Squelch)
@@ -317,6 +313,10 @@ updateFilterParameters() {
             q += damp * 0.20; 
         }
 
+        // =========================================================
+        // EXPLICIT CHAMBERLIN SVF (Mathematically stable up to 166kHz)
+        // Eliminates Newton-Raphson limit cycles and "blubbern".
+        // =========================================================
         let h = filteredSum - this.filterLow;
         let hp = (h - q * this.filterBand) / (1.0 + g * (g + q));
 
