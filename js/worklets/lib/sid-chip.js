@@ -51,9 +51,13 @@ export class SIDChip {
         this.thermalLeakage = 0.03; 
         this.thermalDcOffset = 0.0;
         this.thermalJfetDrive = 0.8;
+        
+        // Trick 3: Thermally modulated VCA properties
+        this.thermalVoiceDcLeakage = 0.012;
+        this.thermalMasterDcBias = 0.45;
 
         this.volWiggleActivity = 0.0;
-        this.d418Writes = 0; 
+        this.d418Writes = 0;
 
         this.updateFilterParameters();
     }
@@ -88,6 +92,11 @@ export class SIDChip {
         this.thermalDcOffset = (this._temperature - 55.0) * 0.005;
         this.thermalJfetDrive = 0.8 * (1.0 - (this._temperature - 55.0) * 0.004);
         if (this.thermalJfetDrive < 0.1) this.thermalJfetDrive = 0.1; 
+
+        // Trick 3: Non-linear thermal modulation of voice VCA DC leakage offset and master VCA bias
+        let tempNorm = (this._temperature - 15.0) / 40.0; // 0.0 at 15°C, 1.0 at 55°C, 1.5 at 75°C
+        this.thermalVoiceDcLeakage = 0.003 + Math.pow(Math.max(0.0, tempNorm), 1.6) * 0.012;
+        this.thermalMasterDcBias = 0.45 + (this._temperature - 55.0) * 0.002;
     }
 
     writeReg(reg, val) {
@@ -248,7 +257,9 @@ export class SIDChip {
         
         waveOutFloat = waveOutFloat * this.thermalDacGain + this.thermalDacOffset;
         
-        return waveOutFloat * envDac;
+        // Trick 3: Inject thermally modulated Voice VCA DC offset before envelope multiplication.
+        // Opening envelope multiplies the DC offset, creating physical Note-On transient pops scaling with temperature.
+        return (waveOutFloat + this.thermalVoiceDcLeakage) * envDac;
     }
 
     clock() {
@@ -346,7 +357,9 @@ export class SIDChip {
         let vcaQuad = this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0;
         
         let acSaturated = Math.tanh(vcaIn + vcaQuad);
-        let finalMix = acSaturated + 0.45;
+        
+        // Trick 3: Apply pre-calculated thermally biased Master VCA DC level
+        let finalMix = acSaturated + this.thermalMasterDcBias;
 
         this.outputSample = (finalMix * this.masterVol) + this.thermalDcOffset;
     }
