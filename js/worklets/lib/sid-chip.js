@@ -304,6 +304,12 @@ export class SIDChip {
         }
 
         let g = this.g;
+
+        // Trick 1: Parasitic Voice 3 VCF Cutoff Modulation (Substrate Power Rail Droop)
+        // Voice 3's output voltage bleeds into the JFET gate control bias,
+        // modulating filter integrator gain 'g' by ~1.2% even when Voice 3 is muted (isVoice3Off).
+        g *= (1.0 + voice2 * 0.012);
+
         let q = this.q;
 
         // Dynamic resonance shaping across frequency range (Resonance Quenching & Mid-Range Squelch)
