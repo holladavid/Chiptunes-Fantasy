@@ -23,13 +23,12 @@ for (let i = 0; i < 256; i++) {
 }
 
 // 2. GENERATE REAL 6581 FILTER CUTOFF CURVE (2048 Entries)
-// Real MOS 6581 R2/R4 FET Range: 30 Hz (Sub-Bass) bis ~5800 Hz (Max Cutoff)
-// Beseitigt den Maultrommel-Effekt und gibt dem Bass seine echte C64-Tiefe!
+// Measured MOS 6581 R2/R4 JFET Curve: 30 Hz (Sub-Bass) to ~5800 Hz (Max FET Cutoff)
 for (let i = 0; i < 2048; i++) {
     let norm = i / 2047.0;
     
-    // Gemessene 6581 NMOS FET-Kurve (30Hz bis 5800Hz)
-    let hz = 30.0 + (Math.pow(norm, 1.5) * 5770.0);
+    // Cubic JFET transfer curve matching physical 6581 NMOS channel resistance
+    let hz = 30.0 + (120.0 * norm) + (2200.0 * norm * norm) + (3450.0 * norm * norm * norm);
     
     if (hz < 30) hz = 30;
     if (hz > 5800) hz = 5800;

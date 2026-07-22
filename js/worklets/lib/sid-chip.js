@@ -1,8 +1,8 @@
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Phase 25: 100% Symmetric JFET Saturation & AC/DC VCA Separation
-// Eliminates low-level decay raspiness and restores full Wizball 4 "singing"
+// Phase 26: Asymmetric NMOS JFET Saturation & Real CUTOFF_LUT Integration
+// Restores authentic 5.8kHz FET cutoff boundary & wet resonant "schmatzen"
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -66,21 +66,19 @@ export class SIDChip {
 
     updateFilterParameters() {
         let cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
-        let norm = cutoffReg / 2047.0;
-
-        let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
-        let fetCurve = 30.0 + 250.0 * norm + 8000.0 * (norm * norm) + 8000.0 * (norm * norm * norm);
         
-        this.activeCutoff = fetCurve * thermalCoefficient;
-        if (this.activeCutoff < 30) this.activeCutoff = 30;
-        if (this.activeCutoff > 16000) this.activeCutoff = 16000;
+        // Bind cutoff directly to measured physical 6581 JFET LUT (30Hz - 5800Hz)
+        let baseCutoff = CUTOFF_LUT[cutoffReg];
+        let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
+        
+        this.activeCutoff = Math.max(30.0, Math.min(6500.0, baseCutoff * thermalCoefficient));
 
         let baseG = Math.PI * this.activeCutoff / 985248;
         this.g = baseG * (1.0 + (this._temperature - 55.0) * 0.0005);
         
         let resReg = this.regs[23] >> 4;
         let normRes = resReg / 15.0;
-        let q = 1.0 - normRes * 0.945;
+        let q = 1.0 - normRes * 0.955;
         let thermalDamp = 1.0 + (this._temperature - 55.0) * 0.0015;
         this.q = Math.min(1.0, Math.max(0.035, q * thermalDamp));
 
@@ -281,22 +279,32 @@ export class SIDChip {
 
         let g = this.g;
         let q = this.q;
-        
-        if (this.activeCutoff < 800.0) {
-            let damp = (800.0 - this.activeCutoff) / 800.0; 
-            q += damp * 0.55; 
-        } else if (this.activeCutoff > 10000.0) {
-            let damp = (this.activeCutoff - 10000.0) / 6000.0;
-            q += damp * 0.8; 
+
+        // Dynamic resonance shaping across frequency range (Resonance Quenching & Mid-Range Squelch)
+        if (this.activeCutoff < 600.0) {
+            // Low-frequency quenching: FET channel resistance rises, dampening feedback
+            let damp = (600.0 - this.activeCutoff) / 600.0; 
+            q += damp * 0.45; 
+        } else if (this.activeCutoff > 3500.0) {
+            // High-frequency dampening near the 5.8kHz NMOS boundary
+            let damp = (this.activeCutoff - 3500.0) / 2300.0;
+            q += damp * 0.35; 
         }
 
         let h = filteredSum - this.filterLow;
         let hp = (h - q * this.filterBand) / (1.0 + g * (g + q));
 
         if (this.useJfetSaturation) {
-            let qDrive = 1.0 / (q + 0.1); 
-            let summerDrive = this.thermalJfetDrive * (1.2 + qDrive * 0.15); 
-            hp = Math.tanh(hp * summerDrive) / summerDrive;
+            let qDrive = 1.0 / (q + 0.08); 
+            let summerDrive = this.thermalJfetDrive * (1.1 + qDrive * 0.18); 
+            
+            // Asymmetric NMOS Summer Op-Amp Saturation (Generates 2nd & 4th harmonics for wet squelch)
+            let dx = hp * summerDrive;
+            if (dx < 0) {
+                hp = Math.tanh(dx + 0.14 * dx * dx) / summerDrive;
+            } else {
+                hp = Math.tanh(dx - 0.06 * dx * dx) / summerDrive;
+            }
         }
 
         let bp = this.filterBand + g * hp;
@@ -305,10 +313,14 @@ export class SIDChip {
         this.filterLow = lp;
         
         if (this.useJfetSaturation) {
-            // FIX 1: 100% Symmetrische JFET-Sättigung! 
-            // Verhindert die DC-Gleichrichtung bei leisen Fades und macht die Decays seidenglatt.
+            // Asymmetric Bandpass Integrator Saturation
             let driveP = this.thermalJfetDrive * 0.65;
-            this.filterBand = Math.tanh(bp * driveP) / driveP;
+            let dbp = bp * driveP;
+            if (dbp < 0) {
+                this.filterBand = Math.tanh(dbp + 0.10 * dbp * dbp) / driveP;
+            } else {
+                this.filterBand = Math.tanh(dbp - 0.04 * dbp * dbp) / driveP;
+            }
         } else {
             this.filterBand = bp / (1.0 + Math.abs(bp) * 0.15); 
         }
@@ -318,7 +330,9 @@ export class SIDChip {
         let outHP = (this.filterMode & 64) ? hp : 0;
 
         if ((this.filterMode & 80) === 80) { 
-            outHP *= 0.85; 
+            // Mode $50 (Notch Filter = LP + HP):
+            // Emulates non-ideal op-amp phase cancellation for Rob Hubbard's phaser sweeps
+            outHP *= 0.88; 
         }
 
         let filterOut = outLP + outBP + outHP;
@@ -331,8 +345,6 @@ export class SIDChip {
         
         let vcaQuad = this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0;
         
-        // FIX 2: Symmetrische VCA AC-Sättigung vor dem D418 DC-Bias!
-        // Verhindert 2nd Harmonic Crossover Distortion an leisen Stellen.
         let acSaturated = Math.tanh(vcaIn + vcaQuad);
         let finalMix = acSaturated + 0.45;
 

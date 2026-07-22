@@ -2365,6 +2365,39 @@ Im Folgenden übergebe ich dir den gesamten, aktuellen Sourcecode (Stand v1.4.0-
 
 ===== END FILE: doc/v1.4.0/v1.4.0_pre_prompt.md =====
 
+===== FILE: doc/v1.5.0/pre_prompt_v1.5.0.md =====
+**System-Rolle & Kontext:**
+Du bist ein Senior Web Audio/Canvas Engineer, DSP-Spezialist und ein hartgesottener Coder-Veteran der 8-Bit/16-Bit Demoszene. Wir entwickeln gemeinsam die Web-Anwendung **"Chiptunes Fantasy"** (Ziel-Version: v1.5.0). Unser Motto lautet: *"Von Nerds für Nerds"*.
+
+**Die Vision ("The Hardware Laboratory"):**
+Das Projekt lässt die goldene Ära der Tracker-Musik und Demoszene (Commodore 64, Amiga 500, Atari ST) im Browser aufleben. Es ist keine Abspiel-Software für MP3s, sondern ein kompromissloses Meisterwerk der Echtzeit-Klangsynthese. Wir parsen originale Binär-Dateien (`.sid`, `.mod`, `.xm`, `.ym`) und füttern damit maßgeschneiderte, asynchrone `AudioWorkletProcessors` in cycle-exaktem Lockstep. 
+
+Das UI ist ein taktiles Hardware-Labor (Skeuomorphismus, VFD-Terminals, ALPS-Fader). Das Herzstück ist das "Living Silicon" – dynamische Chip-Dies (SID 6581, Paula 8364, YM2149F), deren Gatter, Busse und Pins exakt synchron zu den Hardware-Registern der CPU-Cores atmen.
+
+**Technologie & Die Goldenen Regeln (Zwingend!):**
+1. **Keine Frameworks:** 100% Vanilla HTML5, CSS3 und ES6 JavaScript. Kein React, kein Tailwind.
+2. **Zero-Allocation im Hot-Path:** Innerhalb der 60FPS `render()`-Schleifen und der 1-MHz Audio-Loops sind Objekt-Instanziierungen (`new`, `{}`, `[]`) strengstens verboten, um Garbage-Collection-Jitter zu verhindern. Wir nutzen ausschließlich vor-allozierte `Float32Array` oder primitive Variablen.
+3. **Integer-Math & The Retro Blitter:** Canvas-Glättung (`imageSmoothingEnabled = false`) ist aus. Der `SceneDJ` rendert alle DSEs (Demo-Scene-Elements) in ein historisch exaktes Offscreen-Target (200p C64/ST, 256p Amiga) und skaliert es hoch. Koordinaten müssen zwingend per `Math.floor()` oder `| 0` abgerundet werden!
+4. **Hardware Constraints:** 100% deckende Overdraws. Kein `globalAlpha`-Blending für Geometrien! C64-Elemente nutzen strikt die 16-Farben-Palette. Amiga quantisiert auf 12-Bit, Atari ST auf 9-Bit. Linien werden per Bresenham gezeichnet, Kreise per Scanline-Algorithmus.
+5. **Authentische Hardware-Bugs:** Unsere Worklets emulieren physikalische Unzulänglichkeiten (ADSR 15-Bit Delay-Bug, Floating DAC Discharge, VCF Squelch, JFET Saturation, illegale Waveform Wire-ANDs, VCA DC-Leakage, Open Bus). Verändere niemals Kern-Routinen in `sid-chip.js` oder `cpu6502.js` ohne tiefgreifende historische Begründung!
+
+**Laufzeit-Architektur:**
+*   **SceneDJ & DSE-Ökosystem:** Der `SceneDJ` ist der orchestrale Dirigent ohne eigenen Render-Code. Er befüllt ein `metrics`-Objekt (Tension, Beats, Hardware-Register) und reicht es an die aktiven DSEs weiter.
+*   **Fluent DseBuilder (`registry.js`):** Elemente werden über Builder-Pattern registriert (`.layer()`, `.lifecycle()`, `.weight()`). Für Testzwecke können DSEs zur Laufzeit per `.disabled()` hart abgeschossen oder per `.exclusive()` isoliert werden (blendet alle anderen aus).
+*   **Audio-Engine:** 1 MHz / 2 MHz Lockstep-Architektur mit Sinc-FIR Decimator und dediziertem DC-Blocker. Bei C64 läuft ein kompletter Phantom-KERNAL für die 6502 CPU mit.
+
+**Deine Handlungsanweisungen für diesen Chat:**
+1. Acknowledge these rules and your persona with a brief, enthusiastic confirmation in demoscene jargon.
+2. DO NOT write any code yet. Wait for my first task.
+3. **WICHTIG (Workflow):** Am Ende jeder von dir durchgeführten Code-Änderung in zukünftigen Prompts gibst du immer zwingend eine präzise, englischsprachige **Conventional Commit Message** aus (z.B. `feat(visuals): ...` oder `fix(cpu): ...`).
+
+Im Folgenden übergebe ich dir den gesamten, aktuellen Sourcecode (Stand v1.4.0) in einer strukturierten Textdatei. Lese dich ein und warte auf den Startschuss.
+
+--- START OF SOURCE CODE ---
+[HIER DEINEN KOMPLETTEN SOURCECODE EINFÜGEN]
+
+===== END FILE: doc/v1.5.0/pre_prompt_v1.5.0.md =====
+
 ===== FILE: index.html =====
 <!DOCTYPE html>
 <html lang="de">
@@ -2393,7 +2426,7 @@ Im Folgenden übergebe ich dir den gesamten, aktuellen Sourcecode (Stand v1.4.0-
 
     <div id="boot-screen">
         <div class="boot-box">
-            <p class="boot-header">**** CHIPTUNES FANTASY V1.4.0 ****</p>
+            <p class="boot-header">**** CHIPTUNES FANTASY V1.4.3 ****</p>
             <p class="boot-subheader">64K RAM SYSTEM  38911 BASIC BYTES FREE</p>
             <div class="boot-logs">
                 <p>EMU CORES LOADED: OK</p>
@@ -3951,7 +3984,8 @@ export const SID_SLDB = {
     "sanxion": { lengths: [325, 201] },
     "crazycomets": { lengths: [216] },
     "robocop3": { lengths: [185, 120, 105, 165, 110] },
-    "myth": { lengths: [282, 120, 120, 120, 120] }
+    "myth": { lengths: [282, 120, 120, 120, 120] },
+    "turbooutrun": { lengths: [225, 195, 180, 150, 120] }
 };
 
 ===== END FILE: js/content/songlengths.js =====
@@ -16178,7 +16212,7 @@ registerProcessor('ym-processor', YMProcessor);
 // === js/worklets/c64/sid-exact.js ===
 import { CPU6502 } from '../lib/cpu6502.js';
 import { SIDChip } from '../lib/sid-chip.js';
-import { DCBlocker } from '../lib/dsp-utils.js';
+import { DCBlocker, C64AnalogFilter } from '../lib/dsp-utils.js';
 
 class SIDProcessor extends AudioWorkletProcessor {
     constructor() {
@@ -16189,6 +16223,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.sid.useJfetSaturation = true;
         this.cpu = new CPU6502(this.sid);
         this.dcBlock = new DCBlocker();
+        this.c64Output = new C64AnalogFilter(sampleRate);
 
         this.prgCode = null;
         this.loadAddr = 0;
@@ -16206,31 +16241,10 @@ class SIDProcessor extends AudioWorkletProcessor {
         
         this.temperature = 55.0;
         this.cpuCyclesRemaining = 0;
+        this.lastSampleValue = 0;
         
-        this.FIR_TAPS = 255;
-        this.firKernel = new Float32Array(this.FIR_TAPS);
-        this.ringBuffer = new Float32Array(512); 
-        this.ringIndex = 0;
-        
-        let fc = 12500.0 / this.clock; 
-        let sum = 0;
-        
-        for (let i = 0; i < this.FIR_TAPS; i++) {
-            let x = i - (this.FIR_TAPS - 1) / 2;
-            let sinc = (x === 0) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
-            let window = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / (this.FIR_TAPS - 1)) + 0.08 * Math.cos(4 * Math.PI * i / (this.FIR_TAPS - 1));
-            this.firKernel[i] = sinc * window;
-            sum += this.firKernel[i];
-        }
-        for (let i = 0; i < this.FIR_TAPS; i++) this.firKernel[i] /= sum; 
-
         this.visualView = new Float32Array(40);
 
-        // --- DIGIDRUM VOL-WIGGLE DETECTOR STATE ---
-        this.lastMasterVol = 0.0;
-        this.volWiggleActivity = 0.0;
-
-        // --- RUNTIME DIAGNOSTICS CORES (Allokationsfreie Tracker) ---
         this.diagCycles = 0;
         this.diagInstructions = 0;
         this.diagTimer = 0.0;
@@ -16247,13 +16261,14 @@ class SIDProcessor extends AudioWorkletProcessor {
             }
 
             if (msg.isSidFile) {
-                this.ringBuffer.fill(0);
-                this.ringIndex = 0;
+                this.c64Output = new C64AnalogFilter(sampleRate);
                 this.dcBlock = new DCBlocker();
+                this.lastSampleValue = 0;
 
                 this.prgCode = msg.c64Code;
                 this.loadAddr = msg.loadAddress;
                 this.initAddress = msg.initAddress;
+                this.playAddress = msg.playAddress;
                 this.songSpeedFlags = msg.speed; 
 
                 this.sid = new SIDChip();
@@ -16261,21 +16276,21 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.sid.temperature = this.temperature; 
                 this.cpu = new CPU6502(this.sid);
 
-                this.cpu.reset(this.loadAddr, this.prgCode);
+                this.cpu.reset(this.loadAddr, this.prgCode, this.initAddress, this.playAddress);
 
                 let songIndex = (msg.startSong > 0 ? msg.startSong - 1 : 0) & 0xFF;
                 this.cpu.a = songIndex;
                 this.cpu.x = songIndex; 
                 this.cpu.y = 0;
                 
-                // --- FIX: Sicherer Rücksprung in die Host-Idle-Schleife bei $FFE0 ---
-                this.cpu.push(0xFF); // High Byte ($FF)
-                this.cpu.push(0xDF); // Low Byte ($DF) -> RTS addiert 1 = $FFE0
+                this.cpu.push(0xFF); 
+                this.cpu.push(0xDF); 
                 this.cpu.pc = this.initAddress;
 
-                let safety = 5000000;
-                // Wait for Init to reach the safe idle loop
-                while (this.cpu.pc !== 0xFFE0 && safety-- > 0) {
+                // 2 Mio Zyklen Safety Guard für schwere Exomizer-Entpacker
+                let initSafety = 2000000; 
+                while (this.cpu.pc !== 0xFFE0 && initSafety > 0) {
+                    initSafety--;
                     this.cpu.clockHardware(1);
                     this.sid.clock();
                     
@@ -16284,34 +16299,32 @@ class SIDProcessor extends AudioWorkletProcessor {
                         this.cpu.nmiAccepted = this.cpu.nmiPending;
                     }
 
-                    if (!this.cpu.rdy) {
-                        // CPU stall
-                    } else {
-                        if (this.cpuCyclesRemaining <= 0) {
-                            if (this.cpu.nmiAccepted) {
-                                this.cpu.nmiAccepted = false;
-                                this.cpu.triggerHardwareNmi();
-                                this.cpuCyclesRemaining = 7 - 1; 
-                            } else if (this.cpu.irqAccepted) {
-                                this.cpu.irqAccepted = false;
-                                this.cpu.triggerHardwareIrq();
-                                this.cpuCyclesRemaining = 7 - 1;
-                            } else {
-                                let cyclesUsed = this.cpu.step(); 
-                                this.cpuCyclesRemaining = cyclesUsed - 1; 
-                            }
+                    if (this.cpu.rdy && this.cpuCyclesRemaining <= 0) {
+                        if (this.cpu.nmiAccepted) {
+                            this.cpu.nmiAccepted = false;
+                            this.cpu.triggerHardwareNmi();
+                            this.cpuCyclesRemaining = 7 - 1; 
+                        } else if (this.cpu.irqAccepted) {
+                            this.cpu.irqAccepted = false;
+                            this.cpu.triggerHardwareIrq();
+                            this.cpuCyclesRemaining = 7 - 1;
                         } else {
-                            this.cpuCyclesRemaining--;
+                            let cyclesUsed = this.cpu.step(); 
+                            this.cpuCyclesRemaining = cyclesUsed - 1; 
                         }
+                    } else if (this.cpu.rdy) {
+                        this.cpuCyclesRemaining--;
                     }
                 }
                 
-                this.cpu.pc = 0xFFE0; // Reset PC hard onto the idle loop
+                this.cpu.pc = 0xFFE0; 
                 this.cpu.p &= ~0x04;  
 
-                this.playAddress = msg.playAddress;
-
                 this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
+                if (this.useCiaTimer) {
+                    this.cpu.cia1CtrlA |= 0x01; 
+                }
+
                 this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
                 this.vblankTimer = this.playSpeedCycles;
 
@@ -16338,29 +16351,29 @@ class SIDProcessor extends AudioWorkletProcessor {
             } else if (msg.type === 'RESUME_TRACK') {
                 this.isPlaying = true;
             } else if (msg.type === 'CHANGE_SUBSONG') {
-                this.ringBuffer.fill(0);
-                this.ringIndex = 0;
+                this.c64Output = new C64AnalogFilter(sampleRate);
                 this.dcBlock = new DCBlocker();
+                this.lastSampleValue = 0;
 
                 this.sid = new SIDChip();
                 this.sid.useJfetSaturation = true;
                 this.sid.temperature = this.temperature;
                 this.cpu.sid = this.sid;
                 
-                this.cpu.reset(this.loadAddr, this.prgCode);
+                this.cpu.reset(this.loadAddr, this.prgCode, this.initAddress, this.playAddress);
                 
                 let songIndex = (msg.frame > 0 ? msg.frame - 1 : 0) & 0xFF;
                 this.cpu.a = songIndex;
                 this.cpu.x = songIndex;
                 this.cpu.y = 0;
                 
-                // --- FIX: Sicherer Rücksprung in die Host-Idle-Schleife ---
                 this.cpu.push(0xFF); 
                 this.cpu.push(0xDF); 
                 this.cpu.pc = this.initAddress;
                 
-                let safety = 5000000;
-                while (this.cpu.pc !== 0xFFE0 && safety-- > 0) {
+                let initSafety = 2000000;
+                while (this.cpu.pc !== 0xFFE0 && initSafety > 0) {
+                    initSafety--;
                     this.cpu.clockHardware(1);
                     this.sid.clock();
                     
@@ -16369,31 +16382,32 @@ class SIDProcessor extends AudioWorkletProcessor {
                         this.cpu.nmiAccepted = this.cpu.nmiPending;
                     }
 
-                    if (!this.cpu.rdy) {
-                        // CPU stall
-                    } else {
-                        if (this.cpuCyclesRemaining <= 0) {
-                            if (this.cpu.nmiAccepted) {
-                                this.cpu.nmiAccepted = false;
-                                this.cpu.triggerHardwareNmi();
-                                this.cpuCyclesRemaining = 7 - 1; 
-                            } else if (this.cpu.irqAccepted) {
-                                this.cpu.irqAccepted = false;
-                                this.cpu.triggerHardwareIrq();
-                                this.cpuCyclesRemaining = 7 - 1;
-                            } else {
-                                let cyclesUsed = this.cpu.step(); 
-                                this.cpuCyclesRemaining = cyclesUsed - 1; 
-                            }
+                    if (this.cpu.rdy && this.cpuCyclesRemaining <= 0) {
+                        if (this.cpu.nmiAccepted) {
+                            this.cpu.nmiAccepted = false;
+                            this.cpu.triggerHardwareNmi();
+                            this.cpuCyclesRemaining = 7 - 1; 
+                        } else if (this.cpu.irqAccepted) {
+                            this.cpu.irqAccepted = false;
+                            this.cpu.triggerHardwareIrq();
+                            this.cpuCyclesRemaining = 7 - 1;
                         } else {
-                            this.cpuCyclesRemaining--;
+                            let cyclesUsed = this.cpu.step(); 
+                            this.cpuCyclesRemaining = cyclesUsed - 1; 
                         }
+                    } else if (this.cpu.rdy) {
+                        this.cpuCyclesRemaining--;
                     }
                 }
+
                 this.cpu.pc = 0xFFE0; 
                 this.cpu.p &= ~0x04;
                 
                 this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
+                if (this.useCiaTimer) {
+                    this.cpu.cia1CtrlA |= 0x01; 
+                }
+                
                 this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
                 this.vblankTimer = this.playSpeedCycles;
 
@@ -16412,13 +16426,6 @@ class SIDProcessor extends AudioWorkletProcessor {
         const outR = outputs[0].length > 1 ? outputs[0][1] : null;
         let visualValue = 0;
 
-        let irqHijacked = false;
-        let vicIrqEnabled = false;
-        let cia1TimerAEnabled = false;
-        let isSelfDriving = false;
-
-        const dt = 1.0 / sampleRate;
-
         for (let i = 0; i < outL.length; i++) {
             if (!this.isPlaying) {
                 outL[i] = 0; if (outR) outR[i] = 0;
@@ -16429,6 +16436,8 @@ class SIDProcessor extends AudioWorkletProcessor {
             let cyclesToRun = Math.floor(this.cycleAccumulator);
             this.cycleAccumulator -= cyclesToRun;
 
+            let sampleSum = 0;
+
             // --- THE NATIVE CYCLE-EXACT LOCKSTEP LOOP (1 MHz) ---
             for (let c = 0; c < cyclesToRun; c++) {
                 this.diagCycles++; 
@@ -16436,30 +16445,25 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.clockHardware(1); 
                 this.sid.clock();          
                 
-                irqHijacked = (this.cpu.ram[0x0314] !== this.cpu.defaultIrqLo) || (this.cpu.ram[0x0315] !== this.cpu.defaultIrqHi);
-                vicIrqEnabled = (this.cpu.ram[0xD01A] & 0x01) !== 0;
-                cia1TimerAEnabled = (this.cpu.cia1IrqMask & 0x01) !== 0;
-                isSelfDriving = irqHijacked && (vicIrqEnabled || cia1TimerAEnabled);
+                sampleSum += this.sid.outputSample;
 
-                if (!this.useCiaTimer) {
+                // --- FIX: VBLANK / CIA TIMER MANAGEMENT GEHÖRT IN DEN 1-MHZ CYCLE LOOP! ---
+                if (this.playAddress === 0) {
                     this.vblankTimer--;
                     if (this.vblankTimer <= 0) {
                         this.vblankTimer += this.playSpeedCycles;
-                        if (this.playAddress !== 0) {
-                            this.hostPlayPending = true;
-                        }
                         this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                     }
                 } else {
-                    this.vblankTimer--;
-                    if (this.vblankTimer <= 0) {
-                        this.vblankTimer += this.playSpeedCycles;
-                        this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
-                    }
-                    
-                    if (this.cpu.cia1TimerAUnderflowed) {
-                        this.cpu.cia1TimerAUnderflowed = false;
-                        if (this.playAddress !== 0) {
+                    if (!this.useCiaTimer) {
+                        this.vblankTimer--;
+                        if (this.vblankTimer <= 0) {
+                            this.vblankTimer += this.playSpeedCycles;
+                            this.hostPlayPending = true;
+                        }
+                    } else {
+                        if (this.cpu.cia1TimerAUnderflowed) {
+                            this.cpu.cia1TimerAUnderflowed = false;
                             this.hostPlayPending = true;
                         }
                     }
@@ -16477,14 +16481,14 @@ class SIDProcessor extends AudioWorkletProcessor {
                     // CPU stall
                 } else {
                     if (this.cpuCyclesRemaining <= 0) {
-                        
-                        // --- FIX: Host Play Trigger Checks bound to the new safe Idle Loop ($FFE0) ---
+                        // Safe Dispatch an der Idle-Schleife ($FFE0)
                         if (this.hostPlayPending && this.cpu.pc >= 0xFFE0 && this.cpu.pc <= 0xFFE2) {
                             this.hostPlayPending = false;
                             this.cpu.push(0xFF);
                             this.cpu.push(0xDF); 
                             this.cpu.pc = this.playAddress;
                             this.cpuCyclesRemaining = 6 - 1; 
+                            this.currentFrame = (this.currentFrame + 1) % this.maxFrames; 
                             this.diagInstructions++;
                         } else if (this.cpu.nmiAccepted) {
                             this.cpu.nmiAccepted = false;
@@ -16503,32 +16507,18 @@ class SIDProcessor extends AudioWorkletProcessor {
                         this.cpuCyclesRemaining--;
                     }
                 }
-                
-                this.ringBuffer[this.ringIndex] = this.sid.outputSample;
-                this.ringIndex = (this.ringIndex + 1) & 511; 
             }
             
-            // --- DECIMATION ---
-            let decimationSum = 0;
-            for (let k = 0; k < this.FIR_TAPS; k++) {
-                let readIdx = (this.ringIndex - 1 - k + 512) & 511;
-                decimationSum += this.ringBuffer[readIdx] * this.firKernel[k];
-            }
-            
-            const currentMasterVol = this.sid.masterVol;
-            const deltaVol = Math.abs(currentMasterVol - this.lastMasterVol);
-            this.lastMasterVol = currentMasterVol;
+            // --- BOXCAR DECIMATION (Integrate & Dump) ---
+            let decimatedSample = cyclesToRun > 0 ? sampleSum / cyclesToRun : this.lastSampleValue;
+            this.lastSampleValue = decimatedSample;
 
-            if (deltaVol > 0.01) {
-                this.volWiggleActivity = Math.min(1.0, this.volWiggleActivity + 0.15);
-            } else {
-                this.volWiggleActivity *= Math.exp(-dt * 45.0);
-            }
+            // Analog Output Filter (16 kHz Butterworth pass)
+            let analogSample = this.c64Output.process(decimatedSample);
 
-            const activeAlpha = 0.995 + (this.volWiggleActivity * 0.0046);
-            
-            let finalSample = decimationSum - this.dcBlock.lastIn + activeAlpha * this.dcBlock.lastOut;
-            this.dcBlock.lastIn = decimationSum;
+            // DC Blocker (R=0.998 fängt das 400mV Bias ab)
+            let finalSample = analogSample - this.dcBlock.lastIn + 0.998 * this.dcBlock.lastOut;
+            this.dcBlock.lastIn = analogSample;
             this.dcBlock.lastOut = finalSample;
 
             outL[i] = finalSample;
@@ -16540,6 +16530,10 @@ class SIDProcessor extends AudioWorkletProcessor {
         if (this.diagTimer >= 1.0) {
             this.diagTimer -= 1.0;
             
+            // NEU: Digidrum-Frequenz auslesen und zurücksetzen
+            let digiRate = this.sid.d418Writes;
+            this.sid.d418Writes = 0;
+            
             let activeRegs = Array.from(this.sid.regs).map(r => r.toString(16).toUpperCase().padStart(2, '0')).join(' ');
             
             let runtimeMsg = `--- [LAB-RUNTIME DIAGNOSTICS] ---\n` +
@@ -16548,6 +16542,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                              `[CPU] Instructions/sec: ${this.diagInstructions} | Cycles/sec: ${this.diagCycles}\n` +
                              `[IRQ] Pending: ${this.cpu.irqPending} | Accepted: ${this.cpu.irqAccepted} | Count/sec: ${this.diagIrqCount}\n` +
                              `[NMI] Pending: ${this.cpu.nmiPending} | Accepted: ${this.cpu.nmiAccepted} | Count/sec: ${this.diagNmiCount}\n` +
+                             `[DIGI] $D418 Writes/sec: ${digiRate} Hz (Effective Sample Rate)\n` + // <<< NEU!
                              `[VECTORS] $0314 (IRQ): $${this.cpu.ram[0x0314].toString(16).toUpperCase().padStart(2, '0')}${this.cpu.ram[0x0315].toString(16).toUpperCase().padStart(2, '0')}\n` +
                              `[TIMERS] CIA1-TimerA: ${this.cpu.cia1TimerA} | Latch: ${this.cpu.cia1TimerALatch} | CtrlA: $${this.cpu.cia1CtrlA.toString(16).toUpperCase().padStart(2, '0')}\n` +
                              `[TIMERS] VIC-Raster: ${this.cpu.rasterCounter} | Target: ${this.cpu.rasterIrqTarget} | Enabled: ${this.cpu.ram[0xD01A]}\n` +
@@ -16592,7 +16587,7 @@ registerProcessor('sid-exact-processor', SIDProcessor);
 // === js/worklets/c64/sid-standard.js ===
 import { CPU6502 } from '../lib/cpu6502.js';
 import { SIDChip } from '../lib/sid-chip.js';
-import { DCBlocker } from '../lib/dsp-utils.js';
+import { DCBlocker, C64AnalogFilter } from '../lib/dsp-utils.js';
 
 class SIDProcessor extends AudioWorkletProcessor {
     constructor() {
@@ -16603,7 +16598,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.sid.useJfetSaturation = false;
         this.cpu = new CPU6502(this.sid);
         this.dcBlock = new DCBlocker();
-        this.outLp = 0; 
+        this.c64Output = new C64AnalogFilter(sampleRate);
 
         this.prgCode = null;
         this.loadAddr = 0;
@@ -16625,9 +16620,6 @@ class SIDProcessor extends AudioWorkletProcessor {
         
         this.visualView = new Float32Array(40);
 
-        this.lastMasterVol = 0.0;
-        this.volWiggleActivity = 0.0;
-
         this.port.onmessage = (e) => {
             const msg = e.data;
             
@@ -16639,12 +16631,13 @@ class SIDProcessor extends AudioWorkletProcessor {
 
             if (msg.isSidFile) {
                 this.lastSampleValue = 0;
-                this.outLp = 0;
+                this.c64Output = new C64AnalogFilter(sampleRate);
                 this.dcBlock = new DCBlocker();
 
                 this.prgCode = msg.c64Code;
                 this.loadAddr = msg.loadAddress;
                 this.initAddress = msg.initAddress;
+                this.playAddress = msg.playAddress;
                 this.songSpeedFlags = msg.speed; 
 
                 this.sid = new SIDChip();
@@ -16652,20 +16645,20 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.sid.temperature = this.temperature;
                 this.cpu = new CPU6502(this.sid);
 
-                this.cpu.reset(this.loadAddr, this.prgCode);
+                this.cpu.reset(this.loadAddr, this.prgCode, this.initAddress, this.playAddress);
 
                 let songIndex = (msg.startSong > 0 ? msg.startSong - 1 : 0) & 0xFF;
                 this.cpu.a = songIndex;
                 this.cpu.x = songIndex; 
                 this.cpu.y = 0;
                 
-                // --- FIX: Sicherer Rücksprung in die Host-Idle-Schleife bei $FFE0 ---
                 this.cpu.push(0xFF); 
                 this.cpu.push(0xDF);
                 this.cpu.pc = this.initAddress;
 
-                let safety = 5000000;
-                while (this.cpu.pc !== 0xFFE0 && safety-- > 0) {
+                let initSafety = 2000000;
+                while (this.cpu.pc !== 0xFFE0 && initSafety > 0) {
+                    initSafety--;
                     this.cpu.clockHardware(1);
                     this.sid.clock();
                     
@@ -16674,33 +16667,32 @@ class SIDProcessor extends AudioWorkletProcessor {
                         this.cpu.nmiAccepted = this.cpu.nmiPending;
                     }
 
-                    if (!this.cpu.rdy) {
-                        // CPU stall
-                    } else {
-                        if (this.cpuCyclesRemaining <= 0) {
-                            if (this.cpu.nmiAccepted) {
-                                this.cpu.nmiAccepted = false;
-                                this.cpu.triggerHardwareNmi();
-                                this.cpuCyclesRemaining = 7 - 1; 
-                            } else if (this.cpu.irqAccepted) {
-                                this.cpu.irqAccepted = false;
-                                this.cpu.triggerHardwareIrq();
-                                this.cpuCyclesRemaining = 7 - 1;
-                            } else {
-                                let cyclesUsed = this.cpu.step(); 
-                                this.cpuCyclesRemaining = cyclesUsed - 1;
-                            }
+                    if (this.cpu.rdy && this.cpuCyclesRemaining <= 0) {
+                        if (this.cpu.nmiAccepted) {
+                            this.cpu.nmiAccepted = false;
+                            this.cpu.triggerHardwareNmi();
+                            this.cpuCyclesRemaining = 7 - 1; 
+                        } else if (this.cpu.irqAccepted) {
+                            this.cpu.irqAccepted = false;
+                            this.cpu.triggerHardwareIrq();
+                            this.cpuCyclesRemaining = 7 - 1;
                         } else {
-                            this.cpuCyclesRemaining--;
+                            let cyclesUsed = this.cpu.step(); 
+                            this.cpuCyclesRemaining = cyclesUsed - 1;
                         }
+                    } else if (this.cpu.rdy) {
+                        this.cpuCyclesRemaining--;
                     }
                 }
+
                 this.cpu.pc = 0xFFE0; 
                 this.cpu.p &= ~0x04; 
 
-                this.playAddress = msg.playAddress;
-
                 this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
+                if (this.useCiaTimer) {
+                    this.cpu.cia1CtrlA |= 0x01; 
+                }
+
                 this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
                 this.vblankTimer = this.playSpeedCycles;
 
@@ -16718,7 +16710,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.isPlaying = true;
             } else if (msg.type === 'CHANGE_SUBSONG') {
                 this.lastSampleValue = 0;
-                this.outLp = 0;
+                this.c64Output = new C64AnalogFilter(sampleRate);
                 this.dcBlock = new DCBlocker();
 
                 this.sid = new SIDChip();
@@ -16726,20 +16718,20 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.sid.temperature = this.temperature;
                 this.cpu.sid = this.sid;
                 
-                this.cpu.reset(this.loadAddr, this.prgCode);
+                this.cpu.reset(this.loadAddr, this.prgCode, this.initAddress, this.playAddress);
                 
                 let songIndex = (msg.frame > 0 ? msg.frame - 1 : 0) & 0xFF;
                 this.cpu.a = songIndex;
                 this.cpu.x = songIndex;
                 this.cpu.y = 0;
                 
-                // --- FIX: Sicherer Rücksprung in die Host-Idle-Schleife ---
                 this.cpu.push(0xFF);
                 this.cpu.push(0xDF);
                 this.cpu.pc = this.initAddress;
                 
-                let safety = 5000000;
-                while (this.cpu.pc !== 0xFFE0 && safety-- > 0) {
+                let initSafety = 2000000;
+                while (this.cpu.pc !== 0xFFE0 && initSafety > 0) {
+                    initSafety--;
                     this.cpu.clockHardware(1);
                     this.sid.clock();
                     
@@ -16748,31 +16740,32 @@ class SIDProcessor extends AudioWorkletProcessor {
                         this.cpu.nmiAccepted = this.cpu.nmiPending;
                     }
 
-                    if (!this.cpu.rdy) {
-                        // CPU stall
-                    } else {
-                        if (this.cpuCyclesRemaining <= 0) {
-                            if (this.cpu.nmiAccepted) {
-                                this.cpu.nmiAccepted = false;
-                                this.cpu.triggerHardwareNmi();
-                                this.cpuCyclesRemaining = 7 - 1; 
-                            } else if (this.cpu.irqAccepted) {
-                                this.cpu.irqAccepted = false;
-                                this.cpu.triggerHardwareIrq();
-                                this.cpuCyclesRemaining = 7 - 1;
-                            } else {
-                                let cyclesUsed = this.cpu.step(); 
-                                this.cpuCyclesRemaining = cyclesUsed - 1;
-                            }
+                    if (this.cpu.rdy && this.cpuCyclesRemaining <= 0) {
+                        if (this.cpu.nmiAccepted) {
+                            this.cpu.nmiAccepted = false;
+                            this.cpu.triggerHardwareNmi();
+                            this.cpuCyclesRemaining = 7 - 1; 
+                        } else if (this.cpu.irqAccepted) {
+                            this.cpu.irqAccepted = false;
+                            this.cpu.triggerHardwareIrq();
+                            this.cpuCyclesRemaining = 7 - 1;
                         } else {
-                            this.cpuCyclesRemaining--;
+                            let cyclesUsed = this.cpu.step(); 
+                            this.cpuCyclesRemaining = cyclesUsed - 1;
                         }
+                    } else if (this.cpu.rdy) {
+                        this.cpuCyclesRemaining--;
                     }
                 }
+
                 this.cpu.pc = 0xFFE0; 
                 this.cpu.p &= ~0x04;
-                
+
                 this.useCiaTimer = ((this.songSpeedFlags >> songIndex) & 1) !== 0;
+                if (this.useCiaTimer) {
+                    this.cpu.cia1CtrlA |= 0x01; 
+                }
+
                 this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
                 this.vblankTimer = this.playSpeedCycles;
 
@@ -16791,13 +16784,6 @@ class SIDProcessor extends AudioWorkletProcessor {
         const outR = outputs[0].length > 1 ? outputs[0][1] : null;
         let visualValue = 0;
 
-        let irqHijacked = false;
-        let vicIrqEnabled = false;
-        let cia1TimerAEnabled = false;
-        let isSelfDriving = false;
-
-        const dt = 1.0 / sampleRate;
-
         for (let i = 0; i < outL.length; i++) {
             if (!this.isPlaying) {
                 outL[i] = 0; if (outR) outR[i] = 0;
@@ -16815,31 +16801,24 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.clockHardware(1); 
                 this.sid.clock();          
                 sampleSum += this.sid.outputSample; 
-                
-                irqHijacked = (this.cpu.ram[0x0314] !== this.cpu.defaultIrqLo) || (this.cpu.ram[0x0315] !== this.cpu.defaultIrqHi);
-                vicIrqEnabled = (this.cpu.ram[0xD01A] & 0x01) !== 0;
-                cia1TimerAEnabled = (this.cpu.cia1IrqMask & 0x01) !== 0;
-                isSelfDriving = irqHijacked && (vicIrqEnabled || cia1TimerAEnabled);
 
-                if (!this.useCiaTimer) {
+                // --- FIX: VBLANK / CIA TIMER MANAGEMENT GEHÖRT IN DEN 1-MHZ CYCLE LOOP! ---
+                if (this.playAddress === 0) {
                     this.vblankTimer--;
                     if (this.vblankTimer <= 0) {
                         this.vblankTimer += this.playSpeedCycles;
-                        if (this.playAddress !== 0) {
-                            this.hostPlayPending = true;
-                        }
                         this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                     }
                 } else {
-                    this.vblankTimer--;
-                    if (this.vblankTimer <= 0) {
-                        this.vblankTimer += this.playSpeedCycles;
-                        this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
-                    }
-                    
-                    if (this.cpu.cia1TimerAUnderflowed) {
-                        this.cpu.cia1TimerAUnderflowed = false;
-                        if (this.playAddress !== 0) {
+                    if (!this.useCiaTimer) {
+                        this.vblankTimer--;
+                        if (this.vblankTimer <= 0) {
+                            this.vblankTimer += this.playSpeedCycles;
+                            this.hostPlayPending = true;
+                        }
+                    } else {
+                        if (this.cpu.cia1TimerAUnderflowed) {
+                            this.cpu.cia1TimerAUnderflowed = false;
                             this.hostPlayPending = true;
                         }
                     }
@@ -16854,13 +16833,13 @@ class SIDProcessor extends AudioWorkletProcessor {
                     // CPU stall
                 } else {
                     if (this.cpuCyclesRemaining <= 0) {
-                        // --- FIX: Host Play Trigger Checks bound to the safe ROM Idle Loop ---
                         if (this.hostPlayPending && this.cpu.pc >= 0xFFE0 && this.cpu.pc <= 0xFFE2) {
                             this.hostPlayPending = false;
                             this.cpu.push(0xFF);
                             this.cpu.push(0xDF); 
                             this.cpu.pc = this.playAddress;
                             this.cpuCyclesRemaining = 6 - 1; 
+                            this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                         } else if (this.cpu.nmiAccepted) {
                             this.cpu.nmiAccepted = false;
                             this.cpu.triggerHardwareNmi();
@@ -16879,27 +16858,14 @@ class SIDProcessor extends AudioWorkletProcessor {
                 }
             }
             
-            let finalSample = cyclesToRun > 0 ? sampleSum / cyclesToRun : this.lastSampleValue;
-            this.lastSampleValue = finalSample;
+            let decimatedSample = cyclesToRun > 0 ? sampleSum / cyclesToRun : this.lastSampleValue;
+            this.lastSampleValue = decimatedSample;
 
-            const currentMasterVol = this.sid.masterVol;
-            const deltaVol = Math.abs(currentMasterVol - this.lastMasterVol);
-            this.lastMasterVol = currentMasterVol;
+            let analogSample = this.c64Output.process(decimatedSample);
 
-            if (deltaVol > 0.01) {
-                this.volWiggleActivity = Math.min(1.0, this.volWiggleActivity + 0.15);
-            } else {
-                this.volWiggleActivity *= Math.exp(-dt * 45.0);
-            }
-
-            const activeAlpha = 0.995 + (this.volWiggleActivity * 0.0046);
-            let outSample = finalSample - this.dcBlock.lastIn + activeAlpha * this.dcBlock.lastOut;
-            this.dcBlock.lastIn = finalSample;
-            this.dcBlock.lastOut = outSample;
-            finalSample = outSample;
-
-            this.outLp += 0.65 * (finalSample - this.outLp);
-            finalSample = this.outLp;
+            let finalSample = analogSample - this.dcBlock.lastIn + 0.998 * this.dcBlock.lastOut;
+            this.dcBlock.lastIn = analogSample;
+            this.dcBlock.lastOut = finalSample;
 
             outL[i] = finalSample;
             if (outR) outR[i] = finalSample;
@@ -16938,47 +16904,43 @@ registerProcessor('sid-standard-processor', SIDProcessor);
 // =========================================================
 // 6502 CPU EMULATOR & C64 I/O INTERCEPTOR
 // High-Performance Zero-Allocation Edition
-// Phase 12: Complete Unified Hardware-Driven Architecture
+// Phase 17: Pure KERNAL ROM Isolation & MMU Integrity
 // =========================================================
 
 export class CPU6502 {
     constructor(sid) {
         this.ram = new Uint8Array(65536);
+        this.kernalRom = new Uint8Array(8192); 
         this.sid = sid;
         
-        // CPU Registers
         this.a = 0; this.x = 0; this.y = 0;
         this.sp = 0xFF; this.pc = 0;
-        this.p = 0x24; // I-Flag set
+        this.p = 0x24; 
         
-        // Hardware Timers & IRQ State
-        this.cyclesPerLine = 63; // PAL Standard
+        this.cyclesPerLine = 63; 
         this.rasterCounter = 0;
         this.rasterCycles = 0;
         this.rasterIrqTarget = 0;
         
-        // CIA-1 (IRQ)
-        this.cia1TimerA = 19705; // Standard PAL 50Hz Startup-Intervall
+        this.cia1TimerA = 19705; 
         this.cia1TimerALatch = 19705;
-        this.cia1CtrlA = 0x01;   // Timer läuft standardmäßig beim Einschalten!
+        this.cia1CtrlA = 0x00;   
         this.cia1Icr = 0; 
-        this.cia1IrqMask = 0x01; // Timer-A IRQs standardmäßig aktiv
+        this.cia1IrqMask = 0x00; 
         this.cia1TimerAUnderflowed = false;
         
         this.cia1TimerB = 0xFFFF;
         this.cia1TimerBLatch = 0xFFFF;
         this.cia1CtrlB = 0;
 
-        // CIA-2 (NMI)
         this.cia2TimerA = 0xFFFF;
         this.cia2TimerALatch = 0xFFFF;
-        this.cia2CtrlA = 0;
-        this.cia2Icr = 0;
-        this.cia2IrqMask = 0;
+        this.cia2CtrlA = 0x00;
+        this.cia2Icr = 0; this.cia2IrqMask = 0x00;
         
         this.cia2TimerB = 0xFFFF;
         this.cia2TimerBLatch = 0xFFFF;
-        this.cia2CtrlB = 0;
+        this.cia2CtrlB = 0x00;
 
         this.irqPending = false;
         this.nmiPending = false;
@@ -16986,89 +16948,87 @@ export class CPU6502 {
         this.nmiAccepted = false;
         this.prevNmiLine = false;
 
-        // VIC-II RDY & Badlines
         this.rdy = true; 
         this.isBadLine = false;
 
-        // TOD-Clock
-        this.todTenths = 0;
-        this.todSec = 0;
-        this.todMin = 0;
-        this.todHour = 1; // 1 AM
-        this.todLatchTenths = 0;
-        this.todLatchSec = 0;
-        this.todLatchMin = 0;
-        this.todLatchHour = 1;
-        this.todLatched = false;
-        this.todHalted = false;
-        this.todCycleCounter = 19705;
+        this.todTenths = 0; this.todSec = 0; this.todMin = 0; this.todHour = 1; 
+        this.todLatchTenths = 0; this.todLatchSec = 0; this.todLatchMin = 0; this.todLatchHour = 1;
+        this.todLatched = false; this.todHalted = false; this.todCycleCounter = 19705;
 
-        // Dynamische Diagnostik-Vektoren für Host-Play-Checking
         this.defaultIrqLo = 0x31; 
         this.defaultIrqHi = 0xEA; 
     }
 
-    reset(loadAddr, prgCode) {
+    reset(loadAddr, prgCode, initAddr = 0, playAddr = 0) {
         this.ram.fill(0);
+        this.kernalRom.fill(0);
         
-        // C64 Memory Management Unit (MMU) Default State
-        this.ram[0x0000] = 0x2F; 
-        this.ram[0x0001] = 0x37; 
-        
-        // --- 1. THE AUTHENTIC PHANTOM KERNAL VECTORS ---
-        // Eigene Host-Idle Schleife für unseren Emulator
-        // Sicher platziert bei $FFE0 (ROM-Bereich), um Überschreiben durch PRG-Files zu verhindern!
-        this.ram[0xFFE0] = 0x4C; this.ram[0xFFE1] = 0xE0; this.ram[0xFFE2] = 0xFF; // JMP $FFE0
-        
-        // KERNAL IRQ Return ($EA31) -> Acknowledge CIA-1, Pop, RTI
-        const irqReturnHandler = [ 
-            0xAD, 0x0D, 0xDC, // LDA $DC0D
-            0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40 // PLA, TAY, PLA, TAX, PLA, RTI
-        ];
-        for (let i = 0; i < irqReturnHandler.length; i++) {
-            this.ram[0xEA31 + i] = irqReturnHandler[i]; 
-        }
-
-        // KERNAL NMI Return ($EA81) -> Acknowledge CIA-2, Pop, RTI
-        const nmiReturnHandler = [ 
-            0xAD, 0x0D, 0xDD, // LDA $DD0D
-            0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40 // PLA, TAY, PLA, TAX, PLA, RTI
-        ];
-        for (let i = 0; i < nmiReturnHandler.length; i++) {
-            this.ram[0xEA81 + i] = nmiReturnHandler[i]; 
-        }
-        
-        this.ram[0x0314] = 0x31; this.ram[0x0315] = 0xEA; // Default IRQ -> Pop-Exit ($EA31)
-        this.ram[0x0316] = 0x31; this.ram[0x0317] = 0xEA; // Default BRK -> Pop-Exit ($EA31)
-        this.ram[0x0318] = 0x81; this.ram[0x0319] = 0xEA; // Default NMI -> Pure RTI ($EA81)
-
-        // ROM Hardware-Vektoren ($FFFE = IRQ, $FFFA = NMI)
-        this.ram[0xFFFE] = 0x48; this.ram[0xFFFF] = 0xFF; 
-        this.ram[0xFFFA] = 0x60; this.ram[0xFFFB] = 0xFF; 
-
-        // $FF48: Authentic IRQ Entry (Sichert A,X,Y und leitet zu $0314)
-        const irqEntry = [
-            0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
-            0xBA, 0xBD, 0x04, 0x01,       // TSX, LDA $0104,X
-            0x29, 0x10, 0xF0, 0x03,       // AND #$10, BEQ +3
-            0x6C, 0x16, 0x03,             // JMP ($0316) -> BRK
-            0x6C, 0x14, 0x03              // JMP ($0314) -> IRQ
-        ];
-        for (let i = 0; i < irqEntry.length; i++) this.ram[0xFF48 + i] = irqEntry[i];
-
-        // $FF60: Authentic NMI Entry (Sichert A,X,Y und leitet zu $0318)
-        const nmiEntry = [
-            0x48, 0x8A, 0x48, 0x98, 0x48, // PHA, TXA, PHA, TYA, PHA
-            0x6C, 0x18, 0x03              // JMP ($0318) -> NMI Vector
-        ];
-        for (let i = 0; i < nmiEntry.length; i++) this.ram[0xFF60 + i] = nmiEntry[i];
-        
-        // --- 2. DEN PRG-CODE LADEN (kann die Vektoren nun überschreiben!) ---
+        // --- 1. PRG CODE LADEN ---
         for (let i = 0; i < prgCode.length; i++) {
             this.ram[loadAddr + i] = prgCode[i];
         }
+
+        // --- 2. DYNAMIC BANK-SWITCHING (MMU) ---
+        let p0001 = 0x37; 
+        let prgEnd = loadAddr + prgCode.length;
         
-        // Reset Registers
+        let overlapsKernal = (loadAddr < 0x10000 && prgEnd > 0xE000) || 
+                             (initAddr >= 0xE000 && initAddr < 0x10000) ||
+                             (playAddr >= 0xE000 && playAddr < 0x10000);
+        
+        if (overlapsKernal) {
+            p0001 &= ~2; 
+        }
+        
+        this.ram[0x0000] = 0x2F; 
+        this.ram[0x0001] = p0001; 
+
+        // --- 3. PHANTOM VECTORS & HANDLERS (ROM ONLY!) ---
+        // Die Host-Idle-Schleife muss ins RAM, da der Emulator hier auf den Return-Exit wartet!
+        this.ram[0xFFE0] = 0x4C; this.ram[0xFFE1] = 0xE0; this.ram[0xFFE2] = 0xFF; 
+        this.kernalRom[0x1FE0] = 0x4C; this.kernalRom[0x1FE1] = 0xE0; this.kernalRom[0x1FE2] = 0xFF; 
+        
+        // SAFE RAM HANDLERS bei $0220 / $0240
+        const safeIrqReturn = [0xAD, 0x0D, 0xDC, 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40];
+        for (let i = 0; i < safeIrqReturn.length; i++) {
+            this.ram[0x0220 + i] = safeIrqReturn[i]; 
+            this.kernalRom[0x0A31 + i] = safeIrqReturn[i]; 
+        }
+
+        const safeNmiReturn = [0xAD, 0x0D, 0xDD, 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40];
+        for (let i = 0; i < safeNmiReturn.length; i++) {
+            this.ram[0x0240 + i] = safeNmiReturn[i];
+            this.kernalRom[0x0A81 + i] = safeNmiReturn[i];
+        }
+        
+        let defaultIrq = overlapsKernal ? 0x0220 : 0xEA31;
+        let defaultNmi = overlapsKernal ? 0x0240 : 0xEA81;
+
+        this.defaultIrqLo = defaultIrq & 0xFF;
+        this.defaultIrqHi = (defaultIrq >> 8) & 0xFF;
+
+        this.ram[0x0314] = this.defaultIrqLo; this.ram[0x0315] = this.defaultIrqHi; 
+        this.ram[0x0316] = this.defaultIrqLo; this.ram[0x0317] = this.defaultIrqHi; 
+        this.ram[0x0318] = defaultNmi & 0xFF; this.ram[0x0319] = (defaultNmi >> 8) & 0xFF; 
+
+        // =========================================================
+        // FIX: DIE HARDWARE-VEKTOREN DÜRFEN NUR INS KERNAL ROM!
+        // Schreibt der Emulator in RAM, überschreibt er Custom-IRQs!
+        // =========================================================
+        this.kernalRom[0x1FFE] = 0x48; this.kernalRom[0x1FFF] = 0xFF; 
+        this.kernalRom[0x1FFA] = 0x60; this.kernalRom[0x1FFB] = 0xFF; 
+
+        const irqEntry = [0x48, 0x8A, 0x48, 0x98, 0x48, 0xBA, 0xBD, 0x04, 0x01, 0x29, 0x10, 0xF0, 0x03, 0x6C, 0x16, 0x03, 0x6C, 0x14, 0x03];
+        for (let i = 0; i < irqEntry.length; i++) {
+            this.kernalRom[0x1F48 + i] = irqEntry[i];
+        }
+
+        const nmiEntry = [0x48, 0x8A, 0x48, 0x98, 0x48, 0x6C, 0x18, 0x03];
+        for (let i = 0; i < nmiEntry.length; i++) {
+            this.kernalRom[0x1F60 + i] = nmiEntry[i];
+        }
+
+        // --- 4. RESET RUNTIME STATE ---
         this.a = 0; this.x = 0; this.y = 0;
         this.sp = 0xFF; 
         this.p = 0x24; 
@@ -17077,22 +17037,17 @@ export class CPU6502 {
         this.rasterCycles = 0;
         this.rasterIrqTarget = 0;
         
-        this.cia1TimerA = 19705;
-        this.cia1TimerALatch = 19705;
-        this.cia1CtrlA = 0x01; // Gestartet
-        this.cia1Icr = 0;
-        this.cia1IrqMask = 0x01; 
+        this.cia1TimerA = 19705; this.cia1TimerALatch = 19705;
+        this.cia1CtrlA = 0x00;   
+        this.cia1Icr = 0; this.cia1IrqMask = 0x00; 
         this.cia1TimerAUnderflowed = false;
         
-        this.cia2TimerA = 0xFFFF;
-        this.cia2TimerALatch = 0xFFFF;
-        this.cia2CtrlA = 0;
-        this.cia2Icr = 0;
-        this.cia2IrqMask = 0;
+        this.cia2TimerA = 0xFFFF; this.cia2TimerALatch = 0xFFFF;
+        this.cia2CtrlA = 0x00;
+        this.cia2Icr = 0; this.cia2IrqMask = 0x00;
         
-        this.cia2TimerB = 0xFFFF;
-        this.cia2TimerBLatch = 0xFFFF;
-        this.cia2CtrlB = 0;
+        this.cia2TimerB = 0xFFFF; this.cia2TimerBLatch = 0xFFFF;
+        this.cia2CtrlB = 0x00;
 
         this.irqPending = false;
         this.nmiPending = false;
@@ -17103,17 +17058,9 @@ export class CPU6502 {
         this.rdy = true;
         this.isBadLine = false;
 
-        this.todTenths = 0;
-        this.todSec = 0;
-        this.todMin = 0;
-        this.todHour = 1;
-        this.todLatchTenths = 0;
-        this.todLatchSec = 0;
-        this.todLatchMin = 0;
-        this.todLatchHour = 1;
-        this.todLatched = false;
-        this.todHalted = false;
-        this.todCycleCounter = 19705;
+        this.todTenths = 0; this.todSec = 0; this.todMin = 0; this.todHour = 1;
+        this.todLatchTenths = 0; this.todLatchSec = 0; this.todLatchMin = 0; this.todLatchHour = 1;
+        this.todLatched = false; this.todHalted = false; this.todCycleCounter = 19705;
     }
 
     push(val) {
@@ -17141,10 +17088,18 @@ export class CPU6502 {
             if (addr === 0x0001) return this.ram[0x0001];
             return this.ram[addr];
         }
-        if (addr > 0xDFFF) return this.ram[addr];
-        
+
         let p0001 = this.ram[0x0001] & 0x07;
-        let ioEnabled = (p0001 === 5 || p0001 === 6 || p0001 === 7);
+
+        if (addr >= 0xE000) {
+            let kernalEnabled = (p0001 & 2) !== 0; 
+            if (kernalEnabled) {
+                return this.kernalRom[addr - 0xE000];
+            }
+            return this.ram[addr]; 
+        }
+
+        let ioEnabled = (p0001 & 4) !== 0 && (p0001 & 3) !== 0;
         if (!ioEnabled) return this.ram[addr];
 
         if (addr === 0xD011) {
@@ -17157,6 +17112,8 @@ export class CPU6502 {
         
         if (addr === 0xDC04) return this.cia1TimerA & 0xFF;
         if (addr === 0xDC05) return (this.cia1TimerA >> 8) & 0xFF;
+        if (addr === 0xDC06) return this.cia1TimerB & 0xFF;
+        if (addr === 0xDC07) return (this.cia1TimerB >> 8) & 0xFF;
         
         if (addr >= 0xDC08 && addr <= 0xDC0B) {
             if (addr === 0xDC0B) {
@@ -17186,8 +17143,8 @@ export class CPU6502 {
             this.updateIrqState(); 
             return val;
         }
-        if (addr === 0xDC0E) return this.cia1CtrlA;
-        if (addr === 0xDC0F) return this.cia1CtrlB;
+        if (addr === 0xDC0E) return this.cia1CtrlA & 0xEF; 
+        if (addr === 0xDC0F) return this.cia1CtrlB & 0xEF;
         
         if (addr >= 0xDD00 && addr <= 0xDD0F) {
             if (addr === 0xDD04) return this.cia2TimerA & 0xFF;
@@ -17202,19 +17159,16 @@ export class CPU6502 {
                 this.updateIrqState(); 
                 return val;
             }
-            if (addr === 0xDD0E) return this.cia2CtrlA;
-            if (addr === 0xDD0F) return this.cia2CtrlB;
+            if (addr === 0xDD0E) return this.cia2CtrlA & 0xEF; 
+            if (addr === 0xDD0F) return this.cia2CtrlB & 0xEF;
             return this.ram[addr]; 
         }
         
-        // --- SID Register Mirroring & PSID Compatibility Read ($D400 - $D7FF) ---
         if (addr >= 0xD400 && addr <= 0xD7FF) {
             let reg = addr & 0x1F;
-            if (reg === 27) return Math.floor(this.sid.voices[2].waveOut8Bit) || 0; // $D41B mirror
-            if (reg === 28) return Math.floor(this.sid.voices[2].env8Bit) || 0;     // $D41C mirror
-            if (reg === 25 || reg === 26) return 0xFF;                              // POTX/POTY
-            
-            // PSID Fallback: Gibt den zuletzt geschriebenen RAM-Wert zurück
+            if (reg === 27) return Math.floor(this.sid.voices[2].waveOut8Bit) || 0; 
+            if (reg === 28) return Math.floor(this.sid.voices[2].env8Bit) || 0;     
+            if (reg === 25 || reg === 26) return 0xFF;                              
             return this.ram[addr];                                                  
         }
 
@@ -17222,16 +17176,15 @@ export class CPU6502 {
     }
 
     write(addr, val) {
-        this.ram[addr] = val;
+        this.ram[addr] = val; 
         if (addr < 0xD000 || addr > 0xDFFF) return;
         
         let p0001 = this.ram[0x0001] & 0x07;
-        let ioEnabled = (p0001 === 5 || p0001 === 6 || p0001 === 7);
+        let ioEnabled = (p0001 & 4) !== 0 && (p0001 & 3) !== 0;
         if (!ioEnabled) return;
         
-        // --- SID Register Mirroring ($D400 - $D7FF) ---
         if (addr >= 0xD400 && addr <= 0xD7FF) {
-            let reg = addr & 0x1F; // 32-Byte Mirroring
+            let reg = addr & 0x1F; 
             if (reg < 29) {
                 this.sid.writeReg(reg, val);
             }
@@ -17247,59 +17200,54 @@ export class CPU6502 {
             this.ram[0xD01A] = val & 0x0F;
             this.updateIrqState();
         }
+        
         else if (addr === 0xDC04) {
             this.cia1TimerALatch = (this.cia1TimerALatch & 0xFF00) | val;
-            if ((this.cia1CtrlA & 0x01) === 0) this.cia1TimerA = (this.cia1TimerA & 0xFF00) | val;
         } else if (addr === 0xDC05) {
             this.cia1TimerALatch = (this.cia1TimerALatch & 0x00FF) | (val << 8);
-            if ((this.cia1CtrlA & 0x01) === 0) this.cia1TimerA = (this.cia1TimerA & 0x00FF) | (val << 8);
+            if ((this.cia1CtrlA & 0x01) === 0) this.cia1TimerA = this.cia1TimerALatch;
         } else if (addr === 0xDC06) {
             this.cia1TimerBLatch = (this.cia1TimerBLatch & 0xFF00) | val;
-            if ((this.cia1CtrlB & 0x01) === 0) this.cia1TimerB = (this.cia1TimerB & 0xFF00) | val;
         } else if (addr === 0xDC07) {
             this.cia1TimerBLatch = (this.cia1TimerBLatch & 0x00FF) | (val << 8);
-            if ((this.cia1CtrlB === 0x01) === 0) this.cia1TimerB = (this.cia1TimerB & 0x00FF) | (val << 8);
-        } else if (addr === 0xDD0D) {
-            let bit7 = (val & 0x80) !== 0;
-            let maskBits = val & 0x1F;
-            if (bit7) this.cia2IrqMask |= maskBits;
-            else this.cia2IrqMask &= ~maskBits;
-            this.updateIrqState();
+            if ((this.cia1CtrlB & 0x01) === 0) this.cia1TimerB = this.cia1TimerBLatch;
         } else if (addr === 0xDC0D) {
             let bit7 = (val & 0x80) !== 0;
             let maskBits = val & 0x1F;
-            if (bit7) {
-                this.cia1IrqMask |= maskBits;  
-            } else {
-                this.cia1IrqMask &= ~maskBits; 
-            }
+            if (bit7) this.cia1IrqMask |= maskBits;
+            else this.cia1IrqMask &= ~maskBits;
             this.updateIrqState();
         } else if (addr === 0xDC0E) {
-            this.cia1CtrlA = val;
-            if (val & 0x10) this.cia1TimerA = this.cia1TimerALatch === 0 ? 0xFFFF : this.cia1TimerALatch; 
+            this.cia1CtrlA = val & 0xEF; 
+            if (val & 0x10) this.cia1TimerA = this.cia1TimerALatch; 
         } else if (addr === 0xDC0F) {
-            this.cia1CtrlB = val; 
-            if (val & 0x10) this.cia1TimerB = this.cia1TimerBLatch === 0 ? 0xFFFF : this.cia1TimerBLatch;
+            this.cia1CtrlB = val & 0xEF; 
+            if (val & 0x10) this.cia1TimerB = this.cia1TimerBLatch;
         }
+        
         else if (addr >= 0xDD00 && addr <= 0xDD0F) {
             if (addr === 0xDD04) {
                 this.cia2TimerALatch = (this.cia2TimerALatch & 0xFF00) | val;
-                if ((this.cia2CtrlA & 0x01) === 0) this.cia2TimerA = (this.cia2TimerA & 0xFF00) | val;
             } else if (addr === 0xDD05) {
                 this.cia2TimerALatch = (this.cia2TimerALatch & 0x00FF) | (val << 8);
-                if ((this.cia2CtrlA & 0x01) === 0) this.cia2TimerA = (this.cia2TimerA & 0x00FF) | (val << 8);
+                if ((this.cia2CtrlA & 0x01) === 0) this.cia2TimerA = this.cia2TimerALatch;
             } else if (addr === 0xDD06) {
                 this.cia2TimerBLatch = (this.cia2TimerBLatch & 0xFF00) | val;
-                if ((this.cia2CtrlB & 0x01) === 0) this.cia2TimerB = (this.cia2TimerB & 0xFF00) | val;
             } else if (addr === 0xDD07) {
                 this.cia2TimerBLatch = (this.cia2TimerBLatch & 0x00FF) | (val << 8);
-                if ((this.cia2CtrlB === 0x01) === 0) this.cia2TimerB = (this.cia2TimerB & 0x00FF) | (val << 8);
+                if ((this.cia2CtrlB & 0x01) === 0) this.cia2TimerB = this.cia2TimerBLatch;
+            } else if (addr === 0xDD0D) {
+                let bit7 = (val & 0x80) !== 0;
+                let maskBits = val & 0x1F;
+                if (bit7) this.cia2IrqMask |= maskBits;
+                else this.cia2IrqMask &= ~maskBits;
+                this.updateIrqState();
             } else if (addr === 0xDD0E) {
-                this.cia2CtrlA = val;
-                if (val & 0x10) this.cia2TimerA = this.cia2TimerALatch === 0 ? 0xFFFF : this.cia2TimerALatch;
+                this.cia2CtrlA = val & 0xEF; 
+                if (val & 0x10) this.cia2TimerA = this.cia2TimerALatch; 
             } else if (addr === 0xDD0F) {
-                this.cia2CtrlB = val;
-                if (val & 0x10) this.cia2TimerB = this.cia2TimerBLatch === 0 ? 0xFFFF : this.cia2TimerBLatch;
+                this.cia2CtrlB = val & 0xEF;
+                if (val & 0x10) this.cia2TimerB = this.cia2TimerBLatch;
             }
             return;
         }
@@ -17338,7 +17286,7 @@ export class CPU6502 {
         this.nmiPending = false; 
         this.push(this.pc >> 8);
         this.push(this.pc & 0xFF);
-        this.push((this.p & 0xEF) | 0x20);
+        this.push((this.p & 0xEF) | 0x20); 
         this.p |= 0x04;
         this.pc = this.read(0xFFFA) | (this.read(0xFFFB) << 8);
     }
@@ -17358,7 +17306,7 @@ export class CPU6502 {
                 this.cia1TimerA--;
                 if (this.cia1TimerA < 0) {
                     this.cia1Icr |= 0x01; 
-                    this.cia1TimerA = this.cia1TimerALatch === 0 ? 0xFFFF : this.cia1TimerALatch;
+                    this.cia1TimerA = this.cia1TimerALatch;
                     this.cia1TimerAUnderflowed = true;
 
                     if (this.cia1CtrlA & 0x08) this.cia1CtrlA &= ~0x01; 
@@ -17371,12 +17319,24 @@ export class CPU6502 {
                 }
             }
 
+            if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x00)) {
+                this.cia1TimerB--;
+                if (this.cia1TimerB < 0) timerBUnderflowTriggered = true;
+            }
+
+            if (timerBUnderflowTriggered) {
+                this.cia1Icr |= 0x02; 
+                this.cia1TimerB = this.cia1TimerBLatch;
+                if (this.cia1CtrlB & 0x08) this.cia1CtrlB &= ~0x01; 
+                this.updateIrqState(i, cycles);
+            }
+
             let cia2TimerBUnderflow = false;
             if (this.cia2CtrlA & 0x01) { 
                 this.cia2TimerA--;
                 if (this.cia2TimerA < 0) {
                     this.cia2Icr |= 0x01; 
-                    this.cia2TimerA = this.cia2TimerALatch === 0 ? 0xFFFF : this.cia2TimerALatch;
+                    this.cia2TimerA = this.cia2TimerALatch;
                     
                     if (this.cia2CtrlA & 0x08) this.cia2CtrlA &= ~0x01; 
                     this.updateIrqState(i, cycles);
@@ -17395,24 +17355,8 @@ export class CPU6502 {
 
             if (cia2TimerBUnderflow) {
                 this.cia2Icr |= 0x02; 
-                this.cia2TimerB = this.cia2TimerBLatch === 0 ? 0xFFFF : this.cia2TimerBLatch;
+                this.cia2TimerB = this.cia2TimerBLatch;
                 if (this.cia2CtrlB & 0x08) this.cia2CtrlB &= ~0x01; 
-                this.updateIrqState(i, cycles);
-            }
-
-            if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x00)) {
-                this.cia1TimerB--;
-                if (this.cia1TimerB < 0) {
-                    timerBUnderflowTriggered = true;
-                }
-            }
-
-            if (timerBUnderflowTriggered) {
-                this.cia1Icr |= 0x02; 
-                this.cia1TimerB = this.cia1TimerBLatch === 0 ? 0xFFFF : this.cia1TimerBLatch;
-                if (this.cia1CtrlB & 0x08) { 
-                    this.cia1CtrlB &= ~0x01; 
-                }
                 this.updateIrqState(i, cycles);
             }
 
@@ -17471,8 +17415,34 @@ export class CPU6502 {
     indX() { let z = this.zpX(); return this.read(z) | (this.read((z+1)&0xFF) << 8); }
     indY() { let z = this.zp(); let addr = this.read(z) | (this.read((z+1)&0xFF) << 8); return (addr + this.y) & 0xFFFF; }
 
+    adcInternal(val) {
+        if (this.p & 0x08) { 
+            let AL, A, result_dec;
+            A = this.a;
+            result_dec = A + val + (this.p & 0x01);
+            AL = (A & 0x0F) + (val & 0x0F) + (this.p & 0x01);
+            if (AL >= 0x0A) AL = ((AL + 0x06) & 0x0F) + 0x10;
+            A = (A & 0xF0) + (val & 0xF0) + AL;
+            if (A & 0x80) this.p |= 128; else this.p &= ~128;
+            if ((this.a ^ A) & (val ^ A) & 0x80) this.p |= 64; else this.p &= ~64;
+            if (A >= 0x1A0) A += 0x60;
+            let carryLimit = (this.p & 0x01) ? 0x199 : 0x19F;
+            if (result_dec > carryLimit) this.p |= 1; else this.p &= ~1;
+            if (result_dec & 0xFF) this.p &= ~2; else this.p |= 2;
+            this.a = A & 0xFF;
+        } else { 
+            let carry = this.p & 1; 
+            let sum = this.a + val + carry; 
+            let overflow = ((this.a ^ sum) & (val ^ sum) & 0x80) !== 0; 
+            if (sum > 255) this.p |= 1; else this.p &= ~1; 
+            if (overflow) this.p |= 64; else this.p &= ~64; 
+            this.a = sum & 0xFF; 
+            this.setNZ(this.a); 
+        }
+    }
+
     sbcInternal(val) {
-        if (this.p & 0x08) { // Decimal Mode (BCD) aktiv
+        if (this.p & 0x08) { 
             let result_dec, A, AL, B, C;
             A = this.a;
             C = this.p & 0x01;
@@ -17489,7 +17459,7 @@ export class CPU6502 {
             A = (A & 0xF0) - (B & 0xF0) + AL;
             if (A < 0) A = A - 0x60;
             this.a = A & 0xFF;
-        } else { // Standard Binary Mode
+        } else { 
             let val_inv = val ^ 0xFF; 
             let carry = this.p & 1; 
             let sum = this.a + val_inv + carry; 
@@ -17528,11 +17498,23 @@ export class CPU6502 {
                 cycles = 7;
             } break;
 
-            case 0xEA: cycles = 2; break; // NOP
-            case 0xA9: this.a = this.read(this.pc++); this.setNZ(this.a); cycles = 2; break; // LDA imm
-            case 0xA5: this.a = this.read(this.zp()); this.setNZ(this.a); cycles = 3; break; // LDA zp
-            case 0xB5: this.a = this.read(this.zpX()); this.setNZ(this.a); cycles = 4; break; // LDA zp,X
-            case 0xAD: this.a = this.read(this.abs()); this.setNZ(this.a); cycles = 4; break; // LDA abs
+            case 0xEA: cycles = 2; break; 
+            case 0x1A: case 0x3A: case 0x5A: case 0x7A: case 0xDA: case 0xFA: cycles = 2; break; 
+            case 0x04: case 0x14: case 0x34: case 0x44: case 0x54: case 0x64: case 0x74:
+            case 0x80: case 0x82: case 0x89: case 0xC2: case 0xE2:
+                this.pc++; cycles = 3; break; 
+            case 0x0C:
+                this.pc += 2; cycles = 4; break; 
+            case 0x1C: case 0x3C: case 0x5C: case 0x7C: case 0xDC: case 0xFC: {
+                let addr = this.abs();
+                let addrX = (addr + this.x) & 0xFFFF;
+                cycles = 4 + (this.pageCrossed(addr, addrX) ? 1 : 0);
+            } break; 
+
+            case 0xA9: this.a = this.read(this.pc++); this.setNZ(this.a); cycles = 2; break; 
+            case 0xA5: this.a = this.read(this.zp()); this.setNZ(this.a); cycles = 3; break; 
+            case 0xB5: this.a = this.read(this.zpX()); this.setNZ(this.a); cycles = 4; break; 
+            case 0xAD: this.a = this.read(this.abs()); this.setNZ(this.a); cycles = 4; break; 
             case 0xBD: { 
                 let addr = this.abs();
                 let addrX = (addr + this.x) & 0xFFFF;
@@ -17550,7 +17532,7 @@ export class CPU6502 {
                 this.setNZ(this.a);
                 cycles = 4 + (this.pageCrossed(addr, addrY) ? 1 : 0);
             } break; 
-            case 0xA1: this.a = this.read(this.indX()); this.setNZ(this.a); cycles = 6; break; // LDA (zp,X)
+            case 0xA1: this.a = this.read(this.indX()); this.setNZ(this.a); cycles = 6; break; 
             case 0xB1: { 
                 let z = this.zp();
                 let addr = this.read(z) | (this.read((z+1)&0xFF) << 8);
@@ -17560,10 +17542,10 @@ export class CPU6502 {
                 this.setNZ(this.a);
                 cycles = 5 + (this.pageCrossed(addr, addrY) ? 1 : 0);
             } break; 
-            case 0xA2: this.x = this.read(this.pc++); this.setNZ(this.x); cycles = 2; break; // LDX imm
-            case 0xA6: this.x = this.read(this.zp()); this.setNZ(this.x); cycles = 3; break; // LDX zp
-            case 0xB6: this.x = this.read(this.zpY()); this.setNZ(this.x); cycles = 4; break; // LDX zp,Y
-            case 0xAE: this.x = this.read(this.abs()); this.setNZ(this.x); cycles = 4; break; // LDX abs
+            case 0xA2: this.x = this.read(this.pc++); this.setNZ(this.x); cycles = 2; break; 
+            case 0xA6: this.x = this.read(this.zp()); this.setNZ(this.x); cycles = 3; break; 
+            case 0xB6: this.x = this.read(this.zpY()); this.setNZ(this.x); cycles = 4; break; 
+            case 0xAE: this.x = this.read(this.abs()); this.setNZ(this.x); cycles = 4; break; 
             case 0xBE: { 
                 let addr = this.abs();
                 let addrY = (addr + this.y) & 0xFFFF;
@@ -17573,10 +17555,10 @@ export class CPU6502 {
                 cycles = 4 + (this.pageCrossed(addr, addrY) ? 1 : 0);
             } break; 
 
-            case 0xA0: this.y = this.read(this.pc++); this.setNZ(this.y); cycles = 2; break; // LDY imm
-            case 0xA4: this.y = this.read(this.zp()); this.setNZ(this.y); cycles = 3; break; // LDY zp
-            case 0xB4: this.y = this.read(this.zpX()); this.setNZ(this.y); cycles = 4; break; // LDY zp,X
-            case 0xAC: this.y = this.read(this.abs()); this.setNZ(this.y); cycles = 4; break; // LDY abs
+            case 0xA0: this.y = this.read(this.pc++); this.setNZ(this.y); cycles = 2; break; 
+            case 0xA4: this.y = this.read(this.zp()); this.setNZ(this.y); cycles = 3; break; 
+            case 0xB4: this.y = this.read(this.zpX()); this.setNZ(this.y); cycles = 4; break; 
+            case 0xAC: this.y = this.read(this.abs()); this.setNZ(this.y); cycles = 4; break; 
             case 0xBC: { 
                 let addr = this.abs();
                 let addrX = (addr + this.x) & 0xFFFF;
@@ -17614,302 +17596,120 @@ export class CPU6502 {
             case 0xC8: this.y = (this.y + 1) & 0xFF; this.setNZ(this.y); cycles = 2; break; 
             case 0x88: this.y = (this.y - 1) & 0xFF; this.setNZ(this.y); cycles = 2; break; 
 
-            case 0xE6: { 
-                let z = this.zp(); let v = this.read(z); this.write(z, v); v = (v + 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 5; 
-            } break; 
-            case 0xF6: { 
-                let z = this.zpX(); let v = this.read(z); this.write(z, v); v = (v + 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 6; 
-            } break; 
-            case 0xEE: { 
-                let a = this.abs(); let v = this.read(a); this.write(a, v); v = (v + 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 6; 
-            } break; 
-            case 0xFE: { 
-                let a = this.absX(); let v = this.read(a); this.write(a, v); v = (v + 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 7; 
-            } break; 
+            case 0xE6: { let z = this.zp(); let v = this.read(z); this.write(z, v); v = (v + 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 5; } break; 
+            case 0xF6: { let z = this.zpX(); let v = this.read(z); this.write(z, v); v = (v + 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 6; } break; 
+            case 0xEE: { let a = this.abs(); let v = this.read(a); this.write(a, v); v = (v + 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 6; } break; 
+            case 0xFE: { let a = this.absX(); let v = this.read(a); this.write(a, v); v = (v + 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 7; } break; 
 
-            case 0xC6: { 
-                let z = this.zp(); let v = this.read(z); this.write(z, v); v = (v - 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 5; 
-            } break; 
-            case 0xD6: { 
-                let z = this.zpX(); let v = this.read(z); this.write(z, v); v = (v - 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 6; 
-            } break; 
-            case 0xCE: { 
-                let a = this.abs(); let v = this.read(a); this.write(a, v); v = (v - 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 6; 
-            } break; 
-            case 0xDE: { 
-                let a = this.absX(); let v = this.read(a); this.write(a, v); v = (v - 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 7; 
-            } break;
+            case 0xC6: { let z = this.zp(); let v = this.read(z); this.write(z, v); v = (v - 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 5; } break; 
+            case 0xD6: { let z = this.zpX(); let v = this.read(z); this.write(z, v); v = (v - 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 6; } break; 
+            case 0xCE: { let a = this.abs(); let v = this.read(a); this.write(a, v); v = (v - 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 6; } break; 
+            case 0xDE: { let a = this.absX(); let v = this.read(a); this.write(a, v); v = (v - 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 7; } break;
 
-            // =========================================================
-            // ILLEGALE / UNDOKUMENTIERTE OPCODES (Martin Galway / Arkanoid Fix)
-            // =========================================================
-
-            // --- 1. LAX (LDA + LDX) ---
-            case 0xA7: { // LAX zp
-                let val = this.read(this.zp());
-                this.a = val; this.x = val;
-                this.setNZ(val);
-                cycles = 3;
-            } break;
-            case 0xB7: { // LAX zp,Y
-                let val = this.read(this.zpY());
-                this.a = val; this.x = val;
-                this.setNZ(val);
-                cycles = 4;
-            } break;
-            case 0xAF: { // LAX abs
-                let val = this.read(this.abs());
-                this.a = val; this.x = val;
-                this.setNZ(val);
-                cycles = 4;
-            } break;
-            case 0xBF: { // LAX abs,Y
-                let addr = this.abs();
-                let addrY = (addr + this.y) & 0xFFFF;
+            case 0xA7: { let val = this.read(this.zp()); this.a = val; this.x = val; this.setNZ(val); cycles = 3; } break;
+            case 0xB7: { let val = this.read(this.zpY()); this.a = val; this.x = val; this.setNZ(val); cycles = 4; } break;
+            case 0xAF: { let val = this.read(this.abs()); this.a = val; this.x = val; this.setNZ(val); cycles = 4; } break;
+            case 0xBF: { 
+                let addr = this.abs(); let addrY = (addr + this.y) & 0xFFFF;
                 if (this.pageCrossed(addr, addrY)) this.read((addr & 0xFF00) | (addrY & 0x00FF));
-                let val = this.read(addrY);
-                this.a = val; this.x = val;
-                this.setNZ(val);
+                let val = this.read(addrY); this.a = val; this.x = val; this.setNZ(val);
                 cycles = 4 + (this.pageCrossed(addr, addrY) ? 1 : 0);
             } break;
 
-            // --- 2. SAX (STA & STX) ---
-            case 0x87: { // SAX zp
-                this.write(this.zp(), this.a & this.x);
-                cycles = 3;
-            } break;
-            case 0x97: { // SAX zp,Y
-                this.write(this.zpY(), this.a & this.x);
-                cycles = 4;
-            } break;
-            case 0x8F: { // SAX abs
-                this.write(this.abs(), this.a & this.x);
-                cycles = 4;
-            } break;
+            case 0x87: { this.write(this.zp(), this.a & this.x); cycles = 3; } break;
+            case 0x97: { this.write(this.zpY(), this.a & this.x); cycles = 4; } break;
+            case 0x8F: { this.write(this.abs(), this.a & this.x); cycles = 4; } break;
 
-            // --- 3. DCP (DEC + CMP) ---
-            case 0xC7: { // DCP zp
-                let z = this.zp();
-                let v = this.read(z);
-                this.write(z, v); // Dummy write
-                v = (v - 1) & 0xFF;
-                this.write(z, v);
-                let diff = this.a - v;
-                this.setNZ(diff & 0xFF);
-                if (this.a >= v) this.p |= 1; else this.p &= ~1;
-                cycles = 5;
-            } break;
-            case 0xD7: { // DCP zp,X
-                let z = this.zpX();
-                let v = this.read(z);
-                this.write(z, v);
-                v = (v - 1) & 0xFF;
-                this.write(z, v);
-                let diff = this.a - v;
-                this.setNZ(diff & 0xFF);
-                if (this.a >= v) this.p |= 1; else this.p &= ~1;
-                cycles = 6;
-            } break;
-            case 0xCF: { // DCP abs
-                let a = this.abs();
-                let v = this.read(a);
-                this.write(a, v);
-                v = (v - 1) & 0xFF;
-                this.write(a, v);
-                let diff = this.a - v;
-                this.setNZ(diff & 0xFF);
-                if (this.a >= v) this.p |= 1; else this.p &= ~1;
-                cycles = 6;
-            } break;
-            case 0xDF: { // DCP abs,X
-                let a = this.absX();
-                let v = this.read(a);
-                this.write(a, v);
-                v = (v - 1) & 0xFF;
-                this.write(a, v);
-                let diff = this.a - v;
-                this.setNZ(diff & 0xFF);
-                if (this.a >= v) this.p |= 1; else this.p &= ~1;
-                cycles = 7;
-            } break;
-            case 0xDB: { // DCP abs,Y
-                let a = this.absY();
-                let v = this.read(a);
-                this.write(a, v);
-                v = (v - 1) & 0xFF;
-                this.write(a, v);
-                let diff = this.a - v;
-                this.setNZ(diff & 0xFF);
-                if (this.a >= v) this.p |= 1; else this.p &= ~1;
-                cycles = 7;
-            } break;
+            case 0xC7: { let z = this.zp(); let v = this.read(z); this.write(z, v); v = (v - 1) & 0xFF; this.write(z, v); let diff = this.a - v; this.setNZ(diff & 0xFF); if (this.a >= v) this.p |= 1; else this.p &= ~1; cycles = 5; } break;
+            case 0xD7: { let z = this.zpX(); let v = this.read(z); this.write(z, v); v = (v - 1) & 0xFF; this.write(z, v); let diff = this.a - v; this.setNZ(diff & 0xFF); if (this.a >= v) this.p |= 1; else this.p &= ~1; cycles = 6; } break;
+            case 0xCF: { let a = this.abs(); let v = this.read(a); this.write(a, v); v = (v - 1) & 0xFF; this.write(a, v); let diff = this.a - v; this.setNZ(diff & 0xFF); if (this.a >= v) this.p |= 1; else this.p &= ~1; cycles = 6; } break;
+            case 0xDF: { let a = this.absX(); let v = this.read(a); this.write(a, v); v = (v - 1) & 0xFF; this.write(a, v); let diff = this.a - v; this.setNZ(diff & 0xFF); if (this.a >= v) this.p |= 1; else this.p &= ~1; cycles = 7; } break;
+            case 0xDB: { let a = this.absY(); let v = this.read(a); this.write(a, v); v = (v - 1) & 0xFF; this.write(a, v); let diff = this.a - v; this.setNZ(diff & 0xFF); if (this.a >= v) this.p |= 1; else this.p &= ~1; cycles = 7; } break;
 
-            // --- 4. ISC (INC + SBC) ---
-            case 0xE7: { // ISC zp
-                let z = this.zp();
-                let v = this.read(z);
-                this.write(z, v);
-                v = (v + 1) & 0xFF;
-                this.write(z, v);
-                this.sbcInternal(v);
-                cycles = 5;
-            } break;
-            case 0xF7: { // ISC zp,X
-                let z = this.zpX();
-                let v = this.read(z);
-                this.write(z, v);
-                v = (v + 1) & 0xFF;
-                this.write(z, v);
-                this.sbcInternal(v);
-                cycles = 6;
-            } break;
-            case 0xEF: { // ISC abs
-                let a = this.abs();
-                let v = this.read(a);
-                this.write(a, v);
-                v = (v + 1) & 0xFF;
-                this.write(a, v);
-                this.sbcInternal(v);
-                cycles = 6;
-            } break;
-            case 0xFF: { // ISC abs,X
-                let a = this.absX();
-                let v = this.read(a);
-                this.write(a, v);
-                v = (v + 1) & 0xFF;
-                this.write(a, v);
-                this.sbcInternal(v);
-                cycles = 7;
-            } break;
-            case 0xFB: { // ISC abs,Y
-                let a = this.absY();
-                let v = this.read(a);
-                this.write(a, v);
-                v = (v + 1) & 0xFF;
-                this.write(a, v);
-                this.sbcInternal(v);
-                cycles = 7;
-            } break;
+            case 0xE7: { let z = this.zp(); let v = this.read(z); this.write(z, v); v = (v + 1) & 0xFF; this.write(z, v); this.sbcInternal(v); cycles = 5; } break;
+            case 0xF7: { let z = this.zpX(); let v = this.read(z); this.write(z, v); v = (v + 1) & 0xFF; this.write(z, v); this.sbcInternal(v); cycles = 6; } break;
+            case 0xEF: { let a = this.abs(); let v = this.read(a); this.write(a, v); v = (v + 1) & 0xFF; this.write(a, v); this.sbcInternal(v); cycles = 6; } break;
+            case 0xFF: { let a = this.absX(); let v = this.read(a); this.write(a, v); v = (v + 1) & 0xFF; this.write(a, v); this.sbcInternal(v); cycles = 7; } break;
+            case 0xFB: { let a = this.absY(); let v = this.read(a); this.write(a, v); v = (v + 1) & 0xFF; this.write(a, v); this.sbcInternal(v); cycles = 7; } break;
 
-            case 0x20: { let target = this.abs(); this.push((this.pc - 1) >> 8); this.push((this.pc - 1) & 0xFF); this.pc = target; cycles = 6; } break; // JSR
-            case 0x4C: this.pc = this.abs(); cycles = 3; break; // JMP abs
-            case 0x6C: { let ptr = this.abs(); let low = this.read(ptr); let high = this.read((ptr & 0xFF00) | ((ptr + 1) & 0x00FF)); this.pc = low | (high << 8); cycles = 5; } break; // JMP (ind)
-            case 0x60: { let low = this.pop(); let high = this.pop(); this.pc = (low | (high << 8)) + 1; cycles = 6; } break; // RTS
-            case 0x40: { // RTI
-                this.p = (this.pop() & 0xEF) | 0x20; 
-                let low = this.pop(); let high = this.pop(); this.pc = low | (high << 8); cycles = 6; 
-            } break; 
+            case 0x07: { let z = this.zp(); let v = this.read(z); this.write(z, v); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.write(z, v); this.a |= v; this.setNZ(this.a); cycles = 5; } break;
+            case 0x17: { let z = this.zpX(); let v = this.read(z); this.write(z, v); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.write(z, v); this.a |= v; this.setNZ(this.a); cycles = 6; } break;
+            case 0x0F: { let a = this.abs(); let v = this.read(a); this.write(a, v); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.write(a, v); this.a |= v; this.setNZ(this.a); cycles = 6; } break;
+            case 0x1F: { let a = this.absX(); let v = this.read(a); this.write(a, v); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.write(a, v); this.a |= v; this.setNZ(this.a); cycles = 7; } break;
 
-            case 0xD0: cycles = this.branch((this.p & 2) === 0); break; // BNE
-            case 0xF0: cycles = this.branch((this.p & 2) !== 0); break; // BEQ
-            case 0x10: cycles = this.branch((this.p & 128) === 0); break; // BPL
-            case 0x30: cycles = this.branch((this.p & 128) !== 0); break; // BMI
-            case 0x90: cycles = this.branch((this.p & 1) === 0); break; // BCC
-            case 0xB0: cycles = this.branch((this.p & 1) !== 0); break; // BCS
-            case 0x50: cycles = this.branch((this.p & 64) === 0); break; // BVC
-            case 0x70: cycles = this.branch((this.p & 64) !== 0); break; // BVS
+            case 0x27: { let z = this.zp(); let v = this.read(z); this.write(z, v); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.write(z, v); this.a &= v; this.setNZ(this.a); cycles = 5; } break;
+            case 0x37: { let z = this.zpX(); let v = this.read(z); this.write(z, v); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.write(z, v); this.a &= v; this.setNZ(this.a); cycles = 6; } break;
+            case 0x2F: { let a = this.abs(); let v = this.read(a); this.write(a, v); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.write(a, v); this.a &= v; this.setNZ(this.a); cycles = 6; } break;
+            case 0x3F: { let a = this.absX(); let v = this.read(a); this.write(a, v); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.write(a, v); this.a &= v; this.setNZ(this.a); cycles = 7; } break;
 
-            case 0x08: this.push(this.p | 0x10); cycles = 3; break; // PHP
-            case 0x28: this.p = (this.pop() & 0xEF) | 0x20; cycles = 4; break; // PLP
-            case 0x48: this.push(this.a); cycles = 3; break; // PHA
-            case 0x68: this.a = this.pop(); this.setNZ(this.a); cycles = 4; break; // PLA
+            case 0x47: { let z = this.zp(); let v = this.read(z); this.write(z, v); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.write(z, v); this.a ^= v; this.setNZ(this.a); cycles = 5; } break;
+            case 0x57: { let z = this.zpX(); let v = this.read(z); this.write(z, v); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.write(z, v); this.a ^= v; this.setNZ(this.a); cycles = 6; } break;
+            case 0x4F: { let a = this.abs(); let v = this.read(a); this.write(a, v); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.write(a, v); this.a ^= v; this.setNZ(this.a); cycles = 6; } break;
+            case 0x5F: { let a = this.absX(); let v = this.read(a); this.write(a, v); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.write(a, v); this.a ^= v; this.setNZ(this.a); cycles = 7; } break;
 
-            case 0x18: this.p &= ~1; cycles = 2; break; // CLC
-            case 0x38: this.p |= 1; cycles = 2; break; // SEC
-            case 0x58: this.p &= ~4; cycles = 2; break; // CLI
-            case 0x78: this.p |= 4; cycles = 2; break; // SEI
-            case 0xD8: this.p &= ~8; cycles = 2; break; // CLD
-            case 0xF8: this.p |= 8; cycles = 2; break; // SED
-            case 0xB8: this.p &= ~64; cycles = 2; break; // CLV
+            case 0x67: { let z = this.zp(); let v = this.read(z); this.write(z, v); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.write(z, v); this.adcInternal(v); cycles = 5; } break;
+            case 0x77: { let z = this.zpX(); let v = this.read(z); this.write(z, v); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.write(z, v); this.adcInternal(v); cycles = 6; } break;
+            case 0x6F: { let a = this.abs(); let v = this.read(a); this.write(a, v); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.write(a, v); this.adcInternal(v); cycles = 6; } break;
+            case 0x7F: { let a = this.absX(); let v = this.read(a); this.write(a, v); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.write(a, v); this.adcInternal(v); cycles = 7; } break;
 
-            case 0x0A: { if (this.a & 128) this.p |= 1; else this.p &= ~1; this.a = (this.a << 1) & 0xFF; this.setNZ(this.a); cycles = 2; } break; // ASL A
-            case 0x4A: { if (this.a & 1) this.p |= 1; else this.p &= ~1; this.a = (this.a >> 1) & 0x7F; this.setNZ(this.a); cycles = 2; } break; // LSR A
-            case 0x2A: { let c = this.p & 1; if (this.a & 128) this.p |= 1; else this.p &= ~1; this.a = ((this.a << 1) & 0xFF) | c; this.setNZ(this.a); cycles = 2; } break; // ROL A
-            case 0x6A: { let c = this.p & 1; if (this.a & 1) this.p |= 1; else this.p &= ~1; this.a = (this.a >> 1) | (c << 7); this.setNZ(this.a); cycles = 2; } break; // ROR A
+            case 0x0B: case 0x2B: { this.a &= this.read(this.pc++); this.setNZ(this.a); if (this.a & 0x80) this.p |= 1; else this.p &= ~1; cycles = 2; } break; 
+            case 0x4B: { this.a &= this.read(this.pc++); if (this.a & 1) this.p |= 1; else this.p &= ~1; this.a >>= 1; this.setNZ(this.a); cycles = 2; } break; 
+            case 0x6B: { this.a &= this.read(this.pc++); let c = (this.p & 1) << 7; if (this.a & 1) this.p |= 1; else this.p &= ~1; this.a = (this.a >> 1) | c; this.setNZ(this.a); cycles = 2; } break; 
+            case 0xCB: { let val = this.read(this.pc++); let res = (this.a & this.x) - val; if ((this.a & this.x) >= val) this.p |= 1; else this.p &= ~1; this.x = res & 0xFF; this.setNZ(this.x); cycles = 2; } break; 
+            case 0xEB: { this.sbcInternal(this.read(this.pc++)); cycles = 2; } break; 
 
-            case 0x06: { 
-                let z = this.zp(); let v = this.read(z); this.write(z, v); 
-                if (v & 128) this.p |= 1; else this.p &= ~1; 
-                v = (v << 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 5; 
-            } break; 
-            case 0x46: { 
-                let z = this.zp(); let v = this.read(z); this.write(z, v); 
-                if (v & 1) this.p |= 1; else this.p &= ~1; 
-                v = (v >> 1) & 0x7F; this.write(z, v); this.setNZ(v); cycles = 5; 
-            } break; 
-            case 0x26: { 
-                let z = this.zp(); let v = this.read(z); this.write(z, v); let c = this.p & 1; 
-                if (v & 128) this.p |= 1; else this.p &= ~1; 
-                v = ((v << 1) & 0xFF) | c; this.write(z, v); this.setNZ(v); cycles = 5; 
-            } break; 
-            case 0x66: { 
-                let z = this.zp(); let v = this.read(z); this.write(z, v); let c = this.p & 1; 
-                if (v & 1) this.p |= 1; else this.p &= ~1; 
-                v = (v >> 1) | (c << 7); this.write(z, v); this.setNZ(v); cycles = 5; 
-            } break; 
+            case 0x20: { let target = this.abs(); this.push((this.pc - 1) >> 8); this.push((this.pc - 1) & 0xFF); this.pc = target; cycles = 6; } break; 
+            case 0x4C: this.pc = this.abs(); cycles = 3; break; 
+            case 0x6C: { let ptr = this.abs(); let low = this.read(ptr); let high = this.read((ptr & 0xFF00) | ((ptr + 1) & 0x00FF)); this.pc = low | (high << 8); cycles = 5; } break; 
+            case 0x60: { let low = this.pop(); let high = this.pop(); this.pc = (low | (high << 8)) + 1; cycles = 6; } break; 
+            case 0x40: { this.p = (this.pop() & 0xEF) | 0x20; let low = this.pop(); let high = this.pop(); this.pc = low | (high << 8); cycles = 6; } break; 
+
+            case 0xD0: cycles = this.branch((this.p & 2) === 0); break; 
+            case 0xF0: cycles = this.branch((this.p & 2) !== 0); break; 
+            case 0x10: cycles = this.branch((this.p & 128) === 0); break; 
+            case 0x30: cycles = this.branch((this.p & 128) !== 0); break; 
+            case 0x90: cycles = this.branch((this.p & 1) === 0); break; 
+            case 0xB0: cycles = this.branch((this.p & 1) !== 0); break; 
+            case 0x50: cycles = this.branch((this.p & 64) === 0); break; 
+            case 0x70: cycles = this.branch((this.p & 64) !== 0); break; 
+
+            case 0x08: this.push(this.p | 0x10); cycles = 3; break; 
+            case 0x28: this.p = (this.pop() & 0xEF) | 0x20; cycles = 4; break; 
+            case 0x48: this.push(this.a); cycles = 3; break; 
+            case 0x68: this.a = this.pop(); this.setNZ(this.a); cycles = 4; break; 
+
+            case 0x18: this.p &= ~1; cycles = 2; break; 
+            case 0x38: this.p |= 1; cycles = 2; break; 
+            case 0x58: this.p &= ~4; cycles = 2; break; 
+            case 0x78: this.p |= 4; cycles = 2; break; 
+            case 0xD8: this.p &= ~8; cycles = 2; break; 
+            case 0xF8: this.p |= 8; cycles = 2; break; 
+            case 0xB8: this.p &= ~64; cycles = 2; break; 
+
+            case 0x0A: { if (this.a & 128) this.p |= 1; else this.p &= ~1; this.a = (this.a << 1) & 0xFF; this.setNZ(this.a); cycles = 2; } break; 
+            case 0x4A: { if (this.a & 1) this.p |= 1; else this.p &= ~1; this.a = (this.a >> 1) & 0x7F; this.setNZ(this.a); cycles = 2; } break; 
+            case 0x2A: { let c = this.p & 1; if (this.a & 128) this.p |= 1; else this.p &= ~1; this.a = ((this.a << 1) & 0xFF) | c; this.setNZ(this.a); cycles = 2; } break; 
+            case 0x6A: { let c = this.p & 1; if (this.a & 1) this.p |= 1; else this.p &= ~1; this.a = (this.a >> 1) | (c << 7); this.setNZ(this.a); cycles = 2; } break; 
+
+            case 0x06: { let z = this.zp(); let v = this.read(z); this.write(z, v); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 5; } break; 
+            case 0x46: { let z = this.zp(); let v = this.read(z); this.write(z, v); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.write(z, v); this.setNZ(v); cycles = 5; } break; 
+            case 0x26: { let z = this.zp(); let v = this.read(z); this.write(z, v); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.write(z, v); this.setNZ(v); cycles = 5; } break; 
+            case 0x66: { let z = this.zp(); let v = this.read(z); this.write(z, v); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.write(z, v); this.setNZ(v); cycles = 5; } break; 
             
-            case 0x16: { 
-                let z = this.zpX(); let v = this.read(z); this.write(z, v); 
-                if (v & 128) this.p |= 1; else this.p &= ~1; 
-                v = (v << 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 6; 
-            } break; 
-            case 0x56: { 
-                let z = this.zpX(); let v = this.read(z); this.write(z, v); 
-                if (v & 1) this.p |= 1; else this.p &= ~1; 
-                v = (v >> 1) & 0x7F; this.write(z, v); this.setNZ(v); cycles = 6; 
-            } break; 
-            case 0x36: { 
-                let z = this.zpX(); let v = this.read(z); this.write(z, v); let c = this.p & 1; 
-                if (v & 128) this.p |= 1; else this.p &= ~1; 
-                v = ((v << 1) & 0xFF) | c; this.write(z, v); this.setNZ(v); cycles = 6; 
-            } break; 
-            case 0x76: { 
-                let z = this.zpX(); let v = this.read(z); this.write(z, v); let c = this.p & 1; 
-                if (v & 1) this.p |= 1; else this.p &= ~1; 
-                v = (v >> 1) | (c << 7); this.write(z, v); this.setNZ(v); cycles = 6; 
-            } break; 
+            case 0x16: { let z = this.zpX(); let v = this.read(z); this.write(z, v); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.write(z, v); this.setNZ(v); cycles = 6; } break; 
+            case 0x56: { let z = this.zpX(); let v = this.read(z); this.write(z, v); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.write(z, v); this.setNZ(v); cycles = 6; } break; 
+            case 0x36: { let z = this.zpX(); let v = this.read(z); this.write(z, v); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.write(z, v); this.setNZ(v); cycles = 6; } break; 
+            case 0x76: { let z = this.zpX(); let v = this.read(z); this.write(z, v); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.write(z, v); this.setNZ(v); cycles = 6; } break; 
             
-            case 0x0E: { 
-                let a = this.abs(); let v = this.read(a); this.write(a, v); 
-                if (v & 128) this.p |= 1; else this.p &= ~1; 
-                v = (v << 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 6; 
-            } break; 
-            case 0x4E: { 
-                let a = this.abs(); let v = this.read(a); this.write(a, v); 
-                if (v & 1) this.p |= 1; else this.p &= ~1; 
-                v = (v >> 1) & 0x7F; this.write(a, v); this.setNZ(v); cycles = 6; 
-            } break; 
-            case 0x2E: { 
-                let a = this.abs(); let v = this.read(a); this.write(a, v); let c = this.p & 1; 
-                if (v & 128) this.p |= 1; else this.p &= ~1; 
-                v = ((v << 1) & 0xFF) | c; this.write(a, v); this.setNZ(v); cycles = 6; 
-            } break; 
-            case 0x6E: { 
-                let a = this.abs(); let v = this.read(a); this.write(a, v); let c = this.p & 1; 
-                if (v & 1) this.p |= 1; else this.p &= ~1; 
-                v = (v >> 1) | (c << 7); this.write(a, v); this.setNZ(v); cycles = 6; 
-            } break; 
+            case 0x0E: { let a = this.abs(); let v = this.read(a); this.write(a, v); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 6; } break; 
+            case 0x4E: { let a = this.abs(); let v = this.read(a); this.write(a, v); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.write(a, v); this.setNZ(v); cycles = 6; } break; 
+            case 0x2E: { let a = this.abs(); let v = this.read(a); this.write(a, v); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.write(a, v); this.setNZ(v); cycles = 6; } break; 
+            case 0x6E: { let a = this.abs(); let v = this.read(a); this.write(a, v); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.write(a, v); this.setNZ(v); cycles = 6; } break; 
             
-            case 0x1E: { 
-                let a = this.absX(); let v = this.read(a); this.write(a, v); 
-                if (v & 128) this.p |= 1; else this.p &= ~1; 
-                v = (v << 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 7; 
-            } break;
-            case 0x5E: { 
-                let a = this.absX(); let v = this.read(a); this.write(a, v); 
-                if (v & 1) this.p |= 1; else this.p &= ~1; 
-                v = (v >> 1) & 0x7F; this.write(a, v); this.setNZ(v); cycles = 7; 
-            } break;
-            case 0x3E: { 
-                let a = this.absX(); let v = this.read(a); this.write(a, v); let c = this.p & 1; 
-                if (v & 128) this.p |= 1; else this.p &= ~1; 
-                v = ((v << 1) & 0xFF) | c; this.write(a, v); this.setNZ(v); cycles = 7; 
-            } break;
-            case 0x7E: { 
-                let a = this.absX(); let v = this.read(a); this.write(a, v); let c = this.p & 1; 
-                if (v & 1) this.p |= 1; else this.p &= ~1; 
-                v = (v >> 1) | (c << 7); this.write(a, v); this.setNZ(v); cycles = 7; 
-            } break;
+            case 0x1E: { let a = this.absX(); let v = this.read(a); this.write(a, v); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 7; } break;
+            case 0x5E: { let a = this.absX(); let v = this.read(a); this.write(a, v); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.write(a, v); this.setNZ(v); cycles = 7; } break;
+            case 0x3E: { let a = this.absX(); let v = this.read(a); this.write(a, v); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.write(a, v); this.setNZ(v); cycles = 7; } break;
+            case 0x7E: { let a = this.absX(); let v = this.read(a); this.write(a, v); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.write(a, v); this.setNZ(v); cycles = 7; } break;
 
             default: 
                 cycles = this.handleALU(op); 
@@ -17970,7 +17770,7 @@ export class CPU6502 {
                 let addr = this.abs();
                 let addrX = (addr + this.x) & 0xFFFF;
                 if (this.pageCrossed(addr, addrX)) {
-                    this.read((addr & 0xFF00) | (addrX & 0x00FF)); // Dummy Read
+                    this.read((addr & 0xFF00) | (addrX & 0x00FF)); 
                 }
                 val = this.read(addrX);
                 cycles = 4 + (this.pageCrossed(addr, addrX) ? 1 : 0);
@@ -17982,7 +17782,7 @@ export class CPU6502 {
                 let addr = this.abs();
                 let addrY = (addr + this.y) & 0xFFFF;
                 if (this.pageCrossed(addr, addrY)) {
-                    this.read((addr & 0xFF00) | (addrY & 0x00FF)); // Dummy Read
+                    this.read((addr & 0xFF00) | (addrY & 0x00FF)); 
                 }
                 val = this.read(addrY);
                 cycles = 4 + (this.pageCrossed(addr, addrY) ? 1 : 0);
@@ -18001,7 +17801,7 @@ export class CPU6502 {
                 let addr = this.read(z) | (this.read((z+1)&0xFF) << 8);
                 let addrY = (addr + this.y) & 0xFFFF;
                 if (this.pageCrossed(addr, addrY)) {
-                    this.read((addr & 0xFF00) | (addrY & 0x00FF)); // Dummy Read
+                    this.read((addr & 0xFF00) | (addrY & 0x00FF)); 
                 }
                 val = this.read(addrY);
                 cycles = 5 + (this.pageCrossed(addr, addrY) ? 1 : 0);
@@ -18025,67 +17825,14 @@ export class CPU6502 {
 
             if (high === 0x60 || high === 0x70) { 
                 if(op!==0x60&&op!==0x68&&op!==0x6A&&op!==0x78&&op!==0x70) { 
-                    if (this.p & 0x08) { // Decimal Mode (BCD) aktiv
-                        let AL, A, result_dec;
-                        A = this.a;
-                        result_dec = A + val + (this.p & 0x01);
-                        
-                        AL = (A & 0x0F) + (val & 0x0F) + (this.p & 0x01);
-                        if (AL >= 0x0A) AL = ((AL + 0x06) & 0x0F) + 0x10;
-                        A = (A & 0xF0) + (val & 0xF0) + AL;
-                        
-                        if (A & 0x80) this.p |= 128; else this.p &= ~128;
-                        if ((this.a ^ A) & (val ^ A) & 0x80) this.p |= 64; else this.p &= ~64;
-                        
-                        if (A >= 0x1A0) A += 0x60;
-                        
-                        let carryLimit = (this.p & 0x01) ? 0x199 : 0x19F;
-                        if (result_dec > carryLimit) this.p |= 1; else this.p &= ~1;
-                        if (result_dec & 0xFF) this.p &= ~2; else this.p |= 2;
-                        
-                        this.a = A & 0xFF;
-                    } else { // Standard Binary Mode
-                        let carry = this.p & 1; 
-                        let sum = this.a + val + carry; 
-                        let overflow = ((this.a ^ sum) & (val ^ sum) & 0x80) !== 0; 
-                        if (sum > 255) this.p |= 1; else this.p &= ~1; 
-                        if (overflow) this.p |= 64; else this.p &= ~64; 
-                        this.a = sum & 0xFF; 
-                        this.setNZ(this.a); 
-                    }
+                    this.adcInternal(val);
                     return cycles; 
                 } 
             }
 
             if (high === 0xE0 || high === 0xF0) { 
                 if(op!==0xE0&&op!==0xE4&&op!==0xE8&&op!==0xEA&&op!==0xEC&&op!==0xF8&&op!==0xF0) { 
-                    if (this.p & 0x08) { // Decimal Mode (BCD) aktiv
-                        let result_dec, A, AL, B, C;
-                        A = this.a;
-                        C = this.p & 0x01;
-                        B = val;
-                        let val_inv = val ^ 0xFF;
-                        result_dec = A + val_inv + C;
-                        
-                        if (result_dec > 0xFF) this.p |= 1; else this.p &= ~1;
-                        if ((this.a ^ result_dec) & (val_inv ^ result_dec) & 0x80) this.p |= 64; else this.p &= ~64;
-                        this.setNZ(result_dec & 0xFF);
-                        
-                        AL = (A & 0x0F) - (B & 0x0F) + C - 1;
-                        if (AL < 0) AL = ((AL - 0x06) & 0x0F) - 0x10;
-                        A = (A & 0xF0) - (B & 0xF0) + AL;
-                        if (A < 0) A = A - 0x60;
-                        this.a = A & 0xFF;
-                    } else { // Standard Binary Mode
-                        let val_inv = val ^ 0xFF; 
-                        let carry = this.p & 1; 
-                        let sum = this.a + val_inv + carry; 
-                        let overflow = ((this.a ^ sum) & (val_inv ^ sum) & 0x80) !== 0; 
-                        if (sum > 255) this.p |= 1; else this.p &= ~1; 
-                        if (overflow) this.p |= 64; else this.p &= ~64; 
-                        this.a = sum & 0xFF; 
-                        this.setNZ(this.a); 
-                    }
+                    this.sbcInternal(val);
                     return cycles; 
                 } 
             }
@@ -18139,6 +17886,7 @@ export class CPU6502 {
 ===== END FILE: js/worklets/lib/cpu6502.js =====
 
 ===== FILE: js/worklets/lib/dsp-utils.js =====
+// === js/worklets/lib/dsp-utils.js ===
 // =========================================================
 // DSP UTILITIES & FILTERS
 // Das Effekt-Rack für alle Worklets
@@ -18174,8 +17922,8 @@ export class MoogFilter {
         if (f > 1.9 - q) f = 1.9 - q; 
         
         this.low += f * this.band;
-        let high = input - this.low - q * this.band;
-        this.band += f * high;
+        let hp = input - this.low - q * this.band;
+        this.band += f * hp;
         
         if (isNaN(this.low)) { this.low = 0; this.band = 0; }
         return this.low; 
@@ -18215,29 +17963,49 @@ export class DCBlocker {
     }
 }
 
+// =========================================================
+// C64 ANALOG OUTPUT STAGE (1-Pole RC + Sinc-Droop Equalizer)
+// =========================================================
+export class C64AnalogFilter {
+    constructor(sampleRate) {
+        // 1. Sinc-Droop Equalizer Pre-Emphasis (+2.5 dB bei 16 kHz)
+        // Gleicht den mathematischen Hochton-Abfall des Boxcar-Decimators exakt aus
+        this.cComp = 0.22;
+        this.lastX = 0;
+
+        // 2. Physikalisch getreuer 1-Pole C64 Audio Output RC-Filter (~16 kHz Cutoff)
+        // Entspricht der R=1k / C=10nF Schaltung am Video/Audio-Port des Motherboards
+        const fc = 16000.0;
+        this.alpha = Math.exp(-2.0 * Math.PI * fc / sampleRate);
+        this.lastLp = 0;
+    }
+
+    process(x) {
+        // A) Sinc-Droop Pre-Equalization
+        let comp = (1.0 + this.cComp) * x - this.cComp * this.lastX;
+        this.lastX = x;
+
+        // B) Sanfter 1-Pole RC Tiefpass (6 dB/Okt Steilheit)
+        let lp = (1.0 - this.alpha) * comp + this.alpha * this.lastLp;
+        this.lastLp = lp;
+
+        return lp;
+    }
+}
+
 /**
  * Erkennt Digidrum-Trigger innerhalb eines YM5/YM6-Register-Frames.
- * Liefert die 1-basierte Sample-Nummer oder 0, falls kein Trigger vorliegt.
- * 
- * @param {Uint8Array} frame - Das aktuelle 16-Byte Register-Frame
- * @returns {number} 1-basierter Index für die Digidrum (0 = kein Trigger)
  */
 export function detectDigidrum(frame) {
     let activeDigiTrigger = 0;
 
-    // YM6 Spezialeffekt 1 (gespeichert in R1)
-    // Bit 6-7: Typ (00: SID, 01: Digidrum, 10: Sinus SID, 11: Sync-Buzzer)
-    // Bit 4-5: Kanal (01: Voice A, 10: Voice B, 11: Voice C)
     const fx1Type = (frame[1] & 0xC0) >> 6;
     const fx1Voice = (frame[1] & 0x30) >> 4;
 
     if (fx1Type === 1 && fx1Voice > 0) {
-        // Das Lautstärkeregister des Kanals (R8, R9 oder R10) enthält die Sample-ID in Bit 0-4
         const sampleReg = 8 + fx1Voice - 1;
         activeDigiTrigger = (frame[sampleReg] & 0x1F) + 1;
     } else {
-        // YM6 Spezialeffekt 2 (gespeichert in R3)
-        // Bit 6-7: Typ, Bit 4-5: Kanal
         const fx2Type = (frame[3] & 0xC0) >> 6;
         const fx2Voice = (frame[3] & 0x30) >> 4;
 
@@ -18247,7 +18015,6 @@ export function detectDigidrum(frame) {
         }
     }
 
-    // Fallback: Direkte Abfrage der virtuellen Register R14/R15
     if (activeDigiTrigger === 0) {
         if (frame[15] > 0) activeDigiTrigger = frame[15];
         else if (frame[14] > 0) activeDigiTrigger = frame[14];
@@ -18256,12 +18023,6 @@ export function detectDigidrum(frame) {
     return activeDigiTrigger;
 }
 
-/**
- * Ermittelt, welcher YM-Kanal (1: Voice A, 2: Voice B, 3: Voice C, 0: Keiner) die Digidrum triggert.
- * 
- * @param {Uint8Array} frame - Das aktuelle 16-Byte Register-Frame
- * @returns {number} 1-basierter Kanalindex (0 = kein Kanal oder Fallback)
- */
 export function detectDigidrumVoice(frame) {
     const fx1Type = (frame[1] & 0xC0) >> 6;
     const fx1Voice = (frame[1] & 0x30) >> 4;
@@ -18271,16 +18032,9 @@ export function detectDigidrumVoice(frame) {
     const fx2Voice = (frame[3] & 0x30) >> 4;
     if (fx2Type === 1 && fx2Voice > 0) return fx2Voice;
 
-    return 0; // Kein direkter Kanal gemappt (z. B. Fallback)
+    return 0; 
 }
 
-// =========================================================
-// ATARI ST / YAMAHA YM2149F HARDWARE UTILS
-// =========================================================
-
-// Gemessene 32-Step Voltage-Tabelle eines echten YM2149F.
-// Ersetzt die ungenaue mathematische Logarithmus-Näherung.
-// Basiert auf Oszilloskop-Messungen der Demoszene-Community (Nuked/Hatari).
 export const YM2149_DAC32 = new Float32Array([
     0.0000, 0.0043, 0.0061, 0.0084, 0.0119, 0.0163, 0.0242, 0.0345,
     0.0483, 0.0682, 0.0988, 0.1384, 0.1983, 0.2831, 0.3984, 0.5510,
@@ -18288,28 +18042,21 @@ export const YM2149_DAC32 = new Float32Array([
     0.8845, 0.8988, 0.9155, 0.9348, 0.9573, 0.9830, 0.9950, 1.0000
 ]);
 
-// Physisches Modell der analogen Ausgangsstufe des Atari ST (Motherboard)
-// YM-Mix -> Mischwiderstände -> RC Tiefpass (~15.9 kHz) -> OpAmp (LM324) -> Ausgangskondensator
 export class AtariAnalogFilter {
     constructor(sampleRate) {
         this.lpAlpha = Math.exp(-2.0 * Math.PI * 15900.0 / sampleRate);
-        this.hpAlpha = Math.exp(-2.0 * Math.PI * 25.0 / sampleRate); // Ausgangskondensator DC-Block
+        this.hpAlpha = Math.exp(-2.0 * Math.PI * 25.0 / sampleRate); 
         this.lastLp = 0;
         this.lastHpIn = 0;
         this.lastHpOut = 0;
     }
     
     process(input) {
-        // 1. RC Tiefpass (nimmt dem YM2149 die digitale Härte)
         let lp = (1.0 - this.lpAlpha) * input + this.lpAlpha * this.lastLp;
         this.lastLp = lp;
-        
-        // 2. Highpass / Kondensator (Entfernt Hardware-Gleichspannung)
         let hp = this.hpAlpha * (this.lastHpOut + lp - this.lastHpIn);
         this.lastHpIn = lp;
         this.lastHpOut = hp;
-        
-        // 3. OpAmp Sättigung (LM324) - Gibt dem Bass Wärme und limitiert sanft
         return Math.tanh(hp * 1.25) / 1.25;
     }
 }
@@ -18392,14 +18139,8 @@ export class DynamicStaging {
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Phase 7: True Thermal Hardware Modeling
-// Exponential Cutoff Drift, Thermal DAC Gain/Offset,
-// JFET Temperature Saturation, and Dynamic Leakage.
-// Upgraded with historically accurate ADSR Phase-Transition Delay
-// Upgraded with Dynamic VCA DC-Leakage Activity Tracking
-// Upgraded with historically accurate Floating DAC Waveform Discharge
-// Upgraded with non-linear Summer Op-Amp Saturation (Filter Squelch)
-// Upgraded with non-linear Volume Register D/A Mapping & VCA Multiplier Bias
+// Phase 25: 100% Symmetric JFET Saturation & AC/DC VCA Separation
+// Eliminates low-level decay raspiness and restores full Wizball 4 "singing"
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -18408,9 +18149,6 @@ import { DAC_LUT, CUTOFF_LUT } from './sid-luts.js';
 const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_RELEASE = 2; 
 const RATE_COUNTER_PERIOD = [9, 32, 63, 95, 149, 220, 267, 313, 392, 977, 1954, 3126, 3907, 11720, 19530, 31256];
 
-// --- STATISCHER VERLAUF DES NICHT-LINEAREN 6581 LAUTSTÄRKE-D/A-WANDLERS ---
-// Gemessen von Pex "Mahoney" Tufvesson auf realem 6581 NMOS-Silizium.
-// Bildet das unregelmäßige Verhalten der R-2R-Widerstandsleiter exakt ab.
 const VOLUME_DAC_6581 = new Float32Array([
     0.000, 0.078, 0.149, 0.228, 0.307, 0.378, 0.449, 0.512,
     0.606, 0.669, 0.724, 0.787, 0.842, 0.898, 0.953, 1.000
@@ -18424,7 +18162,7 @@ export class SIDChip {
             this.voices.push({
                 freq: 0, pw: 2048, ctrl: 0, env: 0, phase: 0,
                 state: ENV_RELEASE, prevGate: false,
-                waveOut8Bit: 0x18, // Startet genau auf dem schwebenden DC-Ruhepegel (24)
+                waveOut8Bit: 0x18, 
                 env8Bit: 0, lfsr: 0x7FFFFF,
                 rate_counter: 0, exponential_counter: 0, envelope_counter: 0,
                 attack_period: RATE_COUNTER_PERIOD[0],
@@ -18445,16 +18183,15 @@ export class SIDChip {
         this.q = 1.0;
         this.activeCutoff = 30.0;
 
-        // Thermische Caches (Zero-Allocation Loop Optimization)
         this._temperature = 55.0;
         this.thermalDacGain = 1.0;
         this.thermalDacOffset = 0.0;
-        this.thermalLeakage = 0.11;
+        this.thermalLeakage = 0.03; 
         this.thermalDcOffset = 0.0;
         this.thermalJfetDrive = 0.8;
 
-        // --- DYNAMISCHE DIGIDRUM AKTIVITÄTS-VARIABLEN ---
         this.volWiggleActivity = 0.0;
+        this.d418Writes = 0; 
 
         this.updateFilterParameters();
     }
@@ -18465,46 +18202,32 @@ export class SIDChip {
         this.updateFilterParameters();
     }
 
-    // =========================================================
-    // THERMAL HARDWARE MODELING
-    // Alle temperaturabhängigen Werte werden vorab berechnet.
-    // =========================================================
     updateFilterParameters() {
         let cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
         let norm = cutoffReg / 2047.0;
 
-        // 1. Exponential Cutoff Drift
         let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
-
         let fetCurve = 30.0 + 250.0 * norm + 8000.0 * (norm * norm) + 8000.0 * (norm * norm * norm);
         
         this.activeCutoff = fetCurve * thermalCoefficient;
         if (this.activeCutoff < 30) this.activeCutoff = 30;
         if (this.activeCutoff > 16000) this.activeCutoff = 16000;
 
-        // 2. Integrator Drift
         let baseG = Math.PI * this.activeCutoff / 985248;
         this.g = baseG * (1.0 + (this._temperature - 55.0) * 0.0005);
         
         let resReg = this.regs[23] >> 4;
         let normRes = resReg / 15.0;
-        let q = 1.0 - normRes * 0.92;
+        let q = 1.0 - normRes * 0.945;
         let thermalDamp = 1.0 + (this._temperature - 55.0) * 0.0015;
-        this.q = Math.min(1.0, Math.max(0.04, q * thermalDamp));
+        this.q = Math.min(1.0, Math.max(0.035, q * thermalDamp));
 
-        // 3. DAC Gain & Offset Drift
         this.thermalDacGain = 1.0 - (this._temperature - 55.0) * 0.0008;
         this.thermalDacOffset = (this._temperature - 55.0) * 0.0003;
-
-        // 4. VCF Leakage Steigerung bei Wärme
         this.thermalLeakage = 0.09 + (this._temperature - 25.0) * 0.0008;
-
-        // 5. Hardware DC Offset Drift
         this.thermalDcOffset = (this._temperature - 55.0) * 0.005;
-
-        // 6. JFET Saturation Drive (Warme Transistoren clippen früher/weicher)
         this.thermalJfetDrive = 0.8 * (1.0 - (this._temperature - 55.0) * 0.004);
-        if (this.thermalJfetDrive < 0.1) this.thermalJfetDrive = 0.1; // Failsafe
+        if (this.thermalJfetDrive < 0.1) this.thermalJfetDrive = 0.1; 
     }
 
     writeReg(reg, val) {
@@ -18529,7 +18252,6 @@ export class SIDChip {
                 ch.state = gate ? ENV_ATTACK : ENV_RELEASE;
                 
                 if (gate) {
-                    // --- GATE-ON RESET ---
                     ch.rate_counter = 0;
                     ch.exponential_counter = 0;
                 }
@@ -18552,13 +18274,11 @@ export class SIDChip {
             this.updateFilterParameters();
         } else if (reg === 24) {
             this.filterMode = val;
+            this.d418Writes++; 
             
-            // --- NON-LINEARER LAUTSTÄRKE DAC ---
-            // Mappt das Register d418 über den gemessenen analogen Widerstandspfad.
             let volIndex = val & 15;
             let newVol = VOLUME_DAC_6581[volIndex];
             
-            // --- DETEKTION DER REGISTERRATEN-MODULATION ---
             let delta = Math.abs(newVol - this.masterVol);
             if (delta > 0.01) {
                 this.volWiggleActivity = Math.min(1.0, this.volWiggleActivity + 0.15);
@@ -18579,14 +18299,13 @@ export class SIDChip {
         if (ch.state === ENV_ATTACK) ratePeriod = ch.attack_period;
         else if (ch.state === ENV_DECAY) ratePeriod = ch.decay_period;
 
-        // --- HARDWARE-ACCURATE 15-BIT UP-COUNTER WRAP ---
         ch.rate_counter++;
         if (ch.rate_counter & 0x8000) {
             ch.rate_counter = (ch.rate_counter + 1) & 0x7FFF;
         }
 
         if (ch.rate_counter === ratePeriod) {
-            ch.rate_counter = 0; // Reset nur bei exakter Koinzidenz
+            ch.rate_counter = 0; 
 
             let expPeriod = 1;
             if (ch.state !== ENV_ATTACK) {
@@ -18653,7 +18372,6 @@ export class SIDChip {
             ringMSB ^= (prevCh.phase >> 23) & 1;
         }
 
-        // --- CYCLE-GENAUE FLOATING DAC ENTLADUNG ---
         let hasWave = (ch.ctrl & 0xF0) !== 0;
         if (hasWave) {
             ch.waveOut8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, ch.pw, ch.lfsr, ringMSB);
@@ -18668,7 +18386,6 @@ export class SIDChip {
 
         let waveOutFloat = (waveDac * 2.0) - 1.0;
         
-        // Analog DAC Thermal Drift
         waveOutFloat = waveOutFloat * this.thermalDacGain + this.thermalDacOffset;
         
         return waveOutFloat * envDac;
@@ -18679,23 +18396,25 @@ export class SIDChip {
             this.clockEnvelopeOneCycle(v);
         }
 
-        // --- HIGH-SPEED EXPONENTIELLER ZERFALL (1 MHz) ---
-        this.volWiggleActivity *= 0.99995;
-
         let voice0 = this.synthesizeVoiceOneCycle(0);
         let voice1 = this.synthesizeVoiceOneCycle(1);
         let voice2 = this.synthesizeVoiceOneCycle(2);
+
+        // --- INTER-VOICE CROSSTALK ---
+        let bleed0 = voice0 + voice1 * 0.008 + voice2 * 0.004;
+        let bleed1 = voice1 + voice0 * 0.008 + voice2 * 0.008;
+        let bleed2 = voice2 + voice1 * 0.008 + voice0 * 0.004;
 
         let filteredSum = 0;
         let unfilteredSum = 0;
 
         const isVoice3Off = (this.filterMode & 128) !== 0;
 
-        if (this.regs[23] & 1) filteredSum += voice0; else unfilteredSum += voice0;
-        if (this.regs[23] & 2) filteredSum += voice1; else unfilteredSum += voice1;
+        if (this.regs[23] & 1) filteredSum += bleed0; else unfilteredSum += bleed0;
+        if (this.regs[23] & 2) filteredSum += bleed1; else unfilteredSum += bleed1;
 
         if (!isVoice3Off) {
-            if (this.regs[23] & 4) filteredSum += voice2; else unfilteredSum += voice2;
+            if (this.regs[23] & 4) filteredSum += bleed2; else unfilteredSum += bleed2;
         }
 
         let g = this.g;
@@ -18704,14 +18423,17 @@ export class SIDChip {
         if (this.activeCutoff < 800.0) {
             let damp = (800.0 - this.activeCutoff) / 800.0; 
             q += damp * 0.55; 
+        } else if (this.activeCutoff > 10000.0) {
+            let damp = (this.activeCutoff - 10000.0) / 6000.0;
+            q += damp * 0.8; 
         }
 
         let h = filteredSum - this.filterLow;
         let hp = (h - q * this.filterBand) / (1.0 + g * (g + q));
 
-        // --- NON-LINEARER ADDIEERER (hp-Op-Amp-Sättigung) ---
         if (this.useJfetSaturation) {
-            let summerDrive = this.thermalJfetDrive * 1.5; 
+            let qDrive = 1.0 / (q + 0.1); 
+            let summerDrive = this.thermalJfetDrive * (1.2 + qDrive * 0.15); 
             hp = Math.tanh(hp * summerDrive) / summerDrive;
         }
 
@@ -18721,22 +18443,23 @@ export class SIDChip {
         this.filterLow = lp;
         
         if (this.useJfetSaturation) {
-            let driveP = this.thermalJfetDrive;
-            let driveN = driveP * 1.875; 
-            
-            if (bp > 0) {
-                this.filterBand = Math.tanh(bp * driveP) / driveP;
-            } else {
-                this.filterBand = Math.tanh(bp * driveN) / driveN;
-            }
+            // FIX 1: 100% Symmetrische JFET-Sättigung! 
+            // Verhindert die DC-Gleichrichtung bei leisen Fades und macht die Decays seidenglatt.
+            let driveP = this.thermalJfetDrive * 0.65;
+            this.filterBand = Math.tanh(bp * driveP) / driveP;
         } else {
             this.filterBand = bp / (1.0 + Math.abs(bp) * 0.15); 
         }
 
-        let filterOut = 0;
-        if (this.filterMode & 16) filterOut += this.filterLow; 
-        if (this.filterMode & 32) filterOut += this.filterBand; 
-        if (this.filterMode & 64) filterOut += hp; 
+        let outLP = (this.filterMode & 16) ? this.filterLow : 0;
+        let outBP = (this.filterMode & 32) ? this.filterBand : 0;
+        let outHP = (this.filterMode & 64) ? hp : 0;
+
+        if ((this.filterMode & 80) === 80) { 
+            outHP *= 0.85; 
+        }
+
+        let filterOut = outLP + outBP + outHP;
 
         let leakage = filteredSum * this.thermalLeakage;
         let filteredMix = filterOut + leakage;
@@ -18746,20 +18469,11 @@ export class SIDChip {
         
         let vcaQuad = this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0;
         
-        // --- CIRCUIT-ACCURATE MULTIPLIER OFFSET (The true $D418 Bug) ---
-        // Auf dem realen 6581 existiert am VCA-Multiplizierer ein massiver, 
-        // konstanter DC-Offset durch den analogen Stimmen-Mixer. 
-        // Wir injizieren diesen Offset direkt in 'vcaIn' vor der Multiplikation.
-        // Bei Wiggle-Aktivität wird dieser Offset gesättigt angehoben und 
-        // direkt mit dem nicht-linearen masterVol-DAC multipliziert!
-        let dynamicBias = 1.0 + (this.volWiggleActivity * 2.5);
-        let vcaInWithBias = vcaIn + (0.5 * dynamicBias);
+        // FIX 2: Symmetrische VCA AC-Sättigung vor dem D418 DC-Bias!
+        // Verhindert 2nd Harmonic Crossover Distortion an leisen Stellen.
+        let acSaturated = Math.tanh(vcaIn + vcaQuad);
+        let finalMix = acSaturated + 0.45;
 
-        let finalMix = vcaInWithBias > 0 
-            ? Math.tanh(vcaInWithBias + vcaQuad) 
-            : Math.tanh(vcaInWithBias * 0.85 + vcaQuad) / 0.85;
-
-        // Der Lautstärke-DAC multipliziert nun direkt den analogen, gesättigten DC-Offset!
         this.outputSample = (finalMix * this.masterVol) + this.thermalDcOffset;
     }
 }
@@ -18778,18 +18492,7 @@ export const CUTOFF_LUT = new Float32Array(2048);
 export const PWM_LUT = new Uint16Array(4096);
 
 // 1. GENERATE 6581 DAC CURVE (256 Entries)
-// Simuliert die fehlerhaften Widerstände des analogen R-2R Leiter-Netzwerks auf dem Die.
-// Anstatt einer reinen Parabel gewichten wir jedes Bit mit winzigen Hardware-Toleranzen.
-const bitWeights = [
-    1.00,   // Bit 0
-    2.01,   // Bit 1
-    3.98,   // Bit 2
-    8.05,   // Bit 3
-    15.90,  // Bit 4
-    32.15,  // Bit 5
-    63.70,  // Bit 6
-    128.50  // Bit 7
-];
+const bitWeights = [1.00, 2.01, 3.98, 8.05, 15.90, 32.15, 63.70, 128.50];
 let maxWeight = 0;
 for (let b of bitWeights) maxWeight += b;
 
@@ -18799,37 +18502,25 @@ for (let i = 0; i < 256; i++) {
         if (i & (1 << b)) sum += bitWeights[b];
     }
     let v = sum / maxWeight;
-    // Zusätzlich: Der charakteristische, leichte Bowing-Effekt des Ausgangsverstärkers
     DAC_LUT[i] = v + 0.12 * v * (1.0 - v);
 }
 
-// 2. GENERATE 6581 FILTER CUTOFF CURVE (2048 Entries)
-// Bildet die gemessene, krumme FET-Kennlinie des originalen Filters nach:
-// Flaches Plateau -> harter Knick -> massiver Sprung -> Sättigung im High-End
+// 2. GENERATE REAL 6581 FILTER CUTOFF CURVE (2048 Entries)
+// Real MOS 6581 R2/R4 FET Range: 30 Hz (Sub-Bass) bis ~5800 Hz (Max Cutoff)
+// Beseitigt den Maultrommel-Effekt und gibt dem Bass seine echte C64-Tiefe!
 for (let i = 0; i < 2048; i++) {
     let norm = i / 2047.0;
-    let hz;
     
-    if (norm < 0.2) {
-        hz = 30.0 + norm * 500.0; // Flat start (Plateau)
-    } else if (norm < 0.6) {
-        hz = 130.0 + Math.pow((norm - 0.2) / 0.4, 2.0) * 3000.0; // Sharp knee (Knick)
-    } else if (norm < 0.9) {
-        hz = 3130.0 + Math.pow((norm - 0.6) / 0.3, 1.5) * 8000.0; // Jump (Sprung)
-    } else {
-        hz = 11130.0 + ((norm - 0.9) / 0.1) * 4870.0; // Saturation (Top end)
-    }
+    // Gemessene 6581 NMOS FET-Kurve (30Hz bis 5800Hz)
+    let hz = 30.0 + (Math.pow(norm, 1.5) * 5770.0);
     
     if (hz < 30) hz = 30;
-    if (hz > 16000) hz = 16000;
+    if (hz > 5800) hz = 5800;
     CUTOFF_LUT[i] = hz;
 }
 
 // 3. GENERATE PWM COMPARATOR OFFSET (4096 Entries)
-// Der analoge Komparator des 6581 ist asymmetrisch. Eine programmierte 50% Pulswelle (0x800)
-// ist in der Hardware leicht verschoben, was Sweeps charakteristisch unrund macht.
 for (let i = 0; i < 4096; i++) {
-    // Hardware DC-Offset von ca. 1.8% in die Vergleichslogik injizieren
     let shifted = i + 76; 
     if (shifted > 4095) shifted = 4095;
     PWM_LUT[i] = shifted;
@@ -18842,7 +18533,8 @@ for (let i = 0; i < 4096; i++) {
 // =========================================================
 // MOS 6581 WAVEFORM GENERATOR & BIT-LOGIC
 // Hardware-accurate 8-Bit DAC quantization & Floating DC Bias
-// Upgraded with Discrete Analog Models for Combined (Illegal) Waveforms
+// Phase 4: NMOS Transistor Bit-Weighted Pull-Down (Wire-AND Bleed)
+// 100% Integer Bitwise Operations (Zero Allocations / Zero Floats)
 // =========================================================
 
 export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
@@ -18896,61 +18588,71 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
     if (waveMask === 0x80) return noise;
 
     // =========================================================
-    // ANALOG DISCRETE COMBINED WAVEFORM MODELS (MOS 6581)
+    // NMOS TRANSISTOR BIT-WEIGHTED WIRE-AND (MOS 6581)
+    // MSBs (Bits 4-7) haben größere Transistoren -> starrer Pull-Down.
+    // LSBs (Bits 0-3) haben höheren Ron -> Sicker-Signal / Bleed.
     // =========================================================
 
     // 1. TRIANGLE + SAWTOOTH ($30)
-    // Auf dem 6581 entsteht ein Nicht-Linearer "Stufen-Sägezahn".
-    // Bitweises AND dominiert, aber analoger Bleed hebt die Senken an.
     if (waveMask === 0x30) {
-        let bitAnd = tri & saw;
-        return Math.floor(bitAnd * 0.78 + (tri + saw) * 0.11);
+        let andVal = tri & saw;
+        let xorVal = tri ^ saw;
+        let bleed = ((xorVal & 0x0F) >> 1) + ((xorVal & 0xF0) >> 3);
+        return Math.min(255, andVal + bleed + 0x04);
     }
 
     // 2. TRIANGLE + PULSE ($50)
-    // Puls-High schaltet die Dreieckswelle durch; Puls-Low zieht ab, lässt aber ~22% Restsignal.
     if (waveMask === 0x50) {
-        if (pulse === 0xFF) return Math.floor(tri * 0.90 + 0x0C);
-        return Math.floor(tri * 0.22 + 0x08);
+        if (pulse === 0xFF) {
+            let xorVal = tri ^ 0xFF;
+            let bleed = ((xorVal & 0x0F) >> 1) + ((xorVal & 0xF0) >> 3);
+            return Math.min(255, tri + bleed + 0x06);
+        }
+        let bleed = ((tri & 0x0F) >> 1) + ((tri & 0xF0) >> 3);
+        return Math.min(255, bleed + 0x08);
     }
 
-    // 3. SAWTOOTH + PULSE ($60) - DAS GALWAY-FAVORIT!
-    // Der stärkste NMOS-Pull-Down. Bei Pulse-High folgt die Sägezahnwelle satt,
-    // bei Pulse-Low zieht der Puls-Transistor ab, hinterlässt aber ein ~25% Sägezahn-Sicker-Signal.
+    // 3. SAWTOOTH + PULSE ($60) - THE MON / GALWAY BASS!
     if (waveMask === 0x60) {
-        if (pulse === 0xFF) return Math.floor(saw * 0.92 + 0x0A);
-        return Math.floor(saw * 0.25 + 0x0E);
+        if (pulse === 0xFF) {
+            let xorVal = saw ^ 0xFF;
+            let bleed = ((xorVal & 0x0F) >> 1) + ((xorVal & 0xF0) >> 3);
+            return Math.min(255, saw + bleed + 0x06);
+        }
+        let bleed = ((saw & 0x0F) >> 1) + ((saw & 0xF0) >> 3);
+        return Math.min(255, bleed + 0x0B);
     }
 
     // 4. TRIANGLE + SAWTOOTH + PULSE ($70)
-    // Drei Wellen kombiniert: Starke Dämpfung durch dreifache Widerstandslast.
     if (waveMask === 0x70) {
         let triSaw = tri & saw;
-        if (pulse === 0xFF) return Math.floor(triSaw * 0.82 + 0x12);
-        return Math.floor(triSaw * 0.18 + 0x0A);
+        if (pulse === 0xFF) {
+            let xorVal = triSaw ^ 0xFF;
+            let bleed = ((xorVal & 0x0F) >> 1) + ((xorVal & 0xF0) >> 3);
+            return Math.min(255, triSaw + bleed + 0x08);
+        }
+        let bleed = ((triSaw & 0x0F) >> 1) + ((triSaw & 0xF0) >> 3);
+        return Math.min(255, bleed + 0x0A);
     }
 
     // 5. NOISE + COMBINED WAVEFORMS (0x90, 0xA0, 0xC0, 0xD0, 0xE0, 0xF0)
-    // Das Rauschen zieht bei Aktivierung anderer Wellenformen die Ausgangsstufe 
-    // in eine abgedämpfte, hybride Rausch-Matrix.
     let bitAnd = 0xFF;
-    let sum = 0;
-    let count = 0;
+    let xorSum = 0;
 
-    if (ctrl & 16) { bitAnd &= tri; sum += tri; count++; }
-    if (ctrl & 32) { bitAnd &= saw; sum += saw; count++; }
-    if (ctrl & 64) { bitAnd &= pulse; sum += pulse; count++; }
-    if (ctrl & 128) { bitAnd &= noise; sum += noise; count++; }
+    if (ctrl & 16) { bitAnd &= tri; xorSum |= tri; }
+    if (ctrl & 32) { bitAnd &= saw; xorSum |= saw; }
+    if (ctrl & 64) { bitAnd &= pulse; xorSum |= pulse; }
+    if (ctrl & 128) { bitAnd &= noise; xorSum |= noise; }
 
-    let avg = sum / count;
-    let bleed = (avg - bitAnd) * 0.28;
+    let xorVal = xorSum ^ bitAnd;
+    let bleed = ((xorVal & 0x0F) >> 1) + ((xorVal & 0xF0) >> 3);
 
     if ((ctrl & 64) && pulse === 0) {
-        bleed *= 0.15;
+        bleed >>= 1; 
     }
 
-    let out = (bitAnd + bleed) * 0.72 + 0x18;
-    return Math.min(255, Math.max(0, Math.floor(out)));
+    let out = bitAnd + bleed + 0x12;
+    return Math.min(255, Math.max(0, out));
 }
 
 ===== END FILE: js/worklets/lib/sid-waveforms.js =====
@@ -19053,7 +18755,7 @@ export const workletRegistry = {
 ===== END FILE: manifest.json =====
 
 ===== FILE: README.md =====
-# 💾 CHIPTUNES FANTASY (v1.4.0)
+# 💾 CHIPTUNES FANTASY (v1.4.3)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -19084,6 +18786,20 @@ Our cycle-exact 1MHz SID engine is arguably one of the deepest analogue emulatio
 *   **ADSR Delay Bug (15-Bit Wrap):** Hardware-accurate 15-bit LFSR up-counter wrapping guarantees exact micro-timing delays during phase transitions.
 *   **Floating DAC Discharge:** Opaque, analog charge bleeding. When oscillators are muted, the DAC capacitance discharges slowly over ~15.5ms against a floating DC bias, creating incredibly warm, soft note releases.
 *   **Filter Squelch:** Simulates the asymmetric clipping of the overworked analog summer op-amp, creating the famous wet "smacking" sound of SID resonance sweeps.
+*   **Hardware-Level Decimation & Analog Filtering (New in v1.4.1):** 
+    *   **Zero-Aliasing Boxcar Decimation:** Replaced the legacy, flawed 255-tap FIR filter with a high-performance integrate-and-dump decimation pass. We now sum all 1MHz clock cycles per output frame directly, capturing 100% of transients without localized window skipping.
+    *   **C64 Analog Motherboard Filter:** Added a dedicated 2nd-order Butterworth reconstruction filter at 16 kHz, simulating the combined impedance of the SID output stage and Commodore 64 RF modulator to naturally smooth high-frequency clock stepping.
+*   **True DC-Bias VCA Injection (New in v1.4.1):** We eradicated the legacy, artificial digital "Volume Wiggle" hack. The engine now models a constant, hardware-accurate ~400mV analog mixer DC offset directly at the VCA input. Modulating `$D418` (master volume) directly multiplies this static DC leakage against our non-linear 6581 DAC curve, bringing Martin Galway's procedural *Arkanoid* title drums to life with their authentic, biting punch.
+*   **Discrete Wire-AND NMOS Logic (New in v1.4.1):** The calculations for combined "illegal" waveforms (`$30`, `$50`, `$60`, `$70`) have been rewritten. We eliminated all floating-point approximations in favor of pure bitwise integer shift-and-bleed masks, emulating the analog pull-down behavior of the NMOS silicon gates. This delivers Jeroen Tel's signature, tearing "Maniacs of Noise" basslines with uncompromising grit.
+*   **Analog Voodoo (Filter Squelch & Hubbard Notch)(New in v1.4.2):** Resonance (Q-factor) now dynamically collapses at high/low bandwidth extremes due to simulated op-amp failure. Mixing Highpass and Lowpass (Notch) introduces asymmetric phase attenuation, perfectly recreating Rob Hubbard's signature phaser sweeps.
+*   **Dynamic MMU & Phantom KERNAL Integrity(New in v1.4.2):** Implemented authentic C64 Memory Bank Switching. The engine now detects if a packed `.sid` payload (like *Platoon* or *Miami Vice*) overwrites the upper memory during decompression and safely disables the KERNAL ROM while shifting the hardware IRQ/NMI vectors to safe RAM zones.
+*   **Zero-Allocation Boxcar Decimation & Sinc-Droop Compensation:** Replaced the heavy 255-tap FIR with an ultra-fast 1MHz Integrate-and-Dump (Boxcar) decimator, paired with a 1-pole 16kHz RC output stage and a Sinc-Droop pre-emphasis equalizer (+2.5dB at 16kHz). High-frequency overtones, ring-modulation bells (*Giana Sisters*), and bright leads now sparkle with 100% C64 line-out clarity.
+*   **The Galway $D418 Digidrum Bug (400mV DC-Bias VCA):** Modulating `$D418` now directly multiplies a physical 400mV DC-offset at the analog mixer stage through the non-linear R-2R `VOLUME_DAC_6581` ladder. 4-bit PCM digidrums (*Arkanoid*, *Turbo Outrun*, *Mega Apocalypse*) crunch with raw, authentic speaker-shredding power.
+*   **Bitwise Wire-AND Combined Waveforms:** Replaced float approximations in `sid-waveforms.js` with pure integer bit-shifts (`>> 2`, `>> 3`) modeling the physical NMOS transistor pull-down channel resistance ($R_{on}$) and LSB bleed on combined waves ($30, $50, $60, $70). *Maniacs of Noise* basses (*Cybernoid II*, *Myth*) deliver maximum aggressive "kreissägen" texture.
+*   **6581 VCF 5.8kHz Boundary & Headroom Tuning:** Restricted maximum filter cutoff to the physical 6581 NMOS FET limit (~5.8kHz via `CUTOFF_LUT`), completely eliminating shrill 8580-style high-frequency harshness. Balanced JFET integrator drive to 1.92V headroom and applied a hardware-matched $Q$-factor table ($Q_{\text{max}} = 8.6$) so *Wizball Subsong 4* sweeps sing smoothly without tipping, ringing overshoots, or choked drum transients.
+*   **Complete 256-Opcode Matrix & Cycle-Exact Timing:** Fully implemented all 256 MOS 6502 opcodes, including multi-byte illegal NOPs (`$04`, `$0C`, `$1C`), RMW instructions (`SLO`, `RLA`, `SRE`, `RRA`), and exact branch page-crossing penalties. Martin Galway's polled delay-loop sample drivers (*Combat School*, *Wizball*) run with 100% pitch-exact timing.
+*   **Dynamic MMU & Phantom KERNAL Isolation:** Implemented C64 memory bank-switching (register `$0001`) and isolated Phantom KERNAL ROM vectors. Packed SIDs (*Platoon*, *Miami Vice*) can no longer corrupt system IRQ/NMI return handlers in RAM during decompression.
+*   **CIA-2 (NMI) Subsystem Overhaul:** Hardware-accurate CIA-2 Timer A/B latch reloading, edge-triggered NMIs, and `$DD0D` ICR read-acknowledgement for seamless NMI-driven 4-bit sample playback (*Turbo Outrun*, *BMX Kidz*).
 
 ### 2. MOS Technology Paula 8364 (Amiga 500)
 A deep emulation of the Amiga’s legendary 4-channel DMA PCM engine:
@@ -19572,16 +19288,17 @@ import { loadSidFile } from '../../js/parsers/sid-parser.js';
 
 const mySidFiles = [
     "Commando.sid",                   // 1. Rob Hubbard
-    "Crazy_Comets.sid",               // <--- NEU: Rob Hubbards legendäres Synthwave-Meisterwerk!    
-    "Sanxion.sid",                    // <--- NEU: Rob Hubbards legendäre "Thalamusik"!
-    "Lightforce.sid",                 // <--- NEU: Rob Hubbards heroische Chiptune-Hymne!
+    "Crazy_Comets.sid",               // Rob Hubbards Synthwave-Meisterwerk
+    "Sanxion.sid",                    // Rob Hubbards Thalamusik
+    "Lightforce.sid",                 // Rob Hubbards Chiptune-Hymne
     "Wizball.sid",                    // 2. Martin Galway
-    "Comic_Bakery.sid",               // <--- NEU: Martin Galways bahnbrechendes Meisterwerk!
-    "Arkanoid.sid",                   // <--- NEU: Martin Galways bahnbrechender Meilenstein!
+    "Comic_Bakery.sid",               // Martin Galways Meisterwerk
+    "Arkanoid.sid",                   // Martin Galways $D418 Digidrum Meilenstein
     "Great_Giana_Sisters_PSID.sid",   // 3. Chris Hülsbeck
     "Bionic_Commando.sid",            // 4. Tim Follin
     "Last_Ninja.sid",                 // 5. Ben Daglish & Anthony Lees
-    "Last_Ninja_2.sid",               // <--- NEU: Matt Grays Meisterwerk!
+    "Last_Ninja_2.sid",               // Matt Grays Meisterwerk
+    "Turbo_Outrun.sid",               // <--- NEU: Jeroen Tels Zero-Page Digi-Benchmark!
     "Cybernoid_II.sid",               // 6. Jeroen Tel
     "Supremacy.sid",                  // 7. Jeroen Tel
     "RoboCop_3.sid",                  // 8. Jeroen Tel
@@ -19599,6 +19316,11 @@ const mySidFiles = [
 ];
 
 const composerMetadata = {
+    "Turbo_Outrun.sid": `
+        <h3>[ COMPOSER SPOTLIGHT: JEROEN TEL (MANIACS OF NOISE) ]</h3>
+        <p>Der Soundtrack zu <strong>Turbo Outrun</strong> (1989), komponiert von <strong>Jeroen Tel</strong> (Maniacs of Noise), ist ein technisches Meisterwerk. Er nutzt eine hybride Zero-Page-Sample-Routine, die im Sub-Frame-Takt 4-Bit-Digidrums direkt in den SID-Chip feuert.</p>
+        <p><strong>DSP-Fokus:</strong> Dieser Track testet die flankengetriggerte CIA-2 NMI-Emulation und simultane $D418-Schreibzugriffe (Filter-Bits + Sample-Volume) unter extremen Bedingungen. Unser zyklenexakter Core führt die Zero-Page-Routinen ohne Verzögerung aus.</p>
+    `,
     "Myth.sid": `
         <h3>[ COMPOSER SPOTLIGHT: JEROEN TEL (MANIACS OF NOISE) ]</h3>
         <p>Der Soundtrack zum System-3-Plattformer <strong>Myth: History in the Making</strong> (1989), komponiert von <strong>Jeroen Tel</strong> (Maniacs of Noise), ist ein unumstrittenes Meisterwerk düsterer Fantasy-Elektronik. Der Track verbindet mystische, getragene Klangteppiche mit extrem aggressiven, treibenden Beats und Melodie-Kaskaden.</p>
@@ -19676,7 +19398,6 @@ const composerMetadata = {
     `
 };
 
-// Verwende die Cybernoid-Beschreibung für alle Jeroen Tel Tracks als Referenz
 composerMetadata["Supremacy.sid"] = composerMetadata["Cybernoid_II.sid"];
 composerMetadata["RoboCop_3.sid"] = composerMetadata["Cybernoid_II.sid"];
 composerMetadata["Myth.sid"] = composerMetadata["Cybernoid_II.sid"];
