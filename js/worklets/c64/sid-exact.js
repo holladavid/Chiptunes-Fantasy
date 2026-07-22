@@ -18,13 +18,13 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.loadAddr = 0;
         this.initAddress = 0;
         this.playAddress = 0;
-        this.playSpeedCycles = 19705; 
+        this.playSpeedCycles = 19656; 
         this.songSpeedFlags = 0;
         
         this.isPlaying = false;
         
         this.cycleAccumulator = 0.0;
-        this.vblankTimer = 19705; 
+        this.vblankTimer = 19656; 
         this.currentFrame = 0;
         this.hostPlayPending = false;
         
@@ -114,7 +114,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                     this.cpu.cia1CtrlA |= 0x01; 
                 }
 
-                this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
+                this.playSpeedCycles = this.useCiaTimer ? 19583 : 19656;
                 this.vblankTimer = this.playSpeedCycles;
 
                 let bootMsg = `==================================================\n` +
@@ -197,7 +197,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                     this.cpu.cia1CtrlA |= 0x01; 
                 }
                 
-                this.playSpeedCycles = this.useCiaTimer ? 19583 : 19705;
+                this.playSpeedCycles = this.useCiaTimer ? 19583 : 19656;
                 this.vblankTimer = this.playSpeedCycles;
 
                 this.cycleAccumulator = 0.0;
