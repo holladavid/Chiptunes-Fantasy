@@ -74,10 +74,10 @@ export class SIDChip {
 
         let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
         
-        // Balanced 6581 FET Cutoff Curve: Provides open midrange (850Hz - 3500Hz)
-        // for low register values so filtered basslines retain harmonic clarity.
-        let fetCurve = 120.0 + 1200.0 * norm + 7000.0 * (norm * norm) + 7680.0 * (norm * norm * norm);
-        
+        // Calibrated 6581 FET Cutoff Curve: Trimmed low-end offset (60Hz base)
+        // to eliminate boomy sub-bass mud while keeping midrange harmonics (1.2kHz - 3.2kHz) open.
+        let fetCurve = 60.0 + 600.0 * norm + 7800.0 * (norm * norm) + 7500.0 * (norm * norm * norm);
+
         this.activeCutoff = Math.max(30.0, Math.min(16000.0, fetCurve * thermalCoefficient));
 
         let baseG = Math.PI * this.activeCutoff / 985248;
