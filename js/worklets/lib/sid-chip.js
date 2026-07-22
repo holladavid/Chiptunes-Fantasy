@@ -1,9 +1,8 @@
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Phase 35: Zero-Lag Instantaneous Register Updates
-// Eliminates register smoothing lag to restore Huelsbeck's fast
-// ADSR attacks, continuous PWM sweeps & glassy lead transients.
+// Phase 36: Calibrated VCF Op-Amp Headroom & Intermodulation Fix
+// Unlocks Chris Huelsbeck's glassy lead melody in Giana Sisters ($F5 VCF routing)
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -78,8 +77,12 @@ export class SIDChip {
 
         let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
         
-        // Balanced 6581 FET Cutoff Curve: Provides open midrange (850Hz - 3500Hz)
-        let fetCurve = 30.0 + 400.0 * norm + 7200.0 * (norm * norm) + 7680.0 * (norm * norm * norm);
+        // =========================================================
+        // FULL BANDWIDTH 6581 FET CUTOFF CURVE (30Hz bis 16.5kHz)
+        // Öffnet das Filter komplett! Chris Hülsbecks gläserne Leads 
+        // und Ring-Modulatoren werden nicht mehr verschluckt.
+        // =========================================================
+        let fetCurve = 30.0 + 800.0 * norm + 6000.0 * (norm * norm) + 9500.0 * (norm * norm * norm);
         
         this.activeCutoff = Math.max(30.0, Math.min(16000.0, fetCurve * thermalCoefficient + this.vcfOffset));
 
@@ -220,7 +223,6 @@ export class SIDChip {
     synthesizeVoiceOneCycle(v) {
         let ch = this.voices[v];
 
-        // 100% Instantaneous hardware registers (Zero lag/smoothing for sharp attack transients and exact PWM)
         let freqInt = ch.freq;
         let pwInt = ch.pw;
 
@@ -240,21 +242,13 @@ export class SIDChip {
             if (!oldStep && newStep) {
                 let bit = ((ch.lfsr >> 22) ^ (ch.lfsr >> 17)) & 1;
 
-                // Physical MOS 6581 Combined Waveform LFSR Feedback Suppression:
-                // Feedback bit is suppressed ONLY during the low phase of the accompanying wave.
-                if (ch.ctrl & 0x80) {
-                    let combined = ch.ctrl & 0x70;
-                    if (combined !== 0) {
-                        let testPhase = (ch.phase >> 12) & 0xFFF;
-                        let pwMapped = PWM_LUT[pwInt & 0xFFF];
-                        
-                        let isPulseLow = (ch.ctrl & 0x40) && (testPhase >= pwMapped);
-                        let isSawLow   = (ch.ctrl & 0x20) && ((ch.phase & 0x800000) === 0);
-                        let isTriLow   = (ch.ctrl & 0x10) && ((ch.phase & 0x400000) === 0);
-
-                        if (isPulseLow || isSawLow || isTriLow) {
-                            bit = 0; // Forced feedback suppression only during low wave phases
-                        }
+                if ((ch.ctrl & 0x80) && (ch.ctrl & 0x70) !== 0) {
+                    let testPhase = (ch.phase >> 12) & 0xFFF;
+                    let pwMapped = PWM_LUT[pwInt & 0xFFF];
+                    let isPulseLow = (ch.ctrl & 0x40) && (testPhase >= pwMapped);
+                    
+                    if (isPulseLow || (ch.ctrl & 0x30)) {
+                        bit = 0; 
                     }
                 }
 
@@ -288,7 +282,6 @@ export class SIDChip {
         
         waveOutFloat = waveOutFloat * this.thermalDacGain + this.thermalDacOffset;
         
-        // Inject thermally modulated Voice VCA DC offset before envelope multiplication
         return (waveOutFloat + this.thermalVoiceDcLeakage) * envDac;
     }
 
@@ -321,26 +314,27 @@ export class SIDChip {
         let g = this.g;
         let q = this.q;
 
-        // Dynamic resonance shaping across frequency range (Resonance Quenching & Mid-Range Squelch)
         if (this.activeCutoff < 250.0) {
             let damp = (250.0 - this.activeCutoff) / 250.0; 
             q += damp * 0.15; 
         } else if (this.activeCutoff > 4500.0) {
             let damp = (this.activeCutoff - 4500.0) / 1700.0;
-            // "Breathing" resonance at high cutoffs for glassy instability
             let breath = ((this.voices[0].lfsr & 0xFF) / 255.0 - 0.5) * 0.06;
             q += damp * (0.20 + breath); 
         }
 
         // =========================================================
         // 100% UNCONDITIONALLY STABLE EXPLICIT CHAMBERLIN SVF (1 MHz)
+        // Calibrated Op-Amp Headroom: Prevents Multi-Voice VCF Intermodulation
         // =========================================================
         let h = filteredSum - this.filterLow;
         let hp = (h - q * this.filterBand) / (1.0 + g * (g + q));
 
         if (this.useJfetSaturation) {
-            let qDrive = 1.0 / (q + 0.1); 
-            let summerDrive = this.thermalJfetDrive * (1.2 + qDrive * 0.15); 
+            // Relaxed VCF Op-Amp Drive: Allows Voice 1 (Lead) and Voice 3 (Bass) to co-exist
+            // inside the filter without intermodulation clipping or lead suppression.
+            let qDrive = 1.0 / (q + 0.25); 
+            let summerDrive = this.thermalJfetDrive * (0.50 + qDrive * 0.10); 
             hp = Math.tanh(hp * summerDrive) / summerDrive;
         }
 
@@ -360,8 +354,10 @@ export class SIDChip {
         let outBP = (this.filterMode & 32) ? this.filterBand : 0;
         let outHP = (this.filterMode & 64) ? hp : 0;
 
+        // Analoge Phasen-Inversion für Highpass in Notch/Tri-Filter Modi ($50/$70/$F0)
+        // Entspricht der physischen 6581 Op-Amp Summierschaltung
         if ((this.filterMode & 80) === 80) { 
-            outHP *= 0.85; 
+            outHP = -outHP * 0.90; 
         }
 
         let filterOut = outLP + outBP + outHP;
@@ -371,13 +367,12 @@ export class SIDChip {
 
         let rawSum = unfilteredSum + filteredMix;
 
-        // Expand linear headroom (0.28x) so loud basslines don't crush the delicate synths
-        let vcaIn = rawSum * 0.28; 
+        let vcaIn = rawSum * 0.40; 
         
         let vcaQuad = this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0;
         
         let acSaturated = Math.tanh(vcaIn + vcaQuad);
-        let finalMix = (acSaturated * 1.35) + this.thermalMasterDcBias;
+        let finalMix = (acSaturated * 1.85) + this.thermalMasterDcBias;
 
         this.outputSample = (finalMix * this.masterVol) + this.thermalDcOffset;
     }

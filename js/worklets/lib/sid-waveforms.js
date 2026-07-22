@@ -14,9 +14,17 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
     let tri = 0xFF, saw = 0xFF, pulse = 0xFF, noise = 0xFF;
 
     if (ctrl & 16) {
-        let tri12 = (phase24 >> 11) & 0xFFF;
-        if (ringMSB) tri12 = (~tri12) & 0xFFF;
-        tri = tri12 >> 4;
+        // Exakte 11-Bit Phasen-Akkumulator Magnitude (Bits 22..12)
+        let raw11 = (phase24 >> 12) & 0x7FF;
+        
+        // RingMod / Triangle Richtung:
+        // Wenn ringMSB (ownMSB ^ prevMSB) 1 ist, invertieren wir die 11-Bit Rampe
+        if (ringMSB) {
+            raw11 = raw11 ^ 0x7FF;
+        }
+        
+        // Skalierung von 11-Bit (0..2047) direkt auf 8-Bit (0..255)
+        tri = raw11 >> 3;
         hasWave = true;
     }
 
@@ -43,8 +51,7 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
                        ((lfsr23 & 0x000004) >>  1) | // LFSR Bit 2  -> Noise Bit 1
                        (lfsr23 & 0x000001);          // LFSR Bit 0  -> Noise Bit 0
         
-        // Physical NMOS LFSR Tap Impedance Scaling (68% of full-scale):
-        // Prevents noise-based percussion from overdriving master VCA and drowning lead voices.
+        // Physical NMOS LFSR Tap Impedance Scaling
         noise = Math.floor(rawNoise * 0.68);
         hasWave = true;
     }
@@ -76,7 +83,10 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
     // 2. TRIANGLE + PULSE ($50) - THE HÜLSBECK GLASSY LEAD!
     if (waveMask === 0x50) {
         if (pulse === 0xFF) return tri; 
-        return (tri & 0x0F) >> 1; 
+        // 6581 Analog Pull-Down: Der Dreieck-Treiber ist viel zu stark für den Puls-Transistor.
+        // Das Dreieck wird bei "Low" nicht auf 0 gezogen, sondern verliert nur ca. 12% Spannung!
+        // Lässt Hülsbecks Lead-Stimmen strahlend laut durch!
+        return tri - (tri >> 3); 
     }
 
     // 3. SAWTOOTH + PULSE ($60) - THE MON / GALWAY BASS!
