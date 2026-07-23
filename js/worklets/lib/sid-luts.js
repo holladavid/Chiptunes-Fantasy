@@ -75,10 +75,10 @@ for (let tri = 0; tri < 256; tri++) {
     }
 }
 
-// $50: Triangle + Pulse (Hülsbeck Glassy Lead)
-// Wenn Pulse = 0 ist, versucht er Tri auf Masse zu ziehen, schafft es aber nur zu ~65%.
+// $50: Triangle + Pulse (Hülsbeck Glassy Lead / Engelsstimme)
+// Hebt die Übertragungs-Amplitude von 0.65 auf 0.86 an für sattes Grundton-Fundament
 for (let tri = 0; tri < 256; tri++) {
-    WAVE_LUT_TRIPULSE[(0 << 8) | tri] = Math.min(255, Math.floor(tri * 0.65 + 12)); 
+    WAVE_LUT_TRIPULSE[(0 << 8) | tri] = Math.min(255, Math.floor(tri * 0.86 + 14)); 
     WAVE_LUT_TRIPULSE[(1 << 8) | tri] = tri;
 }
 

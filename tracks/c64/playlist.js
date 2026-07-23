@@ -27,7 +27,7 @@ const mySidFiles = [
     "Delta.sid",
     "To_Be_on_Top.sid",
     "Rambo_First_Blood_Part_II.sid",
-    "Mega_Apocalypse_PSID.sid",
+    "Mega_Apocalypse.sid",
     "Miami_Vice.sid",                 
     "Way_of_the_Tiger.sid",           
     "Platoon.sid",                    

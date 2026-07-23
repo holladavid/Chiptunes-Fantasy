@@ -356,6 +356,11 @@ export class SIDChip {
 
         let filterOut = outLP + outBP + outHP;
 
+        // Resonanz-Headroom Dämpfung schützt ungefilterte Stimmen (Voice 3 / $50 Lead) vor VCA-Ducking
+        if (q < 0.1) {
+            filterOut *= 0.72; // Verhindert Pegel-Explosionen bei R=15
+        }
+
         let leakage = filteredSum * this.thermalLeakage;
         let filteredMix = filterOut + leakage;
 
