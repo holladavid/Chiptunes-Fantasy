@@ -1028,25 +1028,28 @@ export class CPU6502 {
         if (!this.psidSampleActive) return;
         if (this.psidSamplePtr < this.psidSampleEnd && this.psidSamplePtr < 65536) {
             let byteVal = this.ram[this.psidSamplePtr];
-            let nibble = 0;
+            let rawNibble = 0;
             
-            // Reagiert auf $D45F: Wenn Step > 0 ist, wird das Sample im High-Pitch Modus abgespielt!
             if (this.psidSampleStep > 0) {
-                nibble = (byteVal >> 4) & 0x0F;
+                // High-Pitch Step-Modus ($2A > 0): Liest exakt wie W9B19 das LOW-Nibble!
+                rawNibble = byteVal & 0x0F;
                 this.psidSamplePtr += this.psidSampleStep;
             } else {
+                // Standard-Modus ($2A == 0): Wechselt stufig zwischen Low- und High-Nibble
                 if (this.psidNibblePhase === 0) {
-                    nibble = byteVal & 0x0F;
+                    rawNibble = byteVal & 0x0F;
                     this.psidNibblePhase = 1;
                 } else {
-                    nibble = (byteVal >> 4) & 0x0F;
+                    rawNibble = (byteVal >> 4) & 0x0F;
                     this.psidNibblePhase = 0;
                     this.psidSamplePtr++;
                 }
             }
             
+            // Hülsbeck VCA-Scaling: Mappt 0..15 auf 3..10 (entspricht lsr + adc #$13 in W9B19)
+            let scaledVol = 3 + (rawNibble >> 1);
             let filterMode = this.sid.regs[24] & 0xF0;
-            this.sid.writeReg(24, filterMode | nibble);
+            this.sid.writeReg(24, filterMode | scaledVol);
         } else {
             this.psidSampleActive = false;
         }
