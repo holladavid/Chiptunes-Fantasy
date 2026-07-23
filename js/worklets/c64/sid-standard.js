@@ -122,6 +122,8 @@ class SIDProcessor extends AudioWorkletProcessor {
             } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
             } else if (msg.type === 'RESUME_TRACK') {
+                this.dcBlock.lastIn = 0;
+                this.dcBlock.lastOut = 0;
                 this.isPlaying = true;
             } else if (msg.type === 'CHANGE_SUBSONG') {
                 this.lastSampleValue = 0;
@@ -288,7 +290,16 @@ class SIDProcessor extends AudioWorkletProcessor {
             this.dcBlock.lastIn = analogSample;
             this.dcBlock.lastOut = dcSample;
 
-            let finalSample = dcSample * this.fadeVol;
+            // === C64 SID GAIN NORMALIZATION & SOFT-CLIPPER FAILSAFE ===
+            // 1. Skaliert die rohe SID 6581 Amplitude auf saubere digital -0.4dBFS Max-Peaks
+            let normalized = dcSample * 0.42;
+
+            // 2. Soft-Saturating Protection (Garantiert 100% Clipping-Freiheit ohne OS-Ducking)
+            if (normalized > 0.95 || normalized < -0.95) {
+                normalized = Math.tanh(normalized);
+            }
+
+            let finalSample = normalized * this.fadeVol;
 
             outL[i] = finalSample;
             if (outR) outR[i] = finalSample;
