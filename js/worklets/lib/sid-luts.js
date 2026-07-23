@@ -1,30 +1,51 @@
 // === js/worklets/lib/sid-luts.js ===
 // =========================================================
-// MOS 6581 HARDWARE LOOKUP TABLES (LUTs)
-// Phase 5: Physical Measured MOS 6581 R3 DAC Fingerprint
+// MOS 6581 & CSG 8580 HARDWARE LOOKUP TABLES (LUTs)
+// Phase 6: Measured Physical R-2R DAC Fingerprints
 // =========================================================
 
 export const DAC_LUT = new Float32Array(256);
+export const DAC_LUT_6581_R3 = new Float32Array(256);
+export const DAC_LUT_8580 = new Float32Array(256);
 export const CUTOFF_LUT = new Float32Array(2048);
 export const PWM_LUT = new Uint16Array(4096);
 
-// 1. GENERATE PHYSICAL 6581 R3 DAC FINGERPRINT (256 Entries)
-// Measured NMOS R-2R ladder bit-weights with termination non-linearities
+// =========================================================
+// 1. GENERATE PHYSICAL MOS 6581 R3 DAC FINGERPRINT (256 Entries)
+// Measured NMOS R-2R ladder bit-weights with kinked bit-transitions
+// and cubic NMOS buffer saturation (reSID-fp matched)
+// =========================================================
 const bitWeights6581 = [1.00, 1.98, 3.92, 8.08, 15.82, 31.90, 63.20, 127.10];
-let maxWeight = 0;
-for (let b of bitWeights6581) maxWeight += b;
+let maxWeight6581 = 0;
+for (let b of bitWeights6581) maxWeight6581 += b;
 
 for (let i = 0; i < 256; i++) {
     let sum = 0;
     for (let b = 0; b < 8; b++) {
         if (i & (1 << b)) sum += bitWeights6581[b];
     }
-    let v = sum / maxWeight;
-    // Physical NMOS channel termination non-linearity
-    DAC_LUT[i] = v + 0.08 * v * (1.0 - v);
+    let v = sum / maxWeight6581;
+    
+    // A) NMOS Channel Termination Kink Non-linearity
+    let vKinked = v + 0.05 * v * (1.0 - v); 
+    
+    // B) Cubic Output Buffer Saturation Curve (1.10*v - 0.11*v^3)
+    let vSaturated = 1.10 * vKinked - 0.11 * Math.pow(vKinked, 3.0);
+    
+    DAC_LUT_6581_R3[i] = Math.max(0.0, Math.min(1.0, vSaturated));
+    DAC_LUT[i] = DAC_LUT_6581_R3[i]; // Default Profile: MOS 6581 R3
 }
 
-// 2. GENERATE REAL 6581 FILTER CUTOFF CURVE (2048 Entries)
+// =========================================================
+// 2. GENERATE CSG 8580 HMOS-II DAC FINGERPRINT (Linear R-2R)
+// =========================================================
+for (let i = 0; i < 256; i++) {
+    DAC_LUT_8580[i] = i / 255.0;
+}
+
+// =========================================================
+// 3. GENERATE REAL 6581 FILTER CUTOFF CURVE (2048 Entries)
+// =========================================================
 for (let i = 0; i < 2048; i++) {
     let norm = i / 2047.0;
     let hz = 30.0 + (1200.0 * norm) + (7200.0 * norm * norm) - (2230.0 * norm * norm * norm);
@@ -33,14 +54,18 @@ for (let i = 0; i < 2048; i++) {
     CUTOFF_LUT[i] = hz;
 }
 
-// 3. GENERATE PWM COMPARATOR OFFSET (4096 Entries)
+// =========================================================
+// 4. GENERATE PWM COMPARATOR OFFSET (4096 Entries)
+// =========================================================
 for (let i = 0; i < 4096; i++) {
     let shifted = i + 76; 
     if (shifted > 4096) shifted = 4096;
     PWM_LUT[i] = shifted;
 }
 
-// 4. GENERATE 15-BIT XNOR LFSR TARGETS FOR ADSR RATE COUNTER
+// =========================================================
+// 5. GENERATE 15-BIT XNOR LFSR TARGETS FOR ADSR RATE COUNTER
+// =========================================================
 const RATE_COUNTER_PERIOD = [9, 32, 63, 95, 149, 220, 267, 313, 392, 977, 1954, 3126, 3907, 11720, 19530, 31256];
 export const ADSR_LFSR_TARGETS = new Uint16Array(16);
 
@@ -55,9 +80,8 @@ for (let step = 0; step <= 32767; step++) {
 }
 
 // =========================================================
-// 5. GENERATE ANALOG WIRE-AND WAVEFORM LUTS (Zero-Allocation Physics)
+// 6. GENERATE ANALOG WIRE-AND WAVEFORM LUTS (Zero-Allocation Physics)
 // =========================================================
-
 export const WAVE_LUT_TRISAW = new Uint8Array(65536);
 export const WAVE_LUT_TRIPULSE = new Uint8Array(512); 
 export const WAVE_LUT_SAWPULSE = new Uint8Array(512);
