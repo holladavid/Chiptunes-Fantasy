@@ -155,7 +155,7 @@ export class CPU6502 {
         this.cia2CtrlA = 0x00;
         this.cia2Icr = 0; this.cia2IrqMask = 0x00;
         
-        this.cia2TimerB = 0xFFFF; this.cia2TimerBLatch = 0xFFFF;
+        this.cia2TimerB = 0xFFFF; this.cia2TimerALatch = 0xFFFF;
         this.cia2CtrlB = 0x00;
 
         this.irqPending = false;
@@ -300,7 +300,7 @@ export class CPU6502 {
                     
                     this.psidSamplePtr = startLo | (startHi << 8);
                     this.psidSampleEnd = (endLo === 0) ? ((endHi << 8) | 0xFF) : (endLo | (endHi << 8));
-                    this.psidSampleStep = this.ram[0xD45F]; // <--- NEU: Lese den Pitch-Step $D45F aus!
+                    this.psidSampleStep = this.ram[0xD45F]; // Lese den Pitch-Step $D45F aus!
                     this.psidNibblePhase = 0;
                     this.psidSampleCycleCounter = 126;
                     this.psidSampleActive = true;
@@ -431,17 +431,18 @@ export class CPU6502 {
             this.nmiAccepted = true;
         }
 
-        // --- AUTONOMOUS PSID SAMPLE TRAP STREAMER (7812.5 Hz) ---
-        // Läuft unabhängig von CIA-Timern direkt im 1MHz Clock!
-        if (this.psidSampleActive) {
-            this.psidSampleCycleCounter -= cycles;
-            if (this.psidSampleCycleCounter <= 0) {
-                this.psidSampleCycleCounter += 126; // 126 CPU Zyklen = ~7.8 kHz
-                this.streamPsidSampleNibble();
-            }
-        }
-
         for (let i = 0; i < cycles; i++) {
+            
+            // --- AUTONOMOUS PSID SAMPLE TRAP STREAMER (FALLBACK) ---
+            // Greift nur, wenn die CIA-Timer vom Track nicht gestartet wurden.
+            if (this.psidSampleActive && !(this.cia1CtrlA & 0x01) && !(this.cia2CtrlA & 0x01)) {
+                this.psidSampleCycleCounter--;
+                if (this.psidSampleCycleCounter <= 0) {
+                    this.psidSampleCycleCounter += 126;
+                    this.streamPsidSampleNibble();
+                }
+            }
+
             let timerBUnderflowTriggered = false;
 
             if (this.cia1CtrlA & 0x01) { 
@@ -450,6 +451,9 @@ export class CPU6502 {
                     this.cia1Icr |= 0x01; 
                     this.cia1TimerA = this.cia1TimerALatch;
                     this.cia1TimerAUnderflowed = true;
+
+                    // --- DSP UPGRADE: PSID DMA-FETCH AN CIA-1 TIMER A GEKOPPELT ---
+                    if (this.psidSampleActive) this.streamPsidSampleNibble();
 
                     if (this.cia1CtrlA & 0x08) this.cia1CtrlA &= ~0x01; 
                     this.updateIrqState(i, cycles);
@@ -479,6 +483,9 @@ export class CPU6502 {
                 if (this.cia2TimerA < 0) {
                     this.cia2Icr |= 0x01; 
                     this.cia2TimerA = this.cia2TimerALatch;
+
+                    // --- DSP UPGRADE: PSID DMA-FETCH AN CIA-2 TIMER A GEKOPPELT ---
+                    if (this.psidSampleActive) this.streamPsidSampleNibble();
 
                     if (this.cia2CtrlA & 0x08) this.cia2CtrlA &= ~0x01; 
                     this.updateIrqState(i, cycles);
