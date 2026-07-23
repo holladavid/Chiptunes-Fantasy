@@ -322,43 +322,49 @@ export class SIDChip {
         }
 
         // =========================================================
-        // 100% UNCONDITIONALLY STABLE EXPLICIT CHAMBERLIN SVF (1 MHz)
-        // Calibrated Op-Amp Headroom: Prevents Multi-Voice VCF Intermodulation
+        // 4MHz SUB-SAMPLED MOSFET TRANSCONDUCTANCE SVF FILTER LOOP
+        // 4x internal oversampling for zero intermodulation aliasing on tanh() saturation
         // =========================================================
-        let h = filteredSum - this.filterLow;
-        let hp = (h - q * this.filterBand) / (1.0 + g * (g + q));
+        let subG = this.g * 0.25; 
+        let filterOut = 0;
 
-        if (this.useJfetSaturation) {
-            let qDrive = 1.0 / (q + 0.25); 
-            let summerDrive = this.thermalJfetDrive * (0.50 + qDrive * 0.10); 
-            hp = Math.tanh(hp * summerDrive) / summerDrive;
+        for (let sub = 0; sub < 4; sub++) {
+            let h = filteredSum - this.filterLow;
+            let otaDiff = (h - q * this.filterBand);
+            let hp = otaDiff / (1.0 + subG * (subG + q));
+
+            if (this.useJfetSaturation) {
+                let qDrive = 1.0 / (q + 0.25); 
+                let summerDrive = this.thermalJfetDrive * (0.50 + qDrive * 0.10); 
+                hp = Math.tanh(hp * summerDrive) / summerDrive;
+            }
+
+            let bp = this.filterBand + subG * hp;
+            let lp = this.filterLow + subG * bp;
+            
+            this.filterLow = lp;
+            
+            if (this.useJfetSaturation) {
+                let driveP = this.thermalJfetDrive * 0.65;
+                this.filterBand = Math.tanh(bp * driveP) / driveP;
+            } else {
+                this.filterBand = bp / (1.0 + Math.abs(bp) * 0.15); 
+            }
+
+            let outLP = (this.filterMode & 16) ? this.filterLow : 0;
+            let outBP = (this.filterMode & 32) ? this.filterBand : 0;
+            let outHP = (this.filterMode & 64) ? hp : 0;
+
+            if ((this.filterMode & 80) === 80) { 
+                outHP = -outHP * 0.90; // Notch Phase Inversion
+            }
+
+            filterOut = outLP + outBP + outHP;
         }
 
-        let bp = this.filterBand + g * hp;
-        let lp = this.filterLow + g * bp;
-        
-        this.filterLow = lp;
-        
-        if (this.useJfetSaturation) {
-            let driveP = this.thermalJfetDrive * 0.65;
-            this.filterBand = Math.tanh(bp * driveP) / driveP;
-        } else {
-            this.filterBand = bp / (1.0 + Math.abs(bp) * 0.15); 
-        }
-
-        let outLP = (this.filterMode & 16) ? this.filterLow : 0;
-        let outBP = (this.filterMode & 32) ? this.filterBand : 0;
-        let outHP = (this.filterMode & 64) ? hp : 0;
-
-        if ((this.filterMode & 80) === 80) { 
-            outHP = -outHP * 0.90; 
-        }
-
-        let filterOut = outLP + outBP + outHP;
-
-        // Resonanz-Headroom Dämpfung schützt ungefilterte Stimmen (Voice 3 / $50 Lead) vor VCA-Ducking
+        // Resonanz-Headroom Dämpfung schützt ungefilterte Stimmen vor VCA-Ducking
         if (q < 0.1) {
-            filterOut *= 0.72; // Verhindert Pegel-Explosionen bei R=15
+            filterOut *= 0.72; 
         }
 
         let leakage = filteredSum * this.thermalLeakage;

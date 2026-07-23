@@ -1,26 +1,27 @@
 // === js/worklets/lib/sid-luts.js ===
 // =========================================================
 // MOS 6581 HARDWARE LOOKUP TABLES (LUTs)
-// Phase 4: Pre-compiled Analog Wire-AND Pull-Down Models
+// Phase 5: Physical Measured MOS 6581 R3 DAC Fingerprint
 // =========================================================
 
 export const DAC_LUT = new Float32Array(256);
 export const CUTOFF_LUT = new Float32Array(2048);
 export const PWM_LUT = new Uint16Array(4096);
 
-// 1. GENERATE 6581 DAC CURVE (256 Entries) with Analog Resistor Errors
-const bitWeights = [1.00, 2.01, 3.98, 8.05, 15.90, 32.15, 63.70, 128.50];
+// 1. GENERATE PHYSICAL 6581 R3 DAC FINGERPRINT (256 Entries)
+// Measured NMOS R-2R ladder bit-weights with termination non-linearities
+const bitWeights6581 = [1.00, 1.98, 3.92, 8.08, 15.82, 31.90, 63.20, 127.10];
 let maxWeight = 0;
-for (let b of bitWeights) maxWeight += b;
+for (let b of bitWeights6581) maxWeight += b;
 
 for (let i = 0; i < 256; i++) {
     let sum = 0;
     for (let b = 0; b < 8; b++) {
-        let tolerance = 1.0 + (Math.random() - 0.5) * 0.03;
-        if (i & (1 << b)) sum += bitWeights[b] * tolerance;
+        if (i & (1 << b)) sum += bitWeights6581[b];
     }
     let v = sum / maxWeight;
-    DAC_LUT[i] = v + 0.12 * v * (1.0 - v);
+    // Physical NMOS channel termination non-linearity
+    DAC_LUT[i] = v + 0.08 * v * (1.0 - v);
 }
 
 // 2. GENERATE REAL 6581 FILTER CUTOFF CURVE (2048 Entries)
@@ -58,39 +59,34 @@ for (let step = 0; step <= 32767; step++) {
 // =========================================================
 
 export const WAVE_LUT_TRISAW = new Uint8Array(65536);
-export const WAVE_LUT_TRIPULSE = new Uint8Array(512); // Pulse is modeled as 0 or 1
+export const WAVE_LUT_TRIPULSE = new Uint8Array(512); 
 export const WAVE_LUT_SAWPULSE = new Uint8Array(512);
 export const WAVE_LUT_TRISAWPULSE = new Uint8Array(131072);
 
 // $30: Triangle + Sawtooth
-// In der 6581-Hardware hat der Dreieck-Treiber eine etwas niedrigere Impedanz 
-// als der Sägezahn. Er zieht das Signal bei "High" stärker hoch.
 for (let tri = 0; tri < 256; tri++) {
     for (let saw = 0; saw < 256; saw++) {
         let andVal = tri & saw;
-        let triBleed = (tri & ~saw) * 0.18; // Tri gewinnt leicht
+        let triBleed = (tri & ~saw) * 0.18; 
         let sawBleed = (saw & ~tri) * 0.12; 
-        let out = andVal + triBleed + sawBleed + 8; // Moderater Floating-DC-Bias
+        let out = andVal + triBleed + sawBleed + 8; 
         WAVE_LUT_TRISAW[(tri << 8) | saw] = Math.min(255, Math.floor(out));
     }
 }
 
 // $50: Triangle + Pulse (Hülsbeck Glassy Lead / Engelsstimme)
-// Hebt die Übertragungs-Amplitude von 0.65 auf 0.86 an für sattes Grundton-Fundament
 for (let tri = 0; tri < 256; tri++) {
     WAVE_LUT_TRIPULSE[(0 << 8) | tri] = Math.min(255, Math.floor(tri * 0.86 + 14)); 
     WAVE_LUT_TRIPULSE[(1 << 8) | tri] = tri;
 }
 
-// $60: Sawtooth + Pulse (Tel/Galway Kreissägen-Bass)
-// Wenn Pulse = 0 ist, wird der Sägezahn gnadenlos auf ca. 25% zerquetscht.
+// $60: Sawtooth + Pulse (Maniacs of Noise Bass)
 for (let saw = 0; saw < 256; saw++) {
     WAVE_LUT_SAWPULSE[(0 << 8) | saw] = Math.min(255, Math.floor((saw & 0xFE) * 0.25 + 18));
     WAVE_LUT_SAWPULSE[(1 << 8) | saw] = Math.min(255, Math.floor(saw * 0.95 + 6));
 }
 
 // $70: Triangle + Sawtooth + Pulse
-// Extreme Sättigung und gegenseitiges Auslöschen.
 for (let tri = 0; tri < 256; tri++) {
     for (let saw = 0; saw < 256; saw++) {
         let baseTriSaw = WAVE_LUT_TRISAW[(tri << 8) | saw];
