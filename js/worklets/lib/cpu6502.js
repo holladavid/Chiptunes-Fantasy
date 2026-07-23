@@ -431,12 +431,16 @@ export class CPU6502 {
             this.nmiAccepted = true;
         }
 
-        // --- AUTONOMOUS PSID SAMPLE TRAP STREAMER (7812.5 Hz) ---
-        // Läuft unabhängig von CIA-Timern direkt im 1MHz Clock!
+        // --- AUTONOMOUS PSID SAMPLE TRAP STREAMER ---
+        // Nutzt 126 Zyklen (~7.8kHz) als Basis und lässt nur echte Fast-Digi-Timer (< 5000 Zyklen) zu
         if (this.psidSampleActive) {
             this.psidSampleCycleCounter -= cycles;
             if (this.psidSampleCycleCounter <= 0) {
-                this.psidSampleCycleCounter += 126; // 126 CPU Zyklen = ~7.8 kHz
+                // Nur Timer unter 5000 Zyklen (> 200 Hz) gelten als valide Sample-Timer!
+                let interval = (this.cia2TimerALatch > 30 && this.cia2TimerALatch < 5000) 
+                    ? (this.cia2TimerALatch + 1) 
+                    : 126;
+                this.psidSampleCycleCounter += interval;
                 this.streamPsidSampleNibble();
             }
         }
