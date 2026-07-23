@@ -71,6 +71,7 @@ export class CPU6502 {
         this.psidNibblePhase = 0;
         this.psidSampleStep = 1;
         this.psidSampleCycleCounter = 252;
+        this.psidSamplePeriod = 252; // Default 252 Zyklen
     }
 
     reset(loadAddr, prgCode, initAddr = 0, playAddr = 0) {
@@ -307,20 +308,32 @@ export class CPU6502 {
         // --- PSID SAMPLE TRAP INTERCEPTOR ($D41D - $D47D) ---
         if (addr >= 0xD41D && addr <= 0xD47D) {
             this.ram[addr] = val;
-            if (addr === 0xD41D) {
+            if (addr === 0xD45F) {
+                this.psidSampleStep = val;
+            } else if (addr === 0xD45D || addr === 0xD45E) {
+                let pLo = this.ram[0xD45D];
+                let pHi = this.ram[0xD45E] & 0x0F;
+                let period = pLo | (pHi << 8);
+                this.psidSamplePeriod = period >= 16 ? period : 252;
+            } else if (addr === 0xD41D) {
                 if (val === 0xFE || val === 0x01 || val === 0x81) {
                     let startLo = this.ram[0xD41E];
                     let startHi = this.ram[0xD41F];
                     let endLo = this.ram[0xD43D];
                     let endHi = this.ram[0xD43E];
-                    
+
                     this.psidSamplePtr = startLo | (startHi << 8);
                     this.psidSampleEnd = (endLo === 0) ? ((endHi << 8) | 0xFF) : (endLo | (endHi << 8));
-                    
-                    let stepVal = this.ram[0xD45F];
-                    this.psidSampleStep = stepVal > 0 ? stepVal : 1; 
+
+                    // Dynamische Perioden-Berechnung aus $D45D und $D45E
+                    let pLo = this.ram[0xD45D];
+                    let pHi = this.ram[0xD45E] & 0x0F;
+                    let period = pLo | (pHi << 8);
+                    this.psidSamplePeriod = period >= 16 ? period : 252;
+
+                    this.psidSampleStep = this.ram[0xD45F];
                     this.psidNibblePhase = 0;
-                    this.psidSampleCycleCounter = 252; // PlaySID Base Rate = 252 Cycles (3.91 kHz)
+                    this.psidSampleCycleCounter = this.psidSamplePeriod; // Dynamischer Start!
                     this.psidSampleActive = true;
                 } else if (val === 0x00 || val === 0xFF) {
                     this.psidSampleActive = false;
@@ -439,12 +452,13 @@ export class CPU6502 {
             
             let hasHighFreqCia1 = (this.cia1CtrlA & 0x01) !== 0 && (this.cia1TimerALatch < 2000);
             let hasHighFreqCia2 = (this.cia2CtrlA & 0x01) !== 0 && (this.cia2TimerALatch < 2000);
-
-            // --- AUTONOMOUS PSID SAMPLE TRAP STREAMER (3.91 kHz Base Rate) ---
+            
+            // --- AUTONOMOUS PSID SAMPLE TRAP STREAMER ---
             if (this.psidSampleActive && !hasHighFreqCia1 && !hasHighFreqCia2) {
                 this.psidSampleCycleCounter--;
                 if (this.psidSampleCycleCounter <= 0) {
-                    this.psidSampleCycleCounter += 252; // Exakt 252 Zyklen = 3909.7 Hz PlaySID Base Clock!
+                    // Lädt exakt das vom Instrument geforderte Zyklen-Intervall nach!
+                    this.psidSampleCycleCounter += this.psidSamplePeriod; 
                     this.streamPsidSampleNibble();
                 }
             }
@@ -1048,21 +1062,30 @@ export class CPU6502 {
         if (!this.psidSampleActive) return;
         if (this.psidSamplePtr < this.psidSampleEnd && this.psidSamplePtr < 65536) {
             let byteVal = this.ram[this.psidSamplePtr];
-            
-            // 4-Bit Nibble Extraktion (0 = Low Nibble, 1 = High Nibble)
-            let nibble = (this.psidNibblePhase === 0) 
-                ? (byteVal & 0x0F) 
-                : ((byteVal >> 4) & 0x0F);
-            
-            // Schreibe 4-Bit Sample in $D418
             let filterMode = this.sid.regs[24] & 0xF0;
-            this.sid.writeReg(24, filterMode | nibble);
 
-            // Shifte Nibble-Pointer mit 0.5-Byte Schrittweite
-            let step = this.psidSampleStep > 0 ? this.psidSampleStep : 1;
-            let totalNibbles = this.psidNibblePhase + step;
-            this.psidSamplePtr += (totalNibbles >> 1);
-            this.psidNibblePhase = totalNibbles & 1;
+            if (this.psidSampleStep === 0) {
+                // --- HÜLSBECK MODUS 1: STEP = 0 (ABWECHSELND LOW / HIGH NIBBLE) ---
+                let nibble = (this.psidNibblePhase === 0) 
+                    ? (byteVal & 0x0F) 
+                    : ((byteVal >> 4) & 0x0F);
+
+                this.sid.writeReg(24, filterMode | nibble);
+
+                if (this.psidNibblePhase === 0) {
+                    this.psidNibblePhase = 1;
+                } else {
+                    this.psidNibblePhase = 0;
+                    this.psidSamplePtr++;
+                }
+            } else {
+                // --- HÜLSBECK MODUS 2: STEP > 0 (NUR LOW NIBBLE + JUMP BY STEP BYTES) ---
+                let nibble = byteVal & 0x0F;
+                this.sid.writeReg(24, filterMode | nibble);
+
+                this.psidNibblePhase = 0;
+                this.psidSamplePtr += this.psidSampleStep;
+            }
         } else {
             this.psidSampleActive = false;
         }

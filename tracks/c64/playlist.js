@@ -14,7 +14,7 @@ const mySidFiles = [
     "Wizball.sid",                    // 2. Martin Galway
     "Comic_Bakery.sid",               // Martin Galways Meisterwerk
     "Arkanoid.sid",                   // Martin Galways $D418 Digidrum Meilenstein
-    "Great_Giana_Sisters_PSID.sid",   // 3. Chris Hülsbeck
+    "Great_Giana_Sisters.sid",        // 3. Chris Hülsbeck
     "Bionic_Commando.sid",            // 4. Tim Follin
     "Last_Ninja.sid",                 // 5. Ben Daglish & Anthony Lees
     "Last_Ninja_2.sid",               // Matt Grays Meisterwerk
