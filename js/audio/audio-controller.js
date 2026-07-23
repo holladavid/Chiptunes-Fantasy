@@ -1,17 +1,21 @@
 // === js/audio/audio-controller.js ===
 // =========================================================
 // CENTRAL WEB AUDIO ENGINE & WORKLET CONTROLLER
-// Pure ES6 Module - Cleaned up and Optimized
+// 3-Channel Hardware Mixing Desk Stage with Calibrated Headroom
 // =========================================================
 
 let audioCtx = null;
 let ymNode = null;
 let paulaNode = null;
 let sidNode = null;
+
+// Individual System Gain Nodes for Perfect Balance
+let sidGain = null;
+let paulaGain = null;
+let ymGain = null;
+
 let masterGain = null;
 let analyserNode = null;
-let amigaFilter = null;
-let masterLimiter = null; 
 
 export function getAudioContext() { return audioCtx; }
 export function getAnalyserNode() { return analyserNode; }
@@ -23,25 +27,28 @@ export function getSidNode() { return sidNode; }
 export async function initAudioEngine() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     try {
-        amigaFilter = audioCtx.createBiquadFilter();
-        amigaFilter.type = 'lowpass';
-        amigaFilter.frequency.value = 6000; 
-
         analyserNode = audioCtx.createAnalyser();
         analyserNode.fftSize = 4096; 
 
         masterGain = audioCtx.createGain();
-        masterGain.gain.value = 0.5; 
-        
-        masterLimiter = audioCtx.createDynamicsCompressor();
-        masterLimiter.threshold.value = -1.5; 
-        masterLimiter.knee.value = 4.0;       
-        masterLimiter.ratio.value = 12.0;     
-        masterLimiter.attack.value = 0.003;   
-        masterLimiter.release.value = 0.08;   
-        
-        masterGain.connect(masterLimiter);
-        masterLimiter.connect(analyserNode);
+        masterGain.gain.value = 0.70; // 0.70 (-3dB Headroom) prevents clipping without dynamic ducking
+
+        // Dedicated Channel Gains for Hard-Mixing
+        sidGain = audioCtx.createGain();
+        sidGain.gain.value = 0.85; // SID 6581 Headroom
+
+        paulaGain = audioCtx.createGain();
+        paulaGain.gain.value = 0.75; // Paula 8364 4-Channel Mix
+
+        ymGain = audioCtx.createGain();
+        ymGain.gain.value = 0.80; // YM2149 3-Channel Mix
+
+        // Connect Channel Bus -> Master Bus -> Analyser -> Speakers
+        sidGain.connect(masterGain);
+        paulaGain.connect(masterGain);
+        ymGain.connect(masterGain);
+
+        masterGain.connect(analyserNode);
         analyserNode.connect(audioCtx.destination);
     } catch (e) {
         console.error("[AUDIO ENGINE] Initialisierung fehlgeschlagen:", e);
@@ -61,20 +68,19 @@ export async function loadEmuCore(system, coreConfig, onMessageCallback) {
 
         const newNode = new AudioWorkletNode(audioCtx, coreConfig.processor);
         
-        if (system === 'amiga') {
-            newNode.connect(amigaFilter).connect(masterGain);
-        } else {
-            newNode.connect(masterGain);
+        // Clean System Channel Routing without duplicate filtering or compressor ducking
+        if (system === 'c64') {
+            newNode.connect(sidGain);
+            sidNode = newNode;
+        } else if (system === 'amiga') {
+            newNode.connect(paulaGain);
+            paulaNode = newNode;
+        } else if (system === 'atari') {
+            newNode.connect(ymGain);
+            ymNode = newNode;
         }
 
         newNode.port.onmessage = onMessageCallback;
-
-        if (system === 'atari') ymNode = newNode;
-        if (system === 'c64') sidNode = newNode;
-        if (system === 'amiga') {
-            paulaNode = newNode;
-            // === KORREKTUR: uploadAmigaSamples() gelöscht! ===
-        }
 
         console.log(`[AUDIO ENGINE] Soundprozessor erfolgreich getauscht: ${system.toUpperCase()} -> ${coreConfig.name}`);
     } catch (e) {

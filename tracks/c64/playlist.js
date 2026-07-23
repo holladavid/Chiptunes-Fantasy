@@ -14,7 +14,7 @@ const mySidFiles = [
     "Wizball.sid",                    // 2. Martin Galway
     "Comic_Bakery.sid",               // Martin Galways Meisterwerk
     "Arkanoid.sid",                   // Martin Galways $D418 Digidrum Meilenstein
-    "Great_Giana_Sisters_PSID.sid",   // 3. Chris Hülsbeck
+    "Great_Giana_Sisters.sid",        // 3. Chris Hülsbeck
     "Bionic_Commando.sid",            // 4. Tim Follin
     "Last_Ninja.sid",                 // 5. Ben Daglish & Anthony Lees
     "Last_Ninja_2.sid",               // Matt Grays Meisterwerk
@@ -25,9 +25,9 @@ const mySidFiles = [
     "Myth.sid",                       // 9. Jeroen Tel
     "Monty_on_the_Run.sid",
     "Delta.sid",
-    "To_Be_on_Top_PSID.sid",
+    "To_Be_on_Top.sid",
     "Rambo_First_Blood_Part_II.sid",
-    "Mega_Apocalypse_PSID.sid",
+    "Mega_Apocalypse.sid",
     "Miami_Vice.sid",                 
     "Way_of_the_Tiger.sid",           
     "Platoon.sid",                    

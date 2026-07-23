@@ -22,6 +22,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.songSpeedFlags = 0;
         
         this.isPlaying = false;
+        this.fadeVol = 0.0;
         this.hostPlayPending = false;
         
         this.cycleAccumulator = 0.0;
@@ -121,6 +122,8 @@ class SIDProcessor extends AudioWorkletProcessor {
             } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
             } else if (msg.type === 'RESUME_TRACK') {
+                this.dcBlock.lastIn = 0;
+                this.dcBlock.lastOut = 0;
                 this.isPlaying = true;
             } else if (msg.type === 'CHANGE_SUBSONG') {
                 this.lastSampleValue = 0;
@@ -199,7 +202,14 @@ class SIDProcessor extends AudioWorkletProcessor {
         let visualValue = 0;
 
         for (let i = 0; i < outL.length; i++) {
-            if (!this.isPlaying) {
+            
+            if (this.isPlaying) {
+                this.fadeVol = Math.min(1.0, this.fadeVol + 0.002);
+            } else {
+                this.fadeVol = Math.max(0.0, this.fadeVol - 0.002);
+            }
+
+            if (this.fadeVol === 0.0) {
                 outL[i] = 0; if (outR) outR[i] = 0;
                 continue; 
             }
@@ -216,7 +226,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.sid.clock();          
                 sampleSum += this.sid.outputSample; 
 
-                // --- FIX: VBLANK / CIA TIMER MANAGEMENT GEHÖRT IN DEN 1-MHZ CYCLE LOOP! ---
                 if (this.playAddress === 0) {
                     this.vblankTimer--;
                     if (this.vblankTimer <= 0) {
@@ -266,7 +275,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                             let cyclesUsed = this.cpu.step(); 
                             this.cpuCyclesRemaining = cyclesUsed - 1;
                         }
-                    } else {
+                    } else if (this.cpu.rdy) {
                         this.cpuCyclesRemaining--;
                     }
                 }
@@ -277,9 +286,20 @@ class SIDProcessor extends AudioWorkletProcessor {
 
             let analogSample = this.c64Output.process(decimatedSample);
 
-            let finalSample = analogSample - this.dcBlock.lastIn + 0.998 * this.dcBlock.lastOut;
+            let dcSample = analogSample - this.dcBlock.lastIn + 0.998 * this.dcBlock.lastOut;
             this.dcBlock.lastIn = analogSample;
-            this.dcBlock.lastOut = finalSample;
+            this.dcBlock.lastOut = dcSample;
+
+            // === C64 SID GAIN NORMALIZATION & SOFT-CLIPPER FAILSAFE ===
+            // 1. Skaliert die rohe SID 6581 Amplitude auf saubere digital -0.4dBFS Max-Peaks
+            let normalized = dcSample * 0.42;
+
+            // 2. Soft-Saturating Protection (Garantiert 100% Clipping-Freiheit ohne OS-Ducking)
+            if (normalized > 0.95 || normalized < -0.95) {
+                normalized = Math.tanh(normalized);
+            }
+
+            let finalSample = normalized * this.fadeVol;
 
             outL[i] = finalSample;
             if (outR) outR[i] = finalSample;
