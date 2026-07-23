@@ -1,15 +1,13 @@
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Phase 36: Calibrated VCF Op-Amp Headroom & Intermodulation Fix
-// Unlocks Chris Huelsbeck's glassy lead melody in Giana Sisters ($F5 VCF routing)
+// Phase 37: 15-Bit XNOR LFSR Rate Divider (Sustain-Drop Bug)
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
-import { DAC_LUT, CUTOFF_LUT, PWM_LUT } from './sid-luts.js';
+import { DAC_LUT, CUTOFF_LUT, PWM_LUT, ADSR_LFSR_TARGETS } from './sid-luts.js';
 
 const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_RELEASE = 2; 
-const RATE_COUNTER_PERIOD = [9, 32, 63, 95, 149, 220, 267, 313, 392, 977, 1954, 3126, 3907, 11720, 19530, 31256];
 
 const VOLUME_DAC_6581 = new Float32Array([
     0.000, 0.078, 0.149, 0.228, 0.307, 0.378, 0.449, 0.512,
@@ -27,10 +25,10 @@ export class SIDChip {
                 waveOut8Bit: 0x18, 
                 env8Bit: 0, lfsr: 0x7FFFFF,
                 rate_counter: 0, exponential_counter: 0, envelope_counter: 0,
-                attack_period: RATE_COUNTER_PERIOD[0],
-                decay_period: RATE_COUNTER_PERIOD[0],
+                attack_target: ADSR_LFSR_TARGETS[0],
+                decay_target: ADSR_LFSR_TARGETS[0],
                 sustain_level: 0,
-                release_period: RATE_COUNTER_PERIOD[0],
+                release_target: ADSR_LFSR_TARGETS[0],
                 msbRisingEdge: false,
                 envDelay: 0,
                 wrapped: false
@@ -79,8 +77,6 @@ export class SIDChip {
         
         // =========================================================
         // FULL BANDWIDTH 6581 FET CUTOFF CURVE (30Hz bis 16.5kHz)
-        // Öffnet das Filter komplett! Chris Hülsbecks gläserne Leads 
-        // und Ring-Modulatoren werden nicht mehr verschluckt.
         // =========================================================
         let fetCurve = 30.0 + 800.0 * norm + 6000.0 * (norm * norm) + 9500.0 * (norm * norm * norm);
         
@@ -131,7 +127,7 @@ export class SIDChip {
                 ch.state = gate ? ENV_ATTACK : ENV_RELEASE;
                 
                 if (gate) {
-                    ch.rate_counter = 0;
+                    // ADSR Rate-Counter (LFSR) wird NICHT resettet. Das ist der Ursprung des Bugs!
                     ch.exponential_counter = 0;
                 }
             }
@@ -142,12 +138,13 @@ export class SIDChip {
                 ch.lfsr = 0x7FFFFF;
             }
 
+            // Target-Werte greifen direkt auf den LFSR-Schatten-Speicher zu
             if (reg === base + 5) { 
-                ch.attack_period = RATE_COUNTER_PERIOD[val >> 4];
-                ch.decay_period = RATE_COUNTER_PERIOD[val & 15];
+                ch.attack_target = ADSR_LFSR_TARGETS[val >> 4];
+                ch.decay_target = ADSR_LFSR_TARGETS[val & 15];
             } else if (reg === base + 6) { 
                 ch.sustain_level = (val >> 4) | ((val >> 4) << 4);
-                ch.release_period = RATE_COUNTER_PERIOD[val & 15];
+                ch.release_target = ADSR_LFSR_TARGETS[val & 15];
             }
         } else if (reg === 21 || reg === 22 || reg === 23) {
             this.updateFilterParameters();
@@ -174,17 +171,19 @@ export class SIDChip {
             return;
         }
 
-        let ratePeriod = ch.release_period;
-        if (ch.state === ENV_ATTACK) ratePeriod = ch.attack_period;
-        else if (ch.state === ENV_DECAY) ratePeriod = ch.decay_period;
+        let targetLfsr = ch.release_target;
+        if (ch.state === ENV_ATTACK) targetLfsr = ch.attack_target;
+        else if (ch.state === ENV_DECAY) targetLfsr = ch.decay_target;
 
-        ch.rate_counter++;
-        if (ch.rate_counter & 0x8000) {
-            ch.rate_counter = (ch.rate_counter + 1) & 0x7FFF;
-        }
+        // =========================================================
+        // DSP UPGRADE: 15-BIT XNOR LFSR RATE-DIVIDER (Sustain-Drop Bug)
+        // Lässt den LFSR frei laufen. Pseudo-zufällige Distanz zum Target.
+        // =========================================================
+        let bit = (~((ch.rate_counter >> 14) ^ (ch.rate_counter >> 13))) & 1;
+        ch.rate_counter = ((ch.rate_counter << 1) | bit) & 0x7FFF;
 
-        if (ch.rate_counter === ratePeriod) {
-            ch.rate_counter = 0; 
+        if (ch.rate_counter === targetLfsr) {
+            ch.rate_counter = 0; // LFSR kollabiert in den Startzustand (0x0000)
 
             let expPeriod = 1;
             if (ch.state !== ENV_ATTACK) {
@@ -259,7 +258,6 @@ export class SIDChip {
         }
 
         // Physical MOS 6581 Ring Modulation:
-        // Substitutes the voice's MSB with the EXCLUSIVE-OR of its own MSB and the carrier's MSB.
         let prevIdx = v === 0 ? 2 : v - 1;
         let prevCh = this.voices[prevIdx];
         let ownMSB = (ch.phase >> 23) & 1;
@@ -331,8 +329,6 @@ export class SIDChip {
         let hp = (h - q * this.filterBand) / (1.0 + g * (g + q));
 
         if (this.useJfetSaturation) {
-            // Relaxed VCF Op-Amp Drive: Allows Voice 1 (Lead) and Voice 3 (Bass) to co-exist
-            // inside the filter without intermodulation clipping or lead suppression.
             let qDrive = 1.0 / (q + 0.25); 
             let summerDrive = this.thermalJfetDrive * (0.50 + qDrive * 0.10); 
             hp = Math.tanh(hp * summerDrive) / summerDrive;
@@ -354,8 +350,6 @@ export class SIDChip {
         let outBP = (this.filterMode & 32) ? this.filterBand : 0;
         let outHP = (this.filterMode & 64) ? hp : 0;
 
-        // Analoge Phasen-Inversion für Highpass in Notch/Tri-Filter Modi ($50/$70/$F0)
-        // Entspricht der physischen 6581 Op-Amp Summierschaltung
         if ((this.filterMode & 80) === 80) { 
             outHP = -outHP * 0.90; 
         }

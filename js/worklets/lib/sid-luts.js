@@ -1,7 +1,7 @@
 // === js/worklets/lib/sid-luts.js ===
 // =========================================================
 // MOS 6581 HARDWARE LOOKUP TABLES (LUTs)
-// Now with 1983 Silicon Lottery Tolerances
+// Now with 1983 Silicon Lottery Tolerances & True 15-Bit LFSR
 // =========================================================
 
 export const DAC_LUT = new Float32Array(256);
@@ -39,4 +39,19 @@ for (let i = 0; i < 4096; i++) {
     let shifted = i + 76; 
     if (shifted > 4096) shifted = 4096;
     PWM_LUT[i] = shifted;
+}
+
+// 4. GENERATE 15-BIT XNOR LFSR TARGETS FOR ADSR RATE COUNTER
+const RATE_COUNTER_PERIOD = [9, 32, 63, 95, 149, 220, 267, 313, 392, 977, 1954, 3126, 3907, 11720, 19530, 31256];
+export const ADSR_LFSR_TARGETS = new Uint16Array(16);
+
+let adsrLfsr = 0x0000;
+for (let step = 0; step <= 32767; step++) {
+    let idx = RATE_COUNTER_PERIOD.indexOf(step);
+    if (idx !== -1) {
+        ADSR_LFSR_TARGETS[idx] = adsrLfsr;
+    }
+    // 15-Bit XNOR Shift (Bit 0 = ~(Bit 14 ^ Bit 13))
+    let bit = (~((adsrLfsr >> 14) ^ (adsrLfsr >> 13))) & 1;
+    adsrLfsr = ((adsrLfsr << 1) | bit) & 0x7FFF;
 }
