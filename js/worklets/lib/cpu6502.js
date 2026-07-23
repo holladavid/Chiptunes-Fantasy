@@ -2,9 +2,11 @@
 // =========================================================
 // 6502 CPU EMULATOR & C64 I/O INTERCEPTOR
 // High-Performance Zero-Allocation Edition
-// Fully patched with Autonomous PSID Sample Trap Clock (~7.8kHz)
-// and Sub-Instruction Accurate Interrupt Latching (Zero Jitter)
-// Phase 3: Hardware-accurate 1-Cycle CIA Timer Cascading Latency
+// Fully patched with Smart Latch Discriminator for PSID Trap
+// Sub-Instruction Accurate Interrupt Latching (Zero Jitter)
+// Hardware-accurate 1-Cycle CIA Timer Cascading Latency
+// Fixed 4-Bit Nibble Pitch-Stepping ($D45F 1x speed fix for Giana Sisters)
+// Patched $EA7E KERNAL IRQ Exit Trampoline & Timer Latch Guard
 // =========================================================
 
 export class CPU6502 {
@@ -24,11 +26,11 @@ export class CPU6502 {
         
         this.cia1TimerA = 19705; 
         this.cia1TimerALatch = 19705;
-        this.cia1CtrlA = 0x00;   
+        this.cia1CtrlA = 0x01; // C64 KERNAL Boot-Default: Timer A läuft im 50Hz Continuous Mode!
         this.cia1Icr = 0; 
         this.cia1IrqMask = 0x00; 
         this.cia1TimerAUnderflowed = false;
-        this.cia1TimerAPulse = false; // Physisches Underflow-Signal für Kaskadierung
+        this.cia1TimerAPulse = false;
         
         this.cia1TimerB = 0xFFFF;
         this.cia1TimerBLatch = 0xFFFF;
@@ -38,7 +40,7 @@ export class CPU6502 {
         this.cia2TimerALatch = 0xFFFF;
         this.cia2CtrlA = 0x00;
         this.cia2Icr = 0; this.cia2IrqMask = 0x00;
-        this.cia2TimerAPulse = false; // Physisches Underflow-Signal für Kaskadierung
+        this.cia2TimerAPulse = false;
         
         this.cia2TimerB = 0xFFFF;
         this.cia2TimerBLatch = 0xFFFF;
@@ -65,7 +67,7 @@ export class CPU6502 {
         this.psidSamplePtr = 0;
         this.psidSampleEnd = 0;
         this.psidNibblePhase = 0;
-        this.psidSampleStep = 0;
+        this.psidSampleStep = 1;
         this.psidSampleCycleCounter = 126;
     }
 
@@ -77,7 +79,7 @@ export class CPU6502 {
         this.psidSamplePtr = 0;
         this.psidSampleEnd = 0;
         this.psidNibblePhase = 0;
-        this.psidSampleStep = 0;
+        this.psidSampleStep = 1;
         this.psidSampleCycleCounter = 126;
 
         // --- 1. PRG CODE LADEN ---
@@ -111,14 +113,21 @@ export class CPU6502 {
             this.kernalRom[0x0A31 + i] = safeIrqReturn[i]; 
         }
 
+        // KERNAL Standard IRQ Exit Handler ($EA7E)
+        // PLA, TAY, PLA, TAX, PLA, RTI
+        const safeIrqExit = [0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40];
+        for (let i = 0; i < safeIrqExit.length; i++) {
+            this.kernalRom[0x0A7E + i] = safeIrqExit[i]; // $E000 + $0A7E = $EA7E
+        }
+
         const safeNmiReturn = [0xAD, 0x0D, 0xDD, 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40];
         for (let i = 0; i < safeNmiReturn.length; i++) {
             this.ram[0x0240 + i] = safeNmiReturn[i];
-            this.kernalRom[0x0A81 + i] = safeNmiReturn[i];
+            this.kernalRom[0x0A84 + i] = safeNmiReturn[i]; // Verschoben auf $EA84
         }
         
         let defaultIrq = overlapsKernal ? 0x0220 : 0xEA31;
-        let defaultNmi = overlapsKernal ? 0x0240 : 0xEA81;
+        let defaultNmi = overlapsKernal ? 0x0240 : 0xEA84;
 
         this.defaultIrqLo = defaultIrq & 0xFF;
         this.defaultIrqHi = (defaultIrq >> 8) & 0xFF;
@@ -150,7 +159,7 @@ export class CPU6502 {
         this.rasterIrqTarget = 0;
         
         this.cia1TimerA = 19705; this.cia1TimerALatch = 19705;
-        this.cia1CtrlA = 0x00;   
+        this.cia1CtrlA = 0x01;   // C64 KERNAL Boot-Default
         this.cia1Icr = 0; this.cia1IrqMask = 0x00; 
         this.cia1TimerAUnderflowed = false;
         this.cia1TimerAPulse = false;
@@ -293,6 +302,7 @@ export class CPU6502 {
         this.ram[addr] = val; 
         if (addr < 0xD000 || addr > 0xDFFF) return;
 
+        // --- PSID SAMPLE TRAP INTERCEPTOR ($D41D - $D47D) ---
         if (addr >= 0xD41D && addr <= 0xD47D) {
             this.ram[addr] = val;
             if (addr === 0xD41D) {
@@ -304,7 +314,9 @@ export class CPU6502 {
                     
                     this.psidSamplePtr = startLo | (startHi << 8);
                     this.psidSampleEnd = (endLo === 0) ? ((endHi << 8) | 0xFF) : (endLo | (endHi << 8));
-                    this.psidSampleStep = this.ram[0xD45F]; 
+                    
+                    let stepVal = this.ram[0xD45F];
+                    this.psidSampleStep = stepVal > 0 ? stepVal : 1; 
                     this.psidNibblePhase = 0;
                     this.psidSampleCycleCounter = 126;
                     this.psidSampleActive = true;
@@ -389,7 +401,7 @@ export class CPU6502 {
         }
     }
 
-    updateIrqState(cycleIndex = 0, totalCycles = 1) {
+    updateIrqState() {
         let vicIrq = (this.ram[0xD019] & this.ram[0xD01A] & 0x0F) !== 0;
         let ciaIrq = (this.cia1Icr & this.cia1IrqMask & 0x1F) !== 0;
         let cia2Nmi = (this.cia2Icr & this.cia2IrqMask & 0x1F) !== 0;
@@ -409,13 +421,6 @@ export class CPU6502 {
 
         if (cia2Nmi) this.cia2Icr |= 0x80;
         else this.cia2Icr &= 0x7F;
-
-        if (this.irqPending) {
-            if (cycleIndex <= totalCycles - 3) this.irqAccepted = (this.p & 0x04) === 0;
-        }
-        if (this.nmiPending) {
-            if (cycleIndex <= totalCycles - 3) this.nmiAccepted = true;
-        }
     }
 
     triggerHardwareNmi() {
@@ -428,17 +433,15 @@ export class CPU6502 {
     }
 
     clockHardware(cycles) {
-        if (this.irqPending) {
-            this.irqAccepted = (this.p & 0x04) === 0;
-        }
-        if (this.nmiPending) {
-            this.nmiAccepted = true;
-        }
-
         for (let i = 0; i < cycles; i++) {
             
-            // --- AUTONOMOUS PSID SAMPLE TRAP STREAMER (FALLBACK) ---
-            if (this.psidSampleActive && !(this.cia1CtrlA & 0x01) && !(this.cia2CtrlA & 0x01)) {
+            // Latch-Diskriminator: Latch < 2000 Zyklen ist ein Sample-Timer; >= 2000 Zyklen ist der 50Hz Music-Clock!
+            let hasHighFreqCia1 = (this.cia1CtrlA & 0x01) !== 0 && (this.cia1TimerALatch < 2000);
+            let hasHighFreqCia2 = (this.cia2CtrlA & 0x01) !== 0 && (this.cia2TimerALatch < 2000);
+
+            // --- AUTONOMOUS PSID SAMPLE TRAP STREAMER ---
+            // Streams at ~7.8kHz unless a CIA timer was explicitly loaded with a high-frequency sample rate!
+            if (this.psidSampleActive && !hasHighFreqCia1 && !hasHighFreqCia2) {
                 this.psidSampleCycleCounter--;
                 if (this.psidSampleCycleCounter <= 0) {
                     this.psidSampleCycleCounter += 126;
@@ -457,23 +460,24 @@ export class CPU6502 {
                 this.cia1TimerA--;
                 if (this.cia1TimerA < 0) {
                     this.cia1Icr |= 0x01; 
-                    this.cia1TimerA = this.cia1TimerALatch;
+                    // Failsafe: Clampt Reload auf min 2 Zyklen, verhindert 1-Cycle-Endlosschleifen!
+                    this.cia1TimerA = Math.max(2, this.cia1TimerALatch);
                     this.cia1TimerAUnderflowed = true;
-                    this.cia1TimerAPulse = true; // Signal für den NÄCHSTEN Zyklus
+                    this.cia1TimerAPulse = true; 
 
-                    if (this.psidSampleActive) this.streamPsidSampleNibble();
+                    if (this.psidSampleActive && hasHighFreqCia1) {
+                        this.streamPsidSampleNibble();
+                    }
 
                     if (this.cia1CtrlA & 0x08) this.cia1CtrlA &= ~0x01; 
-                    this.updateIrqState(i, cycles);
+                    this.updateIrqState();
                 }
             }
 
-            // Timer B zählt CPU-Zyklen
             if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x00)) {
                 this.cia1TimerB--;
                 if (this.cia1TimerB < 0) timerBUnderflowTriggered = true;
             } 
-            // Timer B zählt Timer A Underflows (1 Takt Verzögerung!)
             else if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x40)) {
                 if (cia1PulseLastCycle) {
                     this.cia1TimerB--;
@@ -483,9 +487,9 @@ export class CPU6502 {
 
             if (timerBUnderflowTriggered) {
                 this.cia1Icr |= 0x02; 
-                this.cia1TimerB = this.cia1TimerBLatch;
+                this.cia1TimerB = Math.max(2, this.cia1TimerBLatch);
                 if (this.cia1CtrlB & 0x08) this.cia1CtrlB &= ~0x01; 
-                this.updateIrqState(i, cycles);
+                this.updateIrqState();
             }
 
             // =========================================================
@@ -499,13 +503,16 @@ export class CPU6502 {
                 this.cia2TimerA--;
                 if (this.cia2TimerA < 0) {
                     this.cia2Icr |= 0x01; 
-                    this.cia2TimerA = this.cia2TimerALatch;
-                    this.cia2TimerAPulse = true; // Signal für den NÄCHSTEN Zyklus
+                    // Failsafe: Clampt Reload auf min 2 Zyklen!
+                    this.cia2TimerA = Math.max(2, this.cia2TimerALatch);
+                    this.cia2TimerAPulse = true; 
 
-                    if (this.psidSampleActive) this.streamPsidSampleNibble();
+                    if (this.psidSampleActive && hasHighFreqCia2) {
+                        this.streamPsidSampleNibble();
+                    }
 
                     if (this.cia2CtrlA & 0x08) this.cia2CtrlA &= ~0x01; 
-                    this.updateIrqState(i, cycles);
+                    this.updateIrqState();
                 }
             }
 
@@ -522,9 +529,9 @@ export class CPU6502 {
 
             if (cia2TimerBUnderflow) {
                 this.cia2Icr |= 0x02; 
-                this.cia2TimerB = this.cia2TimerBLatch;
+                this.cia2TimerB = Math.max(2, this.cia2TimerBLatch);
                 if (this.cia2CtrlB & 0x08) this.cia2CtrlB &= ~0x01; 
-                this.updateIrqState(i, cycles);
+                this.updateIrqState();
             }
 
             this.todCycleCounter--;
@@ -560,7 +567,7 @@ export class CPU6502 {
             
             if (this.rasterCycles === 0 && this.rasterCounter === this.rasterIrqTarget) {
                 this.ram[0xD019] |= 0x01; 
-                this.updateIrqState(i, cycles);
+                this.updateIrqState();
             }
         }
     }
@@ -639,16 +646,6 @@ export class CPU6502 {
     }
 
     step() {
-        if (this.nmiPending) {
-            this.nmiPending = false;
-            this.triggerHardwareNmi();
-            return 7;
-        }
-        if (this.irqPending && (this.p & 0x04) === 0) {
-            this.triggerHardwareIrq();
-            return 7;
-        }
-
         if (!this.rdy) return 1; 
 
         let op = this.read(this.pc++);
@@ -1053,25 +1050,21 @@ export class CPU6502 {
         if (!this.psidSampleActive) return;
         if (this.psidSamplePtr < this.psidSampleEnd && this.psidSamplePtr < 65536) {
             let byteVal = this.ram[this.psidSamplePtr];
-            let nibble = 0;
             
-            // Reagiert auf $D45F: Wenn Step > 0 ist, wird das Sample im High-Pitch Modus abgespielt!
-            if (this.psidSampleStep > 0) {
-                nibble = (byteVal >> 4) & 0x0F;
-                this.psidSamplePtr += this.psidSampleStep;
-            } else {
-                if (this.psidNibblePhase === 0) {
-                    nibble = byteVal & 0x0F;
-                    this.psidNibblePhase = 1;
-                } else {
-                    nibble = (byteVal >> 4) & 0x0F;
-                    this.psidNibblePhase = 0;
-                    this.psidSamplePtr++;
-                }
-            }
+            // 4-Bit Nibble Extraktion (0 = Low Nibble, 1 = High Nibble)
+            let nibble = (this.psidNibblePhase === 0) 
+                ? (byteVal & 0x0F) 
+                : ((byteVal >> 4) & 0x0F);
             
+            // Schreibe 4-Bit Sample in $D418
             let filterMode = this.sid.regs[24] & 0xF0;
             this.sid.writeReg(24, filterMode | nibble);
+
+            // Shifte Nibble-Pointer mit 0.5-Byte Schrittweite
+            let step = this.psidSampleStep > 0 ? this.psidSampleStep : 1;
+            let totalNibbles = this.psidNibblePhase + step;
+            this.psidSamplePtr += (totalNibbles >> 1);
+            this.psidNibblePhase = totalNibbles & 1;
         } else {
             this.psidSampleActive = false;
         }

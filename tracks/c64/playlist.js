@@ -25,7 +25,7 @@ const mySidFiles = [
     "Myth.sid",                       // 9. Jeroen Tel
     "Monty_on_the_Run.sid",
     "Delta.sid",
-    "To_Be_on_Top_PSID.sid",
+    "To_Be_on_Top.sid",
     "Rambo_First_Blood_Part_II.sid",
     "Mega_Apocalypse_PSID.sid",
     "Miami_Vice.sid",                 
