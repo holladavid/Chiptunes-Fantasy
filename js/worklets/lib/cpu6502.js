@@ -61,6 +61,7 @@ export class CPU6502 {
         this.psidSamplePtr = 0;
         this.psidSampleEnd = 0;
         this.psidNibblePhase = 0;
+        this.psidSampleStep = 0;
         this.psidSampleCycleCounter = 126; // 126 Zyklen = ~7812.5 Hz Sample Rate
     }
 
@@ -72,6 +73,7 @@ export class CPU6502 {
         this.psidSamplePtr = 0;
         this.psidSampleEnd = 0;
         this.psidNibblePhase = 0;
+        this.psidSampleStep = 0;
         this.psidSampleCycleCounter = 126;
 
         // --- 1. PRG CODE LADEN ---
@@ -288,6 +290,7 @@ export class CPU6502 {
 
         // --- PSID SAMPLE TRAP INTERCEPTOR ($D41D - $D47D) ---
         if (addr >= 0xD41D && addr <= 0xD47D) {
+            this.ram[addr] = val;
             if (addr === 0xD41D) {
                 if (val === 0xFE || val === 0x01 || val === 0x81) {
                     let startLo = this.ram[0xD41E];
@@ -297,6 +300,7 @@ export class CPU6502 {
                     
                     this.psidSamplePtr = startLo | (startHi << 8);
                     this.psidSampleEnd = (endLo === 0) ? ((endHi << 8) | 0xFF) : (endLo | (endHi << 8));
+                    this.psidSampleStep = this.ram[0xD45F]; // <--- NEU: Lese den Pitch-Step $D45F aus!
                     this.psidNibblePhase = 0;
                     this.psidSampleCycleCounter = 126;
                     this.psidSampleActive = true;
@@ -1025,14 +1029,22 @@ export class CPU6502 {
         if (this.psidSamplePtr < this.psidSampleEnd && this.psidSamplePtr < 65536) {
             let byteVal = this.ram[this.psidSamplePtr];
             let nibble = 0;
-            if (this.psidNibblePhase === 0) {
-                nibble = byteVal & 0x0F;
-                this.psidNibblePhase = 1;
-            } else {
+            
+            // Reagiert auf $D45F: Wenn Step > 0 ist, wird das Sample im High-Pitch Modus abgespielt!
+            if (this.psidSampleStep > 0) {
                 nibble = (byteVal >> 4) & 0x0F;
-                this.psidNibblePhase = 0;
-                this.psidSamplePtr++;
+                this.psidSamplePtr += this.psidSampleStep;
+            } else {
+                if (this.psidNibblePhase === 0) {
+                    nibble = byteVal & 0x0F;
+                    this.psidNibblePhase = 1;
+                } else {
+                    nibble = (byteVal >> 4) & 0x0F;
+                    this.psidNibblePhase = 0;
+                    this.psidSamplePtr++;
+                }
             }
+            
             let filterMode = this.sid.regs[24] & 0xF0;
             this.sid.writeReg(24, filterMode | nibble);
         } else {
