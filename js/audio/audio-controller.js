@@ -2,6 +2,7 @@
 // =========================================================
 // CENTRAL WEB AUDIO ENGINE & WORKLET CONTROLLER
 // Pure ES6 Module - Cleaned up and Optimized
+// Updated with Transparent Brickwall Peak Limiter (Zero Pumping)
 // =========================================================
 
 let audioCtx = null;
@@ -33,12 +34,16 @@ export async function initAudioEngine() {
         masterGain = audioCtx.createGain();
         masterGain.gain.value = 0.5; 
         
+        // =========================================================
+        // DSP UPGRADE: TRANSPARENT BRICKWALL LIMITER (Zero Pumping)
+        // Ersetzt träge Kompressor-Attributwerte durch ultra-schnellen Peak-Schutz.
+        // =========================================================
         masterLimiter = audioCtx.createDynamicsCompressor();
-        masterLimiter.threshold.value = -1.5; 
-        masterLimiter.knee.value = 4.0;       
-        masterLimiter.ratio.value = 12.0;     
-        masterLimiter.attack.value = 0.003;   
-        masterLimiter.release.value = 0.08;   
+        masterLimiter.threshold.value = -0.5; // Greift erst knapp unter Vollanschlag
+        masterLimiter.knee.value = 0.0;       // Harte Kante für sofortigen Peak-Schutz
+        masterLimiter.ratio.value = 20.0;     // Hohe Ratio verhindert Digital-Clipping
+        masterLimiter.attack.value = 0.0005;  // Ultra-schnelle 0.5ms (Keine lauten Transienten-Ausbrüche)
+        masterLimiter.release.value = 0.02;   // Fast 20ms Erholung (Eliminiert Lautstärke-Pumpen vollständig!)
         
         masterGain.connect(masterLimiter);
         masterLimiter.connect(analyserNode);
@@ -71,10 +76,7 @@ export async function loadEmuCore(system, coreConfig, onMessageCallback) {
 
         if (system === 'atari') ymNode = newNode;
         if (system === 'c64') sidNode = newNode;
-        if (system === 'amiga') {
-            paulaNode = newNode;
-            // === KORREKTUR: uploadAmigaSamples() gelöscht! ===
-        }
+        if (system === 'amiga') paulaNode = newNode;
 
         console.log(`[AUDIO ENGINE] Soundprozessor erfolgreich getauscht: ${system.toUpperCase()} -> ${coreConfig.name}`);
     } catch (e) {

@@ -22,6 +22,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.songSpeedFlags = 0;
         
         this.isPlaying = false;
+        this.fadeVol = 0.0; // Dynamic Smooth Fade Volume (0.0 to 1.0)
         
         this.cycleAccumulator = 0.0;
         this.vblankTimer = 19656; 
@@ -76,7 +77,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.push(0xDF); 
                 this.cpu.pc = this.initAddress;
 
-                // 2 Mio Zyklen Safety Guard für schwere Exomizer-Entpacker
                 let initSafety = 2000000; 
                 while (this.cpu.pc !== 0xFFE0 && initSafety > 0) {
                     initSafety--;
@@ -116,17 +116,6 @@ class SIDProcessor extends AudioWorkletProcessor {
 
                 this.playSpeedCycles = this.useCiaTimer ? 19583 : 19656;
                 this.vblankTimer = this.playSpeedCycles;
-
-                let bootMsg = `==================================================\n` +
-                              `[LAB-BOOT] Core: ${this.constructor.name}\n` +
-                              `[LAB-BOOT] Subsong-Index: ${songIndex} | Address-Range: $${this.loadAddr.toString(16).toUpperCase()} - $${(this.loadAddr + this.prgCode.length).toString(16).toUpperCase()}\n` +
-                              `[LAB-BOOT] Play-Address: $${this.playAddress.toString(16).toUpperCase()}\n` +
-                              `[LAB-BOOT] Vector $0314 (IRQ): $${this.cpu.ram[0x0314].toString(16).toUpperCase().padStart(2, '0')}${this.cpu.ram[0x0315].toString(16).toUpperCase().padStart(2, '0')}\n` +
-                              `[LAB-BOOT] Vector $0318 (NMI): $${this.cpu.ram[0x0318].toString(16).toUpperCase().padStart(2, '0')}${this.cpu.ram[0x0319].toString(16).toUpperCase().padStart(2, '0')}\n` +
-                              `[LAB-BOOT] VIC Mask $D01A: $${this.cpu.ram[0xD01A].toString(16).toUpperCase()} | CIA-1 Mask $DC0D: $${this.cpu.cia1IrqMask.toString(16).toUpperCase()}\n` +
-                              `[LAB-BOOT] Speedflags: %${this.songSpeedFlags.toString(2)} | useCiaTimer: ${this.useCiaTimer}\n` +
-                              `==================================================`;
-                this.port.postMessage({ type: 'LAB_LOG', msg: bootMsg });
 
                 this.cycleAccumulator = 0.0;
                 this.cpuCyclesRemaining = 0;
@@ -196,7 +185,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 if (this.useCiaTimer) {
                     this.cpu.cia1CtrlA |= 0x01; 
                 }
-                
+
                 this.playSpeedCycles = this.useCiaTimer ? 19583 : 19656;
                 this.vblankTimer = this.playSpeedCycles;
 
@@ -216,7 +205,17 @@ class SIDProcessor extends AudioWorkletProcessor {
         let visualValue = 0;
 
         for (let i = 0; i < outL.length; i++) {
-            if (!this.isPlaying) {
+            
+            // =========================================================
+            // SMOOTH VOL FADE RAMP (Eliminiert DC-Transienten beim Start/Pause)
+            // =========================================================
+            if (this.isPlaying) {
+                this.fadeVol = Math.min(1.0, this.fadeVol + 0.002); // ~10ms Fade-In
+            } else {
+                this.fadeVol = Math.max(0.0, this.fadeVol - 0.002); // ~10ms Fade-Out
+            }
+
+            if (this.fadeVol === 0.0) {
                 outL[i] = 0; if (outR) outR[i] = 0;
                 continue; 
             }
@@ -227,7 +226,6 @@ class SIDProcessor extends AudioWorkletProcessor {
 
             let sampleSum = 0;
 
-            // --- THE NATIVE CYCLE-EXACT LOCKSTEP LOOP (1 MHz) ---
             for (let c = 0; c < cyclesToRun; c++) {
                 this.diagCycles++; 
                 
@@ -236,7 +234,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                 
                 sampleSum += this.sid.outputSample;
 
-                // --- FIX: VBLANK / CIA TIMER MANAGEMENT GEHÖRT IN DEN 1-MHZ CYCLE LOOP! ---
                 if (this.playAddress === 0) {
                     this.vblankTimer--;
                     if (this.vblankTimer <= 0) {
@@ -270,7 +267,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                     // CPU stall
                 } else {
                     if (this.cpuCyclesRemaining <= 0) {
-                        // Safe Dispatch an der Idle-Schleife ($FFE0)
                         if (this.hostPlayPending && this.cpu.pc >= 0xFFE0 && this.cpu.pc <= 0xFFE2) {
                             this.hostPlayPending = false;
                             this.cpu.push(0xFF);
@@ -298,17 +294,16 @@ class SIDProcessor extends AudioWorkletProcessor {
                 }
             }
             
-            // --- BOXCAR DECIMATION (Integrate & Dump) ---
             let decimatedSample = cyclesToRun > 0 ? sampleSum / cyclesToRun : this.lastSampleValue;
             this.lastSampleValue = decimatedSample;
 
-            // Analog Output Filter (16 kHz Butterworth pass)
             let analogSample = this.c64Output.process(decimatedSample);
 
-            // DC Blocker (R=0.998 fängt das 400mV Bias ab)
-            let finalSample = analogSample - this.dcBlock.lastIn + 0.998 * this.dcBlock.lastOut;
+            let dcSample = analogSample - this.dcBlock.lastIn + 0.998 * this.dcBlock.lastOut;
             this.dcBlock.lastIn = analogSample;
-            this.dcBlock.lastOut = finalSample;
+            this.dcBlock.lastOut = dcSample;
+
+            let finalSample = dcSample * this.fadeVol;
 
             outL[i] = finalSample;
             if (outR) outR[i] = finalSample;
@@ -319,7 +314,6 @@ class SIDProcessor extends AudioWorkletProcessor {
         if (this.diagTimer >= 1.0) {
             this.diagTimer -= 1.0;
             
-            // NEU: Digidrum-Frequenz auslesen und zurücksetzen
             let digiRate = this.sid.d418Writes;
             this.sid.d418Writes = 0;
             
@@ -331,7 +325,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                              `[CPU] Instructions/sec: ${this.diagInstructions} | Cycles/sec: ${this.diagCycles}\n` +
                              `[IRQ] Pending: ${this.cpu.irqPending} | Accepted: ${this.cpu.irqAccepted} | Count/sec: ${this.diagIrqCount}\n` +
                              `[NMI] Pending: ${this.cpu.nmiPending} | Accepted: ${this.cpu.nmiAccepted} | Count/sec: ${this.diagNmiCount}\n` +
-                             `[DIGI] $D418 Writes/sec: ${digiRate} Hz (Effective Sample Rate)\n` + // <<< NEU!
+                             `[DIGI] $D418 Writes/sec: ${digiRate} Hz (Effective Sample Rate)\n` +
                              `[VECTORS] $0314 (IRQ): $${this.cpu.ram[0x0314].toString(16).toUpperCase().padStart(2, '0')}${this.cpu.ram[0x0315].toString(16).toUpperCase().padStart(2, '0')}\n` +
                              `[TIMERS] CIA1-TimerA: ${this.cpu.cia1TimerA} | Latch: ${this.cpu.cia1TimerALatch} | CtrlA: $${this.cpu.cia1CtrlA.toString(16).toUpperCase().padStart(2, '0')}\n` +
                              `[TIMERS] VIC-Raster: ${this.cpu.rasterCounter} | Target: ${this.cpu.rasterIrqTarget} | Enabled: ${this.cpu.ram[0xD01A]}\n` +
