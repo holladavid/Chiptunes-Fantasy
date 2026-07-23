@@ -4,6 +4,7 @@
 // High-Performance Zero-Allocation Edition
 // Fully patched with Autonomous PSID Sample Trap Clock (~7.8kHz)
 // and Sub-Instruction Accurate Interrupt Latching (Zero Jitter)
+// Phase 3: Hardware-accurate 1-Cycle CIA Timer Cascading Latency
 // =========================================================
 
 export class CPU6502 {
@@ -27,6 +28,7 @@ export class CPU6502 {
         this.cia1Icr = 0; 
         this.cia1IrqMask = 0x00; 
         this.cia1TimerAUnderflowed = false;
+        this.cia1TimerAPulse = false; // Physisches Underflow-Signal für Kaskadierung
         
         this.cia1TimerB = 0xFFFF;
         this.cia1TimerBLatch = 0xFFFF;
@@ -36,6 +38,7 @@ export class CPU6502 {
         this.cia2TimerALatch = 0xFFFF;
         this.cia2CtrlA = 0x00;
         this.cia2Icr = 0; this.cia2IrqMask = 0x00;
+        this.cia2TimerAPulse = false; // Physisches Underflow-Signal für Kaskadierung
         
         this.cia2TimerB = 0xFFFF;
         this.cia2TimerBLatch = 0xFFFF;
@@ -57,13 +60,13 @@ export class CPU6502 {
         this.defaultIrqLo = 0x31; 
         this.defaultIrqHi = 0xEA; 
 
-        // PSID Sample Trap Hardware State (HVSC Digis / Giana Sisters)
+        // PSID Sample Trap Hardware State
         this.psidSampleActive = false;
         this.psidSamplePtr = 0;
         this.psidSampleEnd = 0;
         this.psidNibblePhase = 0;
         this.psidSampleStep = 0;
-        this.psidSampleCycleCounter = 126; // 126 Zyklen = ~7812.5 Hz Sample Rate
+        this.psidSampleCycleCounter = 126;
     }
 
     reset(loadAddr, prgCode, initAddr = 0, playAddr = 0) {
@@ -132,8 +135,7 @@ export class CPU6502 {
             this.kernalRom[0x1F48 + i] = irqEntry[i];
         }
 
-        // Direkter NMI-Einsprung über Vector $0318 ohne Stack-Ballast
-        const nmiEntry = [0x6C, 0x18, 0x03]; // JMP ($0318)
+        const nmiEntry = [0x6C, 0x18, 0x03]; 
         for (let i = 0; i < nmiEntry.length; i++) {
             this.kernalRom[0x1F60 + i] = nmiEntry[i];
         }
@@ -151,10 +153,12 @@ export class CPU6502 {
         this.cia1CtrlA = 0x00;   
         this.cia1Icr = 0; this.cia1IrqMask = 0x00; 
         this.cia1TimerAUnderflowed = false;
+        this.cia1TimerAPulse = false;
         
         this.cia2TimerA = 0xFFFF; this.cia2TimerALatch = 0xFFFF;
         this.cia2CtrlA = 0x00;
         this.cia2Icr = 0; this.cia2IrqMask = 0x00;
+        this.cia2TimerAPulse = false;
         
         this.cia2TimerB = 0xFFFF; this.cia2TimerALatch = 0xFFFF;
         this.cia2CtrlB = 0x00;
@@ -289,7 +293,6 @@ export class CPU6502 {
         this.ram[addr] = val; 
         if (addr < 0xD000 || addr > 0xDFFF) return;
 
-        // --- PSID SAMPLE TRAP INTERCEPTOR ($D41D - $D47D) ---
         if (addr >= 0xD41D && addr <= 0xD47D) {
             this.ram[addr] = val;
             if (addr === 0xD41D) {
@@ -301,7 +304,7 @@ export class CPU6502 {
                     
                     this.psidSamplePtr = startLo | (startHi << 8);
                     this.psidSampleEnd = (endLo === 0) ? ((endHi << 8) | 0xFF) : (endLo | (endHi << 8));
-                    this.psidSampleStep = this.ram[0xD45F]; // Lese den Pitch-Step $D45F aus!
+                    this.psidSampleStep = this.ram[0xD45F]; 
                     this.psidNibblePhase = 0;
                     this.psidSampleCycleCounter = 126;
                     this.psidSampleActive = true;
@@ -386,7 +389,7 @@ export class CPU6502 {
         }
     }
 
-    updateIrqState() {
+    updateIrqState(cycleIndex = 0, totalCycles = 1) {
         let vicIrq = (this.ram[0xD019] & this.ram[0xD01A] & 0x0F) !== 0;
         let ciaIrq = (this.cia1Icr & this.cia1IrqMask & 0x1F) !== 0;
         let cia2Nmi = (this.cia2Icr & this.cia2IrqMask & 0x1F) !== 0;
@@ -406,6 +409,13 @@ export class CPU6502 {
 
         if (cia2Nmi) this.cia2Icr |= 0x80;
         else this.cia2Icr &= 0x7F;
+
+        if (this.irqPending) {
+            if (cycleIndex <= totalCycles - 3) this.irqAccepted = (this.p & 0x04) === 0;
+        }
+        if (this.nmiPending) {
+            if (cycleIndex <= totalCycles - 3) this.nmiAccepted = true;
+        }
     }
 
     triggerHardwareNmi() {
@@ -418,10 +428,16 @@ export class CPU6502 {
     }
 
     clockHardware(cycles) {
+        if (this.irqPending) {
+            this.irqAccepted = (this.p & 0x04) === 0;
+        }
+        if (this.nmiPending) {
+            this.nmiAccepted = true;
+        }
+
         for (let i = 0; i < cycles; i++) {
             
             // --- AUTONOMOUS PSID SAMPLE TRAP STREAMER (FALLBACK) ---
-            // Greift nur, wenn die CIA-Timer vom Track nicht gestartet wurden.
             if (this.psidSampleActive && !(this.cia1CtrlA & 0x01) && !(this.cia2CtrlA & 0x01)) {
                 this.psidSampleCycleCounter--;
                 if (this.psidSampleCycleCounter <= 0) {
@@ -430,6 +446,11 @@ export class CPU6502 {
                 }
             }
 
+            // =========================================================
+            // CIA-1 TIMER KASKADIERUNG (1-CYCLE LATENCY)
+            // =========================================================
+            let cia1PulseLastCycle = this.cia1TimerAPulse;
+            this.cia1TimerAPulse = false;
             let timerBUnderflowTriggered = false;
 
             if (this.cia1CtrlA & 0x01) { 
@@ -438,49 +459,53 @@ export class CPU6502 {
                     this.cia1Icr |= 0x01; 
                     this.cia1TimerA = this.cia1TimerALatch;
                     this.cia1TimerAUnderflowed = true;
+                    this.cia1TimerAPulse = true; // Signal für den NÄCHSTEN Zyklus
 
-                    // --- DSP UPGRADE: PSID DMA-FETCH AN CIA-1 TIMER A GEKOPPELT ---
                     if (this.psidSampleActive) this.streamPsidSampleNibble();
 
                     if (this.cia1CtrlA & 0x08) this.cia1CtrlA &= ~0x01; 
-                    this.updateIrqState();
-
-                    if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x40)) {
-                        this.cia1TimerB--;
-                        if (this.cia1TimerB < 0) timerBUnderflowTriggered = true;
-                    }
+                    this.updateIrqState(i, cycles);
                 }
             }
 
+            // Timer B zählt CPU-Zyklen
             if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x00)) {
                 this.cia1TimerB--;
                 if (this.cia1TimerB < 0) timerBUnderflowTriggered = true;
+            } 
+            // Timer B zählt Timer A Underflows (1 Takt Verzögerung!)
+            else if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x40)) {
+                if (cia1PulseLastCycle) {
+                    this.cia1TimerB--;
+                    if (this.cia1TimerB < 0) timerBUnderflowTriggered = true;
+                }
             }
 
             if (timerBUnderflowTriggered) {
                 this.cia1Icr |= 0x02; 
                 this.cia1TimerB = this.cia1TimerBLatch;
                 if (this.cia1CtrlB & 0x08) this.cia1CtrlB &= ~0x01; 
-                this.updateIrqState();
+                this.updateIrqState(i, cycles);
             }
 
+            // =========================================================
+            // CIA-2 TIMER KASKADIERUNG (1-CYCLE LATENCY)
+            // =========================================================
+            let cia2PulseLastCycle = this.cia2TimerAPulse;
+            this.cia2TimerAPulse = false;
             let cia2TimerBUnderflow = false;
+
             if (this.cia2CtrlA & 0x01) { 
                 this.cia2TimerA--;
                 if (this.cia2TimerA < 0) {
                     this.cia2Icr |= 0x01; 
                     this.cia2TimerA = this.cia2TimerALatch;
+                    this.cia2TimerAPulse = true; // Signal für den NÄCHSTEN Zyklus
 
-                    // --- DSP UPGRADE: PSID DMA-FETCH AN CIA-2 TIMER A GEKOPPELT ---
                     if (this.psidSampleActive) this.streamPsidSampleNibble();
 
                     if (this.cia2CtrlA & 0x08) this.cia2CtrlA &= ~0x01; 
-                    this.updateIrqState();
-
-                    if ((this.cia2CtrlB & 0x01) && ((this.cia2CtrlB & 0x60) === 0x40)) {
-                        this.cia2TimerB--;
-                        if (this.cia2TimerB < 0) cia2TimerBUnderflow = true;
-                    }
+                    this.updateIrqState(i, cycles);
                 }
             }
 
@@ -488,12 +513,18 @@ export class CPU6502 {
                 this.cia2TimerB--;
                 if (this.cia2TimerB < 0) cia2TimerBUnderflow = true;
             }
+            else if ((this.cia2CtrlB & 0x01) && ((this.cia2CtrlB & 0x60) === 0x40)) {
+                if (cia2PulseLastCycle) {
+                    this.cia2TimerB--;
+                    if (this.cia2TimerB < 0) cia2TimerBUnderflow = true;
+                }
+            }
 
             if (cia2TimerBUnderflow) {
                 this.cia2Icr |= 0x02; 
                 this.cia2TimerB = this.cia2TimerBLatch;
                 if (this.cia2CtrlB & 0x08) this.cia2CtrlB &= ~0x01; 
-                this.updateIrqState();
+                this.updateIrqState(i, cycles);
             }
 
             this.todCycleCounter--;
@@ -529,7 +560,7 @@ export class CPU6502 {
             
             if (this.rasterCycles === 0 && this.rasterCounter === this.rasterIrqTarget) {
                 this.ram[0xD019] |= 0x01; 
-                this.updateIrqState();
+                this.updateIrqState(i, cycles);
             }
         }
     }
@@ -608,6 +639,16 @@ export class CPU6502 {
     }
 
     step() {
+        if (this.nmiPending) {
+            this.nmiPending = false;
+            this.triggerHardwareNmi();
+            return 7;
+        }
+        if (this.irqPending && (this.p & 0x04) === 0) {
+            this.triggerHardwareIrq();
+            return 7;
+        }
+
         if (!this.rdy) return 1; 
 
         let op = this.read(this.pc++);
