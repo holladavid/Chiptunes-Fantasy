@@ -2,7 +2,7 @@
 // =========================================================
 // 6502 CPU EMULATOR & C64 I/O INTERCEPTOR
 // High-Performance Zero-Allocation Edition
-// Phase 17: Pure KERNAL ROM Isolation & MMU Integrity
+// Fully patched with Autonomous PSID Sample Trap Clock (~7.8kHz)
 // =========================================================
 
 export class CPU6502 {
@@ -55,12 +55,27 @@ export class CPU6502 {
 
         this.defaultIrqLo = 0x31; 
         this.defaultIrqHi = 0xEA; 
+
+        // PSID Sample Trap Hardware State (HVSC Digis / Giana Sisters)
+        this.psidSampleActive = false;
+        this.psidSamplePtr = 0;
+        this.psidSampleEnd = 0;
+        this.psidNibblePhase = 0;
+        this.psidSampleStep = 0;
+        this.psidSampleCycleCounter = 126; // 126 Zyklen = ~7812.5 Hz Sample Rate
     }
 
     reset(loadAddr, prgCode, initAddr = 0, playAddr = 0) {
         this.ram.fill(0);
         this.kernalRom.fill(0);
         
+        this.psidSampleActive = false;
+        this.psidSamplePtr = 0;
+        this.psidSampleEnd = 0;
+        this.psidNibblePhase = 0;
+        this.psidSampleStep = 0;
+        this.psidSampleCycleCounter = 126;
+
         // --- 1. PRG CODE LADEN ---
         for (let i = 0; i < prgCode.length; i++) {
             this.ram[loadAddr + i] = prgCode[i];
@@ -82,7 +97,6 @@ export class CPU6502 {
         this.ram[0x0001] = p0001; 
 
         // --- 3. PHANTOM VECTORS & HANDLERS (ROM ONLY!) ---
-        // Die Host-Idle-Schleife muss ins RAM, da der Emulator hier auf den Return-Exit wartet!
         this.ram[0xFFE0] = 0x4C; this.ram[0xFFE1] = 0xE0; this.ram[0xFFE2] = 0xFF; 
         this.kernalRom[0x1FE0] = 0x4C; this.kernalRom[0x1FE1] = 0xE0; this.kernalRom[0x1FE2] = 0xFF; 
         
@@ -109,10 +123,6 @@ export class CPU6502 {
         this.ram[0x0316] = this.defaultIrqLo; this.ram[0x0317] = this.defaultIrqHi; 
         this.ram[0x0318] = defaultNmi & 0xFF; this.ram[0x0319] = (defaultNmi >> 8) & 0xFF; 
 
-        // =========================================================
-        // FIX: DIE HARDWARE-VEKTOREN DÜRFEN NUR INS KERNAL ROM!
-        // Schreibt der Emulator in RAM, überschreibt er Custom-IRQs!
-        // =========================================================
         this.kernalRom[0x1FFE] = 0x48; this.kernalRom[0x1FFF] = 0xFF; 
         this.kernalRom[0x1FFA] = 0x60; this.kernalRom[0x1FFB] = 0xFF; 
 
@@ -121,7 +131,8 @@ export class CPU6502 {
             this.kernalRom[0x1F48 + i] = irqEntry[i];
         }
 
-        const nmiEntry = [0x48, 0x8A, 0x48, 0x98, 0x48, 0x6C, 0x18, 0x03];
+        // Direkter NMI-Einsprung über Vector $0318 ohne Stack-Ballast
+        const nmiEntry = [0x6C, 0x18, 0x03]; // JMP ($0318)
         for (let i = 0; i < nmiEntry.length; i++) {
             this.kernalRom[0x1F60 + i] = nmiEntry[i];
         }
@@ -276,7 +287,30 @@ export class CPU6502 {
     write(addr, val) {
         this.ram[addr] = val; 
         if (addr < 0xD000 || addr > 0xDFFF) return;
-        
+
+        // --- PSID SAMPLE TRAP INTERCEPTOR ($D41D - $D47D) ---
+        if (addr >= 0xD41D && addr <= 0xD47D) {
+            this.ram[addr] = val;
+            if (addr === 0xD41D) {
+                if (val === 0xFE || val === 0x01 || val === 0x81) {
+                    let startLo = this.ram[0xD41E];
+                    let startHi = this.ram[0xD41F];
+                    let endLo = this.ram[0xD43D];
+                    let endHi = this.ram[0xD43E];
+                    
+                    this.psidSamplePtr = startLo | (startHi << 8);
+                    this.psidSampleEnd = (endLo === 0) ? ((endHi << 8) | 0xFF) : (endLo | (endHi << 8));
+                    this.psidSampleStep = this.ram[0xD45F]; // <--- NEU: Lese den Pitch-Step $D45F aus!
+                    this.psidNibblePhase = 0;
+                    this.psidSampleCycleCounter = 126;
+                    this.psidSampleActive = true;
+                } else if (val === 0x00 || val === 0xFF) {
+                    this.psidSampleActive = false;
+                }
+            }
+            return;
+        }
+
         let p0001 = this.ram[0x0001] & 0x07;
         let ioEnabled = (p0001 & 4) !== 0 && (p0001 & 3) !== 0;
         if (!ioEnabled) return;
@@ -397,6 +431,16 @@ export class CPU6502 {
             this.nmiAccepted = true;
         }
 
+        // --- AUTONOMOUS PSID SAMPLE TRAP STREAMER (7812.5 Hz) ---
+        // Läuft unabhängig von CIA-Timern direkt im 1MHz Clock!
+        if (this.psidSampleActive) {
+            this.psidSampleCycleCounter -= cycles;
+            if (this.psidSampleCycleCounter <= 0) {
+                this.psidSampleCycleCounter += 126; // 126 CPU Zyklen = ~7.8 kHz
+                this.streamPsidSampleNibble();
+            }
+        }
+
         for (let i = 0; i < cycles; i++) {
             let timerBUnderflowTriggered = false;
 
@@ -435,7 +479,7 @@ export class CPU6502 {
                 if (this.cia2TimerA < 0) {
                     this.cia2Icr |= 0x01; 
                     this.cia2TimerA = this.cia2TimerALatch;
-                    
+
                     if (this.cia2CtrlA & 0x08) this.cia2CtrlA &= ~0x01; 
                     this.updateIrqState(i, cycles);
 
@@ -977,6 +1021,34 @@ export class CPU6502 {
                     this.todHour = hBcd | pm;
                 }
             }
+        }
+    }
+
+    streamPsidSampleNibble() {
+        if (!this.psidSampleActive) return;
+        if (this.psidSamplePtr < this.psidSampleEnd && this.psidSamplePtr < 65536) {
+            let byteVal = this.ram[this.psidSamplePtr];
+            let nibble = 0;
+            
+            // Reagiert auf $D45F: Wenn Step > 0 ist, wird das Sample im High-Pitch Modus abgespielt!
+            if (this.psidSampleStep > 0) {
+                nibble = (byteVal >> 4) & 0x0F;
+                this.psidSamplePtr += this.psidSampleStep;
+            } else {
+                if (this.psidNibblePhase === 0) {
+                    nibble = byteVal & 0x0F;
+                    this.psidNibblePhase = 1;
+                } else {
+                    nibble = (byteVal >> 4) & 0x0F;
+                    this.psidNibblePhase = 0;
+                    this.psidSamplePtr++;
+                }
+            }
+            
+            let filterMode = this.sid.regs[24] & 0xF0;
+            this.sid.writeReg(24, filterMode | nibble);
+        } else {
+            this.psidSampleActive = false;
         }
     }
 }

@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.4.3)
+# 💾 CHIPTUNES FANTASY (v1.4.4)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -43,6 +43,10 @@ Our cycle-exact 1MHz SID engine is arguably one of the deepest analogue emulatio
 *   **Complete 256-Opcode Matrix & Cycle-Exact Timing:** Fully implemented all 256 MOS 6502 opcodes, including multi-byte illegal NOPs (`$04`, `$0C`, `$1C`), RMW instructions (`SLO`, `RLA`, `SRE`, `RRA`), and exact branch page-crossing penalties. Martin Galway's polled delay-loop sample drivers (*Combat School*, *Wizball*) run with 100% pitch-exact timing.
 *   **Dynamic MMU & Phantom KERNAL Isolation:** Implemented C64 memory bank-switching (register `$0001`) and isolated Phantom KERNAL ROM vectors. Packed SIDs (*Platoon*, *Miami Vice*) can no longer corrupt system IRQ/NMI return handlers in RAM during decompression.
 *   **CIA-2 (NMI) Subsystem Overhaul:** Hardware-accurate CIA-2 Timer A/B latch reloading, edge-triggered NMIs, and `$DD0D` ICR read-acknowledgement for seamless NMI-driven 4-bit sample playback (*Turbo Outrun*, *BMX Kidz*).
+*   **16kHz Full-Bandwidth 6581 VCF Cutoff (v1.4.4):** Unlocked maximum 16.0kHz cutoff frequency and implemented phase-inverted op-amp Notch filter summing ($50/$F0), un-muffling Chris Hülsbeck's glassy lead voice in *Great Giana Sisters*.
+*   **6581 NMOS $50 Triangle-Pulse Impedance (v1.4.4):** Corrected combined waveform pull-down behavior on NMOS gates to prevent 8580-style total volume attenuation when Pulse is low.
+*   **Zero-Page $0000 RTS Boot-Trap Fix (v1.4.4):** Initialized RAM $0000 with $60 (`RTS`), preventing RSID tracks (*Arkanoid.sid*) from entering infinite `BRK` loops on dummy `JSR $0000` calls.
+*   **RAM Vector Shadowing (v1.4.4):** Mirrored KERNAL NMI/IRQ entry trampolines into RAM for RSID engines banking out ROM ($01 = $35).
 
 ### 2. MOS Technology Paula 8364 (Amiga 500)
 A deep emulation of the Amiga’s legendary 4-channel DMA PCM engine:

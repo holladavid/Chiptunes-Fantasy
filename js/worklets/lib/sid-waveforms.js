@@ -2,9 +2,10 @@
 // =========================================================
 // MOS 6581 WAVEFORM GENERATOR & BIT-LOGIC
 // Hardware-accurate 8-Bit DAC quantization & Floating DC Bias
-// Phase 4: NMOS Transistor Bit-Weighted Pull-Down (Wire-AND Bleed)
-// 100% Integer Bitwise Operations (Zero Allocations / Zero Floats)
+// Physical 68% LFSR Noise Tap Impedance Scaling
 // =========================================================
+
+import { PWM_LUT } from './sid-luts.js';
 
 export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
     let hasWave = false;
@@ -13,9 +14,17 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
     let tri = 0xFF, saw = 0xFF, pulse = 0xFF, noise = 0xFF;
 
     if (ctrl & 16) {
-        let tri12 = (phase24 >> 11) & 0xFFF;
-        if (ringMSB) tri12 = (~tri12) & 0xFFF;
-        tri = tri12 >> 4;
+        // Exakte 11-Bit Phasen-Akkumulator Magnitude (Bits 22..12)
+        let raw11 = (phase24 >> 12) & 0x7FF;
+        
+        // RingMod / Triangle Richtung:
+        // Wenn ringMSB (ownMSB ^ prevMSB) 1 ist, invertieren wir die 11-Bit Rampe
+        if (ringMSB) {
+            raw11 = raw11 ^ 0x7FF;
+        }
+        
+        // Skalierung von 11-Bit (0..2047) direkt auf 8-Bit (0..255)
+        tri = raw11 >> 3;
         hasWave = true;
     }
 
@@ -26,20 +35,24 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
 
     if (ctrl & 64) {
         let testPhase = (phase24 >> 12) & 0xFFF;
-        pulse = (testPhase <= pw12) ? 0xFF : 0x00;
+        let pwMapped = PWM_LUT[pw12 & 0xFFF];
+        pulse = (testPhase < pwMapped) ? 0xFF : 0x00;
         hasWave = true;
     }
 
     if (ctrl & 128) {
         // --- HARDWARE-EXAKTE LFSR NOISE-TAPS (6581) ---
-        noise = ((lfsr23 & 0x100000) >> 13) | // LFSR Bit 20 -> Noise Bit 7
-                ((lfsr23 & 0x040000) >> 12) | // LFSR Bit 18 -> Noise Bit 6
-                ((lfsr23 & 0x004000) >>  9) | // LFSR Bit 14 -> Noise Bit 5
-                ((lfsr23 & 0x000800) >>  7) | // LFSR Bit 11 -> Noise Bit 4
-                ((lfsr23 & 0x000200) >>  6) | // LFSR Bit 9  -> Noise Bit 3
-                ((lfsr23 & 0x000020) >>  3) | // LFSR Bit 5  -> Noise Bit 2
-                ((lfsr23 & 0x000004) >>  1) | // LFSR Bit 2  -> Noise Bit 1
-                (lfsr23 & 0x000001);          // LFSR Bit 0  -> Noise Bit 0
+        let rawNoise = ((lfsr23 & 0x100000) >> 13) | // LFSR Bit 20 -> Noise Bit 7
+                       ((lfsr23 & 0x040000) >> 12) | // LFSR Bit 18 -> Noise Bit 6
+                       ((lfsr23 & 0x004000) >>  9) | // LFSR Bit 14 -> Noise Bit 5
+                       ((lfsr23 & 0x000800) >>  7) | // LFSR Bit 11 -> Noise Bit 4
+                       ((lfsr23 & 0x000200) >>  6) | // LFSR Bit 9  -> Noise Bit 3
+                       ((lfsr23 & 0x000020) >>  3) | // LFSR Bit 5  -> Noise Bit 2
+                       ((lfsr23 & 0x000004) >>  1) | // LFSR Bit 2  -> Noise Bit 1
+                       (lfsr23 & 0x000001);          // LFSR Bit 0  -> Noise Bit 0
+        
+        // Physical NMOS LFSR Tap Impedance Scaling
+        noise = Math.floor(rawNoise * 0.68);
         hasWave = true;
     }
 
@@ -58,27 +71,22 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
 
     // =========================================================
     // NMOS TRANSISTOR BIT-WEIGHTED WIRE-AND (MOS 6581)
-    // MSBs (Bits 4-7) haben größere Transistoren -> starrer Pull-Down.
-    // LSBs (Bits 0-3) haben höheren Ron -> Sicker-Signal / Bleed.
     // =========================================================
 
     // 1. TRIANGLE + SAWTOOTH ($30)
     if (waveMask === 0x30) {
         let andVal = tri & saw;
-        let xorVal = tri ^ saw;
-        let bleed = ((xorVal & 0x0F) >> 1) + ((xorVal & 0xF0) >> 3);
-        return Math.min(255, andVal + bleed + 0x04);
+        let bleed = ((tri ^ saw) & 0x0F) >> 1;
+        return Math.min(255, andVal + bleed);
     }
 
-    // 2. TRIANGLE + PULSE ($50)
+    // 2. TRIANGLE + PULSE ($50) - THE HÜLSBECK GLASSY LEAD!
     if (waveMask === 0x50) {
-        if (pulse === 0xFF) {
-            let xorVal = tri ^ 0xFF;
-            let bleed = ((xorVal & 0x0F) >> 1) + ((xorVal & 0xF0) >> 3);
-            return Math.min(255, tri + bleed + 0x06);
-        }
-        let bleed = ((tri & 0x0F) >> 1) + ((tri & 0xF0) >> 3);
-        return Math.min(255, bleed + 0x08);
+        if (pulse === 0xFF) return tri; 
+        // 6581 Analog Pull-Down: Der Dreieck-Treiber ist viel zu stark für den Puls-Transistor.
+        // Das Dreieck wird bei "Low" nicht auf 0 gezogen, sondern verliert nur ca. 12% Spannung!
+        // Lässt Hülsbecks Lead-Stimmen strahlend laut durch!
+        return tri - (tri >> 3); 
     }
 
     // 3. SAWTOOTH + PULSE ($60) - THE MON / GALWAY BASS!

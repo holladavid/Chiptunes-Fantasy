@@ -1,12 +1,12 @@
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Phase 25: 100% Symmetric JFET Saturation & AC/DC VCA Separation
-// Eliminates low-level decay raspiness and restores full Wizball 4 "singing"
+// Phase 36: Calibrated VCF Op-Amp Headroom & Intermodulation Fix
+// Unlocks Chris Huelsbeck's glassy lead melody in Giana Sisters ($F5 VCF routing)
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
-import { DAC_LUT, CUTOFF_LUT } from './sid-luts.js';
+import { DAC_LUT, CUTOFF_LUT, PWM_LUT } from './sid-luts.js';
 
 const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_RELEASE = 2; 
 const RATE_COUNTER_PERIOD = [9, 32, 63, 95, 149, 220, 267, 313, 392, 977, 1954, 3126, 3907, 11720, 19530, 31256];
@@ -44,6 +44,9 @@ export class SIDChip {
         this.g = 0;
         this.q = 1.0;
         this.activeCutoff = 30.0;
+        
+        // Silicon Lottery VCF Offset (+/- 40Hz)
+        this.vcfOffset = (Math.random() - 0.5) * 80.0;
 
         this._temperature = 55.0;
         this.thermalDacGain = 1.0;
@@ -51,6 +54,10 @@ export class SIDChip {
         this.thermalLeakage = 0.03; 
         this.thermalDcOffset = 0.0;
         this.thermalJfetDrive = 0.8;
+
+        // Thermal VCA Properties
+        this.thermalVoiceDcLeakage = 0.012;
+        this.thermalMasterDcBias = 0.45;
 
         this.volWiggleActivity = 0.0;
         this.d418Writes = 0; 
@@ -69,11 +76,15 @@ export class SIDChip {
         let norm = cutoffReg / 2047.0;
 
         let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
-        let fetCurve = 30.0 + 250.0 * norm + 8000.0 * (norm * norm) + 8000.0 * (norm * norm * norm);
         
-        this.activeCutoff = fetCurve * thermalCoefficient;
-        if (this.activeCutoff < 30) this.activeCutoff = 30;
-        if (this.activeCutoff > 16000) this.activeCutoff = 16000;
+        // =========================================================
+        // FULL BANDWIDTH 6581 FET CUTOFF CURVE (30Hz bis 16.5kHz)
+        // Öffnet das Filter komplett! Chris Hülsbecks gläserne Leads 
+        // und Ring-Modulatoren werden nicht mehr verschluckt.
+        // =========================================================
+        let fetCurve = 30.0 + 800.0 * norm + 6000.0 * (norm * norm) + 9500.0 * (norm * norm * norm);
+        
+        this.activeCutoff = Math.max(30.0, Math.min(16000.0, fetCurve * thermalCoefficient + this.vcfOffset));
 
         let baseG = Math.PI * this.activeCutoff / 985248;
         this.g = baseG * (1.0 + (this._temperature - 55.0) * 0.0005);
@@ -90,6 +101,10 @@ export class SIDChip {
         this.thermalDcOffset = (this._temperature - 55.0) * 0.005;
         this.thermalJfetDrive = 0.8 * (1.0 - (this._temperature - 55.0) * 0.004);
         if (this.thermalJfetDrive < 0.1) this.thermalJfetDrive = 0.1; 
+
+        let tempNorm = (this._temperature - 15.0) / 40.0;
+        this.thermalVoiceDcLeakage = 0.003 + Math.pow(Math.max(0.0, tempNorm), 1.6) * 0.012;
+        this.thermalMasterDcBias = 0.45 + (this._temperature - 55.0) * 0.002;
     }
 
     writeReg(reg, val) {
@@ -100,6 +115,8 @@ export class SIDChip {
         if (vIdx < 3) {
             let ch = this.voices[vIdx];
             let base = vIdx * 7;
+            
+            // Immediate 100% instantaneous hardware register updates (NO SMOOTHING / NO GLIDE)
             ch.freq = this.regs[base] | (this.regs[base+1] << 8);
             ch.pw = this.regs[base+2] | ((this.regs[base+3] & 15) << 8);
             
@@ -206,9 +223,12 @@ export class SIDChip {
     synthesizeVoiceOneCycle(v) {
         let ch = this.voices[v];
 
+        let freqInt = ch.freq;
+        let pwInt = ch.pw;
+
         if ((ch.ctrl & 8) === 0) {
             let oldAcc = ch.phase;
-            let newAcc = (ch.phase + ch.freq) & 0xFFFFFF;
+            let newAcc = (ch.phase + freqInt) & 0xFFFFFF;
 
             let prevIdx = v === 0 ? 2 : v - 1;
             let prevCh = this.voices[prevIdx];
@@ -221,22 +241,34 @@ export class SIDChip {
             let newStep = ch.phase & 0x080000;
             if (!oldStep && newStep) {
                 let bit = ((ch.lfsr >> 22) ^ (ch.lfsr >> 17)) & 1;
+
+                if ((ch.ctrl & 0x80) && (ch.ctrl & 0x70) !== 0) {
+                    let testPhase = (ch.phase >> 12) & 0xFFF;
+                    let pwMapped = PWM_LUT[pwInt & 0xFFF];
+                    let isPulseLow = (ch.ctrl & 0x40) && (testPhase >= pwMapped);
+                    
+                    if (isPulseLow || (ch.ctrl & 0x30)) {
+                        bit = 0; 
+                    }
+                }
+
                 ch.lfsr = ((ch.lfsr << 1) & 0x7FFFFF) | bit;
             }
         } else {
             ch.msbRisingEdge = false;
         }
 
-        let ringMSB = (ch.phase >> 23) & 1;
-        if ((ch.ctrl & 4) !== 0) { 
-            let prevIdx = v === 0 ? 2 : v - 1;
-            let prevCh = this.voices[prevIdx];
-            ringMSB ^= (prevCh.phase >> 23) & 1;
-        }
+        // Physical MOS 6581 Ring Modulation:
+        // Substitutes the voice's MSB with the EXCLUSIVE-OR of its own MSB and the carrier's MSB.
+        let prevIdx = v === 0 ? 2 : v - 1;
+        let prevCh = this.voices[prevIdx];
+        let ownMSB = (ch.phase >> 23) & 1;
+        let prevMSB = (prevCh.phase >> 23) & 1;
+        let ringMSB = (ch.ctrl & 4) ? (ownMSB ^ prevMSB) : ownMSB;
 
         let hasWave = (ch.ctrl & 0xF0) !== 0;
         if (hasWave) {
-            ch.waveOut8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, ch.pw, ch.lfsr, ringMSB);
+            ch.waveOut8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, pwInt, ch.lfsr, ringMSB);
         } else {
             ch.waveOut8Bit += (0x18 - ch.waveOut8Bit) * 0.00015;
         }
@@ -250,7 +282,7 @@ export class SIDChip {
         
         waveOutFloat = waveOutFloat * this.thermalDacGain + this.thermalDacOffset;
         
-        return waveOutFloat * envDac;
+        return (waveOutFloat + this.thermalVoiceDcLeakage) * envDac;
     }
 
     clock() {
@@ -281,21 +313,28 @@ export class SIDChip {
 
         let g = this.g;
         let q = this.q;
-        
-        if (this.activeCutoff < 800.0) {
-            let damp = (800.0 - this.activeCutoff) / 800.0; 
-            q += damp * 0.55; 
-        } else if (this.activeCutoff > 10000.0) {
-            let damp = (this.activeCutoff - 10000.0) / 6000.0;
-            q += damp * 0.8; 
+
+        if (this.activeCutoff < 250.0) {
+            let damp = (250.0 - this.activeCutoff) / 250.0; 
+            q += damp * 0.15; 
+        } else if (this.activeCutoff > 4500.0) {
+            let damp = (this.activeCutoff - 4500.0) / 1700.0;
+            let breath = ((this.voices[0].lfsr & 0xFF) / 255.0 - 0.5) * 0.06;
+            q += damp * (0.20 + breath); 
         }
 
+        // =========================================================
+        // 100% UNCONDITIONALLY STABLE EXPLICIT CHAMBERLIN SVF (1 MHz)
+        // Calibrated Op-Amp Headroom: Prevents Multi-Voice VCF Intermodulation
+        // =========================================================
         let h = filteredSum - this.filterLow;
         let hp = (h - q * this.filterBand) / (1.0 + g * (g + q));
 
         if (this.useJfetSaturation) {
-            let qDrive = 1.0 / (q + 0.1); 
-            let summerDrive = this.thermalJfetDrive * (1.2 + qDrive * 0.15); 
+            // Relaxed VCF Op-Amp Drive: Allows Voice 1 (Lead) and Voice 3 (Bass) to co-exist
+            // inside the filter without intermodulation clipping or lead suppression.
+            let qDrive = 1.0 / (q + 0.25); 
+            let summerDrive = this.thermalJfetDrive * (0.50 + qDrive * 0.10); 
             hp = Math.tanh(hp * summerDrive) / summerDrive;
         }
 
@@ -305,8 +344,6 @@ export class SIDChip {
         this.filterLow = lp;
         
         if (this.useJfetSaturation) {
-            // FIX 1: 100% Symmetrische JFET-Sättigung! 
-            // Verhindert die DC-Gleichrichtung bei leisen Fades und macht die Decays seidenglatt.
             let driveP = this.thermalJfetDrive * 0.65;
             this.filterBand = Math.tanh(bp * driveP) / driveP;
         } else {
@@ -317,8 +354,10 @@ export class SIDChip {
         let outBP = (this.filterMode & 32) ? this.filterBand : 0;
         let outHP = (this.filterMode & 64) ? hp : 0;
 
+        // Analoge Phasen-Inversion für Highpass in Notch/Tri-Filter Modi ($50/$70/$F0)
+        // Entspricht der physischen 6581 Op-Amp Summierschaltung
         if ((this.filterMode & 80) === 80) { 
-            outHP *= 0.85; 
+            outHP = -outHP * 0.90; 
         }
 
         let filterOut = outLP + outBP + outHP;
@@ -327,14 +366,13 @@ export class SIDChip {
         let filteredMix = filterOut + leakage;
 
         let rawSum = unfilteredSum + filteredMix;
-        let vcaIn = rawSum * 0.42; 
+
+        let vcaIn = rawSum * 0.40; 
         
         let vcaQuad = this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0;
         
-        // FIX 2: Symmetrische VCA AC-Sättigung vor dem D418 DC-Bias!
-        // Verhindert 2nd Harmonic Crossover Distortion an leisen Stellen.
         let acSaturated = Math.tanh(vcaIn + vcaQuad);
-        let finalMix = acSaturated + 0.45;
+        let finalMix = (acSaturated * 1.85) + this.thermalMasterDcBias;
 
         this.outputSample = (finalMix * this.masterVol) + this.thermalDcOffset;
     }
