@@ -1,7 +1,7 @@
 // === js/worklets/lib/sid-luts.js ===
 // =========================================================
 // MOS 6581 HARDWARE LOOKUP TABLES (LUTs)
-// Now with 1983 Silicon Lottery Tolerances & True 15-Bit LFSR
+// Phase 4: Pre-compiled Analog Wire-AND Pull-Down Models
 // =========================================================
 
 export const DAC_LUT = new Float32Array(256);
@@ -16,8 +16,6 @@ for (let b of bitWeights) maxWeight += b;
 for (let i = 0; i < 256; i++) {
     let sum = 0;
     for (let b = 0; b < 8; b++) {
-        // Tip 3: Tiny analog DAC resistor tolerances (+/- 1.5%)
-        // This micro-randomness prevents sterile digital stepping
         let tolerance = 1.0 + (Math.random() - 0.5) * 0.03;
         if (i & (1 << b)) sum += bitWeights[b] * tolerance;
     }
@@ -51,7 +49,52 @@ for (let step = 0; step <= 32767; step++) {
     if (idx !== -1) {
         ADSR_LFSR_TARGETS[idx] = adsrLfsr;
     }
-    // 15-Bit XNOR Shift (Bit 0 = ~(Bit 14 ^ Bit 13))
     let bit = (~((adsrLfsr >> 14) ^ (adsrLfsr >> 13))) & 1;
     adsrLfsr = ((adsrLfsr << 1) | bit) & 0x7FFF;
+}
+
+// =========================================================
+// 5. GENERATE ANALOG WIRE-AND WAVEFORM LUTS (Zero-Allocation Physics)
+// =========================================================
+
+export const WAVE_LUT_TRISAW = new Uint8Array(65536);
+export const WAVE_LUT_TRIPULSE = new Uint8Array(512); // Pulse is modeled as 0 or 1
+export const WAVE_LUT_SAWPULSE = new Uint8Array(512);
+export const WAVE_LUT_TRISAWPULSE = new Uint8Array(131072);
+
+// $30: Triangle + Sawtooth
+// In der 6581-Hardware hat der Dreieck-Treiber eine etwas niedrigere Impedanz 
+// als der Sägezahn. Er zieht das Signal bei "High" stärker hoch.
+for (let tri = 0; tri < 256; tri++) {
+    for (let saw = 0; saw < 256; saw++) {
+        let andVal = tri & saw;
+        let triBleed = (tri & ~saw) * 0.18; // Tri gewinnt leicht
+        let sawBleed = (saw & ~tri) * 0.12; 
+        let out = andVal + triBleed + sawBleed + 8; // Moderater Floating-DC-Bias
+        WAVE_LUT_TRISAW[(tri << 8) | saw] = Math.min(255, Math.floor(out));
+    }
+}
+
+// $50: Triangle + Pulse (Hülsbeck Glassy Lead)
+// Wenn Pulse = 0 ist, versucht er Tri auf Masse zu ziehen, schafft es aber nur zu ~65%.
+for (let tri = 0; tri < 256; tri++) {
+    WAVE_LUT_TRIPULSE[(0 << 8) | tri] = Math.min(255, Math.floor(tri * 0.65 + 12)); 
+    WAVE_LUT_TRIPULSE[(1 << 8) | tri] = tri;
+}
+
+// $60: Sawtooth + Pulse (Tel/Galway Kreissägen-Bass)
+// Wenn Pulse = 0 ist, wird der Sägezahn gnadenlos auf ca. 25% zerquetscht.
+for (let saw = 0; saw < 256; saw++) {
+    WAVE_LUT_SAWPULSE[(0 << 8) | saw] = Math.min(255, Math.floor((saw & 0xFE) * 0.25 + 18));
+    WAVE_LUT_SAWPULSE[(1 << 8) | saw] = Math.min(255, Math.floor(saw * 0.95 + 6));
+}
+
+// $70: Triangle + Sawtooth + Pulse
+// Extreme Sättigung und gegenseitiges Auslöschen.
+for (let tri = 0; tri < 256; tri++) {
+    for (let saw = 0; saw < 256; saw++) {
+        let baseTriSaw = WAVE_LUT_TRISAW[(tri << 8) | saw];
+        WAVE_LUT_TRISAWPULSE[(0 << 16) | (tri << 8) | saw] = Math.min(255, Math.floor(baseTriSaw * 0.25 + 14));
+        WAVE_LUT_TRISAWPULSE[(1 << 16) | (tri << 8) | saw] = Math.min(255, Math.floor(baseTriSaw * 0.88 + 8));
+    }
 }

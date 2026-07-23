@@ -2,10 +2,16 @@
 // =========================================================
 // MOS 6581 WAVEFORM GENERATOR & BIT-LOGIC
 // Hardware-accurate 8-Bit DAC quantization & Floating DC Bias
-// Physical 68% LFSR Noise Tap Impedance Scaling
+// Employs physical LUTs for Wire-AND combined waveforms (O(1) execution)
 // =========================================================
 
-import { PWM_LUT } from './sid-luts.js';
+import { 
+    PWM_LUT, 
+    WAVE_LUT_TRISAW, 
+    WAVE_LUT_TRIPULSE, 
+    WAVE_LUT_SAWPULSE, 
+    WAVE_LUT_TRISAWPULSE 
+} from './sid-luts.js';
 
 export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
     let hasWave = false;
@@ -18,12 +24,11 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
         let raw11 = (phase24 >> 12) & 0x7FF;
         
         // RingMod / Triangle Richtung:
-        // Wenn ringMSB (ownMSB ^ prevMSB) 1 ist, invertieren wir die 11-Bit Rampe
         if (ringMSB) {
             raw11 = raw11 ^ 0x7FF;
         }
         
-        // Skalierung von 11-Bit (0..2047) direkt auf 8-Bit (0..255)
+        // Skalierung von 11-Bit auf 8-Bit
         tri = raw11 >> 3;
         hasWave = true;
     }
@@ -70,49 +75,35 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB) {
     if (waveMask === 0x80) return noise;
 
     // =========================================================
-    // NMOS TRANSISTOR BIT-WEIGHTED WIRE-AND (MOS 6581)
+    // NMOS TRANSISTOR WIRE-AND LUTS (O(1) Array Lookups)
     // =========================================================
 
     // 1. TRIANGLE + SAWTOOTH ($30)
     if (waveMask === 0x30) {
-        let andVal = tri & saw;
-        let bleed = ((tri ^ saw) & 0x0F) >> 1;
-        return Math.min(255, andVal + bleed);
+        return WAVE_LUT_TRISAW[(tri << 8) | saw];
     }
 
     // 2. TRIANGLE + PULSE ($50) - THE HÜLSBECK GLASSY LEAD!
     if (waveMask === 0x50) {
-        if (pulse === 0xFF) return tri; 
-        // 6581 Analog Pull-Down: Der Dreieck-Treiber ist viel zu stark für den Puls-Transistor.
-        // Das Dreieck wird bei "Low" nicht auf 0 gezogen, sondern verliert nur ca. 12% Spannung!
-        // Lässt Hülsbecks Lead-Stimmen strahlend laut durch!
-        return tri - (tri >> 3); 
+        let pIdx = (pulse === 0xFF) ? 1 : 0;
+        return WAVE_LUT_TRIPULSE[(pIdx << 8) | tri];
     }
 
     // 3. SAWTOOTH + PULSE ($60) - THE MON / GALWAY BASS!
     if (waveMask === 0x60) {
-        if (pulse === 0xFF) {
-            let xorVal = saw ^ 0xFF;
-            let bleed = ((xorVal & 0x0F) >> 1) + ((xorVal & 0xF0) >> 3);
-            return Math.min(255, saw + bleed + 0x06);
-        }
-        let bleed = ((saw & 0x0F) >> 1) + ((saw & 0xF0) >> 3);
-        return Math.min(255, bleed + 0x0B);
+        let pIdx = (pulse === 0xFF) ? 1 : 0;
+        return WAVE_LUT_SAWPULSE[(pIdx << 8) | saw];
     }
 
     // 4. TRIANGLE + SAWTOOTH + PULSE ($70)
     if (waveMask === 0x70) {
-        let triSaw = tri & saw;
-        if (pulse === 0xFF) {
-            let xorVal = triSaw ^ 0xFF;
-            let bleed = ((xorVal & 0x0F) >> 1) + ((xorVal & 0xF0) >> 3);
-            return Math.min(255, triSaw + bleed + 0x08);
-        }
-        let bleed = ((triSaw & 0x0F) >> 1) + ((triSaw & 0xF0) >> 3);
-        return Math.min(255, bleed + 0x0A);
+        let pIdx = (pulse === 0xFF) ? 1 : 0;
+        return WAVE_LUT_TRISAWPULSE[(pIdx << 16) | (tri << 8) | saw];
     }
 
     // 5. NOISE + COMBINED WAVEFORMS (0x90, 0xA0, 0xC0, 0xD0, 0xE0, 0xF0)
+    // Rauschen ist extrem hochfrequent und chaotisch. Die Simulation 
+    // des Wire-ANDs über schnelle Bit-Logik reicht hier völlig aus.
     let bitAnd = 0xFF;
     let xorSum = 0;
 
