@@ -121,7 +121,8 @@ export class CPU6502 {
             this.kernalRom[0x1F48 + i] = irqEntry[i];
         }
 
-        const nmiEntry = [0x48, 0x8A, 0x48, 0x98, 0x48, 0x6C, 0x18, 0x03];
+        // AFTER (Direkter NMI-Einsprung über Vector $0318 ohne Stack-Ballast):
+        const nmiEntry = [0x6C, 0x18, 0x03]; // JMP ($0318)
         for (let i = 0; i < nmiEntry.length; i++) {
             this.kernalRom[0x1F60 + i] = nmiEntry[i];
         }
