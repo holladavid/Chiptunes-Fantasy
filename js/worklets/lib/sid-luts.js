@@ -12,8 +12,6 @@ export const PWM_LUT = new Uint16Array(4096);
 
 // =========================================================
 // 1. GENERATE PHYSICAL MOS 6581 R3 DAC FINGERPRINT (256 Entries)
-// Measured NMOS R-2R ladder bit-weights with kinked bit-transitions
-// and cubic NMOS buffer saturation (reSID-fp matched)
 // =========================================================
 const bitWeights6581 = [1.00, 1.98, 3.92, 8.08, 15.82, 31.90, 63.20, 127.10];
 let maxWeight6581 = 0;
@@ -25,15 +23,11 @@ for (let i = 0; i < 256; i++) {
         if (i & (1 << b)) sum += bitWeights6581[b];
     }
     let v = sum / maxWeight6581;
-    
-    // A) NMOS Channel Termination Kink Non-linearity
     let vKinked = v + 0.05 * v * (1.0 - v); 
-    
-    // B) Cubic Output Buffer Saturation Curve (1.10*v - 0.11*v^3)
     let vSaturated = 1.10 * vKinked - 0.11 * Math.pow(vKinked, 3.0);
     
     DAC_LUT_6581_R3[i] = Math.max(0.0, Math.min(1.0, vSaturated));
-    DAC_LUT[i] = DAC_LUT_6581_R3[i]; // Default Profile: MOS 6581 R3
+    DAC_LUT[i] = DAC_LUT_6581_R3[i]; 
 }
 
 // =========================================================
@@ -64,20 +58,12 @@ for (let i = 0; i < 4096; i++) {
 }
 
 // =========================================================
-// 5. GENERATE 15-BIT XNOR LFSR TARGETS FOR ADSR RATE COUNTER
+// 5. C64 HARDWARE ADSR RATE COUNTER PERIODS
 // =========================================================
-const RATE_COUNTER_PERIOD = [9, 32, 63, 95, 149, 220, 267, 313, 392, 977, 1954, 3126, 3907, 11720, 19530, 31256];
-export const ADSR_LFSR_TARGETS = new Uint16Array(16);
-
-let adsrLfsr = 0x0000;
-for (let step = 0; step <= 32767; step++) {
-    let idx = RATE_COUNTER_PERIOD.indexOf(step);
-    if (idx !== -1) {
-        ADSR_LFSR_TARGETS[idx] = adsrLfsr;
-    }
-    let bit = (~((adsrLfsr >> 14) ^ (adsrLfsr >> 13))) & 1;
-    adsrLfsr = ((adsrLfsr << 1) | bit) & 0x7FFF;
-}
+export const RATE_COUNTER_PERIOD = [
+    9, 32, 63, 95, 149, 220, 267, 313, 
+    392, 977, 1954, 3126, 3907, 11720, 19530, 31256
+];
 
 // =========================================================
 // 6. GENERATE ANALOG WIRE-AND WAVEFORM LUTS (Zero-Allocation Physics)
@@ -98,7 +84,7 @@ for (let tri = 0; tri < 256; tri++) {
     }
 }
 
-// $50: Triangle + Pulse (Hülsbeck Glassy Lead / Engelsstimme)
+// $50: Triangle + Pulse (Hülsbeck Glassy Lead / Engelsstimme Restoration)
 for (let tri = 0; tri < 256; tri++) {
     WAVE_LUT_TRIPULSE[(0 << 8) | tri] = Math.min(255, Math.floor(tri * 0.86 + 14)); 
     WAVE_LUT_TRIPULSE[(1 << 8) | tri] = tri;

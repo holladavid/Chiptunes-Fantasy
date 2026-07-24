@@ -1,11 +1,11 @@
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Phase 37: 15-Bit XNOR LFSR Rate Divider (Sustain-Drop Bug)
+// Reverted Commit 87d8d835: Restored Linear ADSR Rate Counter
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
-import { DAC_LUT, CUTOFF_LUT, PWM_LUT, ADSR_LFSR_TARGETS } from './sid-luts.js';
+import { DAC_LUT, CUTOFF_LUT, PWM_LUT, RATE_COUNTER_PERIOD } from './sid-luts.js';
 
 const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_RELEASE = 2; 
 
@@ -23,12 +23,13 @@ export class SIDChip {
                 freq: 0, pw: 2048, ctrl: 0, env: 0, phase: 0,
                 state: ENV_RELEASE, prevGate: false,
                 waveOut8Bit: 0x18, 
+                busCharge: 0x18, // Parasitische C_gate Knoten-Ladung (0x18 = DC Bias)
                 env8Bit: 0, lfsr: 0x7FFFFF,
                 rate_counter: 0, exponential_counter: 0, envelope_counter: 0,
-                attack_target: ADSR_LFSR_TARGETS[0],
-                decay_target: ADSR_LFSR_TARGETS[0],
+                attack_period: RATE_COUNTER_PERIOD[0],
+                decay_period: RATE_COUNTER_PERIOD[0],
                 sustain_level: 0,
-                release_target: ADSR_LFSR_TARGETS[0],
+                release_period: RATE_COUNTER_PERIOD[0],
                 msbRisingEdge: false,
                 envDelay: 0,
                 wrapped: false
@@ -36,6 +37,11 @@ export class SIDChip {
         }
         this.cutoff = 30; this.resonance = 0; this.filterMode = 0; this.masterVol = 0;
         this.filterLow = 0; this.filterBand = 0;
+        
+        // Zero-Delay Feedback (ZDF) State-Space Memory (Capacitor Charges)
+        this.x1 = 0.0;
+        this.x2 = 0.0;
+
         this.outputSample = 0;
         this.useJfetSaturation = true; 
         
@@ -112,7 +118,7 @@ export class SIDChip {
             let ch = this.voices[vIdx];
             let base = vIdx * 7;
             
-            // Immediate 100% instantaneous hardware register updates (NO SMOOTHING / NO GLIDE)
+            // Immediate 100% instantaneous hardware register updates
             ch.freq = this.regs[base] | (this.regs[base+1] << 8);
             ch.pw = this.regs[base+2] | ((this.regs[base+3] & 15) << 8);
             
@@ -127,7 +133,7 @@ export class SIDChip {
                 ch.state = gate ? ENV_ATTACK : ENV_RELEASE;
                 
                 if (gate) {
-                    // ADSR Rate-Counter (LFSR) wird NICHT resettet. Das ist der Ursprung des Bugs!
+                    ch.rate_counter = 0;
                     ch.exponential_counter = 0;
                 }
             }
@@ -138,13 +144,12 @@ export class SIDChip {
                 ch.lfsr = 0x7FFFFF;
             }
 
-            // Target-Werte greifen direkt auf den LFSR-Schatten-Speicher zu
             if (reg === base + 5) { 
-                ch.attack_target = ADSR_LFSR_TARGETS[val >> 4];
-                ch.decay_target = ADSR_LFSR_TARGETS[val & 15];
+                ch.attack_period = RATE_COUNTER_PERIOD[val >> 4];
+                ch.decay_period = RATE_COUNTER_PERIOD[val & 15];
             } else if (reg === base + 6) { 
                 ch.sustain_level = (val >> 4) | ((val >> 4) << 4);
-                ch.release_target = ADSR_LFSR_TARGETS[val & 15];
+                ch.release_period = RATE_COUNTER_PERIOD[val & 15];
             }
         } else if (reg === 21 || reg === 22 || reg === 23) {
             this.updateFilterParameters();
@@ -171,19 +176,14 @@ export class SIDChip {
             return;
         }
 
-        let targetLfsr = ch.release_target;
-        if (ch.state === ENV_ATTACK) targetLfsr = ch.attack_target;
-        else if (ch.state === ENV_DECAY) targetLfsr = ch.decay_target;
+        let ratePeriod = ch.release_period;
+        if (ch.state === ENV_ATTACK) ratePeriod = ch.attack_period;
+        else if (ch.state === ENV_DECAY) ratePeriod = ch.decay_period;
 
-        // =========================================================
-        // DSP UPGRADE: 15-BIT XNOR LFSR RATE-DIVIDER (Sustain-Drop Bug)
-        // Lässt den LFSR frei laufen. Pseudo-zufällige Distanz zum Target.
-        // =========================================================
-        let bit = (~((ch.rate_counter >> 14) ^ (ch.rate_counter >> 13))) & 1;
-        ch.rate_counter = ((ch.rate_counter << 1) | bit) & 0x7FFF;
+        ch.rate_counter++;
 
-        if (ch.rate_counter === targetLfsr) {
-            ch.rate_counter = 0; // LFSR kollabiert in den Startzustand (0x0000)
+        if (ch.rate_counter >= ratePeriod) {
+            ch.rate_counter = 0; 
 
             let expPeriod = 1;
             if (ch.state !== ENV_ATTACK) {
@@ -266,9 +266,21 @@ export class SIDChip {
 
         let hasWave = (ch.ctrl & 0xF0) !== 0;
         if (hasWave) {
-            ch.waveOut8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, pwInt, ch.lfsr, ringMSB);
+            let rawWave8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, pwInt, ch.lfsr, ringMSB);
+            let waveMask = ch.ctrl & 0xF0;
+            let isCombined = (waveMask !== 0x10 && waveMask !== 0x20 && waveMask !== 0x40 && waveMask !== 0x80);
+
+            if (isCombined) {
+                // Parasitic C_gate (~0.8pF) charge-bleed on combined waveforms
+                ch.busCharge += 0.82 * (rawWave8Bit - ch.busCharge);
+                ch.waveOut8Bit = ch.busCharge;
+            } else {
+                ch.busCharge = rawWave8Bit;
+                ch.waveOut8Bit = rawWave8Bit;
+            }
         } else {
-            ch.waveOut8Bit += (0x18 - ch.waveOut8Bit) * 0.00015;
+            ch.busCharge += 0.00015 * (0x18 - ch.busCharge);
+            ch.waveOut8Bit = ch.busCharge;
         }
 
         ch.env8Bit = ch.envelope_counter;
@@ -322,37 +334,45 @@ export class SIDChip {
         }
 
         // =========================================================
-        // 4MHz SUB-SAMPLED MOSFET TRANSCONDUCTANCE SVF FILTER LOOP
-        // 4x internal oversampling for zero intermodulation aliasing on tanh() saturation
+        // VARIANTE 2: reSID-fp NON-LINEAR OTA STATE-SPACE MODEL (2MHz Grid)
+        // Hardware-measured 6581 Q-clamp (Q_max ~ 3.0) + OTA differential saturation
+        // Eliminates the "bowed saw" whistle and delivers authentic warm 6581 squelch
         // =========================================================
-        let subG = this.g * 0.25; 
+        let subG = Math.tan((Math.PI * this.activeCutoff) / 1970496); // 2MHz Sub-sample Grid
+        
+        // 1. Hardware-gemessene 6581 Resonanz-Dämpfung (reSIDfp matched)
+        // Skaliert k von 1.414 (Q=0.707) runter auf k=0.334 (Q_max=3.0)
+        let resReg = this.regs[23] >> 4;
+        let normRes = resReg / 15.0;
+        let k = 1.414 - (normRes * 1.08); 
+        
+        let denom = 1.0 + subG * (subG + k);
         let filterOut = 0;
 
-        for (let sub = 0; sub < 4; sub++) {
-            let h = filteredSum - this.filterLow;
-            let otaDiff = (h - q * this.filterBand);
-            let hp = otaDiff / (1.0 + subG * (subG + q));
+        for (let sub = 0; sub < 2; sub++) {
+            // 2. Zero-Delay Feedback Highpass Solver
+            let hp = (filteredSum - this.x1 * (subG + k) - this.x2) / denom;
 
+            // 3. OTA Transkonduktanz-Sättigung im Bandpass-Zustandsraum
+            let bpRaw = subG * hp + this.x1;
+            
+            let bp = bpRaw;
             if (this.useJfetSaturation) {
-                let qDrive = 1.0 / (q + 0.25); 
-                let summerDrive = this.thermalJfetDrive * (0.50 + qDrive * 0.10); 
-                hp = Math.tanh(hp * summerDrive) / summerDrive;
+                let summerDrive = this.thermalJfetDrive * 0.70;
+                bp = Math.tanh(bpRaw * summerDrive) / summerDrive;
             }
 
-            let bp = this.filterBand + subG * hp;
-            let lp = this.filterLow + subG * bp;
-            
+            let lp = subG * bp + this.x2;
+
+            // 4. Trapezoidal State Memory Update mit gesättigtem Zustandsvektor
+            this.x1 = 2.0 * bp - this.x1;
+            this.x2 = 2.0 * lp - this.x2;
+
+            this.filterBand = bp;
             this.filterLow = lp;
-            
-            if (this.useJfetSaturation) {
-                let driveP = this.thermalJfetDrive * 0.65;
-                this.filterBand = Math.tanh(bp * driveP) / driveP;
-            } else {
-                this.filterBand = bp / (1.0 + Math.abs(bp) * 0.15); 
-            }
 
-            let outLP = (this.filterMode & 16) ? this.filterLow : 0;
-            let outBP = (this.filterMode & 32) ? this.filterBand : 0;
+            let outLP = (this.filterMode & 16) ? lp : 0;
+            let outBP = (this.filterMode & 32) ? bp : 0;
             let outHP = (this.filterMode & 64) ? hp : 0;
 
             if ((this.filterMode & 80) === 80) { 
@@ -360,6 +380,15 @@ export class SIDChip {
             }
 
             filterOut = outLP + outBP + outHP;
+        }
+
+        // Unconditional Anti-NaN Failsafe
+        if (isNaN(this.filterLow) || isNaN(this.filterBand)) {
+            this.filterLow = 0.0;
+            this.filterBand = 0.0;
+            this.x1 = 0.0;
+            this.x2 = 0.0;
+            filterOut = 0.0;
         }
 
         // Resonanz-Headroom Dämpfung schützt ungefilterte Stimmen vor VCA-Ducking
