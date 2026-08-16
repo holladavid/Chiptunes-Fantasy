@@ -330,12 +330,14 @@ export class CPU6502 {
             let startHi = this.ram[0xD41F];
             let endLo = this.ram[0xD43D];
             let endHi = this.ram[0xD43E];
+            
+            // Exakte Perioden-Berechnung aus $D45D (Lo) und $D45E (Hi)
             let pLo = this.ram[0xD45D];
             let pHi = this.ram[0xD45E] & 0x0F;
             let period = pLo | (pHi << 8);
 
-            this.psidSamplePeriod = period >= 16 ? period : 252;
-            this.psidSampleStep = this.ram[0xD45F];
+            // Gültige C64 Sample-Timer liegen zwischen 60 und 2000 Zyklen (Standard 252 = 3.91 kHz)
+            this.psidSamplePeriod = (period >= 50 && period <= 2000) ? period : 252;
 
             if (addr === 0xD41D) {
                 if (val === 0xFE || val === 0x01 || val === 0x81) {
@@ -345,8 +347,8 @@ export class CPU6502 {
                         : ((endLo === 0) ? ((endHi << 8) | 0xFF) : (endLo | (endHi << 8)));
                     
                     this.psidNibblePhase = 0;
-                    this.psidSampleCycleCounter = this.psidSamplePeriod;
-                    this.psidSampleActive = true;
+                    this.psidSampleCycleCounter = this.psidSamplePeriod; // Sofortiger Start im richtigen Timing!
+                    this.psidSampleActive = (this.psidSampleEnd > this.psidSamplePtr);
                 } else if (val === 0x00 || val === 0xFF) {
                     this.psidSampleActive = false;
                     this.ram[0xD41D] = 0x00;
@@ -359,6 +361,7 @@ export class CPU6502 {
                     this.psidSampleEnd = (endLo === 0) ? ((endHi << 8) | 0xFF) : (endLo | (endHi << 8));
                 }
                 if (addr === 0xD45D || addr === 0xD45E) {
+                    // Aktualisiert die Samplerate auch mitten im Sample-Lauf
                     if (this.psidSampleCycleCounter > this.psidSamplePeriod) {
                         this.psidSampleCycleCounter = this.psidSamplePeriod;
                     }
@@ -1047,7 +1050,7 @@ export class CPU6502 {
             let byteVal = this.ram[this.psidSamplePtr];
             let filterMode = this.sid.regs[24] & 0xF0;
 
-            // Hülsbeck TFMX 4-Bit Format: High-Nibble (1. Tick) -> Low-Nibble (2. Tick)
+            // Hülsbeck TFMX: High-Nibble (1. Tick) -> Low-Nibble (2. Tick)
             let nibble = (this.psidNibblePhase === 0) 
                 ? ((byteVal >> 4) & 0x0F) 
                 : (byteVal & 0x0F);
@@ -1058,11 +1061,11 @@ export class CPU6502 {
                 this.psidNibblePhase = 1;
             } else {
                 this.psidNibblePhase = 0;
-                this.psidSamplePtr += (this.psidSampleStep > 0 ? this.psidSampleStep : 1);
+                this.psidSamplePtr++; // Strikt 1 Byte pro 2 Nibbles – verhindert Hi-Hat-Pfeifen!
             }
         } else {
             this.psidSampleActive = false;
-            this.ram[0xD41D] = 0x00; // Quittiert das Sample-Ende für die CPU!
+            this.ram[0xD41D] = 0x00; // Quittiert das Sample-Ende für die CPU
         }
     }
 }
