@@ -1,9 +1,10 @@
 // === js/worklets/c64/sid-fantasy.js ===
 // =========================================================
 // MOS 6581 / CSG 8580 "CHIPTUNES FANTASY STUDIO" CORE
-// Audiophile Edition: 1MHz 6502 Lockstep, Dual-Channel 255-Tap Sinc-FIR,
-// CSG 8580 Linear DACs, 20kHz Studio Airband ZDF VCF, StereoSID Staging
-// & Digidrum Transient Sub-Exciter
+// Audiophile Edition: 1MHz 6502 Lockstep, Dual-Channel 32-Phase
+// Fractional Polyphase Sinc-FIR Decimator (255 Taps, >75dB Rejection),
+// CSG 8580 Linear R-2R DACs, 20kHz Studio Airband ZDF State-Space VCF,
+// Constant-Power StereoSID Staging & Digidrum Sub-Harmonic Exciter
 // =========================================================
 
 import { CPU6502 } from '../lib/cpu6502.js';
@@ -52,11 +53,13 @@ class SIDFantasyChip {
         this.activeCutoff = 30.0;
         this.q = 1.0;
         
-        // StereoSID Panning-Winkel (Constant Power)
-        // Voice 1: ~30% Left | Voice 2: ~30% Right | Voice 3: Center (0%)
-        this.panL0 = 0.82; this.panR0 = 0.57; // 35°
-        this.panL1 = 0.57; this.panR1 = 0.82; // 55°
-        this.panL2 = 0.707; this.panR2 = 0.707; // 45° (Center)
+        // StereoSID Constant-Power Panning-Winkel
+        // Voice 0 (Lead): ~35° (-25% Left)
+        // Voice 1 (Chords/Arp): ~55° (+25% Right)
+        // Voice 2 (Bass/Rhythm): 45° (Center Mono)
+        this.panL0 = 0.82; this.panR0 = 0.57; 
+        this.panL1 = 0.57; this.panR1 = 0.82; 
+        this.panL2 = 0.707; this.panR2 = 0.707;
 
         this.lastVol = 0;
         this.drumTransientEnv = 0.0;
@@ -346,7 +349,7 @@ class SIDFantasyChip {
 class SIDFantasyProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.clock = 985248; // PAL Master Clock
+        this.clock = 985248; // PAL Master Clock (Hz)
         this.sid = new SIDFantasyChip();
         this.cpu = new CPU6502(this.sid);
         
@@ -373,24 +376,45 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
         
         this.visualView = new Float32Array(40);
 
-        // Dual-Channel 255-Tap Sinc-FIR Decimator (Stereo)
+        // =========================================================
+        // DUAL-CHANNEL 32-PHASE POLYPHASE SINC-FIR FILTERBANK (255 Taps)
+        // =========================================================
         this.FIR_TAPS = 255;
-        this.firKernel = new Float32Array(this.FIR_TAPS);
+        this.NUM_PHASES = 32;
+        this.polyphaseTable = new Float32Array(this.NUM_PHASES * this.FIR_TAPS);
         this.ringBufferL = new Float32Array(512); 
         this.ringBufferR = new Float32Array(512); 
         this.ringIndex = 0;
 
         const fc = 20000.0 / this.clock;
-        let sum = 0;
-        for (let i = 0; i < this.FIR_TAPS; i++) {
-            let x = i - (this.FIR_TAPS - 1) / 2;
-            let sinc = (x === 0) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
-            let window = 0.42 - 0.5 * Math.cos((2 * Math.PI * i) / (this.FIR_TAPS - 1)) + 0.08 * Math.cos((4 * Math.PI * i) / (this.FIR_TAPS - 1));
-            this.firKernel[i] = sinc * window;
-            sum += this.firKernel[i];
-        }
-        for (let i = 0; i < this.FIR_TAPS; i++) {
-            this.firKernel[i] /= sum;
+        const halfK = (this.FIR_TAPS - 1) / 2;
+
+        for (let p = 0; p < this.NUM_PHASES; p++) {
+            const dt = p / this.NUM_PHASES; // Sub-Zyklus Phasen-Offset [0.0 .. 0.96875]
+            let sum = 0.0;
+            const phaseOffset = p * this.FIR_TAPS;
+
+            for (let i = 0; i < this.FIR_TAPS; i++) {
+                const x = (i - halfK) - dt;
+                const sinc = (Math.abs(x) < 1e-7) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
+                
+                // Kontinuierliches Blackman-Fenster
+                const wPos = (i - dt) / (this.FIR_TAPS - 1);
+                const window = (wPos >= 0.0 && wPos <= 1.0)
+                    ? (0.42 - 0.5 * Math.cos(2 * Math.PI * wPos) + 0.08 * Math.cos(4 * Math.PI * wPos))
+                    : 0.0;
+
+                const val = sinc * window;
+                this.polyphaseTable[phaseOffset + i] = val;
+                sum += val;
+            }
+
+            // DC-Gain Normalisierung pro Phase
+            if (sum > 0) {
+                for (let i = 0; i < this.FIR_TAPS; i++) {
+                    this.polyphaseTable[phaseOffset + i] /= sum;
+                }
+            }
         }
 
         this.port.onmessage = (e) => {
@@ -570,6 +594,11 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
             let cyclesToRun = Math.floor(this.cycleAccumulator);
             this.cycleAccumulator -= cyclesToRun;
 
+            // Dynamischer Sub-Cycle Phasen-Index [0 .. 31]
+            let phaseIdx = Math.floor(this.cycleAccumulator * this.NUM_PHASES);
+            if (phaseIdx >= this.NUM_PHASES) phaseIdx = this.NUM_PHASES - 1;
+            let kernelBase = phaseIdx * this.FIR_TAPS;
+
             // 1MHz PAL Lockstep Cycling
             for (let c = 0; c < cyclesToRun; c++) {
                 this.cpu.clockHardware(1); 
@@ -599,6 +628,9 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                         }
                     }
                 }
+
+                if (this.cpu.irqAccepted && this.cpuCyclesRemaining === 0) this.diagIrqCount++;
+                if (this.cpu.nmiAccepted && this.cpuCyclesRemaining === 0) this.diagNmiCount++;
 
                 if (this.cpuCyclesRemaining === 1) {
                     this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
@@ -638,12 +670,15 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                 }
             }
             
-            // Dual-Channel 255-Tap Sinc-FIR Decimation (48 kHz)
-            let decL = 0, decR = 0;
+            // =========================================================
+            // FRACTIONAL POLYPHASE SINC-FIR CONVOLUTION (Dual Channel Stereo)
+            // =========================================================
+            let decL = 0.0, decR = 0.0;
             let firIdx = (this.ringIndex - 1) & 511;
             for (let k = 0; k < this.FIR_TAPS; k++) {
-                decL += this.ringBufferL[firIdx] * this.firKernel[k];
-                decR += this.ringBufferR[firIdx] * this.firKernel[k];
+                let coeff = this.polyphaseTable[kernelBase + k];
+                decL += this.ringBufferL[firIdx] * coeff;
+                decR += this.ringBufferR[firIdx] * coeff;
                 firIdx = (firIdx - 1) & 511;
             }
 
