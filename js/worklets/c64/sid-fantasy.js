@@ -223,12 +223,12 @@ class SIDFantasyChip {
 
         let hasWave = (ch.ctrl & 0xF0) !== 0;
         if (hasWave) {
-            let rawWave8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, pwInt, ch.lfsr, ringMSB);
+            let rawWave8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, pwInt, ch.lfsr, ringMSB, freqInt);
             let waveMask = ch.ctrl & 0xF0;
             let isCombined = (waveMask !== 0x10 && waveMask !== 0x20 && waveMask !== 0x40 && waveMask !== 0x80);
 
             if (isCombined) {
-                ch.busCharge += 0.88 * (rawWave8Bit - ch.busCharge);
+                ch.busCharge += 0.25 * (rawWave8Bit - ch.busCharge);
                 ch.waveOut8Bit = ch.busCharge;
             } else {
                 ch.busCharge = rawWave8Bit;
@@ -238,7 +238,7 @@ class SIDFantasyChip {
             ch.busCharge += 0.0002 * (0x80 - ch.busCharge);
             ch.waveOut8Bit = ch.busCharge;
         }
-
+        
         ch.env8Bit = ch.envelope_counter;
 
         // CSG 8580 Linear R-2R Lookup
