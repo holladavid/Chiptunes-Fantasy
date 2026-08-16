@@ -225,15 +225,71 @@ export class CPU6502 {
         if (!ioEnabled) return this.ram[addr];
 
         // =========================================================
-        // PSID SAMPLE TRAP READS ($D41D - $D47D)
+        // PSID SAMPLE TRAP INTERCEPTOR ($D41D - $D47D)
+        // Auto-Translates Amiga Paula Periods (3.54 MHz) -> C64 Cycles (985 kHz)
         // =========================================================
         if (addr >= 0xD41D && addr <= 0xD47D) {
-            if (addr === 0xD41D) {
-                return this.psidSampleActive ? (this.ram[0xD41D] || 0xFF) : 0x00;
-            }
-            return this.ram[addr];
-        }
+            this.ram[addr] = val;
 
+            let startLo = this.ram[0xD41E];
+            let startHi = this.ram[0xD41F];
+            let endLo = this.ram[0xD43D];
+            let endHi = this.ram[0xD43E];
+            
+            let pLo = this.ram[0xD45D];
+            let pHi = this.ram[0xD45E] & 0x0F;
+            let rawPeriod = pLo | (pHi << 8);
+
+            // AUTO-DISCRIMINATOR: Amiga Paula Period (>280) vs. C64 Native Cycles (<=280)
+            if (rawPeriod >= 280) {
+                // Amiga PlaySID Period (3.546895 MHz) -> C64 PAL Cycles (985.248 kHz)
+                this.psidSamplePeriod = Math.round((rawPeriod * 985248) / 3546895);
+            } else if (rawPeriod >= 40) {
+                // Nativer C64 Timer A Latch (z. B. 252 = 3.9kHz, 126 = 7.8kHz)
+                this.psidSamplePeriod = rawPeriod;
+            } else {
+                // Standard Default (3.91 kHz = 252 Zyklen)
+                this.psidSamplePeriod = 252;
+            }
+
+            this.psidSampleStep = this.ram[0xD45F];
+
+            let startAddr = startLo | (startHi << 8);
+            let endAddr = endLo | (endHi << 8);
+
+            // Exakte Endpointer-Validierung ohne Page-Padding
+            if (endAddr > 0 && endAddr <= startAddr) {
+                endAddr = startAddr + endAddr; 
+            }
+
+            if (addr === 0xD41D) {
+                if (val === 0xFE || val === 0x01 || val === 0x81) {
+                    this.psidSamplePtr = startAddr;
+                    this.psidSampleEnd = (endAddr > startAddr) ? endAddr : (startAddr + 0x400);
+                    
+                    this.psidNibblePhase = 0;
+                    this.psidSampleCycleCounter = this.psidSamplePeriod; // Exakter Takt von Cycle 0 an!
+                    this.psidSampleActive = (this.psidSampleEnd > this.psidSamplePtr);
+                } else if (val === 0x00 || val === 0xFF) {
+                    this.psidSampleActive = false;
+                    this.ram[0xD41D] = 0x00;
+                }
+            } else if (this.psidSampleActive) {
+                if (addr === 0xD41E || addr === 0xD41F) {
+                    this.psidSamplePtr = startAddr;
+                }
+                if (addr === 0xD43D || addr === 0xD43E) {
+                    this.psidSampleEnd = (endAddr > startAddr) ? endAddr : (startAddr + 0x400);
+                }
+                if (addr === 0xD45D || addr === 0xD45E) {
+                    if (this.psidSampleCycleCounter > this.psidSamplePeriod) {
+                        this.psidSampleCycleCounter = this.psidSamplePeriod;
+                    }
+                }
+            }
+            return;
+        }
+        
         if (addr === 0xD011) {
             let val = this.ram[0xD011] & 0x7F;
             if (this.rasterCounter > 255) val |= 0x80;
