@@ -38,6 +38,8 @@ Our cycle-exact 1MHz SID engine is arguably one of the deepest analogue emulatio
 
 ### 3. Yamaha YM2149F (Atari ST)
 *   **32-Step Logarithmic DAC & Digidrums:** Replicates 32-step log voltage curves (-1.5dB/step) and 4-bit Digidrum DAC injection.
+*   **Open-Collector Passive Summing Bus (v1.5.0):** Emulates mutual impedance loading and non-linear current compression on the Atari ST motherboard summing resistors ($R_{43}, R_{44}, R_{45}$), gluing complex 3-voice chords and digidrums naturally together.
+*   **32-Phase Polyphase Sinc-FIR Decimator (v1.5.0):** Downsamples the 2MHz lockstep audio stream to 48kHz with zero fractional phase flutter ($>75\text{ dB}$ stopband rejection @ 12.5 kHz).
 
 ---
 
