@@ -1,14 +1,40 @@
 // === js/worklets/amiga/paula-exact.js ===
 // ==========================================
 // MOS TECHNOLOGY PAULA 8364 CHIP EMULATION
-// True Analog Edition: 192kHz Oversampling, Zero-Order Hold (ZOH) DAC,
-// Sinc-FIR Decimation, Hardware Panning & Word-Aligned DMA
+// True Analog Master Edition: 192kHz Oversampling, Zero-Order Hold (ZOH) DAC,
+// LF347 JFET Op-Amp Slew-Rate Modeling, 255-Tap Sinc-FIR Decimation,
+// L-R-R-L Physical Hard-Panning (3.5% Crosstalk) & Word-Aligned DMA
 // ==========================================
+
+class LF347OpAmpStage {
+    constructor(sampleRate) {
+        this.lastOut = 0.0;
+        // Slew-Rate-Limit pro Sample-Schritt bei 192 kHz (LF347: ~13 V/µs)
+        // Inklusive 1.25x JFET-Eingangsstufen-Asymmetrie (Rising vs. Falling)
+        const baseSlew = (192000.0 / sampleRate) * 0.26;
+        this.maxSlewRise = baseSlew * 1.12;
+        this.maxSlewFall = baseSlew * 0.90;
+    }
+
+    process(input) {
+        let delta = input - this.lastOut;
+        let limit = delta >= 0 ? this.maxSlewRise : this.maxSlewFall;
+        
+        // Glatte S-Kurven Slew-Limitation (Hyperbolic Tangent Transition)
+        let change = limit * Math.tanh(delta / limit);
+        this.lastOut += change;
+        return this.lastOut;
+    }
+
+    reset() {
+        this.lastOut = 0.0;
+    }
+}
 
 class StaticRCFilter {
     constructor(sampleRate) {
         this.lastOut = 0;
-        // RC Lowpass bei 4.42 kHz (berechnet für die interne High-Res Samplerate!)
+        // RC Lowpass bei 4.42 kHz (berechnet für die 192 kHz High-Res Samplerate)
         this.alpha = Math.exp(-2.0 * Math.PI * 4421.0 / sampleRate);
     }
     process(input) {
@@ -20,7 +46,7 @@ class StaticRCFilter {
 
 class AmigaLEDFilter {
     constructor(sampleRate) {
-        // Butterworth Lowpass bei 3.09 kHz
+        // Butterworth Lowpass bei 3.09 kHz (12 dB/Okt)
         const fc = 3090; 
         const q = 0.707; 
         const w0 = 2 * Math.PI * fc / sampleRate;
@@ -57,7 +83,7 @@ class PaulaChannel {
         this.phase = 0;     
         this.activeSample = 1; 
         
-        // --- ZOH (Zero-Order Hold) DAC State ---
+        // Zero-Order Hold (ZOH) DAC State
         this.heldValue = 0; 
 
         this.targetPeriod = 0;
@@ -87,11 +113,7 @@ class PaulaChannel {
         this.pointer = 0;
         this.phase = 0;
         
-        // =========================================================
-        // DSP UPGRADE: WORD-ALIGNMENT (DMA Fetch Restrictions)
-        // Paula holt Daten in 16-Bit Blöcken (Words = 2 Bytes).
-        // Wir zwingen Loop-Punkte auf gerade Adressen.
-        // =========================================================
+        // Word-Alignment (Paula DMA Word-Raster)
         loopStart &= ~1;
         loopLen &= ~1;
         
@@ -116,11 +138,7 @@ class PaulaChannel {
 
         this.phase += clockTicksPerSample / this.per;
         
-        // =========================================================
-        // DSP UPGRADE: ZERO-ORDER HOLD (ZOH)
-        // Keine sanfte Interpolation mehr! Das Sample wird als brutale 
-        // Treppenstufe so lange gehalten, bis die Phase hart überläuft.
-        // =========================================================
+        // ZOH Überlauf
         while (this.phase >= 1.0) {
             this.phase -= 1.0;
             this.pointer++;
@@ -137,13 +155,13 @@ class PaulaChannel {
             }
 
             if (this.data) {
-                let idx = this.pointer | 0; // Fast truncate
+                let idx = this.pointer | 0;
                 if (idx >= this.data.length) idx = this.data.length - 1;
                 this.heldValue = this.data[idx];
             }
         }
 
-        // 8-Bit DAC Signal * 6-Bit Lautstärke -> 14-Bit Multiplying DAC
+        // 14-Bit Multiplying DAC Output (8-Bit Sample x 6-Bit Volume)
         let vol6 = Math.round(this.vol); 
         return (this.heldValue * vol6) / 8128.0; 
     }
@@ -152,15 +170,10 @@ class PaulaChannel {
 class PaulaProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.clock = 3546895; // Amiga PAL Master Clock
+        this.clock = 3546895; // Amiga PAL Master Clock (Hz)
         
-        // =========================================================
-        // DSP UPGRADE: OVERSAMPLING & SINC-DECIMATION
-        // Wir takten die Amiga-Kerne mit 192 kHz (4x Oversampling).
-        // Das fängt die ZOH-Obertöne perfekt ein, bevor das Analogfilter greift.
-        // =========================================================
         this.OVERSAMPLING = 4;
-        this.internalRate = sampleRate * this.OVERSAMPLING;
+        this.internalRate = sampleRate * this.OVERSAMPLING; // 192 kHz
         
         this.channels = [];
         for (let i = 0; i < 64; i++) {
@@ -192,22 +205,29 @@ class PaulaProcessor extends AudioWorkletProcessor {
         this.breakOrder = 0;
         this.breakRow = 0;
 
-        // Analoge Filter werden mit der 192 kHz High-Res Rate initialisiert!
+        // =========================================================
+        // ANALOGE SIGNALKETTE (192 kHz High-Res Domain)
+        // =========================================================
+        this.opampL = new LF347OpAmpStage(this.internalRate);
+        this.opampR = new LF347OpAmpStage(this.internalRate);
+        
         this.staticL = new StaticRCFilter(this.internalRate);
         this.staticR = new StaticRCFilter(this.internalRate);
+        
         this.ledL = new AmigaLEDFilter(this.internalRate);
         this.ledR = new AmigaLEDFilter(this.internalRate);
+        
         this.trackLedFilterOn = true;
         this.ledFilterOn = true; 
         this.filterModeState = 0; 
         
+        // 255-Tap Sinc-FIR Decimator
         this.FIR_TAPS = 255;
         this.firKernel = new Float32Array(this.FIR_TAPS);
         this.ringBufferL = new Float32Array(512); 
         this.ringBufferR = new Float32Array(512); 
         this.ringIndex = 0;
         
-        // Cutoff bei ca. 22 kHz (Nyquist von 48kHz ist 24kHz)
         let fc = 22000.0 / this.internalRate; 
         let sum = 0;
         for (let i = 0; i < this.FIR_TAPS; i++) {
@@ -262,12 +282,14 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 }
 
                 this.filterModeState = 0;
-
                 this.trackLedFilterOn = true; 
                 this.ledFilterOn = true;      
 
+                this.opampL.reset();
+                this.opampR.reset();
                 this.ringBufferL.fill(0);
                 this.ringBufferR.fill(0);
+                this.ringIndex = 0;
 
                 if (msg.track && msg.track.isSequenced) {
                     this.isSequenced = true;
@@ -337,7 +359,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
         const pattern = patternObj.data;
         const numRows = patternObj.numRows;
         const rowOffset = this.currentRow * this.numChannels * 6;
-        const clockTicksPerSample = this.clock / this.internalRate; // High-Res Tick Berechnung!
+        const clockTicksPerSample = this.clock / this.internalRate; 
 
         for (let ch = 0; ch < this.numChannels; ch++) {
             const cellOffset = rowOffset + (ch * 6);
@@ -396,7 +418,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                         
                         if (effect === 0x09) {
                             if (param > 0) channel.sampleOffset = param * 256;
-                            // Offset wird auch Word-Aligned maskiert!
                             channel.pointer = channel.sampleOffset & ~1;
                         }
                     }
@@ -620,12 +641,8 @@ class PaulaProcessor extends AudioWorkletProcessor {
         const outR = outputs[0].length > 1 ? outputs[0][1] : null; 
         let oscValue = 0;
 
-        // Der Clock-Teiler wird anhand der 192 kHz High-Res Samplingrate berechnet!
         let clockTicksPerSample = this.clock / this.internalRate;
-        
-        // Physikalische Motherboard-Näherung (Amiga 500)
-        // Hard-Panning mit minimalem induktiven Übersprechen der Leiterbahnen
-        const CROSSTALK_BLEED = 0.035;
+        const CROSSTALK_BLEED = 0.035; // 3.5% physikalisches Übersprechen
 
         for (let i = 0; i < outL.length; i++) {
             if (!this.isPlaying) {
@@ -634,7 +651,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
             }
             
             if (this.isSequenced) {
-                // Tracker Ticks laufen weiterhin im 48 kHz Raster (50Hz VBLANK Basis)
                 this.samplesUntilNextTick--;
                 if (this.samplesUntilNextTick <= 0) {
                     const overshoot = -this.samplesUntilNextTick; 
@@ -665,48 +681,48 @@ class PaulaProcessor extends AudioWorkletProcessor {
             }
 
             // =========================================================
-            // OVERSAMPLING LOOP (192 kHz)
+            // 192 kHz OVERSAMPLING LOOP (Analog Modeling Stage)
             // =========================================================
             for (let os = 0; os < this.OVERSAMPLING; os++) {
                 
                 let rawL = 0;
                 let rawR = 0;
                 
-                // Amiga OctaMED-Style Software Mixing:
-                // Alle virtuellen Tracker-Kanäle werden ausgelesen und
-                // physikalisch auf die 4 Hardware-Pins gemappt (L-R-R-L).
+                // Paula L-R-R-L Physical Hard-Panning
                 for (let c = 0; c < this.numChannels; c++) {
                     let smp = this.channels[c].step(clockTicksPerSample);
                     if (smp !== 0) {
                         let panMod = c % 4;
-                        if (panMod === 0 || panMod === 3) rawL += smp; // Paula Channel 0 & 3 (Left)
-                        else rawR += smp;                              // Paula Channel 1 & 2 (Right)
+                        if (panMod === 0 || panMod === 3) rawL += smp; // Channels 0 & 3 (Left)
+                        else rawR += smp;                              // Channels 1 & 2 (Right)
                     }
                 }
                 
-                // Headroom-Korrektur: Wenn mehr als 4 Kanäle aktiv sind, 
-                // müssen wir den Mix dämpfen, damit der Operationsverstärker nicht clippt.
                 if (this.numChannels > 4) {
-                    // DSP FIX: RMS-Näherung (Quadratwurzel) statt linearer Dämpfung!
-                    // Das erhält die Lautheit der XM-Files, ohne den Op-Amp zu zerstören.
                     let mixAtten = Math.sqrt(4.0 / this.numChannels);
                     rawL *= mixAtten;
                     rawR *= mixAtten;
                 }
                 
+                // Induktives Mainboard-Übersprechen
                 let bleedL = rawL * (1.0 - CROSSTALK_BLEED) + rawR * CROSSTALK_BLEED;
                 let bleedR = rawR * (1.0 - CROSSTALK_BLEED) + rawL * CROSSTALK_BLEED;
 
-                // Analoge Filter greifen auf die 192 kHz ZOH-Treppen zu!
-                let filteredL = this.staticL.process(bleedL);
-                let filteredR = this.staticR.process(bleedR);
+                // 1. ANALOGES LF347 JFET OP-AMP SLEW-RATE MODELL
+                let slewedL = this.opampL.process(bleedL);
+                let slewedR = this.opampR.process(bleedR);
 
+                // 2. PASSIVER RC-TIEFPASS (4.42 kHz, 6 dB/Okt)
+                let filteredL = this.staticL.process(slewedL);
+                let filteredR = this.staticR.process(slewedR);
+
+                // 3. AKTIVES BUTTERWORTH LED-FILTER (3.09 kHz, 12 dB/Okt)
                 if (this.ledFilterOn) {
                     filteredL = this.ledL.process(filteredL);
                     filteredR = this.ledR.process(filteredR);
                 }
                 
-                // Sättigung der Operationsverstärker auf dem Motherboard
+                // 4. BIPOLARE AUSGANGSSTUFEN-SÄTTIGUNG
                 filteredL = Math.tanh(filteredL * 1.15) / 1.05;
                 filteredR = Math.tanh(filteredR * 1.15) / 1.05;
 
@@ -716,7 +732,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
             }
 
             // =========================================================
-            // SINC-FIR DECIMATION (48 kHz Output)
+            // 255-TAP SINC-FIR DECIMATION (Downsampling auf 48 kHz)
             // =========================================================
             let decL = 0;
             let decR = 0;
@@ -728,7 +744,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 firIdx = (firIdx - 1) & 511;
             }
 
-            outL[i] = decL * 0.7; // Headroom Korrektur nach Sinc-Faltung
+            outL[i] = decL * 0.7; // Master Headroom
             if (outR) outR[i] = decR * 0.7; 
             else outL[i] += decR * 0.7; 
             
@@ -740,7 +756,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
             let isAudible = Math.abs(oscValue) > 0.001;
             if (isAudible || this.wasAudible) {
                 const view = this.visualView;
-                view[0] = 1; 
+                view[0] = 1; // System Flag: Amiga
                 view[1] = this.isPlaying ? 1 : 0;
                 view[2] = this.isSequenced 
                     ? (this.currentOrder * 64 * this.speed + this.currentRow * this.speed + this.currentTick)
