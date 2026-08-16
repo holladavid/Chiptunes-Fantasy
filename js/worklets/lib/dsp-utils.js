@@ -172,3 +172,43 @@ export class AtariAnalogFilter {
         return Math.tanh(hp * 1.25) / 1.25;
     }
 }
+
+// =========================================================
+// C64 ANALOG OUTPUT STAGE (1-Pole RC + 45Hz AC-Coupling + Sinc-Droop)
+// =========================================================
+export class C64AnalogFilter {
+    constructor(sampleRate) {
+        // 1. Sinc-Droop Equalizer Pre-Emphasis (+2.5 dB bei 16 kHz)
+        this.cComp = 0.22;
+        this.lastX = 0;
+
+        // 2. C64 Motherboard 16kHz Lowpass Filter
+        const fc = 16000.0;
+        this.alphaLp = Math.exp(-2.0 * Math.PI * fc / sampleRate);
+        this.lastLp = 0;
+
+        // 3. C64 Motherboard 45Hz AC-Coupling Highpass Filter (C12/C13 Capacitors)
+        // Filtert Infraschall-Rumpeln (<45Hz) wie die Kondensatoren auf der C64-Platine
+        const fhp = 45.0;
+        this.alphaHp = Math.exp(-2.0 * Math.PI * fhp / sampleRate);
+        this.lastHpIn = 0;
+        this.lastHpOut = 0;
+    }
+
+    process(x) {
+        // A) Sinc-Droop Pre-Equalization
+        let comp = (1.0 + this.cComp) * x - this.cComp * this.lastX;
+        this.lastX = x;
+
+        // B) 16kHz 1-Pol Lowpass RC Filter
+        let lp = (1.0 - this.alphaLp) * comp + this.alphaLp * this.lastLp;
+        this.lastLp = lp;
+
+        // C) 45Hz 1-Pol AC-Coupling Highpass Filter (C12/C13)
+        let hp = this.alphaHp * (this.lastHpOut + lp - this.lastHpIn);
+        this.lastHpIn = lp;
+        this.lastHpOut = hp;
+
+        return hp;
+    }
+}
