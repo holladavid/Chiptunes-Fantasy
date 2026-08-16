@@ -3,12 +3,12 @@
 // MOS 6581 SOUND INTERFACE DEVICE (SID) & 6502 CPU LOCKSTEP
 // True Analog Master Edition: 255-Tap Polyphase Sinc-FIR Decimator,
 // 2MHz Zero-Delay Feedback (ZDF) State-Space OTA Filter,
-// Sub-Cycle Write Pipelining & Phantom KERNAL OS
+// Sub-Cycle Write Pipelining & Motherboard 45Hz AC-Coupling
 // =========================================================
 
 import { CPU6502 } from '../lib/cpu6502.js';
 import { SIDChip } from '../lib/sid-chip.js';
-import { DCBlocker, C64AnalogFilter } from '../lib/dsp-utils.js';
+import { C64AnalogFilter } from '../lib/dsp-utils.js';
 
 class SIDProcessor extends AudioWorkletProcessor {
     constructor() {
@@ -18,7 +18,6 @@ class SIDProcessor extends AudioWorkletProcessor {
         
         this.sid.useJfetSaturation = true;
         this.cpu = new CPU6502(this.sid);
-        this.dcBlock = new DCBlocker();
         this.c64Output = new C64AnalogFilter(sampleRate);
 
         this.prgCode = null;
@@ -77,7 +76,6 @@ class SIDProcessor extends AudioWorkletProcessor {
 
             if (msg.isSidFile) {
                 this.c64Output = new C64AnalogFilter(sampleRate);
-                this.dcBlock = new DCBlocker();
                 this.ringBuffer.fill(0);
                 this.ringIndex = 0;
 
@@ -159,12 +157,9 @@ class SIDProcessor extends AudioWorkletProcessor {
             } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
             } else if (msg.type === 'RESUME_TRACK') {
-                this.dcBlock.lastIn = 0;
-                this.dcBlock.lastOut = 0;
                 this.isPlaying = true;
             } else if (msg.type === 'CHANGE_SUBSONG') {
                 this.c64Output = new C64AnalogFilter(sampleRate);
-                this.dcBlock = new DCBlocker();
                 this.ringBuffer.fill(0);
                 this.ringIndex = 0;
 
@@ -262,9 +257,7 @@ class SIDProcessor extends AudioWorkletProcessor {
             let cyclesToRun = Math.floor(this.cycleAccumulator);
             this.cycleAccumulator -= cyclesToRun;
 
-            // =========================================================
-            // 1MHz PAL LOCKSTEP CYCLING (Pushes raw samples to Ringbuffer)
-            // =========================================================
+            // 1MHz PAL Lockstep Cycling
             for (let c = 0; c < cyclesToRun; c++) {
                 this.diagCycles++; 
                 
@@ -326,14 +319,12 @@ class SIDProcessor extends AudioWorkletProcessor {
                             this.cpuCyclesRemaining = cyclesUsed - 1; 
                             this.diagInstructions++; 
 
-                            // Commit sofort, falls 1-Zyklus-Befehl
                             if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
                                 this.cpu.commitPendingWrite();
                             }
                         }
                     } else {
                         this.cpuCyclesRemaining--;
-                        // SUB-CYCLE COMMIT: Schlägt exakt auf Takt 4 (bzw. dem letzten Zyklus) durch!
                         if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
                             this.cpu.commitPendingWrite();
                         }
@@ -341,9 +332,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 }
             }
             
-            // =========================================================
-            // SINC-FIR DECIMATION CONVOLUTION (48 kHz Output)
-            // =========================================================
+            // 255-Tap Sinc-FIR Decimation (48 kHz)
             let decimatedSample = 0;
             let firIdx = (this.ringIndex - 1) & 511;
             for (let k = 0; k < this.FIR_TAPS; k++) {
@@ -351,13 +340,12 @@ class SIDProcessor extends AudioWorkletProcessor {
                 firIdx = (firIdx - 1) & 511;
             }
 
+            // Physikalische C64-Motherboard Stufe (16kHz RC-Tiefpass + 45Hz AC-Kopplungshochpass)
+            // Übernimmt vollständig die DC-Entkopplung ohne doppelte Phasenrotation!
             let analogSample = this.c64Output.process(decimatedSample);
 
-            let dcSample = analogSample - this.dcBlock.lastIn + 0.998 * this.dcBlock.lastOut;
-            this.dcBlock.lastIn = analogSample;
-            this.dcBlock.lastOut = dcSample;
-
-            let normalized = dcSample * 0.42;
+            // Master Gain Staging (-0.4dBFS Headroom)
+            let normalized = analogSample * 0.42;
             if (normalized > 0.95 || normalized < -0.95) {
                 normalized = Math.tanh(normalized);
             }

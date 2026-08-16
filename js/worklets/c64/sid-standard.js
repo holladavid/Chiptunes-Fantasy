@@ -1,7 +1,7 @@
 // === js/worklets/c64/sid-standard.js ===
 import { CPU6502 } from '../lib/cpu6502.js';
 import { SIDChip } from '../lib/sid-chip.js';
-import { DCBlocker, C64AnalogFilter } from '../lib/dsp-utils.js';
+import { C64AnalogFilter } from '../lib/dsp-utils.js';
 
 class SIDProcessor extends AudioWorkletProcessor {
     constructor() {
@@ -11,7 +11,6 @@ class SIDProcessor extends AudioWorkletProcessor {
         
         this.sid.useJfetSaturation = false;
         this.cpu = new CPU6502(this.sid);
-        this.dcBlock = new DCBlocker();
         this.c64Output = new C64AnalogFilter(sampleRate);
 
         this.prgCode = null;
@@ -47,7 +46,6 @@ class SIDProcessor extends AudioWorkletProcessor {
             if (msg.isSidFile) {
                 this.lastSampleValue = 0;
                 this.c64Output = new C64AnalogFilter(sampleRate);
-                this.dcBlock = new DCBlocker();
 
                 this.prgCode = msg.c64Code;
                 this.loadAddr = msg.loadAddress;
@@ -122,13 +120,10 @@ class SIDProcessor extends AudioWorkletProcessor {
             } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
             } else if (msg.type === 'RESUME_TRACK') {
-                this.dcBlock.lastIn = 0;
-                this.dcBlock.lastOut = 0;
                 this.isPlaying = true;
             } else if (msg.type === 'CHANGE_SUBSONG') {
                 this.lastSampleValue = 0;
                 this.c64Output = new C64AnalogFilter(sampleRate);
-                this.dcBlock = new DCBlocker();
 
                 this.sid = new SIDChip();
                 this.sid.useJfetSaturation = false;
@@ -252,9 +247,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                     this.cpu.nmiAccepted = this.cpu.nmiPending;
                 }
 
-                if (!this.cpu.rdy) {
-                    // CPU stall
-                } else {
+                if (this.cpu.rdy) {
                     if (this.cpuCyclesRemaining <= 0) {
                         if (this.hostPlayPending && this.cpu.pc >= 0xFFE0 && this.cpu.pc <= 0xFFE2) {
                             this.hostPlayPending = false;
@@ -286,15 +279,7 @@ class SIDProcessor extends AudioWorkletProcessor {
 
             let analogSample = this.c64Output.process(decimatedSample);
 
-            let dcSample = analogSample - this.dcBlock.lastIn + 0.998 * this.dcBlock.lastOut;
-            this.dcBlock.lastIn = analogSample;
-            this.dcBlock.lastOut = dcSample;
-
-            // === C64 SID GAIN NORMALIZATION & SOFT-CLIPPER FAILSAFE ===
-            // 1. Skaliert die rohe SID 6581 Amplitude auf saubere digital -0.4dBFS Max-Peaks
-            let normalized = dcSample * 0.42;
-
-            // 2. Soft-Saturating Protection (Garantiert 100% Clipping-Freiheit ohne OS-Ducking)
+            let normalized = analogSample * 0.42;
             if (normalized > 0.95 || normalized < -0.95) {
                 normalized = Math.tanh(normalized);
             }
