@@ -330,38 +330,41 @@ export class CPU6502 {
             let startHi = this.ram[0xD41F];
             let endLo = this.ram[0xD43D];
             let endHi = this.ram[0xD43E];
-            
-            // Exakte Perioden-Berechnung aus $D45D (Lo) und $D45E (Hi)
             let pLo = this.ram[0xD45D];
             let pHi = this.ram[0xD45E] & 0x0F;
             let period = pLo | (pHi << 8);
 
-            // Gültige C64 Sample-Timer liegen zwischen 60 und 2000 Zyklen (Standard 252 = 3.91 kHz)
             this.psidSamplePeriod = (period >= 50 && period <= 2000) ? period : 252;
+            this.psidSampleStep = this.ram[0xD45F];
+
+            let startAddr = startLo | (startHi << 8);
+            let endAddr = endLo | (endHi << 8);
+
+            // Exakte 16-Bit Endpointer-Validierung ohne Page-Padding
+            if (endAddr > 0 && endAddr <= startAddr) {
+                endAddr = startAddr + endAddr; // Relative Länge -> Absolute Adresse
+            }
 
             if (addr === 0xD41D) {
                 if (val === 0xFE || val === 0x01 || val === 0x81) {
-                    this.psidSamplePtr = startLo | (startHi << 8);
-                    this.psidSampleEnd = (endLo === 0 && endHi === 0) 
-                        ? (this.psidSamplePtr + 0x1000) 
-                        : ((endLo === 0) ? ((endHi << 8) | 0xFF) : (endLo | (endHi << 8)));
+                    this.psidSamplePtr = startAddr;
+                    this.psidSampleEnd = (endAddr > startAddr) ? endAddr : (startAddr + 0x400);
                     
                     this.psidNibblePhase = 0;
-                    this.psidSampleCycleCounter = this.psidSamplePeriod; // Sofortiger Start im richtigen Timing!
-                    this.psidSampleActive = (this.psidSampleEnd > this.psidSamplePtr);
+                    this.psidSampleCycleCounter = this.psidSamplePeriod;
+                    this.psidSampleActive = true;
                 } else if (val === 0x00 || val === 0xFF) {
                     this.psidSampleActive = false;
                     this.ram[0xD41D] = 0x00;
                 }
             } else if (this.psidSampleActive) {
                 if (addr === 0xD41E || addr === 0xD41F) {
-                    this.psidSamplePtr = startLo | (startHi << 8);
+                    this.psidSamplePtr = startAddr;
                 }
                 if (addr === 0xD43D || addr === 0xD43E) {
-                    this.psidSampleEnd = (endLo === 0) ? ((endHi << 8) | 0xFF) : (endLo | (endHi << 8));
+                    this.psidSampleEnd = (endAddr > startAddr) ? endAddr : (startAddr + 0x400);
                 }
                 if (addr === 0xD45D || addr === 0xD45E) {
-                    // Aktualisiert die Samplerate auch mitten im Sample-Lauf
                     if (this.psidSampleCycleCounter > this.psidSamplePeriod) {
                         this.psidSampleCycleCounter = this.psidSamplePeriod;
                     }
@@ -1050,10 +1053,12 @@ export class CPU6502 {
             let byteVal = this.ram[this.psidSamplePtr];
             let filterMode = this.sid.regs[24] & 0xF0;
 
-            // Hülsbeck TFMX: High-Nibble (1. Tick) -> Low-Nibble (2. Tick)
+            // PlaySID Standard 4-Bit Format:
+            // Phase 0: Low-Nibble (Bits 0..3)
+            // Phase 1: High-Nibble (Bits 4..7)
             let nibble = (this.psidNibblePhase === 0) 
-                ? ((byteVal >> 4) & 0x0F) 
-                : (byteVal & 0x0F);
+                ? (byteVal & 0x0F) 
+                : ((byteVal >> 4) & 0x0F);
 
             this.sid.writeReg(24, filterMode | nibble);
 
@@ -1061,11 +1066,11 @@ export class CPU6502 {
                 this.psidNibblePhase = 1;
             } else {
                 this.psidNibblePhase = 0;
-                this.psidSamplePtr++; // Strikt 1 Byte pro 2 Nibbles – verhindert Hi-Hat-Pfeifen!
+                this.psidSamplePtr++; // Exakt 1 Byte pro 2 Nibbles
             }
         } else {
             this.psidSampleActive = false;
-            this.ram[0xD41D] = 0x00; // Quittiert das Sample-Ende für die CPU
+            this.ram[0xD41D] = 0x00; // Quittiert das Sample-Ende
         }
     }
 }

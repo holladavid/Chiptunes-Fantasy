@@ -1,6 +1,6 @@
+// === js/worklets/lib/dsp-utils.js ===
 // =========================================================
 // DSP UTILITIES & FILTERS
-// Das Effekt-Rack für alle Worklets
 // =========================================================
 
 export const YM_DAC = [
@@ -22,7 +22,7 @@ export function cubicInterpolate(y0, y1, y2, y3, mu) {
     return (a0 * mu * mu2 + a1 * mu2 + a2 * mu + y1);
 }
 
-// 12dB Moog-Style Filter (Für Blade Runner & Noise)
+// 12dB Moog-Style Filter
 export class MoogFilter {
     constructor() { this.low = 0; this.band = 0; }
     process(input, cutoffHz, resonance, sampleRate) {
@@ -41,7 +41,7 @@ export class MoogFilter {
     }
 }
 
-// 24dB 4-Pole Filter (Für Chiptunes Fantasy)
+// 24dB 4-Pole Filter
 export class FourPoleFilter {
     constructor() { this.l1 = 0; this.b1 = 0; this.l2 = 0; this.b2 = 0; }
     process(input, cutoffHz, resonance, sampleRate) {
@@ -64,7 +64,7 @@ export class FourPoleFilter {
     }
 }
 
-// DC Blocker (Hält die Lautsprecher-Membranen mittig)
+// DC Blocker
 export class DCBlocker {
     constructor() { this.lastIn = 0; this.lastOut = 0; }
     process(input) {
@@ -74,29 +74,16 @@ export class DCBlocker {
     }
 }
 
-/**
- * Erkennt Digidrum-Trigger innerhalb eines YM5/YM6-Register-Frames.
- * Liefert die 1-basierte Sample-Nummer oder 0, falls kein Trigger vorliegt.
- * 
- * @param {Uint8Array} frame - Das aktuelle 16-Byte Register-Frame
- * @returns {number} 1-basierter Index für die Digidrum (0 = kein Trigger)
- */
 export function detectDigidrum(frame) {
     let activeDigiTrigger = 0;
 
-    // YM6 Spezialeffekt 1 (gespeichert in R1)
-    // Bit 6-7: Typ (00: SID, 01: Digidrum, 10: Sinus SID, 11: Sync-Buzzer)
-    // Bit 4-5: Kanal (01: Voice A, 10: Voice B, 11: Voice C)
     const fx1Type = (frame[1] & 0xC0) >> 6;
     const fx1Voice = (frame[1] & 0x30) >> 4;
 
     if (fx1Type === 1 && fx1Voice > 0) {
-        // Das Lautstärkeregister des Kanals (R8, R9 oder R10) enthält die Sample-ID in Bit 0-4
         const sampleReg = 8 + fx1Voice - 1;
         activeDigiTrigger = (frame[sampleReg] & 0x1F) + 1;
     } else {
-        // YM6 Spezialeffekt 2 (gespeichert in R3)
-        // Bit 6-7: Typ, Bit 4-5: Kanal
         const fx2Type = (frame[3] & 0xC0) >> 6;
         const fx2Voice = (frame[3] & 0x30) >> 4;
 
@@ -106,7 +93,6 @@ export function detectDigidrum(frame) {
         }
     }
 
-    // Fallback: Direkte Abfrage der virtuellen Register R14/R15
     if (activeDigiTrigger === 0) {
         if (frame[15] > 0) activeDigiTrigger = frame[15];
         else if (frame[14] > 0) activeDigiTrigger = frame[14];
@@ -115,12 +101,6 @@ export function detectDigidrum(frame) {
     return activeDigiTrigger;
 }
 
-/**
- * Ermittelt, welcher YM-Kanal (1: Voice A, 2: Voice B, 3: Voice C, 0: Keiner) die Digidrum triggert.
- * 
- * @param {Uint8Array} frame - Das aktuelle 16-Byte Register-Frame
- * @returns {number} 1-basierter Kanalindex (0 = kein Kanal oder Fallback)
- */
 export function detectDigidrumVoice(frame) {
     const fx1Type = (frame[1] & 0xC0) >> 6;
     const fx1Voice = (frame[1] & 0x30) >> 4;
@@ -130,16 +110,9 @@ export function detectDigidrumVoice(frame) {
     const fx2Voice = (frame[3] & 0x30) >> 4;
     if (fx2Type === 1 && fx2Voice > 0) return fx2Voice;
 
-    return 0; // Kein direkter Kanal gemappt (z. B. Fallback)
+    return 0; 
 }
 
-// =========================================================
-// ATARI ST / YAMAHA YM2149F HARDWARE UTILS
-// =========================================================
-
-// Gemessene 32-Step Voltage-Tabelle eines echten YM2149F.
-// Ersetzt die ungenaue mathematische Logarithmus-Näherung.
-// Basiert auf Oszilloskop-Messungen der Demoszene-Community (Nuked/Hatari).
 export const YM2149_DAC32 = new Float32Array([
     0.0000, 0.0043, 0.0061, 0.0084, 0.0119, 0.0163, 0.0242, 0.0345,
     0.0483, 0.0682, 0.0988, 0.1384, 0.1983, 0.2831, 0.3984, 0.5510,
@@ -147,48 +120,40 @@ export const YM2149_DAC32 = new Float32Array([
     0.8845, 0.8988, 0.9155, 0.9348, 0.9573, 0.9830, 0.9950, 1.0000
 ]);
 
-// Physisches Modell der analogen Ausgangsstufe des Atari ST (Motherboard)
-// YM-Mix -> Mischwiderstände -> RC Tiefpass (~15.9 kHz) -> OpAmp (LM324) -> Ausgangskondensator
 export class AtariAnalogFilter {
     constructor(sampleRate) {
         this.lpAlpha = Math.exp(-2.0 * Math.PI * 15900.0 / sampleRate);
-        this.hpAlpha = Math.exp(-2.0 * Math.PI * 25.0 / sampleRate); // Ausgangskondensator DC-Block
+        this.hpAlpha = Math.exp(-2.0 * Math.PI * 25.0 / sampleRate); 
         this.lastLp = 0;
         this.lastHpIn = 0;
         this.lastHpOut = 0;
     }
     
     process(input) {
-        // 1. RC Tiefpass (nimmt dem YM2149 die digitale Härte)
         let lp = (1.0 - this.lpAlpha) * input + this.lpAlpha * this.lastLp;
         this.lastLp = lp;
-        
-        // 2. Highpass / Kondensator (Entfernt Hardware-Gleichspannung)
         let hp = this.hpAlpha * (this.lastHpOut + lp - this.lastHpIn);
         this.lastHpIn = lp;
         this.lastHpOut = hp;
-        
-        // 3. OpAmp Sättigung (LM324) - Gibt dem Bass Wärme und limitiert sanft
         return Math.tanh(hp * 1.25) / 1.25;
     }
 }
 
 // =========================================================
-// C64 ANALOG OUTPUT STAGE (1-Pole RC + 45Hz AC-Coupling + Sinc-Droop)
+// C64 ANALOG OUTPUT STAGE (1-Pole RC + 45Hz AC-Coupling)
 // =========================================================
 export class C64AnalogFilter {
     constructor(sampleRate) {
-        // 1. Sinc-Droop Equalizer Pre-Emphasis (+2.5 dB bei 16 kHz)
-        this.cComp = 0.22;
+        // Pre-Emphasis auf 0.0 gesetzt: Verhindert schrille Klick-Spikes auf 4-Bit-Flanken
+        this.cComp = 0.0;
         this.lastX = 0;
 
-        // 2. C64 Motherboard 16kHz Lowpass Filter
+        // C64 Motherboard 16kHz 1-Pol Tiefpass (Glättet 4-Bit-Treppen natürlich)
         const fc = 16000.0;
         this.alphaLp = Math.exp(-2.0 * Math.PI * fc / sampleRate);
         this.lastLp = 0;
 
-        // 3. C64 Motherboard 45Hz AC-Coupling Highpass Filter (C12/C13 Capacitors)
-        // Filtert Infraschall-Rumpeln (<45Hz) wie die Kondensatoren auf der C64-Platine
+        // C64 Motherboard 45Hz AC-Kopplung (C12/C13)
         const fhp = 45.0;
         this.alphaHp = Math.exp(-2.0 * Math.PI * fhp / sampleRate);
         this.lastHpIn = 0;
@@ -196,15 +161,11 @@ export class C64AnalogFilter {
     }
 
     process(x) {
-        // A) Sinc-Droop Pre-Equalization
-        let comp = (1.0 + this.cComp) * x - this.cComp * this.lastX;
-        this.lastX = x;
-
-        // B) 16kHz 1-Pol Lowpass RC Filter
-        let lp = (1.0 - this.alphaLp) * comp + this.alphaLp * this.lastLp;
+        // 1. 16kHz 1-Pol Lowpass RC Filter
+        let lp = (1.0 - this.alphaLp) * x + this.alphaLp * this.lastLp;
         this.lastLp = lp;
 
-        // C) 45Hz 1-Pol AC-Coupling Highpass Filter (C12/C13)
+        // 2. 45Hz 1-Pol AC-Coupling Highpass Filter (C12/C13)
         let hp = this.alphaHp * (this.lastHpOut + lp - this.lastHpIn);
         this.lastHpIn = lp;
         this.lastHpOut = hp;
