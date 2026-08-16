@@ -1,8 +1,10 @@
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Wizball-Stable 2MHz ZDF OTA Filter Edition (MOS 6581 R3 Curve)
-// Guaranteed 100% Stability on R=15 Resonant Sweeps + PlaySID 4-Bit Drums
+// True Analog Master Edition:
+// - Voice 3 DC-Leakage Persistence on 3OFF ($D418 Bit 7)
+// - Wizball-Stable 2MHz ZDF OTA Filter Solver (MOS 6581 R3 S-Curve)
+// - Calibrated PlaySID 4-Bit Drum DC Bias & Voice Gain Staging
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -60,7 +62,7 @@ export class SIDChip {
         this.thermalDcOffset = 0.0;
         this.thermalJfetDrive = 0.8;
 
-        // Thermal VCA Properties (Calibrated for Galway Digis & High R-Sweeps)
+        // Thermal VCA Properties
         this.thermalVoiceDcLeakage = 0.012;
         this.thermalMasterDcBias = 0.70;
 
@@ -84,7 +86,6 @@ export class SIDChip {
         
         // =========================================================
         // ORIGINAL MOS 6581 R3 S-CURVE (30Hz bis 6.200Hz)
-        // Stellt Martin Galways originale Wizball-Filterbreite wieder her!
         // =========================================================
         let baseHz = 30.0 + (1200.0 * norm) + (7200.0 * norm * norm) - (2230.0 * norm * norm * norm);
         if (baseHz > 6200.0) baseHz = 6200.0;
@@ -317,13 +318,22 @@ export class SIDChip {
         if (this.regs[23] & 1) filteredSum += bleed0; else unfilteredSum += bleed0;
         if (this.regs[23] & 2) filteredSum += bleed1; else unfilteredSum += bleed1;
 
+        // =========================================================
+        // VOICE 3 DISCONNECT ($D418 BIT 7) & DC-LEAKAGE PERSISTENCE
+        // =========================================================
         if (!isVoice3Off) {
+            // Voice 3 normal verbunden (AC + DC)
             if (this.regs[23] & 4) filteredSum += bleed2; else unfilteredSum += bleed2;
+        } else {
+            // Voice 3 stummgeschaltet (3OFF): AC-Wellenform abgetrennt, 
+            // aber DAC-Gleichspannungssockel und Substrat-Bleed bleiben im Summierknoten aktiv!
+            let envDac3 = DAC_LUT[this.voices[2].env8Bit];
+            let v3DcLeak = (this.thermalVoiceDcLeakage * envDac3) + (bleed0 * 0.004 + bleed1 * 0.008);
+            if (this.regs[23] & 4) filteredSum += v3DcLeak; else unfilteredSum += v3DcLeak;
         }
 
         // =========================================================
         // ZERO-DELAY FEEDBACK (ZDF) TRAPEZOIDAL STATE-SPACE SOLVER (2MHz)
-        // Symmetrisches JFET Triode Quenching garantiert 100% Stabilität bei R=15
         // =========================================================
         let subG = Math.tan((Math.PI * this.activeCutoff) / 1970496); // 2MHz Sub-sample Grid
         
@@ -338,7 +348,7 @@ export class SIDChip {
             let hp = (filteredSum - this.x1 * (subG + k) - this.x2) / denom;
             let bpRaw = subG * hp + this.x1;
             
-            // Symmetrisches JFET Resonance Quenching (Kein DC-Leck in x1/x2!)
+            // Symmetrisches JFET Triode Quenching
             let bp = bpRaw;
             if (this.useJfetSaturation) {
                 let summerDrive = this.thermalJfetDrive * 0.70;
