@@ -3,7 +3,7 @@
 // MOS 6581 SOUND INTERFACE DEVICE (SID) & 6502 CPU LOCKSTEP
 // True Analog Master Edition: 255-Tap Polyphase Sinc-FIR Decimator,
 // 2MHz Zero-Delay Feedback (ZDF) State-Space OTA Filter,
-// Hardware R-2R DAC Non-Monotonicity & Phantom KERNAL OS
+// Sub-Cycle Write Pipelining & Phantom KERNAL OS
 // =========================================================
 
 import { CPU6502 } from '../lib/cpu6502.js';
@@ -29,7 +29,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.songSpeedFlags = 0;
         
         this.isPlaying = false;
-        this.fadeVol = 0.0; // Dynamic Smooth Fade Volume (0.0 to 1.0)
+        this.fadeVol = 0.0; 
         
         this.cycleAccumulator = 0.0;
         this.vblankTimer = 19656; 
@@ -41,28 +41,23 @@ class SIDProcessor extends AudioWorkletProcessor {
         
         this.visualView = new Float32Array(40);
 
-        // =========================================================
-        // DSP UPGRADE: 255-TAP BLACKMAN SINC-FIR DECIMATOR
-        // Ersetzt den Box-Filter durch eine echte -75dB Brickwall bei 20 kHz
-        // =========================================================
+        // 255-Tap Sinc-FIR Decimator
         this.FIR_TAPS = 255;
         this.firKernel = new Float32Array(this.FIR_TAPS);
-        this.ringBuffer = new Float32Array(512); // Power-of-Two Ringbuffer (512 > 255)
+        this.ringBuffer = new Float32Array(512); 
         this.ringIndex = 0;
 
-        // Cutoff bei 20.0 kHz bezogen auf den 985.248 kHz PAL-Takt
         const fc = 20000.0 / this.clock;
         let sum = 0;
         for (let i = 0; i < this.FIR_TAPS; i++) {
             let x = i - (this.FIR_TAPS - 1) / 2;
             let sinc = (x === 0) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
-            // Exaktes Blackman-Fenster für >75dB Stopband-Unterdrückung
             let window = 0.42 - 0.5 * Math.cos((2 * Math.PI * i) / (this.FIR_TAPS - 1)) + 0.08 * Math.cos((4 * Math.PI * i) / (this.FIR_TAPS - 1));
             this.firKernel[i] = sinc * window;
             sum += this.firKernel[i];
         }
         for (let i = 0; i < this.FIR_TAPS; i++) {
-            this.firKernel[i] /= sum; // 0 dB DC Normalisierung
+            this.firKernel[i] /= sum; 
         }
 
         this.diagCycles = 0;
@@ -131,9 +126,15 @@ class SIDProcessor extends AudioWorkletProcessor {
                         } else {
                             let cyclesUsed = this.cpu.step(); 
                             this.cpuCyclesRemaining = cyclesUsed - 1; 
+                            if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
+                                this.cpu.commitPendingWrite();
+                            }
                         }
                     } else if (this.cpu.rdy) {
                         this.cpuCyclesRemaining--;
+                        if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
+                            this.cpu.commitPendingWrite();
+                        }
                     }
                 }
                 
@@ -206,9 +207,15 @@ class SIDProcessor extends AudioWorkletProcessor {
                         } else {
                             let cyclesUsed = this.cpu.step(); 
                             this.cpuCyclesRemaining = cyclesUsed - 1; 
+                            if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
+                                this.cpu.commitPendingWrite();
+                            }
                         }
                     } else if (this.cpu.rdy) {
                         this.cpuCyclesRemaining--;
+                        if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
+                            this.cpu.commitPendingWrite();
+                        }
                     }
                 }
 
@@ -240,11 +247,10 @@ class SIDProcessor extends AudioWorkletProcessor {
 
         for (let i = 0; i < outL.length; i++) {
             
-            // Smooth Vol Fade Ramp (Eliminiert DC-Transienten beim Start/Pause)
             if (this.isPlaying) {
-                this.fadeVol = Math.min(1.0, this.fadeVol + 0.002); // ~10ms Fade-In
+                this.fadeVol = Math.min(1.0, this.fadeVol + 0.002);
             } else {
-                this.fadeVol = Math.max(0.0, this.fadeVol - 0.002); // ~10ms Fade-Out
+                this.fadeVol = Math.max(0.0, this.fadeVol - 0.002);
             }
 
             if (this.fadeVol === 0.0) {
@@ -265,7 +271,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.clockHardware(1); 
                 this.sid.clock();          
                 
-                // Schreibt das rohe 1-MHz-Analogsignal direkt in den Ringbuffer
                 this.ringBuffer[this.ringIndex] = this.sid.outputSample;
                 this.ringIndex = (this.ringIndex + 1) & 511;
 
@@ -320,9 +325,18 @@ class SIDProcessor extends AudioWorkletProcessor {
                             let cyclesUsed = this.cpu.step(); 
                             this.cpuCyclesRemaining = cyclesUsed - 1; 
                             this.diagInstructions++; 
+
+                            // Commit sofort, falls 1-Zyklus-Befehl
+                            if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
+                                this.cpu.commitPendingWrite();
+                            }
                         }
                     } else {
                         this.cpuCyclesRemaining--;
+                        // SUB-CYCLE COMMIT: Schlägt exakt auf Takt 4 (bzw. dem letzten Zyklus) durch!
+                        if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
+                            this.cpu.commitPendingWrite();
+                        }
                     }
                 }
             }
@@ -337,15 +351,12 @@ class SIDProcessor extends AudioWorkletProcessor {
                 firIdx = (firIdx - 1) & 511;
             }
 
-            // Analoges C64-Motherboard Filter (16kHz Lowpass + 45Hz AC-Highpass)
             let analogSample = this.c64Output.process(decimatedSample);
 
-            // DC-Blocker
             let dcSample = analogSample - this.dcBlock.lastIn + 0.998 * this.dcBlock.lastOut;
             this.dcBlock.lastIn = analogSample;
             this.dcBlock.lastOut = dcSample;
 
-            // Gain Staging & Soft-Clipper Failsafe
             let normalized = dcSample * 0.42;
             if (normalized > 0.95 || normalized < -0.95) {
                 normalized = Math.tanh(normalized);
