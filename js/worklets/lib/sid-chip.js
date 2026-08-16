@@ -1,7 +1,7 @@
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Reverted Commit 87d8d835: Restored Linear ADSR Rate Counter
+// Calibrated PlaySID 4-Bit Drum DC Bias & Voice Gain Staging
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -61,7 +61,7 @@ export class SIDChip {
 
         // Thermal VCA Properties
         this.thermalVoiceDcLeakage = 0.012;
-        this.thermalMasterDcBias = 0.45;
+        this.thermalMasterDcBias = 0.70;
 
         this.volWiggleActivity = 0.0;
         this.d418Writes = 0; 
@@ -106,7 +106,7 @@ export class SIDChip {
 
         let tempNorm = (this._temperature - 15.0) / 40.0;
         this.thermalVoiceDcLeakage = 0.003 + Math.pow(Math.max(0.0, tempNorm), 1.6) * 0.012;
-        this.thermalMasterDcBias = 0.45 + (this._temperature - 55.0) * 0.002;
+        this.thermalMasterDcBias = 0.70 + (this._temperature - 55.0) * 0.003;
     }
 
     writeReg(reg, val) {
@@ -334,14 +334,10 @@ export class SIDChip {
         }
 
         // =========================================================
-        // VARIANTE 2: reSID-fp NON-LINEAR OTA STATE-SPACE MODEL (2MHz Grid)
-        // Hardware-measured 6581 Q-clamp (Q_max ~ 3.0) + OTA differential saturation
-        // Eliminates the "bowed saw" whistle and delivers authentic warm 6581 squelch
+        // reSID-fp NON-LINEAR OTA STATE-SPACE MODEL (2MHz Grid)
         // =========================================================
         let subG = Math.tan((Math.PI * this.activeCutoff) / 1970496); // 2MHz Sub-sample Grid
         
-        // 1. Hardware-gemessene 6581 Resonanz-Dämpfung (reSIDfp matched)
-        // Skaliert k von 1.414 (Q=0.707) runter auf k=0.334 (Q_max=3.0)
         let resReg = this.regs[23] >> 4;
         let normRes = resReg / 15.0;
         let k = 1.414 - (normRes * 1.08); 
@@ -350,10 +346,8 @@ export class SIDChip {
         let filterOut = 0;
 
         for (let sub = 0; sub < 2; sub++) {
-            // 2. Zero-Delay Feedback Highpass Solver
             let hp = (filteredSum - this.x1 * (subG + k) - this.x2) / denom;
 
-            // 3. OTA Transkonduktanz-Sättigung im Bandpass-Zustandsraum
             let bpRaw = subG * hp + this.x1;
             
             let bp = bpRaw;
@@ -364,7 +358,6 @@ export class SIDChip {
 
             let lp = subG * bp + this.x2;
 
-            // 4. Trapezoidal State Memory Update mit gesättigtem Zustandsvektor
             this.x1 = 2.0 * bp - this.x1;
             this.x2 = 2.0 * lp - this.x2;
 
@@ -391,7 +384,6 @@ export class SIDChip {
             filterOut = 0.0;
         }
 
-        // Resonanz-Headroom Dämpfung schützt ungefilterte Stimmen vor VCA-Ducking
         if (q < 0.1) {
             filterOut *= 0.72; 
         }
@@ -406,7 +398,7 @@ export class SIDChip {
         let vcaQuad = this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0;
         
         let acSaturated = Math.tanh(vcaIn + vcaQuad);
-        let finalMix = (acSaturated * 1.85) + this.thermalMasterDcBias;
+        let finalMix = (acSaturated * 1.50) + this.thermalMasterDcBias;
 
         this.outputSample = (finalMix * this.masterVol) + this.thermalDcOffset;
     }

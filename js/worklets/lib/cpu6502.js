@@ -2,11 +2,10 @@
 // =========================================================
 // 6502 CPU EMULATOR & C64 I/O INTERCEPTOR
 // High-Performance Zero-Allocation Edition
-// Corrected PlaySID Base 4-Bit Sample Clock to 252 Cycles (3.91kHz)
+// PlaySID Amiga-Paula (3.6x Divider) & C64 PAL Cycle-Exact Converter
+// Corrected Big-Endian 4-Bit Sample Nibble Streamer (High-Nibble First)
 // Patched with CIA-1 ACK on $EA7E (Prevents 380Hz IRQ Loop for 'To Be On Top')
 // Physical 6502 NMI Falling-Edge Pin Latching
-// Smart CIA Latch Discriminator (50Hz Frame Clock vs High-Freq Sample Clock)
-// Fixed 4-Bit Nibble Pitch-Stepping ($D45F 1x speed fix for Giana Sisters)
 // =========================================================
 
 export class CPU6502 {
@@ -83,6 +82,7 @@ export class CPU6502 {
         this.psidSampleEnd = 0;
         this.psidNibblePhase = 0;
         this.psidSampleStep = 1;
+        this.psidSamplePeriod = 252;
         this.psidSampleCycleCounter = 252;
 
         // --- 1. PRG CODE LADEN ---
@@ -172,7 +172,7 @@ export class CPU6502 {
         this.cia2Icr = 0; this.cia2IrqMask = 0x00;
         this.cia2TimerAPulse = false;
         
-        this.cia2TimerB = 0xFFFF; this.cia2TimerALatch = 0xFFFF;
+        this.cia2TimerB = 0xFFFF; this.cia2TimerBLatch = 0xFFFF;
         this.cia2CtrlB = 0x00;
 
         this.irqPending = false;
@@ -313,7 +313,12 @@ export class CPU6502 {
             } else if (addr === 0xD45D || addr === 0xD45E) {
                 let pLo = this.ram[0xD45D];
                 let pHi = this.ram[0xD45E] & 0x0F;
-                let period = pLo | (pHi << 8);
+                let rawPeriod = pLo | (pHi << 8);
+                
+                // Amiga-Paula (>= 280) vs Native C64 PAL Cycles (< 280) Auto-Conversion
+                let period = rawPeriod >= 280 
+                    ? Math.round(rawPeriod * 985248 / 3546895) 
+                    : rawPeriod;
                 this.psidSamplePeriod = period >= 16 ? period : 252;
             } else if (addr === 0xD41D) {
                 if (val === 0xFE || val === 0x01 || val === 0x81) {
@@ -325,15 +330,18 @@ export class CPU6502 {
                     this.psidSamplePtr = startLo | (startHi << 8);
                     this.psidSampleEnd = (endLo === 0) ? ((endHi << 8) | 0xFF) : (endLo | (endHi << 8));
 
-                    // Dynamische Perioden-Berechnung aus $D45D und $D45E
+                    // Dynamische Perioden-Berechnung aus $D45D/$D45E mit 3.6x Paula-Teiler
                     let pLo = this.ram[0xD45D];
                     let pHi = this.ram[0xD45E] & 0x0F;
-                    let period = pLo | (pHi << 8);
+                    let rawPeriod = pLo | (pHi << 8);
+                    let period = rawPeriod >= 280 
+                        ? Math.round(rawPeriod * 985248 / 3546895) 
+                        : rawPeriod;
                     this.psidSamplePeriod = period >= 16 ? period : 252;
 
                     this.psidSampleStep = this.ram[0xD45F];
                     this.psidNibblePhase = 0;
-                    this.psidSampleCycleCounter = this.psidSamplePeriod; // Dynamischer Start!
+                    this.psidSampleCycleCounter = this.psidSamplePeriod;
                     this.psidSampleActive = true;
                 } else if (val === 0x00 || val === 0xFF) {
                     this.psidSampleActive = false;
@@ -457,7 +465,6 @@ export class CPU6502 {
             if (this.psidSampleActive && !hasHighFreqCia1 && !hasHighFreqCia2) {
                 this.psidSampleCycleCounter--;
                 if (this.psidSampleCycleCounter <= 0) {
-                    // Lädt exakt das vom Instrument geforderte Zyklen-Intervall nach!
                     this.psidSampleCycleCounter += this.psidSamplePeriod; 
                     this.streamPsidSampleNibble();
                 }
@@ -885,7 +892,7 @@ export class CPU6502 {
             case 0x1E: { let a = this.absX(); let v = this.read(a); this.write(a, v); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 7; } break;
             case 0x5E: { let a = this.absX(); let v = this.read(a); this.write(a, v); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.write(a, v); this.setNZ(v); cycles = 7; } break;
             case 0x3E: { let a = this.absX(); let v = this.read(a); this.write(a, v); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.write(a, v); this.setNZ(v); cycles = 7; } break;
-            case 0x7E: { let a = this.absX(); let v = this.read(a); this.write(a, v); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.write(a, v); this.setNZ(v); cycles = 7; } break;
+            case 0x7E: { let a = this.absX(); let v = this.read(a); this.write(a, v); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.write(a, v); this.setNZ(v); cycles = 7; } break;
 
             default: 
                 cycles = this.handleALU(op); 
@@ -1065,10 +1072,10 @@ export class CPU6502 {
             let filterMode = this.sid.regs[24] & 0xF0;
 
             if (this.psidSampleStep === 0) {
-                // --- HÜLSBECK MODUS 1: STEP = 0 (ABWECHSELND LOW / HIGH NIBBLE) ---
+                // --- HÜLSBECK MODUS 1: STEP = 0 (BIG-ENDIAN: HIGH-NIBBLE ZUERST, DANN LOW-NIBBLE) ---
                 let nibble = (this.psidNibblePhase === 0) 
-                    ? (byteVal & 0x0F) 
-                    : ((byteVal >> 4) & 0x0F);
+                    ? ((byteVal >> 4) & 0x0F) 
+                    : (byteVal & 0x0F);
 
                 this.sid.writeReg(24, filterMode | nibble);
 
