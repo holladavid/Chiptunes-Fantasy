@@ -22,13 +22,14 @@ const VOLUME_DAC_6581 = new Float32Array([
 export class SIDChip {
     constructor() {
         this.regs = new Uint8Array(29);
+        this.regs[24] = 0x0F; // PSID Standard: Default Master Volume $0F
         this.voices = [];
         for (let i = 0; i < 3; i++) {
             this.voices.push({
                 freq: 0, pw: 2048, ctrl: 0, env: 0, phase: 0,
                 state: ENV_RELEASE, prevGate: false,
                 waveOut8Bit: 0x18, 
-                busCharge: 0x18, // Parasitische C_gate Knoten-Ladung (0x18 = DC Bias)
+                busCharge: 0x18, 
                 env8Bit: 0, lfsr: 0x7FFFFF,
                 rate_counter: 0, exponential_counter: 0, envelope_counter: 0,
                 attack_period: RATE_COUNTER_PERIOD[0],
@@ -40,7 +41,9 @@ export class SIDChip {
                 wrapped: false
             });
         }
-        this.cutoff = 30; this.resonance = 0; this.filterMode = 0; this.masterVol = 0;
+        this.cutoff = 30; this.resonance = 0; this.filterMode = 0x0F;
+        this.masterVol = VOLUME_DAC_6581[15]; // = 1.000
+
         this.filterLow = 0; this.filterBand = 0;
         
         // Zero-Delay Feedback (ZDF) State-Space Memory (Capacitor Charges)

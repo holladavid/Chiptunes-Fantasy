@@ -23,6 +23,7 @@ const VOLUME_DAC_8580 = new Float32Array([
 class SIDFantasyChip {
     constructor() {
         this.regs = new Uint8Array(29);
+        this.regs[24] = 0x0F; // PSID Standard: Default Master Volume $0F
         this.voices = [];
         for (let i = 0; i < 3; i++) {
             this.voices.push({
@@ -41,7 +42,8 @@ class SIDFantasyChip {
                 wrapped: false
             });
         }
-        this.cutoff = 30; this.resonance = 0; this.filterMode = 0; this.masterVol = 0;
+        this.cutoff = 30; this.resonance = 0; this.filterMode = 0x0F;
+        this.masterVol = VOLUME_DAC_8580[15]; // = 1.000
         
         this.x1_L = 0.0; this.x2_L = 0.0;
         this.x1_R = 0.0; this.x2_R = 0.0;
