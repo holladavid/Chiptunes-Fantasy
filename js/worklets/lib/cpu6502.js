@@ -2,9 +2,9 @@
 // =========================================================
 // 6502 CPU EMULATOR & C64 I/O INTERCEPTOR
 // High-Performance Zero-Allocation Edition
-// Fully Restored: Universal $EA31/$EA7E/$EA81 IRQ/NMI Exits,
-// TFMX High-Nibble-First 4-Bit Streaming, Decimal ADC/SBC,
-// and Cycle-Exact CIA/NMI Edge Detection
+// Fixes: CIA-1/2 Port Pull-Ups ($DC00/$DC01 = $FF),
+// Universal $EA31/$EA7E/$EA81 IRQ/NMI Exits,
+// TFMX High-Nibble 4-Bit Streaming, and Single IRQ Dispatch
 // =========================================================
 
 export class CPU6502 {
@@ -28,7 +28,7 @@ export class CPU6502 {
         this.cia1TimerALatch = 19705;
         this.cia1CtrlA = 0x01;   
         this.cia1Icr = 0; 
-        this.cia1IrqMask = 0x01; 
+        this.cia1IrqMask = 0x00; // Standardmäßig keine unechten IRQ-Stürme beim Start
         this.cia1TimerAUnderflowed = false;
         
         this.cia1TimerB = 0xFFFF;
@@ -101,7 +101,7 @@ export class CPU6502 {
         this.ram[0xFFE0] = 0x4C; this.ram[0xFFE1] = 0xE0; this.ram[0xFFE2] = 0xFF; // JMP $FFE0
         
         // Universal IRQ/NMI Return Handler ($EA31, $EA7E, $EA81)
-        // Quittiert IMMER CIA-1 ($DC0D) UND CIA-2 ($DD0D), um 900Hz-Spins zu blockieren!
+        // Quittiert IMMER CIA-1 ($DC0D) UND CIA-2 ($DD0D)
         const universalReturnHandler = [ 
             0xAD, 0x0D, 0xDC, // LDA $DC0D (Ack CIA-1)
             0xAD, 0x0D, 0xDD, // LDA $DD0D (Ack CIA-2)
@@ -158,7 +158,7 @@ export class CPU6502 {
         this.cia1TimerALatch = 19705;
         this.cia1CtrlA = 0x01; 
         this.cia1Icr = 0;
-        this.cia1IrqMask = 0x01; 
+        this.cia1IrqMask = 0x00; 
         this.cia1TimerAUnderflowed = false;
         
         this.cia2TimerA = 0xFFFF;
@@ -213,7 +213,7 @@ export class CPU6502 {
         return (addr1 & 0xFF00) !== (addr2 & 0xFF00);
     }
 
-        read(addr) {
+    read(addr) {
         if (addr < 0xD000) {
             if (addr === 0x0001) return this.ram[0x0001];
             return this.ram[addr];
@@ -226,7 +226,6 @@ export class CPU6502 {
 
         // =========================================================
         // PSID SAMPLE TRAP READS ($D41D - $D47D)
-        // Löst den Busy-Polling-Loop für Chris Hülsbeck / To Be On Top!
         // =========================================================
         if (addr >= 0xD41D && addr <= 0xD47D) {
             if (addr === 0xD41D) {
@@ -243,6 +242,11 @@ export class CPU6502 {
         if (addr === 0xD012) return this.rasterCounter & 0xFF;
         if (addr === 0xD019) return this.ram[0xD019] | 0x70; 
         
+        // --- CIA-1 KEYBOARD & JOYSTICK PULL-UP REGISTERS ($DC00 / $DC01) ---
+        // Auf echter C64-Hardware liegen hier +5V Pull-Ups an (0xFF = keine Taste/kein Joystick gedrückt)!
+        // Behebt den permanenten Pause-/Mute-Freeze in 'To Be On Top'!
+        if (addr === 0xDC00 || addr === 0xDC01) return 0xFF;
+
         if (addr === 0xDC04) return this.cia1TimerA & 0xFF;
         if (addr === 0xDC05) return (this.cia1TimerA >> 8) & 0xFF;
         if (addr === 0xDC06) return this.cia1TimerB & 0xFF;
@@ -280,6 +284,10 @@ export class CPU6502 {
         if (addr === 0xDC0F) return this.cia1CtrlB;
         
         if (addr >= 0xDD00 && addr <= 0xDD0F) {
+            // CIA-2 Port A & B Pull-Ups
+            if (addr === 0xDD00) return (this.ram[0xDD00] & 0x03) | 0xFC;
+            if (addr === 0xDD01) return 0xFF;
+
             if (addr === 0xDD04) return this.cia2TimerA & 0xFF;
             if (addr === 0xDD05) return (this.cia2TimerA >> 8) & 0xFF;
             if (addr === 0xDD06) return this.cia2TimerB & 0xFF;
@@ -308,7 +316,7 @@ export class CPU6502 {
         return this.ram[addr];
     }
 
-        write(addr, val) {
+    write(addr, val) {
         this.ram[addr] = val; 
         if (addr < 0xD000 || addr > 0xDFFF) return;
 
@@ -778,7 +786,6 @@ export class CPU6502 {
             case 0xCE: { let a = this.abs(); let v = this.read(a); this.write(a, v); v = (v - 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 6; } break; 
             case 0xDE: { let a = this.absX(); let v = this.read(a); this.write(a, v); v = (v - 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 7; } break;
 
-            // Illegale Opcodes
             case 0xA7: { let val = this.read(this.zp()); this.a = val; this.x = val; this.setNZ(val); cycles = 3; } break;
             case 0xB7: { let val = this.read(this.zpY()); this.a = val; this.x = val; this.setNZ(val); cycles = 4; } break;
             case 0xAF: { let val = this.read(this.abs()); this.a = val; this.x = val; this.setNZ(val); cycles = 4; } break;
@@ -856,7 +863,7 @@ export class CPU6502 {
             case 0x0E: { let a = this.abs(); let v = this.read(a); this.write(a, v); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 6; } break; 
             case 0x4E: { let a = this.abs(); let v = this.read(a); this.write(a, v); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.write(a, v); this.setNZ(v); cycles = 6; } break; 
             case 0x2E: { let a = this.abs(); let v = this.read(a); this.write(a, v); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.write(a, v); this.setNZ(v); cycles = 6; } break; 
-            case 0x6E: { let a = this.abs(); let v = this.read(a); this.write(a, v); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.write(a, v); this.setNZ(v); cycles = 6; } break; 
+            case 0x6E: { let a = this.abs(); let v = this.read(a); this.write(a, v); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.write(a, v); this.setNZ(v); cycles = 6; } break; 
             
             case 0x1E: { let a = this.absX(); let v = this.read(a); this.write(a, v); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.write(a, v); this.setNZ(v); cycles = 7; } break;
             case 0x5E: { let a = this.absX(); let v = this.read(a); this.write(a, v); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.write(a, v); this.setNZ(v); cycles = 7; } break;
@@ -1034,7 +1041,7 @@ export class CPU6502 {
         }
     }
 
-        streamPsidSampleNibble() {
+    streamPsidSampleNibble() {
         if (!this.psidSampleActive) return;
         if (this.psidSamplePtr < this.psidSampleEnd && this.psidSamplePtr < 65536) {
             let byteVal = this.ram[this.psidSamplePtr];
@@ -1055,7 +1062,7 @@ export class CPU6502 {
             }
         } else {
             this.psidSampleActive = false;
-            this.ram[0xD41D] = 0x00; // Entsperrt sofort die 6502-Warteschleife!
+            this.ram[0xD41D] = 0x00; // Quittiert das Sample-Ende für die CPU!
         }
     }
 }
