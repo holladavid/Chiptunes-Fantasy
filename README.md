@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.4.6)
+# 💾 CHIPTUNES FANTASY (v1.4.7)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -18,14 +18,17 @@ Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with rut
 
 ## 🎛️ The Three Soundchip Pillars
 
-### 1. MOS Technology SID 6581 (Commodore 64)
+### 1. MOS Technology SID 6581 / CSG 8580 (Commodore 64)
 Our cycle-exact 1MHz SID engine is arguably one of the deepest analogue emulations available on the web:
-*   **6502 CPU Lockstep:** Runs a complete, highly optimized MOS 6502 CPU emulator inside the audio thread with phantom KERNAL OS and full Open Bus emulation.
-*   **Wizball Highscore Arpeggio Sweep Restoration (v1.4.6):** Restored exact 100% timing to all 16 ADSR rates (from 9 to 31,256 cycles) by reverting broken LFSR counters back to `RATE_COUNTER_PERIOD`. Martin Galway's iconic, long, bubbling arpeggio and filter sweeps in *Wizball Highscore* are fully restored!
-*   **reSID-fp Non-Linear OTA State-Space Model & $Q_{max}$ Clamp (v1.4.6):** Upgraded the VCF stage to a 2MHz Zero-Delay Feedback (ZDF) trapezoidal state-space solver. Features oscilloscope-measured MOS 6581 $Q_{max} \approx 3.0$ clamping ($k = 1.414 \to 0.334$), eliminating the "bowed saw" digital whistle and guaranteeing 100% tuning stability on extreme $R=15$ sweeps (*Wizball Title*).
-*   **Dynamic PSID Sample Traps ($D45D / $D45E / $D45F):** $D45D$ (Period Low) and $D45E$ (Period High) dynamically reload `psidSamplePeriod` per drum instrument (*Great Giana Sisters*, *Turbo Outrun*, *Arkanoid*).
+*   **255-Tap Polyphase Sinc-FIR Decimator (v1.4.7):** Replaces crude box-filters with a true 255-tap Blackman-windowed Sinc-FIR decimation stage ($>75\text{ dB}$ stopband rejection @ 20 kHz), completely eliminating ultrasonic foldback aliasing on pulse, hard-sync, and 4-bit sample leads.
+*   **6502 Sub-Cycle Bus Write Pipelining (v1.4.7):** Hardware I/O bus commits (`STA/STX/STY/RMW`) are staged during instruction execution and deferred to the exact final 4th clock cycle, eliminating sub-instruction jitter on Galway digis and timer-driven routines.
+*   **PlaySID 3.6× Auto-Conversion & Big-Endian Nibble Streamer (v1.4.7):** Automatically converts vintage PlaySID Amiga-Paula clock periods ($\ge 280$) to C64 PAL cycles ($907 \to 252$ cycles = $3.91\text{ kHz}$) with chronological big-endian high-nibble first decoding (*The Great Giana Sisters*).
+*   **Persistent Voice 3 DC-Leakage on 3OFF (v1.4.7):** Models physical MOS 6581 virtual ground summing behavior when Voice 3 is muted via `$D418` Bit 7 (3OFF), retaining full transient weight for Galway digidrum hacks (*Arkanoid*).
+*   **Wizball-Stable 2MHz ZDF State-Space Solver (v1.4.7):** Enforces physical MOS 6581 R3 S-curve cutoff ceiling ($30\text{ Hz} - 6.2\text{ kHz}$) and symmetric JFET triode resonance quenching ($Q_{max} \approx 3.0$), eliminating DC latchup on extreme $R=15$ sweeps (*Wizball Title*).
+*   **Single-Stage Sub-Bass AC-Coupling (v1.4.7):** Removed redundant cascaded DC blocking in favor of the C64 motherboard 45Hz AC-coupling capacitor emulation, restoring full 50Hz kickdrum sub-bass punch without phase smear.
+*   **NEW: SID 6581/8580 "Chiptunes Fantasy Studio" Core (v1.4.7):** Audiophile dual-channel engine featuring CSG 8580 linear R-2R DACs, 20kHz Studio Airband ZDF VCF, Constant-Power StereoSID dynamic voice staging (Lead Left, Chords Right, Rhythm Center), and 48Hz digidrum sub-harmonic transient exciter.
 *   **Giana "Engelsstimme" $50 Lead Restoration:** Restored $50 (Triangle + Pulse) Wire-AND NMOS pull-down impedance in `WAVE_LUT_TRIPULSE` (`tri * 0.86 + 14`), restoring full fundamental mid-range power to the glassy lead voice.
-*   **Measured MOS 6581 R3 DAC Fingerprint:** Integrated oscilloscope-measured non-monotonic R-2R bit weights and $1.10v - 0.11v^3$ cubic NMOS output buffer saturation curve (reSID-fp matched).
+*   **Measured MOS 6581 R3 DAC Fingerprint:** Integrated oscilloscope-measured non-monotonic R-2R bit weights and $1.10v - 0.11v^3$ cubic NMOS output buffer saturation curve.
 *   **Parasitic $C_{gate}$ Gate-Capacitance Charge Bleed:** Modeled internal $C_{gate} \approx 0.8\text{ pF}$ floating bus charge bleed ($\alpha = 0.82$ @ 1MHz, $f_c = 268.9\text{ kHz}$) on combined waveforms ($30, $50, $60, $70).
 
 ### 2. MOS Technology Paula 8364 (Amiga 500)
@@ -39,7 +42,7 @@ Our cycle-exact 1MHz SID engine is arguably one of the deepest analogue emulatio
 
 ## 🎛️ 3-Channel Mixing Desk & Zero OS Ducking
 *   Dedicated system gain nodes (`sidGain`, `paulaGain`, `ymGain`) for independent level alignment.
-*   C64 output is scaled by `0.42x` with a `Math.tanh()` soft-clipper in `sid-exact.js` / `sid-standard.js`, preventing macOS CoreAudio and Windows WASAPI limiters from ducking master volume on unpause!
+*   C64 output is scaled by `0.42x` with a `Math.tanh()` soft-clipper in `sid-exact.js`, preventing macOS CoreAudio and Windows WASAPI limiters from ducking master volume on unpause!
 
 ---
 

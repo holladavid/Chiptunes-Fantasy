@@ -1,7 +1,10 @@
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
-// Reverted Commit 87d8d835: Restored Linear ADSR Rate Counter
+// True Analog Master Edition:
+// - Voice 3 DC-Leakage Persistence on 3OFF ($D418 Bit 7)
+// - Wizball-Stable 2MHz ZDF OTA Filter Solver (MOS 6581 R3 S-Curve)
+// - Calibrated PlaySID 4-Bit Drum DC Bias & Voice Gain Staging
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -61,7 +64,7 @@ export class SIDChip {
 
         // Thermal VCA Properties
         this.thermalVoiceDcLeakage = 0.012;
-        this.thermalMasterDcBias = 0.45;
+        this.thermalMasterDcBias = 0.70;
 
         this.volWiggleActivity = 0.0;
         this.d418Writes = 0; 
@@ -82,11 +85,12 @@ export class SIDChip {
         let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
         
         // =========================================================
-        // FULL BANDWIDTH 6581 FET CUTOFF CURVE (30Hz bis 16.5kHz)
+        // ORIGINAL MOS 6581 R3 S-CURVE (30Hz bis 6.200Hz)
         // =========================================================
-        let fetCurve = 30.0 + 800.0 * norm + 6000.0 * (norm * norm) + 9500.0 * (norm * norm * norm);
+        let baseHz = 30.0 + (1200.0 * norm) + (7200.0 * norm * norm) - (2230.0 * norm * norm * norm);
+        if (baseHz > 6200.0) baseHz = 6200.0;
         
-        this.activeCutoff = Math.max(30.0, Math.min(16000.0, fetCurve * thermalCoefficient + this.vcfOffset));
+        this.activeCutoff = Math.max(30.0, Math.min(6800.0, baseHz * thermalCoefficient + this.vcfOffset));
 
         let baseG = Math.PI * this.activeCutoff / 985248;
         this.g = baseG * (1.0 + (this._temperature - 55.0) * 0.0005);
@@ -106,7 +110,7 @@ export class SIDChip {
 
         let tempNorm = (this._temperature - 15.0) / 40.0;
         this.thermalVoiceDcLeakage = 0.003 + Math.pow(Math.max(0.0, tempNorm), 1.6) * 0.012;
-        this.thermalMasterDcBias = 0.45 + (this._temperature - 55.0) * 0.002;
+        this.thermalMasterDcBias = 0.70 + (this._temperature - 55.0) * 0.003;
     }
 
     writeReg(reg, val) {
@@ -118,7 +122,6 @@ export class SIDChip {
             let ch = this.voices[vIdx];
             let base = vIdx * 7;
             
-            // Immediate 100% instantaneous hardware register updates
             ch.freq = this.regs[base] | (this.regs[base+1] << 8);
             ch.pw = this.regs[base+2] | ((this.regs[base+3] & 15) << 8);
             
@@ -271,7 +274,6 @@ export class SIDChip {
             let isCombined = (waveMask !== 0x10 && waveMask !== 0x20 && waveMask !== 0x40 && waveMask !== 0x80);
 
             if (isCombined) {
-                // Parasitic C_gate (~0.8pF) charge-bleed on combined waveforms
                 ch.busCharge += 0.82 * (rawWave8Bit - ch.busCharge);
                 ch.waveOut8Bit = ch.busCharge;
             } else {
@@ -289,7 +291,6 @@ export class SIDChip {
         let waveDac = DAC_LUT[Math.floor(ch.waveOut8Bit)];
 
         let waveOutFloat = (waveDac * 2.0) - 1.0;
-        
         waveOutFloat = waveOutFloat * this.thermalDacGain + this.thermalDacOffset;
         
         return (waveOutFloat + this.thermalVoiceDcLeakage) * envDac;
@@ -317,45 +318,37 @@ export class SIDChip {
         if (this.regs[23] & 1) filteredSum += bleed0; else unfilteredSum += bleed0;
         if (this.regs[23] & 2) filteredSum += bleed1; else unfilteredSum += bleed1;
 
+        // =========================================================
+        // VOICE 3 DISCONNECT ($D418 BIT 7) & DC-LEAKAGE PERSISTENCE
+        // =========================================================
         if (!isVoice3Off) {
+            // Voice 3 normal verbunden (AC + DC)
             if (this.regs[23] & 4) filteredSum += bleed2; else unfilteredSum += bleed2;
-        }
-
-        let g = this.g;
-        let q = this.q;
-
-        if (this.activeCutoff < 250.0) {
-            let damp = (250.0 - this.activeCutoff) / 250.0; 
-            q += damp * 0.15; 
-        } else if (this.activeCutoff > 4500.0) {
-            let damp = (this.activeCutoff - 4500.0) / 1700.0;
-            let breath = ((this.voices[0].lfsr & 0xFF) / 255.0 - 0.5) * 0.06;
-            q += damp * (0.20 + breath); 
+        } else {
+            // Voice 3 stummgeschaltet (3OFF): AC-Wellenform abgetrennt, 
+            // aber DAC-Gleichspannungssockel und Substrat-Bleed bleiben im Summierknoten aktiv!
+            let envDac3 = DAC_LUT[this.voices[2].env8Bit];
+            let v3DcLeak = (this.thermalVoiceDcLeakage * envDac3) + (bleed0 * 0.004 + bleed1 * 0.008);
+            if (this.regs[23] & 4) filteredSum += v3DcLeak; else unfilteredSum += v3DcLeak;
         }
 
         // =========================================================
-        // VARIANTE 2: reSID-fp NON-LINEAR OTA STATE-SPACE MODEL (2MHz Grid)
-        // Hardware-measured 6581 Q-clamp (Q_max ~ 3.0) + OTA differential saturation
-        // Eliminates the "bowed saw" whistle and delivers authentic warm 6581 squelch
+        // ZERO-DELAY FEEDBACK (ZDF) TRAPEZOIDAL STATE-SPACE SOLVER (2MHz)
         // =========================================================
         let subG = Math.tan((Math.PI * this.activeCutoff) / 1970496); // 2MHz Sub-sample Grid
         
-        // 1. Hardware-gemessene 6581 Resonanz-Dämpfung (reSIDfp matched)
-        // Skaliert k von 1.414 (Q=0.707) runter auf k=0.334 (Q_max=3.0)
         let resReg = this.regs[23] >> 4;
         let normRes = resReg / 15.0;
-        let k = 1.414 - (normRes * 1.08); 
+        let k = 1.414 - (normRes * 1.08); // Q_max clamp to ~3.0 (reSID-fp matched)
         
         let denom = 1.0 + subG * (subG + k);
         let filterOut = 0;
 
         for (let sub = 0; sub < 2; sub++) {
-            // 2. Zero-Delay Feedback Highpass Solver
             let hp = (filteredSum - this.x1 * (subG + k) - this.x2) / denom;
-
-            // 3. OTA Transkonduktanz-Sättigung im Bandpass-Zustandsraum
             let bpRaw = subG * hp + this.x1;
             
+            // Symmetrisches JFET Triode Quenching
             let bp = bpRaw;
             if (this.useJfetSaturation) {
                 let summerDrive = this.thermalJfetDrive * 0.70;
@@ -364,7 +357,7 @@ export class SIDChip {
 
             let lp = subG * bp + this.x2;
 
-            // 4. Trapezoidal State Memory Update mit gesättigtem Zustandsvektor
+            // Trapezoidales Zustandsgedächtnis
             this.x1 = 2.0 * bp - this.x1;
             this.x2 = 2.0 * lp - this.x2;
 
@@ -382,7 +375,7 @@ export class SIDChip {
             filterOut = outLP + outBP + outHP;
         }
 
-        // Unconditional Anti-NaN Failsafe
+        // Anti-NaN Failsafe
         if (isNaN(this.filterLow) || isNaN(this.filterBand)) {
             this.filterLow = 0.0;
             this.filterBand = 0.0;
@@ -391,22 +384,18 @@ export class SIDChip {
             filterOut = 0.0;
         }
 
-        // Resonanz-Headroom Dämpfung schützt ungefilterte Stimmen vor VCA-Ducking
-        if (q < 0.1) {
-            filterOut *= 0.72; 
-        }
-
         let leakage = filteredSum * this.thermalLeakage;
         let filteredMix = filterOut + leakage;
 
         let rawSum = unfilteredSum + filteredMix;
 
-        let vcaIn = rawSum * 0.40; 
-        
-        let vcaQuad = this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0;
-        
-        let acSaturated = Math.tanh(vcaIn + vcaQuad);
-        let finalMix = (acSaturated * 1.85) + this.thermalMasterDcBias;
+        // =========================================================
+        // MASTER VCA SATURATION & DC OFFSET
+        // =========================================================
+        let vcaIn = rawSum * 0.35; 
+        let vcaCurve = vcaIn + (this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0);
+        let acSaturated = Math.tanh(vcaCurve);
+        let finalMix = (acSaturated * 1.65) + this.thermalMasterDcBias;
 
         this.outputSample = (finalMix * this.masterVol) + this.thermalDcOffset;
     }

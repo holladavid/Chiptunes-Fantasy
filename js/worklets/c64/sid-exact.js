@@ -1,17 +1,23 @@
 // === js/worklets/c64/sid-exact.js ===
+// =========================================================
+// MOS 6581 SOUND INTERFACE DEVICE (SID) & 6502 CPU LOCKSTEP
+// True Analog Master Edition: 255-Tap Polyphase Sinc-FIR Decimator,
+// 2MHz Zero-Delay Feedback (ZDF) State-Space OTA Filter,
+// Sub-Cycle Write Pipelining & Motherboard 45Hz AC-Coupling
+// =========================================================
+
 import { CPU6502 } from '../lib/cpu6502.js';
 import { SIDChip } from '../lib/sid-chip.js';
-import { DCBlocker, C64AnalogFilter } from '../lib/dsp-utils.js';
+import { C64AnalogFilter } from '../lib/dsp-utils.js';
 
 class SIDProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.clock = 985248; 
+        this.clock = 985248; // PAL Master Clock (Hz)
         this.sid = new SIDChip();
         
         this.sid.useJfetSaturation = true;
         this.cpu = new CPU6502(this.sid);
-        this.dcBlock = new DCBlocker();
         this.c64Output = new C64AnalogFilter(sampleRate);
 
         this.prgCode = null;
@@ -22,7 +28,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.songSpeedFlags = 0;
         
         this.isPlaying = false;
-        this.fadeVol = 0.0; // Dynamic Smooth Fade Volume (0.0 to 1.0)
+        this.fadeVol = 0.0; 
         
         this.cycleAccumulator = 0.0;
         this.vblankTimer = 19656; 
@@ -31,9 +37,27 @@ class SIDProcessor extends AudioWorkletProcessor {
         
         this.temperature = 55.0;
         this.cpuCyclesRemaining = 0;
-        this.lastSampleValue = 0;
         
         this.visualView = new Float32Array(40);
+
+        // 255-Tap Sinc-FIR Decimator
+        this.FIR_TAPS = 255;
+        this.firKernel = new Float32Array(this.FIR_TAPS);
+        this.ringBuffer = new Float32Array(512); 
+        this.ringIndex = 0;
+
+        const fc = 20000.0 / this.clock;
+        let sum = 0;
+        for (let i = 0; i < this.FIR_TAPS; i++) {
+            let x = i - (this.FIR_TAPS - 1) / 2;
+            let sinc = (x === 0) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
+            let window = 0.42 - 0.5 * Math.cos((2 * Math.PI * i) / (this.FIR_TAPS - 1)) + 0.08 * Math.cos((4 * Math.PI * i) / (this.FIR_TAPS - 1));
+            this.firKernel[i] = sinc * window;
+            sum += this.firKernel[i];
+        }
+        for (let i = 0; i < this.FIR_TAPS; i++) {
+            this.firKernel[i] /= sum; 
+        }
 
         this.diagCycles = 0;
         this.diagInstructions = 0;
@@ -52,8 +76,8 @@ class SIDProcessor extends AudioWorkletProcessor {
 
             if (msg.isSidFile) {
                 this.c64Output = new C64AnalogFilter(sampleRate);
-                this.dcBlock = new DCBlocker();
-                this.lastSampleValue = 0;
+                this.ringBuffer.fill(0);
+                this.ringIndex = 0;
 
                 this.prgCode = msg.c64Code;
                 this.loadAddr = msg.loadAddress;
@@ -100,9 +124,15 @@ class SIDProcessor extends AudioWorkletProcessor {
                         } else {
                             let cyclesUsed = this.cpu.step(); 
                             this.cpuCyclesRemaining = cyclesUsed - 1; 
+                            if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
+                                this.cpu.commitPendingWrite();
+                            }
                         }
                     } else if (this.cpu.rdy) {
                         this.cpuCyclesRemaining--;
+                        if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
+                            this.cpu.commitPendingWrite();
+                        }
                     }
                 }
                 
@@ -127,13 +157,11 @@ class SIDProcessor extends AudioWorkletProcessor {
             } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
             } else if (msg.type === 'RESUME_TRACK') {
-                this.dcBlock.lastIn = 0;
-                this.dcBlock.lastOut = 0;
                 this.isPlaying = true;
             } else if (msg.type === 'CHANGE_SUBSONG') {
                 this.c64Output = new C64AnalogFilter(sampleRate);
-                this.dcBlock = new DCBlocker();
-                this.lastSampleValue = 0;
+                this.ringBuffer.fill(0);
+                this.ringIndex = 0;
 
                 this.sid = new SIDChip();
                 this.sid.useJfetSaturation = true;
@@ -174,9 +202,15 @@ class SIDProcessor extends AudioWorkletProcessor {
                         } else {
                             let cyclesUsed = this.cpu.step(); 
                             this.cpuCyclesRemaining = cyclesUsed - 1; 
+                            if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
+                                this.cpu.commitPendingWrite();
+                            }
                         }
                     } else if (this.cpu.rdy) {
                         this.cpuCyclesRemaining--;
+                        if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
+                            this.cpu.commitPendingWrite();
+                        }
                     }
                 }
 
@@ -208,13 +242,10 @@ class SIDProcessor extends AudioWorkletProcessor {
 
         for (let i = 0; i < outL.length; i++) {
             
-            // =========================================================
-            // SMOOTH VOL FADE RAMP (Eliminiert DC-Transienten beim Start/Pause)
-            // =========================================================
             if (this.isPlaying) {
-                this.fadeVol = Math.min(1.0, this.fadeVol + 0.002); // ~10ms Fade-In
+                this.fadeVol = Math.min(1.0, this.fadeVol + 0.002);
             } else {
-                this.fadeVol = Math.max(0.0, this.fadeVol - 0.002); // ~10ms Fade-Out
+                this.fadeVol = Math.max(0.0, this.fadeVol - 0.002);
             }
 
             if (this.fadeVol === 0.0) {
@@ -226,15 +257,15 @@ class SIDProcessor extends AudioWorkletProcessor {
             let cyclesToRun = Math.floor(this.cycleAccumulator);
             this.cycleAccumulator -= cyclesToRun;
 
-            let sampleSum = 0;
-
+            // 1MHz PAL Lockstep Cycling
             for (let c = 0; c < cyclesToRun; c++) {
                 this.diagCycles++; 
                 
                 this.cpu.clockHardware(1); 
                 this.sid.clock();          
                 
-                sampleSum += this.sid.outputSample;
+                this.ringBuffer[this.ringIndex] = this.sid.outputSample;
+                this.ringIndex = (this.ringIndex + 1) & 511;
 
                 if (this.playAddress === 0) {
                     this.vblankTimer--;
@@ -265,9 +296,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                     this.cpu.nmiAccepted = this.cpu.nmiPending;
                 }
 
-                if (!this.cpu.rdy) {
-                    // CPU stall
-                } else {
+                if (this.cpu.rdy) {
                     if (this.cpuCyclesRemaining <= 0) {
                         if (this.hostPlayPending && this.cpu.pc >= 0xFFE0 && this.cpu.pc <= 0xFFE2) {
                             this.hostPlayPending = false;
@@ -289,27 +318,34 @@ class SIDProcessor extends AudioWorkletProcessor {
                             let cyclesUsed = this.cpu.step(); 
                             this.cpuCyclesRemaining = cyclesUsed - 1; 
                             this.diagInstructions++; 
+
+                            if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
+                                this.cpu.commitPendingWrite();
+                            }
                         }
                     } else {
                         this.cpuCyclesRemaining--;
+                        if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
+                            this.cpu.commitPendingWrite();
+                        }
                     }
                 }
             }
             
-            let decimatedSample = cyclesToRun > 0 ? sampleSum / cyclesToRun : this.lastSampleValue;
-            this.lastSampleValue = decimatedSample;
+            // 255-Tap Sinc-FIR Decimation (48 kHz)
+            let decimatedSample = 0;
+            let firIdx = (this.ringIndex - 1) & 511;
+            for (let k = 0; k < this.FIR_TAPS; k++) {
+                decimatedSample += this.ringBuffer[firIdx] * this.firKernel[k];
+                firIdx = (firIdx - 1) & 511;
+            }
 
+            // Physikalische C64-Motherboard Stufe (16kHz RC-Tiefpass + 45Hz AC-Kopplungshochpass)
+            // Übernimmt vollständig die DC-Entkopplung ohne doppelte Phasenrotation!
             let analogSample = this.c64Output.process(decimatedSample);
 
-            let dcSample = analogSample - this.dcBlock.lastIn + 0.998 * this.dcBlock.lastOut;
-            this.dcBlock.lastIn = analogSample;
-            this.dcBlock.lastOut = dcSample;
-
-            // === C64 SID GAIN NORMALIZATION & SOFT-CLIPPER FAILSAFE ===
-            // 1. Skaliert die rohe SID 6581 Amplitude auf saubere digital -0.4dBFS Max-Peaks
-            let normalized = dcSample * 0.42;
-
-            // 2. Soft-Saturating Protection (Garantiert 100% Clipping-Freiheit ohne OS-Ducking)
+            // Master Gain Staging (-0.4dBFS Headroom)
+            let normalized = analogSample * 0.42;
             if (normalized > 0.95 || normalized < -0.95) {
                 normalized = Math.tanh(normalized);
             }
@@ -321,6 +357,7 @@ class SIDProcessor extends AudioWorkletProcessor {
             if (i === 0) visualValue = finalSample;
         }
 
+        // Diagnostik (1x pro Sekunde)
         this.diagTimer += outL.length / sampleRate;
         if (this.diagTimer >= 1.0) {
             this.diagTimer -= 1.0;

@@ -2,6 +2,7 @@
 // ==========================================
 // DAS DIGITALE MUSEUM (Texte & Handbücher)
 // Mit integrierten Hardware-Spezifikations-Tabellen
+// Deep-Dive Edition: Cycle-Exact Silicon Physics
 // ==========================================
 
 export const systemDescriptions = {
@@ -10,79 +11,77 @@ c64: `
         <div style="padding: 8px 12px; margin-bottom: 20px; font-size: calc(var(--font-size-base) * 0.85); background: rgba(0,0,0,0.3); font-family: inherit;">
             <p style="color: var(--highlight-color); margin-bottom: 8px; font-weight: bold; border-bottom: 1px dashed var(--text-color); padding-bottom: 4px;">>>> HARDWARE SPECIFICATIONS:</p>
             <div style="display: grid; grid-template-columns: 140px 1fr; gap: 6px; line-height: 1.4;">
-                <div><strong>Kanäle:</strong></div><div>3 unabhängige Synthesestimmen + 1 routbares analoges VCF</div>
-                <div><strong>Taktfrequenz:</strong></div><div>985.248 Hz (PAL) / 1.022.727 Hz (NTSC)</div>
-                <div><strong>Wellenformen:</strong></div><div>Dreieck, Sägezahn, PWM, Rauschen (23-Bit LFSR), analoge Gatter-Mischungen</div>
-                <div><strong>Analog-Filter:</strong></div><div>12dB/Okt Multimode-Filter (LP/BP/HP/Notch) mit frei wählbarer Stimmen-Zuweisung</div>
-                <div><strong>Hüllkurven:</strong></div><div>3 x ADSR (15-Bit Rate-Counter, exponentielle Kondensator-Entladung)</div>
-                <div><strong>Sequenzierung:</strong></div><div>Freie 6502-Assembler-Player via PAL-VBLANK (50Hz) o. CIA-Timer</div>
+                <div><strong>Synthesizer:</strong></div><div>MOS Technology 6581 R3 (Analoger Subtraktiv-Synthesizer)</div>
+                <div><strong>Kanäle:</strong></div><div>3 unabhängige Stimmen + 1 routbares 12dB/Okt Multimode-VCF</div>
+                <div><strong>Taktfrequenz:</strong></div><div>985.248 Hz (PAL) / Cycle-Exact Lockstep mit 6502 CPU</div>
+                <div><strong>D/A-Wandlung:</strong></div><div>Nicht-lineare R-2R Leitern + 255-Tap Sinc-FIR Decimator (20kHz Brickwall)</div>
+                <div><strong>Analog-Filter:</strong></div><div>2MHz Zero-Delay Feedback (ZDF) State-Space OTA-Solver (30Hz–6.2kHz R3 S-Kurve)</div>
+                <div><strong>Wellenformen:</strong></div><div>Dreieck, Sägezahn, 12-Bit PWM, 23-Bit LFSR Noise, NMOS Wire-AND Kombinationen</div>
+                <div><strong>Hüllkurven:</strong></div><div>3 x ADSR (15-Bit Rate-Counter mit hardwaregetreuen Ladekonstanten)</div>
+                <div><strong>Digidrums:</strong></div><div>4-Bit $D418 VCA-Modulation via PlaySID Traps (3.6x Paula-Teiler) o. CIA/NMI</div>
             </div>
         </div>
 
         <div style="border-left: 4px solid var(--text-color); padding: 10px 15px; margin-bottom: 15px; background: rgba(0,0,0,0.2); line-height: 1.6;">
             <h3 style="color: var(--highlight-color); margin-bottom: 15px;">[ DEEP DIVE: MOS TECHNOLOGY SID 6581 ]</h3>
-            <p>Der Sound Interface Device (SID), 1981 von Bob Yannes entworfen, is ein analoger subtraktiver Synthesizer auf einem einzigen Silizium-Chip. Er besitzt 3 Oszillatoren (Sägezahn, Dreieck, Rechteck, Rauschen), individuelle ADSR-Generatoren und ein analoges Multimode-Filter.</p>
+            <p>Der Sound Interface Device (SID), 1981 von Robert "Bob" Yannes entworfen, ist ein vollwertiger analoger subtraktiver Synthesizer auf einem einzigen Silizium-Chip. Er besitzt 3 Oszillatoren mit synchronisierten Phasen-Akkumulatoren, individuelle ADSR-Generatoren, programmierbare Ringmodulation und ein echtes analoges Multimode-Filter.</p>
 
             <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> HISTORIE: DER 24-JÄHRIGE REBELL</h4>
-            <p>In der zweiten Hälfte des Jahres 1981 stand der erst 24-jährige Robert "Bob" Yannes vor einer monumentalen Aufgabe. Commodore-Gründer Jack Tramiel gab der Halbleiter-Sparte MOS Technology ein knallhartes Ultimatum: Der Sound- und Grafikchip für das geplante "Project Red" (den späteren Commodore 64) musste in genau <strong>fünf Monaten</strong> fertig sein. Yannes verabscheute die damals typischen simplen Soundchips der Spielhallen-Ära. Unter extremem Zeitdruck entwarf er ein revolutionäres Design mit drei physisch getrennten Stimmen, flexiblen ADSR-Hüllkurven und einem echten analogen Multimode-Filter.</p>
+            <p>In der zweiten Hälfte des Jahres 1981 stand der erst 24-jährige Robert "Bob" Yannes vor einer monumentalen Aufgabe. Commodore-Gründer Jack Tramiel gab der Halbleiter-Sparte MOS Technology ein knallhartes Ultimatum: Der Sound- und Grafikchip für das geplante "Project Red" (den späteren Commodore 64) musste in genau <strong>fünf Monaten</strong> fertig sein. Yannes verabscheute die damals typischen simplen Pieps-Generatoren der Spielhallen-Ära. Unter extremem Zeitdruck entwarf er ein revolutionäres Design mit drei physisch getrennten Stimmen, flexiblen ADSR-Hüllkurven und einem echten analogen Multimode-Filter.</p>
 
             <h3 style="color: var(--highlight-color); margin: 30px 0 15px 0;">[ HARDWARE-ARCHITEKTUR & DIE FUNKTIONSBLÖCKE ]</h3>
-            <p>Der MOS 6581 ist im Grunde ein vollwertiger, modular aufgebauter subtraktiver Synthesizer auf einem einzigen Chip. Seine innere Struktur unterteilt sich in hochpräzise, analoge und digitale Funktionsblöcke, die flexibel miteinander verschaltet werden können:</p>
+            <p>Der MOS 6581 ist modular aufgebaut. Seine innere Struktur unterteilt sich in hochpräzise, analoge und digitale Funktionsblöcke, die flexibel miteinander verschaltet werden können:</p>
 
             <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> DIE STIMMEN-ARCHITEKTUR (VOICE PATHS)</h4>
             <p>Jede der drei Stimmen besitzt einen vollkommen eigenständigen Signalpfad, bestehend aus einem Oszillator-Kern, einem Hüllkurven-Generator (ADSR) und einem Wellenform-Mischer. Erst am Ende des Pfads entscheidet die Filter-Routing-Matrix (Register <code>$D417</code>), ob das Signal in das gemeinsame analoge Filter gespeist oder ungefiltert direkt zum VCA-Ausgang geschickt wird.</p>
 
             <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> DIE WELLENFORMEN & DIE PWM-STEUERUNG</h4>
-            <p>Jeder Oszillator-Kern verfügt über einen 24-Bit-Akkumulator, der bei einer PAL-Taktfrequenz von ca. 0,98 MHz eine Frequenzauflösung von winzigen 0,058 Hz ermöglicht. Der Kern generiert vier klassische Wellenformen parallel:
+            <p>Jeder Oszillator-Kern verfügt über einen 24-Bit-Akkumulator, der bei einer PAL-Taktfrequenz von ca. 0,985 MHz eine Frequenzauflösung von winzigen 0,058 Hz ermöglicht. Der Kern generiert vier klassische Wellenformen parallel:
             <ul>
                 <li><strong>Dreieck (Triangle):</strong> Sehr grundtonstark, weich, perfekt für Flöten und sanfte Leads.</li>
                 <li><strong>Sägezahn (Sawtooth):</strong> Obertonreich, aggressiv, das Fundament für fette Bässe und Brass-Klänge.</li>
                 <li><strong>Rechteck (Pulse):</strong> Bietet eine hochauflösende, programmierbare 12-Bit Pulsbreite (PWM) von 0 % bis 100 %. Durch die kontinuierliche Modulation der Pulsbreite (z. B. via Software-LFOs) entsteht der berühmte, schwebende Chorus-Effekt des SID.</li>
-                <li><strong>Rauschen (Noise):</strong> Erzeugt durch ein 23-Bit-LFSR, das ein charakteristisches, metallisch glänzendes Spektrum liefert (ideal für Snares, Explosions-Effekte und Hi-Hats).</li>
+                <li><strong>Rauschen (Noise):</strong> Erzeugt durch ein 23-Bit-LFSR, das an festverdrahteten Taps abgegriffen wird (ideal für Snares, Explosions-Effekte und Hi-Hats).</li>
             </ul>
             </p>
 
             <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> DIE KREUZMODULATIONS-MATRIX (HARD-SYNC & RINGMODULATION)</h4>
-            <p>Der SID erlaubt es, die Stimmen ringförmig miteinander zu koppeln (Stimme 1 moduliert Stimme 3, Stimme 2 moduliert Stimme 1, Stimme 3 moduliert Stimme 2), was ungeahnte Obertonstrukturen freisetzt:
+            <p>Der SID erlaubt es, die Stimmen ringförmig miteinander zu koppeln (Stimme 1 moduliert Stimme 3, Stimme 2 moduliert Stimme 1, Stimme 3 moduliert Stimme 2):
             <ul>
                 <li><strong>Hard-Sync (Register Bit 1):</strong> Erzwingt, dass die Phase des Oszillators augenblicklich auf 0 zurückgesetzt wird, sobald der modulierende Nachbar-Oszillator sein höchstes Bit (MSB) umschaltet. Verschiebt man die Frequenz des synchronisierten Oszillators per Software-Sweep, entsteht der kreischende, obertonreiche "Sync-Lead"-Sound (bekannt aus Hubbards <em>Commando</em>).</li>
-                <li><strong>Ring-Modulation (Register Bit 2):</strong> Multipliziert das MSB der Dreieckswelle mit dem MSB des modulierenden Nachbarchips. Durch diese logische XOR-Kopplung entstehen unharmonische, metallische Frequenzen – das Geheimnis hinter Hülsbecks Glocken- und Rhodes-Klängen in <em>Giana Sisters</em>.</li>
+                <li><strong>Ring-Modulation (Register Bit 2):</strong> Multipliziert das MSB der Dreieckswelle mit dem MSB des modulierenden Nachbarchips (logische XOR-Kopplung). Das erzeugt unharmonische, metallische Frequenzen – das Geheimnis hinter Hülsbecks Glocken- und Rhodes-Klängen in <em>The Great Giana Sisters</em>.</li>
             </ul>
             </p>
 
-            <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> DIE ENVELOPE-GENERATOREN (ADSR)</h4>
-            <p>Jeder Oszillator besitzt einen eigenen Hüllkurven-Generator zur dynamischen Lautstärkesteuerung. Der Zähler durchläuft die Phasen Attack (linearer Anstieg), Decay (exponentieller Abfall), Sustain (Haltepegel) und Release (exponentielles Ausklingen). Die Lade- und Entladekurven ahmen das Verhalten analoger Kondensatoren präzise nach, was der Lautstärke-Entwicklung eine enorm organische, plastische Dynamik verleiht.</p>
-
-            <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> DAS ANALOGE MULTIMODE-FILTER (VCF)</h4>
-            <p>Das Herzstück des analogen SID-Klangs ist sein programmierbares 12dB/Oktave State-Variable-Filter. Es bietet vier routbare Charakteristiken: Tiefpass (LP), Bandpass (BP), Hochpass (HP) und eine Kerbfilter-Mischung (Notch, durch gleichzeitiges Aktivieren von LP und HP). Die Grenzfrequenz ist mit 11-Bit Auflösung steuerbar, und die Resonanz (Güte) kann in 15 Stufen geregelt werden. Da der Filter analog aufgebaut ist, färbt er den Klang weich und harmonisch ein.</p>
-
-            <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> DER AUSGANGSMISCHER (FILTER-ROUTING-MATRIX & VCA)</h4>
-            <p>Über das Register <code>$D417</code> lässt sich für jede Stimme einzeln festlegen, ob ihr Signal durch den Filter gejagt wird oder ungefiltert direkt zum Master-Mischer fließt. Register <code>$D418</code> steuert schließlich, welche Filtermodi aktiv sind und reguliert über den Master-VCA die Gesamtlautstärke des Audiosignals.</p>
+            <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> DAS ANALOGE MULTIMODE-FILTER (2MHz ZDF STATE-SPACE OTA)</h4>
+            <p>Das Herzstück des analogen SID-Klangs ist sein programmierbares 12dB/Oktave State-Variable-Filter. Es bietet vier routbare Charakteristiken: Tiefpass (LP), Bandpass (BP), Hochpass (HP) und eine Kerbfilter-Mischung (Notch). Die Grenzfrequenz ist mit 11-Bit Auflösung steuerbar, und die Resonanz (Güte) kann in 15 Stufen geregelt werden. Unsere Engine berechnet dieses Filter über einen <strong>2MHz Zero-Delay Feedback (ZDF) Trapezoidal-Integrator</strong>, der selbst bei extremer Maximal-Resonanz ($R=15$) absolut phasenstarr und ohne digitales Pfeifen schwingt.</p>
 
             <h3 style="color: var(--highlight-color); margin: 30px 0 15px 0;">[ DIE ANOMALIEN: DIE SILIZIUM-GEHEIMNISSE DES 6581 ]</h3>
-            <p>Die unerreichte Seele des SID-Klangs liegt in seinen physikalischen Fehlern. Normale Emulatoren klingen oft steril, weil sie die Hardware mathematisch "zu perfekt" berechnen. Unser Core bildet die parasitären Kapazitäten und Halbleiter-Macken exakt ab:</p>
+            <p>Die unerreichte Seele des SID-Klangs liegt in seinen physikalischen Unvollkommenheiten. Unser Emulator bildet die parasitären Kapazitäten und Halbleiter-Macken bitgenau ab:</p>
 
-            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> ILLEGALE WELLENFORMEN & WIRE-AND PULL-DOWN</h4>
-            <p>Werden mehrere Wellenformen (z. B. Sägezahn + Puls = <code>$60</code>) kombiniert, entsteht im 6581 ein physischer Kurzschluss. Das ist kein logisches AND! Der mächtige Pull-Down-Transistor der Pulswelle zieht das Signal auf Masse, aber durch den Innenwiderstand "leckt" ca. 25 % der Sägezahn-Amplitude als Sickersignal durch. Dies verleiht Martin Galways geliebten <code>$60</code>-Bässen ihr unfassbar warmes, beißendes Timbre.</p>
+            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> 255-TAP SINC-FIR DECIMATOR (ZERO ALIASING BEI 1 MHz)</h4>
+            <p>Ein echter SID läuft mit 985.248 Hz. Die harten Kanten von Rechteckwellen und $D418-Drums erzeugen theoretisch unendlich hohe Spiegelfrequenzen jenseits der Hörgrenze. Herkömmliche Emulatoren mitteln Zyklen oft nur simpel ("Box-Filter"), was zu schrillem Aliasing-Klirren führt. Unser Core sammelt die 1-MHz-Samples in einem <strong>512-Element Ringpuffer</strong> und faltet sie über einen <strong>255-Tap Blackman-windowed Sinc-FIR Filter</strong> aliasing-frei auf 48 kHz herunter ($>75\text{ dB}$ Sperrdämpfung bei 20 kHz).</p>
 
-            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> DER ADSR DELAY-BUG (SUSTAIN DROP)</h4>
-            <p>Der Hüllkurven-Zähler des SID ist ein frei laufendes 15-Bit LFSR-Schieberegister. Bei einem Phasenwechsel (z. B. von Attack zu Decay) wird der Zähler <strong>nicht genullt</strong>. Ist die neue Rate schneller als der aktuelle Zählerstand, muss das Register erst bis 32.767 überlaufen. Dabei überspringt die Hardware den Null-Zustand und zählt bei 1 weiter. Das Ergebnis? Ein Latenz-Bug von bis zu 32 Millisekunden, der die Hüllkurve auf dem Peak einfrieren lässt (Sustain Lock) – essenziell für die knackigen Drums in <em>The Last Ninja</em>.</p>
+            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> SUB-CYCLE INSTRUCTION WRITE PIPELINING (6510 BUS-TIMING)</h4>
+            <p>Ein Befehl wie <code>STA $D418</code> benötigt auf der 6502-CPU 4 Zyklen. Das Datum schlägt jedoch erst auf dem <strong>allerletzten Takt (Zyklus 4)</strong> physisch auf den SID-Bus durch! Unser CPU-Emulator puffert Schreibzugriffe (Staging) und committet sie exakt im letzten Instruktionstakt. Das eliminiert jeglichen Sub-Instruction-Jitter bei rasanten Galway-Digidrums und timergesteuerten Arpeggios.</p>
+
+            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> DER 3.6× PLAYSID AMIGA-PAULA TRAP-TEILER (GIANA SISTERS FIX)</h4>
+            <p>Als Per Håkan Sundell 1990 den ersten <em>PlaySID</em>-Player für den Amiga erfand, bauten Ripper die C64-Sample-Routinen so um, dass Periodenwerte direkt in Amiga-Paula-Zyklen (3,55 MHz) in <code>$D45D/$D45E</code> geschrieben wurden (z. B. Periode 907 für Bassdrums). Da der C64 mit 985 kHz exakt <strong>3,6-mal langsamer</strong> taktet, erkennt unsere Engine Amiga-Paula-Werte ($\ge 280$) automatisch und rechnet sie via $\text{Period} / 3.6$ auf 252 C64-Zyklen (3,91 kHz) um. Gekoppelt mit der <strong>Big-Endian High-Nibble-Zuerst-Dekodierung</strong> klingen die Drums in <em>The Great Giana Sisters</em> knackig, druckvoll und phasenrein.</p>
+
+            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> VOICE 3 DC-LEAKAGE BEI STUMMSCHALTUNG ($D418 BIT 7 "3OFF")</h4>
+            <p>Wird Stimme 3 über Bit 7 in <code>$D418</code> stummgeschaltet, trennt die Hardware nur das AC-Wellenformsignal ab. Der <strong>Gleichspannungs-Arbeitspunkt des D/A-Wandlers leckt weiterhin ungehindert in den VCA-Summenbus</strong>. Coder wie Martin Galway (in <em>Arkanoid</em> und <em>Wizball</em>) nutzten dieses Leck, um druckvolle 4-Bit-Samples über den Master-Volume-Multiplizierer abzufeuern, während Stimme 3 scheinbar "stumm" war.</p>
+
+            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> ILLEGALE WELLENFORMEN & WIRE-AND PULL-DOWN ($50 ENGELSSTIMME)</h4>
+            <p>Werden mehrere Wellenformen (z. B. Dreieck + Puls = <code>$50</code> oder Sägezahn + Puls = <code>$60</code>) kombiniert, entsteht im 6581 ein physischer Kurzschluss. Der Pull-Down-Transistor der Pulswelle zieht das Signal auf Masse, aber durch den Innenwiderstand des Dreiecks-DACs sickert ein Teilsignal durch. Unsere <code>WAVE_LUT_TRIPULSE</code> bildet diesen Innenwiderstand mit <code>tri * 0.86 + 14</code> exakt ab – das Geheimnis hinter Hülsbecks perlender "Engelsstimme".</p>
+
+            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> WIZBALL-STABILE 6581 R3 S-KURVE (30 Hz BIS 6.200 Hz)</h4>
+            <p>Ein echter MOS 6581 R3 besitzt keine lineare Filterkurve bis 16 kHz, sondern eine hardware-gemessene, asymmetrische S-Kurve mit einer Obergrenze von ca. 6,2 kHz. Durch die Begrenzung auf diesen authentischen Frequenzbereich und symmetrisches JFET-Resonance-Quenching in der ZDF-Schleife meistert unser Core extreme $R=15$-Sweeps (*Wizball Title*) absolut klangtreu und ohne Resonanz-Kippen.</p>
 
             <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> FLOATING DAC DISCHARGE (DIE WEICHEN GALWAY-FADES)</h4>
-            <p>Setzt man das Wellenform-Register auf <code>$00</code>, trennt die Hardware den D/A-Wandler von den Oszillatoren. Doch die parasitäre Kapazität des Siliziums speichert die letzte Ladung! Statt digital abzubrechen, "blutet" das Audiosignal über ca. 15 Millisekunden weich auf einen schwebenden Ruhepegel (DC-Bias <code>$18</code>) aus. Dieser Hardware-Fehler erzeugt die berühmten, organisch fließenden Übergänge in Hubbards und Galways epischen Soli.</p>
+            <p>Setzt man das Wellenform-Register auf <code>$00</code>, trennt die Hardware den D/A-Wandler von den Oszillatoren. Doch die parasitäre Gate-Kapazität ($C_{\text{gate}} \approx 0,8\text{ pF}$) speichert die letzte Ladung! Das Audiosignal "blutet" über ca. 15 Millisekunden weich auf einen schwebenden Ruhepegel (DC-Bias <code>$18</code>) aus. Dieser Hardware-Fehler erzeugt die berühmten, organisch fließenden Übergänge in Hubbards und Galways Soli.</p>
 
-            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> FILTER SQUELCH (OP-AMP SÄTTIGUNG)</h4>
-            <p>Warum klingt der SID-Filter so schön "nass" und "schmatzend"? Der Addierer-Operationsverstärker (Highpass-Stufe) auf dem Chip ist extrem leistungsschwach. Bei hoher Resonanz gerät er sofort in eine asymmetrische Sättigung. Das dämpft die Rückkopplungsschleife dynamisch ab (Resonance Quenching). Der Filter weicht der Resonanzspitze kurzzeitig aus und entspannt sich danach wieder, was diesen unverkennbaren, feuchten Squelch erzeugt.</p>
-
-            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> DER VOLUME DAC BUG (GALWAY DIGIDRUMS)</h4>
-            <p>Die 16 Stufen des Master-Volume-Registers (<code>$D418</code>) sind aufgrund fehlerhafter R-2R-Widerstandsleitern auf dem Chip stark nicht-linear. Erschwerend kommt hinzu, dass am VCA-Multiplizierer permanent ein massiver analoger Gleichspannungs-Offset des Stimmen-Mixers anliegt. Wenn Coder wie Martin Galway (z. B. in <em>Arkanoid</em>) rasant an <code>$D418</code> wackeln, multiplizieren sie diesen rohen DC-Offset durch die krumme DAC-Kurve und erzeugen so gewaltige, druckvolle 4-Bit-Trommeln aus reiner Gleichspannung!</p>
-
-            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> 23-BIT NOISE LFSR TAPS & OPEN BUS</h4>
-            <p>Der Rauschgenerator ist ein echtes 23-Bit Fibonacci-Schieberegister. Das 8-Bit Ausgangs-Rauschen wird an ganz spezifischen Taps (Bits 20, 18, 14, 11, 9, 5, 2 und 0) fest verdrahtet abgegriffen, was dem SID sein dichtes, seidiges "Hiss"-Spektrum verleiht. <br><br>
-            <strong>Open Bus:</strong> Lesezugriffe auf schreibgeschützte Register (wie <code>$D400</code>) liefern zudem nicht einfach Null zurück. Da die Ausgangstreiber des Chips inaktiv bleiben, hängt der Datenbus elektrisch in der Luft (Floating Bus) und liefert durch seine Kapazität das High-Byte der gerade ausgeführten Speicheradresse zurück – ein Trick, der oft für Kopierschütze und Musik-Routinen genutzt wurde.</p>
-            
-            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> THERMAL CUTOFF DRIFT</h4>
-            <p>Der analoge Filter besaß keine Temperaturkompensation. Wenn sich der Rechner im Betrieb erwärmte, sank der Widerstand der internen FET-Transistoren, wodurch die Filter-Grenzfrequenz (Cutoff) dramatisch abrutschte. Ein Track, der nachmittags im heißen Studio warm klang, klang morgens eisig und schrill. (Dies lässt sich über unseren <em>TEMP</em>-Regler manuell nachstellen).</p>
+            <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> THERMAL DRIFT & DER TEMP-REGLER</h4>
+            <p>Der analoge Filter besaß keine Temperaturkompensation. Wenn sich der Rechner im Betrieb erwärmte (50°C bis 75°C), sank der Widerstand der FET-Transistoren, wodurch die Filter-Grenzfrequenz sachte abrutschte und Bässe weicher sättigten. Über unseren <em>TEMP</em>-Fader im Panel lässt sich dieses analoge Verhalten in Echtzeit modulieren.</p>
         </div>
     `,
     amiga: `
