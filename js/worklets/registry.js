@@ -11,7 +11,8 @@ export const workletRegistry = {
         { id: 'ym-standard', name: 'YM2149F (Digital Fast)', cpu: 1, file: 'js/worklets/atari/ym-standard.js', processor: 'ym-processor' }
     ],
     c64: [
-        { id: 'sid-exact', name: 'MOS 6581 (1MHz True Analog)', cpu: 4, file: 'js/worklets/c64/sid-exact.js', processor: 'sid-exact-processor' }
+        { id: 'sid-exact', name: 'MOS 6581 (1MHz True Analog)', cpu: 4, file: 'js/worklets/c64/sid-exact.js', processor: 'sid-exact-processor' },
+        { id: 'sid-fantasy', name: 'SID 6581/8580 (Chiptunes Fantasy Studio)', cpu: 3, file: 'js/worklets/c64/sid-fantasy.js', processor: 'sid-fantasy-processor' }
     ],
     amiga: [
         { id: 'paula-exact', name: 'Paula 8364 (192kHz True Analog)', cpu: 3, file: 'js/worklets/amiga/paula-exact.js', processor: 'paula-exact-processor' },
