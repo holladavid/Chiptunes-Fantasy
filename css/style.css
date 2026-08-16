@@ -758,7 +758,7 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
 
 #chip-hud.collapsed .hud-header { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
 
-#btn-hud-info, #btn-hud-toggle {
+#btn-hud-info, #btn-hud-crossfeed, #btn-hud-toggle {
     background: var(--chassis-dark);
     border: 1px solid var(--chassis-light);
     color: var(--highlight-color);
@@ -769,7 +769,7 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     transition: all 0.1s;
 }
 
-#btn-hud-info:active, #btn-hud-toggle:active {
+#btn-hud-info:active, #btn-hud-crossfeed:active, #btn-hud-toggle:active {
     transform: translateY(1px);
 }
 
