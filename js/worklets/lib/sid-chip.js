@@ -2,8 +2,10 @@
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
 // True Analog Master Edition:
+// - Authentic 15-Bit ADSR LFSR Rate-Counter Wrap-Around Bug (0x7FFF Equality Match)
 // - Voice 3 DC-Leakage Persistence on 3OFF ($D418 Bit 7)
 // - Wizball-Stable 2MHz ZDF OTA Filter Solver (MOS 6581 R3 S-Curve)
+// - Dynamic High-Register Wire-AND Pulldown Relaxation (>2kHz)
 // - Calibrated PlaySID 4-Bit Drum DC Bias & Voice Gain Staging
 // =========================================================
 
@@ -20,13 +22,14 @@ const VOLUME_DAC_6581 = new Float32Array([
 export class SIDChip {
     constructor() {
         this.regs = new Uint8Array(29);
+        this.regs[24] = 0x0F; // PSID Standard: Default Master Volume $0F
         this.voices = [];
         for (let i = 0; i < 3; i++) {
             this.voices.push({
                 freq: 0, pw: 2048, ctrl: 0, env: 0, phase: 0,
                 state: ENV_RELEASE, prevGate: false,
                 waveOut8Bit: 0x18, 
-                busCharge: 0x18, // Parasitische C_gate Knoten-Ladung (0x18 = DC Bias)
+                busCharge: 0x18, 
                 env8Bit: 0, lfsr: 0x7FFFFF,
                 rate_counter: 0, exponential_counter: 0, envelope_counter: 0,
                 attack_period: RATE_COUNTER_PERIOD[0],
@@ -38,7 +41,9 @@ export class SIDChip {
                 wrapped: false
             });
         }
-        this.cutoff = 30; this.resonance = 0; this.filterMode = 0; this.masterVol = 0;
+        this.cutoff = 30; this.resonance = 0; this.filterMode = 0x0F;
+        this.masterVol = VOLUME_DAC_6581[15]; // = 1.000
+
         this.filterLow = 0; this.filterBand = 0;
         
         // Zero-Delay Feedback (ZDF) State-Space Memory (Capacitor Charges)
@@ -84,9 +89,7 @@ export class SIDChip {
 
         let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
         
-        // =========================================================
-        // ORIGINAL MOS 6581 R3 S-CURVE (30Hz bis 6.200Hz)
-        // =========================================================
+        // Original MOS 6581 R3 S-Kurve (30Hz bis 6.200Hz)
         let baseHz = 30.0 + (1200.0 * norm) + (7200.0 * norm * norm) - (2230.0 * norm * norm * norm);
         if (baseHz > 6200.0) baseHz = 6200.0;
         
@@ -134,11 +137,7 @@ export class SIDChip {
             if (gate !== prevGate) {
                 ch.envDelay = 1;
                 ch.state = gate ? ENV_ATTACK : ENV_RELEASE;
-                
-                if (gate) {
-                    ch.rate_counter = 0;
-                    ch.exponential_counter = 0;
-                }
+                // HINWEIS: Der 15-Bit Rate-Counter wird bei Gate-On physisch NICHT genullt!
             }
             ch.prevGate = gate;
 
@@ -183,9 +182,13 @@ export class SIDChip {
         if (ch.state === ENV_ATTACK) ratePeriod = ch.attack_period;
         else if (ch.state === ENV_DECAY) ratePeriod = ch.decay_period;
 
-        ch.rate_counter++;
+        // =========================================================
+        // 15-BIT FREE-RUNNING RATE COUNTER WITH 0x7FFF EQUALITY WRAP-AROUND
+        // Simuliert den berühmten 6581 ADSR-Delay / Sustain-Drop Bug
+        // =========================================================
+        ch.rate_counter = (ch.rate_counter + 1) & 0x7FFF;
 
-        if (ch.rate_counter >= ratePeriod) {
+        if (ch.rate_counter === ratePeriod) {
             ch.rate_counter = 0; 
 
             let expPeriod = 1;
@@ -269,12 +272,14 @@ export class SIDChip {
 
         let hasWave = (ch.ctrl & 0xF0) !== 0;
         if (hasWave) {
-            let rawWave8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, pwInt, ch.lfsr, ringMSB);
+            // Frequenzabhängige Wire-AND Berechnung (>2kHz Entladung)
+            let rawWave8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, pwInt, ch.lfsr, ringMSB, freqInt);
             let waveMask = ch.ctrl & 0xF0;
             let isCombined = (waveMask !== 0x10 && waveMask !== 0x20 && waveMask !== 0x40 && waveMask !== 0x80);
 
             if (isCombined) {
-                ch.busCharge += 0.82 * (rawWave8Bit - ch.busCharge);
+                // Physikalische C_gate (~1.0pF) Ladungskonstante bei ~35kHz RC-Zeitkonstante
+                ch.busCharge += 0.22 * (rawWave8Bit - ch.busCharge);
                 ch.waveOut8Bit = ch.busCharge;
             } else {
                 ch.busCharge = rawWave8Bit;
@@ -322,11 +327,8 @@ export class SIDChip {
         // VOICE 3 DISCONNECT ($D418 BIT 7) & DC-LEAKAGE PERSISTENCE
         // =========================================================
         if (!isVoice3Off) {
-            // Voice 3 normal verbunden (AC + DC)
             if (this.regs[23] & 4) filteredSum += bleed2; else unfilteredSum += bleed2;
         } else {
-            // Voice 3 stummgeschaltet (3OFF): AC-Wellenform abgetrennt, 
-            // aber DAC-Gleichspannungssockel und Substrat-Bleed bleiben im Summierknoten aktiv!
             let envDac3 = DAC_LUT[this.voices[2].env8Bit];
             let v3DcLeak = (this.thermalVoiceDcLeakage * envDac3) + (bleed0 * 0.004 + bleed1 * 0.008);
             if (this.regs[23] & 4) filteredSum += v3DcLeak; else unfilteredSum += v3DcLeak;
@@ -357,7 +359,6 @@ export class SIDChip {
 
             let lp = subG * bp + this.x2;
 
-            // Trapezoidales Zustandsgedächtnis
             this.x1 = 2.0 * bp - this.x1;
             this.x2 = 2.0 * lp - this.x2;
 

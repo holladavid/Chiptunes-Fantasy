@@ -39,19 +39,24 @@ export function resetHUD() {
 function updateEnvironmentalSensors(stateGetters) {
     const isPlaying = stateGetters.getIsPlaying();
     const vols = stateGetters.getChannelVolumes ? stateGetters.getChannelVolumes() : null;
+    const currentChipRegs = stateGetters.getCurrentChipRegs ? stateGetters.getCurrentChipRegs() : null;
 
     let avgEnergy = 0.0;
     if (isPlaying && vols) {
         avgEnergy = (vols[0] + vols[1] + vols[2] + vols[3]) / 4.0;
     }
 
+    // Temperatur des SID-Chips abgreifen (Default: 55°C)
+    const temp = (currentChipRegs && currentChipRegs[29] !== undefined) ? currentChipRegs[29] : 55;
+    const tempDelta = (temp - 55.0);
+
     // Physikalische Modellierung:
-    // 1. Wenn Bässe knallen, fällt die Betriebsspannung (Voltage Sag) um bis zu 0.12V ab.
-    // 2. Das thermische Rauschen steigt bei hoher Auslastung an.
-    // 3. Der Transistor-Bias (Arbeitspunkt) driftet temperatur- und pegelabhängig ab.
-    const targetVolt = 5.02 - (avgEnergy * 0.12) + (Math.random() - 0.5) * 0.008;
-    const targetNoise = -74.0 + (avgEnergy * 3.8) + (Math.random() - 0.5) * 0.15;
-    const targetBias = 0.82 + (avgEnergy * 0.03) + (Math.random() - 0.5) * 0.004;
+    // 1. Voltage Sag durch Bass-Pegel & Temperatur-Drift
+    // 2. Thermisches Rauschen (Johnson-Nyquist Noise) steigt mit Temperatur an (+0.08 dB pro °C)
+    // 3. Transistor-Bias driftet thermisch (+0.002 pro °C)
+    const targetVolt = 5.02 - (avgEnergy * 0.12) - (tempDelta * 0.001) + (Math.random() - 0.5) * 0.008;
+    const targetNoise = -74.0 + (avgEnergy * 3.8) + (tempDelta * 0.08) + (Math.random() - 0.5) * 0.15;
+    const targetBias = 0.82 + (avgEnergy * 0.03) + (tempDelta * 0.0025) + (Math.random() - 0.5) * 0.004;
 
     // Weiches Slew-Limiting für analoge Trägheit
     lastVoltVal += (targetVolt - lastVoltVal) * 0.12;

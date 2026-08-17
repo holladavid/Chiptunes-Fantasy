@@ -85,6 +85,12 @@ export class CPU6502 {
         this.ram.fill(0);
         this.kernalRom.fill(0);
         
+        // PSID Standard: Default Master Volume $D418 is $0F (Volume 15)
+        this.ram[0xD418] = 0x0F;
+        if (this.sid) {
+            this.sid.writeReg(24, 0x0F);
+        }
+        
         this.psidSampleActive = false;
         this.psidSamplePtr = 0;
         this.psidSampleEnd = 0;

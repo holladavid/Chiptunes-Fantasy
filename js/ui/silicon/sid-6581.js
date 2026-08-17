@@ -3,7 +3,8 @@
 // MOS 6581 (SID) SILICON DIE VISUALIZER
 // Historically accurate die layout featuring distinct ADSR 
 // envelopes, real-time Filter/Bypass multiplexer routing, 
-// and precise DIP-28 pin mappings (Caps: 1-4, Audio: 27).
+// synchronized R3 S-curve frequency display, and precise 
+// DIP-28 pin mappings (Caps: 1-4, Audio: 27).
 // =========================================================
 
 import { BaseChip } from './base-chip.js';
@@ -70,14 +71,21 @@ export class Sid6581 extends BaseChip {
         };
         setWave(1, regs[4]); setWave(2, regs[11]); setWave(3, regs[18]);
 
-        // 4. Analog Filter Data
+        // 4. Analog Filter Data (Exakt synchron mit sid-chip.js R3 S-Kurve)
         const cutoffReg = (regs[22] << 3) | (regs[21] & 7);
         const resReg = regs[23] >> 4;
         const routeReg = regs[23] & 15; // Filter Routing Multiplexer
         const fMode = regs[24] & 0xF0;
+        const temp = regs[29] || 55;
 
-        let fhz = (220.0 + Math.pow(cutoffReg / 2047.0, 1.4) * 11500.0) * (1.0 - ((regs[29] || 55) - 55.0) * 0.0035);
-        if (this.cache.filtCutLabel) this.cache.filtCutLabel.textContent = `${Math.round(Math.max(30, fhz))}Hz`;
+        let norm = cutoffReg / 2047.0;
+        let baseHz = 30.0 + (1200.0 * norm) + (7200.0 * norm * norm) - (2230.0 * norm * norm * norm);
+        if (baseHz > 6200.0) baseHz = 6200.0;
+
+        let thermalCoefficient = Math.exp(-(temp - 55.0) * 0.003);
+        let fhz = Math.max(30.0, Math.min(6800.0, baseHz * thermalCoefficient));
+
+        if (this.cache.filtCutLabel) this.cache.filtCutLabel.textContent = `${Math.round(fhz)}Hz`;
         if (this.cache.filtResBar) this.cache.filtResBar.setAttribute('width', (resReg / 15) * 60);
 
         if (this.cache.lpLed) this.cache.lpLed.style.fill = (fMode & 16) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
@@ -110,7 +118,6 @@ export class Sid6581 extends BaseChip {
         // 6. Output & Capacitor Pins
         this.updatePinGlow(this.cache.pinOut, totalV);
         
-        // The analog capacitors (Pins 1-4) light up when the filter processes strong resonance
         const capGlow = (filterLoad * 0.5) + (resReg / 15.0) * 0.5;
         this.updatePinGlow(this.cache.pinCap1A, capGlow);
         this.updatePinGlow(this.cache.pinCap1B, capGlow);

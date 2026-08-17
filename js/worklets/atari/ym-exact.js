@@ -1,8 +1,9 @@
 // === js/worklets/atari/ym-exact.js ===
 // =========================================================
 // YM2149F CORE (CYCLE-EXACT 2MHz, LOG-DAC, TRUE 5-BIT ENV)
-// Phase 2 Hardware Upgrade: 64-Step Envelope State Machine,
-// True Measured DAC, 17-Bit LFSR, Hardware Mixer Gates.
+// Master Edition: 32-Phase Polyphase Sinc-FIR Decimator (255 Taps @ 12.5kHz),
+// Open-Collector Non-Linear Summing Bus Compression ("Atari Bus Glue"),
+// 64-Step Envelope State Machine & Digidrum DAC Injection
 // =========================================================
 
 import { detectDigidrum, detectDigidrumVoice, YM2149_DAC32, AtariAnalogFilter } from '../lib/dsp-utils.js';
@@ -11,16 +12,16 @@ import { YMVisualizer } from '../lib/ym-visualizer.js';
 class YMExactProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.clock = 2000000; 
+        this.clock = 2000000; // 2.0 MHz Atari ST Master Clock
         this.regs = new Uint8Array(16); 
         
         this.toneDivA = 0; this.toneDivB = 0; this.toneDivC = 0;
         this.noiseDiv = 0;
         
-        // --- PHASE 2: Envelope State Machine ---
+        // 64-Step Envelope State Machine
         this.envDiv = 0;
-        this.envPos = 0;   // 64-Step Counter (0-63)
-        this.envShape = 0; // Aktuelles Shape (0-15)
+        this.envPos = 0;   
+        this.envShape = 0; 
         this.envVol5Bit = 0; 
         
         this.toneOutA = 1; this.toneOutB = 1; this.toneOutC = 1;
@@ -44,21 +45,43 @@ class YMExactProcessor extends AudioWorkletProcessor {
         this.volA = 0.0; this.volB = 0.0; this.volC = 0.0;
         this.visualizer = new YMVisualizer(this.port);
         
+        // =========================================================
+        // DSP UPGRADE: 32-PHASE POLYPHASE SINC-FIR FILTERBANK (255 Taps)
+        // Brickwall-Filterung bei 12.5 kHz auf der 2-MHz-Ebene
+        // =========================================================
         this.FIR_TAPS = 255;
-        this.firKernel = new Float32Array(this.FIR_TAPS);
+        this.NUM_PHASES = 32;
+        this.polyphaseTable = new Float32Array(this.NUM_PHASES * this.FIR_TAPS);
         this.ringBuffer = new Float32Array(512); 
         this.ringIndex = 0;
         
-        let fc = 12500.0 / this.clock; 
-        let sum = 0;
-        for (let i = 0; i < this.FIR_TAPS; i++) {
-            let x = i - (this.FIR_TAPS - 1) / 2;
-            let sinc = (x === 0) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
-            let window = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / (this.FIR_TAPS - 1)) + 0.08 * Math.cos(4 * Math.PI * i / (this.FIR_TAPS - 1));
-            this.firKernel[i] = sinc * window;
-            sum += this.firKernel[i];
+        const fc = 12500.0 / this.clock;
+        const halfK = (this.FIR_TAPS - 1) / 2;
+
+        for (let p = 0; p < this.NUM_PHASES; p++) {
+            const dt = p / this.NUM_PHASES; // Sub-Zyklus Phasen-Offset [0.0 .. 0.96875]
+            let sum = 0.0;
+            const phaseOffset = p * this.FIR_TAPS;
+
+            for (let i = 0; i < this.FIR_TAPS; i++) {
+                const x = (i - halfK) - dt;
+                const sinc = (Math.abs(x) < 1e-7) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
+                const wPos = (i - dt) / (this.FIR_TAPS - 1);
+                const window = (wPos >= 0.0 && wPos <= 1.0)
+                    ? (0.42 - 0.5 * Math.cos(2 * Math.PI * wPos) + 0.08 * Math.cos(4 * Math.PI * wPos))
+                    : 0.0;
+
+                const val = sinc * window;
+                this.polyphaseTable[phaseOffset + i] = val;
+                sum += val;
+            }
+
+            if (sum > 0) {
+                for (let i = 0; i < this.FIR_TAPS; i++) {
+                    this.polyphaseTable[phaseOffset + i] /= sum;
+                }
+            }
         }
-        for (let i = 0; i < this.FIR_TAPS; i++) this.firKernel[i] /= sum; 
 
         this.analogOut = new AtariAnalogFilter(sampleRate);
         this.outLp = 0;
@@ -78,6 +101,7 @@ class YMExactProcessor extends AudioWorkletProcessor {
                 this.isPlaying = true;
                 
                 this.ringBuffer.fill(0);
+                this.ringIndex = 0;
                 this.outLp = 0;
                 this.analogOut = new AtariAnalogFilter(sampleRate);
             } else if (msg.type === 'STOP_TRACK') {
@@ -116,6 +140,11 @@ class YMExactProcessor extends AudioWorkletProcessor {
                 let cyclesToRun = Math.floor(this.cycleAccumulator);
                 this.cycleAccumulator -= cyclesToRun;
 
+                // Sub-Cycle Phasen-Index [0 .. 31]
+                let phaseIdx = Math.floor(this.cycleAccumulator * this.NUM_PHASES);
+                if (phaseIdx >= this.NUM_PHASES) phaseIdx = this.NUM_PHASES - 1;
+                let kernelBase = phaseIdx * this.FIR_TAPS;
+
                 this.sampleCounter--;
                 if (this.sampleCounter <= 0) {
                     this.sampleCounter += sampleRate / 50.0; 
@@ -126,7 +155,6 @@ class YMExactProcessor extends AudioWorkletProcessor {
                         if (r === 13) {
                             if (val !== 0xFF) {
                                 this.regs[13] = val;
-                                // --- PHASE 2: Envelope Trigger ---
                                 this.envShape = val & 0x0F;
                                 this.envPos = 0;
                                 this.envDiv = 0; 
@@ -171,7 +199,9 @@ class YMExactProcessor extends AudioWorkletProcessor {
                 const mix = this.regs[7];
                 const r8 = this.regs[8], r9 = this.regs[9], r10 = this.regs[10];
                 
-                // --- THE 2MHZ CYCLE-EXACT LOCKSTEP ---
+                // =========================================================
+                // 2.0 MHz CYCLE-EXACT LOCKSTEP LOOP
+                // =========================================================
                 for (let c = 0; c < cyclesToRun; c++) {
                     
                     if (--this.toneDivA <= 0) { this.toneDivA = 8 * pA; this.toneOutA ^= 1; }
@@ -186,11 +216,9 @@ class YMExactProcessor extends AudioWorkletProcessor {
                         this.noiseOut = bit0; 
                     }
 
-                    // --- PHASE 2: Die 64-Step Envelope State Machine ---
+                    // 64-Step Envelope State Machine
                     if (--this.envDiv <= 0) {
                         this.envDiv = 8 * pE;
-                        
-                        // Welche Shapes stoppen nach dem ersten Durchlauf (Phase 1)?
                         const holds = [true, true, true, true, true, true, true, true, false, true, false, true, false, true, false, true];
                         
                         if (this.envPos < 32) {
@@ -206,18 +234,17 @@ class YMExactProcessor extends AudioWorkletProcessor {
                         let s = p & 31;
                         let out = 0;
                         
-                        // Hardware Mapping der 16 YM-Shapes auf die 5-Bit Werte (0-31)
                         switch (this.envShape) {
                             case 0: case 1: case 2: case 3: out = (p < 32) ? (31 - s) : 0; break;
                             case 4: case 5: case 6: case 7: out = (p < 32) ? s : 0; break;
                             case 8:  out = 31 - s; break;
                             case 9:  out = (p < 32) ? (31 - s) : 0; break;
-                            case 10: out = (p < 32) ? (31 - s) : s; break;          // 0xA: \/\/\/
-                            case 11: out = (p < 32) ? (31 - s) : 31; break;         // 0xB: \‾‾‾‾
-                            case 12: out = s; break;                                // 0xC: //////
-                            case 13: out = (p < 32) ? s : 31; break;                // 0xD: /‾‾‾‾
-                            case 14: out = (p < 32) ? s : (31 - s); break;          // 0xE: /\/\/\
-                            case 15: out = (p < 32) ? s : 0; break;                 // 0xF: /\____
+                            case 10: out = (p < 32) ? (31 - s) : s; break;          // \/\/\/
+                            case 11: out = (p < 32) ? (31 - s) : 31; break;         // \‾‾‾‾
+                            case 12: out = s; break;                                // //////
+                            case 13: out = (p < 32) ? s : 31; break;                // /‾‾‾‾
+                            case 14: out = (p < 32) ? s : (31 - s); break;          // /\/\/\
+                            case 15: out = (p < 32) ? s : 0; break;                 // /\____
                         }
                         this.envVol5Bit = out;
                     }
@@ -262,16 +289,26 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     let ampB = outB ? YM2149_DAC32[vB5] : 0;
                     let ampC = outC ? YM2149_DAC32[vC5] : 0;
 
-                    let mixedSample = (ampA + ampB + ampC) / 3.0;
+                    // =========================================================
+                    // ATARI ST OPEN-COLLECTOR NON-LINEAR PASSIVE SUMMING BUS
+                    // Models mutual impedance loading on R43/R44/R45 (1k Ohm)
+                    // =========================================================
+                    let sumRaw = ampA + ampB + ampC;
+                    // Nichtlineare Strom-Kompression ("Atari Bus Glue")
+                    let mixedSample = (sumRaw / (1.0 + 0.22 * sumRaw)) * 0.42;
 
                     this.volA = ampA; this.volB = ampB; this.volC = ampC;
                     this.ringBuffer[this.ringIndex] = mixedSample;
                     this.ringIndex = (this.ringIndex + 1) & 511;
                 }
 
+                // =========================================================
+                // FRACTIONAL POLYPHASE SINC-FIR CONVOLUTION (2MHz -> 48kHz)
+                // =========================================================
+                let firIdx = (this.ringIndex - 1) & 511;
                 for (let k = 0; k < this.FIR_TAPS; k++) {
-                    let readIdx = (this.ringIndex - 1 - k + 512) & 511;
-                    decimationSum += this.ringBuffer[readIdx] * this.firKernel[k];
+                    decimationSum += this.ringBuffer[firIdx] * this.polyphaseTable[kernelBase + k];
+                    firIdx = (firIdx - 1) & 511;
                 }
             }
 

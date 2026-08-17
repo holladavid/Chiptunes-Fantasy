@@ -1,7 +1,7 @@
 // === js/worklets/c64/sid-exact.js ===
 // =========================================================
 // MOS 6581 SOUND INTERFACE DEVICE (SID) & 6502 CPU LOCKSTEP
-// True Analog Master Edition: 255-Tap Polyphase Sinc-FIR Decimator,
+// True Analog Master Edition: 32-Phase Polyphase Sinc-FIR Decimator,
 // 2MHz Zero-Delay Feedback (ZDF) State-Space OTA Filter,
 // Sub-Cycle Write Pipelining & Motherboard 45Hz AC-Coupling
 // =========================================================
@@ -40,23 +40,45 @@ class SIDProcessor extends AudioWorkletProcessor {
         
         this.visualView = new Float32Array(40);
 
-        // 255-Tap Sinc-FIR Decimator
+        // =========================================================
+        // DSP UPGRADE: 32-PHASE POLYPHASE SINC-FIR FILTERBANK (255 Taps)
+        // Eliminiert jeden Sub-Cycle Zeitachsen-Jitter auf der 1-MHz-Ebene
+        // =========================================================
         this.FIR_TAPS = 255;
-        this.firKernel = new Float32Array(this.FIR_TAPS);
+        this.NUM_PHASES = 32;
+        this.polyphaseTable = new Float32Array(this.NUM_PHASES * this.FIR_TAPS);
         this.ringBuffer = new Float32Array(512); 
         this.ringIndex = 0;
 
         const fc = 20000.0 / this.clock;
-        let sum = 0;
-        for (let i = 0; i < this.FIR_TAPS; i++) {
-            let x = i - (this.FIR_TAPS - 1) / 2;
-            let sinc = (x === 0) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
-            let window = 0.42 - 0.5 * Math.cos((2 * Math.PI * i) / (this.FIR_TAPS - 1)) + 0.08 * Math.cos((4 * Math.PI * i) / (this.FIR_TAPS - 1));
-            this.firKernel[i] = sinc * window;
-            sum += this.firKernel[i];
-        }
-        for (let i = 0; i < this.FIR_TAPS; i++) {
-            this.firKernel[i] /= sum; 
+        const halfK = (this.FIR_TAPS - 1) / 2;
+
+        for (let p = 0; p < this.NUM_PHASES; p++) {
+            const dt = p / this.NUM_PHASES; // Sub-Zyklus Phasen-Offset [0.0 .. 0.96875]
+            let sum = 0.0;
+            const phaseOffset = p * this.FIR_TAPS;
+
+            for (let i = 0; i < this.FIR_TAPS; i++) {
+                const x = (i - halfK) - dt;
+                const sinc = (Math.abs(x) < 1e-7) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
+                
+                // Kontinuierliches Blackman-Fenster
+                const wPos = (i - dt) / (this.FIR_TAPS - 1);
+                const window = (wPos >= 0.0 && wPos <= 1.0)
+                    ? (0.42 - 0.5 * Math.cos(2 * Math.PI * wPos) + 0.08 * Math.cos(4 * Math.PI * wPos))
+                    : 0.0;
+
+                const val = sinc * window;
+                this.polyphaseTable[phaseOffset + i] = val;
+                sum += val;
+            }
+
+            // DC-Gain Normalisierung pro Phase (0 dB @ DC)
+            if (sum > 0) {
+                for (let i = 0; i < this.FIR_TAPS; i++) {
+                    this.polyphaseTable[phaseOffset + i] /= sum;
+                }
+            }
         }
 
         this.diagCycles = 0;
@@ -257,6 +279,11 @@ class SIDProcessor extends AudioWorkletProcessor {
             let cyclesToRun = Math.floor(this.cycleAccumulator);
             this.cycleAccumulator -= cyclesToRun;
 
+            // Dynamischer Sub-Cycle Phasen-Index [0 .. 31]
+            let phaseIdx = Math.floor(this.cycleAccumulator * this.NUM_PHASES);
+            if (phaseIdx >= this.NUM_PHASES) phaseIdx = this.NUM_PHASES - 1;
+            let kernelBase = phaseIdx * this.FIR_TAPS;
+
             // 1MHz PAL Lockstep Cycling
             for (let c = 0; c < cyclesToRun; c++) {
                 this.diagCycles++; 
@@ -332,19 +359,20 @@ class SIDProcessor extends AudioWorkletProcessor {
                 }
             }
             
-            // 255-Tap Sinc-FIR Decimation (48 kHz)
-            let decimatedSample = 0;
+            // =========================================================
+            // FRACTIONAL POLYPHASE SINC-FIR CONVOLUTION (48 kHz Output)
+            // =========================================================
+            let decimatedSample = 0.0;
             let firIdx = (this.ringIndex - 1) & 511;
             for (let k = 0; k < this.FIR_TAPS; k++) {
-                decimatedSample += this.ringBuffer[firIdx] * this.firKernel[k];
+                decimatedSample += this.ringBuffer[firIdx] * this.polyphaseTable[kernelBase + k];
                 firIdx = (firIdx - 1) & 511;
             }
 
-            // Physikalische C64-Motherboard Stufe (16kHz RC-Tiefpass + 45Hz AC-Kopplungshochpass)
-            // Übernimmt vollständig die DC-Entkopplung ohne doppelte Phasenrotation!
+            // Motherboard 16kHz LP + 45Hz AC-Kopplung
             let analogSample = this.c64Output.process(decimatedSample);
 
-            // Master Gain Staging (-0.4dBFS Headroom)
+            // Master Gain Staging
             let normalized = analogSample * 0.42;
             if (normalized > 0.95 || normalized < -0.95) {
                 normalized = Math.tanh(normalized);

@@ -2,12 +2,14 @@
 // =========================================================
 // CENTRAL WEB AUDIO ENGINE & WORKLET CONTROLLER
 // 3-Channel Hardware Mixing Desk Stage with Calibrated Headroom
+// & Master DSP AudioWorklet (Bauer Crossfeed + Lookahead Limiter)
 // =========================================================
 
 let audioCtx = null;
 let ymNode = null;
 let paulaNode = null;
 let sidNode = null;
+let masterDspNode = null;
 
 // Individual System Gain Nodes for Perfect Balance
 let sidGain = null;
@@ -16,6 +18,7 @@ let ymGain = null;
 
 let masterGain = null;
 let analyserNode = null;
+let isCrossfeedActive = true;
 
 export function getAudioContext() { return audioCtx; }
 export function getAnalyserNode() { return analyserNode; }
@@ -24,6 +27,17 @@ export function getYmNode() { return ymNode; }
 export function getPaulaNode() { return paulaNode; }
 export function getSidNode() { return sidNode; }
 
+export function setMasterCrossfeed(enabled) {
+    isCrossfeedActive = !!enabled;
+    if (masterDspNode) {
+        masterDspNode.port.postMessage({ type: 'SET_CROSSFEED', enabled: isCrossfeedActive });
+    }
+}
+
+export function getMasterCrossfeed() {
+    return isCrossfeedActive;
+}
+
 export async function initAudioEngine() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     try {
@@ -31,24 +45,29 @@ export async function initAudioEngine() {
         analyserNode.fftSize = 4096; 
 
         masterGain = audioCtx.createGain();
-        masterGain.gain.value = 0.70; // 0.70 (-3dB Headroom) prevents clipping without dynamic ducking
+        masterGain.gain.value = 0.85; 
 
         // Dedicated Channel Gains for Hard-Mixing
         sidGain = audioCtx.createGain();
-        sidGain.gain.value = 0.85; // SID 6581 Headroom
+        sidGain.gain.value = 0.90; 
 
         paulaGain = audioCtx.createGain();
-        paulaGain.gain.value = 0.75; // Paula 8364 4-Channel Mix
+        paulaGain.gain.value = 0.85; 
 
         ymGain = audioCtx.createGain();
-        ymGain.gain.value = 0.80; // YM2149 3-Channel Mix
+        ymGain.gain.value = 0.88; 
 
-        // Connect Channel Bus -> Master Bus -> Analyser -> Speakers
+        // Master DSP Worklet laden
+        await audioCtx.audioWorklet.addModule('js/worklets/lib/master-processor.js', { type: 'module' });
+        masterDspNode = new AudioWorkletNode(audioCtx, 'master-dsp-processor');
+
+        // Connect Channel Bus -> Master Bus -> Master DSP (Crossfeed + Limiter) -> Analyser -> Speakers
         sidGain.connect(masterGain);
         paulaGain.connect(masterGain);
         ymGain.connect(masterGain);
 
-        masterGain.connect(analyserNode);
+        masterGain.connect(masterDspNode);
+        masterDspNode.connect(analyserNode);
         analyserNode.connect(audioCtx.destination);
     } catch (e) {
         console.error("[AUDIO ENGINE] Initialisierung fehlgeschlagen:", e);
@@ -68,7 +87,6 @@ export async function loadEmuCore(system, coreConfig, onMessageCallback) {
 
         const newNode = new AudioWorkletNode(audioCtx, coreConfig.processor);
         
-        // Clean System Channel Routing without duplicate filtering or compressor ducking
         if (system === 'c64') {
             newNode.connect(sidGain);
             sidNode = newNode;

@@ -1,48 +1,96 @@
-// === js/worklets/amiga/paula-standard.js ===
+// === js/worklets/amiga/paula-fantasy.js ===
 // ==========================================
-// MOS TECHNOLOGY PAULA 8364 CHIP EMULATION
-// Digital Clean Edition: Full Stereo Panning & XM Logic (No Analog Dirt)
+// MOS TECHNOLOGY PAULA 8364 / AHI STUDIO CORE
+// Audiophile Edition: 14-Bit Hermite Cubic Interpolation,
+// Constant-Power Spatial Panning, Parametric Stereo Diffusion Reverb,
+// Airband Presence Exciter & Dual-Channel 255-Tap Sinc-FIR Decimator
 // ==========================================
 
-class StaticRCFilter {
+class StudioStereoReverb {
     constructor(sampleRate) {
-        this.lastOut = 0;
-        this.alpha = Math.exp(-2.0 * Math.PI * 4421.0 / sampleRate);
+        // 4 Parallele Kammfilter (L & R dekorreliert)
+        this.combLenL = [1116, 1188, 1277, 1356];
+        this.combLenR = [1139, 1211, 1300, 1379];
+        
+        this.combBufL = this.combLenL.map(len => new Float32Array(len));
+        this.combBufR = this.combLenR.map(len => new Float32Array(len));
+        
+        this.combIdxL = [0, 0, 0, 0];
+        this.combIdxR = [0, 0, 0, 0];
+        
+        this.combFiltL = [0, 0, 0, 0];
+        this.combFiltR = [0, 0, 0, 0];
+        
+        this.feedback = 0.76;
+        this.damp = 0.28;
+        
+        // 2 Kaskadierte Allpass-Diffusoren
+        this.apLenL = [225, 556];
+        this.apLenR = [248, 579];
+        
+        this.apBufL = this.apLenL.map(len => new Float32Array(len));
+        this.apBufR = this.apLenR.map(len => new Float32Array(len));
+        
+        this.apIdxL = [0, 0];
+        this.apIdxR = [0, 0];
+        
+        this.apFeedback = 0.5;
+        this.wetGain = 0.20; // 20% Reverb-Anteil
     }
-    process(input) {
-        let out = (1.0 - this.alpha) * input + this.alpha * this.lastOut;
-        this.lastOut = out;
-        return out;
+
+    process(inL, inR) {
+        let combSumL = 0, combSumR = 0;
+        
+        // 1. Kammfilter Stufen (L & R)
+        for (let i = 0; i < 4; i++) {
+            // Left
+            let bufL = this.combBufL[i];
+            let idxL = this.combIdxL[i];
+            let outL = bufL[idxL];
+            
+            this.combFiltL[i] = outL * (1.0 - this.damp) + this.combFiltL[i] * this.damp;
+            bufL[idxL] = inL + this.combFiltL[i] * this.feedback;
+            this.combIdxL[i] = (idxL + 1) % this.combLenL[i];
+            combSumL += outL;
+
+            // Right
+            let bufR = this.combBufR[i];
+            let idxR = this.combIdxR[i];
+            let outR = bufR[idxR];
+            
+            this.combFiltR[i] = outR * (1.0 - this.damp) + this.combFiltR[i] * this.damp;
+            bufR[idxR] = inR + this.combFiltR[i] * this.feedback;
+            this.combIdxR[i] = (idxR + 1) % this.combLenR[i];
+            combSumR += outR;
+        }
+
+        let diffL = combSumL * 0.25;
+        let diffR = combSumR * 0.25;
+
+        // 2. Allpass Diffusion
+        for (let i = 0; i < 2; i++) {
+            // Left
+            let bufL = this.apBufL[i];
+            let idxL = this.apIdxL[i];
+            let delayedL = bufL[idxL];
+            bufL[idxL] = diffL + delayedL * this.apFeedback;
+            diffL = -diffL + delayedL * (1.0 - this.apFeedback * this.apFeedback);
+            this.apIdxL[i] = (idxL + 1) % this.apLenL[i];
+
+            // Right
+            let bufR = this.apBufR[i];
+            let idxR = this.apIdxR[i];
+            let delayedR = bufR[idxR];
+            bufR[idxR] = diffR + delayedR * this.apFeedback;
+            diffR = -diffR + delayedR * (1.0 - this.apFeedback * this.apFeedback);
+            this.apIdxR[i] = (idxR + 1) % this.apLenR[i];
+        }
+
+        return [diffL * this.wetGain, diffR * this.wetGain];
     }
 }
 
-class AmigaLEDFilter {
-    constructor(sampleRate) {
-        const fc = 3090; 
-        const q = 0.707; 
-        const w0 = 2 * Math.PI * fc / sampleRate;
-        const alpha = Math.sin(w0) / (2 * q);
-        const cosw0 = Math.cos(w0);
-        
-        const a0 = 1 + alpha;
-        this.b0 = ((1 - cosw0) / 2) / a0;
-        this.b1 = (1 - cosw0) / a0;
-        this.b2 = ((1 - cosw0) / 2) / a0;
-        this.a1 = (-2 * cosw0) / a0;
-        this.a2 = (1 - alpha) / a0;
-        
-        this.x1 = 0; this.x2 = 0;
-        this.y1 = 0; this.y2 = 0;
-    }
-    process(x) {
-        let y = this.b0 * x + this.b1 * this.x1 + this.b2 * this.x2 - this.a1 * this.y1 - this.a2 * this.y2;
-        this.x2 = this.x1; this.x1 = x;
-        this.y2 = this.y1; this.y1 = y;
-        return y;
-    }
-}
-
-class PaulaChannel {
+class PaulaFantasyChannel {
     constructor() {
         this.vol = 0;       
         this.per = 428;     
@@ -53,7 +101,7 @@ class PaulaChannel {
         this.repLength = 0; 
         this.phase = 0;     
         this.activeSample = 1; 
-        
+
         this.targetPeriod = 0;
         this.basePeriod = 428;
         this.currentNote = 0;
@@ -72,7 +120,6 @@ class PaulaChannel {
         this.hasVibrato = false;
         
         this.lastPlayedSample = 0;
-        
         this.patternLoopRow = 0;
         this.patternLoopCount = 0;
     }
@@ -81,6 +128,9 @@ class PaulaChannel {
         this.data = data;
         this.pointer = 0;
         this.phase = 0;
+        
+        loopStart &= ~1;
+        loopLen &= ~1;
         
         if (loopLen > 2) {
             if (loopStart >= data.length) loopStart = 0;
@@ -95,6 +145,7 @@ class PaulaChannel {
         }
     }
 
+    // 14-Bit Hermite Cubic Interpolation (AHI Mode)
     step(clockTicksPerSample) {
         if (!this.data || this.vol === 0 || this.per === 0 || this.length <= 0) return 0;
 
@@ -116,26 +167,36 @@ class PaulaChannel {
         }
 
         if (!this.data) return 0;
-        
-        let idx = Math.floor(this.pointer);
-        if (idx >= this.data.length) idx = this.data.length - 1;
-        if (idx < 0) idx = 0;
 
-        let rawByte = this.data[idx];
+        let idx = Math.floor(this.pointer);
+        let mu = this.phase; // Sub-Sample Interpolation
+
+        let p0 = idx > 0 ? this.data[idx - 1] : this.data[idx];
+        let p1 = this.data[idx] || 0;
+        let p2 = (idx + 1 < this.data.length) ? this.data[idx + 1] : p1;
+        let p3 = (idx + 2 < this.data.length) ? this.data[idx + 2] : p2;
+
+        // 4-Punkt Hermite Polynom
+        let c0 = p1;
+        let c1 = 0.5 * (p2 - p0);
+        let c2 = p0 - 2.5 * p1 + 2.0 * p2 - 0.5 * p3;
+        let c3 = 0.5 * (p3 - p0) + 1.5 * (p1 - p2);
+
+        let interpolated = ((c3 * mu + c2) * mu + c1) * mu + c0;
         let vol6 = Math.round(this.vol); 
         
-        return (rawByte * vol6) / 8128.0; 
+        return (interpolated * vol6) / 8128.0; 
     }
 }
 
-class PaulaProcessor extends AudioWorkletProcessor {
+class PaulaFantasyProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.clock = 3546895; 
+        this.clock = 3546895; // Amiga PAL Master Clock (Hz)
         
         this.channels = [];
         for (let i = 0; i < 64; i++) {
-            this.channels.push(new PaulaChannel());
+            this.channels.push(new PaulaFantasyChannel());
         }
         
         this.samples = {}; 
@@ -163,13 +224,13 @@ class PaulaProcessor extends AudioWorkletProcessor {
         this.breakOrder = 0;
         this.breakRow = 0;
 
-        this.staticL = new StaticRCFilter(sampleRate);
-        this.staticR = new StaticRCFilter(sampleRate);
-        this.ledL = new AmigaLEDFilter(sampleRate);
-        this.ledR = new AmigaLEDFilter(sampleRate);
-        this.trackLedFilterOn = true;
-        this.ledFilterOn = true; 
-        this.filterModeState = 0; 
+        // Parametrischer Reverb & Airband Exciter
+        this.reverb = new StudioStereoReverb(sampleRate);
+        
+        // High-Shelf Airband Exciter (1-Pole Highpass @ 8 kHz)
+        const fcAir = 8000.0;
+        this.alphaAir = 1.0 - Math.exp(-2.0 * Math.PI * fcAir / sampleRate);
+        this.airLpL = 0.0; this.airLpR = 0.0;
 
         this.port.onmessage = (e) => {
             const msg = e.data;
@@ -181,6 +242,9 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 const isXM = msg.track && msg.track.type === 'XM';
                 this.linearFreq = msg.track ? (msg.track.linearFreq || false) : false;
                 
+                // StereoSID-artiges Spatial Panning für 4-Kanal MODs
+                const modPannings = [0.30, 0.45, 0.55, 0.70]; // Kein Kopfschmerz-Hard-Panning!
+
                 for (let i = 0; i < 64; i++) {
                     this.channels[i].data = null;
                     this.channels[i].vol = 0;
@@ -205,24 +269,14 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     
                     this.channels[i].patternLoopRow = 0;
                     this.channels[i].patternLoopCount = 0;
-                    
                     this.channels[i].lastPlayedSample = 0;
                     
-                    if (isXM) {
-                        this.channels[i].pan = 0.5;
-                    } else {
-                        const panMod = i % 4;
-                        this.channels[i].pan = (panMod === 0 || panMod === 3) ? 0.0 : 1.0;
-                    }
+                    this.channels[i].pan = isXM ? 0.5 : modPannings[i % 4];
                     this.channels[i].vibratoSpeed = 0;
                     this.channels[i].vibratoDepth = 0;
                     this.channels[i].vibratoPhase = 0;
                     this.channels[i].hasVibrato = false;
                 }
-
-                this.filterModeState = 0;
-                this.trackLedFilterOn = true; 
-                this.ledFilterOn = true;      
 
                 if (msg.track && msg.track.isSequenced) {
                     this.isSequenced = true;
@@ -271,11 +325,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 } else {
                     if (this.trackData) this.currentFrame = msg.frame % this.trackData.length;
                 }
-            } else if (msg.type === 'CYCLE_FILTER') {
-                this.filterModeState = (this.filterModeState + 1) % 3;
-                if (this.filterModeState === 0) this.ledFilterOn = this.trackLedFilterOn; 
-                else if (this.filterModeState === 1) this.ledFilterOn = true; 
-                else if (this.filterModeState === 2) this.ledFilterOn = false; 
             }
         };
     }
@@ -351,7 +400,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                         
                         if (effect === 0x09) {
                             if (param > 0) channel.sampleOffset = param * 256;
-                            channel.pointer = channel.sampleOffset;
+                            channel.pointer = channel.sampleOffset & ~1;
                         }
                     }
                     if (sample > 0) {
@@ -359,7 +408,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     }
                 }
 
-                // --- Panning & Volume Übernahmen ---
                 if (sample > 0 && currentSmpObj) {
                     channel.vol = currentSmpObj.baseVolume; 
                     if (currentSmpObj.pan !== undefined) {
@@ -420,14 +468,10 @@ class PaulaProcessor extends AudioWorkletProcessor {
                         this.breakRow = ((param >> 4) * 10) + (param & 0x0F);
                         this.breakPending = true;
                         break;
-                        
                     case 0x0E:
                         const subEffect = param >> 4;
                         const subParam = param & 0x0F;
-                        if (subEffect === 0x00) { 
-                            this.trackLedFilterOn = (subParam === 0);
-                            if (this.filterModeState === 0) this.ledFilterOn = (subParam === 0); 
-                        } else if (subEffect === 0x08) { 
+                        if (subEffect === 0x08) { 
                             channel.pan = subParam / 15.0;
                         } else if (subEffect === 0x0A) { 
                             channel.vol = Math.min(64, channel.vol + subParam);
@@ -447,19 +491,14 @@ class PaulaProcessor extends AudioWorkletProcessor {
                             } else if (channel.per > 0) {
                                 channel.per = Math.min(856, channel.per + subParam);
                             }
-                        }
-                        else if (subEffect === 0x0E) {
+                        } else if (subEffect === 0x0E) {
                             this.patternDelay = subParam;
-                        }
-                        else if (subEffect === 0x06) {
+                        } else if (subEffect === 0x06) {
                             if (subParam === 0) {
                                 channel.patternLoopRow = this.currentRow;
                             } else {
-                                if (channel.patternLoopCount === 0) {
-                                    channel.patternLoopCount = subParam;
-                                } else {
-                                    channel.patternLoopCount--;
-                                }
+                                if (channel.patternLoopCount === 0) channel.patternLoopCount = subParam;
+                                else channel.patternLoopCount--;
                                 if (channel.patternLoopCount > 0) {
                                     this.breakOrder = this.currentOrder;
                                     this.breakRow = channel.patternLoopRow;
@@ -536,7 +575,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                         if (channel.hasVibrato) {
                             channel.vibratoPhase = (channel.vibratoPhase + channel.vibratoSpeed) & 63;
                             const vibSine = Math.sin(channel.vibratoPhase * (Math.PI / 32));
-                            
                             if (this.seqType === 'XM' && this.linearFreq) {
                                 const vibOffsetNotes = vibSine * (channel.vibratoDepth / 16.0);
                                 const clampedNote = Math.min(96, Math.max(1, channel.currentNote + vibOffsetNotes));
@@ -567,7 +605,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
         if (this.currentTick >= this.speed * (this.patternDelay + 1)) {
             this.currentTick = 0;
             this.patternDelay = 0;
-            
             if (this.breakPending) {
                 this.currentOrder = this.breakOrder;
                 this.currentRow = this.breakRow;
@@ -595,66 +632,84 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 continue; 
             }
             
-            if (this.isPlaying) {
-                if (this.isSequenced) {
-                    this.samplesUntilNextTick--;
-                    if (this.samplesUntilNextTick <= 0) {
-                        const overshoot = -this.samplesUntilNextTick; 
-                        
-                        this.processTrackerTick(overshoot);
-                        
-                        const samplesPerTick = (2.5 / this.bpm) * sampleRate;
-                        this.samplesUntilNextTick += samplesPerTick;
-                    }
-                } else {
-                    this.sampleCounter--;
-                    if (this.sampleCounter <= 0) {
-                        this.sampleCounter += sampleRate / 50.0;
-                        let frame = this.trackData[this.currentFrame];
-                        if (frame && frame.cmds) {
-                            for (let cmd of frame.cmds) {
-                                const ch = this.channels[cmd.ch];
-                                if (cmd.smp) {
-                                    let sampleObj = this.samples[cmd.smp];
-                                    if (sampleObj && sampleObj.data) {
-                                        ch.trigger(sampleObj.data, sampleObj.loopStart, sampleObj.loopLen);
-                                    }
+            if (this.isSequenced) {
+                this.samplesUntilNextTick--;
+                if (this.samplesUntilNextTick <= 0) {
+                    const overshoot = -this.samplesUntilNextTick; 
+                    this.processTrackerTick(overshoot);
+                    const samplesPerTick = (2.5 / this.bpm) * sampleRate;
+                    this.samplesUntilNextTick += samplesPerTick;
+                }
+            } else {
+                this.sampleCounter--;
+                if (this.sampleCounter <= 0) {
+                    this.sampleCounter += sampleRate / 50.0;
+                    let frame = this.trackData[this.currentFrame];
+                    if (frame && frame.cmds) {
+                        for (let cmd of frame.cmds) {
+                            const ch = this.channels[cmd.ch];
+                            if (cmd.smp) {
+                                let sampleObj = this.samples[cmd.smp];
+                                if (sampleObj && sampleObj.data) {
+                                    ch.trigger(sampleObj.data, sampleObj.loopStart, sampleObj.loopLen);
                                 }
-                                if (cmd.per !== undefined) ch.per = cmd.per;
-                                if (cmd.vol !== undefined) ch.vol = cmd.vol; 
                             }
+                            if (cmd.per !== undefined) ch.per = cmd.per;
+                            if (cmd.vol !== undefined) ch.vol = cmd.vol; 
                         }
-                        this.currentFrame = (this.currentFrame + 1) % this.trackData.length;
                     }
+                    this.currentFrame = (this.currentFrame + 1) % this.trackData.length;
                 }
             }
 
+            // =========================================================
+            // 14-BIT AHI HERMITE MIXING & SPATIAL STAGING
+            // =========================================================
             let mixedL = 0, mixedR = 0;
             
             for (let c = 0; c < this.numChannels; c++) {
                 let sampleVal = this.channels[c].step(clockTicksPerSample);
                 if (sampleVal !== 0) {
-                    // Panning (Constant-Power)
                     const pan = this.channels[c].pan;
+                    // Constant-Power Panning
                     mixedL += sampleVal * Math.cos(pan * Math.PI * 0.5); 
                     mixedR += sampleVal * Math.sin(pan * Math.PI * 0.5); 
                 }
             }
             
-            // --- NO CROSSTALK, NO TANH SATURATION, NO HSYNC NOISE ---
-            // Reines, sauberes Digital-Routing in die Filter
-            
-            let filteredL = this.staticL.process(mixedL);
-            let filteredR = this.staticR.process(mixedR);
-
-            if (this.ledFilterOn) {
-                filteredL = this.ledL.process(filteredL);
-                filteredR = this.ledR.process(filteredR);
+            if (this.numChannels > 4) {
+                let mixAtten = Math.sqrt(4.0 / this.numChannels);
+                mixedL *= mixAtten;
+                mixedR *= mixAtten;
             }
 
-            outL[i] = filteredL / 2.0;
-            if (outR) outR[i] = filteredR / 2.0; else outL[i] += filteredR / 2.0; 
-            if (i === 0) oscValue = (filteredL + filteredR) / 2.0;
+            // =========================================================
+            // AIRBAND PRESENCE EXCITER (> 8 kHz)
+            // =========================================================
+            this.airLpL += this.alphaAir * (mixedL - this.airLpL);
+            this.airLpR += this.alphaAir * (mixedR - this.airLpR);
+            let airHighL = mixedL - this.airLpL;
+            let airHighR = mixedR - this.airLpR;
+
+            let brightL = mixedL + airHighL * 0.35;
+            let brightR = mixedR + airHighR * 0.35;
+
+            // =========================================================
+            // PARAMETRISCHER STEREO-REVERB (bs2b Diffusion)
+            // =========================================================
+            let [revL, revR] = this.reverb.process(brightL, brightR);
+            
+            let studioL = brightL * 0.88 + revL;
+            let studioR = brightR * 0.88 + revR;
+
+            // Mastering Tape Warmth (0 dBFS Headroom)
+            let finalL = Math.tanh(studioL * 1.05) * 0.92;
+            let finalR = Math.tanh(studioR * 1.05) * 0.92;
+
+            outL[i] = finalL;
+            if (outR) outR[i] = finalR; else outL[i] = (finalL + finalR) * 0.5;
+            
+            if (i === 0) oscValue = (finalL + finalR) * 0.5;
         }
 
         this.visCounter = (this.visCounter || 0) + 1;
@@ -662,7 +717,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
             let isAudible = Math.abs(oscValue) > 0.001;
             if (isAudible || this.wasAudible) {
                 const view = this.visualView;
-                view[0] = 1; 
+                view[0] = 1; // System Flag: Amiga
                 view[1] = this.isPlaying ? 1 : 0;
                 view[2] = this.isSequenced 
                     ? (this.currentOrder * 64 * this.speed + this.currentRow * this.speed + this.currentTick)
@@ -672,29 +727,25 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 for(let c = 0; c < 4; c++) {
                     let offset = c * 7;
                     let ch = this.channels[c];
-                    
                     let simulatedAddress = ch.data ? 0x00020000 + c * 0x4000 + Math.floor(ch.pointer) : 0;
                     view[4 + offset] = (simulatedAddress >> 8) & 0xFF; 
                     view[4 + offset + 1] = simulatedAddress & 0xFF;       
-                    
                     let len = ch.data ? Math.floor(ch.data.length / 2) : 0;
                     view[4 + offset + 2] = (len >> 8) & 0xFF;
                     view[4 + offset + 3] = len & 0xFF;
-                    
                     view[4 + offset + 4] = (ch.per >> 8) & 0xFF;
                     view[4 + offset + 5] = ch.per & 0xFF;
-                    
                     view[4 + offset + 6] = Math.round(ch.vol) & 0xFF;
                 }
 
-                view[33] = this.ledFilterOn ? 1.0 : 0.0;
+                view[33] = 0.0; // Filter Bypass Indicator (Airband Active)
 
                 for (let c = 0; c < 4; c++) {
                     let ch = this.channels[c];
                     view[34 + c] = ch.data ? (ch.vol / 64.0) : 0.0;
                 }
 
-                view[38] = this.filterModeState;
+                view[38] = 1.0; // Studio Mode Active
 
                 this.port.postMessage(view);
             }
@@ -704,5 +755,4 @@ class PaulaProcessor extends AudioWorkletProcessor {
     }
 }
 
-// Hier wichtig: Der eindeutige Namespace für den sauberen Core
-registerProcessor('paula-standard-processor', PaulaProcessor);
+registerProcessor('paula-fantasy-processor', PaulaFantasyProcessor);

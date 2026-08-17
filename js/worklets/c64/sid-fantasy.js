@@ -1,9 +1,11 @@
 // === js/worklets/c64/sid-fantasy.js ===
 // =========================================================
 // MOS 6581 / CSG 8580 "CHIPTUNES FANTASY STUDIO" CORE
-// Audiophile Edition: 1MHz 6502 Lockstep, Dual-Channel 255-Tap Sinc-FIR,
-// CSG 8580 Linear DACs, 20kHz Studio Airband ZDF VCF, StereoSID Staging
-// & Digidrum Transient Sub-Exciter
+// Audiophile Edition: 1MHz 6502 Lockstep, Dual-Channel 32-Phase
+// Fractional Polyphase Sinc-FIR Decimator (255 Taps, >75dB Rejection),
+// 15-Bit ADSR LFSR Wrap-Around Dynamics, CSG 8580 Linear R-2R DACs,
+// 20kHz Studio Airband ZDF VCF, Constant-Power StereoSID Staging
+// & Digidrum Sub-Harmonic Exciter
 // =========================================================
 
 import { CPU6502 } from '../lib/cpu6502.js';
@@ -13,7 +15,6 @@ import { DCBlocker } from '../lib/dsp-utils.js';
 
 const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_RELEASE = 2; 
 
-// Linear-proportionale 4-Bit Lautstärketabelle (CSG 8580 HiFi R-2R)
 const VOLUME_DAC_8580 = new Float32Array([
     0.0000, 0.0667, 0.1333, 0.2000, 0.2667, 0.3333, 0.4000, 0.4667,
     0.5333, 0.6000, 0.6667, 0.7333, 0.8000, 0.8667, 0.9333, 1.0000
@@ -22,6 +23,7 @@ const VOLUME_DAC_8580 = new Float32Array([
 class SIDFantasyChip {
     constructor() {
         this.regs = new Uint8Array(29);
+        this.regs[24] = 0x0F; // PSID Standard: Default Master Volume $0F
         this.voices = [];
         for (let i = 0; i < 3; i++) {
             this.voices.push({
@@ -40,9 +42,9 @@ class SIDFantasyChip {
                 wrapped: false
             });
         }
-        this.cutoff = 30; this.resonance = 0; this.filterMode = 0; this.masterVol = 0;
+        this.cutoff = 30; this.resonance = 0; this.filterMode = 0x0F;
+        this.masterVol = VOLUME_DAC_8580[15]; // = 1.000
         
-        // ZDF State-Space Memory für Stereo-VCF (L & R)
         this.x1_L = 0.0; this.x2_L = 0.0;
         this.x1_R = 0.0; this.x2_R = 0.0;
 
@@ -52,11 +54,9 @@ class SIDFantasyChip {
         this.activeCutoff = 30.0;
         this.q = 1.0;
         
-        // StereoSID Panning-Winkel (Constant Power)
-        // Voice 1: ~30% Left | Voice 2: ~30% Right | Voice 3: Center (0%)
-        this.panL0 = 0.82; this.panR0 = 0.57; // 35°
-        this.panL1 = 0.57; this.panR1 = 0.82; // 55°
-        this.panL2 = 0.707; this.panR2 = 0.707; // 45° (Center)
+        this.panL0 = 0.82; this.panR0 = 0.57; 
+        this.panL1 = 0.57; this.panR1 = 0.82; 
+        this.panL2 = 0.707; this.panR2 = 0.707;
 
         this.lastVol = 0;
         this.drumTransientEnv = 0.0;
@@ -70,12 +70,11 @@ class SIDFantasyChip {
         let cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
         let norm = cutoffReg / 2047.0;
 
-        // 20 kHz Linear Studio Curve (CSG 8580 Airband)
         this.activeCutoff = 20.0 + Math.pow(norm, 1.25) * 19980.0;
 
         let resReg = this.regs[23] >> 4;
         let normRes = resReg / 15.0;
-        this.q = 1.414 - (normRes * 1.15); // Clean Q_max ~ 3.8
+        this.q = 1.414 - (normRes * 1.15); 
     }
 
     writeReg(reg, val) {
@@ -99,10 +98,6 @@ class SIDFantasyChip {
             if (gate !== prevGate) {
                 ch.envDelay = 1;
                 ch.state = gate ? ENV_ATTACK : ENV_RELEASE;
-                if (gate) {
-                    ch.rate_counter = 0;
-                    ch.exponential_counter = 0;
-                }
             }
             ch.prevGate = gate;
 
@@ -127,7 +122,6 @@ class SIDFantasyChip {
             let volIndex = val & 15;
             let newVol = VOLUME_DAC_8580[volIndex];
             
-            // Transient Shaper: Fängt steile Kanten bei Drum-Writes ab
             let delta = Math.abs(newVol - this.lastVol);
             if (delta > 0.15) {
                 this.drumTransientEnv = 1.0;
@@ -145,8 +139,10 @@ class SIDFantasyChip {
         if (ch.state === ENV_ATTACK) ratePeriod = ch.attack_period;
         else if (ch.state === ENV_DECAY) ratePeriod = ch.decay_period;
 
-        ch.rate_counter++;
-        if (ch.rate_counter >= ratePeriod) {
+        // 15-Bit Free-Running Rate Counter with 0x7FFF Equality Match
+        ch.rate_counter = (ch.rate_counter + 1) & 0x7FFF;
+
+        if (ch.rate_counter === ratePeriod) {
             ch.rate_counter = 0; 
 
             let expPeriod = 1;
@@ -220,12 +216,12 @@ class SIDFantasyChip {
 
         let hasWave = (ch.ctrl & 0xF0) !== 0;
         if (hasWave) {
-            let rawWave8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, pwInt, ch.lfsr, ringMSB);
+            let rawWave8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, pwInt, ch.lfsr, ringMSB, freqInt);
             let waveMask = ch.ctrl & 0xF0;
             let isCombined = (waveMask !== 0x10 && waveMask !== 0x20 && waveMask !== 0x40 && waveMask !== 0x80);
 
             if (isCombined) {
-                ch.busCharge += 0.88 * (rawWave8Bit - ch.busCharge);
+                ch.busCharge += 0.25 * (rawWave8Bit - ch.busCharge);
                 ch.waveOut8Bit = ch.busCharge;
             } else {
                 ch.busCharge = rawWave8Bit;
@@ -238,7 +234,6 @@ class SIDFantasyChip {
 
         ch.env8Bit = ch.envelope_counter;
 
-        // CSG 8580 Linear R-2R Lookup
         let envDac = DAC_LUT_8580[ch.env8Bit];
         let waveDac = DAC_LUT_8580[Math.floor(ch.waveOut8Bit)];
         let waveOutFloat = (waveDac * 2.0) - 1.0;
@@ -255,9 +250,7 @@ class SIDFantasyChip {
         let voice1 = this.synthesizeVoiceOneCycle(1);
         let voice2 = this.synthesizeVoiceOneCycle(2);
 
-        // =========================================================
-        // STEREOSID DYNAMIC SPATIAL STAGING
-        // =========================================================
+        // StereoSID Panning
         let v0_L = voice0 * this.panL0; let v0_R = voice0 * this.panR0;
         let v1_L = voice1 * this.panL1; let v1_R = voice1 * this.panR1;
         let v2_L = voice2 * this.panL2; let v2_R = voice2 * this.panR2;
@@ -274,17 +267,14 @@ class SIDFantasyChip {
             if (this.regs[23] & 4) { filtSumL += v2_L; filtSumR += v2_R; } else { unfiltSumL += v2_L; unfiltSumR += v2_R; }
         }
 
-        // =========================================================
-        // 20kHz STEREO ZDF STATE-SPACE OTA FILTER (CSG 8580 AIRBAND)
-        // =========================================================
-        let subG = Math.tan((Math.PI * this.activeCutoff) / 1970496); // 2MHz Sub-sample Grid
+        // 20kHz Stereo ZDF VCF
+        let subG = Math.tan((Math.PI * this.activeCutoff) / 1970496); 
         let k = this.q;
         let denom = 1.0 + subG * (subG + k);
         
         let filterOutL = 0, filterOutR = 0;
 
         for (let sub = 0; sub < 2; sub++) {
-            // LEFT CHANNEL
             let hpL = (filtSumL - this.x1_L * (subG + k) - this.x2_L) / denom;
             let bpRawL = subG * hpL + this.x1_L;
             let bpL = Math.tanh(bpRawL * 0.65) / 0.65;
@@ -299,7 +289,6 @@ class SIDFantasyChip {
             if ((this.filterMode & 80) === 80) outHpL = -outHpL * 0.95;
             filterOutL = outLpL + outBpL + outHpL;
 
-            // RIGHT CHANNEL
             let hpR = (filtSumR - this.x1_R * (subG + k) - this.x2_R) / denom;
             let bpRawR = subG * hpR + this.x1_R;
             let bpR = Math.tanh(bpRawR * 0.65) / 0.65;
@@ -315,26 +304,22 @@ class SIDFantasyChip {
             filterOutR = outLpR + outBpR + outHpR;
         }
 
-        // Anti-NaN Failsafe
         if (isNaN(this.x1_L) || isNaN(this.x2_L)) { this.x1_L = 0; this.x2_L = 0; filterOutL = 0; }
         if (isNaN(this.x1_R) || isNaN(this.x2_R)) { this.x1_R = 0; this.x2_R = 0; filterOutR = 0; }
 
         let mixL = unfiltSumL + filterOutL;
         let mixR = unfiltSumR + filterOutR;
 
-        // =========================================================
-        // 4-BIT DIGIDRUM SUB-EXCITER (Studio Punch)
-        // =========================================================
+        // Digidrum Sub-Exciter
         let drumPunch = 0;
         if (this.drumTransientEnv > 0.001) {
-            this.drumSubPhase = (this.drumSubPhase + (48.0 / 985248)) % 1.0; // 48Hz Sub-Kick
+            this.drumSubPhase = (this.drumSubPhase + (48.0 / 985248)) % 1.0; 
             let subKick = Math.sin(this.drumSubPhase * Math.PI * 2) * this.drumTransientEnv * 0.45;
             drumPunch = subKick;
-            this.drumTransientEnv *= 0.99988; // Organisches Ausklingen
+            this.drumTransientEnv *= 0.99988; 
         }
 
-        // Master VCA & HiFi Tube Warmth
-        let masterDc = 0.72; // Kalibrierter $D418 DC-Sockel
+        let masterDc = 0.72; 
         let vcaL = (Math.tanh((mixL + drumPunch) * 0.48) * 1.65 + masterDc) * this.masterVol;
         let vcaR = (Math.tanh((mixR + drumPunch) * 0.48) * 1.65 + masterDc) * this.masterVol;
 
@@ -346,7 +331,7 @@ class SIDFantasyChip {
 class SIDFantasyProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.clock = 985248; // PAL Master Clock
+        this.clock = 985248; 
         this.sid = new SIDFantasyChip();
         this.cpu = new CPU6502(this.sid);
         
@@ -373,24 +358,39 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
         
         this.visualView = new Float32Array(40);
 
-        // Dual-Channel 255-Tap Sinc-FIR Decimator (Stereo)
         this.FIR_TAPS = 255;
-        this.firKernel = new Float32Array(this.FIR_TAPS);
+        this.NUM_PHASES = 32;
+        this.polyphaseTable = new Float32Array(this.NUM_PHASES * this.FIR_TAPS);
         this.ringBufferL = new Float32Array(512); 
         this.ringBufferR = new Float32Array(512); 
         this.ringIndex = 0;
 
         const fc = 20000.0 / this.clock;
-        let sum = 0;
-        for (let i = 0; i < this.FIR_TAPS; i++) {
-            let x = i - (this.FIR_TAPS - 1) / 2;
-            let sinc = (x === 0) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
-            let window = 0.42 - 0.5 * Math.cos((2 * Math.PI * i) / (this.FIR_TAPS - 1)) + 0.08 * Math.cos((4 * Math.PI * i) / (this.FIR_TAPS - 1));
-            this.firKernel[i] = sinc * window;
-            sum += this.firKernel[i];
-        }
-        for (let i = 0; i < this.FIR_TAPS; i++) {
-            this.firKernel[i] /= sum;
+        const halfK = (this.FIR_TAPS - 1) / 2;
+
+        for (let p = 0; p < this.NUM_PHASES; p++) {
+            const dt = p / this.NUM_PHASES;
+            let sum = 0.0;
+            const phaseOffset = p * this.FIR_TAPS;
+
+            for (let i = 0; i < this.FIR_TAPS; i++) {
+                const x = (i - halfK) - dt;
+                const sinc = (Math.abs(x) < 1e-7) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
+                const wPos = (i - dt) / (this.FIR_TAPS - 1);
+                const window = (wPos >= 0.0 && wPos <= 1.0)
+                    ? (0.42 - 0.5 * Math.cos(2 * Math.PI * wPos) + 0.08 * Math.cos(4 * Math.PI * wPos))
+                    : 0.0;
+
+                const val = sinc * window;
+                this.polyphaseTable[phaseOffset + i] = val;
+                sum += val;
+            }
+
+            if (sum > 0) {
+                for (let i = 0; i < this.FIR_TAPS; i++) {
+                    this.polyphaseTable[phaseOffset + i] /= sum;
+                }
+            }
         }
 
         this.port.onmessage = (e) => {
@@ -570,6 +570,10 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
             let cyclesToRun = Math.floor(this.cycleAccumulator);
             this.cycleAccumulator -= cyclesToRun;
 
+            let phaseIdx = Math.floor(this.cycleAccumulator * this.NUM_PHASES);
+            if (phaseIdx >= this.NUM_PHASES) phaseIdx = this.NUM_PHASES - 1;
+            let kernelBase = phaseIdx * this.FIR_TAPS;
+
             // 1MHz PAL Lockstep Cycling
             for (let c = 0; c < cyclesToRun; c++) {
                 this.cpu.clockHardware(1); 
@@ -600,6 +604,9 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                     }
                 }
 
+                if (this.cpu.irqAccepted && this.cpuCyclesRemaining === 0) this.diagIrqCount++;
+                if (this.cpu.nmiAccepted && this.cpuCyclesRemaining === 0) this.diagNmiCount++;
+
                 if (this.cpuCyclesRemaining === 1) {
                     this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
                     this.cpu.nmiAccepted = this.cpu.nmiPending;
@@ -621,7 +628,7 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                         } else if (this.cpu.irqAccepted) {
                             this.cpu.irqAccepted = false;
                             this.cpu.triggerHardwareIrq();
-                            this.cpuCyclesRemaining = 7 - 1;
+                            this.cpuCyclesRemaining = 7 - 1; 
                         } else {
                             let cyclesUsed = this.cpu.step(); 
                             this.cpuCyclesRemaining = cyclesUsed - 1; 
@@ -638,12 +645,13 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                 }
             }
             
-            // Dual-Channel 255-Tap Sinc-FIR Decimation (48 kHz)
-            let decL = 0, decR = 0;
+            // Dual-Channel Fractional Polyphase Convolution (Stereo)
+            let decL = 0.0, decR = 0.0;
             let firIdx = (this.ringIndex - 1) & 511;
             for (let k = 0; k < this.FIR_TAPS; k++) {
-                decL += this.ringBufferL[firIdx] * this.firKernel[k];
-                decR += this.ringBufferR[firIdx] * this.firKernel[k];
+                let coeff = this.polyphaseTable[kernelBase + k];
+                decL += this.ringBufferL[firIdx] * coeff;
+                decR += this.ringBufferR[firIdx] * coeff;
                 firIdx = (firIdx - 1) & 511;
             }
 
