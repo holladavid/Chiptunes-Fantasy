@@ -35,6 +35,7 @@ Our cycle-exact 1MHz SID engine is arguably one of the deepest analogue emulatio
 *   **192kHz Oversampling & ZOH:** Emulates staircase wave-shapes of Paula's non-interpolating Zero-Order Hold (ZOH) DACs ("Amiga Shimmer") with a 255-tap polyphase Sinc-FIR decimator.
 *   **LF347 JFET Op-Amp Slew-Rate Modeling (v1.5.0):** Emulates the analog slew-rate limitation ($13\text{ V}/\mu\text{s}$) and JFET input asymmetry of the Amiga 500 motherboard output buffer, smoothly rounding discrete 8-bit DAC steps into a warm, analog sheen.
 *   **L-R-R-L Hard-Panning & Crosstalk:** Enforces physical stereo routing with 3.5% inductive trace crosstalk.
+*   **NEW: Paula 8364/AHI Studio Core (v1.5.0):** Audiophile A1200/AHI 14-bit Hermite cubic interpolation, Constant-Power spatialized stereo panning (no ear fatigue), parametric Schroeder/Moorer stereo diffusion reverb, and >8kHz airband presence exciter.
 
 ### 3. Yamaha YM2149F (Atari ST)
 *   **32-Step Logarithmic DAC & Digidrums:** Replicates 32-step log voltage curves (-1.5dB/step) and 4-bit Digidrum DAC injection.

@@ -15,7 +15,7 @@ export const workletRegistry = {
         { id: 'sid-fantasy', name: 'SID 6581/8580 (Chiptunes Fantasy Studio)', cpu: 3, file: 'js/worklets/c64/sid-fantasy.js', processor: 'sid-fantasy-processor' }
     ],
     amiga: [
-        { id: 'paula-exact', name: 'Paula 8364 (192kHz True Analog)', cpu: 3, file: 'js/worklets/amiga/paula-exact.js', processor: 'paula-exact-processor' },
-        { id: 'paula-standard', name: 'Paula 8364 (Digital Fast)', cpu: 1, file: 'js/worklets/amiga/paula-standard.js', processor: 'paula-standard-processor' }
+        { id: 'paula-exact', name: 'Paula 8364 (192kHz True Analog)', cpu: 4, file: 'js/worklets/amiga/paula-exact.js', processor: 'paula-exact-processor' },
+        { id: 'paula-fantasy', name: 'Paula 8364/AHI (Chiptunes Fantasy Studio)', cpu: 3, file: 'js/worklets/amiga/paula-fantasy.js', processor: 'paula-fantasy-processor' }
     ]
 };
