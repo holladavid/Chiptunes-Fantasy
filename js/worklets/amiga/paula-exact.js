@@ -376,9 +376,18 @@ class PaulaProcessor extends AudioWorkletProcessor {
             }
             
             const activeSample = channel.activeSample || 1;
-            const smpName = this.seqType === 'MOD' ? `mod_sample_${activeSample}` : `xm_sample_${activeSample}`;
-            const currentSmpObj = this.samples[smpName];
-
+            
+            // MULTI-FORMAT SAMPLE-LOOKUP FALLBACK
+            const smpPrefix = this.seqType.toLowerCase();
+            let smpName = `${smpPrefix}_sample_${activeSample}`;
+            let currentSmpObj = this.samples[smpName];
+            if (!currentSmpObj) {
+                currentSmpObj = this.samples[`mod_sample_${activeSample}`] || 
+                                this.samples[`xm_sample_${activeSample}`] || 
+                                this.samples[`hipc_sample_${activeSample}`] || 
+                                this.samples[`dw_sample_${activeSample}`];
+            }
+            
             const isSampleChange = (sample > 0 && sample !== channel.lastPlayedSample);
             const isPortamento = (effect === 0x03 || effect === 0x05) && (channel.data !== null) && 
                                  (this.seqType === 'XM' ? true : !isSampleChange);
