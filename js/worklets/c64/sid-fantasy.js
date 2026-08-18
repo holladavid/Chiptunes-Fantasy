@@ -3,9 +3,8 @@
 // MOS 6581 / CSG 8580 "CHIPTUNES FANTASY STUDIO" CORE
 // Audiophile Edition: 1MHz 6502 Lockstep, Dual-Channel 32-Phase
 // Fractional Polyphase Sinc-FIR Decimator (255 Taps, >75dB Rejection),
-// 15-Bit ADSR LFSR Wrap-Around Dynamics, CSG 8580 Linear R-2R DACs,
-// 20kHz Studio Airband ZDF VCF, Constant-Power StereoSID Staging
-// & Digidrum Sub-Harmonic Exciter
+// CSG 8580 Linear R-2R DACs, 20kHz Studio Airband ZDF State-Space VCF,
+// Constant-Power StereoSID Staging & Digidrum Sub-Harmonic Exciter
 // =========================================================
 
 import { CPU6502 } from '../lib/cpu6502.js';
@@ -15,6 +14,7 @@ import { DCBlocker } from '../lib/dsp-utils.js';
 
 const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_RELEASE = 2; 
 
+// Linear-proportionale 4-Bit Lautstärketabelle (CSG 8580 HiFi R-2R)
 const VOLUME_DAC_8580 = new Float32Array([
     0.0000, 0.0667, 0.1333, 0.2000, 0.2667, 0.3333, 0.4000, 0.4667,
     0.5333, 0.6000, 0.6667, 0.7333, 0.8000, 0.8667, 0.9333, 1.0000
@@ -54,6 +54,10 @@ class SIDFantasyChip {
         this.activeCutoff = 30.0;
         this.q = 1.0;
         
+        // StereoSID Constant-Power Panning-Winkel
+        // Voice 0 (Lead): ~35° (-25% Left)
+        // Voice 1 (Chords/Arp): ~55° (+25% Right)
+        // Voice 2 (Bass/Rhythm): 45° (Center Mono)
         this.panL0 = 0.82; this.panR0 = 0.57; 
         this.panL1 = 0.57; this.panR1 = 0.82; 
         this.panL2 = 0.707; this.panR2 = 0.707;
@@ -70,6 +74,7 @@ class SIDFantasyChip {
         let cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
         let norm = cutoffReg / 2047.0;
 
+        // 20 kHz Linear Studio Curve (CSG 8580 Airband)
         this.activeCutoff = 20.0 + Math.pow(norm, 1.25) * 19980.0;
 
         let resReg = this.regs[23] >> 4;
@@ -98,6 +103,10 @@ class SIDFantasyChip {
             if (gate !== prevGate) {
                 ch.envDelay = 1;
                 ch.state = gate ? ENV_ATTACK : ENV_RELEASE;
+                if (gate) {
+                    ch.rate_counter = 0;
+                    ch.exponential_counter = 0;
+                }
             }
             ch.prevGate = gate;
 
@@ -122,6 +131,7 @@ class SIDFantasyChip {
             let volIndex = val & 15;
             let newVol = VOLUME_DAC_8580[volIndex];
             
+            // Transient Shaper: Fängt steile Kanten bei Drum-Writes ab
             let delta = Math.abs(newVol - this.lastVol);
             if (delta > 0.15) {
                 this.drumTransientEnv = 1.0;
@@ -139,10 +149,10 @@ class SIDFantasyChip {
         if (ch.state === ENV_ATTACK) ratePeriod = ch.attack_period;
         else if (ch.state === ENV_DECAY) ratePeriod = ch.decay_period;
 
-        // 15-Bit Free-Running Rate Counter with 0x7FFF Equality Match
-        ch.rate_counter = (ch.rate_counter + 1) & 0x7FFF;
+        // BEREINIGT: Stabile Schwellenwert-Logik verhindert 32ms Deadlock bei Galway-Arpeggios
+        ch.rate_counter++;
 
-        if (ch.rate_counter === ratePeriod) {
+        if (ch.rate_counter >= ratePeriod) {
             ch.rate_counter = 0; 
 
             let expPeriod = 1;
@@ -216,6 +226,7 @@ class SIDFantasyChip {
 
         let hasWave = (ch.ctrl & 0xF0) !== 0;
         if (hasWave) {
+            // Frequenzabhängige Wire-AND Berechnung (>2kHz Entspannung)
             let rawWave8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, pwInt, ch.lfsr, ringMSB, freqInt);
             let waveMask = ch.ctrl & 0xF0;
             let isCombined = (waveMask !== 0x10 && waveMask !== 0x20 && waveMask !== 0x40 && waveMask !== 0x80);
@@ -234,6 +245,7 @@ class SIDFantasyChip {
 
         ch.env8Bit = ch.envelope_counter;
 
+        // CSG 8580 Linear R-2R Lookup
         let envDac = DAC_LUT_8580[ch.env8Bit];
         let waveDac = DAC_LUT_8580[Math.floor(ch.waveOut8Bit)];
         let waveOutFloat = (waveDac * 2.0) - 1.0;
@@ -250,7 +262,7 @@ class SIDFantasyChip {
         let voice1 = this.synthesizeVoiceOneCycle(1);
         let voice2 = this.synthesizeVoiceOneCycle(2);
 
-        // StereoSID Panning
+        // Constant-Power StereoSID Panning
         let v0_L = voice0 * this.panL0; let v0_R = voice0 * this.panR0;
         let v1_L = voice1 * this.panL1; let v1_R = voice1 * this.panR1;
         let v2_L = voice2 * this.panL2; let v2_R = voice2 * this.panR2;
@@ -263,11 +275,16 @@ class SIDFantasyChip {
         if (this.regs[23] & 1) { filtSumL += v0_L; filtSumR += v0_R; } else { unfiltSumL += v0_L; unfiltSumR += v0_R; }
         if (this.regs[23] & 2) { filtSumL += v1_L; filtSumR += v1_R; } else { unfiltSumL += v1_L; unfiltSumR += v1_R; }
         
+        // BEREINIGT: Voice 3 DC-Leakage Persistence bei 3OFF
         if (!isVoice3Off) {
             if (this.regs[23] & 4) { filtSumL += v2_L; filtSumR += v2_R; } else { unfiltSumL += v2_L; unfiltSumR += v2_R; }
+        } else {
+            let envDac3 = DAC_LUT_8580[this.voices[2].env8Bit];
+            let v3Leak = 0.012 * envDac3 * this.panL2;
+            if (this.regs[23] & 4) { filtSumL += v3Leak; filtSumR += v3Leak; } else { unfiltSumL += v3Leak; unfiltSumR += v3Leak; }
         }
 
-        // 20kHz Stereo ZDF VCF
+        // 20kHz Stereo ZDF State-Space OTA VCF
         let subG = Math.tan((Math.PI * this.activeCutoff) / 1970496); 
         let k = this.q;
         let denom = 1.0 + subG * (subG + k);
@@ -275,6 +292,7 @@ class SIDFantasyChip {
         let filterOutL = 0, filterOutR = 0;
 
         for (let sub = 0; sub < 2; sub++) {
+            // LEFT CHANNEL
             let hpL = (filtSumL - this.x1_L * (subG + k) - this.x2_L) / denom;
             let bpRawL = subG * hpL + this.x1_L;
             let bpL = Math.tanh(bpRawL * 0.65) / 0.65;
@@ -289,6 +307,7 @@ class SIDFantasyChip {
             if ((this.filterMode & 80) === 80) outHpL = -outHpL * 0.95;
             filterOutL = outLpL + outBpL + outHpL;
 
+            // RIGHT CHANNEL
             let hpR = (filtSumR - this.x1_R * (subG + k) - this.x2_R) / denom;
             let bpRawR = subG * hpR + this.x1_R;
             let bpR = Math.tanh(bpRawR * 0.65) / 0.65;
@@ -310,7 +329,7 @@ class SIDFantasyChip {
         let mixL = unfiltSumL + filterOutL;
         let mixR = unfiltSumR + filterOutR;
 
-        // Digidrum Sub-Exciter
+        // 48Hz Digidrum Sub-Harmonic Exciter
         let drumPunch = 0;
         if (this.drumTransientEnv > 0.001) {
             this.drumSubPhase = (this.drumSubPhase + (48.0 / 985248)) % 1.0; 
@@ -331,7 +350,7 @@ class SIDFantasyChip {
 class SIDFantasyProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.clock = 985248; 
+        this.clock = 985248; // PAL Master Clock (Hz)
         this.sid = new SIDFantasyChip();
         this.cpu = new CPU6502(this.sid);
         
@@ -358,6 +377,7 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
         
         this.visualView = new Float32Array(40);
 
+        // Dual-Channel 32-Phase Fractional Polyphase Sinc-FIR Filterbank (255 Taps)
         this.FIR_TAPS = 255;
         this.NUM_PHASES = 32;
         this.polyphaseTable = new Float32Array(this.NUM_PHASES * this.FIR_TAPS);

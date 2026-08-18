@@ -712,12 +712,12 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
 
 /* =========================================
    7. CHIP HUD (DSP MATRIX & ANALYZER)
- ========================================= */
+   ========================================= */
 #chip-hud {
     position: absolute;
     top: 15px;
     right: 15px;
-    width: 540px; /* Von 520px auf 540px verbreitert für Amiga-Overflow Fix */
+    width: 540px; 
     background: rgba(0, 0, 0, 0.85);
     border: 2px solid var(--chassis-dark);
     border-top: 1px solid rgba(255,255,255,0.2);
@@ -733,40 +733,49 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
 
 #chip-hud.collapsed {
     width: auto; 
-    padding: 10px 14px; 
+    padding: 8px 10px; 
 }
 
 .hud-header {
     display: flex;
-    flex-direction: column; /* GFX FIX: 2-zeiliges Setup (Titel oben, Button unten) */
-    align-items: flex-end;  /* Rechtsbündig ausgerichtet */
+    flex-direction: column;
+    align-items: flex-end;
     border-bottom: 2px groove var(--chassis-dark);
     padding-bottom: 8px;
-    margin-bottom: 15px;
-    font-size: calc(var(--font-size-base) * 0.9);
-    white-space: nowrap; 
-    gap: 8px; 
+    margin-bottom: 12px;
 }
 
-#hud-title {
-    color: var(--highlight-color);
-    letter-spacing: 1px;
-    opacity: 0.9;
+#chip-hud.collapsed .hud-header { 
+    border-bottom: none; 
+    margin-bottom: 0; 
+    padding-bottom: 0; 
 }
 
-.hud-header div { display: flex; align-items: center; gap: 8px; }
+/* Vertikaler Button-Stack */
+.hud-controls-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+}
 
-#chip-hud.collapsed .hud-header { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.hud-btn-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
 
 #btn-hud-info, #btn-hud-crossfeed, #btn-hud-toggle {
     background: var(--chassis-dark);
     border: 1px solid var(--chassis-light);
     color: var(--highlight-color);
-    padding: 2px 6px;
+    padding: 4px 8px;
     cursor: pointer;
     font-family: inherit;
     font-size: calc(var(--font-size-base) * 0.8);
+    white-space: nowrap;
     transition: all 0.1s;
+    text-align: center;
 }
 
 #btn-hud-info:active, #btn-hud-crossfeed:active, #btn-hud-toggle:active {

@@ -171,17 +171,17 @@ function initApp() {
             });   
         });
 
-    // INTERAKTIVER BINAURAL CROSSFEED BUTTON
-    const btnCrossfeed = document.getElementById('btn-hud-crossfeed');
-    if (btnCrossfeed) {
-        let crossfeedOn = true;
-        btnCrossfeed.addEventListener('click', (e) => {
-            crossfeedOn = !crossfeedOn;
-            setMasterCrossfeed(crossfeedOn);
-            e.target.innerText = crossfeedOn ? '[ BS2B: ON ]' : '[ BS2B: OFF ]';
-            e.target.style.opacity = crossfeedOn ? '1.0' : '0.5';
-        });
-    }
+        // INTERAKTIVER STEREO BLEND BUTTON
+        const btnCrossfeed = document.getElementById('btn-hud-crossfeed');
+        if (btnCrossfeed) {
+            let crossfeedOn = true;
+            btnCrossfeed.addEventListener('click', (e) => {
+                crossfeedOn = !crossfeedOn;
+                setMasterCrossfeed(crossfeedOn);
+                e.target.innerText = crossfeedOn ? '[ STEREO BLEND: ON ]' : '[ STEREO BLEND: OFF ]';
+                e.target.style.opacity = crossfeedOn ? '1.0' : '0.5';
+            });
+        }
 }
 
 if (document.readyState === 'loading') document.addEventListener("DOMContentLoaded", initApp);
