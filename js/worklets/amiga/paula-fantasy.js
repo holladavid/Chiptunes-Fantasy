@@ -239,13 +239,15 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                     this.samples[msg.name] = msg.data;
                 }
             } else if (msg.type === 'PLAY_TRACK') {
+                const isHipc = msg.track && (msg.track.type === 'HIPC' || msg.track.type === 'COSO');
                 const isXM = msg.track && msg.track.type === 'XM';
                 this.linearFreq = msg.track ? (msg.track.linearFreq || false) : false;
                 
-                // StereoSID-artiges Spatial Panning für 4-Kanal MODs
-                const modPannings = [0.30, 0.45, 0.55, 0.70]; // Kein Kopfschmerz-Hard-Panning!
+                // StereoSID-artiges Spatial Panning für 7-Kanal Hippel
+                const hipcPannings = [0.25, 0.40, 0.60, 0.75, 0.30, 0.70, 0.50];
 
                 for (let i = 0; i < 64; i++) {
+
                     this.channels[i].data = null;
                     this.channels[i].vol = 0;
                     this.channels[i].per = 428;
@@ -271,8 +273,11 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                     this.channels[i].patternLoopCount = 0;
                     this.channels[i].lastPlayedSample = 0;
                     
-                    this.channels[i].pan = isXM ? 0.5 : modPannings[i % 4];
-                    this.channels[i].vibratoSpeed = 0;
+                    this.channels[i].pan = isHipc 
+                        ? hipcPannings[i % 7] 
+                        : (isXM ? 0.5 : [0.30, 0.45, 0.55, 0.70][i % 4]);                    
+                    
+                        this.channels[i].vibratoSpeed = 0;
                     this.channels[i].vibratoDepth = 0;
                     this.channels[i].vibratoPhase = 0;
                     this.channels[i].hasVibrato = false;

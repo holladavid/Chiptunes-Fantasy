@@ -246,8 +246,20 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.samples[msg.name] = msg.data;
                 }
             } else if (msg.type === 'PLAY_TRACK') {
+                const isHipc = msg.track && (msg.track.type === 'HIPC' || msg.track.type === 'COSO');
                 this.linearFreq = msg.track ? (msg.track.linearFreq || false) : false;
                 
+                // HIPPEL-FIX: Filter startet bei HIPC im Bypass-Modus für brillante Höhen!
+                this.filterModeState = isHipc ? 2 : 0;
+                this.trackLedFilterOn = !isHipc; 
+                this.ledFilterOn = !isHipc;      
+
+                this.opampL.reset();
+                this.opampR.reset();
+                this.ringBufferL.fill(0);
+                this.ringBufferR.fill(0);
+                this.ringIndex = 0;
+
                 for (let i = 0; i < 64; i++) {
                     this.channels[i].data = null;
                     this.channels[i].vol = 0;
@@ -281,16 +293,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.channels[i].hasVibrato = false;
                 }
 
-                this.filterModeState = 0;
-                this.trackLedFilterOn = true; 
-                this.ledFilterOn = true;      
-
-                this.opampL.reset();
-                this.opampR.reset();
-                this.ringBufferL.fill(0);
-                this.ringBufferR.fill(0);
-                this.ringIndex = 0;
-
                 if (msg.track && msg.track.isSequenced) {
                     this.isSequenced = true;
                     this.seqType = msg.track.type;
@@ -316,6 +318,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.sampleCounter = 0;
                     this.isPlaying = true;
                 }
+
             } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
                 for (let i = 0; i < 64; i++) {
@@ -387,7 +390,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                                 this.samples[`hipc_sample_${activeSample}`] || 
                                 this.samples[`dw_sample_${activeSample}`];
             }
-            
+
             const isSampleChange = (sample > 0 && sample !== channel.lastPlayedSample);
             const isPortamento = (effect === 0x03 || effect === 0x05) && (channel.data !== null) && 
                                  (this.seqType === 'XM' ? true : !isSampleChange);

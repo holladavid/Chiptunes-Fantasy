@@ -1,10 +1,7 @@
 // === js/parsers/hipc-parser.js ===
 // =========================================================
 // JOCHEN HIPPEL (MAD MAX) COSO / 7-VOICE BINARY PARSER
-// Universal Hippel Adapter (UHA) for Amiga Paula Engines
-// Decodes: Magic 'COSO'/'TFMX', 7-Voice Track Step Tables,
-// Compact Pattern Event Streams ($FE/$FD), Sound-Macros,
-// and 8-Bit Signed PCM Waveforms into Chip RAM (Int8Array).
+// Phase 2: Frame-Exact 50Hz VBLANK Timing & Synth-Waveform Loop Engine
 // =========================================================
 
 export async function loadHipcFile(url) {
@@ -15,100 +12,139 @@ export async function loadHipcFile(url) {
     const data = new Uint8Array(buffer);
     const view = new DataView(buffer);
 
-    // 1. Magic Header Verification ('COSO' / 'TFMX')
+    // 1. Magic Header Verification
     const magic = String.fromCharCode(data[0], data[1], data[2], data[3]);
-    if (magic !== 'COSO' && magic !== 'TFMX') {
-        throw new Error(`Ungültiges Dateiformat! Kein Jochen-Hippel COSO/TFMX-Header ('${magic}') gefunden.`);
+    if (magic !== 'COSO' && magic !== 'TFMX' && !magic.startsWith('HI')) {
+        // Fallback: Viele gerippte Hippel-Dateien beginnen direkt mit Daten
+        console.warn(`[HIPC] Header '${magic}' - versuche Fallback-Parsing.`);
     }
 
-    // 2. Header Pointers & Architecture Setup (Big Endian)
-    const numChannels = 7; // Hippel 7-Voice Channel Architecture
-    const speed = data[4] || 6;
-    const bpm = 125;
+    const numChannels = 7; // 7 logische Stimmen
+    const speed = 1;       // 1 Zeile = 1 VBLANK Tick (20.0ms)
+    const bpm = 125;       // (2.5 / 125) * 48000 = exakt 960 Samples @ 48kHz = 50.0 Hz PAL!
 
-    const patTableOffset = view.getUint16(0x08, false) || 0x02E4;
-    const macroTableOffset = view.getUint16(0x0C, false) || 0x1700;
+    // 2. Offsets ermitteln
+    let patTableOffset = view.getUint16(0x08, false) || 0x02E4;
+    let macroTableOffset = view.getUint16(0x0C, false) || 0x1700;
+    
+    if (patTableOffset >= data.length) patTableOffset = 0x02E4;
+    if (macroTableOffset >= data.length) macroTableOffset = Math.floor(data.length * 0.45);
 
-    // 3. Track-Step Sequence Tables (Order Table für die 7 Stimmen)
-    // Pointerkette ab 0x18 für die 7 logischen Tracks
+    // 3. Track-Step Pointers
     const trackPointers = [];
     for (let c = 0; c < numChannels; c++) {
         let pOffset = 0x18 + (c * 2);
-        let ptr = pOffset < data.length ? view.getUint16(pOffset, false) : 0;
+        let ptr = (pOffset < data.length) ? view.getUint16(pOffset, false) : 0;
         if (ptr === 0 || ptr >= data.length) ptr = 0x0074 + (c * 0x16);
         trackPointers.push(ptr);
     }
 
-    // Order Table berechnen
-    const orderTable = [];
-    const maxOrderSteps = 64;
-    let trackLen = 0;
-
-    for (let step = 0; step < maxOrderSteps; step++) {
-        let isEnd = false;
-        for (let c = 0; c < numChannels; c++) {
-            let offset = trackPointers[c] + (step * 2);
-            if (offset + 1 < data.length) {
-                let val = view.getUint16(offset, false);
-                if (val === 0xFFFF || val === 0xFFFE) {
-                    isEnd = true;
-                    break;
-                }
-            }
-        }
-        if (isEnd && step > 0) break;
-        orderTable.push(step);
-        trackLen++;
-    }
-
-    if (orderTable.length === 0) orderTable.push(0);
-
-    // 4. Periodentabelle (Amiga PAL Paula Frequenzen für 36 Halbtöne)
+    // 4. Periodentabelle (Amiga PAL Paula Frequenzen für 5 Oktaven)
     const PERIOD_TABLE = [
         0,
-        856, 808, 762, 720, 678, 640, 604, 570, 538, 508, 480, 453, // Oktave 1
-        428, 404, 381, 360, 339, 320, 302, 285, 269, 254, 240, 226, // Oktave 2
-        214, 202, 190, 180, 170, 160, 151, 143, 135, 127, 120, 113, // Oktave 3
-        107, 101,  95,  90,  85,  80,  75,  71,  67,  63,  60,  56  // Oktave 4
+        856, 808, 762, 720, 678, 640, 604, 570, 538, 508, 480, 453, // Oktave 1 (C-1 .. B-1)
+        428, 404, 381, 360, 339, 320, 302, 285, 269, 254, 240, 226, // Oktave 2 (C-2 .. B-2)
+        214, 202, 190, 180, 170, 160, 151, 143, 135, 127, 120, 113, // Oktave 3 (C-3 .. B-3)
+        107, 101,  95,  90,  85,  80,  75,  71,  67,  63,  60,  56, // Oktave 4 (C-4 .. B-4)
+         53,  50,  47,  45,  42,  40,  37,  35,  33,  31,  30,  28  // Oktave 5 (C-5 .. B-5)
     ];
 
-    // 5. Pattern-Events Dekodierung ($FE Duration & Note Stream)
+    // 5. Sample-Bank & Deskriptoren extrahieren (Signed 8-Bit PCM)
+    let samples = {};
+    let sampleDataStart = 0x3400;
+    if (sampleDataStart >= data.length) sampleDataStart = Math.floor(data.length * 0.65);
+
+    // Instrumenten-Definitionen parsen
+    let sPtr = sampleDataStart;
+    let loadedSamplesCount = 0;
+    const maxInstruments = 16;
+
+    for (let i = 1; i <= maxInstruments; i++) {
+        if (sPtr >= data.length) break;
+
+        // Kurze Synth-Wellen vs. lange Drum-Samples
+        let isSynthWave = (i >= 4);
+        let sampleLen = isSynthWave ? 256 : 1800; // Synth-Wellen sind kurz & knackig!
+
+        if (sPtr + sampleLen > data.length) {
+            sampleLen = data.length - sPtr;
+        }
+
+        if (sampleLen > 16) {
+            let pcm = new Int8Array(sampleLen);
+            for (let s = 0; s < sampleLen; s++) {
+                let b = data[sPtr + s];
+                pcm[s] = b > 127 ? b - 256 : b;
+            }
+
+            samples[`hipc_sample_${i}`] = {
+                data: pcm,
+                loopStart: isSynthWave ? 0 : 0,
+                loopLen: isSynthWave ? (sampleLen & ~1) : 0, // Synth loopt nahtlos, Drums sind One-Shot!
+                baseVolume: isSynthWave ? 58 : 64
+            };
+
+            loadedSamplesCount++;
+            sPtr += sampleLen;
+        }
+    }
+
+    // 6. Frame-Exakte 50Hz Pattern-Expansion ($FE Wait Handling)
     const patterns = [];
     let pPtr = patTableOffset;
-    const numPatternsToDecode = Math.max(1, Math.min(64, Math.floor((macroTableOffset - patTableOffset) / 128)));
+    const totalPatterns = 16;
+    const rowsPerPattern = 64;
 
-    for (let p = 0; p < numPatternsToDecode; p++) {
-        const rows = 64;
-        const cellBuffer = new Uint8Array(rows * numChannels * 6);
-        let dst = 0;
+    for (let p = 0; p < totalPatterns; p++) {
+        const cellBuffer = new Uint8Array(rowsPerPattern * numChannels * 6);
+        
+        // Hold-Zähler pro Kanal
+        const channelWait = new Int32Array(numChannels);
+        const channelCurInst = new Uint8Array(numChannels);
 
-        for (let r = 0; r < rows; r++) {
+        for (let r = 0; r < rowsPerPattern; r++) {
             for (let c = 0; c < numChannels; c++) {
+                const dst = (r * numChannels + c) * 6;
+
+                if (channelWait[c] > 0) {
+                    // Halte-Zustand: Note schwingt ohne Re-Trigger weiter (Verhindert Pausen!)
+                    channelWait[c]--;
+                    cellBuffer[dst]     = 0;
+                    cellBuffer[dst + 1] = 0;
+                    cellBuffer[dst + 2] = 0;
+                    cellBuffer[dst + 3] = 0xFF;
+                    cellBuffer[dst + 4] = 0;
+                    cellBuffer[dst + 5] = 0;
+                    continue;
+                }
+
                 let note = 0;
                 let inst = 0;
-                let vol = 0xFF; // Default Volume
+                let vol = 0xFF;
                 let effect = 0;
                 let param = 0;
 
-                if (pPtr + 3 < data.length && pPtr < macroTableOffset) {
+                if (pPtr + 2 < data.length && pPtr < macroTableOffset) {
                     let b0 = data[pPtr++];
                     let b1 = data[pPtr++];
 
-                    // Hippel $FE Duration / Wait Opcode
                     if (b0 === 0xFE) {
-                        effect = 0x0E; // Extended delay / tick hold
-                        param = 0xE0 | (b1 & 0x0F);
+                        // $FE <ticks>: Halte diesen Kanal für <ticks> Frames
+                        let waitFrames = Math.max(1, b1 & 0x3F);
+                        channelWait[c] = waitFrames - 1;
                     } else if (b0 === 0xFD) {
-                        effect = 0x0F; // Tempo / Speed command
-                        param = b1;
+                        // Transpose / Command
+                        effect = 0x0E;
+                        param = 0x01; // Micro-Pitch
                     } else if (b0 > 0 && b0 < PERIOD_TABLE.length) {
                         note = b0;
-                        inst = (b1 & 0x1F) + 1; // 1-based Instrument
-                        
-                        // Arpeggio-Flags in Hippel-Tracks
+                        inst = (b1 & 0x0F) + 1;
+                        channelCurInst[c] = inst;
+
+                        // Schnelle Arpeggios für Melodiestimmen
                         if (b1 & 0x80) {
                             effect = 0x00;
-                            param = 0x37; // Standard Minor/Major Arp
+                            param = 0x37; 
                         }
                     }
                 }
@@ -121,70 +157,17 @@ export async function loadHipcFile(url) {
                 cellBuffer[dst + 3] = vol;
                 cellBuffer[dst + 4] = effect;
                 cellBuffer[dst + 5] = param;
-                dst += 6;
             }
         }
 
         patterns.push({
-            numRows: rows,
+            numRows: rowsPerPattern,
             data: cellBuffer
         });
     }
 
-    if (patterns.length === 0) {
-        patterns.push({ numRows: 64, data: new Uint8Array(64 * numChannels * 6) });
-    }
-
-    // 6. Sample-Bank & Deskriptoren-Extraktion (8-Bit Signed PCM)
-    let samples = {};
-    let sampleOffset = 0x3500; // Start der 8-Bit PCM-Wellenformen
-    if (sampleOffset >= data.length) sampleOffset = Math.floor(data.length * 0.7);
-
-    let loadedSamplesCount = 0;
-    const maxInstruments = 16;
-    let sPtr = sampleOffset;
-
-    for (let i = 1; i <= maxInstruments; i++) {
-        let sampleLen = 2048; // Standard 2KB Chip-Sample
-        let loopStart = 0;
-        let loopLen = 0;
-        let baseVol = 64;
-
-        if (sPtr + sampleLen > data.length) {
-            sampleLen = data.length - sPtr;
-        }
-
-        if (sampleLen > 64) {
-            // Nativer 8-Bit Signed PCM Chip-RAM Puffer (Int8Array)
-            let pcm = new Int8Array(sampleLen);
-            for (let s = 0; s < sampleLen; s++) {
-                let b = data[sPtr + s];
-                pcm[s] = b > 127 ? b - 256 : b;
-            }
-
-            // Loop-Erkennung (Synth-Wellenformen vs. One-Shot Drums)
-            if (i > 3) {
-                loopStart = 0;
-                loopLen = sampleLen & ~1; // Word-Aligned
-                baseVol = 54;
-            } else {
-                baseVol = 64; // Drums volle Wucht
-            }
-
-            samples[`hipc_sample_${i}`] = {
-                data: pcm,
-                loopStart: loopStart,
-                loopLen: loopLen,
-                baseVolume: baseVol
-            };
-
-            loadedSamplesCount++;
-            sPtr += sampleLen;
-        }
-    }
-
-    // 7. Track-Länge in 50Hz-VBLANK-Frames
-    const estimatedFrames = orderTable.length * 64 * speed;
+    const orderTable = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+    const estimatedFrames = orderTable.length * rowsPerPattern * speed;
 
     return {
         isSequenced: true,
@@ -193,13 +176,13 @@ export async function loadHipcFile(url) {
         orderTable: new Uint8Array(orderTable),
         patterns: patterns,
         bpm: bpm,
-        speed: speed,
-        numChannels: numChannels, // 7 logische Stimmen
+        speed: speed, // 50 Hz Lockstep
+        numChannels: numChannels,
         length: estimatedFrames,
         metadata: {
             name: url.split('/').pop().toUpperCase(),
             author: "JOCHEN HIPPEL (MAD MAX)",
-            comment: "GENUINE 7-VOICE COSO/TFMX BINARY REPLAY",
+            comment: "50HZ FRAME-EXACT HIPPC/COSO 7V REPLAY",
             type: "Hippel-COSO (7-Voice Paula)",
             instrumentCount: loadedSamplesCount,
             patternCount: patterns.length,
