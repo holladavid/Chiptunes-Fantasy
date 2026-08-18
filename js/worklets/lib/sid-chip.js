@@ -2,7 +2,7 @@
 // =========================================================
 // MOS Technology SID 6581 Sound Chip Emulation
 // True Analog Master Edition:
-// - Authentic 15-Bit ADSR LFSR Rate-Counter Wrap-Around Bug (0x7FFF Equality Match)
+// - Wizball Highscore Rapid Arpeggio Fix (Stable Rate Counter Reset)
 // - Voice 3 DC-Leakage Persistence on 3OFF ($D418 Bit 7)
 // - Wizball-Stable 2MHz ZDF OTA Filter Solver (MOS 6581 R3 S-Curve)
 // - Dynamic High-Register Wire-AND Pulldown Relaxation (>2kHz)
@@ -22,7 +22,7 @@ const VOLUME_DAC_6581 = new Float32Array([
 export class SIDChip {
     constructor() {
         this.regs = new Uint8Array(29);
-        this.regs[24] = 0x0F; // PSID Standard: Default Master Volume $0F
+        this.regs[24] = 0x0F; // PSID Standard Default: Volume 15
         this.voices = [];
         for (let i = 0; i < 3; i++) {
             this.voices.push({
@@ -42,11 +42,10 @@ export class SIDChip {
             });
         }
         this.cutoff = 30; this.resonance = 0; this.filterMode = 0x0F;
-        this.masterVol = VOLUME_DAC_6581[15]; // = 1.000
-
+        this.masterVol = VOLUME_DAC_6581[15]; // 1.000
         this.filterLow = 0; this.filterBand = 0;
         
-        // Zero-Delay Feedback (ZDF) State-Space Memory (Capacitor Charges)
+        // Zero-Delay Feedback (ZDF) State-Space Memory
         this.x1 = 0.0;
         this.x2 = 0.0;
 
@@ -57,7 +56,6 @@ export class SIDChip {
         this.q = 1.0;
         this.activeCutoff = 30.0;
         
-        // Silicon Lottery VCF Offset (+/- 40Hz)
         this.vcfOffset = (Math.random() - 0.5) * 80.0;
 
         this._temperature = 55.0;
@@ -67,7 +65,6 @@ export class SIDChip {
         this.thermalDcOffset = 0.0;
         this.thermalJfetDrive = 0.8;
 
-        // Thermal VCA Properties
         this.thermalVoiceDcLeakage = 0.012;
         this.thermalMasterDcBias = 0.70;
 
@@ -137,7 +134,12 @@ export class SIDChip {
             if (gate !== prevGate) {
                 ch.envDelay = 1;
                 ch.state = gate ? ENV_ATTACK : ENV_RELEASE;
-                // HINWEIS: Der 15-Bit Rate-Counter wird bei Gate-On physisch NICHT genullt!
+                
+                // RESTORED: Verhindert den Deadlock bei schnellen Arpeggio-Wechseln!
+                if (gate) {
+                    ch.rate_counter = 0;
+                    ch.exponential_counter = 0;
+                }
             }
             ch.prevGate = gate;
 
@@ -182,13 +184,10 @@ export class SIDChip {
         if (ch.state === ENV_ATTACK) ratePeriod = ch.attack_period;
         else if (ch.state === ENV_DECAY) ratePeriod = ch.decay_period;
 
-        // =========================================================
-        // 15-BIT FREE-RUNNING RATE COUNTER WITH 0x7FFF EQUALITY WRAP-AROUND
-        // Simuliert den berühmten 6581 ADSR-Delay / Sustain-Drop Bug
-        // =========================================================
-        ch.rate_counter = (ch.rate_counter + 1) & 0x7FFF;
+        ch.rate_counter++;
 
-        if (ch.rate_counter === ratePeriod) {
+        // Stabile Schwellenwert-Logik: Verhindert 32ms Deadlock bei Galway-Arpeggios
+        if (ch.rate_counter >= ratePeriod) {
             ch.rate_counter = 0; 
 
             let expPeriod = 1;
@@ -359,6 +358,7 @@ export class SIDChip {
 
             let lp = subG * bp + this.x2;
 
+            // Trapezoidales Zustandsgedächtnis
             this.x1 = 2.0 * bp - this.x1;
             this.x2 = 2.0 * lp - this.x2;
 
