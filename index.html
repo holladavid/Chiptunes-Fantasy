@@ -53,20 +53,20 @@
             <!-- Das nerdige Hardware-HUD -->
             <div id="chip-hud" class="collapsed">
                 <div class="hud-header">
-                    <span id="hud-title">DSP REGISTERS</span>
-                    <div>
-                        <button id="btn-hud-info" class="hidden" title="Toggle Cheat Sheet">[?]</button>
-                        <button id="btn-hud-crossfeed" title="Toggle Binaural Bauer Crossfeed (bs2b)">[ BS2B: ON ]</button>
-                        <button id="btn-hud-toggle" title="Toggle Lab Mode">[ LAB MODE: OFF ]</button>
+                    <div class="hud-controls-stack">
+                        <div class="hud-btn-row">
+                            <button id="btn-hud-info" class="hidden" title="Toggle Cheat Sheet">[?]</button>
+                            <button id="btn-hud-toggle" title="Toggle Lab Mode">[ LAB MODE: OFF ]</button>
+                        </div>
+                        <button id="btn-hud-crossfeed" title="Toggle Stereo Blend / Binaural Crossfeed">[ STEREO BLEND: ON ]</button>
                     </div>
                 </div>
                 
-                <!-- FIX: Der hud-body Block war versehentlich gelöscht worden! -->
                 <div id="hud-body" class="hidden">
                     <div id="hud-matrix"></div>
                     <div id="hud-legend" class="hidden"></div>
                 </div>
-            </div> <!-- FIX: Hier wird das chip-hud sauber geschlossen! -->
+            </div>
 
             <!-- PURE AUDIO OVERLAY -->
             <div id="eco-overlay" class="hidden">
