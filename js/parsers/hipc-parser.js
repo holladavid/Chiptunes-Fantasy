@@ -1,7 +1,8 @@
 // === js/parsers/hipc-parser.js ===
 // =========================================================
-// JOCHEN HIPPEL (MAD MAX) COSO 7-VOICE FRAME COMPILER
-// Phase 4: True 32-Bit Pointer Decoding & Dynamic PCM Slicing
+// JOCHEN HIPPEL (MAD MAX) COSO / 4-VOICE RAW BINARY DUMPER
+// "Step 1 True": Zero Assumptions, Zero Emulated Semantics.
+// Dumps the structural truth of Wings of Death Level 1.
 // =========================================================
 
 export async function loadHipcFile(url) {
@@ -9,198 +10,88 @@ export async function loadHipcFile(url) {
     if (!response.ok) throw new Error(`Datei nicht gefunden: ${url}`);
     
     const rawBuffer = await response.arrayBuffer();
-    const data = new Uint8Array(rawBuffer.byteLength + 64); // Failsafe Padding
-    data.set(new Uint8Array(rawBuffer), 0);
-    const view = new DataView(data.buffer);
+    const data = new Uint8Array(rawBuffer);
 
-    const numChannels = 7;
-    const speed = 1;       // 1 VBLANK Frame (20.0ms @ 50Hz)
-    const bpm = 125;       // PAL 50Hz
+    console.log(`\n=== [HIPC RAW DUMPER] BOOTING WINGS OF DEATH LVL 1 PROBE ===`);
+    console.log(`FILE: ${url.split('/').pop()} | SIZE: ${data.length} Bytes`);
 
     // =========================================================
-    // 1. EXTRACT TRUE 32-BIT POINTERS & TRACK STARTS
+    // 1. HARDCODED WINGS OF DEATH LEVEL 1 OFFSETS
+    // (Beweisbasiert aus der IRA Disassembly)
     // =========================================================
-    // Die Pointer liegen ab Offset $0008 als 32-Bit Longwords vor!
-    let patTableOffset = view.getUint32(0x08, false);
-    if (patTableOffset === 0 || patTableOffset > data.length) patTableOffset = 0x02E4;
-
-    // Track-Pointer Array ab $0040 auslesen
-    const trackPointers = [];
-    for (let i = 0; i < numChannels; i++) {
-        let ptr = view.getUint16(0x0042 + (i * 2), false);
-        trackPointers.push(ptr);
-    }
-
-    // =========================================================
-    // 2. DYNAMIC PCM "SILENCE SLICER" (Demoscene Hacker Trick!)
-    // Wir suchen die Signatur $48 3C 32 29 und schneiden die Samples
-    // an den Nulldurchgängen (Stille) in perfekte Instrumente.
-    // =========================================================
-    let sampleDataStart = 0x1800; // Fallback
-    for (let i = 0x0500; i < data.length - 8; i++) {
-        if (data[i] === 0x48 && data[i+1] === 0x3C && data[i+2] === 0x32 && data[i+3] === 0x29) {
-            sampleDataStart = i;
-            break;
-        }
-    }
-
-    let samples = {};
-    let currentSample = [];
-    let zeroCount = 0;
-    let sampleId = 1;
-
-    for (let i = sampleDataStart; i < data.length; i++) {
-        let b = data[i];
-        
-        // Zählt aufeinanderfolgende Nullen (Stille)
-        if (b === 0 || b === 0xFF || b === 0x01) {
-            zeroCount++;
-        } else {
-            zeroCount = 0;
-        }
-
-        // Signed 8-Bit Konvertierung
-        currentSample.push((b > 127) ? (b - 256) : b);
-
-        // Wenn 16 Nullen am Stück kommen -> Sample beenden und abspeichern!
-        if (zeroCount > 16 && currentSample.length > 64) {
-            // Die angehängten Nullen abschneiden
-            let cleanLen = currentSample.length - zeroCount;
-            let pcm = new Int8Array(currentSample.slice(0, cleanLen));
-            
-            let isSynth = (cleanLen <= 1024); // Kurze Samples sind Synthesizer-Wellen!
-            samples[`hipc_sample_${sampleId}`] = {
-                data: pcm,
-                loopStart: 0,
-                loopLen: isSynth ? (cleanLen & ~1) : 0, // Nahtloser Loop für Synths
-                baseVolume: isSynth ? 58 : 64
-            };
-
-            // Aliases für die AudioWorklets
-            samples[`mod_sample_${sampleId}`] = samples[`hipc_sample_${sampleId}`];
-            samples[`xm_sample_${sampleId}`] = samples[`hipc_sample_${sampleId}`];
-
-            sampleId++;
-            currentSample = [];
-            zeroCount = 0;
-
-            // Restliche Nullen überspringen
-            while (i + 1 < data.length && (data[i+1] === 0 || data[i+1] === 0xFF)) { i++; }
-        }
-    }
-
-    // Letztes Sample im Puffer retten
-    if (currentSample.length > 64) {
-        samples[`hipc_sample_${sampleId}`] = {
-            data: new Int8Array(currentSample), loopStart: 0, loopLen: 0, baseVolume: 64
-        };
-    }
-
-    // =========================================================
-    // 3. AMIGA PAL PERIODENTABELLE
-    // =========================================================
-    const PERIOD_TABLE = [
-        0,
-        856, 808, 762, 720, 678, 640, 604, 570, 538, 508, 480, 453, // Oktave 1
-        428, 404, 381, 360, 339, 320, 302, 285, 269, 254, 240, 226, // Oktave 2 (C-2 = 428)
-        214, 202, 190, 180, 170, 160, 151, 143, 135, 127, 120, 113, // Oktave 3
-        107, 101,  95,  90,  85,  80,  75,  71,  67,  63,  60,  56  // Oktave 4
+    const trackPointers = [
+        0x0074, // CH0
+        0x008A, // CH1
+        0x009E, // CH2
+        0x00B0  // CH3
     ];
+    const sampleHeaderOffset = 0x11FE;
+    const NUM_CHANNELS = 4;
+
+    console.log(`[POINTERS] CH0:$${trackPointers[0].toString(16).toUpperCase()} | CH1:$${trackPointers[1].toString(16).toUpperCase()} | CH2:$${trackPointers[2].toString(16).toUpperCase()} | CH3:$${trackPointers[3].toString(16).toUpperCase()}`);
+    console.log(`[POINTERS] Sample/Macro Table: $${sampleHeaderOffset.toString(16).toUpperCase()}`);
 
     // =========================================================
-    // 4. 50HZ VBLANK FRAME-COMPILER (Ausführung der 7 Tracks)
+    // 2. DUMP SAMPLE / MACRO TABLE (@ $11FE)
     // =========================================================
-    const voices = [];
-    for (let c = 0; c < numChannels; c++) {
-        voices.push({
-            ptr: trackPointers[c],
-            startPtr: trackPointers[c],
-            wait: 0,
-            curInst: (c === 0 ? 1 : (c === 3 ? 4 : 5)),
-            transpose: 0,
-            stopped: false
-        });
+    console.log(`\n--- [TABLE DUMP] @ $11FE (First 16 Entries, 16 Bytes each) ---`);
+    let tblPtr = sampleHeaderOffset;
+    for (let i = 0; i < 16; i++) {
+        let hexRow = [];
+        for (let b = 0; b < 16; b++) {
+            if (tblPtr + b < data.length) {
+                hexRow.push(data[tblPtr + b].toString(16).toUpperCase().padStart(2, '0'));
+            }
+        }
+        console.log(`ENTRY_${i.toString().padStart(2, '0')} | ${hexRow.slice(0, 8).join(' ')} - ${hexRow.slice(8, 16).join(' ')}`);
+        tblPtr += 16;
     }
 
-    const frames = [];
-    const MAX_FRAMES = 50 * 180; // Maximal 3 Minuten Spielzeit
+    // =========================================================
+    // 3. DUMP RAW TRACK STREAMS (No Opcode Interpretation!)
+    // =========================================================
+    console.log(`\n--- [STREAM DUMP] RAW BYTE SEQUENCE FOR ALL 4 CHANNELS ---`);
 
-    for (let f = 0; f < MAX_FRAMES; f++) {
-        const frameCmds = [];
-        let allStopped = true;
-
-        for (let ch = 0; ch < numChannels; ch++) {
-            const v = voices[ch];
-            if (v.stopped) continue;
-            allStopped = false;
-
-            if (v.wait > 0) {
-                v.wait--;
-                continue; // Ton hält
-            }
-
-            let safety = 64; // Anti-Endlosschleifen-Schutz
-            while (v.ptr + 1 < sampleDataStart && !v.stopped && safety > 0) {
-                safety--;
-                let b0 = data[v.ptr++];
-                let b1 = data[v.ptr++];
-
-                if (b0 === 0xFF) {
-                    // $FF: End / Loop
-                    v.ptr = v.startPtr;
-                } else if (b0 === 0xFE) {
-                    // $FE <ticks>: VBLANK Noten-Länge
-                    v.wait = (b1 & 0x3F);
-                    break;
-                } else if (b0 === 0xFD) {
-                    // $FD <transpose>: Tonlagenverschiebung
-                    v.transpose = (b1 > 127) ? (b1 - 256) : b1;
-                } else if (b0 === 0x00) {
-                    // $00: KeyOff / Note Mute
-                    frameCmds.push({ ch: ch, per: 0, vol: 0 });
-                } else if (b0 > 0 && b0 < 60) {
-                    // Note Event!
-                    let noteIndex = b0 + v.transpose;
-                    if (noteIndex < 1) noteIndex = 1;
-                    if (noteIndex >= PERIOD_TABLE.length) noteIndex = PERIOD_TABLE.length - 1;
-
-                    let period = PERIOD_TABLE[noteIndex];
-                    let instByte = (b1 & 0x1F);
-                    if (instByte > 0) v.curInst = instByte;
-
-                    // Arpeggio Macro für Melodien
-                    let effect = 0, param = 0;
-                    if (b1 & 0x80) { effect = 0x00; param = 0x47; }
-
-                    frameCmds.push({
-                        ch: ch,
-                        smp: `hipc_sample_${v.curInst}`,
-                        per: period,
-                        vol: 64,
-                        eff: effect,
-                        prm: param
-                    });
-                    break;
-                }
+    for (let c = 0; c < NUM_CHANNELS; c++) {
+        let ptr = trackPointers[c];
+        let streamLog = [];
+        let addrLog = [];
+        
+        // Wir dumpen stumpf die ersten 48 Bytes jedes Kanals
+        for (let step = 0; step < 48; step++) {
+            if (ptr < data.length) {
+                let byteVal = data[ptr];
+                streamLog.push(byteVal.toString(16).toUpperCase().padStart(2, '0'));
+                if (step % 8 === 0) addrLog.push(`$${ptr.toString(16).toUpperCase().padStart(4, '0')}`);
+                ptr++;
             }
         }
 
-        if (allStopped) break;
-        frames.push({ isAmiga: true, cmds: frameCmds });
+        console.log(`\n[CH ${c}] Starting at: ${addrLog.join(' / ')}`);
+        
+        // Formatiere die Ausgabe in schönen 8-Byte Blöcken
+        for (let row = 0; row < 6; row++) {
+            console.log(`  ${streamLog.slice(row * 8, (row + 1) * 8).join(' ')}`);
+        }
     }
 
+    console.log(`\n=== [HIPC RAW DUMPER] FINISHED ===\n`);
+
+    // =========================================================
+    // 4. FAILSAFE DUMMY RETURN (Silences the Audio Engine)
+    // =========================================================
     return {
-        isSequenced: false, // Wird vom Core als fertiger Stream abgespielt!
-        frames: frames,
-        samples: samples,
-        length: frames.length,
+        isSequenced: false, 
+        frames: [], 
+        samples: {}, 
+        length: 0,
         metadata: {
-            name: url.split('/').pop().toUpperCase(),
-            author: "JOCHEN HIPPEL (MAD MAX)",
-            comment: "DYNAMIC SILENCE-SLICED 7-VOICE VBLANK REPLAY",
-            type: "Hippel-COSO (7-Channel Paula)",
-            instrumentCount: Object.keys(samples).length / 3,
-            patternCount: 1,
+            name: "WINGS OF DEATH LVL 1",
+            author: "MAD MAX",
+            comment: "PURE RAW HEX DUMPER - NO AUDIO",
+            type: "COSO Probe",
+            instrumentCount: 0,
+            patternCount: 0,
             fileSize: data.length
         }
     };
