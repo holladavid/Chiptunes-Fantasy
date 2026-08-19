@@ -1,8 +1,7 @@
 // === js/parsers/hipc-parser.js ===
 // =========================================================
-// JOCHEN HIPPEL (MAD MAX) COSO / 4-VOICE RAW BINARY DUMPER
-// "Step 1 True": Zero Assumptions, Zero Emulated Semantics.
-// Dumps the structural truth of Wings of Death Level 1.
+// JOCHEN HIPPEL (MAD MAX) COSO / TFMX DATA PROBE
+// Phase 3: True TFMX Structure Dumper
 // =========================================================
 
 export async function loadHipcFile(url) {
@@ -11,88 +10,75 @@ export async function loadHipcFile(url) {
     
     const rawBuffer = await response.arrayBuffer();
     const data = new Uint8Array(rawBuffer);
+    const view = new DataView(data.buffer);
 
-    console.log(`\n=== [HIPC RAW DUMPER] BOOTING WINGS OF DEATH LVL 1 PROBE ===`);
-    console.log(`FILE: ${url.split('/').pop()} | SIZE: ${data.length} Bytes`);
+    console.log(`\n=== [TFMX / COSO DATA PROBE] ${url.split('/').pop()} ===`);
 
-    // =========================================================
-    // 1. HARDCODED WINGS OF DEATH LEVEL 1 OFFSETS
-    // (Beweisbasiert aus der IRA Disassembly)
-    // =========================================================
-    const trackPointers = [
-        0x0074, // CH0
-        0x008A, // CH1
-        0x009E, // CH2
-        0x00B0  // CH3
-    ];
-    const sampleHeaderOffset = 0x11FE;
-    const NUM_CHANNELS = 4;
+    // 1. EXTRACT 32-BIT POINTERS
+    const patPtrsTable = view.getUint32(0x08, false);
+    const macPtrsTable = view.getUint32(0x0C, false);
+    const patDataStart = view.getUint32(0x10, false);
+    const macDataStart = view.getUint32(0x14, false);
 
-    console.log(`[POINTERS] CH0:$${trackPointers[0].toString(16).toUpperCase()} | CH1:$${trackPointers[1].toString(16).toUpperCase()} | CH2:$${trackPointers[2].toString(16).toUpperCase()} | CH3:$${trackPointers[3].toString(16).toUpperCase()}`);
-    console.log(`[POINTERS] Sample/Macro Table: $${sampleHeaderOffset.toString(16).toUpperCase()}`);
+    console.log(`[POINTERS] PatTable: $${patPtrsTable.toString(16).toUpperCase()} | MacTable: $${macPtrsTable.toString(16).toUpperCase()}`);
+    console.log(`[POINTERS] PatData:  $${patDataStart.toString(16).toUpperCase()} | MacData:  $${macDataStart.toString(16).toUpperCase()}`);
 
-    // =========================================================
-    // 2. DUMP SAMPLE / MACRO TABLE (@ $11FE)
-    // =========================================================
-    console.log(`\n--- [TABLE DUMP] @ $11FE (First 16 Entries, 16 Bytes each) ---`);
-    let tblPtr = sampleHeaderOffset;
-    for (let i = 0; i < 16; i++) {
-        let hexRow = [];
-        for (let b = 0; b < 16; b++) {
-            if (tblPtr + b < data.length) {
-                hexRow.push(data[tblPtr + b].toString(16).toUpperCase().padStart(2, '0'));
-            }
-        }
-        console.log(`ENTRY_${i.toString().padStart(2, '0')} | ${hexRow.slice(0, 8).join(' ')} - ${hexRow.slice(8, 16).join(' ')}`);
-        tblPtr += 16;
+    // 2. DUMP PATTERN POINTERS (First 8)
+    console.log(`\n--- [DUMP] PATTERN POINTERS (@ $${patPtrsTable.toString(16).toUpperCase()}) ---`);
+    let pTable = patPtrsTable;
+    let patOffsets = [];
+    for (let i = 0; i < 8; i++) {
+        let p32 = view.getUint32(pTable, false);
+        patOffsets.push(p32);
+        console.log(`PAT_${i.toString().padStart(2,'0')} -> Absolute Offset: $${p32.toString(16).toUpperCase()}`);
+        pTable += 4;
     }
 
-    // =========================================================
-    // 3. DUMP RAW TRACK STREAMS (No Opcode Interpretation!)
-    // =========================================================
-    console.log(`\n--- [STREAM DUMP] RAW BYTE SEQUENCE FOR ALL 4 CHANNELS ---`);
+    // 3. DUMP MACRO POINTERS (First 8)
+    console.log(`\n--- [DUMP] MACRO POINTERS (@ $${macPtrsTable.toString(16).toUpperCase()}) ---`);
+    let mTable = macPtrsTable;
+    let macOffsets = [];
+    for (let i = 0; i < 8; i++) {
+        let m32 = view.getUint32(mTable, false);
+        macOffsets.push(m32);
+        console.log(`MAC_${i.toString().padStart(2,'0')} -> Absolute Offset: $${m32.toString(16).toUpperCase()}`);
+        mTable += 4;
+    }
 
-    for (let c = 0; c < NUM_CHANNELS; c++) {
-        let ptr = trackPointers[c];
-        let streamLog = [];
-        let addrLog = [];
-        
-        // Wir dumpen stumpf die ersten 48 Bytes jedes Kanals
-        for (let step = 0; step < 48; step++) {
-            if (ptr < data.length) {
-                let byteVal = data[ptr];
-                streamLog.push(byteVal.toString(16).toUpperCase().padStart(2, '0'));
-                if (step % 8 === 0) addrLog.push(`$${ptr.toString(16).toUpperCase().padStart(4, '0')}`);
-                ptr++;
-            }
+    // 4. DUMP PATTERN 07 (Referenziert in Track 1)
+    if (patOffsets[7] > 0 && patOffsets[7] < data.length) {
+        console.log(`\n--- [DUMP] PATTERN 07 DATA (@ $${patOffsets[7].toString(16).toUpperCase()}) ---`);
+        let ptr = patOffsets[7];
+        let hexStr = [];
+        for (let i = 0; i < 32; i++) {
+            hexStr.push(data[ptr+i].toString(16).toUpperCase().padStart(2, '0'));
         }
-
-        console.log(`\n[CH ${c}] Starting at: ${addrLog.join(' / ')}`);
-        
-        // Formatiere die Ausgabe in schönen 8-Byte Blöcken
-        for (let row = 0; row < 6; row++) {
-            console.log(`  ${streamLog.slice(row * 8, (row + 1) * 8).join(' ')}`);
+        for (let row = 0; row < 4; row++) {
+            console.log(`  ${hexStr.slice(row * 8, (row + 1) * 8).join(' ')}`);
         }
     }
 
-    console.log(`\n=== [HIPC RAW DUMPER] FINISHED ===\n`);
+    // 5. DUMP MACRO 00 (Referenziert in vielen Instrumenten)
+    if (macOffsets[0] > 0 && macOffsets[0] < data.length) {
+        console.log(`\n--- [DUMP] MACRO 00 DATA (@ $${macOffsets[0].toString(16).toUpperCase()}) ---`);
+        let ptr = macOffsets[0];
+        let hexStr = [];
+        for (let i = 0; i < 32; i++) {
+            hexStr.push(data[ptr+i].toString(16).toUpperCase().padStart(2, '0'));
+        }
+        for (let row = 0; row < 4; row++) {
+            console.log(`  ${hexStr.slice(row * 8, (row + 1) * 8).join(' ')}`);
+        }
+    }
 
-    // =========================================================
-    // 4. FAILSAFE DUMMY RETURN (Silences the Audio Engine)
-    // =========================================================
+    console.log(`\n=== [TFMX PROBE FINISHED] ===\n`);
+
+    // Failsafe Dummy Return
     return {
-        isSequenced: false, 
-        frames: [], 
-        samples: {}, 
-        length: 0,
+        isSequenced: false, frames: [], samples: {}, length: 0,
         metadata: {
-            name: "WINGS OF DEATH LVL 1",
-            author: "MAD MAX",
-            comment: "PURE RAW HEX DUMPER - NO AUDIO",
-            type: "COSO Probe",
-            instrumentCount: 0,
-            patternCount: 0,
-            fileSize: data.length
+            name: "TFMX PROBE", author: "MAD MAX", comment: "HEX DUMPER", type: "TFMX",
+            instrumentCount: 0, patternCount: 0, fileSize: data.length
         }
     };
 }
