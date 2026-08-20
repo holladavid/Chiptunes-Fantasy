@@ -1,8 +1,8 @@
 // === js/parsers/hipc-parser.js ===
 // =========================================================
-// JOCHEN HIPPEL (MAD MAX) TFMX / COSO TRUE STATE-MACHINE
-// The Absolute Masterpiece: Genuine 16-Bit Call/Return Logic,
-// 4-Channel Trackstep Engine and Dynamic PCM Silence-Slicing.
+// JOCHEN HIPPEL (MAD MAX) COSO / LEVEL 1 RAW STREAM INSPECTOR
+// "Step 1 True": Pure Bytecode Streamer & Exact Pattern Unpacker
+// Zero Assumptions. Zero Emulated Semantics. Strict 4-Channel Baseline.
 // =========================================================
 
 export async function loadHipcFile(url) {
@@ -10,229 +10,130 @@ export async function loadHipcFile(url) {
     if (!response.ok) throw new Error(`Datei nicht gefunden: ${url}`);
     
     const rawBuffer = await response.arrayBuffer();
-    const data = new Uint8Array(rawBuffer.byteLength + 64); // Safety Padding
-    data.set(new Uint8Array(rawBuffer), 0);
+    const data = new Uint8Array(rawBuffer);
     const view = new DataView(data.buffer);
 
-    const numChannels = 4; // Amiga Hardware Channels
-    const speed = 1;       // 1 Zeile = 1 VBLANK Frame (20.0ms @ 50Hz)
-    const bpm = 125;       // PAL 50Hz Base
+    console.log(`\n================================================================`);
+    console.log(`=== [HIPC STREAM INSPECTOR] ${url.split('/').pop()} ===`);
+    console.log(`=== FILE SIZE: ${data.length} Bytes ===`);
+    console.log(`================================================================\n`);
 
     // =========================================================
-    // 1. EXTRACT 16-BIT POINTERS & ANCHORS
+    // 1. BEWIESENE CONTAINER-BASICS (WINGS LEVEL 1)
     // =========================================================
-    const trackPointers = [0x0074, 0x008A, 0x009E, 0x00B0];
-    const patTableOffset = 0x02E4;
-    
-    // Die 16-Bit Pattern-Pointer extrahieren
-    const patPointers = [];
-    let pt = patTableOffset;
-    for (let i = 0; i < 128; i++) {
-        let p16 = view.getUint16(pt, false);
-        // Sobald die Pointer in den Datenbereich laufen (z.B. Makros ab $03E4), abbrechen
-        if (p16 === 0 || pt >= 0x03E4) break; 
-        patPointers.push(p16);
-        pt += 2;
-    }
-
-    // =========================================================
-    // 2. AMIGA CHIP RAM BYPASS: DYNAMIC PCM EXTRACTION
-    // Wir isolieren die echten 8-Bit Signed-PCM Samples über Nulldurchgänge.
-    // =========================================================
-    let sampleDataStart = 0x1800; // Fallback
-    for (let i = 0x0500; i < data.length - 8; i++) {
-        if (data[i] === 0x48 && data[i+1] === 0x3C && data[i+2] === 0x32 && data[i+3] === 0x29) {
-            sampleDataStart = i;
-            break;
-        }
-    }
-
-    let samples = {};
-    let currentSample = [];
-    let zeroCount = 0;
-    let sampleId = 1;
-
-    for (let i = sampleDataStart; i < data.length; i++) {
-        let b = data[i];
-        if (b === 0 || b === 0xFF || b === 0x01) zeroCount++;
-        else zeroCount = 0;
-
-        currentSample.push((b > 127) ? (b - 256) : b);
-
-        // Schneide ab, wenn 16 Nullen am Stück kommen
-        if (zeroCount > 16 && currentSample.length > 32) {
-            let cleanLen = currentSample.length - zeroCount;
-            let pcm = new Int8Array(currentSample.slice(0, cleanLen));
-            
-            let isSynth = (cleanLen <= 1024); 
-            let smpObj = {
-                data: pcm,
-                loopStart: 0,
-                loopLen: isSynth ? (cleanLen & ~1) : 0, 
-                baseVolume: isSynth ? 58 : 64
-            };
-
-            samples[`hipc_sample_${sampleId}`] = smpObj;
-            samples[`mod_sample_${sampleId}`] = smpObj; // Fallback
-            samples[`xm_sample_${sampleId}`] = smpObj;  // Fallback
-
-            sampleId++;
-            currentSample = [];
-            zeroCount = 0;
-
-            // Fresse alle weiteren Nullen bis zum nächsten Sample-Start
-            while (i + 1 < data.length && (data[i+1] === 0 || data[i+1] === 0xFF)) { i++; }
-        }
-    }
-
-    const loadedSamplesCount = sampleId - 1;
-
-    // =========================================================
-    // 3. AMIGA PAL PERIODENTABELLE
-    // =========================================================
-    const PERIOD_TABLE = [
-        0,
-        856, 808, 762, 720, 678, 640, 604, 570, 538, 508, 480, 453, // Oktave 1 (C-1 .. B-1)
-        428, 404, 381, 360, 339, 320, 302, 285, 269, 254, 240, 226, // Oktave 2 (13 = C-2 = 428)
-        214, 202, 190, 180, 170, 160, 151, 143, 135, 127, 120, 113, // Oktave 3
-        107, 101,  95,  90,  85,  80,  75,  71,  67,  63,  60,  56  // Oktave 4
+    const NUM_PAULA_CHANNELS = 4;
+    const trackPointers = [
+        0x0074, // Track 0 Start
+        0x008A, // Track 1 Start
+        0x009E, // Track 2 Start
+        0x00B0  // Track 3 Start
     ];
+    const trackBoundaries = [0x008A, 0x009E, 0x00B0, 0x00F8];
+    const patTableOffset = 0x02E4;
+    const sampleHeaderOffset = 0x11FE;
+    const sampleDataStart = 0x1C94;
+
+    console.log(`[CHANNELS] Mode: Strict 4 Hardware Channels (L-R-R-L)`);
+    console.log(`[TRACKS] CH0=$0074..$008A | CH1=$008A..$009E | CH2=$009E..$00B0 | CH3=$00B0..$00F8`);
+    console.log(`[TABLES] Patterns=$02E4 | Macro/Headers=$11FE | PCM=$1C94\n`);
 
     // =========================================================
-    // 4. THE TFMX CALL/RETURN FRAME COMPILER
+    // 2. ROH-DUMP DER 4 TRACK-STREAMS (BYTE-FÜR-BYTE)
     // =========================================================
-    const voices = [];
-    for (let c = 0; c < numChannels; c++) {
-        voices.push({
-            trkPtr: trackPointers[c],   // Zeiger in der Track-Liste
-            startPtr: trackPointers[c], // Anker für Track-Loops
-            patPtr: -1,                 // Zeiger im aktuellen Pattern (-1 = im Track)
-            wait: 0,                    // VBLANK Delay
-            transpose: 0,               // Globale Track-Transposition
-            curInst: (c % 4) + 1,       // Basis-Instrument
+    console.log(`--- [1. RAW TRACK SEQUENCES (BYTE-BY-BYTE)] ---`);
+
+    function readByte(state) {
+        if (state.ptr >= state.end || state.ptr >= data.length) {
+            state.stopped = true;
+            return null;
+        }
+        return data[state.ptr++];
+    }
+
+    for (let c = 0; c < NUM_PAULA_CHANNELS; c++) {
+        let state = {
+            ptr: trackPointers[c],
+            start: trackPointers[c],
+            end: trackBoundaries[c],
             stopped: false
-        });
+        };
+
+        let dumpEntries = [];
+        while (!state.stopped) {
+            let offset = state.ptr;
+            let b0 = readByte(state);
+            if (b0 === null) break;
+
+            let hex = b0.toString(16).toUpperCase().padStart(2, '0');
+            dumpEntries.push(`+$${(offset - state.start).toString(16).toUpperCase().padStart(2, '0')}[$${offset.toString(16).toUpperCase()}]: $${hex}`);
+        }
+
+        console.log(`\n[TRACK ${c}] Range $${state.start.toString(16).toUpperCase()}..$${state.end.toString(16).toUpperCase()} (${dumpEntries.length} Bytes):`);
+        for (let row = 0; row < Math.ceil(dumpEntries.length / 8); row++) {
+            console.log(`  ${dumpEntries.slice(row * 8, (row + 1) * 8).join(' | ')}`);
+        }
     }
 
-    const frames = [];
-    const MAX_FRAMES = 50 * 180; // Hard-Stop nach 3 Minuten
+    // =========================================================
+    // 3. ECHTE 12 PATTERNS AUSLESEN (@ $02E4 -> $02FC)
+    // =========================================================
+    console.log(`\n--- [2. EXACT PATTERN BYTE SEQUENCES (Patterns 00 .. 11)] ---`);
     
-    // Paula State
-    const physChannels = [null, null, null, null];
+    // Die 12 bewiesenen 16-Bit Pattern-Offsets aus der Tabelle ab $02E4
+    const patPointers = [];
+    for (let i = 0; i < 12; i++) {
+        patPointers.push(view.getUint16(patTableOffset + i * 2, false));
+    }
+    // Pattern 11 endet dort, wo die nächste Struktur beginnt ($03E4)
+    const patEnds = [...patPointers.slice(1), 0x03E4];
 
-    for (let f = 0; f < MAX_FRAMES; f++) {
-        const frameCmds = [];
-        let allStopped = true;
+    for (let p = 0; p < 12; p++) {
+        let pStart = patPointers[p];
+        let pEnd = patEnds[p];
+        let pLen = pEnd - pStart;
+        let bytesHex = [];
 
-        for (let i = 0; i < 4; i++) physChannels[i] = null;
-
-        for (let ch = 0; ch < numChannels; ch++) {
-            const v = voices[ch];
-            if (v.stopped) continue;
-            allStopped = false;
-
-            // Note Sustain (Paula schwingt naturgemäß weiter)
-            if (v.wait > 0) {
-                v.wait--;
-                continue; 
-            }
-
-            let safety = 64;
-            while (!v.stopped && safety > 0) {
-                safety--;
-
-                // --- MODUS A: PATTERN EXECUTION ---
-                if (v.patPtr !== -1) {
-                    let b0 = data[v.patPtr++];
-                    let b1 = data[v.patPtr++];
-
-                    if (b0 === 0xFF) {
-                        // $FF xx -> END OF PATTERN (Return to Track)
-                        v.patPtr = -1;
-                        continue; 
-                    } else if (b0 === 0xFE) {
-                        // $FE xx -> WAIT COMMAND (VBLANK Ticks)
-                        v.wait = (b1 & 0x3F);
-                        break; 
-                    } else if (b0 === 0xFD) {
-                        // $FD xx -> MACRO / PITCH COMMAND
-                        // Wir ignorieren dies für die Struktur-Wiedergabe
-                        continue;
-                    } else if (b0 === 0x00) {
-                        // $00 xx -> KEY OFF / REST
-                        physChannels[ch] = { ch: ch, per: 0, vol: 0 };
-                        break;
-                    } else if (b0 < 0xE0) {
-                        // $xx $yy -> PLAY NOTE + MACRO
-                        let noteIndex = b0 + v.transpose;
-                        if (noteIndex < 1) noteIndex = 1;
-                        if (noteIndex >= PERIOD_TABLE.length) noteIndex = PERIOD_TABLE.length - 1;
-
-                        let period = PERIOD_TABLE[noteIndex];
-                        let macro = b1;
-                        
-                        // Map das Makro provisorisch auf eines unserer isolierten PCM-Samples
-                        v.curInst = (macro % loadedSamplesCount) + 1;
-
-                        physChannels[ch] = {
-                            ch: ch,
-                            smp: `hipc_sample_${v.curInst}`,
-                            per: Math.max(113, period), // Hardware Clamping
-                            vol: 64,
-                            eff: 0, prm: 0
-                        };
-                        break;
-                    }
-                } 
-                // --- MODUS B: TRACK EXECUTION ---
-                else {
-                    let b0 = data[v.trkPtr++];
-                    let b1 = data[v.trkPtr++];
-
-                    if (b0 === 0xFF) {
-                        // $FF xx -> TRACK END
-                        v.stopped = true;
-                        break;
-                    } else if (b0 === 0xE0) {
-                        // $E0 xx -> LOOP TO STEP xx
-                        v.trkPtr = v.startPtr + (b1 * 2);
-                        continue;
-                    } else if (b0 >= 0xE0) {
-                        // Other Track Commands ($E2 = Tempo, etc.)
-                        continue;
-                    } else if (b0 < patPointers.length) {
-                        // PATTERN CALL!
-                        v.patPtr = patPointers[b0];
-                        // Zweierkomplement Transpose
-                        v.transpose = (b1 > 127) ? (b1 - 256) : b1;
-                    }
-                }
-            }
+        for (let i = pStart; i < pEnd && i < data.length; i++) {
+            bytesHex.push(data[i].toString(16).toUpperCase().padStart(2, '0'));
         }
 
-        if (allStopped) break;
-
-        // Push die physikalischen 4 Kanäle in den 50Hz Frame
-        for (let i = 0; i < 4; i++) {
-            if (physChannels[i]) frameCmds.push(physChannels[i]);
-            else frameCmds.push({ ch: i, per: 0, vol: 0, smp: null, eff: 0, prm: 0 });
+        console.log(`\n[PATTERN ${p.toString().padStart(2, '0')}] Offset: $${pStart.toString(16).toUpperCase()}..$${pEnd.toString(16).toUpperCase()} (${pLen} Bytes):`);
+        for (let row = 0; row < Math.ceil(bytesHex.length / 16); row++) {
+            console.log(`  ${bytesHex.slice(row * 16, (row + 1) * 16).join(' ')}`);
         }
-
-        frames.push({ isAmiga: true, cmds: frameCmds });
     }
 
+    // =========================================================
+    // 4. ROH-DUMP DER ERSTEN 128 BYTES DES PCM-BEREICHS (@ $1C94)
+    // =========================================================
+    console.log(`\n--- [3. RAW PCM WAVEFORM START (@ $1C94 - First 128 Bytes)] ---`);
+    let pcmBytes = [];
+    for (let i = 0; i < 128 && (sampleDataStart + i) < data.length; i++) {
+        pcmBytes.push(data[sampleDataStart + i].toString(16).toUpperCase().padStart(2, '0'));
+    }
+    for (let row = 0; row < 8; row++) {
+        console.log(`  +$${(row * 16).toString(16).toUpperCase().padStart(2, '0')} | ${pcmBytes.slice(row * 16, (row + 1) * 16).join(' ')}`);
+    }
+
+    console.log(`\n================================================================`);
+    console.log(`=== [PROBE FINISHED] RAW LEVEL 1 TRUTH IS UNPACKED ===`);
+    console.log(`================================================================\n`);
+
+    // =========================================================
+    // 5. FAILSAFE SILENCE RETURN (Keine hypothetische Audio-Ausgabe)
+    // =========================================================
     return {
         isSequenced: false,
-        frames: frames,
-        samples: samples,
-        length: frames.length,
+        frames: [],
+        samples: {},
+        length: 0,
         metadata: {
-            name: url.split('/').pop().toUpperCase(),
-            author: "JOCHEN HIPPEL (MAD MAX)",
-            comment: "TRUE M68K TFMX CALL/RETURN ENGINE",
-            type: "Hippel-TFMX (4-Channel Paula)",
-            instrumentCount: loadedSamplesCount,
-            patternCount: patPointers.length,
+            name: "WINGS OF DEATH (LEVEL 1 INSPECTOR)",
+            author: "JOCHEN HIPPEL",
+            comment: "STRICT RAW M68K STREAM DUMPER",
+            type: "Hippel-COSO Raw Inspector",
+            instrumentCount: 0,
+            patternCount: 12,
             fileSize: data.length
         }
     };
