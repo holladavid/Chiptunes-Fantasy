@@ -1,11 +1,11 @@
 // === js/parsers/hipc-parser.js ===
 // =========================================================
 // JOCHEN HIPPEL (MAD MAX) COSO / HIPC BLOCK-RIPPER
-// Layer A — Verified Binary Container Extraction:
+// Layer A — Calibrated Binary Container Extraction:
 // - Verified 32-Byte Header ($0000..$001F)
 // - Verified 12 Pattern Pointers at $02E4..$02FB
-// - Verified Voice Track Pointers ($0074, $008A, $009E, $00B0)
-// - Block Slicing: Tracks, Patterns, Macros, Samples, PCM Data
+// - Validated 4-Voice Track Sequences ($0074, $008A, $009E, $00B0)
+// - Exact Block Slicing: Tracks, Patterns, Macros, Samples, PCM Data
 // =========================================================
 
 export async function loadHipcFile(url) {
@@ -13,7 +13,7 @@ export async function loadHipcFile(url) {
     if (!response.ok) throw new Error(`Datei nicht gefunden: ${url}`);
     
     const rawBuffer = await response.arrayBuffer();
-    // 64-Byte Padding am Ende gegen Out-of-Bounds Lesefehler historischer Rips
+    // 64-Byte Padding am Ende gegen Out-of-Bounds Lesefehler
     const data = new Uint8Array(rawBuffer.byteLength + 64);
     data.set(new Uint8Array(rawBuffer), 0);
     const view = new DataView(data.buffer);
@@ -39,7 +39,7 @@ export async function loadHipcFile(url) {
     const sampleDataOffset = view.getUint32(0x14, false);
 
     // =========================================================
-    // 2. LAYER A: 16-BIT PATTERN-POINTER-TABELLE
+    // 2. LAYER A: 16-BIT PATTERN-POINTER-TABELLE ($02E4)
     // =========================================================
     const firstPatternOffset = view.getUint16(patTableOffset, false);
     const numPatterns = Math.max(1, Math.floor((firstPatternOffset - patTableOffset) / 2));
@@ -50,19 +50,36 @@ export async function loadHipcFile(url) {
     }
 
     // =========================================================
-    // 3. LAYER A: DYNAMISCHE 4-VOICE TRACK-START-POINTER ERMITTELN
-    // Sucht im Track-Header-Bereich ($0020..$0060) nach den 4 aufsteigenden Voice-Offsets
+    // 3. LAYER A: 4-VOICE TRACK-SEQUENZEN VALIDIEREN
+    // Prüft, ob ein Start-Pointer auf eine echte $E0-terminierte Orderlist zeigt
     // =========================================================
-    let voiceTrackPointers = [0x0074, 0x008A, 0x009E, 0x00B0]; // Sicherer Fallback für Level 1
+    function isValidTrackSequence(startPtr) {
+        if (startPtr < 0x0040 || startPtr >= patTableOffset) return false;
+        let ptr = startPtr;
+        let steps = 0;
+        while (ptr < patTableOffset - 1 && steps < 128) {
+            let cmd = data[ptr];
+            if (cmd === 0xE0 || cmd === 0xFF) return true; // Gültiges Track-Ende/Loop!
+            ptr += 2;
+            steps++;
+        }
+        return false;
+    }
+
+    let voiceTrackPointers = [0x0074, 0x008A, 0x009E, 0x00B0]; // Standard Level 1 Fallback
     
-    for (let offset = 0x0020; offset < patTableOffset - 8; offset += 2) {
+    // Dynamische Suche nach der ersten 4er-Kette gültiger Voice-Orderlisten
+    for (let offset = 0x0028; offset < patTableOffset - 8; offset += 2) {
         let p0 = view.getUint16(offset, false);
         let p1 = view.getUint16(offset + 2, false);
         let p2 = view.getUint16(offset + 4, false);
         let p3 = view.getUint16(offset + 6, false);
 
-        // Kriterien: Aufsteigende Offsets vor der Pattern-Tabelle
-        if (p0 >= 0x0040 && p0 < p1 && p1 < p2 && p2 < p3 && p3 < patTableOffset) {
+        if (p0 < p1 && p1 < p2 && p2 < p3 && 
+            isValidTrackSequence(p0) && 
+            isValidTrackSequence(p1) && 
+            isValidTrackSequence(p2) && 
+            isValidTrackSequence(p3)) {
             voiceTrackPointers = [p0, p1, p2, p3];
             break;
         }
@@ -84,8 +101,7 @@ export async function loadHipcFile(url) {
     const NUM_WAVEFORMS = 16;
     const WAVE_LEN = 32; // Exakt 32 Bytes (16 Words)
 
-    // Falls sampleDataOffset im Header kleiner als $1C94 ist (z.B. $11FE),
-    // prüfen wir auf die bekannte 32-Byte-Signatur (48 3C 32 29)
+    // Lokalisierung des tatsächlichen Wavetable-Starts
     let actualWaveOffset = sampleDataOffset;
     for (let scan = sampleDataOffset; scan < data.length - 32; scan += 2) {
         if (data[scan] === 0x48 && data[scan + 1] === 0x3C && data[scan + 2] === 0x32 && data[scan + 3] === 0x29) {
