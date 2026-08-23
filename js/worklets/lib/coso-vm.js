@@ -1,10 +1,7 @@
 // === js/worklets/lib/coso-vm.js ===
 // =========================================================
 // JOCHEN HIPPEL (MAD MAX) COSO VIRTUAL MACHINE
-// Calibrated 50Hz VBLANK Replayer Engine
-// - Pattern Range $00..$7F with Bit-7 Track Command Masking
-// - Verified 50Hz Tick & Wait Counter
-// - Real-time Paula Register Commits (AUDxPER, AUDxVOL, AUDxLC, AUDxLEN)
+// Calibrated Transposition ($80-centered) & Dynamic Pattern Headers
 // =========================================================
 
 const PERIOD_TABLE = [
@@ -51,7 +48,7 @@ export class CosoVirtualMachine {
         }
 
         if (this.traceCallback) {
-            this.traceCallback(`--- [COSO-VM CALIBRATED] Voices: [0:$${this.voices[0].trackPtr.toString(16)}, 1:$${this.voices[1].trackPtr.toString(16)}, 2:$${this.voices[2].trackPtr.toString(16)}, 3:$${this.voices[3].trackPtr.toString(16)}] ---`);
+            this.traceCallback(`--- [COSO-VM CALIBRATED] Level-Replay aktiv ---`);
         }
     }
 
@@ -99,17 +96,17 @@ export class CosoVirtualMachine {
                     // Opcode $FE: Set Macro ID
                     if (b0 === 0xFE) {
                         const macroId = this.fullData[voice.patternPtr++];
-                        this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Opcode $FE (Set Sound Macro ${macroId})`);
                         voice.currentMacro = macroId > 0 ? macroId : 1;
                         voice.sampleKey = `hipc_sample_${voice.currentMacro}`;
+                        this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Opcode $FE (Set Macro ${voice.currentMacro})`);
                         continue;
                     }
 
                     // Opcode $FD: Set Delay
                     if (b0 === 0xFD) {
                         const delay = this.fullData[voice.patternPtr++];
-                        this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Opcode $FD (Set Delay = ${delay} Ticks)`);
                         voice.patternDelay = Math.max(1, delay);
+                        this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Opcode $FD (Set Delay = ${delay})`);
                         continue;
                     }
 
@@ -117,12 +114,12 @@ export class CosoVirtualMachine {
                     if (b0 === 0x08 && voice.patternPtr < this.fullData.length - 2) {
                         const nextDelay = this.fullData[voice.patternPtr++];
                         const nextSound = this.fullData[voice.patternPtr++];
-                        this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Pattern-Header [08 ${nextDelay} ${nextSound}]`);
                         if (nextDelay > 0) voice.patternDelay = nextDelay;
                         if (nextSound > 0) {
                             voice.currentMacro = nextSound;
                             voice.sampleKey = `hipc_sample_${voice.currentMacro}`;
                         }
+                        this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Pattern-Header [08 Delay:${nextDelay} Macro:${nextSound}]`);
                         continue;
                     }
 
@@ -180,7 +177,7 @@ export class CosoVirtualMachine {
 
                     // Track Speed ($E2)
                     if (b0 === 0xE2) {
-                        voice.patternDelay = Math.max(1, b1);
+                        if (b1 > 0) voice.patternDelay = b1;
                         this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} TrackPC:$${trackPC.toString(16)} -> Set Track Speed = ${b1}`);
                         continue;
                     }
@@ -198,10 +195,19 @@ export class CosoVirtualMachine {
                         continue;
                     }
 
-                    // Pattern Call (0..127 mit $7F Maskierung)
+                    // Pattern Call mit $80-Center Transposition
                     if (b0 < 0xE0) {
                         const patId = b0 & 0x7F;
-                        const transp = (b1 > 127) ? (b1 - 256) : b1;
+                        
+                        // Hippel TFMX $80-Center Transpose-Decodierung:
+                        let transp = 0;
+                        if (b1 >= 0x80) {
+                            transp = b1 - 0x80; // $80 = 0, $95 = +21
+                        } else if (b1 > 0x40) {
+                            transp = b1 - 0x80; // negative Transposition
+                        } else {
+                            transp = b1;        // direkte positive Transposition
+                        }
                         
                         let patOffset = (this.patternPointers && patId < this.patternPointers.length) 
                             ? this.patternPointers[patId] 
