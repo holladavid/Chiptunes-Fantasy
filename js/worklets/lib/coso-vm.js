@@ -2,10 +2,11 @@
 // =========================================================
 // JOCHEN HIPPEL (MAD MAX) COSO VIRTUAL MACHINE
 // Production Master Edition:
-// - Full Track Subroutine Call Stack ($E4 JSR -> $E1/$FF RTS)
-// - Context-Aware $08 Pattern Initialization Header
-// - Decoupled 50Hz Macro VM & Paula DMA Register Management
+// - Strict Contract Enforcement: Zero magic fallback addresses ($0074 removed)
+// - Explicit Fail-Fast Validation of voiceTrackPointers from Parser
+// - Clean Separation: Track JSR ($E4), Track RTS ($E1/$FF), Track Loop ($E0)
 // - Isolated decodeTransposeByte() with M68k EXT.W Semantics
+// - Full Paula DMA Hardware Register Tracking (AUDxLC, AUDxLEN, AUDxVOL, AUDxPER)
 // =========================================================
 
 const PERIOD_TABLE = [
@@ -28,17 +29,26 @@ export function decodeTransposeByte(b1) {
 
 export class CosoVirtualMachine {
     constructor(trackModule, samplesDict, traceCallback = null) {
+        if (!trackModule || !trackModule.header) {
+            throw new Error(`[COSO-VM CRITICAL] Ungültiges Modul übergeben: Header-Objekt fehlt.`);
+        }
+
         this.data = trackModule.rawData || trackModule.blocks.tracks;
         this.fullData = trackModule.fullData || this.data;
         this.patternPointers = trackModule.patternPointers;
         this.macroPointers = trackModule.macroPointers;
-        this.macroTableOffset = (trackModule.header && trackModule.header.macroTableOffset) || 0x09EE;
-        this.patTableOffset = (trackModule.header && trackModule.header.patTableOffset) || 0x02E4;
-        this.sampleDataOffset = (trackModule.header && trackModule.header.sampleDataOffset) || 0x1C3E;
+        this.macroTableOffset = trackModule.header.macroTableOffset;
+        this.patTableOffset = trackModule.header.patTableOffset;
+        this.sampleDataOffset = trackModule.header.sampleDataOffset;
         this.sampleDescriptors = trackModule.sampleDescriptors || [];
         this.voiceTrackPointers = trackModule.voiceTrackPointers;
         this.samples = samplesDict;
         this.traceCallback = traceCallback;
+
+        // Strikte Validierung der Track-Pointer (Keine Magiezahlen!)
+        if (!this.voiceTrackPointers || this.voiceTrackPointers.length < 4) {
+            throw new Error(`[COSO-VM CRITICAL] Unvollständige voiceTrackPointers vom Parser erhalten: ${JSON.stringify(this.voiceTrackPointers)}`);
+        }
 
         this.tickCounter = 0;
         this.traceLogCount = 0;
@@ -46,17 +56,19 @@ export class CosoVirtualMachine {
 
         this.voices = [];
         for (let v = 0; v < 4; v++) {
-            let rawStartPtr = (this.voiceTrackPointers && this.voiceTrackPointers[v]) 
-                ? this.voiceTrackPointers[v] 
-                : (0x0074 + v * 0x14);
+            const rawStartPtr = this.voiceTrackPointers[v];
             
-            let startPtr = rawStartPtr & ~1;
+            if (typeof rawStartPtr !== 'number' || rawStartPtr < 0x0020 || rawStartPtr >= this.fullData.length) {
+                throw new Error(`[COSO-VM CRITICAL] Ungültiger voiceTrackPointer für Stimme ${v}: $${(rawStartPtr || 0).toString(16)}`);
+            }
+
+            const startPtr = rawStartPtr & ~1; // Zwingt auf gerade M68k-Word-Grenzen
 
             this.voices.push({
                 voiceId: v,
                 trackPtr: startPtr,
                 startTrackPtr: startPtr,
-                trackStack: [], // Callstack für $E4 Subroutinen!
+                trackStack: [], // Callstack für $E4 Subroutinen
                 patternPtr: -1,
                 patternHeaderPending: false,
                 patternDelay: 4,
@@ -71,7 +83,7 @@ export class CosoVirtualMachine {
                 macroActive: false,
                 macroWait: 0,
 
-                // Paula State
+                // Paula Hardware State
                 audLc: this.sampleDataOffset,
                 audLen: 16,
                 basePer: 428,
@@ -82,7 +94,7 @@ export class CosoVirtualMachine {
         }
 
         if (this.traceCallback) {
-            this.traceCallback(`--- [COSO-VM INITIALIZED] $E4 Track-Subroutine Callstack Active ---`);
+            this.traceCallback(`--- [COSO-VM INITIALIZED] Strict Contract Mode Active ---`);
         }
     }
 
@@ -101,6 +113,8 @@ export class CosoVirtualMachine {
         
         if (this.macroPointers && macroId < this.macroPointers.length && this.macroPointers[macroId] > 0) {
             macroOffset = this.macroPointers[macroId];
+        } else if (this.macroTableOffset) {
+            macroOffset = this.macroTableOffset + (Math.max(0, macroId - 1) * 32);
         }
 
         if (macroOffset > 0 && macroOffset < this.fullData.length - 2) {
@@ -294,7 +308,7 @@ export class CosoVirtualMachine {
     }
 
     // =========================================================
-    // 3. TRACK ENGINE (MIT $E4 SUBROUTINE CALLSTACK)
+    // 3. TRACK ENGINE
     // =========================================================
     decodeTrackTuple(voice, currentTick) {
         const trackPC = voice.trackPtr;
@@ -331,7 +345,6 @@ export class CosoVirtualMachine {
                 ? (target & ~1) 
                 : (voice.startTrackPtr + (target * 2));
 
-            // Rücksprungadresse auf dem Track-Stack sichern
             if (voice.trackStack.length < 8) {
                 voice.trackStack.push(voice.trackPtr);
             }
@@ -340,7 +353,7 @@ export class CosoVirtualMachine {
             return;
         }
 
-        // D1. Track Subroutine Return ($E1 RTS auf Track-Ebene)
+        // D1. Track Subroutine Return ($E1 RTS)
         if (b0 === 0xE1) {
             if (voice.trackStack.length > 0) {
                 voice.trackPtr = voice.trackStack.pop();
@@ -386,12 +399,12 @@ export class CosoVirtualMachine {
             const channel = paulaChannels[v];
             if (voice.stopped) continue;
 
-            // Macro-Modulationen ausführen
+            // 1. Macro-Modulationen ausführen
             if (voice.macroActive) {
                 this.decodeMacroFrame(voice, channel, false);
             }
 
-            // Note Sustain Warten
+            // 2. Note Sustain Warten
             if (voice.wait > 0) {
                 voice.wait--;
                 continue;
