@@ -1,11 +1,10 @@
 // === js/worklets/lib/coso-vm.js ===
 // =========================================================
 // JOCHEN HIPPEL (MAD MAX) COSO VIRTUAL MACHINE
-// Deterministic 50Hz VBLANK Replayer Engine
-// - Phase 1: Track-State & Orderlists (2-Byte Tuples)
-// - Phase 2: Pattern-State & Bytecode-Dispatcher ($01..$3F, $00, $FE, $FD, $E1)
-// - Phase 3: Explicit Paula Hardware Mapping (AUDxPER, AUDxVOL, AUDxLC, AUDxLEN)
-// - Built-in Diagnostic Trace-Logger for First 60 Events
+// Calibrated 50Hz VBLANK Replayer Engine
+// - Pattern Range $00..$7F with Bit-7 Track Command Masking
+// - Verified 50Hz Tick & Wait Counter
+// - Real-time Paula Register Commits (AUDxPER, AUDxVOL, AUDxLC, AUDxLEN)
 // =========================================================
 
 const PERIOD_TABLE = [
@@ -28,7 +27,7 @@ export class CosoVirtualMachine {
 
         this.tickCounter = 0;
         this.traceLogCount = 0;
-        this.maxTraceLogs = 60; // Protokolliert die ersten 60 Events für den Beweis
+        this.maxTraceLogs = 80;
 
         this.voices = [];
         for (let v = 0; v < 4; v++) {
@@ -38,7 +37,7 @@ export class CosoVirtualMachine {
                 trackPtr: startPtr,
                 startTrackPtr: startPtr,
                 patternPtr: -1,
-                patternDelay: 4, // Default Initial-Speed
+                patternDelay: 4,
                 transpose: 0,
                 currentMacro: 1,
                 wait: 0,
@@ -52,7 +51,7 @@ export class CosoVirtualMachine {
         }
 
         if (this.traceCallback) {
-            this.traceCallback(`--- [COSO-VM INITIALIZED] Voices: [0:$${this.voices[0].trackPtr.toString(16)}, 1:$${this.voices[1].trackPtr.toString(16)}, 2:$${this.voices[2].trackPtr.toString(16)}, 3:$${this.voices[3].trackPtr.toString(16)}] ---`);
+            this.traceCallback(`--- [COSO-VM CALIBRATED] Voices: [0:$${this.voices[0].trackPtr.toString(16)}, 1:$${this.voices[1].trackPtr.toString(16)}, 2:$${this.voices[2].trackPtr.toString(16)}, 3:$${this.voices[3].trackPtr.toString(16)}] ---`);
         }
     }
 
@@ -63,7 +62,6 @@ export class CosoVirtualMachine {
         }
     }
 
-    // Wird exakt 50-mal pro Sekunde (50Hz VBLANK) aufgerufen
     processTick(paulaChannels) {
         const currentTick = this.tickCounter++;
 
@@ -72,7 +70,6 @@ export class CosoVirtualMachine {
             const channel = paulaChannels[v];
             if (voice.stopped) continue;
 
-            // Note Sustain: Warten bis zum nächsten Noten-Schritt
             if (voice.wait > 0) {
                 voice.wait--;
                 continue;
@@ -82,9 +79,7 @@ export class CosoVirtualMachine {
             while (safety > 0 && !voice.stopped) {
                 safety--;
 
-                // =========================================================
-                // PHASE 2: INNERHALB EINES PATTERN-BYTE-STREAMS
-                // =========================================================
+                // --- PATTERN BYTECODE-STREAM ---
                 if (voice.patternPtr !== -1) {
                     if (voice.patternPtr >= this.fullData.length) {
                         voice.patternPtr = -1;
@@ -94,23 +89,23 @@ export class CosoVirtualMachine {
                     const patPC = voice.patternPtr;
                     const b0 = this.fullData[voice.patternPtr++];
 
-                    // 1. Opcode $E1: Pattern Return (End of Pattern)
+                    // Opcode $E1: Pattern Return
                     if (b0 === 0xE1) {
                         this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Opcode $E1 (Pattern Return)`);
                         voice.patternPtr = -1;
-                        continue; // Liest im selben Tick das nächste Track-Tuple!
+                        continue;
                     }
 
-                    // 2. Opcode $FE: Set Sound-Macro
+                    // Opcode $FE: Set Macro ID
                     if (b0 === 0xFE) {
                         const macroId = this.fullData[voice.patternPtr++];
                         this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Opcode $FE (Set Sound Macro ${macroId})`);
                         voice.currentMacro = macroId > 0 ? macroId : 1;
                         voice.sampleKey = `hipc_sample_${voice.currentMacro}`;
-                        continue; // Verarbeitet nächstes Byte im selben Tick
+                        continue;
                     }
 
-                    // 3. Opcode $FD: Set Pattern Delay / Speed
+                    // Opcode $FD: Set Delay
                     if (b0 === 0xFD) {
                         const delay = this.fullData[voice.patternPtr++];
                         this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Opcode $FD (Set Delay = ${delay} Ticks)`);
@@ -118,11 +113,11 @@ export class CosoVirtualMachine {
                         continue;
                     }
 
-                    // 4. Opcode $08: Pattern-Header (3 Bytes: 08 <Delay> <Sound>)
+                    // Opcode $08: Pattern-Header
                     if (b0 === 0x08 && voice.patternPtr < this.fullData.length - 2) {
                         const nextDelay = this.fullData[voice.patternPtr++];
                         const nextSound = this.fullData[voice.patternPtr++];
-                        this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Pattern-Header [08 ${nextDelay} ${nextSound}] (Delay=${nextDelay})`);
+                        this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Pattern-Header [08 ${nextDelay} ${nextSound}]`);
                         if (nextDelay > 0) voice.patternDelay = nextDelay;
                         if (nextSound > 0) {
                             voice.currentMacro = nextSound;
@@ -131,26 +126,20 @@ export class CosoVirtualMachine {
                         continue;
                     }
 
-                    // 5. Delimiter / NOP $FF
-                    if (b0 === 0xFF) {
-                        continue;
-                    }
+                    if (b0 === 0xFF) continue;
 
-                    // 6. Note Event ($01..$3F)
+                    // Note Trigger ($01..$3F)
                     if (b0 >= 0x01 && b0 <= 0x3F) {
                         let noteIdx = b0 + voice.transpose;
                         if (noteIdx < 1) noteIdx = 1;
                         if (noteIdx >= PERIOD_TABLE.length) noteIdx = PERIOD_TABLE.length - 1;
 
                         let period = PERIOD_TABLE[noteIdx];
-                        if (period < 113) period = 113; // $71 PAL Limit
+                        if (period < 113) period = 113;
 
                         voice.audPer = period;
                         voice.audVol = 64;
 
-                        // =========================================================
-                        // PHASE 3: EXPLIZITE PAULA-REGISTER-ZUWEISUNG
-                        // =========================================================
                         if (channel) {
                             channel.per = period;
                             channel.vol = 64;
@@ -165,7 +154,7 @@ export class CosoVirtualMachine {
                         break;
                     }
 
-                    // 7. Rest / Pause ($00)
+                    // Rest / Pause ($00)
                     if (b0 === 0x00) {
                         voice.audVol = 0;
                         if (channel) channel.vol = 0;
@@ -175,15 +164,13 @@ export class CosoVirtualMachine {
                     }
                 }
 
-                // =========================================================
-                // PHASE 1: INNERHALB DER TRACK-ORDERLISTE (2-BYTE-TUPLES)
-                // =========================================================
+                // --- TRACK-ORDERLIST STREAM ---
                 else {
                     const trackPC = voice.trackPtr;
                     const b0 = this.fullData[voice.trackPtr++];
                     const b1 = this.fullData[voice.trackPtr++];
 
-                    // A. Track Loop ($E0 oder $E8)
+                    // Track Loop ($E0 oder $E8)
                     if (b0 === 0xE0 || b0 === 0xE8) {
                         const targetStep = b1;
                         voice.trackPtr = voice.startTrackPtr + (targetStep * 2);
@@ -191,39 +178,39 @@ export class CosoVirtualMachine {
                         continue;
                     }
 
-                    // B. Track Speed ($E2)
+                    // Track Speed ($E2)
                     if (b0 === 0xE2) {
                         voice.patternDelay = Math.max(1, b1);
                         this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} TrackPC:$${trackPC.toString(16)} -> Set Track Speed = ${b1}`);
                         continue;
                     }
 
-                    // C. Subroutine / Special Call ($E4)
+                    // Special Call ($E4)
                     if (b0 === 0xE4) {
-                        this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} TrackPC:$${trackPC.toString(16)} -> Opcode $E4 (Special Subroutine)`);
+                        this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} TrackPC:$${trackPC.toString(16)} -> Opcode $E4 (Special Call)`);
                         continue;
                     }
 
-                    // D. End of Track ($FF)
+                    // Track End ($FF)
                     if (b0 === 0xFF) {
-                        this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} TrackPC:$${trackPC.toString(16)} -> Opcode $FF (Track End -> Loop Start)`);
+                        this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} TrackPC:$${trackPC.toString(16)} -> Opcode $FF (Track End)`);
                         voice.trackPtr = voice.startTrackPtr;
                         continue;
                     }
 
-                    // E. Pattern Call ([Pattern_ID, Transpose])
+                    // Pattern Call (0..127 mit $7F Maskierung)
                     if (b0 < 0xE0) {
-                        const patId = b0;
-                        const transp = (b1 > 127) ? (b1 - 256) : b1; // Signed 8-Bit Transpose
+                        const patId = b0 & 0x7F;
+                        const transp = (b1 > 127) ? (b1 - 256) : b1;
                         
-                        let patOffset = (this.patternPointers && this.patternPointers[patId]) 
+                        let patOffset = (this.patternPointers && patId < this.patternPointers.length) 
                             ? this.patternPointers[patId] 
                             : (0x02FC);
 
                         voice.patternPtr = patOffset;
                         voice.transpose = transp;
                         this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} TrackPC:$${trackPC.toString(16)} -> Call Pattern ${patId} at $${patOffset.toString(16)} (Transpose ${transp})`);
-                        continue; // Startet im selben Tick mit dem ersten Pattern-Byte!
+                        continue;
                     }
                 }
             }
