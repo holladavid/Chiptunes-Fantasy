@@ -79,6 +79,8 @@ class PaulaChannel {
     constructor() {
         this.vol = 0;       
         this.per = 428;     
+        this.audLc = 0x00020000; // Explizite Chip-RAM Basis
+        this.audLen = 16;        // Explizite Länge in Words
         this.data = null;   
         this.pointer = 0;   
         this.length = 0;    
@@ -854,8 +856,21 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 view[33] = this.ledFilterOn ? 1.0 : 0.0;
 
                 for (let c = 0; c < 4; c++) {
+                    let offset = c * 7;
                     let ch = this.channels[c];
-                    view[34 + c] = ch.data ? (ch.vol / 64.0) : 0.0;
+                    
+                    // Echtes AUDxLC und AUDxLEN an das HUD & Living Silicon weiterleiten:
+                    let lc = ch.audLc || 0;
+                    view[4 + offset] = (lc >> 8) & 0xFF; 
+                    view[4 + offset + 1] = lc & 0xFF;       
+                    
+                    let len = ch.audLen || 0;
+                    view[4 + offset + 2] = (len >> 8) & 0xFF;
+                    view[4 + offset + 3] = len & 0xFF;
+                    
+                    view[4 + offset + 4] = (ch.per >> 8) & 0xFF;
+                    view[4 + offset + 5] = ch.per & 0xFF;
+                    view[4 + offset + 6] = Math.round(ch.vol) & 0xFF;
                 }
 
                 view[38] = this.filterModeState;

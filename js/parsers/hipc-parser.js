@@ -153,6 +153,7 @@ export async function loadHipcFile(url) {
     const maxDescriptors = Math.floor((actualWaveOffset - sampleTableOffset) / 16);
     let loadedPcmCount = 0;
 
+    const sampleDescriptors = [];
     for (let i = 0; i < maxDescriptors; i++) {
         const descOffset = sampleTableOffset + (i * 16);
         if (descOffset + 12 > actualWaveOffset) break;
@@ -163,6 +164,14 @@ export async function loadHipcFile(url) {
         const smpLoopLen      = view.getUint16(descOffset + 8, false);
         const smpVol          = data[descOffset + 10] || 64;
 
+        sampleDescriptors[i + 1] = {
+            sampleStartOffset: smpStartOffset,
+            absStart: actualWaveOffset + smpStartOffset,
+            sampleLengthWords: smpLenWords,
+            loopStartWords: smpLoopStart,
+            loopLengthWords: smpLoopLen,
+            baseVolume: smpVol > 64 ? 64 : smpVol
+        };
         const smpLenBytes = smpLenWords * 2;
         const absStart = actualWaveOffset + smpStartOffset;
 
