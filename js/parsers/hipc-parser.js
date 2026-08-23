@@ -194,6 +194,9 @@ export async function loadHipcFile(url) {
         }
     }
 
+    for (let i = 0; i < 4; i++) {
+        voiceTrackPointers[i] = voiceTrackPointers[i] & ~1; // Zwingt auf gerade 16-Bit Word-Grenzen!
+    }
     console.log(`[COSO PARSER] Module geladen: ${url}`);
     console.log(`[COSO PARSER] Header: PtrTable@$${patTableOffset.toString(16)} (${patternPointers.length} Ptrs), Macros@$${macroTableOffset.toString(16)} (${macroPointers.length} Ptrs), Samples@$${sampleTableOffset.toString(16)} (${loadedPcmCount} PCM), Waves@$${actualWaveOffset.toString(16)}`);
 
