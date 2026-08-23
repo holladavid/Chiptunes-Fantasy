@@ -2,10 +2,10 @@
 // =========================================================
 // JOCHEN HIPPEL (MAD MAX) COSO VIRTUAL MACHINE
 // Production Master Edition:
-// - Distinct Dispatching for $E0 (Track Loop) vs. $E8 (Track Jump Candidate)
-// - No unproven opcode aliasing
-// - Isolated decodeTransposeByte() with strict M68k Two's Complement
-// - Explicit AUDxLC / AUDxLEN Paula DMA Hardware Tracking
+// - Full Track Subroutine Call Stack ($E4 JSR -> $E1/$FF RTS)
+// - Context-Aware $08 Pattern Initialization Header
+// - Decoupled 50Hz Macro VM & Paula DMA Register Management
+// - Isolated decodeTransposeByte() with M68k EXT.W Semantics
 // =========================================================
 
 const PERIOD_TABLE = [
@@ -33,6 +33,7 @@ export class CosoVirtualMachine {
         this.patternPointers = trackModule.patternPointers;
         this.macroPointers = trackModule.macroPointers;
         this.macroTableOffset = (trackModule.header && trackModule.header.macroTableOffset) || 0x09EE;
+        this.patTableOffset = (trackModule.header && trackModule.header.patTableOffset) || 0x02E4;
         this.sampleDataOffset = (trackModule.header && trackModule.header.sampleDataOffset) || 0x1C3E;
         this.sampleDescriptors = trackModule.sampleDescriptors || [];
         this.voiceTrackPointers = trackModule.voiceTrackPointers;
@@ -49,12 +50,13 @@ export class CosoVirtualMachine {
                 ? this.voiceTrackPointers[v] 
                 : (0x0074 + v * 0x14);
             
-            let startPtr = rawStartPtr & ~1; // Zwingt auf gerade M68k-Word-Grenzen
+            let startPtr = rawStartPtr & ~1;
 
             this.voices.push({
                 voiceId: v,
                 trackPtr: startPtr,
                 startTrackPtr: startPtr,
+                trackStack: [], // Callstack für $E4 Subroutinen!
                 patternPtr: -1,
                 patternHeaderPending: false,
                 patternDelay: 4,
@@ -80,7 +82,7 @@ export class CosoVirtualMachine {
         }
 
         if (this.traceCallback) {
-            this.traceCallback(`--- [COSO-VM INITIALIZED] $E0 / $E8 Distinct Dispatch Active ---`);
+            this.traceCallback(`--- [COSO-VM INITIALIZED] $E4 Track-Subroutine Callstack Active ---`);
         }
     }
 
@@ -238,13 +240,12 @@ export class CosoVirtualMachine {
 
         if (b0 === 0xFF) return false;
 
-        // F. Note Trigger ($01..$3F)
+        // Note Trigger ($01..$3F)
         if (b0 >= 0x01 && b0 <= 0x3F) {
             let noteIdx = b0 + voice.transpose;
             
-            // Musikalische Schutzschaltung: Verhindert das Festhängen auf Note 1 bei extremem Transpose
-            while (noteIdx < 1) noteIdx += 12; // Oktave nach oben shiften
-            while (noteIdx >= PERIOD_TABLE.length) noteIdx -= 12; // Oktave nach unten shiften
+            while (noteIdx < 1) noteIdx += 12;
+            while (noteIdx >= PERIOD_TABLE.length) noteIdx -= 12;
 
             let period = PERIOD_TABLE[noteIdx] || 428;
             if (period < 113) period = 113;
@@ -293,7 +294,7 @@ export class CosoVirtualMachine {
     }
 
     // =========================================================
-    // 3. TRACK ENGINE (SAUBER GETRENNTE OPCODES $E0 UND $E8)
+    // 3. TRACK ENGINE (MIT $E4 SUBROUTINE CALLSTACK)
     // =========================================================
     decodeTrackTuple(voice, currentTick) {
         const trackPC = voice.trackPtr;
@@ -308,7 +309,7 @@ export class CosoVirtualMachine {
             return;
         }
 
-        // A2. Track Jump / Section Loop Kandidat ($E8) - Getrennt behandelt!
+        // A2. Track Jump ($E8)
         if (b0 === 0xE8) {
             const targetStep = b1;
             voice.trackPtr = voice.startTrackPtr + (targetStep * 2);
@@ -323,16 +324,43 @@ export class CosoVirtualMachine {
             return;
         }
 
-        // C. Special Call ($E4)
+        // C. Track Subroutine Call ($E4 JSR)
         if (b0 === 0xE4) {
-            this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} TrackPC:$${trackPC.toString(16)} -> Opcode $E4 (Special Call)`);
+            const target = b1;
+            let targetPtr = (target >= 0x40 && target < this.patTableOffset) 
+                ? (target & ~1) 
+                : (voice.startTrackPtr + (target * 2));
+
+            // Rücksprungadresse auf dem Track-Stack sichern
+            if (voice.trackStack.length < 8) {
+                voice.trackStack.push(voice.trackPtr);
+            }
+            voice.trackPtr = targetPtr;
+            this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} TrackPC:$${trackPC.toString(16)} -> Opcode $E4 (Call Subroutine at $${targetPtr.toString(16)})`);
             return;
         }
 
-        // D. Track End ($FF)
+        // D1. Track Subroutine Return ($E1 RTS auf Track-Ebene)
+        if (b0 === 0xE1) {
+            if (voice.trackStack.length > 0) {
+                voice.trackPtr = voice.trackStack.pop();
+                this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} TrackPC:$${trackPC.toString(16)} -> Opcode $E1 (Track Subroutine Return to $${voice.trackPtr.toString(16)})`);
+            } else {
+                voice.trackPtr = voice.startTrackPtr;
+                this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} TrackPC:$${trackPC.toString(16)} -> Opcode $E1 (Track End -> Loop Start)`);
+            }
+            return;
+        }
+
+        // D2. Track End ($FF)
         if (b0 === 0xFF) {
-            this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} TrackPC:$${trackPC.toString(16)} -> Opcode $FF (Track End)`);
-            voice.trackPtr = voice.startTrackPtr;
+            if (voice.trackStack.length > 0) {
+                voice.trackPtr = voice.trackStack.pop();
+                this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} TrackPC:$${trackPC.toString(16)} -> Opcode $FF (Subroutine Return to $${voice.trackPtr.toString(16)})`);
+            } else {
+                voice.trackPtr = voice.startTrackPtr;
+                this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} TrackPC:$${trackPC.toString(16)} -> Opcode $FF (Track End -> Loop Start)`);
+            }
             return;
         }
 
