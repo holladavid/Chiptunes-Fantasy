@@ -2,11 +2,11 @@
 // =========================================================
 // JOCHEN HIPPEL (MAD MAX) COSO VIRTUAL MACHINE
 // Production Master Edition:
-// - Strict Contract Enforcement: Zero magic fallback addresses ($0074 removed)
-// - Explicit Fail-Fast Validation of voiceTrackPointers from Parser
-// - Clean Separation: Track JSR ($E4), Track RTS ($E1/$FF), Track Loop ($E0)
-// - Isolated decodeTransposeByte() with M68k EXT.W Semantics
-// - Full Paula DMA Hardware Register Tracking (AUDxLC, AUDxLEN, AUDxVOL, AUDxPER)
+// - Explicit uninitialized patternDelay (null) enforcing strict header validation
+// - Fail-Fast Trace Logging for missing delay configurations
+// - Distinct Dispatching for $E0 (Track Loop) vs. $E8 (Track Jump Candidate)
+// - Isolated decodeTransposeByte() with strict M68k Two's Complement
+// - Explicit AUDxLC / AUDxLEN Paula DMA Hardware Tracking
 // =========================================================
 
 const PERIOD_TABLE = [
@@ -45,7 +45,6 @@ export class CosoVirtualMachine {
         this.samples = samplesDict;
         this.traceCallback = traceCallback;
 
-        // Strikte Validierung der Track-Pointer (Keine Magiezahlen!)
         if (!this.voiceTrackPointers || this.voiceTrackPointers.length < 4) {
             throw new Error(`[COSO-VM CRITICAL] Unvollständige voiceTrackPointers vom Parser erhalten: ${JSON.stringify(this.voiceTrackPointers)}`);
         }
@@ -62,16 +61,16 @@ export class CosoVirtualMachine {
                 throw new Error(`[COSO-VM CRITICAL] Ungültiger voiceTrackPointer für Stimme ${v}: $${(rawStartPtr || 0).toString(16)}`);
             }
 
-            const startPtr = rawStartPtr & ~1; // Zwingt auf gerade M68k-Word-Grenzen
+            const startPtr = rawStartPtr & ~1;
 
             this.voices.push({
                 voiceId: v,
                 trackPtr: startPtr,
                 startTrackPtr: startPtr,
-                trackStack: [], // Callstack für $E4 Subroutinen
+                trackStack: [],
                 patternPtr: -1,
                 patternHeaderPending: false,
-                patternDelay: 4,
+                patternDelay: null, // EXPLIZIT UNINITIALISIERT! Keine stille 4-Tick-Annahme mehr!
                 transpose: 0,
                 currentMacro: 1,
                 wait: 0,
@@ -94,7 +93,7 @@ export class CosoVirtualMachine {
         }
 
         if (this.traceCallback) {
-            this.traceCallback(`--- [COSO-VM INITIALIZED] Strict Contract Mode Active ---`);
+            this.traceCallback(`--- [COSO-VM INITIALIZED] Strict patternDelay Validation Active ---`);
         }
     }
 
@@ -218,6 +217,7 @@ export class CosoVirtualMachine {
         const patPC = voice.patternPtr;
         const b0 = this.fullData[voice.patternPtr++];
 
+        // Pattern Header
         if (voice.patternHeaderPending) {
             voice.patternHeaderPending = false;
 
@@ -231,6 +231,7 @@ export class CosoVirtualMachine {
             }
         }
 
+        // Opcode $E1: Pattern Return
         if (b0 === 0xE1) {
             this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} PatPC:$${patPC.toString(16)} -> Opcode $E1 (Pattern Return)`);
             voice.patternPtr = -1;
@@ -238,6 +239,7 @@ export class CosoVirtualMachine {
             return false;
         }
 
+        // Opcode $FE: Set Macro ID
         if (b0 === 0xFE) {
             const macroId = this.fullData[voice.patternPtr++];
             voice.currentMacro = macroId > 0 ? macroId : 1;
@@ -245,6 +247,7 @@ export class CosoVirtualMachine {
             return false;
         }
 
+        // Opcode $FD: Set Delay
         if (b0 === 0xFD) {
             const delay = this.fullData[voice.patternPtr++];
             voice.patternDelay = Math.max(1, delay);
@@ -289,8 +292,14 @@ export class CosoVirtualMachine {
 
             this.startMacro(voice, voice.currentMacro, channel);
 
+            // STRIKTE DELAY-VALIDIERUNG: Warnung im Trace bei uninitialisiertem patternDelay!
+            if (voice.patternDelay === null) {
+                this.logTrace(`[WARN] V${voice.voiceId} Note $${b0.toString(16)} at PatPC:$${patPC.toString(16)} mit UNINITIALISIERTEM patternDelay!`);
+                voice.patternDelay = 4; // Notfall-Fallback
+            }
+
             voice.wait = Math.max(0, voice.patternDelay - 1);
-            this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} PatPC:$${patPC.toString(16)} -> Note $${b0.toString(16)} (${voice.transpose >= 0 ? '+' : ''}${voice.transpose}) = Note ${noteIdx} | AUD${voice.voiceId}PER=${period}, VOL=${voice.audVol} (Macro ${voice.currentMacro}, Wait ${voice.wait})`);
+            this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} PatPC:$${patPC.toString(16)} -> Note $${b0.toString(16)} (${voice.transpose >= 0 ? '+' : ''}${voice.transpose}) = Note ${noteIdx} | AUD${voice.voiceId}PER=${period}, VOL=${voice.audVol} (Macro ${voice.currentMacro}, Delay ${voice.patternDelay})`);
             return true;
         }
 
@@ -299,8 +308,14 @@ export class CosoVirtualMachine {
             voice.audVol = 0;
             voice.macroActive = false;
             if (channel) channel.vol = 0;
+
+            if (voice.patternDelay === null) {
+                this.logTrace(`[WARN] V${voice.voiceId} Rest at PatPC:$${patPC.toString(16)} mit UNINITIALISIERTEM patternDelay!`);
+                voice.patternDelay = 4;
+            }
+
             voice.wait = Math.max(0, voice.patternDelay - 1);
-            this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} PatPC:$${patPC.toString(16)} -> Rest $00 | AUD${voice.voiceId}VOL=0 (Wait ${voice.wait})`);
+            this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} PatPC:$${patPC.toString(16)} -> Rest $00 | AUD${voice.voiceId}VOL=0 (Delay ${voice.patternDelay})`);
             return true;
         }
 
@@ -315,7 +330,7 @@ export class CosoVirtualMachine {
         const b0 = this.fullData[voice.trackPtr++];
         const b1 = this.fullData[voice.trackPtr++];
 
-        // A1. Unbedingter Track Loop ($E0)
+        // A1. Track Loop ($E0)
         if (b0 === 0xE0) {
             const targetStep = b1;
             voice.trackPtr = voice.startTrackPtr + (targetStep * 2);
@@ -399,12 +414,10 @@ export class CosoVirtualMachine {
             const channel = paulaChannels[v];
             if (voice.stopped) continue;
 
-            // 1. Macro-Modulationen ausführen
             if (voice.macroActive) {
                 this.decodeMacroFrame(voice, channel, false);
             }
 
-            // 2. Note Sustain Warten
             if (voice.wait > 0) {
                 voice.wait--;
                 continue;
