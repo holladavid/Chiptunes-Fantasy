@@ -1,14 +1,13 @@
 // === js/worklets/lib/coso-vm.js ===
 // =========================================================
 // JOCHEN HIPPEL (MAD MAX) COSO VIRTUAL MACHINE
-// Production Master Edition — Decoupled 50Hz Replay Engine:
-// - Direct Decoupled patternPointers[] Indexing (Parser Contract)
-// - Context-Aware $08 Pattern Initialization Header [08 Delay Macro]
-// - Mid-Stream $08 Note-8 Event Protection
+// Production Master Edition — Phase 4: Full Sound-Macro Execution ($E0..$E8)
+// - Real-time 50Hz Macro Modulations (ADSR Envelopes, Wave Swaps, Pitch Slides)
+// - Sample-Switching for PCM Digidrums ($E5/$E7)
+// - Multi-Command Instant Execution in Frame 0
+// - Context-Aware $08 Pattern Initialization Header
 // - Calibrated $80-Centered Transposition Decoding
-// - Verified 50Hz VBLANK Timing & Wait Cycles
-// - Explicit Paula DMA Commits (AUDxPER, AUDxVOL, AUDxLC, AUDxLEN)
-// - Diagnostic Trace Logger for Sub-Tick Execution Audit
+// - Explicit Paula Hardware Mapping (AUDxPER, AUDxVOL, AUDxLC, AUDxLEN)
 // =========================================================
 
 const PERIOD_TABLE = [
@@ -25,6 +24,8 @@ export class CosoVirtualMachine {
         this.data = trackModule.rawData || trackModule.blocks.tracks;
         this.fullData = trackModule.fullData || this.data;
         this.patternPointers = trackModule.patternPointers;
+        this.macroPointers = trackModule.macroPointers;
+        this.macroTableOffset = trackModule.header.macroTableOffset || 0x03E4;
         this.voiceTrackPointers = trackModule.voiceTrackPointers;
         this.samples = samplesDict;
         this.traceCallback = traceCallback;
@@ -44,22 +45,29 @@ export class CosoVirtualMachine {
                 trackPtr: startPtr,
                 startTrackPtr: startPtr,
                 patternPtr: -1,
-                patternHeaderPending: false, // Flag: Nur am Pattern-Start aktiv!
+                patternHeaderPending: false,
                 patternDelay: 4,
                 transpose: 0,
                 currentMacro: 1,
                 wait: 0,
                 stopped: false,
 
-                // Expliziter Paula Hardware State
-                audPer: 0,
-                audVol: 0,
+                // Macro State
+                macroPtr: -1,
+                macroStartPtr: -1,
+                macroActive: false,
+                macroWait: 0,
+
+                // Paula Hardware State
+                basePer: 428,
+                audPer: 428,
+                audVol: 64,
                 sampleKey: 'hipc_sample_1'
             });
         }
 
         if (this.traceCallback) {
-            this.traceCallback(`--- [COSO-VM INITIALIZED] Engine bereit (Decoupled Pointer Contract) ---`);
+            this.traceCallback(`--- [COSO-VM PHASE 4 READY] Macro Engine & PCM Digidrums Active ---`);
         }
     }
 
@@ -70,7 +78,101 @@ export class CosoVirtualMachine {
         }
     }
 
-    // Wird exakt 50-mal pro Sekunde (50Hz VBLANK) von paula-exact aufgerufen
+    // Startet das zugewiesene Sound-Macro für die Stimme
+    triggerMacro(voice, macroId, channel) {
+        let macroOffset = -1;
+        
+        if (this.macroPointers && macroId < this.macroPointers.length && this.macroPointers[macroId] > 0) {
+            macroOffset = this.macroPointers[macroId];
+        } else {
+            // Fallback: Lineares Macro-Offset
+            macroOffset = this.macroTableOffset + (Math.max(0, macroId - 1) * 32);
+        }
+
+        if (macroOffset > 0 && macroOffset < this.fullData.length) {
+            voice.macroPtr = macroOffset;
+            voice.macroStartPtr = macroOffset;
+            voice.macroActive = true;
+            voice.macroWait = 0;
+            
+            // Frame 0: Sofortige Macro-Initialisierung
+            this.executeMacroStep(voice, channel);
+        }
+    }
+
+    // Führt die 50Hz Sound-Macro-Befehle aus
+    executeMacroStep(voice, channel) {
+        if (!voice.macroActive || voice.macroPtr <= 0 || voice.macroPtr >= this.fullData.length) return;
+
+        let macroSafety = 16;
+        while (macroSafety > 0 && voice.macroActive) {
+            macroSafety--;
+            const op = this.fullData[voice.macroPtr++];
+
+            // $E0: End of Macro (Sustain)
+            if (op === 0xE0) {
+                voice.macroActive = false;
+                break;
+            }
+            // $E1: Set 32-Byte Waveform
+            else if (op === 0xE1) {
+                const waveIdx = this.fullData[voice.macroPtr++];
+                voice.sampleKey = `hipc_sample_${waveIdx + 1}`;
+                const smp = this.samples[voice.sampleKey] || this.samples['hipc_sample_1'];
+                if (smp && smp.data && channel) {
+                    channel.trigger(smp.data, 0, 32);
+                }
+            }
+            // $E2: Set Volume
+            else if (op === 0xE2) {
+                const vol = this.fullData[voice.macroPtr++];
+                voice.audVol = vol > 64 ? 64 : vol;
+                if (channel) channel.vol = voice.audVol;
+            }
+            // $E3: Volume Slide (ADSR Fade)
+            else if (op === 0xE3) {
+                const delta = this.fullData[voice.macroPtr++];
+                const sDelta = (delta > 127) ? (delta - 256) : delta;
+                voice.audVol = Math.max(0, Math.min(64, voice.audVol + sDelta));
+                if (channel) channel.vol = voice.audVol;
+                break; // Wartet 1 Frame
+            }
+            // $E4: Portamento / Pitch Slide
+            else if (op === 0xE4) {
+                const pDelta = this.fullData[voice.macroPtr++];
+                const sPDelta = (pDelta > 127) ? (pDelta - 256) : pDelta;
+                voice.audPer = Math.max(113, voice.audPer + sPDelta);
+                if (channel) channel.per = voice.audPer;
+                break; // Wartet 1 Frame
+            }
+            // $E5 / $E7: Set Sample (PCM Digidrum)
+            else if (op === 0xE5 || op === 0xE7) {
+                const sampleIdx = this.fullData[voice.macroPtr++];
+                const pcmKey = `hipc_pcm_${sampleIdx}`;
+                const smp = this.samples[pcmKey] || this.samples[`hipc_sample_${sampleIdx}`];
+                if (smp && smp.data && channel) {
+                    channel.trigger(smp.data, smp.loopStart, smp.loopLen);
+                    if (smp.baseVolume !== undefined) {
+                        channel.vol = smp.baseVolume;
+                        voice.audVol = smp.baseVolume;
+                    }
+                }
+            }
+            // $E6: NOP / Wait 1 Frame
+            else if (op === 0xE6) {
+                break;
+            }
+            // $E8: Macro Loop
+            else if (op === 0xE8) {
+                const targetStep = this.fullData[voice.macroPtr++];
+                voice.macroPtr = voice.macroStartPtr + (targetStep * 2);
+            }
+            else {
+                break;
+            }
+        }
+    }
+
     processTick(paulaChannels) {
         const currentTick = this.tickCounter++;
 
@@ -79,7 +181,12 @@ export class CosoVirtualMachine {
             const channel = paulaChannels[v];
             if (voice.stopped) continue;
 
-            // Note Sustain: Warten bis zum nächsten Noten-Event
+            // 1. Laufende Macro-Modulationen pro Frame ausführen
+            if (voice.macroActive) {
+                this.executeMacroStep(voice, channel);
+            }
+
+            // 2. Note Sustain: Warten bis zum nächsten Noten-Event
             if (voice.wait > 0) {
                 voice.wait--;
                 continue;
@@ -90,7 +197,7 @@ export class CosoVirtualMachine {
                 safety--;
 
                 // =========================================================
-                // PHASE 2: PATTERN BYTECODE-STREAM
+                // PATTERN BYTECODE-STREAM
                 // =========================================================
                 if (voice.patternPtr !== -1) {
                     if (voice.patternPtr >= this.fullData.length) {
@@ -102,9 +209,9 @@ export class CosoVirtualMachine {
                     const patPC = voice.patternPtr;
                     const b0 = this.fullData[voice.patternPtr++];
 
-                    // 1. PATTERN-INITIALISIERUNGSHEADER ($08) - NUR AM PATTERN-START!
+                    // 1. Pattern Header
                     if (voice.patternHeaderPending) {
-                        voice.patternHeaderPending = false; // Einmalig verbrauchen
+                        voice.patternHeaderPending = false;
 
                         if (b0 === 0x08 && voice.patternPtr < this.fullData.length - 2) {
                             const nextDelay = this.fullData[voice.patternPtr++];
@@ -119,12 +226,12 @@ export class CosoVirtualMachine {
                         }
                     }
 
-                    // 2. Opcode $E1: Pattern Return (Terminator)
+                    // 2. Opcode $E1: Pattern Return
                     if (b0 === 0xE1) {
                         this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Opcode $E1 (Pattern Return)`);
                         voice.patternPtr = -1;
                         voice.patternHeaderPending = false;
-                        continue; // Liest im selben Tick das nächste Track-Tuple
+                        continue;
                     }
 
                     // 3. Opcode $FE: Set Macro ID
@@ -136,7 +243,7 @@ export class CosoVirtualMachine {
                         continue;
                     }
 
-                    // 4. Opcode $FD: Set Delay / Speed Override
+                    // 4. Opcode $FD: Set Delay
                     if (b0 === 0xFD) {
                         const delay = this.fullData[voice.patternPtr++];
                         voice.patternDelay = Math.max(1, delay);
@@ -144,24 +251,21 @@ export class CosoVirtualMachine {
                         continue;
                     }
 
-                    // 5. Opcode $FF: NOP / Delimiter
                     if (b0 === 0xFF) continue;
 
-                    // 6. Note Trigger ($01..$3F) - $08 mitten im Stream triggert Note 8!
+                    // 5. Note Trigger ($01..$3F)
                     if (b0 >= 0x01 && b0 <= 0x3F) {
                         let noteIdx = b0 + voice.transpose;
                         if (noteIdx < 1) noteIdx = 1;
                         if (noteIdx >= PERIOD_TABLE.length) noteIdx = PERIOD_TABLE.length - 1;
 
                         let period = PERIOD_TABLE[noteIdx];
-                        if (period < 113) period = 113; // $71 PAL Floor
+                        if (period < 113) period = 113;
 
+                        voice.basePer = period;
                         voice.audPer = period;
                         voice.audVol = 64;
 
-                        // =========================================================
-                        // PHASE 3: EXPLIZITE PAULA DMA ZUWEISUNG
-                        // =========================================================
                         if (channel) {
                             channel.per = period;
                             channel.vol = 64;
@@ -171,14 +275,18 @@ export class CosoVirtualMachine {
                             }
                         }
 
+                        // Sound-Macro triggern!
+                        this.triggerMacro(voice, voice.currentMacro, channel);
+
                         voice.wait = Math.max(0, voice.patternDelay - 1);
-                        this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Note $${b0.toString(16)} (+${voice.transpose}) = Note ${noteIdx} | AUD${v}PER=${period}, VOL=64 (Wait ${voice.wait})`);
+                        this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Note $${b0.toString(16)} (+${voice.transpose}) = Note ${noteIdx} | AUD${v}PER=${period}, VOL=${voice.audVol} (Macro ${voice.currentMacro})`);
                         break;
                     }
 
-                    // 7. Rest / Pause ($00)
+                    // 6. Rest / Pause ($00)
                     if (b0 === 0x00) {
                         voice.audVol = 0;
+                        voice.macroActive = false;
                         if (channel) channel.vol = 0;
                         voice.wait = Math.max(0, voice.patternDelay - 1);
                         this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Rest $00 | AUD${v}VOL=0 (Wait ${voice.wait})`);
@@ -187,14 +295,14 @@ export class CosoVirtualMachine {
                 }
 
                 // =========================================================
-                // PHASE 1: TRACK-ORDERLIST STREAM (2-BYTE TUPLES)
+                // TRACK-ORDERLIST STREAM
                 // =========================================================
                 else {
                     const trackPC = voice.trackPtr;
                     const b0 = this.fullData[voice.trackPtr++];
                     const b1 = this.fullData[voice.trackPtr++];
 
-                    // A. Track Loop ($E0 oder $E8)
+                    // Track Loop ($E0 oder $E8)
                     if (b0 === 0xE0 || b0 === 0xE8) {
                         const targetStep = b1;
                         voice.trackPtr = voice.startTrackPtr + (targetStep * 2);
@@ -202,31 +310,30 @@ export class CosoVirtualMachine {
                         continue;
                     }
 
-                    // B. Track Speed ($E2)
+                    // Track Speed ($E2)
                     if (b0 === 0xE2) {
                         if (b1 > 0) voice.patternDelay = b1;
                         this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} TrackPC:$${trackPC.toString(16)} -> Set Track Speed = ${b1}`);
                         continue;
                     }
 
-                    // C. Special / Subroutine Call ($E4)
+                    // Special Call ($E4)
                     if (b0 === 0xE4) {
                         this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} TrackPC:$${trackPC.toString(16)} -> Opcode $E4 (Special Call)`);
                         continue;
                     }
 
-                    // D. End of Track ($FF)
+                    // Track End ($FF)
                     if (b0 === 0xFF) {
-                        this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} TrackPC:$${trackPC.toString(16)} -> Opcode $FF (Track End -> Loop Start)`);
+                        this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} TrackPC:$${trackPC.toString(16)} -> Opcode $FF (Track End)`);
                         voice.trackPtr = voice.startTrackPtr;
                         continue;
                     }
 
-                    // E. Pattern Call ([Pattern_ID, Transpose])
+                    // Pattern Call
                     if (b0 < 0xE0) {
                         const patId = b0 & 0x7F;
 
-                        // Hippel TFMX $80-Center Transposition:
                         let transp = 0;
                         if (b1 >= 0x80) {
                             transp = b1 - 0x80;
@@ -236,14 +343,11 @@ export class CosoVirtualMachine {
                             transp = b1;
                         }
 
-                        // Entkoppelt: Direkter Lookup im vorab vom Parser validierten Array!
                         if (this.patternPointers && patId < this.patternPointers.length) {
                             voice.patternPtr = this.patternPointers[patId];
                             voice.patternHeaderPending = true;
                             voice.transpose = transp;
                             this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} TrackPC:$${trackPC.toString(16)} -> Call Pattern ${patId} at $${voice.patternPtr.toString(16)} (Transpose ${transp})`);
-                        } else {
-                            this.logTrace(`[WARN] V${v} Pattern-ID ${patId} nicht in patternPointers[] (Länge ${this.patternPointers ? this.patternPointers.length : 0})`);
                         }
                         continue;
                     }
