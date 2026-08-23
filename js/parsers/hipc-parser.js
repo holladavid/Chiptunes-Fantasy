@@ -85,20 +85,24 @@ export async function loadHipcFile(url) {
         return false;
     }
 
-    let voiceTrackPointers = [0x0074, 0x008A, 0x009E, 0x00B0];
-    for (let offset = 0x0028; offset < patTableOffset - 8; offset += 2) {
-        let p0 = view.getUint16(offset, false);
-        let p1 = view.getUint16(offset + 2, false);
-        let p2 = view.getUint16(offset + 4, false);
-        let p3 = view.getUint16(offset + 6, false);
+    // Subsong 0 (Intro): [$006C, $0074, $0078, $007C]
+    // Subsong 1 (Main Theme): [$0094, $009E, $00A8, $00B0]
+    let voiceTrackPointers = [0x0094, 0x009E, 0x00A8, 0x00B0]; // Standard: Hauptthema!
+    
+    // Falls ein Modul bei $005E startet (wie Level 2):
+    for (let offset = 0x0020; offset < patTableOffset - 8; offset += 2) {
+        let p0 = view.getUint16(offset, false) & ~1;
+        let p1 = view.getUint16(offset + 2, false) & ~1;
+        let p2 = view.getUint16(offset + 4, false) & ~1;
+        let p3 = view.getUint16(offset + 6, false) & ~1;
 
-        if (p0 < p1 && p1 < p2 && p2 < p3 && 
-            isValidTrackSequence(p0) && 
-            isValidTrackSequence(p1) && 
-            isValidTrackSequence(p2) && 
-            isValidTrackSequence(p3)) {
-            voiceTrackPointers = [p0, p1, p2, p3];
-            break;
+        if (p0 >= 0x0050 && p0 < p1 && p1 < p2 && p2 < p3 && p3 < patTableOffset &&
+            isValidTrackSequence(p0) && isValidTrackSequence(p1)) {
+            // Bevorzugt Subsong 1 ($0094+), falls vorhanden
+            if (p0 >= 0x0090 || voiceTrackPointers[0] === 0x0094) {
+                voiceTrackPointers = [p0, p1, p2, p3];
+                break;
+            }
         }
     }
 

@@ -238,13 +238,15 @@ export class CosoVirtualMachine {
 
         if (b0 === 0xFF) return false;
 
-        // Note Trigger ($01..$3F)
+        // F. Note Trigger ($01..$3F)
         if (b0 >= 0x01 && b0 <= 0x3F) {
             let noteIdx = b0 + voice.transpose;
-            if (noteIdx < 1) noteIdx = 1;
-            if (noteIdx >= PERIOD_TABLE.length) noteIdx = PERIOD_TABLE.length - 1;
+            
+            // Musikalische Schutzschaltung: Verhindert das Festhängen auf Note 1 bei extremem Transpose
+            while (noteIdx < 1) noteIdx += 12; // Oktave nach oben shiften
+            while (noteIdx >= PERIOD_TABLE.length) noteIdx -= 12; // Oktave nach unten shiften
 
-            let period = PERIOD_TABLE[noteIdx];
+            let period = PERIOD_TABLE[noteIdx] || 428;
             if (period < 113) period = 113;
 
             voice.basePer = period;
