@@ -1,7 +1,10 @@
 // === js/worklets/lib/coso-vm.js ===
 // =========================================================
 // JOCHEN HIPPEL (MAD MAX) COSO VIRTUAL MACHINE
-// Calibrated Transposition ($80-centered) & Dynamic Pattern Headers
+// Bugfix Edition: Context-Aware Pattern Header Initialization ($08)
+// - $08 at Pattern-Start -> 3-Byte Header [08 Delay Macro]
+// - $08 mid-stream       -> Regular Note 8 Event
+// - Terminator $E1 is protected and never swallowed
 // =========================================================
 
 const PERIOD_TABLE = [
@@ -34,6 +37,7 @@ export class CosoVirtualMachine {
                 trackPtr: startPtr,
                 startTrackPtr: startPtr,
                 patternPtr: -1,
+                patternHeaderPending: false, // Kontext-Flag: Nur am Pattern-Start aktiv!
                 patternDelay: 4,
                 transpose: 0,
                 currentMacro: 1,
@@ -48,7 +52,7 @@ export class CosoVirtualMachine {
         }
 
         if (this.traceCallback) {
-            this.traceCallback(`--- [COSO-VM CALIBRATED] Level-Replay aktiv ---`);
+            this.traceCallback(`--- [COSO-VM INITIALIZED] Context-Aware $08 Header Fix Active ---`);
         }
     }
 
@@ -76,24 +80,45 @@ export class CosoVirtualMachine {
             while (safety > 0 && !voice.stopped) {
                 safety--;
 
-                // --- PATTERN BYTECODE-STREAM ---
+                // =========================================================
+                // PATTERN BYTECODE-STREAM
+                // =========================================================
                 if (voice.patternPtr !== -1) {
                     if (voice.patternPtr >= this.fullData.length) {
                         voice.patternPtr = -1;
+                        voice.patternHeaderPending = false;
                         continue;
                     }
 
                     const patPC = voice.patternPtr;
                     const b0 = this.fullData[voice.patternPtr++];
 
-                    // Opcode $E1: Pattern Return
+                    // 1. PATTERN-INITIALISIERUNGSHEADER ($08) - NUR AM PATTERN-START!
+                    if (voice.patternHeaderPending) {
+                        voice.patternHeaderPending = false; // Einmalig verbrauchen!
+
+                        if (b0 === 0x08 && voice.patternPtr < this.fullData.length - 2) {
+                            const nextDelay = this.fullData[voice.patternPtr++];
+                            const nextSound = this.fullData[voice.patternPtr++];
+                            if (nextDelay > 0) voice.patternDelay = nextDelay;
+                            if (nextSound > 0) {
+                                voice.currentMacro = nextSound;
+                                voice.sampleKey = `hipc_sample_${voice.currentMacro}`;
+                            }
+                            this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Pattern Header [08 Delay:${nextDelay} Macro:${nextSound}]`);
+                            continue;
+                        }
+                    }
+
+                    // 2. Opcode $E1: Pattern Return (Terminator)
                     if (b0 === 0xE1) {
                         this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Opcode $E1 (Pattern Return)`);
                         voice.patternPtr = -1;
-                        continue;
+                        voice.patternHeaderPending = false;
+                        continue; // Liest im selben Tick das nächste Track-Tuple!
                     }
 
-                    // Opcode $FE: Set Macro ID
+                    // 3. Opcode $FE: Set Macro ID
                     if (b0 === 0xFE) {
                         const macroId = this.fullData[voice.patternPtr++];
                         voice.currentMacro = macroId > 0 ? macroId : 1;
@@ -102,7 +127,7 @@ export class CosoVirtualMachine {
                         continue;
                     }
 
-                    // Opcode $FD: Set Delay
+                    // 4. Opcode $FD: Set Delay
                     if (b0 === 0xFD) {
                         const delay = this.fullData[voice.patternPtr++];
                         voice.patternDelay = Math.max(1, delay);
@@ -110,22 +135,10 @@ export class CosoVirtualMachine {
                         continue;
                     }
 
-                    // Opcode $08: Pattern-Header
-                    if (b0 === 0x08 && voice.patternPtr < this.fullData.length - 2) {
-                        const nextDelay = this.fullData[voice.patternPtr++];
-                        const nextSound = this.fullData[voice.patternPtr++];
-                        if (nextDelay > 0) voice.patternDelay = nextDelay;
-                        if (nextSound > 0) {
-                            voice.currentMacro = nextSound;
-                            voice.sampleKey = `hipc_sample_${voice.currentMacro}`;
-                        }
-                        this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} PatPC:$${patPC.toString(16)} -> Pattern-Header [08 Delay:${nextDelay} Macro:${nextSound}]`);
-                        continue;
-                    }
-
+                    // 5. Opcode $FF: NOP / Delimiter
                     if (b0 === 0xFF) continue;
 
-                    // Note Trigger ($01..$3F)
+                    // 6. Note Trigger ($01..$3F) - Inklusive Note $08 mitten im Stream!
                     if (b0 >= 0x01 && b0 <= 0x3F) {
                         let noteIdx = b0 + voice.transpose;
                         if (noteIdx < 1) noteIdx = 1;
@@ -151,7 +164,7 @@ export class CosoVirtualMachine {
                         break;
                     }
 
-                    // Rest / Pause ($00)
+                    // 7. Rest / Pause ($00)
                     if (b0 === 0x00) {
                         voice.audVol = 0;
                         if (channel) channel.vol = 0;
@@ -161,7 +174,9 @@ export class CosoVirtualMachine {
                     }
                 }
 
-                // --- TRACK-ORDERLIST STREAM ---
+                // =========================================================
+                // TRACK-ORDERLIST STREAM
+                // =========================================================
                 else {
                     const trackPC = voice.trackPtr;
                     const b0 = this.fullData[voice.trackPtr++];
@@ -195,18 +210,17 @@ export class CosoVirtualMachine {
                         continue;
                     }
 
-                    // Pattern Call mit $80-Center Transposition
+                    // Pattern Call
                     if (b0 < 0xE0) {
                         const patId = b0 & 0x7F;
                         
-                        // Hippel TFMX $80-Center Transpose-Decodierung:
                         let transp = 0;
                         if (b1 >= 0x80) {
-                            transp = b1 - 0x80; // $80 = 0, $95 = +21
+                            transp = b1 - 0x80;
                         } else if (b1 > 0x40) {
-                            transp = b1 - 0x80; // negative Transposition
+                            transp = b1 - 0x80;
                         } else {
-                            transp = b1;        // direkte positive Transposition
+                            transp = b1;
                         }
                         
                         let patOffset = (this.patternPointers && patId < this.patternPointers.length) 
@@ -214,6 +228,7 @@ export class CosoVirtualMachine {
                             : (0x02FC);
 
                         voice.patternPtr = patOffset;
+                        voice.patternHeaderPending = true; // <--- AKTIVIERT DEN HEADER-CHECK AM START!
                         voice.transpose = transp;
                         this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${v} TrackPC:$${trackPC.toString(16)} -> Call Pattern ${patId} at $${patOffset.toString(16)} (Transpose ${transp})`);
                         continue;
