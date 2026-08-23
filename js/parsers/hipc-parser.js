@@ -140,6 +140,7 @@ export async function loadHipcFile(url) {
         isSequenced: true,
         type: 'HIPC',
         numChannels: 4,
+        fullData: data, // <--- Vollständiges Binär-Abbild für Pointer-Direktzugriff
         header: {
             initFlags,
             subsongInfo,

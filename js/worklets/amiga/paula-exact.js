@@ -4,7 +4,11 @@
 // True Analog Master Edition: 192kHz Oversampling, Zero-Order Hold (ZOH) DAC,
 // LF347 JFET Op-Amp Slew-Rate Modeling, 255-Tap Sinc-FIR Decimation,
 // L-R-R-L Physical Hard-Panning (3.5% Crosstalk) & Word-Aligned DMA
+// Native Replay Support for ProTracker (.MOD), FastTracker (.XM),
+// David Whittaker (.DW) and Jochen Hippel COSO (.HIPC / .HIP)
 // ==========================================
+
+import { CosoVirtualMachine } from '../lib/coso-vm.js';
 
 class LF347OpAmpStage {
     constructor(sampleRate) {
@@ -199,11 +203,15 @@ class PaulaProcessor extends AudioWorkletProcessor {
         this.currentRow = 0;
         this.currentTick = 0;
         this.samplesUntilNextTick = 0;
+        this.sampleCounter = 0;
         
         this.patternDelay = 0;
         this.breakPending = false;
         this.breakOrder = 0;
         this.breakRow = 0;
+
+        // HIPC / COSO Virtual Machine Instanz
+        this.cosoVM = null;
 
         // =========================================================
         // ANALOGE SIGNALKETTE (192 kHz High-Res Domain)
@@ -249,7 +257,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 const isHipc = msg.track && (msg.track.type === 'HIPC' || msg.track.type === 'COSO');
                 this.linearFreq = msg.track ? (msg.track.linearFreq || false) : false;
                 
-                // HIPPEL-FIX: Filter startet bei HIPC im Bypass-Modus für brillante Höhen!
+                // HIPPEL-FIX: Filter startet bei HIPC im Bypass-Modus für brillante Höhen
                 this.filterModeState = isHipc ? 2 : 0;
                 this.trackLedFilterOn = !isHipc; 
                 this.ledFilterOn = !isHipc;      
@@ -296,22 +304,37 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 if (msg.track && msg.track.isSequenced) {
                     this.isSequenced = true;
                     this.seqType = msg.track.type;
-                    this.songLength = msg.track.songLength;
-                    this.orderTable = msg.track.orderTable;
-                    this.patterns = msg.track.patterns;
-                    this.bpm = msg.track.bpm || 125;
-                    this.speed = msg.track.speed || 6;
-                    this.numChannels = msg.track.numChannels || 4;
 
-                    this.currentOrder = 0;
-                    this.currentRow = 0;
-                    this.currentTick = 0;
-                    this.samplesUntilNextTick = 0;
-                    this.patternDelay = 0;
-                    this.breakPending = false;
-                    this.isPlaying = true;
+                    if (this.seqType === 'HIPC') {
+                        // CosoVirtualMachine Initialisierung mit Live-Trace Logger
+                        this.cosoVM = new CosoVirtualMachine(
+                            msg.track,
+                            this.samples,
+                            (logMsg) => this.port.postMessage({ type: 'LAB_LOG', msg: logMsg })
+                        );
+                        this.sampleCounter = 0;
+                        this.numChannels = 4;
+                        this.isPlaying = true;
+                    } else {
+                        this.cosoVM = null;
+                        this.songLength = msg.track.songLength;
+                        this.orderTable = msg.track.orderTable;
+                        this.patterns = msg.track.patterns;
+                        this.bpm = msg.track.bpm || 125;
+                        this.speed = msg.track.speed || 6;
+                        this.numChannels = msg.track.numChannels || 4;
+
+                        this.currentOrder = 0;
+                        this.currentRow = 0;
+                        this.currentTick = 0;
+                        this.samplesUntilNextTick = 0;
+                        this.patternDelay = 0;
+                        this.breakPending = false;
+                        this.isPlaying = true;
+                    }
                 } else {
                     this.isSequenced = false;
+                    this.cosoVM = null;
                     this.trackData = msg.track;
                     this.numChannels = 4; 
                     this.currentFrame = 0;
@@ -329,15 +352,28 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 this.isPlaying = true;
             } else if (msg.type === 'SEEK_TRACK') {
                 if (this.isSequenced) {
-                    const ticksPerOrder = 64 * this.speed;
-                    const targetOrder = Math.floor(msg.frame / ticksPerOrder);
-                    const remainingTicks = msg.frame % ticksPerOrder;
-                    
-                    this.currentOrder = targetOrder % this.songLength;
-                    this.currentRow = Math.floor(remainingTicks / this.speed) % 64;
-                    this.currentTick = remainingTicks % this.speed;
-                    this.patternDelay = 0;
-                    this.breakPending = false;
+                    if (this.seqType === 'HIPC') {
+                        // Reset auf Start
+                        this.sampleCounter = 0;
+                        if (this.cosoVM) {
+                            this.cosoVM.tickCounter = 0;
+                            for (let v = 0; v < 4; v++) {
+                                this.cosoVM.voices[v].trackPtr = this.cosoVM.voices[v].startTrackPtr;
+                                this.cosoVM.voices[v].patternPtr = -1;
+                                this.cosoVM.voices[v].wait = 0;
+                            }
+                        }
+                    } else {
+                        const ticksPerOrder = 64 * this.speed;
+                        const targetOrder = Math.floor(msg.frame / ticksPerOrder);
+                        const remainingTicks = msg.frame % ticksPerOrder;
+                        
+                        this.currentOrder = targetOrder % this.songLength;
+                        this.currentRow = Math.floor(remainingTicks / this.speed) % 64;
+                        this.currentTick = remainingTicks % this.speed;
+                        this.patternDelay = 0;
+                        this.breakPending = false;
+                    }
                 } else {
                     if (this.trackData) this.currentFrame = msg.frame % this.trackData.length;
                 }
@@ -663,14 +699,27 @@ class PaulaProcessor extends AudioWorkletProcessor {
             }
             
             if (this.isSequenced) {
-                this.samplesUntilNextTick--;
-                if (this.samplesUntilNextTick <= 0) {
-                    const overshoot = -this.samplesUntilNextTick; 
-                    this.processTrackerTick(overshoot);
-                    const samplesPerTick = (2.5 / this.bpm) * sampleRate;
-                    this.samplesUntilNextTick += samplesPerTick;
+                if (this.seqType === 'HIPC') {
+                    // 50Hz VBLANK Modulations-Tick für Hippel-COSO Virtual Machine
+                    this.sampleCounter--;
+                    if (this.sampleCounter <= 0) {
+                        this.sampleCounter += sampleRate / 50.0;
+                        if (this.cosoVM) {
+                            this.cosoVM.processTick(this.channels);
+                        }
+                    }
+                } else {
+                    // Standard MOD / XM Tick Engine
+                    this.samplesUntilNextTick--;
+                    if (this.samplesUntilNextTick <= 0) {
+                        const overshoot = -this.samplesUntilNextTick; 
+                        this.processTrackerTick(overshoot);
+                        const samplesPerTick = (2.5 / this.bpm) * sampleRate;
+                        this.samplesUntilNextTick += samplesPerTick;
+                    }
                 }
             } else {
+                // Unsequenced Stream Fallback
                 this.sampleCounter--;
                 if (this.sampleCounter <= 0) {
                     this.sampleCounter += sampleRate / 50.0;
@@ -770,9 +819,18 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 const view = this.visualView;
                 view[0] = 1; // System Flag: Amiga
                 view[1] = this.isPlaying ? 1 : 0;
-                view[2] = this.isSequenced 
-                    ? (this.currentOrder * 64 * this.speed + this.currentRow * this.speed + this.currentTick)
-                    : this.currentFrame;
+                
+                let currentFrameVal = 0;
+                if (this.isSequenced) {
+                    if (this.seqType === 'HIPC') {
+                        currentFrameVal = this.cosoVM ? this.cosoVM.tickCounter : 0;
+                    } else {
+                        currentFrameVal = (this.currentOrder * 64 * this.speed + this.currentRow * this.speed + this.currentTick);
+                    }
+                } else {
+                    currentFrameVal = this.currentFrame;
+                }
+                view[2] = currentFrameVal;
                 view[3] = oscValue;
 
                 for(let c = 0; c < 4; c++) {
