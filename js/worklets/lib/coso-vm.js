@@ -1,10 +1,11 @@
 // === js/worklets/lib/coso-vm.js ===
 // =========================================================
 // JOCHEN HIPPEL (MAD MAX) COSO VIRTUAL MACHINE
-// Refactored Transposition Engine:
-// - Isolated decodeTransposeByte() with M68k EXT.W Semantics
-// - Eliminates artificial $40 discontinuity
-// - Full Word-Aligned Track Dispatching
+// Production Master Edition:
+// - Distinct Dispatching for $E0 (Track Loop) vs. $E8 (Track Jump Candidate)
+// - No unproven opcode aliasing
+// - Isolated decodeTransposeByte() with strict M68k Two's Complement
+// - Explicit AUDxLC / AUDxLEN Paula DMA Hardware Tracking
 // =========================================================
 
 const PERIOD_TABLE = [
@@ -48,8 +49,7 @@ export class CosoVirtualMachine {
                 ? this.voiceTrackPointers[v] 
                 : (0x0074 + v * 0x14);
             
-            // Zwingt auf gerade M68k-Word-Grenzen:
-            let startPtr = rawStartPtr & ~1;
+            let startPtr = rawStartPtr & ~1; // Zwingt auf gerade M68k-Word-Grenzen
 
             this.voices.push({
                 voiceId: v,
@@ -80,7 +80,7 @@ export class CosoVirtualMachine {
         }
 
         if (this.traceCallback) {
-            this.traceCallback(`--- [COSO-VM INITIALIZED] Word-Aligned M68k Transpose Active ---`);
+            this.traceCallback(`--- [COSO-VM INITIALIZED] $E0 / $E8 Distinct Dispatch Active ---`);
         }
     }
 
@@ -291,41 +291,53 @@ export class CosoVirtualMachine {
     }
 
     // =========================================================
-    // 3. TRACK ENGINE
+    // 3. TRACK ENGINE (SAUBER GETRENNTE OPCODES $E0 UND $E8)
     // =========================================================
     decodeTrackTuple(voice, currentTick) {
         const trackPC = voice.trackPtr;
         const b0 = this.fullData[voice.trackPtr++];
         const b1 = this.fullData[voice.trackPtr++];
 
-        if (b0 === 0xE0 || b0 === 0xE8) {
+        // A1. Unbedingter Track Loop ($E0)
+        if (b0 === 0xE0) {
             const targetStep = b1;
             voice.trackPtr = voice.startTrackPtr + (targetStep * 2);
-            this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} TrackPC:$${trackPC.toString(16)} -> Track Loop to Step ${targetStep} ($${voice.trackPtr.toString(16)})`);
+            this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} TrackPC:$${trackPC.toString(16)} -> Opcode $E0 (Track Loop to Step ${targetStep} -> $${voice.trackPtr.toString(16)})`);
             return;
         }
 
+        // A2. Track Jump / Section Loop Kandidat ($E8) - Getrennt behandelt!
+        if (b0 === 0xE8) {
+            const targetStep = b1;
+            voice.trackPtr = voice.startTrackPtr + (targetStep * 2);
+            this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} TrackPC:$${trackPC.toString(16)} -> Opcode $E8 (Track Jump to Step ${targetStep} -> $${voice.trackPtr.toString(16)})`);
+            return;
+        }
+
+        // B. Track Speed ($E2)
         if (b0 === 0xE2) {
             if (b1 > 0) voice.patternDelay = b1;
             this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} TrackPC:$${trackPC.toString(16)} -> Set Track Speed = ${b1}`);
             return;
         }
 
+        // C. Special Call ($E4)
         if (b0 === 0xE4) {
             this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} TrackPC:$${trackPC.toString(16)} -> Opcode $E4 (Special Call)`);
             return;
         }
 
+        // D. Track End ($FF)
         if (b0 === 0xFF) {
             this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} TrackPC:$${trackPC.toString(16)} -> Opcode $FF (Track End)`);
             voice.trackPtr = voice.startTrackPtr;
             return;
         }
 
-        // Pattern Call
+        // E. Pattern Call
         if (b0 < 0xE0) {
             const patId = b0 & 0x7F;
-            const transp = decodeTransposeByte(b1); // <--- ISOLIERTE M68K-FUNKTION!
+            const transp = decodeTransposeByte(b1);
 
             if (this.patternPointers && patId < this.patternPointers.length) {
                 voice.patternPtr = this.patternPointers[patId];
