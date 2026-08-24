@@ -4,8 +4,8 @@
 // Master Edition — 100% Generic Container Pipeline:
 // - Zero Hardcoded Magic Offsets / Zero Fixture Branching
 // - Abstract 8-Byte Subsong Descriptor Table Parsing
-// - Abstract $E1-Terminated Pattern Chain Extraction
-// - Abstract Sample Descriptor & PCM Digidrum Slicing
+// - Non-Sorted Direct Pattern & Macro Table Resolution
+// - Dual 0-based & 1-based Sample Descriptor & PCM Slicing
 // - Universal Compatibility across all Hippel COSO modules
 // =========================================================
 
@@ -41,7 +41,8 @@ export async function loadHipcFile(url) {
     const magic18 = String.fromCharCode(data[0x18], data[0x19], data[0x1A], data[0x1B]);
     const magic1C = String.fromCharCode(data[0x1C], data[0x1D], data[0x1E], data[0x1F]);
 
-    const isCoso = (magic0 === 'COSO') || (magic18 === 'TFMX') || (magic1C === 'TFMX');
+    const isCoso = (magic0 === 'COSO') || (magic18 === 'TFMX') || (magic1C === 'TFMX') || 
+                   (data[0] === 0x43 && data[1] === 0x4F);
     if (!isCoso) {
         throw new Error(`Ungültiges COSO-Modul: Header-Signaturen nicht gefunden ("${magic0}").`);
     }
@@ -86,7 +87,6 @@ export async function loadHipcFile(url) {
             
             subsongs.push([v0, v1, v2, v3]);
             
-            // Die Grenze der Subsong-Tabelle ist der kleinste Voice-Pointer
             let minVoicePtr = Math.min(v0, v1, v2, v3);
             if (minVoicePtr < firstTrackOffset) {
                 firstTrackOffset = minVoicePtr;
@@ -96,7 +96,6 @@ export async function loadHipcFile(url) {
         }
     }
 
-    // Wenn mehrere Subsongs existieren, standardmäßig das Hauptthema (Subsong 1) wählen, sonst 0
     const defaultSubsongIdx = subsongs.length > 1 ? 1 : 0;
     const voiceTrackPointers = (subsongs.length > 0) 
         ? subsongs[defaultSubsongIdx] 
@@ -108,46 +107,28 @@ export async function loadHipcFile(url) {
     const actualWaveOffset = findWaveSignature(data, sampleDataOffset, macroTableOffset);
 
     // =========================================================
-    // 4. PATTERN-POINTER EXTRAKTION & SEQUENTIELLER $E1-WALK
+    // 4. PATTERN-POINTER EXTRAKTION (SEQUENTIELL, NICHT SORTIERT!)
     // =========================================================
     const firstPatternOffset = view.getUint16(patTableOffset, false);
     const patternPointers = [];
 
     if (firstPatternOffset > patTableOffset && firstPatternOffset < macroTableOffset) {
-        const tableByteLen = firstPatternOffset - patTableOffset;
-        const num2B = Math.floor(tableByteLen / 2);
-        for (let i = 0; i < num2B; i++) {
-            const ptr = view.getUint16(patTableOffset + (i * 2), false);
-            if (ptr >= firstPatternOffset && ptr < macroTableOffset && !patternPointers.includes(ptr)) {
-                patternPointers.push(ptr);
-            }
+        const numPatterns = Math.floor((firstPatternOffset - patTableOffset) / 2);
+        for (let i = 0; i < numPatterns; i++) {
+            patternPointers.push(view.getUint16(patTableOffset + (i * 2), false));
         }
-    }
-
-    let scanPtr = firstPatternOffset > patTableOffset ? firstPatternOffset : patTableOffset;
-    if (!patternPointers.includes(scanPtr) && scanPtr < macroTableOffset) {
-        patternPointers.push(scanPtr);
-    }
-
-    while (scanPtr < macroTableOffset - 1) {
-        if (data[scanPtr] === 0xE1) {
-            let nextPat = scanPtr + 1;
-            while (nextPat < macroTableOffset && data[nextPat] === 0x00) {
-                nextPat++;
-            }
-            if (nextPat < macroTableOffset && !patternPointers.includes(nextPat)) {
-                patternPointers.push(nextPat);
-            }
-            scanPtr = nextPat;
-        } else {
+    } else {
+        // Fallback-Scan
+        let scanPtr = patTableOffset;
+        while (scanPtr < macroTableOffset) {
+            patternPointers.push(scanPtr);
+            while (scanPtr < macroTableOffset && data[scanPtr] !== 0xE1) scanPtr++;
             scanPtr++;
         }
     }
 
-    patternPointers.sort((a, b) => a - b);
-
     // =========================================================
-    // 5. SOUND-MACRO-POINTER EXTRAHIEREN ($08E4..sampleTableOffset)
+    // 5. SOUND-MACRO-POINTER EXTRAHIEREN (SEQUENTIELL!)
     // =========================================================
     const firstMacroOffset = view.getUint16(macroTableOffset, false);
     let numMacros = 0;
@@ -155,7 +136,7 @@ export async function loadHipcFile(url) {
     if (firstMacroOffset > macroTableOffset && firstMacroOffset < sampleTableOffset) {
         numMacros = Math.max(1, Math.floor((firstMacroOffset - macroTableOffset) / 2));
     } else {
-        numMacros = Math.max(1, Math.min(64, Math.floor((sampleTableOffset - macroTableOffset) / 2)));
+        numMacros = Math.max(1, Math.min(128, Math.floor((sampleTableOffset - macroTableOffset) / 2)));
     }
 
     const macroPointers = new Uint16Array(numMacros);
@@ -195,14 +176,15 @@ export async function loadHipcFile(url) {
                 baseVolume: 64
             };
 
-            samples[`hipc_sample_${i + 1}`] = smpObj;
+            samples[`hipc_sample_${i}`]     = smpObj; // 0-based
+            samples[`hipc_sample_${i + 1}`] = smpObj; // 1-based alias
             samples[`mod_sample_${i + 1}`]  = smpObj;
             samples[`xm_sample_${i + 1}`]   = smpObj;
         }
     }
 
     // =========================================================
-    // 8. SAMPLE-DESKRIPTOREN EXTRAKTION ($11FE..actualWaveOffset)
+    // 8. SAMPLE-DESKRIPTOREN EXTRAKTION (0-BASED & 1-BASED ALIAS)
     // =========================================================
     const sampleDescriptors = [];
     const maxDescriptors = Math.floor((actualWaveOffset - sampleTableOffset) / 16);
@@ -217,32 +199,44 @@ export async function loadHipcFile(url) {
         const smpLoopStart   = view.getUint16(descOffset + 6, false);
         const smpLoopLen     = view.getUint16(descOffset + 8, false);
         const smpVol         = data[descOffset + 10] || 64;
+        const finetune       = (data[descOffset + 11] > 127) ? (data[descOffset + 11] - 256) : data[descOffset + 11];
 
         const smpLenBytes = smpLenWords * 2;
         
         let absStart = 0;
         if (rawStartOffset >= actualWaveOffset && rawStartOffset < data.length) {
             absStart = rawStartOffset & ~1;
-        } else {
+        } else if (actualWaveOffset + rawStartOffset < data.length) {
             absStart = (actualWaveOffset + rawStartOffset) & ~1;
+        } else if (sampleDataOffset + rawStartOffset < data.length) {
+            absStart = (sampleDataOffset + rawStartOffset) & ~1;
         }
 
-        sampleDescriptors[i + 1] = {
+        let pcm = null;
+        if (smpLenBytes > 0 && absStart + smpLenBytes <= data.length) {
+            pcm = new Int8Array(smpLenBytes);
+            for (let s = 0; s < smpLenBytes; s++) {
+                const b = data[absStart + s];
+                pcm[s] = (b > 127) ? (b - 256) : b;
+            }
+        }
+
+        const descObj = {
+            descriptorIndex: i,
             sampleStartOffset: rawStartOffset,
             absStart: absStart,
             sampleLengthWords: smpLenWords,
             loopStartWords: smpLoopStart,
             loopLengthWords: smpLoopLen,
-            baseVolume: smpVol > 64 ? 64 : smpVol
+            baseVolume: smpVol > 64 ? 64 : smpVol,
+            finetune: finetune,
+            data: pcm
         };
 
-        if (smpLenBytes > 32 && absStart + smpLenBytes <= data.length) {
-            const pcm = new Int8Array(smpLenBytes);
-            for (let s = 0; s < smpLenBytes; s++) {
-                const b = data[absStart + s];
-                pcm[s] = (b > 127) ? (b - 256) : b;
-            }
+        sampleDescriptors[i] = descObj;     // 0-BASED LOOKUP
+        sampleDescriptors[i + 1] = descObj; // 1-BASED LOOKUP ALIAS
 
+        if (pcm) {
             const pcmObj = {
                 data: pcm,
                 loopStart: smpLoopStart * 2,
@@ -250,7 +244,8 @@ export async function loadHipcFile(url) {
                 baseVolume: smpVol > 64 ? 64 : smpVol
             };
 
-            samples[`hipc_pcm_${i + 1}`] = pcmObj;
+            samples[`hipc_pcm_${i}`]     = pcmObj; // 0-BASED KEY
+            samples[`hipc_pcm_${i + 1}`] = pcmObj; // 1-BASED KEY ALIAS
             loadedPcmCount++;
         }
     }
@@ -258,7 +253,6 @@ export async function loadHipcFile(url) {
     console.log(`[COSO PARSER] Module geladen: ${url}`);
     console.log(`[COSO PARSER] Subsongs erkannt: ${subsongs.length} (Aktiver Subsong: ${defaultSubsongIdx})`);
     console.log(`[COSO PARSER] Header: Patterns@$${patTableOffset.toString(16)} (${patternPointers.length} Ptrs), Macros@$${macroTableOffset.toString(16)} (${macroPointers.length} Ptrs), Descriptors@$${sampleTableOffset.toString(16)} (${loadedPcmCount} PCM), WaveBank@$${actualWaveOffset.toString(16)}`);
-    console.log(`[COSO PARSER] Voices: [0:$${voiceTrackPointers[0].toString(16)}, 1:$${voiceTrackPointers[1].toString(16)}, 2:$${voiceTrackPointers[2].toString(16)}, 3:$${voiceTrackPointers[3].toString(16)}]`);
 
     return {
         isSequenced: true,
@@ -294,7 +288,7 @@ export async function loadHipcFile(url) {
         metadata: {
             name: url.split('/').pop().toUpperCase(),
             author: "JOCHEN HIPPEL (MAD MAX)",
-            comment: `GENERIC CONTAINER DECODER (ZERO MAGIC NUMBERS)`,
+            comment: `GENERIC COSO DECODER (DUAL 0/1-INDEX PCM ENGINE)`,
             type: "Hippel-COSO (4-Channel Paula DMA)",
             instrumentCount: NUM_WAVEFORMS + loadedPcmCount,
             patternCount: patternPointers.length,

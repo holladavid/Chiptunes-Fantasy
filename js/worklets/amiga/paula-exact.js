@@ -123,9 +123,8 @@ class PaulaChannel {
         this.patternLoopCount = 0;
     }
 
-    // --- PAULA HARDWARE REGISTER SCHNITTSTELLE ---
     writeAUDxLC(address, dataBuffer, loopStartWords = 0, loopLengthWords = 0) {
-        this.audLc = address & ~1; // Zwingendes Word-Alignment
+        this.audLc = address & ~1;
         this.dataBuffer = dataBuffer;
         this.loopPtr = (loopStartWords * 2) & ~1;
         this.loopLen = loopLengthWords;
@@ -137,18 +136,17 @@ class PaulaChannel {
     }
 
     writeAUDxPER(period) {
-        this.audPer = Math.max(113, period); // PAL Limit $71
+        this.audPer = Math.max(113, period);
     }
 
     writeAUDxVOL(volume) {
-        this.audVol = Math.max(0, Math.min(64, volume)); // 6-Bit Clamp 0..64
+        this.audVol = Math.max(0, Math.min(64, volume));
     }
 
     enableDMA(dataBuffer = null, loopStartWords = 0, loopLengthWords = 0) {
         this.dmaEnabled = true;
         if (dataBuffer) this.dataBuffer = dataBuffer;
         
-        // Agnus DMA Initialisierung
         this.curPtr = 0;
         this.curLen = this.audLen;
         this.periodCounter = this.audPer;
@@ -163,7 +161,6 @@ class PaulaChannel {
             this.loopLen = 0;
         }
 
-        // Erstes 16-Bit Word aus dem Chip-RAM in AUDxDAT holen
         this.fetchDMAWord();
         this.fetchNextWordBuffer();
 
@@ -199,7 +196,6 @@ class PaulaChannel {
             return;
         }
 
-        // Agnus Loop-Reload bei Puffer-Ende
         if (this.curLen <= 0) {
             if (this.isLooping && this.dataBuffer) {
                 this.curPtr = this.loopPtr;
@@ -222,14 +218,12 @@ class PaulaChannel {
         }
     }
 
-    // Kompatibilitäts-Trigger für MOD/XM Tracker-Player
     trigger(data, loopStart, loopLen, audLc = 0x00020000, audLenWords = 0) {
         this.audLc = audLc & ~1;
         this.audLen = audLenWords > 0 ? audLenWords : Math.floor(data.length / 2);
         this.enableDMA(data, Math.floor(loopStart / 2), Math.floor(loopLen / 2));
     }
 
-    // --- PAULA HARDWARE ZYKLEN-AUSFÜHRUNG (192 kHz Oversampling) ---
     step(clockTicks) {
         if (!this.dmaEnabled || this.audVol === 0 || this.audPer === 0) return 0;
 
@@ -238,15 +232,12 @@ class PaulaChannel {
         while (this.periodCounter <= 0) {
             this.periodCounter += this.audPer;
 
-            // Phase 0: Umschalten von High-Byte auf Low-Byte des aktuellen AUDxDAT
             if (this.bytePhase === 0) {
                 this.bytePhase = 1;
                 let rawLow = this.audDat & 0xFF;
                 this.heldValue = rawLow > 127 ? rawLow - 256 : rawLow;
-                this.fetchNextWordBuffer(); // Nächstes Wort im Hintergrund vorladen
-            } 
-            // Phase 1: Umschalten auf High-Byte des nächsten Wortes
-            else {
+                this.fetchNextWordBuffer();
+            } else {
                 this.bytePhase = 0;
                 this.audDat = this.nextWord;
                 let rawHigh = (this.audDat >> 8) & 0xFF;
@@ -254,7 +245,6 @@ class PaulaChannel {
             }
         }
 
-        // 14-Bit Multiplying DAC: 8-Bit Latched Sample x 6-Bit AUDxVOL
         return (this.heldValue * this.audVol) / 8128.0;
     }
 }
@@ -262,7 +252,7 @@ class PaulaChannel {
 class PaulaProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.clock = 3546895; // Amiga PAL Master Clock (Hz)
+        this.clock = 3546895; // PAL Master Clock
         
         this.OVERSAMPLING = 4;
         this.internalRate = sampleRate * this.OVERSAMPLING; // 192 kHz
@@ -362,10 +352,10 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.isSequenced = true;
                     this.seqType = msg.track.type;
 
-                    if (this.seqType === 'HIPC') {
+                    if (this.seqType === 'HIPC' || this.seqType === 'COSO') {
                         this.cosoVM = new CosoVirtualMachine(
                             msg.track,
-                            this.samples,
+                            msg.track.samples || this.samples,
                             (logMsg) => this.port.postMessage({ type: 'LAB_LOG', msg: logMsg })
                         );
                         this.sampleCounter = 0;
@@ -408,7 +398,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 this.isPlaying = true;
             } else if (msg.type === 'SEEK_TRACK') {
                 if (this.isSequenced) {
-                    if (this.seqType === 'HIPC') {
+                    if (this.seqType === 'HIPC' || this.seqType === 'COSO') {
                         this.sampleCounter = 0;
                         if (this.cosoVM) {
                             this.cosoVM.tickCounter = 0;
@@ -533,7 +523,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     channel.hasVibrato = false;
                 }
 
-                // --- TICK 0: EFFECTS ---
                 switch (effect) {
                     case 0x01: if (param > 0) channel.portamentoUpSpeed = param; break;
                     case 0x02: if (param > 0) channel.portamentoDownSpeed = param; break;
@@ -627,8 +616,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
             }
             
             if (this.isSequenced) {
-                if (this.seqType === 'HIPC') {
-                    // 50Hz VBLANK Modulations-Tick für CosoVirtualMachine
+                if (this.seqType === 'HIPC' || this.seqType === 'COSO') {
                     this.sampleCounter--;
                     if (this.sampleCounter <= 0) {
                         this.sampleCounter += sampleRate / 50.0;
@@ -647,14 +635,11 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 }
             }
 
-            // =========================================================
-            // 192 kHz OVERSAMPLING LOOP (Physikalische Paula-DMA-Stufe)
-            // =========================================================
+            // 192 kHz Oversampling Loop
             for (let os = 0; os < this.OVERSAMPLING; os++) {
                 let rawL = 0;
                 let rawR = 0;
                 
-                // Paula L-R-R-L DMA Ausführung
                 for (let c = 0; c < this.numChannels; c++) {
                     let smp = this.channels[c].step(clockTicksPerSample);
                     if (smp !== 0) {
@@ -692,7 +677,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 this.ringIndex = (this.ringIndex + 1) & 511;
             }
 
-            // 255-Tap Sinc-FIR Decimation
             let decL = 0;
             let decR = 0;
             let firIdx = (this.ringIndex - 1) & 511;
@@ -720,7 +704,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 
                 let currentFrameVal = 0;
                 if (this.isSequenced) {
-                    if (this.seqType === 'HIPC') {
+                    if (this.seqType === 'HIPC' || this.seqType === 'COSO') {
                         currentFrameVal = this.cosoVM ? this.cosoVM.tickCounter : 0;
                     } else {
                         currentFrameVal = (this.currentOrder * 64 * this.speed + this.currentRow * this.speed + this.currentTick);
@@ -735,7 +719,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     let offset = c * 7;
                     let ch = this.channels[c];
                     
-                    // Reale Hardware-Register an HUD & Living Silicon senden:
                     let lc = ch.audLc || 0;
                     view[4 + offset] = (lc >> 8) & 0xFF; 
                     view[4 + offset + 1] = lc & 0xFF;       
