@@ -1,12 +1,11 @@
 // === js/worklets/lib/coso-vm.js ===
 // =========================================================
 // JOCHEN HIPPEL (MAD MAX) COSO VIRTUAL MACHINE
-// Production Master Edition — Single-Pass Paula DMA Trigger Engine:
-// - Eliminates double sample-trigger on Note-On
-// - Note-On delegates Paula DMA configuration strictly to Macro Frame 0
-// - Explicit dmaTriggered guard ensures exact single-shot DMA engagement
+// Production Master Edition — Native Paula Register Pipeline:
+// - COSO VM -> writeAUDxLC, writeAUDxLEN, writeAUDxPER, writeAUDxVOL
 // - Full Support for $E1 (Wave), $E2 (Vol), $E3 (Slide), $E4 (Pitch),
 //   $E5/$E7 (PCM Digidrums), $E6 (NOP), $E8 (Macro Loop), $E0 (Sustain)
+// - Single-Pass DMA Execution eliminating double sample-triggers
 // =========================================================
 
 const PERIOD_TABLE = [
@@ -81,9 +80,9 @@ export class CosoVirtualMachine {
                 macroStartPtr: -1,
                 macroActive: false,
                 macroWait: 0,
-                dmaTriggered: false, // Schutzflag gegen doppelten DMA-Trigger!
+                dmaTriggered: false,
 
-                // Paula Hardware State
+                // Paula State
                 audLc: this.sampleDataOffset,
                 audLen: 16,
                 basePer: 428,
@@ -94,7 +93,7 @@ export class CosoVirtualMachine {
         }
 
         if (this.traceCallback) {
-            this.traceCallback(`--- [COSO-VM INITIALIZED] Single-Pass Paula DMA Engine Active ---`);
+            this.traceCallback(`--- [COSO-VM INITIALIZED] True Hardware Paula-DMA Pipeline Active ---`);
         }
     }
 
@@ -106,7 +105,7 @@ export class CosoVirtualMachine {
     }
 
     // =========================================================
-    // 1. SOUND-MACRO-ENGINE
+    // 1. SOUND-MACRO-ENGINE (SCHREIBT DIREKT IN PAULA-REGISTER)
     // =========================================================
     startMacro(voice, macroId, channel) {
         let macroOffset = -1;
@@ -122,7 +121,6 @@ export class CosoVirtualMachine {
             voice.macroStartPtr = macroOffset;
             voice.macroActive = true;
             voice.macroWait = 0;
-            // Frame 0: Führt Initialisierung aus und setzt dmaTriggered bei $E1/$E5/$E7
             this.decodeMacroFrame(voice, channel, true);
         }
     }
@@ -141,41 +139,43 @@ export class CosoVirtualMachine {
                 voice.macroActive = false;
                 break;
             }
-            // $E1: Set 32-Byte Waveform -> EXAKTER EINZIGER DMA-TRIGGER!
+            // $E1: Set 32-Byte Waveform -> SCHREIBT AUDxLC / AUDxLEN / ENABLE DMA
             else if (op === 0xE1) {
                 const waveIdx = param;
                 voice.sampleKey = `hipc_sample_${waveIdx + 1}`;
                 voice.audLc = this.sampleDataOffset + (waveIdx * 32);
-                voice.audLen = 16;
+                voice.audLen = 16; // 16 Words (32 Bytes)
 
                 const smp = this.samples[voice.sampleKey] || this.samples['hipc_sample_1'];
                 if (smp && smp.data && channel) {
-                    channel.trigger(smp.data, 0, 32);
-                    channel.audLc = voice.audLc;
-                    channel.audLen = 16;
-                    voice.dmaTriggered = true; // DMA erfolgreich durch Macro initialisiert!
+                    channel.writeAUDxLC(voice.audLc, smp.data, 0, 16);
+                    channel.writeAUDxLEN(16);
+                    channel.writeAUDxPER(voice.audPer);
+                    channel.writeAUDxVOL(voice.audVol);
+                    channel.enableDMA(smp.data, 0, 16);
+                    voice.dmaTriggered = true;
                 }
             }
-            // $E2: Set Volume
+            // $E2: Set Volume -> SCHREIBT AUDxVOL
             else if (op === 0xE2) {
                 voice.audVol = param > 64 ? 64 : param;
-                if (channel) channel.vol = voice.audVol;
+                if (channel) channel.writeAUDxVOL(voice.audVol);
             }
             // $E3: Volume Slide
             else if (op === 0xE3) {
                 const sDelta = (param > 127) ? (param - 256) : param;
                 voice.audVol = Math.max(0, Math.min(64, voice.audVol + sDelta));
-                if (channel) channel.vol = voice.audVol;
+                if (channel) channel.writeAUDxVOL(voice.audVol);
                 if (!isFrame0) break;
             }
-            // $E4: Portamento / Pitch Slide
+            // $E4: Portamento / Pitch Slide -> SCHREIBT AUDxPER
             else if (op === 0xE4) {
                 const sPDelta = (param > 127) ? (param - 256) : param;
                 voice.audPer = Math.max(113, voice.audPer + sPDelta);
-                if (channel) channel.per = voice.audPer;
+                if (channel) channel.writeAUDxPER(voice.audPer);
                 if (!isFrame0) break;
             }
-            // $E5 / $E7: Set Sample (PCM Digidrum) -> EXAKTER EINZIGER DMA-TRIGGER!
+            // $E5 / $E7: Set Sample aus Deskriptoren (PCM Digidrums)
             else if (op === 0xE5 || op === 0xE7) {
                 const sampleIdx = param;
                 const pcmKey = `hipc_pcm_${sampleIdx}`;
@@ -188,14 +188,17 @@ export class CosoVirtualMachine {
 
                 const smp = this.samples[pcmKey] || this.samples[`hipc_sample_${sampleIdx}`];
                 if (smp && smp.data && channel) {
-                    channel.trigger(smp.data, smp.loopStart, smp.loopLen);
-                    channel.audLc = voice.audLc;
-                    channel.audLen = voice.audLen;
-                    if (smp.baseVolume !== undefined) {
-                        channel.vol = smp.baseVolume;
-                        voice.audVol = smp.baseVolume;
-                    }
-                    voice.dmaTriggered = true; // DMA erfolgreich durch Macro initialisiert!
+                    const loopStartWords = desc ? desc.loopStartWords : 0;
+                    const loopLenWords = desc ? desc.loopLengthWords : 0;
+                    const vol = (desc && desc.baseVolume !== undefined) ? desc.baseVolume : voice.audVol;
+
+                    channel.writeAUDxLC(voice.audLc, smp.data, loopStartWords, loopLenWords);
+                    channel.writeAUDxLEN(voice.audLen);
+                    channel.writeAUDxPER(voice.audPer);
+                    channel.writeAUDxVOL(vol);
+                    channel.enableDMA(smp.data, loopStartWords, loopLenWords);
+                    voice.audVol = vol;
+                    voice.dmaTriggered = true;
                 }
             }
             // $E6: NOP / Wait 1 Frame
@@ -226,7 +229,7 @@ export class CosoVirtualMachine {
         const patPC = voice.patternPtr;
         const b0 = this.fullData[voice.patternPtr++];
 
-        // A. Pattern Header
+        // Pattern Header
         if (voice.patternHeaderPending) {
             voice.patternHeaderPending = false;
 
@@ -240,7 +243,7 @@ export class CosoVirtualMachine {
             }
         }
 
-        // B. Opcode $E1: Pattern Return
+        // Opcode $E1: Pattern Return
         if (b0 === 0xE1) {
             this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} PatPC:$${patPC.toString(16)} -> Opcode $E1 (Pattern Return)`);
             voice.patternPtr = -1;
@@ -248,7 +251,7 @@ export class CosoVirtualMachine {
             return false;
         }
 
-        // C. Opcode $FE: Set Macro ID
+        // Opcode $FE: Set Macro ID
         if (b0 === 0xFE) {
             const macroId = this.fullData[voice.patternPtr++];
             voice.currentMacro = macroId > 0 ? macroId : 1;
@@ -256,7 +259,7 @@ export class CosoVirtualMachine {
             return false;
         }
 
-        // D. Opcode $FD: Set Delay
+        // Opcode $FD: Set Delay
         if (b0 === 0xFD) {
             const delay = this.fullData[voice.patternPtr++];
             voice.patternDelay = Math.max(1, delay);
@@ -266,7 +269,7 @@ export class CosoVirtualMachine {
 
         if (b0 === 0xFF) return false;
 
-        // E. Note Trigger ($01..$3F)
+        // Note Trigger ($01..$3F)
         if (b0 >= 0x01 && b0 <= 0x3F) {
             let noteIdx = b0 + voice.transpose;
             
@@ -278,31 +281,28 @@ export class CosoVirtualMachine {
 
             voice.basePer = period;
             voice.audPer = period;
-            voice.audVol = 64; // Default Lautstärke
-            voice.dmaTriggered = false; // Reset: Wartet auf Macro-Initialisierung!
+            voice.audVol = 64;
+            voice.dmaTriggered = false;
 
             if (channel) {
-                channel.per = period;
-                channel.vol = 64;
+                channel.writeAUDxPER(period);
+                channel.writeAUDxVOL(64);
             }
 
-            // 1. SOUND-MACRO INITIALISIEREN (Setzt AUDxLC, AUDxLEN und triggert Paula EXAKT 1x)
+            // 1. Startet das Sound-Macro (Schreibt AUDxLC, AUDxLEN und triggert DMA)
             this.startMacro(voice, voice.currentMacro, channel);
 
-            // 2. FALLBACK: Nur wenn Macro kein $E1 oder $E5/$E7 ausgeführt hat
+            // 2. Fallback: Nur wenn das Macro kein $E1/$E5/$E7 ausgeführt hat
             if (!voice.dmaTriggered && channel) {
                 const pcmKey = `hipc_pcm_${voice.currentMacro}`;
                 const waveKey = `hipc_sample_${voice.currentMacro}`;
                 const smpObj = this.samples[pcmKey] || this.samples[waveKey] || this.samples['hipc_sample_1'];
 
                 if (smpObj && smpObj.data) {
-                    channel.trigger(smpObj.data, smpObj.loopStart, smpObj.loopLen);
-                    channel.audLc = voice.audLc;
-                    channel.audLen = voice.audLen;
-                    if (smpObj.baseVolume !== undefined) {
-                        channel.vol = smpObj.baseVolume;
-                        voice.audVol = smpObj.baseVolume;
-                    }
+                    channel.writeAUDxLC(voice.audLc, smpObj.data, 0, 16);
+                    channel.writeAUDxLEN(16);
+                    channel.writeAUDxVOL(voice.audVol || 64);
+                    channel.enableDMA(smpObj.data, 0, 16);
                 }
             }
 
@@ -316,11 +316,11 @@ export class CosoVirtualMachine {
             return true;
         }
 
-        // F. Rest ($00)
+        // Rest ($00)
         if (b0 === 0x00) {
             voice.audVol = 0;
             voice.macroActive = false;
-            if (channel) channel.vol = 0;
+            if (channel) channel.writeAUDxVOL(0);
 
             if (voice.patternDelay === null) {
                 this.logTrace(`[WARN] V${voice.voiceId} Rest at PatPC:$${patPC.toString(16)} mit UNINITIALISIERTEM patternDelay!`);
@@ -427,7 +427,7 @@ export class CosoVirtualMachine {
             const channel = paulaChannels[v];
             if (voice.stopped) continue;
 
-            // 1. Macro-Modulationen ausführen
+            // 1. Macro-Modulationen pro Frame ausführen
             if (voice.macroActive) {
                 this.decodeMacroFrame(voice, channel, false);
             }
