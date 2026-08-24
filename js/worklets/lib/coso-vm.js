@@ -3,10 +3,9 @@
 // JOCHEN HIPPEL (MAD MAX) COSO VIRTUAL MACHINE
 // Production Master Edition — Native Paula Register Pipeline:
 // - COSO VM -> writeAUDxLC, writeAUDxLEN, writeAUDxPER, writeAUDxVOL
-// - Full Support for $E1 (Wave), $E2 (Vol), $E3 (Slide), $E4 (Pitch),
-//   $E5/$E7 (PCM Digidrums), $E6 (NOP), $E8 (Macro Loop), $E0 (Sustain)
-// - Dual 0/1-based Descriptor & Waveform Lookup
-// - Direct DMA Activation for 8-Bit Signed Digidrums
+// - Full Support for $E1, $E2, $E3, $E4, $E5/$E7, $E6, $E8, $E0
+// - Unified Descriptor Lookup for $E1, $E5 and $E7
+// - Direct Single-Pass DMA Activation for PCM Digidrums
 // =========================================================
 
 const PERIOD_TABLE = [
@@ -73,14 +72,12 @@ export class CosoVirtualMachine {
                 wait: 0,
                 stopped: false,
 
-                // Macro State
                 macroPtr: -1,
                 macroStartPtr: -1,
                 macroActive: false,
                 macroWait: 0,
                 dmaTriggered: false,
 
-                // Paula State
                 audLc: this.actualWaveOffset,
                 audLen: 16,
                 basePer: 428,
@@ -137,23 +134,40 @@ export class CosoVirtualMachine {
                 voice.macroActive = false;
                 break;
             }
-            // $E1: Set 32-Byte Waveform -> SCHREIBT AUDxLC / AUDxLEN / ENABLE DMA
-            else if (op === 0xE1) {
-                const waveIdx = param & 0x0F;
-                voice.sampleKey = `hipc_sample_${waveIdx}`;
-                voice.audLc = this.actualWaveOffset + (waveIdx * 32);
-                voice.audLen = 16; // 16 Words = 32 Bytes
-
-                const smp = this.samples[voice.sampleKey] || 
-                            this.samples[`hipc_sample_${waveIdx + 1}`] || 
-                            this.samples['hipc_sample_0'];
+            // $E1, $E5, $E7: Set Waveform or PCM Sample -> SCHREIBT AUDxLC / AUDxLEN / ENABLE DMA
+            // Wir bündeln diese Opcodes, da Hippel in COSO alle Deskriptoren ins gleiche 16-Byte Array pfercht.
+            else if (op === 0xE1 || op === 0xE5 || op === 0xE7) {
+                const sampleIdx = param;
                 
+                // Wir schauen im pre-parsed Deskriptor-Array nach
+                const desc = this.sampleDescriptors[sampleIdx] || this.sampleDescriptors[sampleIdx + 1];
+
+                const smp = (desc && desc.data) ? desc : (
+                    this.samples[`hipc_pcm_${sampleIdx}`] || 
+                    this.samples[`hipc_pcm_${sampleIdx + 1}`] || 
+                    this.samples[`hipc_sample_${sampleIdx}`] ||
+                    this.samples[`hipc_sample_${sampleIdx + 1}`] ||
+                    this.samples['hipc_sample_0']
+                );
+
+                if (desc) {
+                    voice.audLc = desc.absStart;
+                    voice.audLen = desc.sampleLengthWords;
+                }
+
                 if (smp && smp.data && channel) {
-                    channel.writeAUDxLC(voice.audLc, smp.data, 0, 16);
-                    channel.writeAUDxLEN(16);
+                    // Loop-Marker ermitteln (in 16-Bit Words)
+                    const loopStartWords = desc ? desc.loopStartWords : (smp.loopStart ? Math.floor(smp.loopStart / 2) : 0);
+                    const loopLenWords = desc ? desc.loopLengthWords : (smp.loopLen ? Math.floor(smp.loopLen / 2) : 0);
+                    const vol = (desc && desc.baseVolume !== undefined) ? desc.baseVolume : (smp.baseVolume || voice.audVol);
+
+                    channel.writeAUDxLC(voice.audLc, smp.data, loopStartWords, loopLenWords);
+                    channel.writeAUDxLEN(desc ? desc.sampleLengthWords : Math.floor(smp.data.length / 2));
                     channel.writeAUDxPER(voice.audPer);
-                    channel.writeAUDxVOL(voice.audVol);
-                    channel.enableDMA(smp.data, 0, 16);
+                    channel.writeAUDxVOL(vol);
+                    channel.enableDMA(smp.data, loopStartWords, loopLenWords); // Feuert das Sample ab!
+                    
+                    voice.audVol = vol;
                     voice.dmaTriggered = true;
                 }
             }
@@ -173,6 +187,7 @@ export class CosoVirtualMachine {
             else if (op === 0xE4) {
                 let sPDelta = (param > 127) ? (param - 256) : param;
                 
+                // Portamento-Oktav-Skalierung bei hoher Transposition
                 if (voice.transpose > 12) {
                     sPDelta = Math.round(sPDelta / 2.0);
                 } else if (voice.transpose > 24) {
@@ -182,36 +197,6 @@ export class CosoVirtualMachine {
                 voice.audPer = Math.max(113, voice.audPer + sPDelta);
                 if (channel) channel.writeAUDxPER(voice.audPer);
                 if (!isFrame0) break;
-            }
-            // $E5 / $E7: Set Sample aus Deskriptoren (PCM Digidrums)
-            else if (op === 0xE5 || op === 0xE7) {
-                const sampleIdx = param;
-                const desc = this.sampleDescriptors[sampleIdx] || this.sampleDescriptors[sampleIdx + 1];
-
-                const smp = (desc && desc.data) ? desc : (
-                    this.samples[`hipc_pcm_${sampleIdx}`] || 
-                    this.samples[`hipc_pcm_${sampleIdx + 1}`] || 
-                    this.samples[`hipc_sample_${sampleIdx}`]
-                );
-
-                if (desc) {
-                    voice.audLc = desc.absStart;
-                    voice.audLen = desc.sampleLengthWords;
-                }
-
-                if (smp && smp.data && channel) {
-                    const loopStartWords = desc ? desc.loopStartWords : (smp.loopStart ? Math.floor(smp.loopStart / 2) : 0);
-                    const loopLenWords = desc ? desc.loopLengthWords : (smp.loopLen ? Math.floor(smp.loopLen / 2) : 0);
-                    const vol = (desc && desc.baseVolume !== undefined) ? desc.baseVolume : (smp.baseVolume || voice.audVol);
-
-                    channel.writeAUDxLC(voice.audLc, smp.data, loopStartWords, loopLenWords);
-                    channel.writeAUDxLEN(desc ? desc.sampleLengthWords : Math.floor(smp.data.length / 2));
-                    channel.writeAUDxPER(voice.audPer);
-                    channel.writeAUDxVOL(vol);
-                    channel.enableDMA(smp.data, loopStartWords, loopLenWords);
-                    voice.audVol = vol;
-                    voice.dmaTriggered = true;
-                }
             }
             // $E6: NOP / Wait 1 Frame
             else if (op === 0xE6) {
@@ -311,10 +296,13 @@ export class CosoVirtualMachine {
                 const smpObj = this.samples[pcmKey] || this.samples[waveKey] || this.samples['hipc_sample_0'];
 
                 if (smpObj && smpObj.data) {
-                    channel.writeAUDxLC(voice.audLc, smpObj.data, 0, 16);
-                    channel.writeAUDxLEN(16);
+                    const loopStartWords = smpObj.loopStart ? Math.floor(smpObj.loopStart / 2) : 0;
+                    const loopLenWords = smpObj.loopLen ? Math.floor(smpObj.loopLen / 2) : 0;
+
+                    channel.writeAUDxLC(voice.audLc, smpObj.data, loopStartWords, loopLenWords);
+                    channel.writeAUDxLEN(Math.floor(smpObj.data.length / 2));
                     channel.writeAUDxVOL(voice.audVol || 64);
-                    channel.enableDMA(smpObj.data, 0, 16);
+                    channel.enableDMA(smpObj.data, loopStartWords, loopLenWords);
                 }
             }
 

@@ -2,8 +2,7 @@
 // =========================================================
 // JOCHEN HIPPEL (MAD MAX) COSO / HIPC BLOCK-RIPPER
 // Production Master Edition — 100% Generic Container Pipeline:
-// - Direct Non-Sorted Pattern & Macro Table Pointers
-// - Absolute & Relative Sample-Bank (ptr_pcm_data) Resolution
+// - Absolute Amiga RAM Pointer Rebasing (The Silver Bullet)
 // - Dual 0-based & 1-based Sample Descriptor / PCM Digidrum Slicing
 // - Deterministic 8-Byte Subsong Table & Signed 8-Bit PCM Extraction
 // =========================================================
@@ -188,6 +187,10 @@ export async function loadHipcFile(url) {
     const maxDescriptors = Math.floor((actualWaveOffset - sampleTableOffset) / 16);
     let loadedPcmCount = 0;
 
+    // THE SILVER BULLET: Rebase Absolute Amiga RAM Pointers to relative File Offsets!
+    // We read the first descriptor's pointer, which always points to the start of the sample bank.
+    const baseAmigaAddress = view.getUint32(sampleTableOffset, false);
+
     for (let i = 0; i < maxDescriptors; i++) {
         const descOffset = sampleTableOffset + (i * 16);
         if (descOffset + 12 > actualWaveOffset) break;
@@ -201,22 +204,22 @@ export async function loadHipcFile(url) {
 
         const smpLenBytes = smpLenWords * 2;
         
-        let absStart = 0;
-        if (rawStartOffset >= sampleDataOffset && rawStartOffset < data.length) {
-            absStart = rawStartOffset & ~1;
-        } else if (rawStartOffset >= actualWaveOffset && rawStartOffset < data.length) {
-            absStart = rawStartOffset & ~1;
-        } else if (sampleDataOffset + rawStartOffset < data.length) {
-            absStart = (sampleDataOffset + rawStartOffset) & ~1;
-        } else if (actualWaveOffset + rawStartOffset < data.length) {
-            absStart = (actualWaveOffset + rawStartOffset) & ~1;
+        // Universelles Rebasing von absoluten Amiga-RAM-Pointern ($00021C3E) auf relative Dateioffsets
+        const relativeOffset = rawStartOffset - baseAmigaAddress;
+        let absStart = (actualWaveOffset + relativeOffset) & ~1; // Zwingend Word-Aligned!
+
+        // Sicherheitsprüfung gegen kaputte Pointer oder leere Samples
+        if (absStart < 0 || absStart >= data.length || smpLenBytes <= 0) {
+            absStart = actualWaveOffset; // Fallback
         }
 
         let pcm = null;
         if (smpLenBytes > 0 && absStart + smpLenBytes <= data.length) {
+            // Schneidet das exakte Instrument als Array aus
             pcm = new Int8Array(smpLenBytes);
             for (let s = 0; s < smpLenBytes; s++) {
                 const b = data[absStart + s];
+                // Unsigned -> Signed PCM 8-Bit Konvertierung
                 pcm[s] = (b > 127) ? (b - 256) : b;
             }
         }
@@ -239,7 +242,7 @@ export async function loadHipcFile(url) {
         if (pcm) {
             const pcmObj = {
                 data: pcm,
-                loopStart: smpLoopStart * 2,
+                loopStart: smpLoopStart * 2, // Zurück in Bytes konvertieren für die Worklets
                 loopLen: smpLoopLen > 1 ? (smpLoopLen * 2) : 0,
                 baseVolume: smpVol > 64 ? 64 : smpVol
             };
@@ -289,7 +292,7 @@ export async function loadHipcFile(url) {
         metadata: {
             name: url.split('/').pop().toUpperCase(),
             author: "JOCHEN HIPPEL (MAD MAX)",
-            comment: `GENERIC COSO DECODER (DUAL 0/1-INDEX PCM ENGINE)`,
+            comment: `GENERIC COSO DECODER (ABSOLUTE RAM POINTER REBASING)`,
             type: "Hippel-COSO (4-Channel Paula DMA)",
             instrumentCount: NUM_WAVEFORMS + loadedPcmCount,
             patternCount: patternPointers.length,
