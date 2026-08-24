@@ -9,6 +9,7 @@
 // - 192kHz Oversampling ZOH DAC, LF347 JFET Slew-Rate Stage,
 //   Passive 4.42kHz RC Filter, Active 3.09kHz Butterworth LED Filter,
 //   255-Tap Sinc-FIR Decimator & L-R-R-L Physical Hard-Panning (3.5% Bleed)
+// - Native Jochen Hippel (COSO / HIPC) Virtual Machine Integration
 // ==========================================
 
 import { CosoVirtualMachine } from '../lib/coso-vm.js';
@@ -252,7 +253,7 @@ class PaulaChannel {
 class PaulaProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.clock = 3546895; // PAL Master Clock
+        this.clock = 3546895; // PAL Master Clock (Hz)
         
         this.OVERSAMPLING = 4;
         this.internalRate = sampleRate * this.OVERSAMPLING; // 192 kHz

@@ -4,7 +4,7 @@
 // Audiophile Edition: 14-Bit Hermite Cubic Interpolation,
 // Constant-Power Spatial Panning, Parametric Stereo Diffusion Reverb,
 // Airband Presence Exciter & Dual-Channel 255-Tap Sinc-FIR Decimator
-// Now with Full Native Jochen Hippel COSO/HIPC Virtual Machine Support!
+// Full Native Jochen Hippel COSO/HIPC Virtual Machine Support!
 // ==========================================
 
 import { CosoVirtualMachine } from '../lib/coso-vm.js';
@@ -154,7 +154,7 @@ class PaulaFantasyChannel {
         this.phase = 0;
         
         const lenBytes = this.audLen * 2;
-        this.length = (this.data && lenBytes <= this.data.length) ? lenBytes : (this.data ? this.data.length : 0);
+        this.length = (this.data && lenBytes <= this.data.length && lenBytes > 0) ? lenBytes : (this.data ? this.data.length : 0);
 
         if (loopLengthWords > 1) {
             this.repPointer = (loopStartWords * 2) & ~1;
@@ -170,6 +170,7 @@ class PaulaFantasyChannel {
         this.vol = 0;
         this.audVol = 0;
         this.data = null;
+        this.length = 0;
     }
 
     trigger(data, loopStart, loopLen) {
@@ -196,6 +197,7 @@ class PaulaFantasyChannel {
 
     // 14-Bit Hermite Cubic Interpolation
     step(clockTicksPerSample) {
+        if (!this.dmaEnabled && this.data === null) return 0;
         if (!this.data || this.vol === 0 || this.per === 0 || this.length <= 0) return 0;
 
         this.phase += clockTicksPerSample / this.per;

@@ -6,6 +6,7 @@
 // - Full Support for $E1 (Wave), $E2 (Vol), $E3 (Slide), $E4 (Pitch),
 //   $E5/$E7 (PCM Digidrums), $E6 (NOP), $E8 (Macro Loop), $E0 (Sustain)
 // - Dual 0/1-based Descriptor & Waveform Lookup
+// - Direct DMA Activation for 8-Bit Signed Digidrums
 // =========================================================
 
 const PERIOD_TABLE = [
@@ -38,6 +39,7 @@ export class CosoVirtualMachine {
         this.macroTableOffset = trackModule.header.macroTableOffset;
         this.patTableOffset = trackModule.header.patTableOffset;
         this.sampleDataOffset = trackModule.header.sampleDataOffset;
+        this.actualWaveOffset = trackModule.header.actualWaveOffset || this.sampleDataOffset;
         this.sampleDescriptors = trackModule.sampleDescriptors || [];
         this.voiceTrackPointers = trackModule.voiceTrackPointers;
         this.samples = trackModule.samples || samplesDict || {};
@@ -79,7 +81,7 @@ export class CosoVirtualMachine {
                 dmaTriggered: false,
 
                 // Paula State
-                audLc: this.sampleDataOffset,
+                audLc: this.actualWaveOffset,
                 audLen: 16,
                 basePer: 428,
                 audPer: 428,
@@ -139,7 +141,7 @@ export class CosoVirtualMachine {
             else if (op === 0xE1) {
                 const waveIdx = param & 0x0F;
                 voice.sampleKey = `hipc_sample_${waveIdx}`;
-                voice.audLc = this.sampleDataOffset + (waveIdx * 32);
+                voice.audLc = this.actualWaveOffset + (waveIdx * 32);
                 voice.audLen = 16; // 16 Words = 32 Bytes
 
                 const smp = this.samples[voice.sampleKey] || 
@@ -171,7 +173,6 @@ export class CosoVirtualMachine {
             else if (op === 0xE4) {
                 let sPDelta = (param > 127) ? (param - 256) : param;
                 
-                // Portamento-Oktav-Skalierung bei hoher Transposition
                 if (voice.transpose > 12) {
                     sPDelta = Math.round(sPDelta / 2.0);
                 } else if (voice.transpose > 24) {

@@ -1,12 +1,11 @@
 // === js/parsers/hipc-parser.js ===
 // =========================================================
 // JOCHEN HIPPEL (MAD MAX) COSO / HIPC BLOCK-RIPPER
-// Master Edition — 100% Generic Container Pipeline:
-// - Zero Hardcoded Magic Offsets / Zero Fixture Branching
-// - Abstract 8-Byte Subsong Descriptor Table Parsing
-// - Non-Sorted Direct Pattern & Macro Table Resolution
-// - Dual 0-based & 1-based Sample Descriptor & PCM Slicing
-// - Universal Compatibility across all Hippel COSO modules
+// Production Master Edition — 100% Generic Container Pipeline:
+// - Direct Non-Sorted Pattern & Macro Table Pointers
+// - Absolute & Relative Sample-Bank (ptr_pcm_data) Resolution
+// - Dual 0-based & 1-based Sample Descriptor / PCM Digidrum Slicing
+// - Deterministic 8-Byte Subsong Table & Signed 8-Bit PCM Extraction
 // =========================================================
 
 function findWaveSignature(data, fallbackOffset, searchStart = 0x0020) {
@@ -52,7 +51,7 @@ export async function loadHipcFile(url) {
     const patTableOffset      = view.getUint32(0x08, false); // Start Block 2 (Patterns)
     const macroTableOffset    = view.getUint32(0x0C, false); // Start Block 3 (Sound-Macros)
     const sampleTableOffset   = view.getUint32(0x10, false); // Start Block 4 (Sample-Deskriptoren)
-    const sampleDataOffset    = view.getUint32(0x14, false); // Start Block 5 (Audio-Bank)
+    const sampleDataOffset    = view.getUint32(0x14, false); // Start Block 5 (Audio-Bank / ptr_pcm_data)
 
     // =========================================================
     // 2. UNIVERSELLE SUBSONG-TABELLE EXTRAHIEREN ($0020..firstTrackOffset)
@@ -118,7 +117,6 @@ export async function loadHipcFile(url) {
             patternPointers.push(view.getUint16(patTableOffset + (i * 2), false));
         }
     } else {
-        // Fallback-Scan
         let scanPtr = patTableOffset;
         while (scanPtr < macroTableOffset) {
             patternPointers.push(scanPtr);
@@ -151,7 +149,7 @@ export async function loadHipcFile(url) {
     const patternBlock      = data.subarray(patTableOffset, macroTableOffset);
     const macroBlock        = data.subarray(macroTableOffset, sampleTableOffset);
     const sampleHeaderBlock = data.subarray(sampleTableOffset, actualWaveOffset);
-    const sampleDataBlock   = data.subarray(actualWaveOffset);
+    const sampleDataBlock   = data.subarray(sampleDataOffset);
 
     // =========================================================
     // 7. 32-BYTE SYNTHESIZER WAVETABLES (SIGNED 8-BIT)
@@ -184,7 +182,7 @@ export async function loadHipcFile(url) {
     }
 
     // =========================================================
-    // 8. SAMPLE-DESKRIPTOREN EXTRAKTION (0-BASED & 1-BASED ALIAS)
+    // 8. SAMPLE-DESKRIPTOREN & PCM EXTRAKTION (0-BASED & 1-BASED)
     // =========================================================
     const sampleDescriptors = [];
     const maxDescriptors = Math.floor((actualWaveOffset - sampleTableOffset) / 16);
@@ -204,12 +202,14 @@ export async function loadHipcFile(url) {
         const smpLenBytes = smpLenWords * 2;
         
         let absStart = 0;
-        if (rawStartOffset >= actualWaveOffset && rawStartOffset < data.length) {
+        if (rawStartOffset >= sampleDataOffset && rawStartOffset < data.length) {
             absStart = rawStartOffset & ~1;
-        } else if (actualWaveOffset + rawStartOffset < data.length) {
-            absStart = (actualWaveOffset + rawStartOffset) & ~1;
+        } else if (rawStartOffset >= actualWaveOffset && rawStartOffset < data.length) {
+            absStart = rawStartOffset & ~1;
         } else if (sampleDataOffset + rawStartOffset < data.length) {
             absStart = (sampleDataOffset + rawStartOffset) & ~1;
+        } else if (actualWaveOffset + rawStartOffset < data.length) {
+            absStart = (actualWaveOffset + rawStartOffset) & ~1;
         }
 
         let pcm = null;
@@ -265,7 +265,8 @@ export async function loadHipcFile(url) {
             patTableOffset,
             macroTableOffset,
             sampleTableOffset,
-            sampleDataOffset: actualWaveOffset,
+            sampleDataOffset: sampleDataOffset,
+            actualWaveOffset: actualWaveOffset,
             numPatterns: patternPointers.length,
             numMacros: macroPointers.length,
             subsongs: subsongs,
