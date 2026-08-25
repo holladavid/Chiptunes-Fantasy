@@ -6,7 +6,7 @@
 // - Dual 0-based & 1-based Sample Descriptor / PCM Digidrum Slicing
 // - Deterministic 8-Byte Subsong Table & Signed 8-Bit PCM Extraction
 // - Failsafe Deterministic Pointer-Table Boundary Scanning
-// - Explicit Replayer Variant Detection (TFMX vs COSO)
+// - Decoupled Container vs. Replayer Semantics Detection
 // - Chunked Pattern-Pointer Group Extraction (Interleaved Decoding)
 // =========================================================
 
@@ -48,9 +48,15 @@ export async function loadHipcFile(url) {
         throw new Error(`Ungültiges COSO-Modul: Header-Signaturen nicht gefunden ("${magic0}").`);
     }
 
-    let replayerMode = 'COSO_NATIVE';
+    // =========================================================
+    // NEU: CONTAINER VS REPLAY-SEMANTIK
+    // COSO ist nur der Container. Die tatsächliche Replay-Semantik (Vibrato/Portamento)
+    // unterscheidet sich je nach Player-Generation. Wings of Death z.B. benötigt 
+    // TFMX-Vibrato-Semantik, obwohl es in einem COSO-Container liegt.
+    // =========================================================
+    let replayerMode = 'COSO_NATIVE_VARIANT';
     if (magic18 === 'TFMX' || magic1C === 'TFMX') {
-        replayerMode = 'TFMX_7V';
+        replayerMode = 'WINGS_TFMX_VARIANT';
     }
 
     const initFlags           = view.getUint16(0x04, false);
@@ -115,21 +121,16 @@ export async function loadHipcFile(url) {
     // =========================================================
     // 4. PATTERN-POINTER EXTRAKTION (CHUNKING / INDEX GROUPS)
     // =========================================================
-    // Hippel splittet die Pattern-Pointer-Tabelle in COSO in mehrere Gruppen (Chunks),
-    // die durch die tatsächlichen Pattern-Daten getrennt sind. Wir scannen diese 
-    // deterministisch, indem wir das Ende des jeweils letzten Patterns pro Chunk parsen.
     const patternPointers = [];
     let currentTablePtr = patTableOffset;
 
     while (currentTablePtr < macroTableOffset) {
         let firstPtr = view.getUint16(currentTablePtr, false);
         
-        // Failsafe: Wenn der Pointer unlogisch ist, sind wir am Ende oder im Padding
         if (firstPtr <= currentTablePtr || firstPtr >= macroTableOffset) {
             break; 
         }
 
-        // Die Pointer-Tabelle läuft exakt bis zum Start des ersten Patterns in dieser Gruppe
         let numEntries = Math.floor((firstPtr - currentTablePtr) / 4);
         if (numEntries <= 0) break;
 
@@ -142,8 +143,6 @@ export async function loadHipcFile(url) {
             }
         }
 
-        // Wir müssen das Ende der aktuellen Pattern-Gruppe finden.
-        // Dafür parsen wir das Pattern mit der höchsten Startadresse bis zum $E1 (Return).
         let scanPtr = maxPatPtr;
         let foundEnd = false;
         
@@ -153,15 +152,14 @@ export async function loadHipcFile(url) {
                 foundEnd = true;
                 break;
             } else if (op === 0x08) {
-                scanPtr += 2; // Delay & Macro
+                scanPtr += 2; 
             } else if (op === 0xFE || op === 0xFD) {
-                scanPtr += 1; // Macro ID oder Delay
+                scanPtr += 1; 
             }
         }
 
         if (!foundEnd) break;
 
-        // Nächste Pointer-Tabelle beginnt nach Padding und Word-Alignment
         while (scanPtr < macroTableOffset && data[scanPtr] === 0xFF) {
             scanPtr++;
         }
@@ -224,8 +222,8 @@ export async function loadHipcFile(url) {
                 baseVolume: 64
             };
 
-            samples[`hipc_sample_${i}`]     = smpObj; // 0-based
-            samples[`hipc_sample_${i + 1}`] = smpObj; // 1-based alias
+            samples[`hipc_sample_${i}`]     = smpObj; 
+            samples[`hipc_sample_${i + 1}`] = smpObj; 
             samples[`mod_sample_${i + 1}`]  = smpObj;
             samples[`xm_sample_${i + 1}`]   = smpObj;
         }
@@ -339,8 +337,8 @@ export async function loadHipcFile(url) {
         metadata: {
             name: url.split('/').pop().toUpperCase(),
             author: "JOCHEN HIPPEL (MAD MAX)",
-            comment: `GENERIC COSO DECODER (CHUNKED PATTERN PARSING)`,
-            type: `Hippel-COSO (${replayerMode})`,
+            comment: `GENERIC COSO DECODER (REPLAYER: ${replayerMode})`,
+            type: `COSO Container / ${replayerMode}`, // Zeigt Container und Variante an
             instrumentCount: NUM_WAVEFORMS + loadedPcmCount,
             patternCount: patternPointers.length,
             subsongCount: subsongs.length,

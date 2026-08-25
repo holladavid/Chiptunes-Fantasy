@@ -4,8 +4,9 @@
 // Production Master Edition — Native Paula Register Pipeline:
 // - COSO VM -> writeAUDxLC, writeAUDxLEN, writeAUDxPER, writeAUDxVOL
 // - Full Support for Variable-Length Macro Opcodes (1-Byte / 2-Byte)
+// - Byte-Offset Routing for $E8 (Macro Loop)
 // - Native $00..$DF & $E6 Wait-Frame Evaluation
-// - Decoupled Replayer Semantics (TFMX_7V vs COSO_NATIVE)
+// - Decoupled Replayer Semantics (WINGS_TFMX_VARIANT vs COSO_NATIVE_VARIANT)
 // - Strict Semantic Separation for $E1 (Wave), $E5 (PCM), and $E7 (Alt PCM)
 // =========================================================
 
@@ -45,7 +46,7 @@ export class CosoVirtualMachine {
         this.samples = trackModule.samples || samplesDict || {};
         this.traceCallback = traceCallback;
 
-        this.replayerMode = trackModule.header.replayerMode || 'COSO_NATIVE';
+        this.replayerMode = trackModule.header.replayerMode || 'COSO_NATIVE_VARIANT';
 
         if (!this.voiceTrackPointers || this.voiceTrackPointers.length < 4) {
             throw new Error(`[COSO-VM CRITICAL] Unvollständige voiceTrackPointers vom Parser erhalten: ${JSON.stringify(this.voiceTrackPointers)}`);
@@ -236,7 +237,9 @@ export class CosoVirtualMachine {
                 // ==========================================
                 let sPDelta = (param > 127) ? (param - 256) : param;
                 
-                if (this.replayerMode === 'TFMX_7V') {
+                if (this.replayerMode === 'WINGS_TFMX_VARIANT') {
+                    // Wings of Death Replayer Semantik
+                    // Oktav-Skalierung für Portamento (Delta / 2^N)
                     let octaves = Math.floor(voice.transpose / 12);
                     if (octaves > 0) {
                         sPDelta = Math.round(sPDelta / Math.pow(2, octaves));
@@ -258,14 +261,10 @@ export class CosoVirtualMachine {
                 // ==========================================
                 // MACRO LOOP / JUMP ($E8)
                 // FROZEN STATE: Warten auf Binärtrace-Verifikation!
-                // Ist 'param' ein Byte-Offset? Ein 16-Bit Word-Index? 
-                // Wir belassen es vorerst als Word-Step (param * 2),
-                // da alte TFMX-Versionen oft feste 16-Bit Arrays nutzten.
                 // ==========================================
                 voice.macroPtr = voice.macroStartPtr + (param * 2);
             }
             else {
-                // Unknown Opcode - Failsafe Break
                 break;
             }
         }
