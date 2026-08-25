@@ -50,8 +50,13 @@ export async function loadHipcFile(url) {
     const subsongInfo         = view.getUint16(0x06, false);
     const patTableOffset      = view.getUint32(0x08, false); // Start Block 2 (Patterns)
     const macroTableOffset    = view.getUint32(0x0C, false); // Start Block 3 (Sound-Macros)
-    const sampleTableOffset   = view.getUint32(0x10, false); // Start Block 4 (Sample-Deskriptoren)
-    const sampleDataOffset    = view.getUint32(0x14, false); // Start Block 5 (Audio-Bank / ptr_pcm_data)
+    const sampleTableOffset   = view.getUint32(0x10, false); // Start Block 4 (Sample-Deskriptoren / ptr_sample_table)
+    
+    // SEMANTIK-DEFINITION:
+    // sampleDataOffset = Der im Header (Offset $0014) referenzierte Pointer für die Sample-Bank (ptr_pcm_data).
+    // ACHTUNG: Dieser Wert ist deklarativ. Durch Linker-Artefakte oder IRA-Disassembler-Labels 
+    // kann er im RAM leicht verschoben sein und nicht zwingend auf das exakte erste Byte zeigen.
+    const sampleDataOffset    = view.getUint32(0x14, false); 
 
     // =========================================================
     // 2. UNIVERSELLE SUBSONG-TABELLE EXTRAHIEREN ($0020..firstTrackOffset)
@@ -103,6 +108,11 @@ export async function loadHipcFile(url) {
     // =========================================================
     // 3. ECHTEN WAVETABLE-START FINDEN ($1C3E / $17AC)
     // =========================================================
+    // SEMANTIK-DEFINITION:
+    // actualWaveOffset = Der tatsächliche, physische Beginn der 32-Byte-Synthesizer-Wavetables.
+    // Er wird deterministisch über die Waveform-Signatur (48 3C 32 29) gesucht.
+    // Wir nutzen EXKLUSIV diesen Offset als verlässlichen Null-Anker für unser Pointer-Rebasing, 
+    // um die Schwächen von sampleDataOffset auszugleichen.
     const actualWaveOffset = findWaveSignature(data, sampleDataOffset, macroTableOffset);
 
     // =========================================================
@@ -244,7 +254,7 @@ export async function loadHipcFile(url) {
         const descObj = {
             descriptorIndex: i,
             sampleStartOffset: rawStartOffset,
-            absStart: absStart,
+            absStart: absStart, // Dies ist nun unser physisch validierter, robuster Pointer!
             sampleLengthWords: smpLenWords,
             loopStartWords: smpLoopStart,
             loopLengthWords: smpLoopLen,
@@ -285,8 +295,8 @@ export async function loadHipcFile(url) {
             patTableOffset,
             macroTableOffset,
             sampleTableOffset,
-            sampleDataOffset: sampleDataOffset,
-            actualWaveOffset: actualWaveOffset,
+            sampleDataOffset: sampleDataOffset, // Beinhaltet den Original-Header-Wert
+            actualWaveOffset: actualWaveOffset, // Beinhaltet den validierten Signatur-Wert
             numPatterns: patternPointers.length,
             numMacros: macroPointers.length,
             subsongs: subsongs,
