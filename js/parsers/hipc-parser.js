@@ -111,9 +111,11 @@ export async function loadHipcFile(url) {
     const patternPointers = [];
 
     if (firstPatternOffset > patTableOffset && firstPatternOffset < macroTableOffset) {
-        const numPatterns = Math.floor((firstPatternOffset - patTableOffset) / 2);
+        // HIPPEL COSO: Die Pattern-Tabelle besteht aus 4-Byte-Strukturen (Start-Offset + End-Offset/Flags)
+        // Stride = 4 Bytes. Das erste 16-Bit Word ist der Pointer, das zweite Word wird ignoriert.
+        const numPatterns = Math.floor((firstPatternOffset - patTableOffset) / 4);
         for (let i = 0; i < numPatterns; i++) {
-            patternPointers.push(view.getUint16(patTableOffset + (i * 2), false));
+            patternPointers.push(view.getUint16(patTableOffset + (i * 4), false));
         }
     } else {
         let scanPtr = patTableOffset;
