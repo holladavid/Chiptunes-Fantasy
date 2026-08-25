@@ -4,8 +4,6 @@
 // Production Master Edition — Native Paula Register Pipeline:
 // - COSO VM -> writeAUDxLC, writeAUDxLEN, writeAUDxPER, writeAUDxVOL
 // - Full Support for Variable-Length Macro Opcodes (1-Byte / 2-Byte)
-// - Byte-Offset Routing for $E8 (Macro Loop)
-// - Native $00..$DF & $E6 Wait-Frame Evaluation
 // - Decoupled Replayer Semantics (WINGS_TFMX_VARIANT vs COSO_NATIVE_VARIANT)
 // - Strict Semantic Separation for $E1 (Wave), $E5 (PCM), and $E7 (Alt PCM)
 // =========================================================
@@ -191,7 +189,12 @@ export class CosoVirtualMachine {
             const op = this.fullData[voice.macroPtr++];
 
             // ==========================================
-            // 1-BYTE OPCODES
+            // 1-BYTE OPCODES (TFMX / COSO MACRO ISA)
+            // FROZEN STATE: Warten auf Binärtrace-Verifikation!
+            // Die externe libtfmx-Referenz belegt, dass Macros eine 
+            // variable-length Skriptsprache sind (Wait, SetLen, AddNote etc.).
+            // Die Annahme, dass *alles* unter $E0 ein 1-Byte "Wait X Frames" ist,
+            // muss am konkreten M68k-Treiber von Wings of Death bewiesen werden.
             // ==========================================
             if (op === 0xE0) {
                 // $E0: End of Macro (Sustain/Hold)
@@ -199,13 +202,14 @@ export class CosoVirtualMachine {
                 break;
             }
             else if (op < 0xE0) {
-                // $00..$DF: Wait X frames
+                // $00..$DF: Wait X frames (UNBEWIESENE HEURISTIK!)
                 if (op > 0) voice.macroWait = op - 1; 
                 break; 
             }
 
             // ==========================================
-            // 2-BYTE OPCODES
+            // 2-BYTE OPCODES (Oder mehr?)
+            // FROZEN STATE: Opcode-Mapping ist heuristisch!
             // ==========================================
             const param = this.fullData[voice.macroPtr++];
 
@@ -231,15 +235,11 @@ export class CosoVirtualMachine {
                 if (!isFrame0) break;
             }
             else if (op === 0xE4) {
-                // ==========================================
-                // REPLAYER BEHAVIOR SPLIT (Vibrato/Portamento)
-                // FROZEN STATE: Warten auf Binärtrace-Verifikation!
-                // ==========================================
+                // $E4: Pitch Slide / Portamento / Vibrato
                 let sPDelta = (param > 127) ? (param - 256) : param;
                 
                 if (this.replayerMode === 'WINGS_TFMX_VARIANT') {
-                    // Wings of Death Replayer Semantik
-                    // Oktav-Skalierung für Portamento (Delta / 2^N)
+                    // TFMX-7V Replayer Semantik (Oktav-Skalierung für Portamento)
                     let octaves = Math.floor(voice.transpose / 12);
                     if (octaves > 0) {
                         sPDelta = Math.round(sPDelta / Math.pow(2, octaves));
@@ -258,13 +258,12 @@ export class CosoVirtualMachine {
                 break;
             }
             else if (op === 0xE8) {
-                // ==========================================
-                // MACRO LOOP / JUMP ($E8)
-                // FROZEN STATE: Warten auf Binärtrace-Verifikation!
-                // ==========================================
+                // $E8: Macro Loop / Jump
+                // FROZEN STATE: Warten auf M68k-Beweis, ob param ein Byte-Offset oder Word-Index ist!
                 voice.macroPtr = voice.macroStartPtr + (param * 2);
             }
             else {
+                // Unknown Opcode - Failsafe Break
                 break;
             }
         }
