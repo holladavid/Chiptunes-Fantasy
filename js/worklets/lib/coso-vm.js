@@ -7,6 +7,7 @@
 // - Byte-Offset Routing for $E8 (Macro Loop)
 // - Native $00..$DF & $E6 Wait-Frame Evaluation
 // - Decoupled Replayer Semantics (TFMX_7V vs COSO_NATIVE) for Vibrato & Portamento
+// - Strict Semantic Separation for $E1 (Wave), $E5 (PCM), and $E7 (Alt PCM)
 // =========================================================
 
 const PERIOD_TABLE = [
@@ -45,9 +46,6 @@ export class CosoVirtualMachine {
         this.samples = trackModule.samples || samplesDict || {};
         this.traceCallback = traceCallback;
 
-        // =========================================================
-        // NEU: REPLAYER MODE INJEKTION
-        // =========================================================
         this.replayerMode = trackModule.header.replayerMode || 'COSO_NATIVE';
 
         if (!this.voiceTrackPointers || this.voiceTrackPointers.length < 4) {
@@ -126,6 +124,61 @@ export class CosoVirtualMachine {
         }
     }
 
+    executeWaveCommand(voice, channel, param) {
+        // $E1: Expliziter Waveform-Lookup
+        const desc = this.sampleDescriptors[param] || this.sampleDescriptors[param + 1];
+        const smp = (desc && desc.data) ? desc : (
+            this.samples[`hipc_sample_${param}`] || 
+            this.samples[`hipc_sample_${param + 1}`] || 
+            this.samples['hipc_sample_0']
+        );
+        this.applyDmaHardware(voice, channel, smp, desc);
+    }
+
+    executeSampleCommand(voice, channel, param) {
+        // $E5: Expliziter PCM-Sample-Lookup
+        const desc = this.sampleDescriptors[param] || this.sampleDescriptors[param + 1];
+        const smp = (desc && desc.data) ? desc : (
+            this.samples[`hipc_pcm_${param}`] || 
+            this.samples[`hipc_pcm_${param + 1}`] || 
+            this.samples['hipc_sample_0'] // Fallback, falls kein PCM gefunden wurde
+        );
+        this.applyDmaHardware(voice, channel, smp, desc);
+    }
+
+    executeAlternateSampleCommand(voice, channel, param) {
+        // $E7: Alternate PCM-Sample-Lookup (Könnte später im Binärtrace abweichen)
+        const desc = this.sampleDescriptors[param] || this.sampleDescriptors[param + 1];
+        const smp = (desc && desc.data) ? desc : (
+            this.samples[`hipc_pcm_${param}`] || 
+            this.samples[`hipc_pcm_${param + 1}`] || 
+            this.samples['hipc_sample_0']
+        );
+        this.applyDmaHardware(voice, channel, smp, desc);
+    }
+
+    applyDmaHardware(voice, channel, smp, desc) {
+        if (desc) {
+            voice.audLc = desc.absStart;
+            voice.audLen = desc.sampleLengthWords;
+        }
+
+        if (smp && smp.data && channel) {
+            const loopStartWords = desc ? desc.loopStartWords : (smp.loopStart ? Math.floor(smp.loopStart / 2) : 0);
+            const loopLenWords = desc ? desc.loopLengthWords : (smp.loopLen ? Math.floor(smp.loopLen / 2) : 0);
+            const vol = (desc && desc.baseVolume !== undefined) ? desc.baseVolume : (smp.baseVolume || voice.audVol);
+
+            channel.writeAUDxLC(voice.audLc, smp.data, loopStartWords, loopLenWords);
+            channel.writeAUDxLEN(desc ? desc.sampleLengthWords : Math.floor(smp.data.length / 2));
+            channel.writeAUDxPER(voice.audPer);
+            channel.writeAUDxVOL(vol);
+            channel.enableDMA(smp.data, loopStartWords, loopLenWords);
+            
+            voice.audVol = vol;
+            voice.dmaTriggered = true;
+        }
+    }
+
     decodeMacroFrame(voice, channel, isFrame0 = false) {
         if (!voice.macroActive || voice.macroPtr <= 0 || voice.macroPtr >= this.fullData.length - 1) return;
 
@@ -144,10 +197,12 @@ export class CosoVirtualMachine {
             // 1-BYTE OPCODES
             // ==========================================
             if (op === 0xE0) {
+                // $E0: End of Macro (Sustain/Hold)
                 voice.macroActive = false;
                 break;
             }
             else if (op < 0xE0) {
+                // $00..$DF: Wait X frames
                 if (op > 0) voice.macroWait = op - 1; 
                 break; 
             }
@@ -157,57 +212,33 @@ export class CosoVirtualMachine {
             // ==========================================
             const param = this.fullData[voice.macroPtr++];
 
-            if (op === 0xE1 || op === 0xE5 || op === 0xE7) {
-                const sampleIdx = param;
-                const desc = this.sampleDescriptors[sampleIdx] || this.sampleDescriptors[sampleIdx + 1];
-
-                const smp = (desc && desc.data) ? desc : (
-                    this.samples[`hipc_pcm_${sampleIdx}`] || 
-                    this.samples[`hipc_pcm_${sampleIdx + 1}`] || 
-                    this.samples[`hipc_sample_${sampleIdx}`] ||
-                    this.samples[`hipc_sample_${sampleIdx + 1}`] ||
-                    this.samples['hipc_sample_0']
-                );
-
-                if (desc) {
-                    voice.audLc = desc.absStart;
-                    voice.audLen = desc.sampleLengthWords;
-                }
-
-                if (smp && smp.data && channel) {
-                    const loopStartWords = desc ? desc.loopStartWords : (smp.loopStart ? Math.floor(smp.loopStart / 2) : 0);
-                    const loopLenWords = desc ? desc.loopLengthWords : (smp.loopLen ? Math.floor(smp.loopLen / 2) : 0);
-                    const vol = (desc && desc.baseVolume !== undefined) ? desc.baseVolume : (smp.baseVolume || voice.audVol);
-
-                    channel.writeAUDxLC(voice.audLc, smp.data, loopStartWords, loopLenWords);
-                    channel.writeAUDxLEN(desc ? desc.sampleLengthWords : Math.floor(smp.data.length / 2));
-                    channel.writeAUDxPER(voice.audPer);
-                    channel.writeAUDxVOL(vol);
-                    channel.enableDMA(smp.data, loopStartWords, loopLenWords);
-                    
-                    voice.audVol = vol;
-                    voice.dmaTriggered = true;
-                }
+            if (op === 0xE1) {
+                this.executeWaveCommand(voice, channel, param);
+            }
+            else if (op === 0xE5) {
+                this.executeSampleCommand(voice, channel, param);
+            }
+            else if (op === 0xE7) {
+                this.executeAlternateSampleCommand(voice, channel, param);
             }
             else if (op === 0xE2) {
+                // $E2: Set Volume
                 voice.audVol = param > 64 ? 64 : param;
                 if (channel) channel.writeAUDxVOL(voice.audVol);
             }
             else if (op === 0xE3) {
+                // $E3: Volume Slide
                 const sDelta = (param > 127) ? (param - 256) : param;
                 voice.audVol = Math.max(0, Math.min(64, voice.audVol + sDelta));
                 if (channel) channel.writeAUDxVOL(voice.audVol);
                 if (!isFrame0) break;
             }
             else if (op === 0xE4) {
-                // ==========================================
-                // REPLAYER BEHAVIOR SPLIT (Vibrato/Portamento)
-                // ==========================================
+                // $E4: Pitch Slide / Portamento / Vibrato
                 let sPDelta = (param > 127) ? (param - 256) : param;
                 
                 if (this.replayerMode === 'TFMX_7V') {
-                    // TFMX-7V Replayer Semantik (Wings of Death)
-                    // Zwingende Oktav-Skalierung für Portamento (Hardware-Limit-Kompensation)
+                    // TFMX-7V Replayer Semantik (Oktav-Skalierung für Portamento)
                     let octaves = Math.floor(voice.transpose / 12);
                     if (octaves > 0) {
                         sPDelta = Math.round(sPDelta / Math.pow(2, octaves));
@@ -215,7 +246,6 @@ export class CosoVirtualMachine {
                     voice.audPer = Math.max(113, voice.audPer + sPDelta);
                 } else {
                     // COSO-Native Replayer Semantik
-                    // Abweichendes Portamento/Vibrato-Modell ohne starre TFMX-Oktavdivision
                     voice.audPer = Math.max(113, voice.audPer + sPDelta);
                 }
 
@@ -223,15 +253,18 @@ export class CosoVirtualMachine {
                 if (!isFrame0) break;
             }
             else if (op === 0xE6) {
+                // $E6: Explicit Wait X frames
                 if (param > 0) {
                     voice.macroWait = param - 1;
                 }
                 break;
             }
             else if (op === 0xE8) {
+                // $E8: Macro Loop / Jump
                 voice.macroPtr = voice.macroStartPtr + param;
             }
             else {
+                // Unknown Opcode - Failsafe Break
                 break;
             }
         }
