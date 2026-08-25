@@ -5,6 +5,7 @@
 // - Absolute Amiga RAM Pointer Rebasing (The Silver Bullet)
 // - Dual 0-based & 1-based Sample Descriptor / PCM Digidrum Slicing
 // - Deterministic 8-Byte Subsong Table & Signed 8-Bit PCM Extraction
+// - Failsafe Deterministic Pointer-Table Boundary Scanning
 // =========================================================
 
 function findWaveSignature(data, fallbackOffset, searchStart = 0x0020) {
@@ -127,18 +128,33 @@ export async function loadHipcFile(url) {
     }
 
     // =========================================================
-    // 5. SOUND-MACRO-POINTER EXTRAHIEREN (SEQUENTIELL!)
+    // 5. SOUND-MACRO-POINTER EXTRAHIEREN (DETERMINISTISCH)
     // =========================================================
-    const firstMacroOffset = view.getUint16(macroTableOffset, false);
-    let numMacros = 0;
-
-    if (firstMacroOffset > macroTableOffset && firstMacroOffset < sampleTableOffset) {
-        numMacros = Math.max(1, Math.floor((firstMacroOffset - macroTableOffset) / 2));
-    } else {
-        numMacros = Math.max(1, Math.min(128, Math.floor((sampleTableOffset - macroTableOffset) / 2)));
+    // COSO Macro-Pointer sind 16-Bit-Werte. Da Hippel teilweise auf 
+    // wiederverwendete Makros VOR der eigentlichen Tabelle referenziert,
+    // determinieren wir die Tabellengröße anhand des ersten Pointers,
+    // der physikalisch NACH der Tabelle auf echte Macro-Daten zeigt.
+    let minMacroDataOffset = sampleTableOffset; 
+    
+    for (let i = 0; i < 128; i++) {
+        const ptrOffset = macroTableOffset + (i * 2);
+        
+        // Erreicht der Scan-Cursor den Beginn des ersten physikalischen Datenblocks, 
+        // ist das Ende der Pointer-Tabelle unweigerlich erreicht.
+        if (ptrOffset >= minMacroDataOffset) break;
+        
+        const ptr = view.getUint16(ptrOffset, false);
+        
+        // Wir werten nur Pointers aus, die physikalisch HINTER der Tabelle liegen,
+        // um die obere Begrenzung (minMacroDataOffset) eng zu ziehen.
+        if (ptr > macroTableOffset && ptr < minMacroDataOffset) {
+            minMacroDataOffset = ptr;
+        }
     }
 
+    const numMacros = Math.floor((minMacroDataOffset - macroTableOffset) / 2);
     const macroPointers = new Uint16Array(numMacros);
+    
     for (let i = 0; i < numMacros; i++) {
         macroPointers[i] = view.getUint16(macroTableOffset + (i * 2), false);
     }
@@ -190,7 +206,6 @@ export async function loadHipcFile(url) {
     let loadedPcmCount = 0;
 
     // THE SILVER BULLET: Rebase Absolute Amiga RAM Pointers to relative File Offsets!
-    // We read the first descriptor's pointer, which always points to the start of the sample bank.
     const baseAmigaAddress = view.getUint32(sampleTableOffset, false);
 
     for (let i = 0; i < maxDescriptors; i++) {
@@ -294,7 +309,7 @@ export async function loadHipcFile(url) {
         metadata: {
             name: url.split('/').pop().toUpperCase(),
             author: "JOCHEN HIPPEL (MAD MAX)",
-            comment: `GENERIC COSO DECODER (ABSOLUTE RAM POINTER REBASING)`,
+            comment: `GENERIC COSO DECODER (DETERMINISTIC POINTER-SCANNING)`,
             type: "Hippel-COSO (4-Channel Paula DMA)",
             instrumentCount: NUM_WAVEFORMS + loadedPcmCount,
             patternCount: patternPointers.length,
