@@ -3,9 +3,9 @@
 // JOCHEN HIPPEL (MAD MAX) COSO VIRTUAL MACHINE
 // Production Master Edition — Native Paula Register Pipeline:
 // - COSO VM -> writeAUDxLC, writeAUDxLEN, writeAUDxPER, writeAUDxVOL
-// - Full Support for $E1, $E2, $E3, $E4, $E5/$E7, $E6, $E8, $E0
-// - Unified Descriptor Lookup for $E1, $E5 and $E7
-// - Direct Single-Pass DMA Activation for PCM Digidrums
+// - Full Support for Variable-Length Macro Opcodes (1-Byte / 2-Byte)
+// - Byte-Offset Routing for $E8 (Macro Loop)
+// - Native $00..$DF & $E6 Wait-Frame Evaluation
 // =========================================================
 
 const PERIOD_TABLE = [
@@ -100,7 +100,7 @@ export class CosoVirtualMachine {
     }
 
     // =========================================================
-    // 1. SOUND-MACRO-ENGINE (SCHREIBT DIREKT IN PAULA-REGISTER)
+    // 1. SOUND-MACRO-ENGINE (VARIABLE LENGTH SCRIPTING)
     // =========================================================
     startMacro(voice, macroId, channel) {
         let macroOffset = -1;
@@ -123,23 +123,44 @@ export class CosoVirtualMachine {
     decodeMacroFrame(voice, channel, isFrame0 = false) {
         if (!voice.macroActive || voice.macroPtr <= 0 || voice.macroPtr >= this.fullData.length - 1) return;
 
+        // Wenn die Macro-VM durch $00..$DF oder $E6 in einem Wartestatus ist
+        if (voice.macroWait > 0) {
+            voice.macroWait--;
+            return;
+        }
+
         let macroSafety = 16;
         while (macroSafety > 0 && voice.macroActive) {
             macroSafety--;
+            
+            // Fetscht NUR den Opcode (1 Byte)
             const op = this.fullData[voice.macroPtr++];
-            const param = this.fullData[voice.macroPtr++];
 
-            // $E0: End of Macro (Sustain/Hold)
+            // ==========================================
+            // 1-BYTE OPCODES (Kein Parameter folgt!)
+            // ==========================================
             if (op === 0xE0) {
+                // $E0: End of Macro (Sustain/Hold)
                 voice.macroActive = false;
                 break;
             }
-            // $E1, $E5, $E7: Set Waveform or PCM Sample -> SCHREIBT AUDxLC / AUDxLEN / ENABLE DMA
-            // Wir bündeln diese Opcodes, da Hippel in COSO alle Deskriptoren ins gleiche 16-Byte Array pfercht.
-            else if (op === 0xE1 || op === 0xE5 || op === 0xE7) {
+            else if (op < 0xE0) {
+                // $00..$DF: Wait X frames
+                // Coder-Trick: Jede Zahl < $E0 ist direkt die Anzahl der Wartetakte.
+                if (op > 0) {
+                    voice.macroWait = op - 1; 
+                }
+                break; 
+            }
+
+            // ==========================================
+            // 2-BYTE OPCODES (Opcode + 1 Byte Parameter)
+            // ==========================================
+            const param = this.fullData[voice.macroPtr++];
+
+            if (op === 0xE1 || op === 0xE5 || op === 0xE7) {
+                // Set Waveform / PCM Sample
                 const sampleIdx = param;
-                
-                // Wir schauen im pre-parsed Deskriptor-Array nach
                 const desc = this.sampleDescriptors[sampleIdx] || this.sampleDescriptors[sampleIdx + 1];
 
                 const smp = (desc && desc.data) ? desc : (
@@ -156,7 +177,6 @@ export class CosoVirtualMachine {
                 }
 
                 if (smp && smp.data && channel) {
-                    // Loop-Marker ermitteln (in 16-Bit Words)
                     const loopStartWords = desc ? desc.loopStartWords : (smp.loopStart ? Math.floor(smp.loopStart / 2) : 0);
                     const loopLenWords = desc ? desc.loopLengthWords : (smp.loopLen ? Math.floor(smp.loopLen / 2) : 0);
                     const vol = (desc && desc.baseVolume !== undefined) ? desc.baseVolume : (smp.baseVolume || voice.audVol);
@@ -165,49 +185,50 @@ export class CosoVirtualMachine {
                     channel.writeAUDxLEN(desc ? desc.sampleLengthWords : Math.floor(smp.data.length / 2));
                     channel.writeAUDxPER(voice.audPer);
                     channel.writeAUDxVOL(vol);
-                    channel.enableDMA(smp.data, loopStartWords, loopLenWords); // Feuert das Sample ab!
+                    channel.enableDMA(smp.data, loopStartWords, loopLenWords);
                     
                     voice.audVol = vol;
                     voice.dmaTriggered = true;
                 }
             }
-            // $E2: Set Volume -> SCHREIBT AUDxVOL
             else if (op === 0xE2) {
+                // Set Volume
                 voice.audVol = param > 64 ? 64 : param;
                 if (channel) channel.writeAUDxVOL(voice.audVol);
             }
-            // $E3: Volume Slide
             else if (op === 0xE3) {
+                // Volume Slide (Delta addieren)
                 const sDelta = (param > 127) ? (param - 256) : param;
                 voice.audVol = Math.max(0, Math.min(64, voice.audVol + sDelta));
                 if (channel) channel.writeAUDxVOL(voice.audVol);
-                if (!isFrame0) break;
+                if (!isFrame0) break; // Frame beendet nach kontinuierlichen Slides
             }
-            // $E4: Portamento / Pitch Slide -> SCHREIBT AUDxPER
             else if (op === 0xE4) {
+                // Pitch Slide (Frequenz verschieben)
                 let sPDelta = (param > 127) ? (param - 256) : param;
                 
-                // Portamento-Oktav-Skalierung bei hoher Transposition
-                if (voice.transpose > 12) {
-                    sPDelta = Math.round(sPDelta / 2.0);
-                } else if (voice.transpose > 24) {
-                    sPDelta = Math.round(sPDelta / 4.0);
-                }
+                // Octave-Compensation für komprimierte Tracker-Transpositionen
+                if (voice.transpose > 12) sPDelta = Math.round(sPDelta / 2.0);
+                else if (voice.transpose > 24) sPDelta = Math.round(sPDelta / 4.0);
 
                 voice.audPer = Math.max(113, voice.audPer + sPDelta);
                 if (channel) channel.writeAUDxPER(voice.audPer);
                 if (!isFrame0) break;
             }
-            // $E6: NOP / Wait 1 Frame
             else if (op === 0xE6) {
+                // Wait X frames (Explizites Kommando)
+                if (param > 0) {
+                    voice.macroWait = param - 1;
+                }
                 break;
             }
-            // $E8: Macro Loop
             else if (op === 0xE8) {
-                const targetStep = param;
-                voice.macroPtr = voice.macroStartPtr + (targetStep * 2);
+                // Macro Loop / Jump
+                // FIX: Der Parameter ist ein relativer BYTE-OFFSET zur macroStartPtr Basis, kein Array-Index!
+                voice.macroPtr = voice.macroStartPtr + param;
             }
             else {
+                // Failsafe für nicht implementierte Opcodes >= $E9
                 break;
             }
         }
