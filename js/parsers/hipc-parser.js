@@ -6,6 +6,7 @@
 // - Dual 0-based & 1-based Sample Descriptor / PCM Digidrum Slicing
 // - Deterministic 8-Byte Subsong Table & Signed 8-Bit PCM Extraction
 // - Failsafe Deterministic Pointer-Table Boundary Scanning
+// - Explicit Replayer Variant Detection (TFMX vs COSO)
 // =========================================================
 
 function findWaveSignature(data, fallbackOffset, searchStart = 0x0020) {
@@ -44,6 +45,16 @@ export async function loadHipcFile(url) {
                    (data[0] === 0x43 && data[1] === 0x4F);
     if (!isCoso) {
         throw new Error(`Ungültiges COSO-Modul: Header-Signaturen nicht gefunden ("${magic0}").`);
+    }
+
+    // =========================================================
+    // NEU: REPLAYER-VARIANTE DETERMINIEREN (TFMX vs COSO Semantik)
+    // Wings of Death besitzt z.B. einen COSO-Container, läuft 
+    // in der Replay-Semantik (Vibrato/Portamento) aber als TFMX.
+    // =========================================================
+    let replayerMode = 'COSO_NATIVE';
+    if (magic18 === 'TFMX' || magic1C === 'TFMX') {
+        replayerMode = 'TFMX_7V';
     }
 
     const initFlags           = view.getUint16(0x04, false);
@@ -140,10 +151,6 @@ export async function loadHipcFile(url) {
     // =========================================================
     // 5. SOUND-MACRO-POINTER EXTRAHIEREN (DETERMINISTISCH)
     // =========================================================
-    // COSO Macro-Pointer sind 16-Bit-Werte. Da Hippel teilweise auf 
-    // wiederverwendete Makros VOR der eigentlichen Tabelle referenziert,
-    // determinieren wir die Tabellengröße anhand des ersten Pointers,
-    // der physikalisch NACH der Tabelle auf echte Macro-Daten zeigt.
     let minMacroDataOffset = sampleTableOffset; 
     
     for (let i = 0; i < 128; i++) {
@@ -155,8 +162,6 @@ export async function loadHipcFile(url) {
         
         const ptr = view.getUint16(ptrOffset, false);
         
-        // Wir werten nur Pointers aus, die physikalisch HINTER der Tabelle liegen,
-        // um die obere Begrenzung (minMacroDataOffset) eng zu ziehen.
         if (ptr > macroTableOffset && ptr < minMacroDataOffset) {
             minMacroDataOffset = ptr;
         }
@@ -215,7 +220,6 @@ export async function loadHipcFile(url) {
     const maxDescriptors = Math.floor((actualWaveOffset - sampleTableOffset) / 16);
     let loadedPcmCount = 0;
 
-    // THE SILVER BULLET: Rebase Absolute Amiga RAM Pointers to relative File Offsets!
     const baseAmigaAddress = view.getUint32(sampleTableOffset, false);
 
     for (let i = 0; i < maxDescriptors; i++) {
@@ -231,22 +235,18 @@ export async function loadHipcFile(url) {
 
         const smpLenBytes = smpLenWords * 2;
         
-        // Universelles Rebasing von absoluten Amiga-RAM-Pointern ($00021C3E) auf relative Dateioffsets
         const relativeOffset = rawStartOffset - baseAmigaAddress;
         let absStart = (actualWaveOffset + relativeOffset) & ~1; // Zwingend Word-Aligned!
 
-        // Sicherheitsprüfung gegen kaputte Pointer oder leere Samples
         if (absStart < 0 || absStart >= data.length || smpLenBytes <= 0) {
-            absStart = actualWaveOffset; // Fallback
+            absStart = actualWaveOffset; 
         }
 
         let pcm = null;
         if (smpLenBytes > 0 && absStart + smpLenBytes <= data.length) {
-            // Schneidet das exakte Instrument als Array aus
             pcm = new Int8Array(smpLenBytes);
             for (let s = 0; s < smpLenBytes; s++) {
                 const b = data[absStart + s];
-                // Unsigned -> Signed PCM 8-Bit Konvertierung
                 pcm[s] = (b > 127) ? (b - 256) : b;
             }
         }
@@ -254,7 +254,7 @@ export async function loadHipcFile(url) {
         const descObj = {
             descriptorIndex: i,
             sampleStartOffset: rawStartOffset,
-            absStart: absStart, // Dies ist nun unser physisch validierter, robuster Pointer!
+            absStart: absStart,
             sampleLengthWords: smpLenWords,
             loopStartWords: smpLoopStart,
             loopLengthWords: smpLoopLen,
@@ -263,25 +263,26 @@ export async function loadHipcFile(url) {
             data: pcm
         };
 
-        sampleDescriptors[i] = descObj;     // 0-BASED LOOKUP
-        sampleDescriptors[i + 1] = descObj; // 1-BASED LOOKUP ALIAS
+        sampleDescriptors[i] = descObj;     
+        sampleDescriptors[i + 1] = descObj; 
 
         if (pcm) {
             const pcmObj = {
                 data: pcm,
-                loopStart: smpLoopStart * 2, // Zurück in Bytes konvertieren für die Worklets
+                loopStart: smpLoopStart * 2, 
                 loopLen: smpLoopLen > 1 ? (smpLoopLen * 2) : 0,
                 baseVolume: smpVol > 64 ? 64 : smpVol
             };
 
-            samples[`hipc_pcm_${i}`]     = pcmObj; // 0-BASED KEY
-            samples[`hipc_pcm_${i + 1}`] = pcmObj; // 1-BASED KEY ALIAS
+            samples[`hipc_pcm_${i}`]     = pcmObj; 
+            samples[`hipc_pcm_${i + 1}`] = pcmObj; 
             loadedPcmCount++;
         }
     }
 
     console.log(`[COSO PARSER] Module geladen: ${url}`);
     console.log(`[COSO PARSER] Subsongs erkannt: ${subsongs.length} (Aktiver Subsong: ${defaultSubsongIdx})`);
+    console.log(`[COSO PARSER] Replayer Mode: ${replayerMode}`);
     console.log(`[COSO PARSER] Header: Patterns@$${patTableOffset.toString(16)} (${patternPointers.length} Ptrs), Macros@$${macroTableOffset.toString(16)} (${macroPointers.length} Ptrs), Descriptors@$${sampleTableOffset.toString(16)} (${loadedPcmCount} PCM), WaveBank@$${actualWaveOffset.toString(16)}`);
 
     return {
@@ -295,13 +296,14 @@ export async function loadHipcFile(url) {
             patTableOffset,
             macroTableOffset,
             sampleTableOffset,
-            sampleDataOffset: sampleDataOffset, // Beinhaltet den Original-Header-Wert
-            actualWaveOffset: actualWaveOffset, // Beinhaltet den validierten Signatur-Wert
+            sampleDataOffset,
+            actualWaveOffset,
             numPatterns: patternPointers.length,
             numMacros: macroPointers.length,
             subsongs: subsongs,
             selectedSubsong: defaultSubsongIdx,
-            voiceTrackPointers
+            voiceTrackPointers,
+            replayerMode // NEU: Replayer Mode Flag injiziert
         },
         blocks: {
             tracks: trackBlock,
@@ -319,8 +321,8 @@ export async function loadHipcFile(url) {
         metadata: {
             name: url.split('/').pop().toUpperCase(),
             author: "JOCHEN HIPPEL (MAD MAX)",
-            comment: `GENERIC COSO DECODER (DETERMINISTIC POINTER-SCANNING)`,
-            type: "Hippel-COSO (4-Channel Paula DMA)",
+            comment: `GENERIC COSO DECODER (REPLAYER: ${replayerMode})`,
+            type: `Hippel-COSO (${replayerMode})`,
             instrumentCount: NUM_WAVEFORMS + loadedPcmCount,
             patternCount: patternPointers.length,
             subsongCount: subsongs.length,

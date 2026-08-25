@@ -6,6 +6,7 @@
 // - Full Support for Variable-Length Macro Opcodes (1-Byte / 2-Byte)
 // - Byte-Offset Routing for $E8 (Macro Loop)
 // - Native $00..$DF & $E6 Wait-Frame Evaluation
+// - Decoupled Replayer Semantics (TFMX_7V vs COSO_NATIVE) for Vibrato & Portamento
 // =========================================================
 
 const PERIOD_TABLE = [
@@ -43,6 +44,11 @@ export class CosoVirtualMachine {
         this.voiceTrackPointers = trackModule.voiceTrackPointers;
         this.samples = trackModule.samples || samplesDict || {};
         this.traceCallback = traceCallback;
+
+        // =========================================================
+        // NEU: REPLAYER MODE INJEKTION
+        // =========================================================
+        this.replayerMode = trackModule.header.replayerMode || 'COSO_NATIVE';
 
         if (!this.voiceTrackPointers || this.voiceTrackPointers.length < 4) {
             throw new Error(`[COSO-VM CRITICAL] Unvollständige voiceTrackPointers vom Parser erhalten: ${JSON.stringify(this.voiceTrackPointers)}`);
@@ -88,7 +94,7 @@ export class CosoVirtualMachine {
         }
 
         if (this.traceCallback) {
-            this.traceCallback(`--- [COSO-VM INITIALIZED] True Hardware Paula-DMA Pipeline Active ---`);
+            this.traceCallback(`--- [COSO-VM INITIALIZED] True Hardware Paula-DMA Pipeline Active (Mode: ${this.replayerMode}) ---`);
         }
     }
 
@@ -123,7 +129,6 @@ export class CosoVirtualMachine {
     decodeMacroFrame(voice, channel, isFrame0 = false) {
         if (!voice.macroActive || voice.macroPtr <= 0 || voice.macroPtr >= this.fullData.length - 1) return;
 
-        // Wenn die Macro-VM durch $00..$DF oder $E6 in einem Wartestatus ist
         if (voice.macroWait > 0) {
             voice.macroWait--;
             return;
@@ -133,33 +138,26 @@ export class CosoVirtualMachine {
         while (macroSafety > 0 && voice.macroActive) {
             macroSafety--;
             
-            // Fetscht NUR den Opcode (1 Byte)
             const op = this.fullData[voice.macroPtr++];
 
             // ==========================================
-            // 1-BYTE OPCODES (Kein Parameter folgt!)
+            // 1-BYTE OPCODES
             // ==========================================
             if (op === 0xE0) {
-                // $E0: End of Macro (Sustain/Hold)
                 voice.macroActive = false;
                 break;
             }
             else if (op < 0xE0) {
-                // $00..$DF: Wait X frames
-                // Coder-Trick: Jede Zahl < $E0 ist direkt die Anzahl der Wartetakte.
-                if (op > 0) {
-                    voice.macroWait = op - 1; 
-                }
+                if (op > 0) voice.macroWait = op - 1; 
                 break; 
             }
 
             // ==========================================
-            // 2-BYTE OPCODES (Opcode + 1 Byte Parameter)
+            // 2-BYTE OPCODES
             // ==========================================
             const param = this.fullData[voice.macroPtr++];
 
             if (op === 0xE1 || op === 0xE5 || op === 0xE7) {
-                // Set Waveform / PCM Sample
                 const sampleIdx = param;
                 const desc = this.sampleDescriptors[sampleIdx] || this.sampleDescriptors[sampleIdx + 1];
 
@@ -192,43 +190,48 @@ export class CosoVirtualMachine {
                 }
             }
             else if (op === 0xE2) {
-                // Set Volume
                 voice.audVol = param > 64 ? 64 : param;
                 if (channel) channel.writeAUDxVOL(voice.audVol);
             }
             else if (op === 0xE3) {
-                // Volume Slide (Delta addieren)
                 const sDelta = (param > 127) ? (param - 256) : param;
                 voice.audVol = Math.max(0, Math.min(64, voice.audVol + sDelta));
                 if (channel) channel.writeAUDxVOL(voice.audVol);
-                if (!isFrame0) break; // Frame beendet nach kontinuierlichen Slides
+                if (!isFrame0) break;
             }
             else if (op === 0xE4) {
-                // Pitch Slide (Frequenz verschieben)
+                // ==========================================
+                // REPLAYER BEHAVIOR SPLIT (Vibrato/Portamento)
+                // ==========================================
                 let sPDelta = (param > 127) ? (param - 256) : param;
                 
-                // Octave-Compensation für komprimierte Tracker-Transpositionen
-                if (voice.transpose > 12) sPDelta = Math.round(sPDelta / 2.0);
-                else if (voice.transpose > 24) sPDelta = Math.round(sPDelta / 4.0);
+                if (this.replayerMode === 'TFMX_7V') {
+                    // TFMX-7V Replayer Semantik (Wings of Death)
+                    // Zwingende Oktav-Skalierung für Portamento (Hardware-Limit-Kompensation)
+                    let octaves = Math.floor(voice.transpose / 12);
+                    if (octaves > 0) {
+                        sPDelta = Math.round(sPDelta / Math.pow(2, octaves));
+                    }
+                    voice.audPer = Math.max(113, voice.audPer + sPDelta);
+                } else {
+                    // COSO-Native Replayer Semantik
+                    // Abweichendes Portamento/Vibrato-Modell ohne starre TFMX-Oktavdivision
+                    voice.audPer = Math.max(113, voice.audPer + sPDelta);
+                }
 
-                voice.audPer = Math.max(113, voice.audPer + sPDelta);
                 if (channel) channel.writeAUDxPER(voice.audPer);
                 if (!isFrame0) break;
             }
             else if (op === 0xE6) {
-                // Wait X frames (Explizites Kommando)
                 if (param > 0) {
                     voice.macroWait = param - 1;
                 }
                 break;
             }
             else if (op === 0xE8) {
-                // Macro Loop / Jump
-                // FIX: Der Parameter ist ein relativer BYTE-OFFSET zur macroStartPtr Basis, kein Array-Index!
                 voice.macroPtr = voice.macroStartPtr + param;
             }
             else {
-                // Failsafe für nicht implementierte Opcodes >= $E9
                 break;
             }
         }
@@ -247,7 +250,6 @@ export class CosoVirtualMachine {
         const patPC = voice.patternPtr;
         const b0 = this.fullData[voice.patternPtr++];
 
-        // Pattern Header
         if (voice.patternHeaderPending) {
             voice.patternHeaderPending = false;
 
@@ -261,7 +263,6 @@ export class CosoVirtualMachine {
             }
         }
 
-        // Opcode $E1: Pattern Return
         if (b0 === 0xE1) {
             this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} PatPC:$${patPC.toString(16)} -> Opcode $E1 (Pattern Return)`);
             voice.patternPtr = -1;
@@ -269,7 +270,6 @@ export class CosoVirtualMachine {
             return false;
         }
 
-        // Opcode $FE: Set Macro ID
         if (b0 === 0xFE) {
             const macroId = this.fullData[voice.patternPtr++];
             voice.currentMacro = macroId;
@@ -277,7 +277,6 @@ export class CosoVirtualMachine {
             return false;
         }
 
-        // Opcode $FD: Set Delay
         if (b0 === 0xFD) {
             const delay = this.fullData[voice.patternPtr++];
             voice.patternDelay = Math.max(1, delay);
@@ -287,7 +286,6 @@ export class CosoVirtualMachine {
 
         if (b0 === 0xFF) return false;
 
-        // Note Trigger ($01..$3F)
         if (b0 >= 0x01 && b0 <= 0x3F) {
             let noteIdx = b0 + voice.transpose;
             
@@ -307,10 +305,8 @@ export class CosoVirtualMachine {
                 channel.writeAUDxVOL(64);
             }
 
-            // 1. Startet das Sound-Macro (Schreibt AUDxLC, AUDxLEN und triggert DMA)
             this.startMacro(voice, voice.currentMacro, channel);
 
-            // 2. Fallback: Nur wenn das Macro kein $E1/$E5/$E7 ausgeführt hat
             if (!voice.dmaTriggered && channel) {
                 const pcmKey = `hipc_pcm_${voice.currentMacro}`;
                 const waveKey = `hipc_sample_${voice.currentMacro}`;
@@ -336,7 +332,6 @@ export class CosoVirtualMachine {
             return true;
         }
 
-        // Rest ($00)
         if (b0 === 0x00) {
             voice.audVol = 0;
             voice.macroActive = false;
@@ -362,7 +357,6 @@ export class CosoVirtualMachine {
         const b0 = this.fullData[voice.trackPtr++];
         const b1 = this.fullData[voice.trackPtr++];
 
-        // A1. Track Loop ($E0)
         if (b0 === 0xE0) {
             const targetStep = b1;
             voice.trackPtr = voice.startTrackPtr + (targetStep * 2);
@@ -370,7 +364,6 @@ export class CosoVirtualMachine {
             return;
         }
 
-        // A2. Track Jump ($E8)
         if (b0 === 0xE8) {
             const targetStep = b1;
             voice.trackPtr = voice.startTrackPtr + (targetStep * 2);
@@ -378,14 +371,12 @@ export class CosoVirtualMachine {
             return;
         }
 
-        // B. Track Speed ($E2)
         if (b0 === 0xE2) {
             if (b1 > 0) voice.patternDelay = b1;
             this.logTrace(`[TICK ${currentTick.toString().padStart(3, '0')}] V${voice.voiceId} TrackPC:$${trackPC.toString(16)} -> Set Track Speed = ${b1}`);
             return;
         }
 
-        // C. Track Subroutine Call ($E4 JSR)
         if (b0 === 0xE4) {
             const target = b1;
             let targetPtr = (target >= 0x40 && target < this.patTableOffset) 
@@ -400,7 +391,6 @@ export class CosoVirtualMachine {
             return;
         }
 
-        // D1. Track Subroutine Return ($E1 RTS)
         if (b0 === 0xE1) {
             if (voice.trackStack.length > 0) {
                 voice.trackPtr = voice.trackStack.pop();
@@ -412,7 +402,6 @@ export class CosoVirtualMachine {
             return;
         }
 
-        // D2. Track End ($FF)
         if (b0 === 0xFF) {
             if (voice.trackStack.length > 0) {
                 voice.trackPtr = voice.trackStack.pop();
@@ -424,7 +413,6 @@ export class CosoVirtualMachine {
             return;
         }
 
-        // E. Pattern Call
         if (b0 < 0xE0) {
             const patId = b0 & 0x7F;
             const transp = decodeTransposeByte(b1);
@@ -446,12 +434,10 @@ export class CosoVirtualMachine {
             const channel = paulaChannels[v];
             if (voice.stopped) continue;
 
-            // 1. Macro-Modulationen pro 50Hz Frame ausführen
             if (voice.macroActive) {
                 this.decodeMacroFrame(voice, channel, false);
             }
 
-            // 2. Note Sustain Warten
             if (voice.wait > 0) {
                 voice.wait--;
                 continue;
