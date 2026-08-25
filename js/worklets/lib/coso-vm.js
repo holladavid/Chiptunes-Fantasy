@@ -4,7 +4,6 @@
 // Production Master Edition — Native Paula Register Pipeline:
 // - COSO VM -> writeAUDxLC, writeAUDxLEN, writeAUDxPER, writeAUDxVOL
 // - Full Support for Variable-Length Macro Opcodes (1-Byte / 2-Byte)
-// - Byte-Offset Routing for $E8 (Macro Loop)
 // - Native $00..$DF & $E6 Wait-Frame Evaluation
 // - Decoupled Replayer Semantics (TFMX_7V vs COSO_NATIVE)
 // - Strict Semantic Separation for $E1 (Wave), $E5 (PCM), and $E7 (Alt PCM)
@@ -125,7 +124,6 @@ export class CosoVirtualMachine {
     }
 
     executeWaveCommand(voice, channel, param) {
-        // $E1: Expliziter Waveform-Lookup
         const desc = this.sampleDescriptors[param] || this.sampleDescriptors[param + 1];
         const smp = (desc && desc.data) ? desc : (
             this.samples[`hipc_sample_${param}`] || 
@@ -136,7 +134,6 @@ export class CosoVirtualMachine {
     }
 
     executeSampleCommand(voice, channel, param) {
-        // $E5: Expliziter PCM-Sample-Lookup
         const desc = this.sampleDescriptors[param] || this.sampleDescriptors[param + 1];
         const smp = (desc && desc.data) ? desc : (
             this.samples[`hipc_pcm_${param}`] || 
@@ -147,7 +144,6 @@ export class CosoVirtualMachine {
     }
 
     executeAlternateSampleCommand(voice, channel, param) {
-        // $E7: Alternate PCM-Sample-Lookup
         const desc = this.sampleDescriptors[param] || this.sampleDescriptors[param + 1];
         const smp = (desc && desc.data) ? desc : (
             this.samples[`hipc_pcm_${param}`] || 
@@ -241,8 +237,6 @@ export class CosoVirtualMachine {
                 let sPDelta = (param > 127) ? (param - 256) : param;
                 
                 if (this.replayerMode === 'TFMX_7V') {
-                    // TFMX-7V Replayer Semantik (Wings of Death)
-                    // Oktav-Skalierung für Portamento (Delta / 2^N)
                     let octaves = Math.floor(voice.transpose / 12);
                     if (octaves > 0) {
                         sPDelta = Math.round(sPDelta / Math.pow(2, octaves));
@@ -261,8 +255,14 @@ export class CosoVirtualMachine {
                 break;
             }
             else if (op === 0xE8) {
-                // $E8: Macro Loop / Jump
-                voice.macroPtr = voice.macroStartPtr + param;
+                // ==========================================
+                // MACRO LOOP / JUMP ($E8)
+                // FROZEN STATE: Warten auf Binärtrace-Verifikation!
+                // Ist 'param' ein Byte-Offset? Ein 16-Bit Word-Index? 
+                // Wir belassen es vorerst als Word-Step (param * 2),
+                // da alte TFMX-Versionen oft feste 16-Bit Arrays nutzten.
+                // ==========================================
+                voice.macroPtr = voice.macroStartPtr + (param * 2);
             }
             else {
                 // Unknown Opcode - Failsafe Break
