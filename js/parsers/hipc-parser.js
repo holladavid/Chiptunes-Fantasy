@@ -49,7 +49,7 @@ export async function loadHipcFile(url) {
     }
 
     // =========================================================
-    // NEU: CONTAINER VS REPLAY-SEMANTIK
+    // CONTAINER VS REPLAY-SEMANTIK
     // COSO ist nur der Container. Die tatsächliche Replay-Semantik (Vibrato/Portamento)
     // unterscheidet sich je nach Player-Generation. Wings of Death z.B. benötigt 
     // TFMX-Vibrato-Semantik, obwohl es in einem COSO-Container liegt.
@@ -64,6 +64,11 @@ export async function loadHipcFile(url) {
     const patTableOffset      = view.getUint32(0x08, false); // Start Block 2 (Patterns)
     const macroTableOffset    = view.getUint32(0x0C, false); // Start Block 3 (Sound-Macros)
     const sampleTableOffset   = view.getUint32(0x10, false); // Start Block 4 (Sample-Deskriptoren / ptr_sample_table)
+    
+    // SEMANTIK-DEFINITION:
+    // sampleDataOffset = Der im Header (Offset $0014) referenzierte Pointer für die Sample-Bank (ptr_pcm_data).
+    // ACHTUNG: Dieser Wert ist deklarativ. Durch Linker-Artefakte oder IRA-Disassembler-Labels 
+    // kann er im RAM leicht verschoben sein und nicht zwingend auf das exakte erste Byte zeigen.
     const sampleDataOffset    = view.getUint32(0x14, false); 
 
     // =========================================================
@@ -116,6 +121,11 @@ export async function loadHipcFile(url) {
     // =========================================================
     // 3. ECHTEN WAVETABLE-START FINDEN ($1C3E / $17AC)
     // =========================================================
+    // SEMANTIK-DEFINITION:
+    // actualWaveOffset = Der tatsächliche, physische Beginn der 32-Byte-Synthesizer-Wavetables.
+    // Er wird deterministisch über die Waveform-Signatur (48 3C 32 29) gesucht.
+    // Wir nutzen EXKLUSIV diesen Offset als verlässlichen Null-Anker für unser Pointer-Rebasing, 
+    // um die Schwächen von sampleDataOffset auszugleichen.
     const actualWaveOffset = findWaveSignature(data, sampleDataOffset, macroTableOffset);
 
     // =========================================================
@@ -190,6 +200,20 @@ export async function loadHipcFile(url) {
         macroPointers[i] = view.getUint16(macroTableOffset + (i * 2), false);
     }
 
+    // +++ HEX-DUMP DIAGNOSTICS FÜR REVERSE-ENGINEERING +++
+    console.log("=== MACRO HEX DUMPS ===");
+    for (let m = 0; m < Math.min(10, numMacros); m++) {
+        let ptr = macroPointers[m];
+        // Schneide 16 Bytes ab dem Macro-Start aus
+        if (ptr > 0 && ptr < data.length) {
+            let hexStream = Array.from(data.subarray(ptr, ptr + 16))
+                                 .map(b => b.toString(16).toUpperCase().padStart(2, '0'))
+                                 .join(' ');
+            console.log(`Macro [${m.toString().padStart(2, '0')}] @ $${ptr.toString(16).toUpperCase()}: ${hexStream}`);
+        }
+    }
+    console.log("=======================");
+
     // =========================================================
     // 6. BLOCK-RIPPER (ISOLIERTE SUBARRAYS)
     // =========================================================
@@ -222,8 +246,8 @@ export async function loadHipcFile(url) {
                 baseVolume: 64
             };
 
-            samples[`hipc_sample_${i}`]     = smpObj; 
-            samples[`hipc_sample_${i + 1}`] = smpObj; 
+            samples[`hipc_sample_${i}`]     = smpObj; // 0-based
+            samples[`hipc_sample_${i + 1}`] = smpObj; // 1-based alias
             samples[`mod_sample_${i + 1}`]  = smpObj;
             samples[`xm_sample_${i + 1}`]   = smpObj;
         }
@@ -236,6 +260,7 @@ export async function loadHipcFile(url) {
     const maxDescriptors = Math.floor((actualWaveOffset - sampleTableOffset) / 16);
     let loadedPcmCount = 0;
 
+    // THE SILVER BULLET: Rebase Absolute Amiga RAM Pointers to relative File Offsets!
     const baseAmigaAddress = view.getUint32(sampleTableOffset, false);
 
     for (let i = 0; i < maxDescriptors; i++) {
@@ -252,7 +277,7 @@ export async function loadHipcFile(url) {
         const smpLenBytes = smpLenWords * 2;
         
         const relativeOffset = rawStartOffset - baseAmigaAddress;
-        let absStart = (actualWaveOffset + relativeOffset) & ~1; 
+        let absStart = (actualWaveOffset + relativeOffset) & ~1; // Zwingend Word-Aligned!
 
         if (absStart < 0 || absStart >= data.length || smpLenBytes <= 0) {
             absStart = actualWaveOffset; 
@@ -312,8 +337,8 @@ export async function loadHipcFile(url) {
             patTableOffset,
             macroTableOffset,
             sampleTableOffset,
-            sampleDataOffset,
-            actualWaveOffset,
+            sampleDataOffset, // Beinhaltet den Original-Header-Wert
+            actualWaveOffset, // Beinhaltet den validierten Signatur-Wert
             numPatterns: patternPointers.length,
             numMacros: macroPointers.length,
             subsongs: subsongs,
@@ -338,7 +363,7 @@ export async function loadHipcFile(url) {
             name: url.split('/').pop().toUpperCase(),
             author: "JOCHEN HIPPEL (MAD MAX)",
             comment: `GENERIC COSO DECODER (REPLAYER: ${replayerMode})`,
-            type: `COSO Container / ${replayerMode}`, // Zeigt Container und Variante an
+            type: `COSO Container / ${replayerMode}`,
             instrumentCount: NUM_WAVEFORMS + loadedPcmCount,
             patternCount: patternPointers.length,
             subsongCount: subsongs.length,
