@@ -6,7 +6,7 @@
 // - Full Support for Variable-Length Macro Opcodes (1-Byte / 2-Byte)
 // - Byte-Offset Routing for $E8 (Macro Loop)
 // - Native $00..$DF & $E6 Wait-Frame Evaluation
-// - Decoupled Replayer Semantics (TFMX_7V vs COSO_NATIVE) for Vibrato & Portamento
+// - Decoupled Replayer Semantics (TFMX_7V vs COSO_NATIVE)
 // - Strict Semantic Separation for $E1 (Wave), $E5 (PCM), and $E7 (Alt PCM)
 // =========================================================
 
@@ -141,13 +141,13 @@ export class CosoVirtualMachine {
         const smp = (desc && desc.data) ? desc : (
             this.samples[`hipc_pcm_${param}`] || 
             this.samples[`hipc_pcm_${param + 1}`] || 
-            this.samples['hipc_sample_0'] // Fallback, falls kein PCM gefunden wurde
+            this.samples['hipc_sample_0'] 
         );
         this.applyDmaHardware(voice, channel, smp, desc);
     }
 
     executeAlternateSampleCommand(voice, channel, param) {
-        // $E7: Alternate PCM-Sample-Lookup (Könnte später im Binärtrace abweichen)
+        // $E7: Alternate PCM-Sample-Lookup
         const desc = this.sampleDescriptors[param] || this.sampleDescriptors[param + 1];
         const smp = (desc && desc.data) ? desc : (
             this.samples[`hipc_pcm_${param}`] || 
@@ -234,21 +234,22 @@ export class CosoVirtualMachine {
                 if (!isFrame0) break;
             }
             else if (op === 0xE4) {
-                // $E4: Pitch Slide / Portamento / Vibrato
+                // ==========================================
+                // REPLAYER BEHAVIOR SPLIT (Vibrato/Portamento)
+                // FROZEN STATE: Warten auf Binärtrace-Verifikation!
+                // ==========================================
                 let sPDelta = (param > 127) ? (param - 256) : param;
                 
                 if (this.replayerMode === 'TFMX_7V') {
-                    // TFMX-7V Replayer Semantik (Oktav-Skalierung für Portamento)
+                    // TFMX-7V Replayer Semantik (Wings of Death)
+                    // Oktav-Skalierung für Portamento (Delta / 2^N)
                     let octaves = Math.floor(voice.transpose / 12);
                     if (octaves > 0) {
                         sPDelta = Math.round(sPDelta / Math.pow(2, octaves));
                     }
-                    voice.audPer = Math.max(113, voice.audPer + sPDelta);
-                } else {
-                    // COSO-Native Replayer Semantik
-                    voice.audPer = Math.max(113, voice.audPer + sPDelta);
                 }
-
+                
+                voice.audPer = Math.max(113, voice.audPer + sPDelta);
                 if (channel) channel.writeAUDxPER(voice.audPer);
                 if (!isFrame0) break;
             }
