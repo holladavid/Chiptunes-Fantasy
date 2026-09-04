@@ -1,13 +1,10 @@
 // === js/parsers/hipc-parser.js ===
 // =========================================================
 // JOCHEN HIPPEL (MAD MAX) COSO / HIPC BLOCK-RIPPER
-// Production Master Edition — 100% Generic Container Pipeline:
-// - Absolute Amiga RAM Pointer Rebasing (The Silver Bullet)
-// - Dual 0-based & 1-based Sample Descriptor / PCM Digidrum Slicing
-// - Deterministic 8-Byte Subsong Table & Signed 8-Bit PCM Extraction
-// - Failsafe Deterministic Pointer-Table Boundary Scanning
-// - Decoupled Container vs. Replayer Semantics Detection
-// - Chunked Pattern-Pointer Group Extraction (Interleaved Decoding)
+// Production Master Edition — Corrected Header Layout:
+// - Header $0008 = ptr_macro_table
+// - Header $000C = ptr_pattern_table (89 Patterns in L1, 57 in L2)
+// - Flat 16-Bit Pattern Pointer Array Resolution
 // =========================================================
 
 function findWaveSignature(data, fallbackOffset, searchStart = 0x0020) {
@@ -30,7 +27,6 @@ export async function loadHipcFile(url) {
     if (!response.ok) throw new Error(`Datei nicht gefunden: ${url}`);
     
     const rawBuffer = await response.arrayBuffer();
-    // 64-Byte Padding am Ende gegen Out-of-Bounds Lesefehler
     const data = new Uint8Array(rawBuffer.byteLength + 64);
     data.set(new Uint8Array(rawBuffer), 0);
     const view = new DataView(data.buffer);
@@ -48,12 +44,6 @@ export async function loadHipcFile(url) {
         throw new Error(`Ungültiges COSO-Modul: Header-Signaturen nicht gefunden ("${magic0}").`);
     }
 
-    // =========================================================
-    // CONTAINER VS REPLAY-SEMANTIK
-    // COSO ist nur der Container. Die tatsächliche Replay-Semantik (Vibrato/Portamento)
-    // unterscheidet sich je nach Player-Generation. Wings of Death z.B. benötigt 
-    // TFMX-Vibrato-Semantik, obwohl es in einem COSO-Container liegt.
-    // =========================================================
     let replayerMode = 'COSO_NATIVE_VARIANT';
     if (magic18 === 'TFMX' || magic1C === 'TFMX') {
         replayerMode = 'WINGS_TFMX_VARIANT';
@@ -61,24 +51,23 @@ export async function loadHipcFile(url) {
 
     const initFlags           = view.getUint16(0x04, false);
     const subsongInfo         = view.getUint16(0x06, false);
-    const patTableOffset      = view.getUint32(0x08, false); // Start Block 2 (Patterns)
-    const macroTableOffset    = view.getUint32(0x0C, false); // Start Block 3 (Sound-Macros)
-    const sampleTableOffset   = view.getUint32(0x10, false); // Start Block 4 (Sample-Deskriptoren / ptr_sample_table)
-    
-    // SEMANTIK-DEFINITION:
-    // sampleDataOffset = Der im Header (Offset $0014) referenzierte Pointer für die Sample-Bank (ptr_pcm_data).
-    // ACHTUNG: Dieser Wert ist deklarativ. Durch Linker-Artefakte oder IRA-Disassembler-Labels 
-    // kann er im RAM leicht verschoben sein und nicht zwingend auf das exakte erste Byte zeigen.
-    const sampleDataOffset    = view.getUint32(0x14, false); 
+
+    // =========================================================
+    // DIE KORREKTUR: $0008 = MACROS, $000C = PATTERNS
+    // =========================================================
+    const macroTableOffset    = view.getUint32(0x08, false); // Start Block 2 (Sound-Macros!)
+    const patTableOffset      = view.getUint32(0x0C, false); // Start Block 3 (Patterns!)
+    const sampleTableOffset   = view.getUint32(0x10, false); // Start Block 4 (Sample-Deskriptoren)
+    const sampleDataOffset    = view.getUint32(0x14, false); // Start Block 5 (Audio-Bank)
 
     // =========================================================
     // 2. UNIVERSELLE SUBSONG-TABELLE EXTRAHIEREN ($0020..firstTrackOffset)
     // =========================================================
     function isValidTrackSequence(startPtr) {
-        if (startPtr < 0x0040 || startPtr >= patTableOffset) return false;
+        if (startPtr < 0x0040 || startPtr >= macroTableOffset) return false;
         let ptr = startPtr;
         let steps = 0;
-        while (ptr < patTableOffset - 1 && steps < 128) {
+        while (ptr < macroTableOffset - 1 && steps < 128) {
             let cmd = data[ptr];
             if (cmd === 0xE0 || cmd === 0xE8 || cmd === 0xFF) return true;
             ptr += 2;
@@ -88,7 +77,7 @@ export async function loadHipcFile(url) {
     }
 
     const subsongs = [];
-    let firstTrackOffset = patTableOffset;
+    let firstTrackOffset = macroTableOffset;
 
     for (let pos = 0x0020; pos < firstTrackOffset - 8; pos += 8) {
         let v0 = view.getUint16(pos, false) & ~1;
@@ -96,10 +85,10 @@ export async function loadHipcFile(url) {
         let v2 = view.getUint16(pos + 4, false) & ~1;
         let v3 = view.getUint16(pos + 6, false) & ~1;
 
-        if (v0 >= 0x0040 && v0 < patTableOffset &&
-            v1 >= 0x0040 && v1 < patTableOffset &&
-            v2 >= 0x0040 && v2 < patTableOffset &&
-            v3 >= 0x0040 && v3 < patTableOffset &&
+        if (v0 >= 0x0040 && v0 < macroTableOffset &&
+            v1 >= 0x0040 && v1 < macroTableOffset &&
+            v2 >= 0x0040 && v2 < macroTableOffset &&
+            v3 >= 0x0040 && v3 < macroTableOffset &&
             isValidTrackSequence(v0)) {
             
             subsongs.push([v0, v1, v2, v3]);
@@ -121,105 +110,48 @@ export async function loadHipcFile(url) {
     // =========================================================
     // 3. ECHTEN WAVETABLE-START FINDEN ($1C3E / $17AC)
     // =========================================================
-    // SEMANTIK-DEFINITION:
-    // actualWaveOffset = Der tatsächliche, physische Beginn der 32-Byte-Synthesizer-Wavetables.
-    // Er wird deterministisch über die Waveform-Signatur (48 3C 32 29) gesucht.
-    // Wir nutzen EXKLUSIV diesen Offset als verlässlichen Null-Anker für unser Pointer-Rebasing, 
-    // um die Schwächen von sampleDataOffset auszugleichen.
-    const actualWaveOffset = findWaveSignature(data, sampleDataOffset, macroTableOffset);
+    const actualWaveOffset = findWaveSignature(data, sampleDataOffset, patTableOffset);
 
     // =========================================================
-    // 4. PATTERN-POINTER EXTRAKTION (CHUNKING / INDEX GROUPS)
+    // 4. SOUND-MACRO-POINTER EXTRAHIEREN (AB $0008)
     // =========================================================
-    const patternPointers = [];
-    let currentTablePtr = patTableOffset;
+    const firstMacroTarget = view.getUint16(macroTableOffset, false);
+    let numMacros = 0;
 
-    while (currentTablePtr < macroTableOffset) {
-        let firstPtr = view.getUint16(currentTablePtr, false);
-        
-        if (firstPtr <= currentTablePtr || firstPtr >= macroTableOffset) {
-            break; 
-        }
-
-        let numEntries = Math.floor((firstPtr - currentTablePtr) / 4);
-        if (numEntries <= 0) break;
-
-        let maxPatPtr = 0;
-        for (let i = 0; i < numEntries; i++) {
-            let patPtr = view.getUint16(currentTablePtr + (i * 4), false);
-            patternPointers.push(patPtr);
-            if (patPtr > maxPatPtr && patPtr < macroTableOffset) {
-                maxPatPtr = patPtr;
-            }
-        }
-
-        let scanPtr = maxPatPtr;
-        let foundEnd = false;
-        
-        while (scanPtr < macroTableOffset) {
-            let op = data[scanPtr++];
-            if (op === 0xE1) {
-                foundEnd = true;
-                break;
-            } else if (op === 0x08) {
-                scanPtr += 2; 
-            } else if (op === 0xFE || op === 0xFD) {
-                scanPtr += 1; 
-            }
-        }
-
-        if (!foundEnd) break;
-
-        while (scanPtr < macroTableOffset && data[scanPtr] === 0xFF) {
-            scanPtr++;
-        }
-        
-        if (scanPtr % 2 !== 0) scanPtr++;
-
-        currentTablePtr = scanPtr;
+    if (firstMacroTarget > macroTableOffset && firstMacroTarget < patTableOffset) {
+        numMacros = Math.floor((firstMacroTarget - macroTableOffset) / 2);
+    } else {
+        numMacros = Math.floor((patTableOffset - macroTableOffset) / 2);
     }
 
-    // =========================================================
-    // 5. SOUND-MACRO-POINTER EXTRAHIEREN (DETERMINISTISCH)
-    // =========================================================
-    let minMacroDataOffset = sampleTableOffset; 
-    
-    for (let i = 0; i < 128; i++) {
-        const ptrOffset = macroTableOffset + (i * 2);
-        if (ptrOffset >= minMacroDataOffset) break;
-        const ptr = view.getUint16(ptrOffset, false);
-        if (ptr > macroTableOffset && ptr < minMacroDataOffset) {
-            minMacroDataOffset = ptr;
-        }
-    }
-
-    const numMacros = Math.floor((minMacroDataOffset - macroTableOffset) / 2);
     const macroPointers = new Uint16Array(numMacros);
-    
     for (let i = 0; i < numMacros; i++) {
         macroPointers[i] = view.getUint16(macroTableOffset + (i * 2), false);
     }
 
-    // +++ HEX-DUMP DIAGNOSTICS FÜR REVERSE-ENGINEERING +++
-    console.log("=== MACRO HEX DUMPS ===");
-    for (let m = 0; m < Math.min(10, numMacros); m++) {
-        let ptr = macroPointers[m];
-        // Schneide 16 Bytes ab dem Macro-Start aus
-        if (ptr > 0 && ptr < data.length) {
-            let hexStream = Array.from(data.subarray(ptr, ptr + 16))
-                                 .map(b => b.toString(16).toUpperCase().padStart(2, '0'))
-                                 .join(' ');
-            console.log(`Macro [${m.toString().padStart(2, '0')}] @ $${ptr.toString(16).toUpperCase()}: ${hexStream}`);
-        }
+    // =========================================================
+    // 5. PATTERN-POINTER EXTRAKTION (AB $000C, FLACHE 16-BIT TABELLE)
+    // =========================================================
+    const firstPatternTarget = view.getUint16(patTableOffset, false);
+    let numPatterns = 0;
+
+    if (firstPatternTarget > patTableOffset && firstPatternTarget < sampleTableOffset) {
+        numPatterns = Math.floor((firstPatternTarget - patTableOffset) / 2);
+    } else {
+        numPatterns = Math.floor((sampleTableOffset - patTableOffset) / 2);
     }
-    console.log("=======================");
+
+    const patternPointers = [];
+    for (let i = 0; i < numPatterns; i++) {
+        patternPointers.push(view.getUint16(patTableOffset + (i * 2), false));
+    }
 
     // =========================================================
-    // 6. BLOCK-RIPPER (ISOLIERTE SUBARRAYS)
+    // 6. BLOCK-RIPPER
     // =========================================================
-    const trackBlock        = data.subarray(0x0020, patTableOffset);
-    const patternBlock      = data.subarray(patTableOffset, macroTableOffset);
-    const macroBlock        = data.subarray(macroTableOffset, sampleTableOffset);
+    const trackBlock        = data.subarray(0x0020, macroTableOffset);
+    const macroBlock        = data.subarray(macroTableOffset, patTableOffset);
+    const patternBlock      = data.subarray(patTableOffset, sampleTableOffset);
     const sampleHeaderBlock = data.subarray(sampleTableOffset, actualWaveOffset);
     const sampleDataBlock   = data.subarray(sampleDataOffset);
 
@@ -246,21 +178,20 @@ export async function loadHipcFile(url) {
                 baseVolume: 64
             };
 
-            samples[`hipc_sample_${i}`]     = smpObj; // 0-based
-            samples[`hipc_sample_${i + 1}`] = smpObj; // 1-based alias
+            samples[`hipc_sample_${i}`]     = smpObj; 
+            samples[`hipc_sample_${i + 1}`] = smpObj; 
             samples[`mod_sample_${i + 1}`]  = smpObj;
             samples[`xm_sample_${i + 1}`]   = smpObj;
         }
     }
 
     // =========================================================
-    // 8. SAMPLE-DESKRIPTOREN & PCM EXTRAKTION (0-BASED & 1-BASED)
+    // 8. SAMPLE-DESKRIPTOREN & PCM EXTRAKTION
     // =========================================================
     const sampleDescriptors = [];
     const maxDescriptors = Math.floor((actualWaveOffset - sampleTableOffset) / 16);
     let loadedPcmCount = 0;
 
-    // THE SILVER BULLET: Rebase Absolute Amiga RAM Pointers to relative File Offsets!
     const baseAmigaAddress = view.getUint32(sampleTableOffset, false);
 
     for (let i = 0; i < maxDescriptors; i++) {
@@ -275,9 +206,8 @@ export async function loadHipcFile(url) {
         const finetune       = (data[descOffset + 11] > 127) ? (data[descOffset + 11] - 256) : data[descOffset + 11];
 
         const smpLenBytes = smpLenWords * 2;
-        
         const relativeOffset = rawStartOffset - baseAmigaAddress;
-        let absStart = (actualWaveOffset + relativeOffset) & ~1; // Zwingend Word-Aligned!
+        let absStart = (actualWaveOffset + relativeOffset) & ~1; 
 
         if (absStart < 0 || absStart >= data.length || smpLenBytes <= 0) {
             absStart = actualWaveOffset; 
@@ -324,7 +254,7 @@ export async function loadHipcFile(url) {
     console.log(`[COSO PARSER] Module geladen: ${url}`);
     console.log(`[COSO PARSER] Subsongs erkannt: ${subsongs.length} (Aktiver Subsong: ${defaultSubsongIdx})`);
     console.log(`[COSO PARSER] Replayer Mode: ${replayerMode}`);
-    console.log(`[COSO PARSER] Header: Patterns@$${patTableOffset.toString(16)} (${patternPointers.length} Ptrs), Macros@$${macroTableOffset.toString(16)} (${macroPointers.length} Ptrs), Descriptors@$${sampleTableOffset.toString(16)} (${loadedPcmCount} PCM), WaveBank@$${actualWaveOffset.toString(16)}`);
+    console.log(`[COSO PARSER] Header: Macros@$${macroTableOffset.toString(16)} (${macroPointers.length} Ptrs), Patterns@$${patTableOffset.toString(16)} (${patternPointers.length} Ptrs), Descriptors@$${sampleTableOffset.toString(16)} (${loadedPcmCount} PCM), WaveBank@$${actualWaveOffset.toString(16)}`);
 
     return {
         isSequenced: true,
@@ -337,8 +267,8 @@ export async function loadHipcFile(url) {
             patTableOffset,
             macroTableOffset,
             sampleTableOffset,
-            sampleDataOffset, // Beinhaltet den Original-Header-Wert
-            actualWaveOffset, // Beinhaltet den validierten Signatur-Wert
+            sampleDataOffset,
+            actualWaveOffset,
             numPatterns: patternPointers.length,
             numMacros: macroPointers.length,
             subsongs: subsongs,
@@ -348,8 +278,8 @@ export async function loadHipcFile(url) {
         },
         blocks: {
             tracks: trackBlock,
-            patterns: patternBlock,
             macros: macroBlock,
+            patterns: patternBlock,
             sampleHeaders: sampleHeaderBlock,
             pcmData: sampleDataBlock
         },
