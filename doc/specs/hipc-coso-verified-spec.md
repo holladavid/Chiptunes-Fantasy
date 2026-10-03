@@ -70,7 +70,7 @@ Indextabellen enthalten u16-Offsets relativ zum Header. Elementende = nächster 
 | 18 | 6552 B | `$1028`, 1208 B | langes Sample mit Loop |
 | 19, 20 | 692 B, 512 B | – | One-Shots |
 | 21–28 | 16 B | ganz | Mini-Wellen |
-| 29–33 | 720 / 2100 / 472 / 498 / 624 B | – | One-Shots (Digidrums) |
+| 29–33 | 720 / 2100 / 472 / 498 / 624 B | – | One-Shots |
 
 ## 4. Songs & Divisions ✅
 
@@ -85,7 +85,7 @@ Beweis: Songs partitionieren die Divisions lückenlos.
 **Division** (12 B) = 4 Stimmen × 3 B: `u8 monopattern`, `i8 transpose`, `u8 effect`.
 Alle Pattern-Indizes liegen im gültigen Bereich (max 88 bzw. 56). `effect` ist in beiden Dateien nur `0x00..0x05`, also `timbre_adjust` (`effect & 0x80 == 0`). Weitere Effekt-Codes (`0x8y` FULL-STOP, `0xEy` channel_speed, `0xFy` channel_volume) ⚠️ nur aus der Amberstar-Spec.
 
-## 5. Monopatterns ✅ (89/89 und 57/57 terminieren exakt)
+## 5. Monopatterns — Grammatik ✅ (89/89 und 57/57 terminieren exakt) · Flag-Semantik ⚠️
 
 | Byte | Folge | Bedeutung |
 |---|---|---|
@@ -94,11 +94,11 @@ Alle Pattern-Indizes liegen im gültigen Bereich (max 88 bzw. 56). `effect` ist 
 | `$FD` | `ticks` | Speed setzen + Pause (Delay) |
 | `note` | `info`, [`extra` wenn `info & $E0`] | Note-Event |
 
-* `note > 0`: `info` = Timbre-Index (untere 5 Bit) + Flags. `$20` → Portamento (`extra` = Slope), `$40` → Instrument-Override aus `extra`.
+* ⚠️ `note > 0`: `info` = Timbre-Index (untere 5 Bit) + Flags. `$20` → Portamento (`extra` = Slope), `$40` → Instrument-Override aus `extra` (Semantik nur aus der Amberstar-Spec; die Byte-*Längen* sind bewiesen).
 * `note <= 0` (signed): Bytes werden gelesen, Timbre bleibt unverändert (Note 0 = Pause) ⚠️.
 * Genutzte Flag-Kombinationen in L1/L2: `0`, `$20`, `$40`.
 
-## 6. Instrumente (Pitch-/Wave-Programm) — Opcodes ✅ (soweit in L1/L2 genutzt)
+## 6. Instrumente (Pitch-/Wave-Programm) — Opcode-Längen ✅ (nur genutzte Ops) · Semantik ⚠️
 
 | Op | Parameter | Bedeutung | in L1/L2 genutzt |
 |---|---|---|---|
@@ -106,18 +106,18 @@ Alle Pattern-Indizes liegen im gültigen Bereich (max 88 bzw. 56). `effect` ist 
 | `$E1` | – | Ende / Hold | ✓ |
 | `$E2` | `sample` | Wave setzen + Position zurücksetzen | ✓ |
 | `$E3` | `slope, depth` | Vibrato | – |
-| `$E4` | `sample` | Wave wechseln (ohne Reset) | ✓ (Wave-Animation) |
-| `$E5` | 7 B | SAMPLE + SLIDE (Loop-Fenster wandert) + RESET-VOL | – |
+| `$E4` | `sample` | Wave setzen; Amberstar-Spec: wie `$E2` (Reset-Unterschied ❓ unbestätigt) | ✓ (Wave-Animation) |
+| `$E5` | 8 B (`sample`, `loop`16, `len>>1`16, `delta>>1`16, `speed`) | SAMPLE + SLIDE (Loop-Fenster wandert) | – (Länge nur aus Amberstar-Spec, ungeprüft) |
 | `$E6` | 5 B | SLIDE | – |
 | `$E7` | `sample` | Sample ohne Reset + RESET-VOL | – |
 | `$E8` | `ticks` | Instrument-Delay | – |
 | `$E9` | 2 B | Sample mit Offset | – |
 | `<$E0` | – | Pitch (1 Tick); Bit 7 = absolut, sonst relativ | ✓ |
 
-❓ Offen: 8 von 37 Instrumenten (alle exakt 64 B groß, Wave-Animationen) enden **ohne `$E0`/`$E1`**. Vermutung: Hold am Elementende. Muss gegen Referenz-Rendering geprüft werden.
-❓ Letztes Byte mancher Elemente ist ein einzelnes Rest-Byte nach `$E1` (z. B. `e1 0e`), vermutlich Padding.
+❓ Offen: 7 von 37 Instrumenten (L1: 9, 11, 12, 13, 15 · L2: 9, 11; alle exakt 64 B groß, Wave-Animationen) enden **ohne `$E0`/`$E1`**. Vermutung: Hold am Elementende. Muss gegen Referenz-Rendering geprüft werden. Timbres sind in beiden Dateien durchgehend terminiert.
+❓ Manche Elemente enden mit einem einzelnen Rest-Byte nach `$E1` (L2 Instrument 14: `e1 0e`; L1 Timbre 11: `e1 4d`), vermutlich Padding.
 
-## 7. Timbres ✅ (Header-Plausibilität), Envelope ✅
+## 7. Timbres — Header-Plausibilität ✅ · Envelope-Semantik ⚠️
 
 Header (5 B): `speed`, `instrument` (`$80` = nicht überschreiben), `vib_slope`, `vib_depth`, `vib_delay`.
 Envelope: `$E0 ticks` Sustain, `$E1..$E7` Hold, `$E8 off+5` Loop, sonst Volume (0..64), je `speed` Ticks.
