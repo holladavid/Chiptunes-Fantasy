@@ -10,11 +10,13 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import { parseCoso } from '../js/parsers/hipc-parser.js';
-import { CosoVirtualMachine } from '../js/worklets/lib/coso-vm.js';
+import { CosoVirtualMachine, CHIP_BASE, SILENCE_LC } from '../js/worklets/lib/coso-vm.js';
+import { buildCoso, WAVE32, SMP0, IDLE_PATTERN } from './helpers/coso-builder.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fixtures = process.env.HIPC_FIXTURES || path.join(here, '..', 'tracks', 'amiga');
 const paulaPath = process.env.PAULA_EXACT || path.join(here, '..', 'js', 'worklets', 'amiga', 'paula-exact.js');
+const fantasyPath = process.env.PAULA_FANTASY || path.join(here, '..', 'js', 'worklets', 'amiga', 'paula-fantasy.js');
 const L1 = path.join(fixtures, 'Wings_Of_Death-Level_1.hipc');
 const haveL1 = existsSync(L1);
 const havePaula = existsSync(paulaPath);
@@ -121,3 +123,130 @@ test('Alter SEEK-Block aus paula-exact.js/paula-fantasy.js läuft ohne Fehler un
     vm.processTick(chans);
     assert.equal(vm.tickCounter, 1);
 });
+
+// =========================================================
+// Phase 5: Hardware-Pfad (Chip-RAM, LC/LEN-Latch)
+// =========================================================
+class HwFakeChannel {
+    constructor() { this.calls = []; this.chipRam = null; }
+    hwAttach(ram) { this.chipRam = ram; this.calls.push(['ATTACH']); }
+    hwWriteLC(a) { this.calls.push(['LC', a]); }
+    hwWriteLEN(w) { this.calls.push(['LEN', w]); }
+    hwStartDMA() { this.calls.push(['START']); }
+    writeAUDxPER(p) { this.calls.push(['PER', p]); }
+    writeAUDxVOL(v) { this.calls.push(['VOL', v]); }
+}
+const hwChans = () => [new HwFakeChannel(), new HwFakeChannel(), new HwFakeChannel(), new HwFakeChannel()];
+
+test('Chip-RAM: Bank liegt ab CHIP_BASE, Stille-Wort bei 0, wortweise gepolstert', { skip }, () => {
+    const mod = loadMod();
+    const vm = new CosoVirtualMachine(mod, {});
+    assert.equal(vm.chipRam.length % 2, 0);
+    assert.equal(vm.chipRam[0], 0); assert.equal(vm.chipRam[1], 0);
+    assert.equal(SILENCE_LC, 0);
+    for (let i = 0; i < mod.pcm.length; i += 97) assert.equal(vm.chipRam[CHIP_BASE + i], mod.pcm[i]);
+});
+
+test('Hardware-Pfad, erster Tick: Registerfolge LC/LEN -> START -> Loop-LC/LEN', { skip }, () => {
+    const mod = loadMod();
+    const vm = new CosoVirtualMachine(mod, {});
+    const ch = hwChans();
+    vm.processTick(ch);
+    const lc = CHIP_BASE + mod.sampleTable[8].start;                  // Welle 8: 32 Byte, ganzer Loop
+    assert.deepEqual(ch[0].calls, [['ATTACH'], ['PER', 428], ['VOL', 38], ['LC', lc], ['LEN', 16], ['START'], ['LC', lc], ['LEN', 16]]);
+    assert.deepEqual(ch[3].calls, [['ATTACH'], ['VOL', 0]]);          // Stimme 3 stumm, kein DMA
+});
+
+function oneShotMod() {
+    const bytes = buildCoso({
+        instruments: [[0xE2, 0x00, 0x00, 0xE2, 0x02, 0x00, 0xE1], [0xE2, 0x01, 0x00, 0xE1]],
+        timbres: [[1, 0, 0, 0, 0, 0x3F, 0xE1], [1, 1, 0, 0, 0, 0x3F, 0xE1]],
+        monos: [[0xFE, 7, 24, 0, 0xFF], IDLE_PATTERN], divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]],
+        songs: [{ start: 0, end: 0, speed: 1 }],
+        samples: [SMP0, { ...SMP0, pos: 32 }, { pos: 64, len: 16, loop: 0, rep: 2 }],     // Sample 2 = One-Shot
+        pcm: [...WAVE32, ...WAVE32, ...new Array(16).fill(5)]
+    });
+    return parseCoso(bytes, { name: 'oneshot' });
+}
+
+test('latch: One-Shot mitten in der Note -> nur LC/LEN, danach Folge-Latch auf Stille', () => {
+    const mod = oneShotMod();
+    const vm = new CosoVirtualMachine(mod, {}, null, { waveChange: 'latch' });
+    const ch = hwChans();
+    vm.processTick(ch);                                               // Tick 0: Trigger
+    ch[0].calls.length = 0;
+    vm.processTick(ch);                                               // Tick 1: Wechsel auf One-Shot (Sample 2)
+    assert.deepEqual(ch[0].calls.filter(c => c[0] === 'START'), []);   // KEIN Neustart
+    assert.deepEqual(ch[0].calls.filter(c => c[0] === 'LC' || c[0] === 'LEN'), [['LC', CHIP_BASE + 64], ['LEN', 8]]);
+    ch[0].calls.length = 0;
+    vm.processTick(ch);                                               // Tick 2: Folge-Latch
+    assert.deepEqual(ch[0].calls.slice(0, 2), [['LC', SILENCE_LC], ['LEN', 1]]);
+});
+
+test('restart: derselbe Wechsel startet die DMA neu', () => {
+    const vm = new CosoVirtualMachine(oneShotMod(), {}, null, { waveChange: 'restart' });
+    const ch = hwChans();
+    vm.processTick(ch); ch[0].calls.length = 0;
+    vm.processTick(ch);
+    assert.equal(ch[0].calls.filter(c => c[0] === 'START').length, 1);
+});
+
+test('SLIDE (E5, UNVERIFIED-Semantik): Loop-Fenster wandert per LC/LEN-Latch ohne Neustart', () => {
+    const bytes = buildCoso({
+        instruments: [[0xE5, 0x01, 0x00, 0x00, 0x00, 0x04, 0x00, 0x04, 0x01, 0x00, 0xE1], [0xE2, 0x00, 0x00, 0xE1]],
+        timbres: [[1, 0, 0, 0, 0, 0x3F, 0xE1], [1, 1, 0, 0, 0, 0x3F, 0xE1]],
+        monos: [[0xFE, 15, 24, 0, 0xFF], IDLE_PATTERN], divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]],
+        songs: [{ start: 0, end: 0, speed: 1 }],
+        samples: [SMP0, { pos: 32, len: 64, loop: 0, rep: 64 }],
+        pcm: [...WAVE32, ...WAVE32, ...WAVE32]
+    });
+    const vm = new CosoVirtualMachine(parseCoso(bytes, { name: 'slide' }), {});
+    const ch = hwChans();
+    vm.processTick(ch);
+    const lcs = [];
+    for (let i = 0; i < 4; i++) {
+        ch[0].calls.length = 0;
+        vm.processTick(ch);
+        assert.equal(ch[0].calls.some(c => c[0] === 'START'), false);
+        lcs.push(ch[0].calls.find(c => c[0] === 'LC')[1]);
+    }
+    assert.deepEqual(lcs.map((v, i) => i ? v - lcs[i - 1] : 8), [8, 8, 8, 8]);   // 4 Words = 8 Byte pro Tick
+});
+
+for (const kind of [{ name: 'exact', file: paulaPath, cls: 'PaulaChannel', proc: 'class PaulaProcessor' },
+                    { name: 'fantasy', file: fantasyPath, cls: 'PaulaFantasyChannel', proc: 'class PaulaFantasyProcessor' }]) {
+    const have = haveL1 && existsSync(kind.file);
+    const Ch = have ? (() => { const src = readFileSync(kind.file, 'utf8'); const a = src.indexOf(`class ${kind.cls} {`), b = src.indexOf(kind.proc);
+        return new Function(src.slice(a, b) + `\nreturn ${kind.cls};`)(); })() : null;
+    const patched = have && typeof Ch.prototype.hwStartDMA === 'function';
+
+    test(`[${kind.name}] 4 s über den Hardware-Pfad: hörbar, keine NaN, gültige Register`, { skip: !patched }, () => {
+        const vm = new CosoVirtualMachine(structuredClone(loadMod()), {});
+        const ch = [0, 1, 2, 3].map(i => new Ch(i));
+        let energy = 0, peak = 0, nan = 0;
+        for (let tick = 0; tick < 200; tick++) {
+            vm.processTick(ch);
+            if (tick === 5) for (let v = 0; v < 3; v++) assert.equal(ch[v].hw, true, `Stimme ${v} nutzt den Hardware-Modus`);
+            for (let s = 0; s < 882; s++) {
+                let acc = 0;
+                for (const c of ch) acc += c.step(3546895 / 44100);
+                if (Number.isNaN(acc)) nan++;
+                energy += acc * acc; peak = Math.max(peak, Math.abs(acc));
+            }
+        }
+        assert.equal(nan, 0);
+        assert.ok(energy > 1 && peak > 0.05 && peak < 4.5, `energy ${energy} peak ${peak}`);
+    });
+
+    test(`[${kind.name}] ZERO-ALLOCATION: processTick() allokiert nichts (braucht --expose-gc)`, { skip: !patched || typeof globalThis.gc !== 'function' }, () => {
+        const vm = new CosoVirtualMachine(structuredClone(loadMod()), {});
+        const ch = [0, 1, 2, 3].map(i => new Ch(i));
+        for (let i = 0; i < 3000; i++) vm.processTick(ch);
+        globalThis.gc();
+        const before = process.memoryUsage().heapUsed;
+        for (let i = 0; i < 200000; i++) vm.processTick(ch);
+        globalThis.gc();
+        const delta = process.memoryUsage().heapUsed - before;
+        assert.ok(delta < 256 * 1024, `Heap-Zuwachs ${delta} Byte`);
+    });
+}

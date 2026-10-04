@@ -237,3 +237,35 @@ test('ZERO-ALLOCATION: tick() allokiert im Dauerbetrieb nichts (braucht --expose
     const delta = process.memoryUsage().heapUsed - before;
     assert.ok(delta < 256 * 1024, `Heap-Zuwachs ${delta} Byte`);
 });
+
+// =========================================================
+// Phase 5: waveChange-Modi (Wellenwechsel MITTEN in einer Note)
+// =========================================================
+function waveSynth(instr, waveChange) {
+    const bytes = buildCoso({
+        instruments: [instr, INST1], timbres: [T(0), T(1)],
+        monos: [[0xFE, 7, ...N(24), 0xFF], IDLE_PATTERN], divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]],
+        songs: [{ start: 0, end: 0, speed: 1 }], samples: [SMP0, { ...SMP0, pos: 32 }], pcm: [...WAVE32, ...WAVE32]
+    });
+    return new CosoReplayer(parseCoso(bytes, { name: 'w' }), { waveChange });
+}
+const flagsOf = (rp, n) => { const o = []; for (let i = 0; i < n; i++) { rp.tick(); o.push(reg(rp, 0, REG.FLAGS) & 5); } return o; };
+
+test('waveChange: anderes Sample mitten in der Note -> restart: Neustart, latch/hybrid: nur Latch', () => {
+    const instr = [0xE2, 0x00, 0x00, 0xE2, 0x01, 0x00, 0xE1];         // Welle 0, 1 Tick, dann Welle 1
+    assert.deepEqual(flagsOf(waveSynth(instr, 'restart'), 3), [1, 1, 0]);
+    assert.deepEqual(flagsOf(waveSynth(instr, 'latch'), 3), [1, 4, 0]);
+    assert.deepEqual(flagsOf(waveSynth(instr, 'hybrid'), 3), [1, 4, 0]);
+});
+
+test('waveChange: gleiches Sample mit reset=1 -> restart/hybrid: Neustart, latch: Latch', () => {
+    const instr = [0xE2, 0x00, 0x00, 0xE2, 0x00, 0x00, 0xE1];
+    assert.deepEqual(flagsOf(waveSynth(instr, 'restart'), 3), [1, 1, 0]);
+    assert.deepEqual(flagsOf(waveSynth(instr, 'hybrid'), 3), [1, 1, 0]);
+    assert.deepEqual(flagsOf(waveSynth(instr, 'latch'), 3), [1, 4, 0]);
+});
+
+test('waveChange: Note-Trigger startet die DMA in jedem Modus neu', () => {
+    const instr = [0xE2, 0x00, 0x00, 0xE1];
+    for (const m of ['restart', 'latch', 'hybrid']) assert.equal(flagsOf(waveSynth(instr, m), 1)[0] & 1, 1, m);
+});

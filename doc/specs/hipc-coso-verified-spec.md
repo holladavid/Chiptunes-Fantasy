@@ -1,6 +1,6 @@
 # Hippel-COSO (.hipc) — Verifizierte Layout-Spezifikation
 
-**Status:** Phase 2 (Forensik) und Phase 4 (Replay-Kern, Referenzmessung) abgeschlossen · **Stand:** v1.5.0-dev
+**Status:** Phasen 2 (Forensik), 4 (Replay-Kern, Referenzmessung) und 5 (Paula-Hardwareanbindung) abgeschlossen · **Stand:** v1.5.0-dev
 **Verifiziert an:** `Wings_Of_Death-Level_1.hipc` (18282 B), `Wings_Of_Death-Level_2.hipc` (17112 B)
 **Externe Referenz (nur Gegenprüfung):** Pyrdacor/Amberstar `FileSpecs/Hippel-CoSo.md`
 
@@ -150,7 +150,7 @@ In L1/L2 kommen nur Volume-Bytes und `$E1` vor. Alle Instrument-Indizes liegen i
 | 5 | Instrumente ohne Terminator (7 von 37) | ❓ Hold am Elementende implementiert; Einfluss nicht messbar |
 | 6 | Tickrate der Referenzaufnahme (49,707 Hz statt 50 Hz) | ❓ Ursache unbekannt (Abschnitt 10) |
 | 7 | Loop-Konvention bei Samples mit `pos_loop + repeat < len` (Sample 18) | ❓ "ganze Länge, dann Loop" implementiert, nicht isoliert gemessen |
-| 8 | `E4`: Phasen-Reset gegenüber `E2` | ❓ klangneutral bei 32-Byte-Wellen |
+| 8 | Wellenwechsel mitten in der Note (`E2`/`E4`): DMA-Neustart oder nur LC/LEN-Latch | ⚠️ `latch` messbar leicht besser (Abschnitt 11), nicht bewiesen |
 | 9 | `Wings_Of_Death-Title.hip` ist **kein COSO**, sondern das 68k-Replayer-in-front-Format (`BRA.W` bei `$00`/`$04`, Init `$08`, Play `$DC`, `"MAD MAX! * TEX * 1990"` bei `$1804`) | ❓ eigener Parser/Replay nötig |
 
 ## 10. Referenzmessung (Phase 4)
@@ -179,3 +179,30 @@ Die Messmethode für die Tonhöhe wurde mit einer künstlich um 0,4 % verschoben
 * Der Anstieg der Abweichung zu hohen Frequenzen (bis +5 Cent) ist nicht erklärt; er liegt in den Obertönen, nicht in den Grundtönen.
 
 **Implementiert, aber in L1/L2 nicht belegbar** (im Code mit `UNVERIFIED` markiert): `E3`, `E5`, `E6`, `E8`, `E9`, Envelope-`SUSTAIN` und -`LOOP`, `FULL-STOP`, `channel_speed`- und `channel_volume`-Effekte der Divisions.
+
+## 11. Hardware-Anbindung an Paula (Phase 5)
+
+**Chip-RAM-Layout** (`CosoVirtualMachine`): Adresse `$0000` = Stille-Wort (Ziel für "kein Loop"), ab `CHIP_BASE = $0100` die PCM-Bank (Kopie, wortweise gepolstert). Sample-Adressen sind `CHIP_BASE + start`.
+
+**Registerfolge je Stimme und Tick:**
+
+| Replayer-Ereignis | Schreibzugriffe |
+|---|---|
+| `RETRIGGER` (Note-Trigger, bzw. Wellenwechsel im Modus `restart`) | `LC/LEN` = erster Durchlauf → **DMA-Start** (lädt LC/LEN sofort) → `LC/LEN` = Loop-Fenster, bzw. Stille-Wort bei Sample ohne Loop |
+| `WAVE_CHANGED` mit Loop | `LC/LEN` = Loop-Fenster, greift am nächsten Reload |
+| `WAVE_CHANGED` ohne Loop (One-Shot) | `LC/LEN` = Sample, **im Folgetick** `LC/LEN` = Stille-Wort |
+| SLIDE (Loop-Fenster wandert) | `LC/LEN` pro Tick neu, kein Neustart |
+
+Hardware-Semantik der Kanäle (`hwAttach`, `hwWriteLC`, `hwWriteLEN`, `hwStartDMA`, `hwStopDMA`): Schreibzugriffe auf `LC/LEN` wirken erst beim nächsten Reload am Ende des laufenden Durchlaufs, `hwStartDMA()` lädt sie sofort, `LEN = 0` bedeutet 65536 Words. Die Fantasy-Klasse interpoliert entlang des Streams (Loop-Naht, nächster Durchlauf) und nicht in angrenzende Samples der Bank. Die Legacy-API (MOD/XM) bleibt unverändert: 1600 zufällige `enableDMA`/`trigger`-Läufe liefern in Original und Patch bitidentische Ausgabe.
+
+**Messung `waveChange` (Level-1-Referenz, 49,707 Hz, 4-s-Segmente 0–190 s, gepaart):**
+
+| Features | restart | latch | Differenz | Segmente besser |
+|---|---|---|---|---|
+| 48 Bänder | 0,549 | 0,560 | +0,012 ± 0,007 (t = 1,7) | 27 / 47 |
+| 160 feine Bänder | 0,527 | 0,543 | +0,016 ± 0,007 (t = 2,3) | 33 / 47 |
+
+`hybrid` ist in Level 1 identisch zu `latch` (kein Fall "gleiches Sample, reset=1" mit Wirkung). Evidenz: moderat, nicht beweisend. `latch` ist Standard, weil es zusätzlich der Hardware-Logik entspricht (Wellenwechsel = Registerschreibzugriff).
+
+**Nebenbefund `PaulaChannel` (nicht COSO-spezifisch):** Im unveränderten Kanal geht nach jedem `enableDMA()` das zweite Word der Sample-Daten verloren. Ein Loop-Puffer `[10,20,30,40,50,60,70,80]` erzeugt `10 20 50 60 70 80 10 20 30 40 …`. Ursache: `enableDMA()` lädt Word 1 per `fetchNextWordBuffer()` vor, die erste Ausgabe ruft es erneut auf und überschreibt es. Die Hardware-API vermeidet das (kein Vorab-Fetch), der MOD/XM-Pfad ist unverändert.
+

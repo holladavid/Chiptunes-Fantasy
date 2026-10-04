@@ -122,6 +122,10 @@ class PaulaChannel {
         this.lastPlayedSample = 0;
         this.patternLoopRow = 0;
         this.patternLoopCount = 0;
+
+        // Hardware-DMA-Modus (COSO-VM): gemeinsames Chip-RAM + Reload aus AUDxLC/AUDxLEN
+        this.hw = false;
+        this.chipRam = null;
     }
 
     writeAUDxLC(address, dataBuffer, loopStartWords = 0, loopLengthWords = 0) {
@@ -145,6 +149,7 @@ class PaulaChannel {
     }
 
     enableDMA(dataBuffer = null, loopStartWords = 0, loopLengthWords = 0) {
+        this.hw = false;
         this.dmaEnabled = true;
         if (dataBuffer) this.dataBuffer = dataBuffer;
         
@@ -179,6 +184,48 @@ class PaulaChannel {
         this.curLen = 0;
     }
 
+    // ---------------------------------------------------------------
+    // HARDWARE-DMA-API (v1.5.0, für COSO-VM)
+    // Gemeinsames Chip-RAM + echte AUDxLC/AUDxLEN-Latch-Semantik:
+    // Schreibzugriffe auf LC/LEN greifen erst beim nächsten Reload (Loop-Wrap),
+    // hwStartDMA() lädt LC/LEN sofort in die internen Zähler.
+    // Der MOD/XM-Pfad (writeAUDxLC/enableDMA/trigger) bleibt unverändert.
+    // ---------------------------------------------------------------
+    hwAttach(chipRam) {
+        this.chipRam = chipRam;
+    }
+
+    hwWriteLC(address) {
+        this.audLc = address & ~1;
+    }
+
+    hwWriteLEN(words) {
+        this.audLen = (words === 0) ? 0x10000 : words;      // Hardware: LEN 0 = 65536 Words
+    }
+
+    hwStartDMA() {
+        this.hw = true;
+        this.dmaEnabled = true;
+        this.dataBuffer = this.chipRam;
+        this.isLooping = false;
+        this.curPtr = this.audLc;
+        this.curLen = this.audLen;
+        this.periodCounter = this.audPer;
+        this.bytePhase = 0;
+
+        this.fetchDMAWord();                                // AUDxDAT = erstes Word
+        this.nextWord = 0;                                  // wird erst bei der ersten Ausgabe nachgeladen:
+                                                            // ein Vorab-Fetch würde dort überschrieben (Word 1 ginge verloren)
+        const hi = (this.audDat >> 8) & 0xFF;
+        this.heldValue = hi > 127 ? hi - 256 : hi;
+    }
+
+    hwStopDMA() {
+        this.dmaEnabled = false;
+        this.heldValue = 0;
+        this.curLen = 0;
+    }
+
     fetchDMAWord() {
         if (!this.dataBuffer || this.curPtr >= this.dataBuffer.length) {
             this.audDat = 0;
@@ -198,7 +245,11 @@ class PaulaChannel {
         }
 
         if (this.curLen <= 0) {
-            if (this.isLooping && this.dataBuffer) {
+            if (this.hw) {
+                // Hardware-Reload aus den aktuell gelatchten Registern
+                this.curPtr = this.audLc;
+                this.curLen = this.audLen;
+            } else if (this.isLooping && this.dataBuffer) {
                 this.curPtr = this.loopPtr;
                 this.curLen = this.loopLen;
             } else {

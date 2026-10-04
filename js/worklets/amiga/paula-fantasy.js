@@ -124,6 +124,11 @@ class PaulaFantasyChannel {
         this.lastPlayedSample = 0;
         this.patternLoopRow = 0;
         this.patternLoopCount = 0;
+
+        // Hardware-DMA-Modus (COSO-VM): gemeinsames Chip-RAM + Reload aus AUDxLC/AUDxLEN
+        this.hw = false;
+        this.chipRam = null;
+        this.prevByte = 0;
     }
 
     writeAUDxLC(address, dataBuffer, loopStartWords = 0, loopLengthWords = 0) {
@@ -148,6 +153,7 @@ class PaulaFantasyChannel {
     }
 
     enableDMA(dataBuffer = null, loopStartWords = 0, loopLengthWords = 0) {
+        this.hw = false;
         this.dmaEnabled = true;
         if (dataBuffer) this.data = dataBuffer;
         this.pointer = 0;
@@ -174,6 +180,7 @@ class PaulaFantasyChannel {
     }
 
     trigger(data, loopStart, loopLen) {
+        this.hw = false;
         this.data = data;
         this.pointer = 0;
         this.phase = 0;
@@ -195,8 +202,82 @@ class PaulaFantasyChannel {
         }
     }
 
+    // ---------------------------------------------------------------
+    // HARDWARE-DMA-API (v1.5.0, für COSO-VM)
+    // Gemeinsames Chip-RAM + echte AUDxLC/AUDxLEN-Latch-Semantik (Reload am Pass-Ende).
+    // Der MOD/XM-Pfad (writeAUDxLC/enableDMA/trigger) bleibt unverändert.
+    // ---------------------------------------------------------------
+    hwAttach(chipRam) {
+        this.chipRam = chipRam;
+    }
+
+    hwWriteLC(address) {
+        this.audLc = address & ~1;
+    }
+
+    hwWriteLEN(words) {
+        this.audLen = (words === 0) ? 0x10000 : words;      // Hardware: LEN 0 = 65536 Words
+    }
+
+    hwStartDMA() {
+        this.hw = true;
+        this.dmaEnabled = true;
+        this.data = this.chipRam;
+        this.pointer = this.audLc;
+        this.length = this.audLen * 2;
+        this.phase = 0;
+        this.prevByte = 0;
+    }
+
+    hwStopDMA() {
+        this.dmaEnabled = false;
+        this.length = 0;
+    }
+
+    // Hardware-Modus: Chip-RAM-Stream mit Reload aus gelatchten Registern. Die Hermite-Nachbarn folgen
+    // dem STREAM (Loop-Naht, nächster Pass) statt in angrenzende Samples der Bank hineinzulesen.
+    stepHw(clockTicksPerSample) {
+        if (!this.dmaEnabled || this.vol === 0 || this.per === 0 || this.length <= 0) return 0;
+
+        this.phase += clockTicksPerSample / this.per;
+        while (this.phase >= 1.0) {
+            this.phase -= 1.0;
+            this.prevByte = this.data[this.pointer] | 0;
+            this.pointer++;
+            this.length--;
+            if (this.length <= 0) {
+                this.pointer = this.audLc;
+                this.length = this.audLen * 2;
+            }
+        }
+
+        const d = this.data;
+        const p0 = this.prevByte;
+        const p1 = d[this.pointer] | 0;
+        let p2, p3;
+        if (this.length > 2) {
+            p2 = d[this.pointer + 1] | 0;
+            p3 = d[this.pointer + 2] | 0;
+        } else if (this.length === 2) {
+            p2 = d[this.pointer + 1] | 0;
+            p3 = d[this.audLc] | 0;
+        } else {
+            p2 = d[this.audLc] | 0;
+            p3 = d[this.audLc + 1] | 0;
+        }
+
+        const mu = this.phase;
+        const c0 = p1;
+        const c1 = 0.5 * (p2 - p0);
+        const c2 = p0 - 2.5 * p1 + 2.0 * p2 - 0.5 * p3;
+        const c3 = 0.5 * (p3 - p0) + 1.5 * (p1 - p2);
+        const interpolated = ((c3 * mu + c2) * mu + c1) * mu + c0;
+        return (interpolated * Math.round(this.vol)) / 8128.0;
+    }
+
     // 14-Bit Hermite Cubic Interpolation
     step(clockTicksPerSample) {
+        if (this.hw) return this.stepHw(clockTicksPerSample);
         if (!this.dmaEnabled && this.data === null) return 0;
         if (!this.data || this.vol === 0 || this.per === 0 || this.length <= 0) return 0;
 

@@ -80,7 +80,12 @@ function s8(v) { return (v << 24) >> 24; }
 export class CosoReplayer {
     /**
      * @param {object} mod   Ergebnis von parseCoso()
-     * @param {object} [opt] { song, loop }
+     * @param {object} [opt] { song, loop, waveChange }
+     *   waveChange: wie ein SAMPLE-Opcode MITTEN in einer Note auf die Hardware wirkt
+     *     'restart' : DMA-Neustart bei reset=1 oder anderem Sample (Amberstar-Spec wörtlich)
+     *     'latch'   : nur AUDxLC/LEN neu schreiben, greift am nächsten Loop-Wrap (kein Phasensprung)
+     *     'hybrid'  : anderes Sample -> latch, gleiches Sample mit reset=1 -> restart
+     *   Note-Trigger starten die DMA immer neu.
      */
     constructor(mod, opt = {}) {
         this.data = mod.data;
@@ -115,6 +120,8 @@ export class CosoReplayer {
         this.songEnd = song.end;
         this.songSpeed = song.speed;
         this.loop = (opt.loop === undefined) ? true : !!opt.loop;
+        const wc = opt.waveChange || 'restart';
+        this.waveMode = (wc === 'latch') ? 1 : (wc === 'hybrid') ? 2 : 0;
 
         this.voices = [];
         for (let i = 0; i < NUM_VOICES; i++) this.voices.push(new Voice(i));
@@ -270,7 +277,10 @@ export class CosoReplayer {
         const changed = (s !== v.sample);
         v.sample = s;
         v.slideActive = false;
-        v.flags |= (reset || changed) ? 1 : 4;
+        if (v.flags & 1) return;                                    // Note-Trigger-Tick: DMA startet ohnehin neu
+        if (this.waveMode === 0) v.flags |= (reset || changed) ? 1 : 4;
+        else if (this.waveMode === 1) { if (reset || changed) v.flags |= 4; }
+        else v.flags |= changed ? 4 : (reset ? 1 : 0);
     }
 
     resetEnvelope(v) {
