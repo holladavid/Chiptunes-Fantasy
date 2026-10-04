@@ -1,6 +1,6 @@
 # Hippel-COSO (.hipc) — Verifizierte Layout-Spezifikation
 
-**Status:** Phase 2 (Forensik) abgeschlossen · **Stand:** v1.5.0-dev
+**Status:** Phase 2 (Forensik) und Phase 4 (Replay-Kern, Referenzmessung) abgeschlossen · **Stand:** v1.5.0-dev
 **Verifiziert an:** `Wings_Of_Death-Level_1.hipc` (18282 B), `Wings_Of_Death-Level_2.hipc` (17112 B)
 **Externe Referenz (nur Gegenprüfung):** Pyrdacor/Amberstar `FileSpecs/Hippel-CoSo.md`
 
@@ -95,7 +95,8 @@ Alle Pattern-Indizes liegen im gültigen Bereich (max 88 bzw. 56). `effect` ist 
 | `note` | `info`, [`extra` wenn `info & $E0`] | Note-Event |
 
 * ⚠️ `note > 0`: `info` = Timbre-Index (untere 5 Bit) + Flags. `$20` → Portamento (`extra` = Slope), `$40` → Instrument-Override aus `extra` (Semantik nur aus der Amberstar-Spec; die Byte-*Längen* sind bewiesen).
-* `note <= 0` (signed): Bytes werden gelesen, Timbre bleibt unverändert (Note 0 = Pause) ⚠️.
+* Beobachtet ✅: Noten mit gesetztem Bit 7 (L1: `$8C`–`$A2`, L2: 5 Vorkommen) stehen immer mit `info = 0`, in L1 jeweils nach Portamento-Noten. Die Amberstar-Spec nennt hier nur `note = 0`; das stimmt für Wings of Death nicht.
+* Implementiert ⚠️ (nicht isoliert gemessen): Tonhöhe = `note & $7F`, **kein Retrigger**, Timbre bleibt, ein laufendes Portamento endet.
 * Genutzte Flag-Kombinationen in L1/L2: `0`, `$20`, `$40`.
 
 ## 6. Instrumente (Pitch-/Wave-Programm) — Opcode-Längen ✅ (nur genutzte Ops) · Semantik ⚠️
@@ -138,11 +139,43 @@ In L1/L2 kommen nur Volume-Bytes und `$E1` vor. Alle Instrument-Indizes liegen i
 | „Subsong 1 = Hauptthema" (L1) | Song 0 = 168 Divisions (Hauptmusik), Song 1 = 4 Divisions |
 | Portamento ÷ 2^N | stammt aus ST-Rip-Konvertierung, hier unbelegt |
 
-## 9. Offene Punkte (vor VM-Abnahme zu klären)
+## 9. Offene Punkte
 
-1. ❓ Tick-Semantik: `song.speed` (2/3) × `$FE/$FD`-Ticks × Division-`channel_speed`.
-2. ❓ Periodentabelle (7 Oktaven, Clamp auf 113) und Summe aus Instrument-Pitch + Pattern-Note + Division-Transpose.
-3. ❓ Vibrato-/Portamento-Formeln (aus Amberstar-Spec abgeleitet, hier ungeprüft).
-4. ❓ Lautstärke-Verknüpfung Envelope × Division-`channel_volume`.
-5. ❓ Verhalten bei Instrumenten ohne Terminator (Abschnitt 6).
-6. ❓ `Wings_Of_Death-Title.hip` ist **kein COSO**, sondern das 68k-Replayer-in-front-Format (`BRA.W` bei `$00`/`$04`, Init `$08`, Play `$DC`, `"MAD MAX! * TEX * 1990"` bei `$1804`). Eigener Parser/Replay nötig.
+| # | Punkt | Stand |
+|---|---|---|
+| 1 | Tick-Arithmetik `song.speed` × `$FE/$FD`-Ticks × `channel_speed` | ✅ strukturell bestätigt (Abschnitt 10), L1 Song 0 = 64 Ticks/Division |
+| 2 | Periodentabelle und Notensumme (Instrument-Pitch + Pattern-Note + Transpose) | ✅ im Bass auf ±1 Cent (Abschnitt 10) |
+| 3 | Vibrato-/Portamento-Formeln | ❓ nicht isolierbar (Vibrato ≤ 0,25 %, Portamento nur 10 Vorkommen) |
+| 4 | Verknüpfung Envelope × `channel_volume` | ❓ in L1/L2 ungenutzt (Division-Effekte nur `$00..$05`) |
+| 5 | Instrumente ohne Terminator (7 von 37) | ❓ Hold am Elementende implementiert; Einfluss nicht messbar |
+| 6 | Tickrate der Referenzaufnahme (49,707 Hz statt 50 Hz) | ❓ Ursache unbekannt (Abschnitt 10) |
+| 7 | Loop-Konvention bei Samples mit `pos_loop + repeat < len` (Sample 18) | ❓ "ganze Länge, dann Loop" implementiert, nicht isoliert gemessen |
+| 8 | `E4`: Phasen-Reset gegenüber `E2` | ❓ klangneutral bei 32-Byte-Wellen |
+| 9 | `Wings_Of_Death-Title.hip` ist **kein COSO**, sondern das 68k-Replayer-in-front-Format (`BRA.W` bei `$00`/`$04`, Init `$08`, Play `$DC`, `"MAD MAX! * TEX * 1990"` bei `$1804`) | ❓ eigener Parser/Replay nötig |
+
+## 10. Referenzmessung (Phase 4)
+
+**Referenz:** `level-1.wav`, Aufnahme von Level 1 (44,1 kHz, 16 Bit, 232,29 s, beide Kanäle identisch). Der WAV-Header trägt einen Platzhalter (1073741823 Frames), die Länge muss aus der Dateigröße berechnet werden. Die Aufnahme enthält Ladesound und Schussgeräusche, die Musik beginnt bei 10,75 s.
+
+**Methode:** 48-Band-Log-Spektrogramm (60 Hz–6 kHz, 50-ms-Raster, pro Band mittelwertfrei), normierte Kreuzkorrelation (ncc) zwischen Modell-Rendering und Referenz. Schussgeräusche und fehlende Analogfilter drücken die absoluten Werte; belastbar sind die relativen Vergleiche.
+
+| Messung | Ergebnis |
+|---|---|
+| Songlänge Modell, L1 Song 0 | 10752 Ticks = 168 Divisions × 64 Ticks; alle 4 Stimmen je Division gleich lang |
+| Wiederholungsperiode in der WAV | 5,15 s (= 4 Divisions) |
+| Modell bei 50,000 Hz | ncc 0,25 (z = 5,5), linearer Drift +0,59 % (0,85 s nach 150 s) |
+| Modell bei 49,707 Hz | ncc 0,48, 30-s-Fenster 0,46–0,63, Restdrift 0 über 200 s |
+| 4-s-Segmente (49,707 Hz) | Median 0,53, p10 0,43, p90 0,68 |
+| Tonhöhe 80–250 Hz | im Mittel +1 Cent (einzelne Blöcke streuen bis ±15 Cent) |
+| Tonhöhe 250–700 / 700–1600 / 1600–3500 Hz | +1 / +3 / +5 Cent |
+| Laufzeitpfad (Adapter + `PaulaChannel`) | ncc 0,483 gegenüber 0,479 im Analyse-Renderer |
+
+Die Messmethode für die Tonhöhe wurde mit einer künstlich um 0,4 % verschobenen Kopie validiert (erwartet +6,9, gemessen +6,7 Cent).
+
+**Schlüsse:**
+
+* Noten, Division-Raster und Tick-Arithmetik passen über 200 s ohne Restdrift. Eine falsche Speed-Semantik würde ungleichmäßig driften.
+* Das Tempo der Aufnahme liegt gleichmäßig 0,59 % unter 50 Hz (≈ 49,71 Hz, ±0,02). Eine globale Wiedergabe-Verlangsamung scheidet aus, weil die Tonhöhe im Bass nicht tiefer liegt. Ursache offen (Hypothesen: CIA-Timer des Spiels, Emulator-/Aufnahme-Timing). Der Adapter verwendet bis zur Klärung 50 Hz (`COSO_TICK_HZ`).
+* Der Anstieg der Abweichung zu hohen Frequenzen (bis +5 Cent) ist nicht erklärt; er liegt in den Obertönen, nicht in den Grundtönen.
+
+**Implementiert, aber in L1/L2 nicht belegbar** (im Code mit `UNVERIFIED` markiert): `E3`, `E5`, `E6`, `E8`, `E9`, Envelope-`SUSTAIN` und -`LOOP`, `FULL-STOP`, `channel_speed`- und `channel_volume`-Effekte der Divisions.
