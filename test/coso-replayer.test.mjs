@@ -112,13 +112,33 @@ test('Legato (Note mit Bit 7): neue Tonhöhe OHNE Retrigger', () => {
     assert.equal(reg(rp, 0, REG.PERIOD), COSO_PERIODS[31]);      // 0x9F & 0x7F = 31
 });
 
-test('Volume-Envelope: Schritte, Hold ($E1), Loop ($E8 = offset+5)', () => {
+test('Volume-Envelope: Schritte und Hold ($E1)', () => {
     const a = synth({ timbres: [T(0, [0x3F, 0x20, 0x10, 0xE1]), T(1)], monos: [[0xFE, 7, ...N(24), 0xFF], IDLE_PATTERN], divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]] });
     const va = []; for (let i = 0; i < 6; i++) { a.rp.tick(); va.push(reg(a.rp, 0, REG.VOLUME)); }
     assert.deepEqual(va, [63, 32, 16, 16, 16, 16]);
-    const b = synth({ timbres: [T(0, [0x20, 0x10, 0xE8, 0x05]), T(1)], monos: [[0xFE, 7, ...N(24), 0xFF], IDLE_PATTERN], divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]] });
+});
+
+test('Volume-Envelope: $E8 = SUSTAIN(ticks) hält die Lautstärke (an Dragonflight belegt)', () => {
+    const a = synth({ timbres: [T(0, [0x20, 0xE8, 0x03, 0x10, 0xE1]), T(1)], monos: [[0xFE, 15, ...N(24), 0xFF], IDLE_PATTERN], divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]] });
+    const v = []; for (let i = 0; i < 8; i++) { a.rp.tick(); v.push(reg(a.rp, 0, REG.VOLUME)); }
+    assert.deepEqual(v, [32, 32, 32, 32, 16, 16, 16, 16]);     // Wert 32 in Tick 0, Sustain 3 Ticks (1-3), dann 16
+});
+
+test('Volume-Envelope: $E0 = LOOP(pos), element-relativ (UNVERIFIED, Symmetrie zur Instrument-Tabelle)', () => {
+    const b = synth({ timbres: [T(0, [0x20, 0x10, 0xE0, 0x05]), T(1)], monos: [[0xFE, 7, ...N(24), 0xFF], IDLE_PATTERN], divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]] });
     const vb = []; for (let i = 0; i < 6; i++) { b.rp.tick(); vb.push(reg(b.rp, 0, REG.VOLUME)); }
     assert.deepEqual(vb, [32, 16, 32, 16, 32, 16]);
+});
+
+test('Alias-Timbre (zwei Indexeinträge, ein Offset): Timbre 1 verhält sich wie Timbre 2', () => {
+    // Timbres: [0] eigenes, [1] = Alias von [2], [2] -> Instrument 1 (Welle 1)
+    const { mod, rp } = synth({ timbres: [T(0), null, T(1)], monos: [[0xFE, 0, ...N(24, 1), 0xFF], IDLE_PATTERN], divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]] });
+    assert.deepEqual(mod.stats.aliasedTimbres, [1]);
+    assert.equal(mod.timbreOffsets[1], mod.timbreOffsets[2]);
+    assert.equal(mod.timbreEnds[1], mod.timbreEnds[2]);
+    rp.tick();
+    assert.equal(reg(rp, 0, REG.SAMPLE), 1);                    // Instrument 1 -> Welle 1
+    assert.equal(reg(rp, 0, REG.VOLUME), 63);                   // Envelope des Alias ist nicht leer
 });
 
 test('Envelope-Speed: jeder Wert hält "speed" Ticks', () => {
@@ -273,6 +293,14 @@ test('waveChange: anderes Sample mitten in der Note -> restart: Neustart, latch/
     assert.deepEqual(flagsOf(waveSynth(instr, 'hybrid'), 3), [1, 4, 0]);
 });
 
+test('waveChange "split": $E4 latcht, $E2 startet neu (Wellenwechsel mitten in der Note)', () => {
+    const viaE4 = [0xE2, 0x00, 0x00, 0xE4, 0x01, 0x00, 0xE1];
+    const viaE2 = [0xE2, 0x00, 0x00, 0xE2, 0x01, 0x00, 0xE1];
+    assert.deepEqual(flagsOf(waveSynth(viaE4, 'split'), 3), [1, 4, 0]);
+    assert.deepEqual(flagsOf(waveSynth(viaE2, 'split'), 3), [1, 1, 0]);
+    assert.deepEqual(flagsOf(waveSynth(viaE4, 'restart'), 3), [1, 1, 0]);   // zur Gegenprobe: restart behandelt beide gleich
+});
+
 test('waveChange: gleiches Sample mit reset=1 -> restart/hybrid: Neustart, latch: Latch', () => {
     const instr = [0xE2, 0x00, 0x00, 0xE2, 0x00, 0x00, 0xE1];
     assert.deepEqual(flagsOf(waveSynth(instr, 'restart'), 3), [1, 1, 0]);
@@ -283,4 +311,41 @@ test('waveChange: gleiches Sample mit reset=1 -> restart/hybrid: Neustart, latch
 test('waveChange: Note-Trigger startet die DMA in jedem Modus neu', () => {
     const instr = [0xE2, 0x00, 0x00, 0xE1];
     for (const m of ['restart', 'latch', 'hybrid']) assert.equal(flagsOf(waveSynth(instr, m), 1)[0] & 1, 1, m);
+});
+
+// =========================================================
+// Dragonflight Title Tune (zweites COSO-Modul, andere Opcodes)
+// =========================================================
+const DF = 'dragonflight_titletune.HIPC';
+test('Dragonflight: Parser ohne Warnungen, Alias-Timbre 3 erkannt, Songlänge 22880 Ticks (Speed 5)', { skip: !has(DF) }, () => {
+    const mod = loadMod(DF);
+    assert.deepEqual(mod.warnings, []);
+    assert.deepEqual(mod.stats.aliasedTimbres, [3]);
+    assert.deepEqual(mod.header.counts, { instruments: 13, timbres: 23, monopatterns: 94, divisions: 170, songs: 1, samples: 10 });
+    assert.equal(mod.song.speed, 5);
+    const rp = new CosoReplayer(mod);
+    for (let i = 0; i < 22880; i++) rp.tick();
+    assert.equal(rp.loopCount, 0);
+    rp.tick();
+    assert.equal(rp.loopCount, 1);
+    for (let i = 0; i < 25000; i++) rp.tick();
+    const s = rp.stats;
+    assert.deepEqual([s.badTimbre, s.badInstrument, s.badPattern, s.badSample, s.guardHits, s.silentNotes, s.instRunoff], [0, 0, 0, 0, 0, 0, 0]);
+});
+
+test('Dragonflight: Timbre 3 (Alias von Timbre 4) wird getriggert und ist stumm (Note-aus)', { skip: !has(DF) }, () => {
+    const mod = loadMod(DF), rp = new CosoReplayer(mod);
+    let triggers = 0, audible = 0;
+    for (let i = 0; i < 22880; i++) {
+        rp.tick();
+        for (let v = 0; v < 4; v++) {
+            const vo = rp.voices[v];
+            if (vo.timbre === 3 && vo.active) {
+                if (reg(rp, v, REG.FLAGS) & 1) triggers++;
+                if (reg(rp, v, REG.VOLUME) > 0) audible++;
+            }
+        }
+    }
+    assert.ok(triggers >= 90, `Trigger ${triggers}`);
+    assert.equal(audible, 0);                                   // Envelope "00 00 E1": Lautstärke 0 statt Reststand der Vornote
 });

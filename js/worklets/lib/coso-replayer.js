@@ -85,6 +85,7 @@ export class CosoReplayer {
      *     'restart' : DMA-Neustart bei reset=1 oder anderem Sample (Amberstar-Spec wörtlich)
      *     'latch'   : nur AUDxLC/LEN neu schreiben, greift am nächsten Loop-Wrap (kein Phasensprung)
      *     'hybrid'  : anderes Sample -> latch, gleiches Sample mit reset=1 -> restart
+     *     'split'   : $E4/$E7 -> latch, alle anderen SAMPLE-Opcodes ($E2, $E5, $E9) -> restart
      *   Note-Trigger starten die DMA immer neu.
      * Messhaken für offene Semantikfragen (Standard = Spec-Verhalten, siehe Abschnitt 12 der Spec):
      *   runoff    : 'hold' | 'restart' | 'silence'  Instrument ohne Terminator erreicht sein Ende
@@ -100,6 +101,9 @@ export class CosoReplayer {
         this.instOff = mod.instrumentOffsets;
         this.timbreOff = mod.timbreOffsets;
         this.monoOff = mod.monopatternOffsets;
+        this.instEndOf = mod.instrumentEnds;                 // alias-feste Elementenden (nicht offsets[i+1]!)
+        this.timbreEndOf = mod.timbreEnds;
+        this.monoEndOf = mod.monopatternEnds;
         this.nInst = mod.header.counts.instruments;
         this.nTimbre = mod.header.counts.timbres;
         this.nMono = mod.header.counts.monopatterns;
@@ -137,7 +141,7 @@ export class CosoReplayer {
         this.portShift = (opt.portShift === undefined) ? (this.portAdd ? 5 : 10) : (opt.portShift | 0);
         this.portMul = (opt.portMul === undefined) ? 1 : (opt.portMul | 0);
         this.vibShift = (opt.vibShift === undefined) ? 10 : (opt.vibShift | 0);
-        this.waveMode = (wc === 'latch') ? 1 : (wc === 'hybrid') ? 2 : 0;
+        this.waveMode = (wc === 'latch') ? 1 : (wc === 'hybrid') ? 2 : (wc === 'split') ? 3 : 0;
 
         this.voices = [];
         for (let i = 0; i < NUM_VOICES; i++) this.voices.push(new Voice(i));
@@ -195,7 +199,7 @@ export class CosoReplayer {
         }
         if (pat >= this.nMono) { this.stats.badPattern++; pat = 0; }
         v.patPtr = this.monoOff[pat];
-        v.patEnd = this.monoOff[pat + 1];
+        v.patEnd = this.monoEndOf[pat];
     }
 
     nextDivision(v) {
@@ -256,7 +260,7 @@ export class CosoReplayer {
         v.timbre = tim;
         v.instrument = instr;
         v.instStart = this.instOff[instr];
-        v.instEnd = this.instOff[instr + 1];
+        v.instEnd = this.instEndOf[instr];
         v.instPtr = v.instStart;
         v.instWait = 0;
         v.instDone = false;
@@ -266,7 +270,7 @@ export class CosoReplayer {
 
         v.envStart = to;
         v.envPtr = to + 5;
-        v.envEnd = this.timbreOff[tim + 1];
+        v.envEnd = this.timbreEndOf[tim];
         v.envWait = 0;
         v.envSpeed = d[to] || 1;
         v.envHold = false;
@@ -288,7 +292,7 @@ export class CosoReplayer {
     // ------------------------------------------------------------------
     // Instrument (Pitch-/Wave-Programm)
     // ------------------------------------------------------------------
-    setSample(v, s, reset) {
+    setSample(v, s, reset, soft) {
         if (s >= this.nSamples) { this.stats.badSample++; return; }
         const changed = (s !== v.sample);
         v.sample = s;
@@ -296,7 +300,9 @@ export class CosoReplayer {
         if (v.flags & 1) return;                                    // Note-Trigger-Tick: DMA startet ohnehin neu
         if (this.waveMode === 0) v.flags |= (reset || changed) ? 1 : 4;
         else if (this.waveMode === 1) { if (reset || changed) v.flags |= 4; }
-        else v.flags |= changed ? 4 : (reset ? 1 : 0);
+        else if (this.waveMode === 2) v.flags |= changed ? 4 : (reset ? 1 : 0);
+        else if (soft) { if (reset || changed) v.flags |= 4; }       // 'split': $E4/$E7 latchen ...
+        else v.flags |= (reset || changed) ? 1 : 4;                  // ... $E2/$E5/$E9 starten neu
     }
 
     resetEnvelope(v) {
@@ -341,8 +347,9 @@ export class CosoReplayer {
                 case 0xE0: v.instPtr = v.instStart + d[v.instPtr + 1]; break;                   // LOOP
                 case 0xE1: v.instDone = true; return;                                           // COMPLETED
                 case 0xE2:                                                                      // SAMPLE(s,1)
-                case 0xE4:                                                                      // SAMPLE(s,1) (E4: Reset-Unterschied unbestätigt)
-                    this.setSample(v, d[v.instPtr + 1], true); v.instPtr += 2; break;
+                    this.setSample(v, d[v.instPtr + 1], true, false); v.instPtr += 2; break;
+                case 0xE4:                                                                      // SAMPLE(s,1); im Modus 'split' latchend
+                    this.setSample(v, d[v.instPtr + 1], true, true); v.instPtr += 2; break;
                 case 0xE3:                                                                      // VIBRATO (UNVERIFIED)
                     v.vibSlope = d[v.instPtr + 1]; v.vibDepth = d[v.instPtr + 2];
                     v.vibPos = v.vibDepth >> 1; v.vibDir = -1; v.instPtr += 3; break;
@@ -369,7 +376,7 @@ export class CosoReplayer {
                     if (v.sample >= 0) { v.slideActive = true; v.slideStart = this.smpLoopStart[v.sample] - this.smpStart[v.sample]; }
                     v.instPtr += 6; break;
                 case 0xE7:                                                                      // SAMPLE(s,0)+RESET-VOL
-                    this.setSample(v, d[v.instPtr + 1], false); this.resetEnvelope(v); v.instPtr += 2; break;
+                    this.setSample(v, d[v.instPtr + 1], false, true); this.resetEnvelope(v); v.instPtr += 2; break;
                 case 0xE8:                                                                      // INSTRUMENT-DELAY (UNVERIFIED)
                     v.instWait = d[v.instPtr + 1]; v.instPtr += 2; return;
                 case 0xE9:                                                                      // SAMPLE-CUSTOM (UNVERIFIED: Offset ignoriert)
@@ -391,9 +398,12 @@ export class CosoReplayer {
         for (let guard = 0; guard < GUARD; guard++) {
             if (v.envPtr >= v.envEnd) { v.envHold = true; return; }
             const c = d[v.envPtr];
-            if (c === 0xE0) { v.envWait = d[v.envPtr + 1]; v.envPtr += 2; return; }           // SUSTAIN (UNVERIFIED)
+            // $E8 = SUSTAIN(ticks): belegt an Dragonflight (Spec nennt $E0 SUSTAIN / $E8 LOOP; dort liegt hinter dem
+            //       Operanden stets die Abklingrampe, bei Loop-Lesart unerreichbar, und Operanden zeigen hinter das Elementende).
+            // $E0 = LOOP(pos), element-relativ: Symmetrie zur Instrument-Tabelle, in keiner Datei belegt (UNVERIFIED).
+            if (c === 0xE8) { const n = d[v.envPtr + 1]; v.envWait = n > 0 ? n - 1 : 0; v.envPtr += 2; return; }
             if (c >= 0xE1 && c <= 0xE7) { v.envHold = true; return; }                          // HOLD
-            if (c === 0xE8) { v.envPtr = v.envStart + d[v.envPtr + 1]; continue; }             // LOOP (offset+5) (UNVERIFIED)
+            if (c === 0xE0) { v.envPtr = v.envStart + d[v.envPtr + 1]; continue; }
             v.envVol = c;
             v.envPtr++;
             v.envWait = v.envSpeed - 1;

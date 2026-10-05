@@ -1,6 +1,6 @@
 # Hippel-COSO (.hipc) — Verifizierte Layout-Spezifikation
 
-**Status:** Phasen 2 (Forensik), 4 (Replay-Kern, Referenzmessung) und 5 (Paula-Hardwareanbindung) abgeschlossen · **Stand:** v1.5.0-dev
+**Status:** Phasen 2 (Forensik), 4 (Replay-Kern), 5 (Paula-Hardwareanbindung) und 7 (zweite Referenz, Dragonflight) abgeschlossen · **Stand:** v1.5.0-dev
 **Verifiziert an:** `Wings_Of_Death-Level_1.hipc` (18282 B), `Wings_Of_Death-Level_2.hipc` (17112 B)
 **Externe Referenz (nur Gegenprüfung):** Pyrdacor/Amberstar `FileSpecs/Hippel-CoSo.md`
 
@@ -121,8 +121,8 @@ Alle Pattern-Indizes liegen im gültigen Bereich (max 88 bzw. 56). `effect` ist 
 ## 7. Timbres — Header-Plausibilität ✅ · Envelope-Semantik ⚠️
 
 Header (5 B): `speed`, `instrument` (`$80` = nicht überschreiben), `vib_slope`, `vib_depth`, `vib_delay`.
-Envelope: `$E0 ticks` Sustain, `$E1..$E7` Hold, `$E8 off+5` Loop, sonst Volume (0..64), je `speed` Ticks.
-In L1/L2 kommen nur Volume-Bytes und `$E1` vor. Alle Instrument-Indizes liegen im gültigen Bereich.
+Envelope: `$E8 ticks` **SUSTAIN** (belegt an Dragonflight, Abschnitt 14), `$E0 pos` LOOP (element-relativ, ⚠️ nur aus Symmetrie zur Instrument-Tabelle), `$E1..$E7` HOLD, sonst Volume (0..64), je `speed` Ticks. **Achtung:** Die Amberstar-Spec nennt `$E0` SUSTAIN und `$E8` LOOP; das widerspricht den Dragonflight-Daten.
+In L1/L2 kommen nur Volume-Bytes und `$E1` vor, Dragonflight nutzt zusätzlich `$E8`. Alle Instrument-Indizes liegen im gültigen Bereich.
 
 ## 8. Widerlegt durch die Forensik (alter Parser/VM)
 
@@ -143,17 +143,19 @@ In L1/L2 kommen nur Volume-Bytes und `$E1` vor. Alle Instrument-Indizes liegen i
 
 | # | Punkt | Stand |
 |---|---|---|
-| 1 | Tick-Arithmetik `song.speed` × `$FE/$FD`-Ticks × `channel_speed` | ✅ strukturell bestätigt (Abschnitt 10), L1 Song 0 = 64 Ticks/Division |
+| 1 | Tick-Arithmetik `song.speed` × `$FE/$FD`-Ticks × `channel_speed` | ✅ an Level 1 und 2 (Abschnitte 10, 14) |
 | 2 | Periodentabelle und Notensumme (Instrument-Pitch + Pattern-Note + Transpose) | ✅ im Bass auf ±1 Cent (Abschnitt 10) |
-| 3 | Portamento-Formel | ⚠️ Spec-Formel 16–32× zu stark; additiver Fit `(t·slope)>>5` implementiert (Abschnitt 12) |
-| 3b | Vibrato | ⚠️ Vorhandensein gestützt (aus: t = −2,8), Skala/Form nicht bestimmbar (Abschnitt 12) |
-| 4 | Verknüpfung Envelope × `channel_volume` | ❓ in L1/L2 ungenutzt (Division-Effekte nur `$00..$05`), braucht weitere Module |
-| 5 | Instrumente ohne Terminator (7 von 37) | ⚠️ Stille am Ende **abgelehnt** (t = −2,9), Hold ≈ Restart nicht unterscheidbar; Hold implementiert |
-| 6 | Tickrate der Referenzaufnahme (49,707 Hz statt 50 Hz) | ❓ Quelle ist ein YouTube-Video (nicht abrufbar, Aufnahmekette unbekannt); 50 Hz bleibt Standard, unabhängige Referenz nötig (Abschnitt 12) |
-| 7 | Loop-Konvention bei Samples mit `pos_loop + repeat < len` (Sample 18) | ✅ für Level 1 **irrelevant**: kein Trigger erreicht je die Loop-Region (max. 3992 von 4136 Byte) |
-| 8 | Wellenwechsel mitten in der Note (`E2`/`E4`): DMA-Neustart oder nur LC/LEN-Latch | ⚠️ `latch` messbar besser (Abschnitt 11), nicht bewiesen |
-| 9 | Opcodes `E3`, `E5`, `E6`, `E8`, `E9`, Envelope-`SUSTAIN`/`LOOP`, `FULL-STOP`, `channel_*`-Effekte | ❓ in L1/L2 ungenutzt, nur nach Amberstar-Spec implementiert (`UNVERIFIED`) |
-| 10 | `Wings_Of_Death-Title.hip` (68k-Replayer-Format) | ⚠️ Datenlayout großteils entschlüsselt (Abschnitt 13), Pattern-Zeilensemantik offen |
+| 3 | Portamento-Formel | ⚠️ Spec-Formel verworfen (Level 1 und 2); additiver Fit `(t·slope)>>5` an **Level 2 out-of-sample bestätigt** (Abschnitte 12, 14) |
+| 3b | Vibrato | ⚠️ Vorhandensein schwach gestützt (L1), auf Level 2 ohne messbaren Effekt; Skala/Form unbestimmt |
+| 4 | Verknüpfung Envelope × `channel_volume` | ❓ in allen drei Dateien ungenutzt (Division-Effekte nur `adj`) |
+| 5 | Instrumente ohne Terminator | ⚠️ Stille am Ende **auf beiden Leveln abgelehnt**, Hold bleibt (Restart auf L2 leicht schlechter) |
+| 6 | Tickrate der Referenzaufnahmen (49,707 Hz statt 50 Hz) | ❓ **zwei Aufnahmen stimmen überein** (L1 0,590 %, L2 0,576 % langsamer), vermutlich gleiche Aufnahmekette; Ursache offen, UADE-Referenz nötig |
+| 7 | Loop-Konvention Sample 18 | ✅ für Level 1 irrelevant (Loop-Region wird nie erreicht) |
+| 8 | Wellenwechsel mitten in der Note | ⚠️ `$E4`/`$E7` latchen, `$E2`/`$E5`/`$E9` starten neu (`split`): auf **beiden Leveln** besser als `restart`, reines `latch` ist auf Level 2 schlechter (Abschnitt 14) |
+| 9 | Envelope-Opcodes `$E0`/`$E8` | ⚠️ `$E8` = SUSTAIN(ticks) (Dragonflight, strukturelles Argument, kein Audio); `$E0` = LOOP ungeprüft |
+| 10 | Opcodes `E5`, `E6`, `E9`, `FULL-STOP`, `channel_*`-Effekte | ❓ in keiner Datei genutzt; `E3` (als `VIBRATO(0,0)`) und `E7` kommen in Dragonflight vor, plausibel, ohne Audio |
+| 11 | `word2E` im Header | Beobachtung: entspricht in allen drei Dateien dem Speed von Song 0 (2, 2, 5), Bedeutung ungeklärt |
+| 12 | `Wings_Of_Death-Title.hip` (68k-Replayer-Format) | ⚠️ Datenlayout großteils entschlüsselt (Abschnitt 13), Pattern-Zeilensemantik offen |
 
 ## 10. Referenzmessung (Phase 4)
 
@@ -204,7 +206,7 @@ Hardware-Semantik der Kanäle (`hwAttach`, `hwWriteLC`, `hwWriteLEN`, `hwStartDM
 | 48 Bänder | 0,549 | 0,560 | +0,012 ± 0,007 (t = 1,7) | 27 / 47 |
 | 160 feine Bänder | 0,527 | 0,543 | +0,016 ± 0,007 (t = 2,3) | 33 / 47 |
 
-`hybrid` ist in Level 1 identisch zu `latch` (kein Fall "gleiches Sample, reset=1" mit Wirkung). Evidenz: moderat, nicht beweisend. `latch` ist Standard, weil es zusätzlich der Hardware-Logik entspricht (Wellenwechsel = Registerschreibzugriff).
+`hybrid` ist in Level 1 identisch zu `latch`. **Überholt:** Die Level-2-Messung (Abschnitt 14) widerlegt reines `latch` als Standard; der Standard ist jetzt `split` (`$E4`/`$E7` latchen, `$E2`/`$E5`/`$E9` starten neu).
 
 **Nebenbefund `PaulaChannel` (nicht COSO-spezifisch):** Im unveränderten Kanal geht nach jedem `enableDMA()` das zweite Word der Sample-Daten verloren. Ein Loop-Puffer `[10,20,30,40,50,60,70,80]` erzeugt `10 20 50 60 70 80 10 20 30 40 …`. Ursache: `enableDMA()` lädt Word 1 per `fetchNextWordBuffer()` vor, die erste Ausgabe ruft es erneut auf und überschreibt es. Die Hardware-API vermeidet das (kein Vorab-Fetch), der MOD/XM-Pfad ist unverändert.
 
@@ -244,4 +246,45 @@ Beleg: Die Datei ist der **unkomprimierte Vorläufer** des COSO-Formats, mit 68k
 | danach | `$4CF6` | Dateinamen der Samples (`WOD_1:MVERZ3.DIG` …), dann PCM |
 
 Offen: die Zeilensemantik des Rasters (Pausen, Dauern, Entsprechung zu `FE/FD/FF`) steht nur im Code des Replayers. Zwei Wege: (a) die Play-Routine disassemblieren und die Zeilenkodierung nachbauen, (b) einen schlanken M68000-Interpreter schreiben, der Init/Play des Originals ausführt und die Paula-Registerschreibzugriffe abgreift. (b) liefert zugleich Originaltiming und deckt weitere Dateien dieser Familie ab.
+
+## 14. Phase 7: zweite Referenz (Level 2) und Dragonflight
+
+### 14.1 Level-2-Aufnahme
+
+`_Amiga__Wings_of_Death_-_Level_2.wav`: 44,1 kHz, 16 Bit, 264,13 s, beide Kanäle identisch, Header ist diesmal gültig. Musikbeginn bei 6,3 s. Die Aufnahme enthält Schussgeräusche.
+
+| Messung | Ergebnis |
+|---|---|
+| Modell bei 50,000 Hz | ncc 0,20, Drift +0,576 % |
+| Modell bei 49,707 Hz | ncc 0,62, 30-s-Fenster 0,47–0,64, Restdrift +0,04 % |
+
+Level 1 lag bei 0,590 %. Beide Aufnahmen weichen also um denselben Betrag ab. Das schließt einen Einzelfall-Fehler aus, aber nicht die gemeinsame Aufnahmekette. Standard bleibt 50 Hz.
+
+### 14.2 Out-of-Sample-Prüfung der Level-1-Fits (Level 2, 49,707 Hz)
+
+| Entscheidung | Level 2 | Urteil |
+|---|---|---|
+| Portamento additiv `>>5` (Standard) gegen "aus", 52 Noten (Slopes 63/64, in L1 nicht angepasst) | +0,037 (t = 10,0), 52 von 52 besser | **bestätigt** |
+| Portamento, Spec-Formel `>>10` | −0,012 (t = −2,8) | **verworfen** |
+| Portamento-Skala `(t·slope·K)>>8`, K = 5…11 | Gipfel bei K = 8–9 (+0,037), K = 5 und 11 nur +0,008 | Optimum 1,0–1,12 × Standard, deckt sich mit Level 1 (≈ 1,1 ×) |
+| Instrumente ohne Terminator: Stille | −0,004 (t = −4,6) | **verworfen** (wie L1) |
+| dasselbe: Restart statt Hold | −0,001 (t = −2,4) | Hold bleibt |
+| Vibrato aus | −0,0003 (t = −2,9) | praktisch ohne Wirkung |
+| Wellenwechsel `latch` gegen `restart` | **−0,006 (t = −5,6)** | widerspricht Level 1 |
+| Wellenwechsel `split` gegen `restart` | +0,003 (t = 4,3) auf L2, +0,020 (t = 2,7) auf L1 | **neuer Standard** |
+
+Die scharfe Portamento-Spitze ist plausibel: Eine Tonrampe muss auf wenige Prozent stimmen, damit die Spektralkämme zur Aufnahme passen.
+
+Gesamtbilanz gegenüber dem Stand von Phase 5 (Spec-Portamento, `latch`): Level 1 4-s-Segmente +0,013 / +0,015 (t = 9,2 / 7,1), Level 2 +0,009 / +0,012 (t = 6,6 / 8,7), Portamento-Fenster +0,040 bzw. +0,059 (t > 8).
+
+### 14.3 Dragonflight Title Tune (`dragonflight_titletune.HIPC`)
+
+Gültiger COSO-Header, 13 Instrumente, 23 Timbres, 94 Monopatterns, 170 Divisions, 1 Song (Speed 5, 22880 Ticks = 457,6 s), 10 Samples (177402 Byte PCM). Keine Referenzaufnahme vorhanden, die folgenden Befunde sind strukturell.
+
+* **Alias-Einträge in Indextabellen:** Timbre 3 und 4 zeigen auf denselben Offset (`$12F`). Das Original dedupliziert identische Elemente, das Element des ersten Eintrags ist nicht leer. Elementende = nächster **streng größerer** Offset. Der Parser leitete es zuvor aus dem Folgeeintrag ab und machte Timbre 3 zu einem leeren Element, wodurch die Lautstärke der Vornote stehen blieb.
+* **Timbre 3 ist ein stummes Timbre:** Envelope `00 00 E1`, wird 95-mal getriggert und ist nie hörbar (Note-aus).
+* **Envelope-Opcode `$E8` = SUSTAIN(ticks):** In allen 6 Vorkommen steht hinter dem Operanden die Abklingrampe, die bei Loop-Lesart unerreichbar wäre. Zwei Operanden (`$20` bei Elementlängen 24 und 25) zeigen hinter das Elementende. Mit Sustain ergibt sich überall *anheben, halten, abklingen*. Ein Audiobeleg fehlt. `$E0` wurde als LOOP gesetzt (Symmetrie zur Instrument-Tabelle), ohne Beleg.
+* `timbre_adjust` wird intensiv genutzt (Werte bis 22, alle 680 Division-Effekte), die Wings-Dateien nutzen nur Werte bis 5.
+* `E3` kommt nur als `VIBRATO(0,0)` vor (schaltet Vibrato ab), `E7` in einem Instrument mit stummem 2-Byte-Sample.
+* Instrumente sind Ein-Sample-Programme mit langen Loop-Samples (bis 47720 Byte).
 

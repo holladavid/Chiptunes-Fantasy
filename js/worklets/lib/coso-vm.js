@@ -26,11 +26,13 @@ import { CosoReplayer, REG } from './coso-replayer.js';
 // Die Worklets teilen aktuell fest durch 50.0; ein anderer Wert erfordert dort eine Anpassung.
 export const COSO_TICK_HZ = 50;
 
-// Wie SAMPLE-Opcodes mitten in einer Note auf die DMA wirken (siehe CosoReplayer): 'restart' | 'latch' | 'hybrid'
-// 'latch' = nur AUDxLC/LEN neu schreiben (greift am Loop-Wrap). Gemessen gegen die Level-1-Referenz im gepaarten
-// 4-s-Segmenttest: +0.016 +- 0.007 ncc (t = 2.3, 33/47 Segmente besser). Moderate Evidenz, kein Beweis
-// (doc/specs/hipc-coso-verified-spec.md, Abschnitt 11).
-export const COSO_WAVE_CHANGE = 'latch';
+// Wie SAMPLE-Opcodes mitten in einer Note auf die DMA wirken (siehe CosoReplayer):
+// 'restart' | 'latch' | 'hybrid' | 'split'. 'split' = $E4/$E7 nur LC/LEN latchen, $E2/$E5/$E9 starten die DMA neu.
+// Gemessen gegen beide Referenzaufnahmen (gepaarte 4-s-Segmente, feine Bänder, gegen 'restart'):
+//   Level 1: split +0.020 (t = 2.7), latch +0.016 (t = 2.1)
+//   Level 2: split +0.003 (t = 4.3), latch -0.006 (t = -5.6)  -> reines 'latch' ist nicht robust, 'split' schon.
+// Evidenz: moderat bis gut, kein Beweis (doc/specs/hipc-coso-verified-spec.md, Abschnitte 11 und 14).
+export const COSO_WAVE_CHANGE = 'split';
 
 // Chip-RAM-Layout: [0..1] = Stille-Wort (Ziel für "kein Loop"), ab CHIP_BASE die PCM-Bank.
 export const CHIP_BASE = 0x100;

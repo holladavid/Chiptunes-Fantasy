@@ -102,8 +102,10 @@ export function disassembleTimbre(data, start, end) {
         const c = data[o];
         const pc = o - start;
         if (c === 0xE0 || c === 0xE8) {
-            if (o + 1 >= end) { ops.push({ pc, op: c, name: c === 0xE0 ? 'SUSTAIN' : 'LOOP', args: [], truncated: true }); o = end; break; }
-            ops.push({ pc, op: c, name: c === 0xE0 ? 'SUSTAIN' : 'LOOP', args: [data[o + 1]] });
+            // E8 = SUSTAIN(ticks) (belegt an Dragonflight), E0 = LOOP(pos) (Symmetrie zur Instrument-Tabelle, UNVERIFIED)
+            const nm = (c === 0xE8) ? 'SUSTAIN' : 'LOOP';
+            if (o + 1 >= end) { ops.push({ pc, op: c, name: nm, args: [], truncated: true }); o = end; break; }
+            ops.push({ pc, op: c, name: nm, args: [data[o + 1]] });
             o += 2;
         } else if (c >= 0xE1 && c <= 0xE7) {
             ops.push({ pc, op: c, name: 'HOLD', args: [] });
@@ -164,7 +166,15 @@ function readIndexTable(b, label, tablePos, count, sectionEnd) {
         prev = v;
     }
     off[count] = sectionEnd;
-    return off;
+
+    // Elementende = nächster STRENG größerer Offset. Das Original dedupliziert identische Elemente:
+    // zwei Indexeinträge zeigen dann auf denselben Offset (Alias), das Element des ersten ist NICHT leer.
+    const ends = new Uint32Array(count);
+    const aliased = [];
+    ends[count - 1] = sectionEnd;
+    for (let i = count - 2; i >= 0; i--) ends[i] = (off[i + 1] > off[i]) ? off[i + 1] : ends[i + 1];
+    for (let i = 0; i + 1 < count; i++) if (off[i + 1] === off[i]) aliased.push(i);
+    return { off, ends, aliased };
 }
 
 const hex = (n) => '$' + n.toString(16).toUpperCase();
@@ -228,9 +238,11 @@ export function parseCoso(input, options = {}) {
     }
 
     // ---------- 3. Index-Sektionen ----------
-    const instrumentOffsets   = readIndexTable(src, 'Instrument',  pos.instruments,  counts.instruments,  pos.timbres);
-    const timbreOffsets       = readIndexTable(src, 'Timbre',      pos.timbres,      counts.timbres,      pos.monopatterns);
-    const monopatternOffsets  = readIndexTable(src, 'Monopattern', pos.monopatterns, counts.monopatterns, pos.divisions);
+    const instT = readIndexTable(src, 'Instrument',  pos.instruments,  counts.instruments,  pos.timbres);
+    const timbT = readIndexTable(src, 'Timbre',      pos.timbres,      counts.timbres,      pos.monopatterns);
+    const monoT = readIndexTable(src, 'Monopattern', pos.monopatterns, counts.monopatterns, pos.divisions);
+    const instrumentOffsets = instT.off, timbreOffsets = timbT.off, monopatternOffsets = monoT.off;
+    const instrumentEnds = instT.ends, timbreEnds = timbT.ends, monopatternEnds = monoT.ends;
 
     // ---------- 4. Divisions (12 B: je Stimme pattern,transpose,effect) ----------
     const divBytes = pos.songs - pos.divisions;
@@ -319,7 +331,7 @@ export function parseCoso(input, options = {}) {
     const instrumentFlags = new Uint8Array(counts.instruments);   // bit0: kein E0/E1 im Programm
     const unterminatedInstruments = [];
     for (let i = 0; i < counts.instruments; i++) {
-        const ops = disassembleInstrument(data, instrumentOffsets[i], instrumentOffsets[i + 1]);
+        const ops = disassembleInstrument(data, instrumentOffsets[i], instrumentEnds[i]);
         let hasTerm = false;
         for (let k = 0; k < ops.length; k++) {
             if (ops[k].op === 0xE0 || ops[k].op === 0xE1) hasTerm = true;
@@ -329,10 +341,10 @@ export function parseCoso(input, options = {}) {
         if (!hasTerm) { instrumentFlags[i] |= 1; unterminatedInstruments.push(i); }
     }
 
-    const timbreFlags = new Uint8Array(counts.timbres);           // bit0: kein E1..E7/E8 in der Envelope
+    const timbreFlags = new Uint8Array(counts.timbres);           // bit0: keine Terminierung (E0 LOOP, E1..E7 HOLD)
     const unterminatedTimbres = [];
     for (let t = 0; t < counts.timbres; t++) {
-        const tim = disassembleTimbre(data, timbreOffsets[t], timbreOffsets[t + 1]);
+        const tim = disassembleTimbre(data, timbreOffsets[t], timbreEnds[t]);
         if (!tim.header) { warnings.push(`Timbre ${t}: Element kürzer als der 5-Byte-Header.`); timbreFlags[t] |= 1; unterminatedTimbres.push(t); continue; }
         if (tim.header.instrument !== 0x80 && tim.header.instrument >= counts.instruments) {
             warnings.push(`Timbre ${t}: Instrument ${tim.header.instrument} existiert nicht.`);
@@ -340,14 +352,14 @@ export function parseCoso(input, options = {}) {
         let hasTerm = false;
         for (let k = 0; k < tim.ops.length; k++) {
             const c = tim.ops[k].op;
-            if ((c >= 0xE1 && c <= 0xE8)) hasTerm = true;
+            if (c >= 0xE0 && c <= 0xE7) hasTerm = true;
         }
         if (!hasTerm) { timbreFlags[t] |= 1; unterminatedTimbres.push(t); }
     }
 
     let totalNoteEvents = 0;
     for (let p = 0; p < counts.monopatterns; p++) {
-        const mp = disassembleMonopattern(data, monopatternOffsets[p], monopatternOffsets[p + 1]);
+        const mp = disassembleMonopattern(data, monopatternOffsets[p], monopatternEnds[p]);
         if (!mp.terminated) warnings.push(`Monopattern ${p}: kein $FF-Ende innerhalb des Elements.`);
         for (let k = 0; k < mp.events.length; k++) if (mp.events[k].kind === 'NOTE') totalNoteEvents++;
     }
@@ -371,6 +383,9 @@ export function parseCoso(input, options = {}) {
         instrumentOffsets,                      // Uint32Array(n+1), letzter Eintrag = Sektionsende
         timbreOffsets,
         monopatternOffsets,
+        instrumentEnds,                         // Uint32Array(n): Elementende, alias-fest (nächster größerer Offset)
+        timbreEnds,
+        monopatternEnds,
         instrumentFlags,                        // bit0 = kein Terminator (E0/E1)
         timbreFlags,                            // bit0 = keine Terminierung (E1..E8)
 
@@ -383,7 +398,10 @@ export function parseCoso(input, options = {}) {
         pcm,                                    // Int8Array, PCM-Bank (Sample-Positionen sind relativ dazu)
 
         warnings,
-        stats: { unterminatedInstruments, unterminatedTimbres, noteEvents: totalNoteEvents, padBytes },
+        stats: {
+            unterminatedInstruments, unterminatedTimbres, noteEvents: totalNoteEvents, padBytes,
+            aliasedInstruments: instT.aliased, aliasedTimbres: timbT.aliased, aliasedMonopatterns: monoT.aliased
+        },
 
         length: 50 * 180,                       // PLATZHALTER (Frames @50Hz) bis die VM die echte Songlänge liefert
         lengthIsEstimate: true,

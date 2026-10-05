@@ -1,6 +1,6 @@
 // === test/helpers/coso-builder.mjs ===
 // Baut minimale, gültige COSO-Binärdateien für gezielte Semantik-Tests.
-//   instruments / timbres / monos : Arrays von Byte-Arrays (Elemente)
+//   instruments / timbres / monos : Arrays von Byte-Arrays (Elemente); null = Alias des nächsten Elements
 //   divisions : Array von Divisions, je 4 Stimmen [pattern, transpose, effect]
 //   songs     : [{start,end,speed}]     samples: [{pos,len,loop,rep}] (Bytes)
 export function buildCoso({ instruments, timbres, monos, divisions, songs, samples, pcm }) {
@@ -11,7 +11,10 @@ export function buildCoso({ instruments, timbres, monos, divisions, songs, sampl
     const indexed = (elems, base) => {
         const table = [], body = [];
         let off = base + elems.length * 2;
-        for (const e of elems) { table.push(...u16(off)); body.push(...e); off += e.length; }
+        for (const e of elems) {                                  // e === null: Alias (zeigt auf das nächste echte Element)
+            table.push(...u16(off));
+            if (e) { body.push(...e); off += e.length; }
+        }
         return [...table, ...body];
     };
 
