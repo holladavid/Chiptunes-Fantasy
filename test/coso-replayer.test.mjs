@@ -127,13 +127,28 @@ test('Envelope-Speed: jeder Wert hält "speed" Ticks', () => {
     assert.deepEqual(v, [48, 48, 48, 16, 16, 16, 16]);
 });
 
-test('Portamento ($20): Periode sinkt monoton, Legato beendet es', () => {
-    const { rp } = synth({ monos: [[0xFE, 5, ...N(24, 0x20, 16), ...N(0x98), 0xFF], IDLE_PATTERN], divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]] });
+test('Portamento ($20, Standard "add"): Periode sinkt monoton, Legato beendet es', () => {
+    const { rp } = synth({ monos: [[0xFE, 5, ...N(24, 0x20, 127), ...N(0x98), 0xFF], IDLE_PATTERN], divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]] });
     const p = []; for (let i = 0; i < 6; i++) { rp.tick(); p.push(reg(rp, 0, REG.PERIOD)); }
-    assert.equal(p[0], 428 - ((428 * 1 * 16) >> 10));
+    assert.equal(p[0], 428 - ((1 * 127) >> 5));                  // additiv: (t * slope) >> 5
     for (let i = 1; i < 6; i++) assert.ok(p[i] < p[i - 1], `tick ${i}: ${p[i]} !< ${p[i - 1]}`);
     for (let i = 0; i < 6; i++) rp.tick();                       // zweite Note (Legato) = Note 24 ohne Portamento
     assert.equal(reg(rp, 0, REG.PERIOD), 428);
+});
+
+test('Portamento, Modus "mul" = Formel der Amberstar-Spec (period * t * slope >> 10)', () => {
+    const bytes = buildCoso({ instruments: [INST0, INST1], timbres: [T(0), T(1)], monos: [[0xFE, 5, ...N(24, 0x20, 16), 0xFF], IDLE_PATTERN],
+        divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]], songs: [{ start: 0, end: 0, speed: 1 }], samples: [SMP0, { ...SMP0, pos: 32 }], pcm: [...WAVE32, ...WAVE32] });
+    const rp = new CosoReplayer(parseCoso(bytes, { name: 'mul' }), { portMode: 'mul' });
+    rp.tick();
+    assert.equal(reg(rp, 0, REG.PERIOD), 428 - ((428 * 1 * 16) >> 10));
+});
+
+test('Portamento "off" (portMode mul, portShift 0) lässt die Periode unverändert', () => {
+    const bytes = buildCoso({ instruments: [INST0, INST1], timbres: [T(0), T(1)], monos: [[0xFE, 5, ...N(24, 0x20, 127), 0xFF], IDLE_PATTERN],
+        divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]], songs: [{ start: 0, end: 0, speed: 1 }], samples: [SMP0, { ...SMP0, pos: 32 }], pcm: [...WAVE32, ...WAVE32] });
+    const rp = new CosoReplayer(parseCoso(bytes, { name: 'off' }), { portMode: 'mul', portShift: 0 });
+    for (let i = 0; i < 4; i++) { rp.tick(); assert.equal(reg(rp, 0, REG.PERIOD), 428); }
 });
 
 test('Tempo: duration = pattern_speed * channel_speed; Effekt $Ey setzt channel_speed', () => {

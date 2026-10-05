@@ -48,7 +48,8 @@ export class CosoVirtualMachine {
         this.replayer = new CosoReplayer(trackModule, {
             song: trackModule.selectedSong,
             loop: true,
-            waveChange: options.waveChange || COSO_WAVE_CHANGE
+            waveChange: options.waveChange || COSO_WAVE_CHANGE,
+            ...(options.replayer || {})                      // Messhaken: runoff, loopConv, portShift, vibShift
         });
 
         // Gemeinsames Chip-RAM (Kopie der PCM-Bank, wortweise gepolstert)

@@ -86,6 +86,14 @@ export class CosoReplayer {
      *     'latch'   : nur AUDxLC/LEN neu schreiben, greift am nächsten Loop-Wrap (kein Phasensprung)
      *     'hybrid'  : anderes Sample -> latch, gleiches Sample mit reset=1 -> restart
      *   Note-Trigger starten die DMA immer neu.
+     * Messhaken für offene Semantikfragen (Standard = Spec-Verhalten, siehe Abschnitt 12 der Spec):
+     *   runoff    : 'hold' | 'restart' | 'silence'  Instrument ohne Terminator erreicht sein Ende
+     *   loopConv  : 'full' | 'toLoopEnd'            erster Durchlauf bis Sample-Ende oder nur bis Loop-Ende
+     *   portMode  : 'add' | 'mul'                   additiv ((t * slope * portMul) >> shift, Standard) oder proportional
+     *                                               wie in der Amberstar-Spec (period * t * slope >> shift)
+     *   portShift : 5 ('add') / 10 ('mul')          Portamento-Skalierung; bei 'mul' bedeutet 0 = aus
+     *   portMul   : 1                               Zusatzfaktor im 'add'-Modus: (t * slope * portMul) >> portShift
+     *   vibShift  : 10                              Vibrato-Skalierung (period * vib >> vibShift), 0 = aus
      */
     constructor(mod, opt = {}) {
         this.data = mod.data;
@@ -121,6 +129,14 @@ export class CosoReplayer {
         this.songSpeed = song.speed;
         this.loop = (opt.loop === undefined) ? true : !!opt.loop;
         const wc = opt.waveChange || 'restart';
+        this.runoffMode = (opt.runoff === 'restart') ? 1 : (opt.runoff === 'silence') ? 2 : 0;
+        this.loopToEnd = (opt.loopConv === 'toLoopEnd');
+        // Portamento: EMPIRISCHER Fit gegen die Level-1-Referenz (Abschnitt 12 der Spec), nicht die Spec-Formel.
+        // Die proportionale Spec-Formel (>>10) ist ~16-32x zu stark; 'add' mit >>5 (= slope/32 pro Tick) ist das Optimum.
+        this.portAdd = (opt.portMode !== 'mul');
+        this.portShift = (opt.portShift === undefined) ? (this.portAdd ? 5 : 10) : (opt.portShift | 0);
+        this.portMul = (opt.portMul === undefined) ? 1 : (opt.portMul | 0);
+        this.vibShift = (opt.vibShift === undefined) ? 10 : (opt.vibShift | 0);
         this.waveMode = (wc === 'latch') ? 1 : (wc === 'hybrid') ? 2 : 0;
 
         this.voices = [];
@@ -307,7 +323,13 @@ export class CosoReplayer {
     runInstrument(v) {
         const d = this.data;
         for (let guard = 0; guard < GUARD; guard++) {
-            if (v.instPtr >= v.instEnd) { v.instDone = true; this.stats.instRunoff++; return; }
+            if (v.instPtr >= v.instEnd) {
+                this.stats.instRunoff++;
+                if (this.runoffMode === 1) { v.instPtr = v.instStart; continue; }
+                if (this.runoffMode === 2) { v.envVol = 0; v.envHold = true; }
+                v.instDone = true;
+                return;
+            }
             const c = d[v.instPtr];
             if (c < 0xE0) {                                         // PITCH (1 Tick)
                 v.instAbs = (c & 0x80) !== 0;
@@ -402,13 +424,14 @@ export class CosoReplayer {
                     v.vibPos += v.vibDir * v.vibSlope;
                     if (v.vibPos <= -half) { v.vibPos = -half; v.vibDir = 1; }
                     else if (v.vibPos >= half) { v.vibPos = half; v.vibDir = -1; }
-                    period += (period * v.vibPos) >> 10;
+                    if (this.vibShift > 0) period += (period * v.vibPos) >> this.vibShift;
                 }
             }
             // Portamento (linear, nach Vibrato)
-            if (v.portActive) {
+            if (v.portActive && (this.portAdd || this.portShift > 0)) {
                 if (v.portT < 1024) v.portT++;
-                period -= (period * v.portT * v.portSlope) >> 10;
+                period -= this.portAdd ? ((v.portT * v.portSlope * this.portMul) >> this.portShift)
+                                       : ((period * v.portT * v.portSlope) >> this.portShift);
                 if (period < MIN_PERIOD) period = MIN_PERIOD;
             }
         }
@@ -425,7 +448,8 @@ export class CosoReplayer {
         if (v.sample >= 0) {
             const s = v.sample;
             r[o + REG.DMA_START] = this.smpStart[s];
-            r[o + REG.DMA_LEN] = this.smpLen[s];
+            r[o + REG.DMA_LEN] = (this.loopToEnd && this.smpLoopLen[s] > 2)
+                ? (this.smpLoopStart[s] + this.smpLoopLen[s] - this.smpStart[s]) : this.smpLen[s];
             if (v.slideActive) {
                 r[o + REG.LOOP_START] = this.smpStart[s] + v.slideStart;
                 r[o + REG.LOOP_LEN] = v.slideLen;

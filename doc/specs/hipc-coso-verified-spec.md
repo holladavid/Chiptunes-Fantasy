@@ -145,13 +145,15 @@ In L1/L2 kommen nur Volume-Bytes und `$E1` vor. Alle Instrument-Indizes liegen i
 |---|---|---|
 | 1 | Tick-Arithmetik `song.speed` × `$FE/$FD`-Ticks × `channel_speed` | ✅ strukturell bestätigt (Abschnitt 10), L1 Song 0 = 64 Ticks/Division |
 | 2 | Periodentabelle und Notensumme (Instrument-Pitch + Pattern-Note + Transpose) | ✅ im Bass auf ±1 Cent (Abschnitt 10) |
-| 3 | Vibrato-/Portamento-Formeln | ❓ nicht isolierbar (Vibrato ≤ 0,25 %, Portamento nur 10 Vorkommen) |
-| 4 | Verknüpfung Envelope × `channel_volume` | ❓ in L1/L2 ungenutzt (Division-Effekte nur `$00..$05`) |
-| 5 | Instrumente ohne Terminator (7 von 37) | ❓ Hold am Elementende implementiert; Einfluss nicht messbar |
-| 6 | Tickrate der Referenzaufnahme (49,707 Hz statt 50 Hz) | ❓ Ursache unbekannt (Abschnitt 10) |
-| 7 | Loop-Konvention bei Samples mit `pos_loop + repeat < len` (Sample 18) | ❓ "ganze Länge, dann Loop" implementiert, nicht isoliert gemessen |
-| 8 | Wellenwechsel mitten in der Note (`E2`/`E4`): DMA-Neustart oder nur LC/LEN-Latch | ⚠️ `latch` messbar leicht besser (Abschnitt 11), nicht bewiesen |
-| 9 | `Wings_Of_Death-Title.hip` ist **kein COSO**, sondern das 68k-Replayer-in-front-Format (`BRA.W` bei `$00`/`$04`, Init `$08`, Play `$DC`, `"MAD MAX! * TEX * 1990"` bei `$1804`) | ❓ eigener Parser/Replay nötig |
+| 3 | Portamento-Formel | ⚠️ Spec-Formel 16–32× zu stark; additiver Fit `(t·slope)>>5` implementiert (Abschnitt 12) |
+| 3b | Vibrato | ⚠️ Vorhandensein gestützt (aus: t = −2,8), Skala/Form nicht bestimmbar (Abschnitt 12) |
+| 4 | Verknüpfung Envelope × `channel_volume` | ❓ in L1/L2 ungenutzt (Division-Effekte nur `$00..$05`), braucht weitere Module |
+| 5 | Instrumente ohne Terminator (7 von 37) | ⚠️ Stille am Ende **abgelehnt** (t = −2,9), Hold ≈ Restart nicht unterscheidbar; Hold implementiert |
+| 6 | Tickrate der Referenzaufnahme (49,707 Hz statt 50 Hz) | ❓ Quelle ist ein YouTube-Video (nicht abrufbar, Aufnahmekette unbekannt); 50 Hz bleibt Standard, unabhängige Referenz nötig (Abschnitt 12) |
+| 7 | Loop-Konvention bei Samples mit `pos_loop + repeat < len` (Sample 18) | ✅ für Level 1 **irrelevant**: kein Trigger erreicht je die Loop-Region (max. 3992 von 4136 Byte) |
+| 8 | Wellenwechsel mitten in der Note (`E2`/`E4`): DMA-Neustart oder nur LC/LEN-Latch | ⚠️ `latch` messbar besser (Abschnitt 11), nicht bewiesen |
+| 9 | Opcodes `E3`, `E5`, `E6`, `E8`, `E9`, Envelope-`SUSTAIN`/`LOOP`, `FULL-STOP`, `channel_*`-Effekte | ❓ in L1/L2 ungenutzt, nur nach Amberstar-Spec implementiert (`UNVERIFIED`) |
+| 10 | `Wings_Of_Death-Title.hip` (68k-Replayer-Format) | ⚠️ Datenlayout großteils entschlüsselt (Abschnitt 13), Pattern-Zeilensemantik offen |
 
 ## 10. Referenzmessung (Phase 4)
 
@@ -205,4 +207,41 @@ Hardware-Semantik der Kanäle (`hwAttach`, `hwWriteLC`, `hwWriteLEN`, `hwStartDM
 `hybrid` ist in Level 1 identisch zu `latch` (kein Fall "gleiches Sample, reset=1" mit Wirkung). Evidenz: moderat, nicht beweisend. `latch` ist Standard, weil es zusätzlich der Hardware-Logik entspricht (Wellenwechsel = Registerschreibzugriff).
 
 **Nebenbefund `PaulaChannel` (nicht COSO-spezifisch):** Im unveränderten Kanal geht nach jedem `enableDMA()` das zweite Word der Sample-Daten verloren. Ein Loop-Puffer `[10,20,30,40,50,60,70,80]` erzeugt `10 20 50 60 70 80 10 20 30 40 …`. Ursache: `enableDMA()` lädt Word 1 per `fetchNextWordBuffer()` vor, die erste Ausgabe ruft es erneut auf und überschreibt es. Die Hardware-API vermeidet das (kein Vorab-Fetch), der MOD/XM-Pfad ist unverändert.
+
+## 12. Messreihe Phase 6 (Level-1-Referenz, 49,707 Hz, gepaart)
+
+Alle Werte sind Differenzen der normierten Korrelation zur jeweiligen Basis (positiv = näher an der Aufnahme). Die Referenz stammt aus einem YouTube-Video; die Aufnahmekette (Emulator, Capture, Neuenkodierung) ist unbekannt.
+
+| Frage | Beobachtung | Entscheidung |
+|---|---|---|
+| Unterminierte Instrumente, Stille am Ende | −0,013 (t = −2,9) | **verworfen** |
+| Unterminierte Instrumente, Restart statt Hold | −0,001 (t = −0,8) | nicht unterscheidbar, Hold bleibt |
+| Loop-Konvention (`toLoopEnd`) | exakt 0 | irrelevant für L1 (Loop-Region wird nie erreicht) |
+| Vibrato aus | −0,0015 (t = −2,8) | Vorhandensein gestützt; Skalen `>>6/8/10/12` ohne klare Ordnung, Standard bleibt `>>10` |
+| Portamento, Spec-Formel `period·t·slope>>10` | schlechter als "aus" (−0,021, t = −6,7) | **verworfen** |
+| Portamento additiv `(t·slope·K)>>7`, K = 2/3/4/5/6/8 | +0,004 / +0,006 / +0,009 / +0,009 / +0,007 / −0,002 gegenüber "aus" (85 Noten) | **K = 4 (`>>5`)** |
+| dasselbe nur auf den 6 langen Glissandi (12–56 Ticks) | K = 4: +0,082 (t = 3,6), 6 von 6 besser; proportional `>>14`: +0,045 | additiv bevorzugt |
+
+Zusammensetzung der 91 Portamento-Noten: 82 × (slope 127, 4 Ticks), 3 × (16, 24), 3 × (18, 56), 2 × (32, 8), 1 × (64, 32). Die Gesamtstärke ist durch die Zaps gut bestimmt, die **Zeitform** (linear in `t`, proportional zu `slope`) nur durch sechs lange Glissandi. Die Formel ist ein **empirischer Fit**, nicht die Originalformel.
+
+Gesamteffekt der neuen Standardwerte gegenüber Phase 5: 4-s-Segmente +0,008 (grobe Bänder, t = 5,9) und +0,011 (feine Bänder, t = 5,6), auf den Portamento-Fenstern +0,030 (t = 6,3).
+
+**Tickrate:** Eine unabhängige Referenz aus einer anderen Aufnahmekette würde die Frage klären, z. B. ein WAV-Export derselben `.hipc`-Datei mit UADE. Liegt dieser bei exakt 50 Hz, ist die Abweichung ein Aufnahmeartefakt; liegt er ebenfalls bei ≈ 49,7 Hz, steckt sie im Timer des Originals.
+
+## 13. `Wings_Of_Death-Title.hip` (unkomprimierter Hippel-Container)
+
+Beleg: Die Datei ist der **unkomprimierte Vorläufer** des COSO-Formats, mit 68k-Replayer vorweg.
+
+| Bereich | Offset | Befund |
+|---|---|---|
+| 68k-Code | ab `$0000` | `BRA.W` Init `$08`, Play `$DC`; die Periodentabelle (113er-Clamp, danach Oktave 5 `$0D60…`) endet bei `$0A93`, Codeende nicht bestimmt |
+| Zählerblock | `$0A94` | `"TFMX"` + dieselben 8 Words wie COSO `$24..`: 39 Instrumente, 48 Timbres, 153 Monopatterns, 132 Divisions (jeweils Zähler + 1 wie im COSO-Header), `$40`, 4, 3 Songs, 21 Samples (jeweils direkt, Samples ungeprüft) |
+| Instrumente | `$0AB4` | 39 × **64-Byte-Slots**, 37 von 39 mit gültigem `E0`/`E1`-Programm (Rest ist Füllmaterial hinter dem Terminator) |
+| Timbres | `$1474` | 48 × 64 Byte, 47 von 48 plausibel; die Zeichenkette `"MAD MAX! * TEX * 1990"` liegt im Leerraum von Timbre 14 |
+| Monopatterns | `$2074` | 153 × 64 Byte als **4-Byte-Zeilenraster** (16 Zeilen), keine `FF`-Streams |
+| Divisions | `$46B4` | 132 × 12 Byte, maximaler Pattern-Index 152, Format wie in COSO |
+| Songs | `$4CE4` | Song 0 = Divisions 0–131, Speed 4; zwei Platzhalter |
+| danach | `$4CF6` | Dateinamen der Samples (`WOD_1:MVERZ3.DIG` …), dann PCM |
+
+Offen: die Zeilensemantik des Rasters (Pausen, Dauern, Entsprechung zu `FE/FD/FF`) steht nur im Code des Replayers. Zwei Wege: (a) die Play-Routine disassemblieren und die Zeilenkodierung nachbauen, (b) einen schlanken M68000-Interpreter schreiben, der Init/Play des Originals ausführt und die Paula-Registerschreibzugriffe abgreift. (b) liefert zugleich Originaltiming und deckt weitere Dateien dieser Familie ab.
 

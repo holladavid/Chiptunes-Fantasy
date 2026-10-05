@@ -168,7 +168,10 @@ class PaulaChannel {
         }
 
         this.fetchDMAWord();
-        this.fetchNextWordBuffer();
+        // Kein Vorab-Fetch: Die erste Ausgabe (bytePhase 0) lädt nextWord ohnehin nach und würde ein hier
+        // geladenes Word 1 überschreiben (ging verloren). Bei einem 1-Word-Sample schaltete der Vorab-Fetch
+        // die DMA sogar sofort ab (Sample blieb stumm).
+        this.nextWord = 0;
 
         if (this.dataBuffer && this.dataBuffer.length > 0) {
             this.heldValue = (this.audDat >> 8) & 0xFF;
