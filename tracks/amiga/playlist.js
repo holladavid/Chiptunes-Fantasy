@@ -1,7 +1,7 @@
 // === tracks/amiga/playlist.js ===
 // ==========================================
 // AMIGA MODS & HIPC/HIP PLAYLIST INTERFACE
-// Curated Showcase + Complete Wings of Death (Hippel-7V) Suite
+// Curated Showcase, Wings of Death & Dragonflight RPG Suite
 // ==========================================
 
 import { loadModFile } from '../../js/parsers/mod-parser.js';
@@ -17,6 +17,15 @@ const myModFiles = [
     "agony_intro.mod",              // Jochen Hippel (4)
     "turrican_2_title.xm",          // Chris Huelsbeck (5)
     
+    // --- JOCHEN HIPPEL: DRAGONFLIGHT (THALION 1990, COSO RPG SUITE) ---
+    "dragonflight_titletune.HIPC",  // Main Title Theme (7.5 Min. Epos)
+    "dragonflight_surface.HIPC",    // Overworld / Wilderness Travel
+    "dragonflight_town.HIPC",       // Towns, Taverns & Marketplaces
+    "dragonflight_dungeon.HIPC",    // Underground Catacombs & Caverns
+    "dragonflight_endsequence.HIPC",// Victory Fanfare & End Credits
+    "dragonflight_ani.HIPC",        // Cinematic Dragon Flight & Intro Anim
+    "dragonflight_always.HIPC",     // Atmospheric Mystic Motif
+
     // --- JOCHEN HIPPEL: WINGS OF DEATH (7-VOICE COSO / HIP SUITE) ---
     "Wings_Of_Death-Title.hip",     // Main Title Theme
     "Wings_Of_Death-Level_1.hipc",   // Level 1: Over the Trees
@@ -37,6 +46,45 @@ const myModFiles = [
 ];
 
 const composerMetadata = {
+    // =========================================================
+    // DRAGONFLIGHT (JOCHEN HIPPEL / MAD MAX) METADATA
+    // =========================================================
+    "dragonflight_titletune.HIPC": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p>Das monumentale <strong>Titelthema</strong> des epischen High-Fantasy-Rollenspiels <strong>Dragonflight</strong> (Thalion Software, 1990; Spieldesign: Erik Simon, Code: Michael Bittner). Dieses Meisterwerk ist mit einer Spieldauer von über <strong>7,5 Minuten (22.880 Ticks @ 50Hz, 170 Divisions)</strong> eine der längsten und komplexesten Einzelsatz-Kompositionen der gesamten 16-Bit-Ära.</p>
+        <p><strong>DSP- & Replay-Fokus:</strong> Mit einer gigantischen Sample-Bank von über 177 KB und Loop-Größen von bis zu 47.720 Bytes simuliert Hippel eine vollständige Orchesterbesetzung. Technisch brilliert das Stück durch den intensiven Einsatz von <em>Timbre-Adjustments</em> und den Hardware-Hüllkurven-Opcode <code>$E8</code> (Sustain-Hold), der Töne vor der Ausklingphase exakt im Pegel fixiert.</p>
+    `,
+    "dragonflight_surface.HIPC": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Overworld / Wilderness</strong> – Die Erkundungsmusik für die weiten Kontinente und Ebenen von <em>Dragonflight</em> (1990). Hippel erschafft hier eine heroische, naturverbundene Atmosphäre des Aufbruchs und der Reise.</p>
+        <p><strong>DSP- & Replay-Fokus:</strong> Schwebende Panflöten- und Oboen-Samples treffen auf sanfte, analog anmutende Basslinien. Durch die 14-Bit Hermite-Cubic-Interpolation unseres <em>Paula Fantasy Cores</em> klingen die Transienten gezupfter Instrumente wunderbar rund, während der <em>Paula Exact Core</em> mit 192 kHz ZOH-Oversampling den legendären kristallinen „Amiga-Schimmer“ bewahrt.</p>
+    `,
+    "dragonflight_town.HIPC": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Town & Tavern</strong> – Die friedliche und geschäftige Begleitmusik der mittelalterlichen Städte, Märkte und Tavernen in <em>Dragonflight</em>. Einer der eingängigsten und charmantesten Akustik-Tracks aus Jochen Hippels Feder.</p>
+        <p><strong>DSP- & Replay-Fokus:</strong> Polyphone Lauten-Arpeggios und grazile Flötenläufe imitieren echte Barockmusik auf nur vier physischen DMA-Kanälen. Die Register-Reloads von <code>AUDxLC</code> und <code>AUDxLEN</code> arbeiten hier im Sub-Millisekundentakt, um kurze Attack-Zupfer nahtlos in flache Haltephasen übergehen zu lassen.</p>
+    `,
+    "dragonflight_dungeon.HIPC": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Catacombs & Dungeons</strong> – Düstere, beklemmende Verlies-Atmosphäre für die gefährlichen Tiefen und Labyrinthe von <em>Dragonflight</em>.</p>
+        <p><strong>DSP- & Replay-Fokus:</strong> Hippel nutzt hier langgezogene, tief gestimmte Bass-Drones und unheimliche mikrotonale Pitch-Bends. Unser integriertes <em>Bauer Binaural Crossfeed</em> (700Hz / 4.5dB) fängt die harten L-R-R-L-Stereotrennungen ab und erzeugt einen unheimlich plastischen, klaustrophobischen Raumeindruck auf Kopfhörern.</p>
+    `,
+    "dragonflight_endsequence.HIPC": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Victory & Credits</strong> – Die festliche Endsequenz-Fanfare für alle Helden, die das Geheimnis der verschwundenen Drachen gelüftet und die Welt von Dragonflight gerettet haben.</p>
+        <p><strong>DSP- & Replay-Fokus:</strong> Triumphale Blechbläser-Fanfaren und orchestrale Percussion-Simulationen. Unser Lookahead True-Peak Limiter im Master-Bus fängt die massiven Signalspitzen bei maximalem 4-Kanal-Ausschlag verzerrungsfrei bei -0.35 dBFS ab und verhindert jedes Lautstärke-Ducking.</p>
+    `,
+    "dragonflight_ani.HIPC": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Cinematic Flight Sequence</strong> – Die treibende Begleitmusik zur grafisch bahnbrechenden 3D-Flug- und Intro-Animation von Thalion-Legende Günter Schmitz.</p>
+        <p><strong>DSP- & Replay-Fokus:</strong> Rasante Tempo- und Notenwechsel, synchron getaktet zum 50Hz-VBLANK-Raster des Amiga. Der Track fordert die COSO-Interpreter-Zustandsmaschine heraus und demonstriert die makellose Umschaltung zwischen verschiedenen Timbre- und Instrumenten-Banken zur Laufzeit.</p>
+    `,
+    "dragonflight_always.HIPC": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Mystic Motif („Always“)</strong> – Ein melancholisches, hochgradig intimes musikalisches Leitmotiv, das in Schlüsselmomenten der Erzählung ertönt.</p>
+        <p><strong>DSP- & Replay-Fokus:</strong> Feingliedrige Glocken- und Clavi-Wellenformen mit zarten Hüllkurven-Abklingkurven. Hier glänzt das analoge LF347-Op-Amp-Modell mit seiner begrenzten Slew Rate ($13\text{ V}/\mu\text{s}$), die selbst feinsten 8-Bit-Transienten den warmen, analogen Amiga-Schmelz verleiht.</p>
+    `,
+
     // =========================================================
     // WINGS OF DEATH (JOCHEN HIPPEL / MAD MAX) METADATA
     // =========================================================
@@ -120,7 +168,7 @@ export const amigaPlaylist = myModFiles.map((filename, index) => {
     const isXm = fnLower.endsWith('.xm');
     const isHip = fnLower.endsWith('.hipc') || fnLower.endsWith('.hip') || fnLower.endsWith('.coso');
     const isDw = fnLower.endsWith('.dw');
-    const label = isHip ? "HIPPEL-7V" : (isDw ? "WHITTAKER" : (isXm ? "FASTTRACKER" : "PROTRACKER"));
+    const label = isHip ? "HIPPEL-COSO" : (isDw ? "WHITTAKER" : (isXm ? "FASTTRACKER" : "PROTRACKER"));
 
     const metaInfo = composerMetadata[filename] || `
         <h3>[ CLASSIC AMIGA MODULE ]</h3>
