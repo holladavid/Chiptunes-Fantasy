@@ -1,6 +1,6 @@
 # Hippel-COSO (.hipc) — Verifizierte Layout-Spezifikation
 
-**Status:** Phasen 2 (Forensik), 4 (Replay-Kern), 5 (Paula-Hardwareanbindung) und 7 (zweite Referenz, Dragonflight) abgeschlossen · **Stand:** v1.5.0-dev
+**Status:** Phasen 2 (Forensik), 4 (Replay-Kern), 5 (Paula-Hardwareanbindung), 7 (zweite Referenz, Dragonflight) und 8 (UADE als Referenz) abgeschlossen · **Stand:** v1.5.0-dev
 **Verifiziert an:** `Wings_Of_Death-Level_1.hipc` (18282 B), `Wings_Of_Death-Level_2.hipc` (17112 B)
 **Externe Referenz (nur Gegenprüfung):** Pyrdacor/Amberstar `FileSpecs/Hippel-CoSo.md`
 
@@ -139,23 +139,26 @@ In L1/L2 kommen nur Volume-Bytes und `$E1` vor, Dragonflight nutzt zusätzlich `
 | „Subsong 1 = Hauptthema" (L1) | Song 0 = 168 Divisions (Hauptmusik), Song 1 = 4 Divisions |
 | Portamento ÷ 2^N | stammt aus ST-Rip-Konvertierung, hier unbelegt |
 
-## 9. Offene Punkte
+## 9. Stand der Annahmen
+
+Referenz seit Phase 8: UADE-Renderings (Abschnitt 15). Die YouTube-Aufnahmen (Abschnitte 10, 12, 14) haben nur eine grobe Spektralmessung erlaubt und sind in mehreren Punkten **überholt**.
 
 | # | Punkt | Stand |
 |---|---|---|
-| 1 | Tick-Arithmetik `song.speed` × `$FE/$FD`-Ticks × `channel_speed` | ✅ an Level 1 und 2 (Abschnitte 10, 14) |
-| 2 | Periodentabelle und Notensumme (Instrument-Pitch + Pattern-Note + Transpose) | ✅ im Bass auf ±1 Cent (Abschnitt 10) |
-| 3 | Portamento-Formel | ⚠️ Spec-Formel verworfen (Level 1 und 2); additiver Fit `(t·slope)>>5` an **Level 2 out-of-sample bestätigt** (Abschnitte 12, 14) |
-| 3b | Vibrato | ⚠️ Vorhandensein schwach gestützt (L1), auf Level 2 ohne messbaren Effekt; Skala/Form unbestimmt |
-| 4 | Verknüpfung Envelope × `channel_volume` | ❓ in allen drei Dateien ungenutzt (Division-Effekte nur `adj`) |
-| 5 | Instrumente ohne Terminator | ⚠️ Stille am Ende **auf beiden Leveln abgelehnt**, Hold bleibt (Restart auf L2 leicht schlechter) |
-| 6 | Tickrate der Referenzaufnahmen (49,707 Hz statt 50 Hz) | ❓ **zwei Aufnahmen stimmen überein** (L1 0,590 %, L2 0,576 % langsamer), vermutlich gleiche Aufnahmekette; Ursache offen, UADE-Referenz nötig |
-| 7 | Loop-Konvention Sample 18 | ✅ für Level 1 irrelevant (Loop-Region wird nie erreicht) |
-| 8 | Wellenwechsel mitten in der Note | ⚠️ `$E4`/`$E7` latchen, `$E2`/`$E5`/`$E9` starten neu (`split`): auf **beiden Leveln** besser als `restart`, reines `latch` ist auf Level 2 schlechter (Abschnitt 14) |
-| 9 | Envelope-Opcodes `$E0`/`$E8` | ⚠️ `$E8` = SUSTAIN(ticks) (Dragonflight, strukturelles Argument, kein Audio); `$E0` = LOOP ungeprüft |
-| 10 | Opcodes `E5`, `E6`, `E9`, `FULL-STOP`, `channel_*`-Effekte | ❓ in keiner Datei genutzt; `E3` (als `VIBRATO(0,0)`) und `E7` kommen in Dragonflight vor, plausibel, ohne Audio |
-| 11 | `word2E` im Header | Beobachtung: entspricht in allen drei Dateien dem Speed von Song 0 (2, 2, 5), Bedeutung ungeklärt |
-| 12 | `Wings_Of_Death-Title.hip` (68k-Replayer-Format) | ⚠️ Datenlayout großteils entschlüsselt (Abschnitt 13), Pattern-Zeilensemantik offen |
+| 1 | Tick-Arithmetik `song.speed` × `$FE/$FD`-Ticks × `channel_speed` | ✅ gegen UADE (Songlängen auf 0,02 % genau) |
+| 2 | Periodentabelle, Notensumme (Instrument-Pitch + Note + Transpose) | ✅ Wellenformen stimmen Wert für Wert (Korrelation 0,997) |
+| 3 | Tickrate des Players | ✅ 50 Hz (CIA-Timer 14188 = 49,9985 Hz); die 49,707 Hz der YouTube-Aufnahmen sind ein Aufnahmeartefakt |
+| 4 | Portamento | ✅ **Formel der Amberstar-Spec** `period·t·slope>>10`, `t = 1` im ersten Tick (R² 0,77 gegen ≈ 0,3 bei jeder Alternative). Der frühere additive Fit ist **verworfen** |
+| 5 | Vibrato | ✅ Startwert `+depth/2`, Skala `>>10`, keine Wirkung während der Verzögerung, erst anwenden dann weiterschalten, Rundung Richtung Null. ⚠️ Schrittweite/Randverhalten nur teilweise bestimmt |
+| 6 | Notenstart | ✅ startet die DMA **nicht** neu; nur `$E2` (SAMPLE mit Reset) tut das |
+| 7 | Wellenwechsel mitten in der Note | ✅ `$E4`/`$E7` latchen nur AUDxLC/LEN, `$E2` startet neu (`split`); `restart` und `latch` brechen je ein Instrument-Paar ein |
+| 8 | Envelope-Opcode `$E8` | ✅ **SUSTAIN(ticks)** (Audio: +5 Punkte erklärte Energie gegen die Spec-Lesart), `$E0` = LOOP ❓ ungeprüft |
+| 9 | Instrumente ohne Terminator | ⚠️ der Zeiger läuft in die Bytes des Folge-Instruments weiter (`continue`), leicht besser als Hold; Stille und Restart schlechter |
+| 10 | Loop-Konvention Sample 18 | ✅ für Level 1 irrelevant (Loop-Region wird nie erreicht) |
+| 11 | Timbre-Aliase (zwei Indexeinträge, ein Offset) | ✅ Elementende = nächster größerer Offset; Dragonflight Timbre 3 ist stumm |
+| 12 | Envelope × `channel_volume`, `E5`, `E6`, `E9`, `E0`-LOOP, `FULL-STOP` | ❓ in keiner der drei Dateien genutzt |
+| 13 | `word2E` im Header | Beobachtung: entspricht in allen drei Dateien dem Speed von Song 0 (2, 2, 5) |
+| 14 | `Wings_Of_Death-Title.hip` (68k-Replayer-Format) | ⚠️ Datenlayout großteils entschlüsselt (Abschnitt 13), Pattern-Zeilensemantik offen |
 
 ## 10. Referenzmessung (Phase 4)
 
@@ -179,7 +182,7 @@ Die Messmethode für die Tonhöhe wurde mit einer künstlich um 0,4 % verschoben
 **Schlüsse:**
 
 * Noten, Division-Raster und Tick-Arithmetik passen über 200 s ohne Restdrift. Eine falsche Speed-Semantik würde ungleichmäßig driften.
-* Das Tempo der Aufnahme liegt gleichmäßig 0,59 % unter 50 Hz (≈ 49,71 Hz, ±0,02). Eine globale Wiedergabe-Verlangsamung scheidet aus, weil die Tonhöhe im Bass nicht tiefer liegt. Ursache offen (Hypothesen: CIA-Timer des Spiels, Emulator-/Aufnahme-Timing). Der Adapter verwendet bis zur Klärung 50 Hz (`COSO_TICK_HZ`).
+* Das Tempo der Aufnahme liegt gleichmäßig 0,59 % unter 50 Hz (≈ 49,71 Hz, ±0,02). Eine globale Wiedergabe-Verlangsamung scheidet aus, weil die Tonhöhe im Bass nicht tiefer liegt. Ursache offen (Hypothesen: CIA-Timer des Spiels, Emulator-/Aufnahme-Timing). Der Adapter verwendet 50 Hz (`COSO_TICK_HZ`). **Geklärt in Abschnitt 15:** Die Abweichung ist ein Aufnahmeartefakt, der Player läuft mit 50 Hz.
 * Der Anstieg der Abweichung zu hohen Frequenzen (bis +5 Cent) ist nicht erklärt; er liegt in den Obertönen, nicht in den Grundtönen.
 
 **Implementiert, aber in L1/L2 nicht belegbar** (im Code mit `UNVERIFIED` markiert): `E3`, `E5`, `E6`, `E8`, `E9`, Envelope-`SUSTAIN` und -`LOOP`, `FULL-STOP`, `channel_speed`- und `channel_volume`-Effekte der Divisions.
@@ -211,6 +214,8 @@ Hardware-Semantik der Kanäle (`hwAttach`, `hwWriteLC`, `hwWriteLEN`, `hwStartDM
 **Nebenbefund `PaulaChannel` (nicht COSO-spezifisch):** Im unveränderten Kanal geht nach jedem `enableDMA()` das zweite Word der Sample-Daten verloren. Ein Loop-Puffer `[10,20,30,40,50,60,70,80]` erzeugt `10 20 50 60 70 80 10 20 30 40 …`. Ursache: `enableDMA()` lädt Word 1 per `fetchNextWordBuffer()` vor, die erste Ausgabe ruft es erneut auf und überschreibt es. Die Hardware-API vermeidet das (kein Vorab-Fetch), der MOD/XM-Pfad ist unverändert.
 
 ## 12. Messreihe Phase 6 (Level-1-Referenz, 49,707 Hz, gepaart)
+
+> **Teilweise überholt (Abschnitt 15):** Der hier gefittete additive Portamento-Ansatz (`(t·slope)>>5`) ist gegen UADE **falsch**; die proportionale Spec-Formel war richtig und die grobe Spektralmessung hat sie verdeckt. Die Aussagen zu Stille am Instrumentende und zu Vibrato sind ebenfalls durch Abschnitt 15 ersetzt.
 
 Alle Werte sind Differenzen der normierten Korrelation zur jeweiligen Basis (positiv = näher an der Aufnahme). Die Referenz stammt aus einem YouTube-Video; die Aufnahmekette (Emulator, Capture, Neuenkodierung) ist unbekannt.
 
@@ -287,4 +292,57 @@ Gültiger COSO-Header, 13 Instrumente, 23 Timbres, 94 Monopatterns, 170 Division
 * `timbre_adjust` wird intensiv genutzt (Werte bis 22, alle 680 Division-Effekte), die Wings-Dateien nutzen nur Werte bis 5.
 * `E3` kommt nur als `VIBRATO(0,0)` vor (schaltet Vibrato ab), `E7` in einem Instrument mit stummem 2-Byte-Sample.
 * Instrumente sind Ein-Sample-Programme mit langen Loop-Samples (bis 47720 Byte).
+
+## 15. Phase 8: UADE als Referenz
+
+### 15.1 Material und Methode
+
+`level1.wav`, `level2.wav`, `dragonflight.wav`: mit `uade123 --filter=none --panning=0` gerendert, 44,1 kHz, 16 Bit, Stereo mit harter Amiga-Trennung (links = Stimmen 0+3, rechts = 1+2, L/R-Korrelation ≈ 0). Dauer 222,824 s (L1), 160,030 s (L2), 457,652 s (Dragonflight). Modell bei 50 Hz: 160,000 s und 457,600 s. Erster Ton nach 41 ms (UADE-Anlauf). Die mitgelieferten `.txt`-Dateien sind IRA-Disassemblies der Daten (als Code gelesen) und enthalten keine Registerspuren.
+
+Jede Stimme wird einzeln durch den echten Laufzeitpfad (Adapter + `PaulaChannel`) gerendert. Pro Tick (882 Samples) wird die UADE-Seite als Summe der zwei Stimmen der Seite per Kleinste-Quadrate angepasst. Maße:
+
+* **feste Phase** (nur blockweise Ausrichtung): empfindlich für **Tonhöhe**, schon 0,1 % Fehler summieren sich zu Phasenfehlern.
+* **lokale Phase** (±40 Samples pro Fenster freigegeben): prüft **Wellenform, Lautstärke, Hüllkurve und Wellenwechsel** unabhängig von kleiner Phasendrift.
+* Isolierte Stimmen: Fenster, in denen die Partnerstimme im Modell < 3 % der Energie hat. Bei Bedarf Tiefpass 2,5 kHz (Resampling-Unterschiede).
+
+UADE-Pegel = 1,645 × unsere 0,3-skalierte Ausgabe, konstant. Eine stabile Sample-10-Note stimmt **Wert für Wert** überein (Korrelation 0,997, Zahlen auf ±0,01).
+
+### 15.2 Tempo
+
+Die blockweise Ausrichtung driftet in allen drei Stücken um **27–28 ppm** (+178 Samples in 150 s, +148 in 120 s, +248 in 200 s). Das entspricht einem Tick von 49,9985 Hz = CIA-Timer 14188 (709379/14188). Der Player läuft damit praktisch mit 50 Hz; die um 0,59 % langsameren Aufnahmen vom YouTube-Video sind ein Artefakt ihrer Kette.
+
+### 15.3 Entscheidungen, die UADE bestätigt oder umgestoßen hat
+
+| Frage | Messung gegen UADE | Urteil |
+|---|---|---|
+| Notenstart startet DMA neu | `triggerRestart=0`: L2 I10 R² 0,08 → 0,80, I12 0,18 → 0,57, nichts verschlechtert | **nur `$E2` startet neu** |
+| Wellenwechsel | `split`: I9 0,93, I0 0,99. `restart`: I9 0,22. `latch`: I0 0,23 | **`$E2` Neustart, `$E4`/`$E7` Latch** |
+| Vibrato, Startwert/Skala | Dragonflight I5 (Slope 0, Tiefe 48, n = 1009): R² 0,98. `start=zero/bottom`, `>>9`, `>>11`: 0,12–0,19 | **Start `+depth/2`, `>>10`** |
+| Vibrato, Verzögerung | Offset schon während der Verzögerung: Dragonflight 78,7 → 74,8 % | **kein Offset** |
+| Vibrato, Reihenfolge/Rundung | erst anwenden: L2 I10 0,80 → 0,91; Rundung Richtung Null: I9 0,95 → 0,99 | **anwenden, dann weiterschalten, Rundung Richtung Null** |
+| Portamento | Spec `>>10`: R² 0,77 (L2) und 0,76 (L1, Median 0,92); `add5`, `>>9`, `>>11`, `add4`: ≈ 0,3 | **Spec-Formel**, `t = 1` im ersten Tick (`t = 0`: 0,42) |
+| Envelope `$E8` | Dragonflight ganzes Stück, Sustain gegen Spec-Lesart: +4,7 (lokal) bzw. +5,1 Punkte (fest) | **SUSTAIN(ticks)** |
+| Instrumente ohne Terminator | `continue`: L2 89,1 %, L1 86,9 % gegen `hold` 88,9 / 86,3 %, `silence` 88,4 / 85,2 % | **Zeiger läuft weiter** |
+| Timbre-Alias 3 (Dragonflight) | UADE-RMS nach Trigger 0,019 gegenüber 0,063 im Stück (10 Fälle) | stumm, konsistent |
+
+**Korrekturen früherer Aussagen:** Der additive Portamento-Fit (Abschnitt 12, `(t·slope)>>5`, "an Level 2 bestätigt" in Abschnitt 14) war ein Artefakt der groben Spektralmessung der YouTube-Aufnahmen. Die Spec-Formel ist richtig. Auch die Aussage, Vibrato sei "nicht messbar", galt nur für jene Methode.
+
+### 15.4 Stand der Übereinstimmung
+
+Erklärte Energie der UADE-Seiten durch das Modell:
+
+| Stück | Stand der letzten Runde (fest / lokal) | heute (fest / lokal) |
+|---|---|---|
+| Level 1 | 84,2 / 90,7 % | **86,9 / 95,2 %** |
+| Level 2 | 87,5 / 97,4 % | **89,1 / 98,0 %** |
+| Dragonflight | 81,8 / 92,0 % | **83,3 / 92,5 %** |
+
+Mit lokaler Phase erreichen praktisch alle Instrumente R² 0,96–1,00. Der Rest bei fester Phase ist **Phasendrift**: Der relative Frequenzfehler je Instrument liegt im Median bei −1147 bis +1273 ppm (höchstens 0,13 %, 2 Cent), die größeren Werte bei Instrumenten mit Tonhöhensprüngen innerhalb weniger Ticks, wo ein halber Tick Versatz zwischen Registerschreibzeitpunkt und Tickgrenze wie ein Frequenzfehler wirkt. Statische Instrumente liegen bei −48 bis −62 ppm.
+
+### 15.5 Offen
+
+* `$E0` als Envelope-LOOP, `E5`, `E6`, `E9`, `channel_volume`, `FULL-STOP`: in keiner Datei genutzt.
+* Schrittweite und Randverhalten des Vibratos bei Slope > 0: widersprüchliche Signale zwischen Instrumenten, nicht entschieden.
+* UADE spielt Level 1 7,78 s über den ersten Durchlauf (215,04 s) hinaus; Ursache nicht geprüft (vermutlich Loop-Erkennung oder Timeout von UADE).
+* Registerebene: `uade123 --write-audio` ist noch nicht ausgewertet.
 

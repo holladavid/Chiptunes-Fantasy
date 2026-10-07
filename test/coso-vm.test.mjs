@@ -153,8 +153,9 @@ test('Hardware-Pfad, erster Tick: Registerfolge LC/LEN -> START -> Loop-LC/LEN',
     const ch = hwChans();
     vm.processTick(ch);
     const lc = CHIP_BASE + mod.sampleTable[8].start;                  // Welle 8: 32 Byte, ganzer Loop
-    assert.deepEqual(ch[0].calls, [['ATTACH'], ['PER', 428], ['VOL', 38], ['LC', lc], ['LEN', 16], ['START'], ['LC', lc], ['LEN', 16]]);
-    assert.deepEqual(ch[3].calls, [['ATTACH'], ['VOL', 0]]);          // Stimme 3 stumm, kein DMA
+    const prime = [['ATTACH'], ['LC', SILENCE_LC], ['LEN', 1], ['START']];   // wie der Original-Player: DMA läuft auf dem Stille-Wort
+    assert.deepEqual(ch[0].calls, [...prime, ['PER', 428], ['VOL', 38], ['LC', lc], ['LEN', 16], ['START'], ['LC', lc], ['LEN', 16]]);
+    assert.deepEqual(ch[3].calls, [...prime, ['VOL', 0]]);            // Stimme 3 stumm, nur das Stille-Wort
 });
 
 function oneShotMod() {

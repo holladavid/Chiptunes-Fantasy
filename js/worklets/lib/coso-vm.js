@@ -21,9 +21,9 @@
 
 import { CosoReplayer, REG } from './coso-replayer.js';
 
-// Standard-Tickrate (PAL-Vblank/CIA). Eine Referenzaufnahme von Wings of Death
-// Level 1 lief mit ~49.707 Hz (siehe doc/specs/hipc-coso-verified-spec.md, Abschnitt 10).
-// Die Worklets teilen aktuell fest durch 50.0; ein anderer Wert erfordert dort eine Anpassung.
+// Tickrate des Original-Players: 50 Hz. Gegen UADE gemessen (Abschnitt 15 der Spec): der Player läuft mit dem CIA-Standardtakt
+// (Timer 14188 -> 49.9985 Hz, 27-28 ppm langsamer als exakt 50 Hz). Die ~49.707 Hz der YouTube-Aufnahmen sind ein Artefakt
+// jener Aufnahmekette. Die Worklets teilen fest durch 50.0.
 export const COSO_TICK_HZ = 50;
 
 // Wie SAMPLE-Opcodes mitten in einer Note auf die DMA wirken (siehe CosoReplayer):
@@ -70,6 +70,7 @@ export class CosoVirtualMachine {
         this.curLC = new Int32Array(NUM_VOICES);          // zuletzt gelatchte Register (Hardware-Pfad)
         this.curLEN = new Int32Array(NUM_VOICES);
         this.pendingSilence = new Uint8Array(NUM_VOICES); // Folge-Latch: nach einem One-Shot-Latch auf Stille umschalten
+        this.dmaPrimed = new Uint8Array(NUM_VOICES);      // 1 = Kanal läuft bereits (Stille-Wort-Loop)
         this.lastLoopStart = new Int32Array(NUM_VOICES);  // Legacy-Pfad
         this.lastLoopLen = new Int32Array(NUM_VOICES);
         this.legacyVoices = [{}, {}, {}, {}];
@@ -89,6 +90,7 @@ export class CosoVirtualMachine {
             this.curLC.fill(0);
             this.curLEN.fill(0);
             this.pendingSilence.fill(0);
+            this.dmaPrimed.fill(0);
             this.lastLoopStart.fill(0);
             this.lastLoopLen.fill(0);
         }
@@ -117,6 +119,14 @@ export class CosoVirtualMachine {
             const o = c * REG.STRIDE;
             const ch = channels[c];
             if (ch.chipRam !== ram) ch.hwAttach(ram);
+            if (!this.dmaPrimed[c]) {                               // wie der Original-Player: DMA läuft von Anfang an auf einem Stille-Wort,
+                ch.hwWriteLC(SILENCE_LC);                           // spätere LC/LEN-Latches greifen dann am nächsten Wrap
+                ch.hwWriteLEN(1);
+                ch.hwStartDMA();
+                this.curLC[c] = SILENCE_LC;
+                this.curLEN[c] = 1;
+                this.dmaPrimed[c] = 1;
+            }
 
             if (this.pendingSilence[c]) {                           // Folge-Latch aus dem Vortick
                 ch.hwWriteLC(SILENCE_LC);

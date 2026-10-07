@@ -147,21 +147,29 @@ test('Envelope-Speed: jeder Wert hält "speed" Ticks', () => {
     assert.deepEqual(v, [48, 48, 48, 16, 16, 16, 16]);
 });
 
-test('Portamento ($20, Standard "add"): Periode sinkt monoton, Legato beendet es', () => {
-    const { rp } = synth({ monos: [[0xFE, 5, ...N(24, 0x20, 127), ...N(0x98), 0xFF], IDLE_PATTERN], divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]] });
+test('Portamento ($20, Standard): proportional period*t*slope>>10, t = 1 im ersten Tick (gegen UADE belegt)', () => {
+    const { rp } = synth({ monos: [[0xFE, 5, ...N(24, 0x20, 16), ...N(0x98), 0xFF], IDLE_PATTERN], divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]] });
     const p = []; for (let i = 0; i < 6; i++) { rp.tick(); p.push(reg(rp, 0, REG.PERIOD)); }
-    assert.equal(p[0], 428 - ((1 * 127) >> 5));                  // additiv: (t * slope) >> 5
-    for (let i = 1; i < 6; i++) assert.ok(p[i] < p[i - 1], `tick ${i}: ${p[i]} !< ${p[i - 1]}`);
+    for (let t = 1; t <= 6; t++) assert.equal(p[t - 1], 428 - ((428 * t * 16) >> 10), `Tick ${t}`);
+    for (let i = 1; i < 6; i++) assert.ok(p[i] < p[i - 1]);
     for (let i = 0; i < 6; i++) rp.tick();                       // zweite Note (Legato) = Note 24 ohne Portamento
     assert.equal(reg(rp, 0, REG.PERIOD), 428);
 });
 
-test('Portamento, Modus "mul" = Formel der Amberstar-Spec (period * t * slope >> 10)', () => {
+test('Portamento, Modus "add" (früherer YouTube-Fit, verworfen): additiv (t*slope)>>5', () => {
+    const bytes = buildCoso({ instruments: [INST0, INST1], timbres: [T(0), T(1)], monos: [[0xFE, 5, ...N(24, 0x20, 127), 0xFF], IDLE_PATTERN],
+        divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]], songs: [{ start: 0, end: 0, speed: 1 }], samples: [SMP0, { ...SMP0, pos: 32 }], pcm: [...WAVE32, ...WAVE32] });
+    const rp = new CosoReplayer(parseCoso(bytes, { name: 'add' }), { portMode: 'add' });
+    rp.tick();
+    assert.equal(reg(rp, 0, REG.PERIOD), 428 - ((1 * 127) >> 5));
+});
+
+test('Portamento: portOrder 1 zählt erst nach der Anwendung (t = 0 im ersten Tick)', () => {
     const bytes = buildCoso({ instruments: [INST0, INST1], timbres: [T(0), T(1)], monos: [[0xFE, 5, ...N(24, 0x20, 16), 0xFF], IDLE_PATTERN],
         divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]], songs: [{ start: 0, end: 0, speed: 1 }], samples: [SMP0, { ...SMP0, pos: 32 }], pcm: [...WAVE32, ...WAVE32] });
-    const rp = new CosoReplayer(parseCoso(bytes, { name: 'mul' }), { portMode: 'mul' });
-    rp.tick();
-    assert.equal(reg(rp, 0, REG.PERIOD), 428 - ((428 * 1 * 16) >> 10));
+    const rp = new CosoReplayer(parseCoso(bytes, { name: 'ord' }), { portOrder: 1 });
+    rp.tick(); assert.equal(reg(rp, 0, REG.PERIOD), 428);
+    rp.tick(); assert.equal(reg(rp, 0, REG.PERIOD), 428 - ((428 * 16) >> 10));
 });
 
 test('Portamento "off" (portMode mul, portShift 0) lässt die Periode unverändert', () => {
@@ -193,11 +201,11 @@ test('FULL-STOP ($8y) beendet den Song', () => {
     assert.equal(reg(rp, 0, REG.VOLUME), 0);
 });
 
-test('Unterminiertes Instrument: Runoff wird gezählt, kein Absturz, Sample bleibt', () => {
-    const { rp } = synth({ instruments: [[0xE2, 0x00, 0x00], INST1], monos: [[0xFE, 7, ...N(24), 0xFF], IDLE_PATTERN], divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]] });
+test('Letztes Instrument ohne Terminator: Zeiger erreicht das Sektionsende, Runoff wird gezählt, Sample bleibt', () => {
+    const { rp } = synth({ instruments: [INST0, [0xE2, 0x01, 0x00]], timbres: [T(1), T(0)], monos: [[0xFE, 7, ...N(24), 0xFF], IDLE_PATTERN], divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]] });
     for (let i = 0; i < 5; i++) rp.tick();
     assert.ok(rp.stats.instRunoff >= 1);
-    assert.equal(reg(rp, 0, REG.SAMPLE), 0);
+    assert.equal(reg(rp, 0, REG.SAMPLE), 1);
 });
 
 test('reset(): identische Register-Folge nach Neustart', () => {
@@ -276,21 +284,23 @@ test('ZERO-ALLOCATION: tick() allokiert im Dauerbetrieb nichts (braucht --expose
 // =========================================================
 // Phase 5: waveChange-Modi (Wellenwechsel MITTEN in einer Note)
 // =========================================================
-function waveSynth(instr, waveChange) {
+function waveSynth(instr, waveChange, extra = {}) {
     const bytes = buildCoso({
         instruments: [instr, INST1], timbres: [T(0), T(1)],
         monos: [[0xFE, 7, ...N(24), 0xFF], IDLE_PATTERN], divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]],
         songs: [{ start: 0, end: 0, speed: 1 }], samples: [SMP0, { ...SMP0, pos: 32 }], pcm: [...WAVE32, ...WAVE32]
     });
-    return new CosoReplayer(parseCoso(bytes, { name: 'w' }), { waveChange });
+    return new CosoReplayer(parseCoso(bytes, { name: 'w' }), { waveChange, ...extra });
 }
 const flagsOf = (rp, n) => { const o = []; for (let i = 0; i < n; i++) { rp.tick(); o.push(reg(rp, 0, REG.FLAGS) & 5); } return o; };
 
+const TR = { triggerRestart: true };                          // alte Annahme: jeder Note-Trigger startet die DMA neu
+
 test('waveChange: anderes Sample mitten in der Note -> restart: Neustart, latch/hybrid: nur Latch', () => {
     const instr = [0xE2, 0x00, 0x00, 0xE2, 0x01, 0x00, 0xE1];         // Welle 0, 1 Tick, dann Welle 1
-    assert.deepEqual(flagsOf(waveSynth(instr, 'restart'), 3), [1, 1, 0]);
-    assert.deepEqual(flagsOf(waveSynth(instr, 'latch'), 3), [1, 4, 0]);
-    assert.deepEqual(flagsOf(waveSynth(instr, 'hybrid'), 3), [1, 4, 0]);
+    assert.deepEqual(flagsOf(waveSynth(instr, 'restart', TR), 3), [1, 1, 0]);
+    assert.deepEqual(flagsOf(waveSynth(instr, 'latch', TR), 3), [1, 4, 0]);
+    assert.deepEqual(flagsOf(waveSynth(instr, 'hybrid', TR), 3), [1, 4, 0]);
 });
 
 test('waveChange "split": $E4 latcht, $E2 startet neu (Wellenwechsel mitten in der Note)', () => {
@@ -301,16 +311,16 @@ test('waveChange "split": $E4 latcht, $E2 startet neu (Wellenwechsel mitten in d
     assert.deepEqual(flagsOf(waveSynth(viaE4, 'restart'), 3), [1, 1, 0]);   // zur Gegenprobe: restart behandelt beide gleich
 });
 
-test('waveChange: gleiches Sample mit reset=1 -> restart/hybrid: Neustart, latch: Latch', () => {
+test('waveChange mit triggerRestart:true: gleiches Sample mit reset=1 -> restart/hybrid: Neustart, latch: Latch', () => {
     const instr = [0xE2, 0x00, 0x00, 0xE2, 0x00, 0x00, 0xE1];
-    assert.deepEqual(flagsOf(waveSynth(instr, 'restart'), 3), [1, 1, 0]);
-    assert.deepEqual(flagsOf(waveSynth(instr, 'hybrid'), 3), [1, 1, 0]);
-    assert.deepEqual(flagsOf(waveSynth(instr, 'latch'), 3), [1, 4, 0]);
+    assert.deepEqual(flagsOf(waveSynth(instr, 'restart', TR), 3), [1, 1, 0]);
+    assert.deepEqual(flagsOf(waveSynth(instr, 'hybrid', TR), 3), [1, 1, 0]);
+    assert.deepEqual(flagsOf(waveSynth(instr, 'latch', TR), 3), [1, 4, 0]);
 });
 
-test('waveChange: Note-Trigger startet die DMA in jedem Modus neu', () => {
+test('waveChange mit triggerRestart:true: Note-Trigger startet die DMA in jedem Modus neu', () => {
     const instr = [0xE2, 0x00, 0x00, 0xE1];
-    for (const m of ['restart', 'latch', 'hybrid']) assert.equal(flagsOf(waveSynth(instr, m), 1)[0] & 1, 1, m);
+    for (const m of ['restart', 'latch', 'hybrid']) assert.equal(flagsOf(waveSynth(instr, m, TR), 1)[0] & 1, 1, m);
 });
 
 // =========================================================
@@ -348,4 +358,75 @@ test('Dragonflight: Timbre 3 (Alias von Timbre 4) wird getriggert und ist stumm 
     }
     assert.ok(triggers >= 90, `Trigger ${triggers}`);
     assert.equal(audible, 0);                                   // Envelope "00 00 E1": Lautstärke 0 statt Reststand der Vornote
+});
+
+// =========================================================
+// Phase 8: Messungen gegen UADE (Abschnitt 15 der Spec)
+// =========================================================
+test('Standard: Note-Trigger allein startet die DMA nicht neu, $E2 tut es, $E4 nicht', () => {
+    const viaE2 = [0xE2, 0x01, 0x00, 0xE1];
+    const viaE4 = [0xE4, 0x01, 0x00, 0xE1];
+    assert.deepEqual(flagsOf(waveSynth(viaE2, 'split'), 2), [1, 0]);   // $E2: Neustart
+    assert.deepEqual(flagsOf(waveSynth(viaE4, 'split'), 2), [4, 0]);   // $E4: nur Latch, die Welle läuft phasenstetig weiter
+    assert.deepEqual(flagsOf(waveSynth(viaE4, 'split', TR), 2), [1, 0]);
+});
+
+function vibSynth(vib, extra = {}) {
+    const bytes = buildCoso({
+        instruments: [INST0, INST1], timbres: [T(0, [0x3F, 0xE1], 1, vib), T(1)],
+        monos: [[0xFE, 15, ...N(24), 0xFF], IDLE_PATTERN], divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]],
+        songs: [{ start: 0, end: 0, speed: 1 }], samples: [SMP0, { ...SMP0, pos: 32 }], pcm: [...WAVE32, ...WAVE32]
+    });
+    return new CosoReplayer(parseCoso(bytes, { name: 'vib' }), extra);
+}
+const periods = (rp, n) => { const o = []; for (let i = 0; i < n; i++) { rp.tick(); o.push(reg(rp, 0, REG.PERIOD)); } return o; };
+
+test('Vibrato slope 0: konstanter Offset +depth/2 (an Dragonflight Instrument 5 belegt, R2 0.98)', () => {
+    const p = periods(vibSynth([0, 48, 0]), 4);
+    assert.deepEqual(p, [428 + ((428 * 24) >> 10), 428 + ((428 * 24) >> 10), 428 + ((428 * 24) >> 10), 428 + ((428 * 24) >> 10)]);
+});
+
+test('Vibrato: erste Anwendung nutzt den Startwert, erst danach wird weitergeschaltet (vibOrder 1)', () => {
+    const p = periods(vibSynth([4, 20, 0]), 5);                     // pos: +10 -> +6 -> +2 -> -2 -> -6
+    const exp = [10, 6, 2, -2, -6].map(v => 428 + (v < 0 ? -((428 * -v) >> 10) : (428 * v) >> 10));
+    assert.deepEqual(p, exp);
+});
+
+test('Vibrato: während der Verzögerung gilt KEIN Offset (belegt: vibDelayStatic wäre schlechter)', () => {
+    const p = periods(vibSynth([0, 48, 3]), 5);
+    assert.deepEqual(p.slice(0, 3), [428, 428, 428]);
+    assert.equal(p[3], 428 + ((428 * 24) >> 10));
+});
+
+test('Vibrato: negative Werte runden Richtung Null (vibRound 1), vibRound 0 rundet ab', () => {
+    const neg = [0, 8, 0];                                          // slope 0 hält +4; mit Startwert unten -4
+    const trunc = periods(vibSynth(neg, { vibStart: 2 }), 1)[0];
+    const floor = periods(vibSynth(neg, { vibStart: 2, vibRound: 0 }), 1)[0];
+    assert.equal(trunc, 428 - ((428 * 4) >> 10));
+    assert.equal(floor, 428 + ((428 * -4) >> 10));
+    assert.ok(trunc > floor);
+});
+
+test('Instrument ohne Terminator läuft in die Bytes des Folge-Instruments weiter (Standard "continue", gegen UADE belegt)', () => {
+    // I0 = [E2 00, 00] ohne Terminator, direkt dahinter I1 = [E2 01, 00, E1]
+    const { rp } = synth({ instruments: [[0xE2, 0x00, 0x00], [0xE2, 0x01, 0x00, 0xE1]], monos: [[0xFE, 15, ...N(24), 0xFF], IDLE_PATTERN],
+        divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]] });
+    const smp = []; for (let i = 0; i < 4; i++) { rp.tick(); smp.push(reg(rp, 0, REG.SAMPLE)); }
+    assert.deepEqual(smp, [0, 1, 1, 1]);                         // Tick 1: der Zeiger erreicht das Folge-Instrument
+});
+
+test('runoff "hold": Instrument ohne Terminator bleibt am Elementende stehen (Messhaken)', () => {
+    const bytes = buildCoso({ instruments: [[0xE2, 0x00, 0x00], [0xE2, 0x01, 0x00, 0xE1]], timbres: [T(0), T(1)], monos: [[0xFE, 15, ...N(24), 0xFF], IDLE_PATTERN],
+        divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]], songs: [{ start: 0, end: 0, speed: 1 }], samples: [SMP0, { ...SMP0, pos: 32 }], pcm: [...WAVE32, ...WAVE32] });
+    const rp = new CosoReplayer(parseCoso(bytes, { name: 'hold' }), { runoff: 'hold' });
+    const smp = []; for (let i = 0; i < 4; i++) { rp.tick(); smp.push(reg(rp, 0, REG.SAMPLE)); }
+    assert.deepEqual(smp, [0, 0, 0, 0]);
+});
+
+test('envSpec: Envelope-Opcodes wie in der Amberstar-Spec ($E0 SUSTAIN, $E8 LOOP) sind als Messhaken verfügbar', () => {
+    const bytes = buildCoso({ instruments: [INST0, INST1], timbres: [T(0, [0x20, 0xE0, 0x03, 0x10, 0xE1]), T(1)], monos: [[0xFE, 15, ...N(24), 0xFF], IDLE_PATTERN],
+        divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]], songs: [{ start: 0, end: 0, speed: 1 }], samples: [SMP0, { ...SMP0, pos: 32 }], pcm: [...WAVE32, ...WAVE32] });
+    const rp = new CosoReplayer(parseCoso(bytes, { name: 'spec' }), { envSpec: true });
+    const v = []; for (let i = 0; i < 6; i++) { rp.tick(); v.push(reg(rp, 0, REG.VOLUME)); }
+    assert.deepEqual(v, [32, 32, 32, 32, 16, 16]);
 });

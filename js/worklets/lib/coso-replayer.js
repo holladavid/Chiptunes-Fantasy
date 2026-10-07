@@ -88,13 +88,24 @@ export class CosoReplayer {
      *     'split'   : $E4/$E7 -> latch, alle anderen SAMPLE-Opcodes ($E2, $E5, $E9) -> restart
      *   Note-Trigger starten die DMA immer neu.
      * Messhaken für offene Semantikfragen (Standard = Spec-Verhalten, siehe Abschnitt 12 der Spec):
-     *   runoff    : 'hold' | 'restart' | 'silence'  Instrument ohne Terminator erreicht sein Ende
+     *   triggerRestart : 0                          0 = nur $E2/$E5/$E9 (SAMPLE mit Reset) starten die DMA neu (Standard, belegt),
+     *                                               1 = zusätzlich jeder Note-Trigger
+     *   runoff    : 'continue' | 'hold' | 'restart' | 'silence'  Instrument ohne Terminator erreicht sein Ende
+     *               ('continue', Standard = der Zeiger läuft in die Bytes des Folge-Instruments weiter, wie in einem 68k-Player;
+     *               gegen UADE leicht besser als 'hold', 'silence' und 'restart' sind schlechter)
      *   loopConv  : 'full' | 'toLoopEnd'            erster Durchlauf bis Sample-Ende oder nur bis Loop-Ende
-     *   portMode  : 'add' | 'mul'                   additiv ((t * slope * portMul) >> shift, Standard) oder proportional
-     *                                               wie in der Amberstar-Spec (period * t * slope >> shift)
-     *   portShift : 5 ('add') / 10 ('mul')          Portamento-Skalierung; bei 'mul' bedeutet 0 = aus
+     *   portMode  : 'mul' | 'add'                   proportional wie in der Amberstar-Spec (period * t * slope >> shift, Standard,
+     *                                               gegen UADE belegt) oder additiv ((t * slope * portMul) >> shift)
+     *   envSpec   : 0 | 1                           1 = Envelope-Opcodes wie in der Amberstar-Spec ($E0 SUSTAIN, $E8 LOOP) statt $E8 SUSTAIN, $E0 LOOP
+     *   portShift : 10 ('mul') / 5 ('add')          Portamento-Skalierung; bei 'mul' bedeutet 0 = aus
+     *   portOrder : 0 | 1                           0 = t vor der Anwendung erhöhen (t = 1 im ersten Tick), 1 = danach (t = 0)
      *   portMul   : 1                               Zusatzfaktor im 'add'-Modus: (t * slope * portMul) >> portShift
      *   vibShift  : 10                              Vibrato-Skalierung (period * vib >> vibShift), 0 = aus
+     *   vibOrder  : 1 | 0                           1 = erst anwenden, dann weiterschalten (Standard, belegt), 0 = umgekehrt
+     *   vibSlopeX2: 2                               Schrittweite = slope * vibSlopeX2 / 2 (1 = halb, 4 = doppelt)
+     *   vibRound  : 1 | 0                           1 = Richtung Null (Standard, belegt), 0 = abrunden (>>)
+     *   vibStart  : 0 | 1 | 2                       Startwert +depth/2 (oben), 0 (Mitte), -depth/2 (unten)
+     *   vibDelayStatic : 0 | 1                      1 = während der Verzögerung gilt bereits der Startwert (nur die Bewegung wartet)
      */
     constructor(mod, opt = {}) {
         this.data = mod.data;
@@ -133,14 +144,23 @@ export class CosoReplayer {
         this.songSpeed = song.speed;
         this.loop = (opt.loop === undefined) ? true : !!opt.loop;
         const wc = opt.waveChange || 'restart';
-        this.runoffMode = (opt.runoff === 'restart') ? 1 : (opt.runoff === 'silence') ? 2 : 0;
+        this.triggerRestart = !!opt.triggerRestart;               // Standard: aus (Level-2-Messung, Abschnitt 15)
+        this.runoffMode = (opt.runoff === 'hold') ? 0 : (opt.runoff === 'restart') ? 1 : (opt.runoff === 'silence') ? 2 : 3;   // Standard 'continue'
+        this.instSectionEnd = mod.header.pos.timbres;            // Ende der Instrument-Sektion (für 'continue')
         this.loopToEnd = (opt.loopConv === 'toLoopEnd');
-        // Portamento: EMPIRISCHER Fit gegen die Level-1-Referenz (Abschnitt 12 der Spec), nicht die Spec-Formel.
-        // Die proportionale Spec-Formel (>>10) ist ~16-32x zu stark; 'add' mit >>5 (= slope/32 pro Tick) ist das Optimum.
-        this.portAdd = (opt.portMode !== 'mul');
+        // Portamento: Formel der Amberstar-Spec (proportional, >>10). Gegen die UADE-Referenz belegt (R2 0.77 gegen 0.3 bei jeder
+        // Alternative); der frühere additive Fit aus den YouTube-Aufnahmen war ein Artefakt der groben Spektralmessung.
+        this.portAdd = (opt.portMode === 'add');
         this.portShift = (opt.portShift === undefined) ? (this.portAdd ? 5 : 10) : (opt.portShift | 0);
+        this.portOrder = (opt.portOrder | 0);
+        this.envSpec = !!opt.envSpec;
         this.portMul = (opt.portMul === undefined) ? 1 : (opt.portMul | 0);
         this.vibShift = (opt.vibShift === undefined) ? 10 : (opt.vibShift | 0);
+        this.vibOrder = (opt.vibOrder === undefined) ? 1 : (opt.vibOrder | 0);
+        this.vibSlopeX2 = (opt.vibSlopeX2 === undefined) ? 2 : (opt.vibSlopeX2 | 0);
+        this.vibRound = (opt.vibRound === undefined) ? 1 : (opt.vibRound | 0);
+        this.vibStart = (opt.vibStart | 0);
+        this.vibDelayStatic = (opt.vibDelayStatic | 0);
         this.waveMode = (wc === 'latch') ? 1 : (wc === 'hybrid') ? 2 : (wc === 'split') ? 3 : 0;
 
         this.voices = [];
@@ -260,7 +280,7 @@ export class CosoReplayer {
         v.timbre = tim;
         v.instrument = instr;
         v.instStart = this.instOff[instr];
-        v.instEnd = this.instEndOf[instr];
+        v.instEnd = (this.runoffMode === 3) ? this.instSectionEnd : this.instEndOf[instr];
         v.instPtr = v.instStart;
         v.instWait = 0;
         v.instDone = false;
@@ -278,14 +298,14 @@ export class CosoReplayer {
         v.vibSlope = d[to + 2];
         v.vibDepth = d[to + 3];
         v.vibDelay = d[to + 4];
-        v.vibPos = v.vibDepth >> 1;
+        v.vibPos = this.vibStartValue(v.vibDepth);
         v.vibDir = -1;
 
         v.portActive = (info & 0x20) !== 0;
         v.portSlope = s8(extra);
         v.portT = 0;
 
-        v.flags |= 1 | 2;                                           // RETRIGGER | ACTIVE
+        v.flags |= (this.triggerRestart ? 1 : 0) | 2;               // RETRIGGER | ACTIVE
         v.active = true;
     }
 
@@ -303,6 +323,16 @@ export class CosoReplayer {
         else if (this.waveMode === 2) v.flags |= changed ? 4 : (reset ? 1 : 0);
         else if (soft) { if (reset || changed) v.flags |= 4; }       // 'split': $E4/$E7 latchen ...
         else v.flags |= (reset || changed) ? 1 : 4;                  // ... $E2/$E5/$E9 starten neu
+    }
+
+    vibDelta(period, pos) {
+        const x = period * pos;
+        return (this.vibRound === 1 && x < 0) ? -((-x) >> this.vibShift) : (x >> this.vibShift);
+    }
+
+    vibStartValue(depth) {
+        const half = depth >> 1;
+        return this.vibStart === 1 ? 0 : this.vibStart === 2 ? -half : half;
     }
 
     resetEnvelope(v) {
@@ -352,7 +382,7 @@ export class CosoReplayer {
                     this.setSample(v, d[v.instPtr + 1], true, true); v.instPtr += 2; break;
                 case 0xE3:                                                                      // VIBRATO (UNVERIFIED)
                     v.vibSlope = d[v.instPtr + 1]; v.vibDepth = d[v.instPtr + 2];
-                    v.vibPos = v.vibDepth >> 1; v.vibDir = -1; v.instPtr += 3; break;
+                    v.vibPos = this.vibStartValue(v.vibDepth); v.vibDir = -1; v.instPtr += 3; break;
                 case 0xE5: {                                                                    // SAMPLE+SLIDE+RESET-VOL (UNVERIFIED)
                     const s = d[v.instPtr + 1];
                     const loop16 = (d[v.instPtr + 2] << 8) | d[v.instPtr + 3];
@@ -401,9 +431,14 @@ export class CosoReplayer {
             // $E8 = SUSTAIN(ticks): belegt an Dragonflight (Spec nennt $E0 SUSTAIN / $E8 LOOP; dort liegt hinter dem
             //       Operanden stets die Abklingrampe, bei Loop-Lesart unerreichbar, und Operanden zeigen hinter das Elementende).
             // $E0 = LOOP(pos), element-relativ: Symmetrie zur Instrument-Tabelle, in keiner Datei belegt (UNVERIFIED).
-            if (c === 0xE8) { const n = d[v.envPtr + 1]; v.envWait = n > 0 ? n - 1 : 0; v.envPtr += 2; return; }
+            if (this.envSpec) {                                                                  // Messhaken: Opcodes wie in der Amberstar-Spec
+                if (c === 0xE0) { const n = d[v.envPtr + 1]; v.envWait = n > 0 ? n - 1 : 0; v.envPtr += 2; return; }
+                if (c === 0xE8) { v.envPtr = v.envStart + d[v.envPtr + 1]; continue; }
+            } else {
+                if (c === 0xE8) { const n = d[v.envPtr + 1]; v.envWait = n > 0 ? n - 1 : 0; v.envPtr += 2; return; }
+                if (c === 0xE0) { v.envPtr = v.envStart + d[v.envPtr + 1]; continue; }
+            }
             if (c >= 0xE1 && c <= 0xE7) { v.envHold = true; return; }                          // HOLD
-            if (c === 0xE0) { v.envPtr = v.envStart + d[v.envPtr + 1]; continue; }
             v.envVol = c;
             v.envPtr++;
             v.envWait = v.envSpeed - 1;
@@ -428,20 +463,24 @@ export class CosoReplayer {
         if (period !== 0) {
             // Vibrato (symmetrisches Dreieck, +-depth/2; UNVERIFIED im Detail, Amplituden in L1/L2 <= 0.25 %)
             if (v.vibDepth !== 0) {
-                if (v.vibDelay > 0) v.vibDelay--;
-                else {
+                if (v.vibDelay > 0) {
+                    v.vibDelay--;
+                    if (this.vibDelayStatic && this.vibShift > 0) period += this.vibDelta(period, v.vibPos);
+                } else {
                     const half = v.vibDepth >> 1;
-                    v.vibPos += v.vibDir * v.vibSlope;
+                    if (this.vibOrder === 1 && this.vibShift > 0) period += this.vibDelta(period, v.vibPos);
+                    v.vibPos += v.vibDir * ((v.vibSlope * this.vibSlopeX2) >> 1);
                     if (v.vibPos <= -half) { v.vibPos = -half; v.vibDir = 1; }
                     else if (v.vibPos >= half) { v.vibPos = half; v.vibDir = -1; }
-                    if (this.vibShift > 0) period += (period * v.vibPos) >> this.vibShift;
+                    if (this.vibOrder === 0 && this.vibShift > 0) period += this.vibDelta(period, v.vibPos);
                 }
             }
             // Portamento (linear, nach Vibrato)
             if (v.portActive && (this.portAdd || this.portShift > 0)) {
-                if (v.portT < 1024) v.portT++;
+                if (this.portOrder === 0 && v.portT < 1024) v.portT++;
                 period -= this.portAdd ? ((v.portT * v.portSlope * this.portMul) >> this.portShift)
                                        : ((period * v.portT * v.portSlope) >> this.portShift);
+                if (this.portOrder === 1 && v.portT < 1024) v.portT++;
                 if (period < MIN_PERIOD) period = MIN_PERIOD;
             }
         }
