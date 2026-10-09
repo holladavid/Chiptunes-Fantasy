@@ -178,3 +178,27 @@ test('Alias-Einträge der Indextabellen: Elementende ist der nächste größere 
     assert.ok(m.timbreEnds[1] - m.timbreOffsets[1] >= 5, 'Alias-Element darf nicht leer sein');
     assert.equal(m.timbreEnds[0], m.timbreOffsets[1]);
 });
+
+test('length ist die echte Originallaufzeit in Ticks, kein 3-Minuten-Platzhalter', { skip: !has(L1) || !has(L2) }, () => {
+    const m1 = parseCoso(load(L1), { name: L1 });
+    assert.equal(m1.length, 10752);
+    assert.equal(m1.lengthIsEstimate, false);
+    assert.deepEqual(m1.songs.map(x => x.ticks), [10752, 384]);
+    assert.equal(parseCoso(load(L1), { name: L1, song: 1 }).length, 384);       // Länge folgt dem gewählten Song
+    const m2 = parseCoso(load(L2), { name: L2 });
+    assert.equal(m2.length, 8000);
+    assert.notEqual(m2.length, 50 * 180);
+});
+
+test('length: synthetischer Song, FULL-STOP-Song und Song ohne Ende (Schätzung)', () => {
+    const mk = (eff1) => buildCoso({
+        instruments: [[0xE2, 0, 0, 0xE1]], timbres: [[1, 0, 0, 0, 0, 0x3F, 0xE1]], monos: [[0xFE, 3, 24, 0, 0xFF]],
+        divisions: [[[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]], [[0, 0, eff1], [0, 0, 0], [0, 0, 0], [0, 0, 0]]],
+        songs: [{ start: 0, end: 1, speed: 1 }], samples: [{ pos: 0, len: 32, loop: 0, rep: 32 }], pcm: new Array(32).fill(1)
+    });
+    assert.equal(parseCoso(mk(0), { name: 'a' }).length, 8);
+    assert.equal(parseCoso(mk(0x80), { name: 'b' }).length, 4);
+    const est = parseCoso(mk(0), { name: 'c', maxTicks: 3 });
+    assert.equal(est.length, 50 * 180);                                          // Grenze erreicht -> alter Platzhalter
+    assert.equal(est.lengthIsEstimate, true);
+});

@@ -1,6 +1,6 @@
 # Hippel-COSO (.hipc) — Verifizierte Layout-Spezifikation
 
-**Status:** Phasen 2 (Forensik), 4 (Replay-Kern), 5 (Paula-Hardwareanbindung), 7 (zweite Referenz, Dragonflight) und 8 (UADE als Referenz) abgeschlossen · **Stand:** v1.5.0-dev
+**Status:** Phasen 2 (Forensik), 4 (Replay-Kern), 5 (Paula-Hardwareanbindung), 7 (zweite Referenz, Dragonflight), 8 (UADE als Referenz) und 9 (Laufzeit, Spulen) abgeschlossen · **Stand:** v1.5.0-dev
 **Verifiziert an:** `Wings_Of_Death-Level_1.hipc` (18282 B), `Wings_Of_Death-Level_2.hipc` (17112 B)
 **Externe Referenz (nur Gegenprüfung):** Pyrdacor/Amberstar `FileSpecs/Hippel-CoSo.md`
 
@@ -345,4 +345,34 @@ Mit lokaler Phase erreichen praktisch alle Instrumente R² 0,96–1,00. Der Rest
 * Schrittweite und Randverhalten des Vibratos bei Slope > 0: widersprüchliche Signale zwischen Instrumenten, nicht entschieden.
 * UADE spielt Level 1 7,78 s über den ersten Durchlauf (215,04 s) hinaus; Ursache nicht geprüft (vermutlich Loop-Erkennung oder Timeout von UADE).
 * Registerebene: `uade123 --write-audio` ist noch nicht ausgewertet.
+
+## 16. Phase 9: Original-Laufzeit und Spulen in der UI
+
+### 16.1 Befund
+
+| Symptom | Ursache |
+|---|---|
+| Anzeige immer 3:00 | Der Parser setzte `length: 50 * 180` als Platzhalter. `app.js` übernimmt für Amiga-Formate `trackData = parsedFile` und rechnet Zeit, Fortschritt und Slider aus diesem Wert. |
+| Spulen springt immer an den Anfang | Der `SEEK_TRACK`-Zweig der Worklets setzte nur `cosoVM.tickCounter = 0`; das Ziel `msg.frame` wurde ignoriert. |
+| Anzeige läuft über 100 % hinaus, kein automatischer Titelwechsel | Der gemeldete Frame war `tickCounter`, der monoton weiterzählt. Die UI wechselt den Titel nur, wenn der Frame nahe `length` liegt und dann auf einen kleinen Wert zurückspringt (`app.js`: `previousFrame > length - 20 && frame < 10`). Das trat bei HIPC nie ein. |
+
+### 16.2 Umsetzung
+
+* **Laufzeit:** `cosoSongTicks(mod, song)` lässt den Replayer ohne Ausgabe bis zum Loop-Punkt bzw. `FULL-STOP` laufen (der Ende-Tick selbst zählt nicht mit). Der Parser setzt damit `length` (Frames @ 50 Hz, `lengthIsEstimate: false`) und legt `songs[i].ticks` für jeden Song ab. Ohne erkennbares Ende innerhalb von 30 Minuten bleibt es bei 3:00 als Schätzung. Kosten 32–48 ms kalt, 8–15 ms warm pro Datei.
+* **Position:** `replayer.passTick` zählt 1…N im Durchlauf und springt beim Loop-Wrap auf 1; `vm.position` liefert den Wert für die UI, `tickCounter` bleibt monoton.
+* **Spulen:** `replayer.seek(n)` startet neu und spult `n` Ticks ohne Ausgabe vor (20000 Ticks in 3,6 ms). Der Zustand ist danach **bitgleich** zu einem durchgehenden Lauf (getestet an Dragonflight und synthetisch). `vm.seekToTick(frame)` klemmt auf `[0, songTicks-1]` und primt beim nächsten Tick alle Kanäle neu (DMA läuft auf dem Stille-Wort), danach latcht das Loop-Fenster der klingenden Welle ein: haltende Wellen klingen sofort weiter. One-Shot-Samples, die zum Sprungzeitpunkt gerade abklingen, werden bewusst **nicht** neu angeschlagen, weil das nach dem Spulen einen hörbaren Fehltreffer ergäbe. Die Wellenphase ist neu.
+* **Worklets:** `patches/paula-hipc-seek-position.patch` ersetzt in `paula-exact.js` und `paula-fantasy.js` den `SEEK_TRACK`-Block durch `seekToTick(msg.frame)` und meldet `vm.position` statt `tickCounter`.
+
+### 16.3 Gemessene Laufzeiten
+
+| Datei | Song | Ticks | Anzeige |
+|---|---|---|---|
+| `Wings_Of_Death-Level_1.hipc` | 0 | 10752 | 3:35 |
+| `Wings_Of_Death-Level_1.hipc` | 1 | 384 | 0:07 |
+| `Wings_Of_Death-Level_2.hipc` | 0 | 8000 | 2:40 |
+| `dragonflight_titletune.HIPC` | 0 | 22880 | 7:37 |
+
+Die Werte stimmen mit den UADE-Dauern aus Abschnitt 15 überein (160,03 s und 457,65 s). UADE spielt Level 1 mit 222,8 s über den ersten Durchlauf (215,04 s) hinaus; die Anzeige folgt dem Loop-Punkt der Songdaten.
+
+**Verhaltensänderung:** Weil der Frame jetzt am Songende zurückspringt, wechselt die UI bei HIPC wie bei den anderen Formaten zum nächsten Titel, statt endlos zu loopen.
 

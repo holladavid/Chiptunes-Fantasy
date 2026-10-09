@@ -18,6 +18,8 @@
 // structured-clone-kompatibel, keine Klasseninstanzen).
 // =========================================================
 
+import { cosoSongTicks } from '../worklets/lib/coso-replayer.js';
+
 export class CosoFormatError extends Error {
     constructor(code, message) {
         super(message);
@@ -371,7 +373,7 @@ export function parseCoso(input, options = {}) {
     }
 
     const displayName = name.toUpperCase();
-    return {
+    const result = {
         isSequenced: true,
         type: 'HIPC',
         format: 'COSO',
@@ -403,7 +405,7 @@ export function parseCoso(input, options = {}) {
             aliasedInstruments: instT.aliased, aliasedTimbres: timbT.aliased, aliasedMonopatterns: monoT.aliased
         },
 
-        length: 50 * 180,                       // PLATZHALTER (Frames @50Hz) bis die VM die echte Songlänge liefert
+        length: 50 * 180,                       // wird unten durch die simulierte Originallänge ersetzt (Frames @50Hz)
         lengthIsEstimate: true,
 
         metadata: {
@@ -418,6 +420,20 @@ export function parseCoso(input, options = {}) {
             fileSize: src.length
         }
     };
+
+    // Originallaufzeit: der Replayer läuft den Song ohne Ausgabe bis zum Loop-Punkt (bzw. FULL-STOP) durch.
+    // Kosten: 3-100 ms pro Song. Bei Songs ohne erkennbares Ende (Grenze 30 min) bleibt es bei 3:00 als Schätzung.
+    for (let i = 0; i < songs.length; i++) {
+        if (!songs[i].valid) { songs[i].ticks = 0; continue; }
+        const d = cosoSongTicks(result, i, options.maxTicks || 90000);   // 30 min: längstes bekanntes Stück 7:37
+        songs[i].ticks = d.complete ? d.ticks : 0;
+    }
+    const sel = songs[songIndex];
+    if (sel.ticks > 0) {
+        result.length = sel.ticks;
+        result.lengthIsEstimate = false;
+    }
+    return result;
 }
 
 // =========================================================
@@ -435,3 +451,4 @@ export async function loadHipcFile(url, options = {}) {
     for (let i = 0; i < mod.warnings.length; i++) console.warn(`[COSO] ${mod.warnings[i]}`);
     return mod;
 }
+

@@ -13,7 +13,9 @@
 // Abwärtskompatibel zu paula-exact.js und paula-fantasy.js:
 //   new CosoVirtualMachine(track, samplesDict, traceCb [, options])
 //   vm.processTick(channels)   // 50x pro Sekunde
-//   vm.tickCounter             // lesen: Fortschritt; schreiben (0): Neustart (SEEK)
+//   vm.tickCounter             // lesen: Ticks seit Start (monoton); schreiben (0): Neustart
+//   vm.position                // Ticks im aktuellen Durchlauf (springt beim Loop-Wrap auf 1): Frame-Wert für die UI
+//   vm.seekToTick(frame)       // echtes Spulen auf einen Tick des Songs (statt Sprung zum Anfang)
 //   vm.voices                  // Legacy-Attrappe für den alten SEEK-Block
 //
 // ZERO-ALLOCATION: Chip-RAM und Sichten entstehen im Konstruktor, processTick() allokiert nicht.
@@ -71,6 +73,7 @@ export class CosoVirtualMachine {
         this.curLEN = new Int32Array(NUM_VOICES);
         this.pendingSilence = new Uint8Array(NUM_VOICES); // Folge-Latch: nach einem One-Shot-Latch auf Stille umschalten
         this.dmaPrimed = new Uint8Array(NUM_VOICES);      // 1 = Kanal läuft bereits (Stille-Wort-Loop)
+        this.songTicks = (trackModule.song && trackModule.song.ticks) || trackModule.length || 0;   // Originallänge in Ticks
         this.lastLoopStart = new Int32Array(NUM_VOICES);  // Legacy-Pfad
         this.lastLoopLen = new Int32Array(NUM_VOICES);
         this.legacyVoices = [{}, {}, {}, {}];
@@ -84,16 +87,38 @@ export class CosoVirtualMachine {
 
     get tickCounter() { return this.replayer.tickCount; }
 
+    /** Ticks im aktuellen Durchlauf: geht von 1 bis songTicks und springt dann auf 1 zurück (Loop). */
+    get position() { return this.replayer.passTick; }
+
     set tickCounter(value) {
         if (value === 0) {
             this.replayer.reset();
-            this.curLC.fill(0);
-            this.curLEN.fill(0);
-            this.pendingSilence.fill(0);
-            this.dmaPrimed.fill(0);
-            this.lastLoopStart.fill(0);
-            this.lastLoopLen.fill(0);
+            this.resyncAll();
         }
+    }
+
+    /**
+     * Echtes Spulen. Der Replayer ist deterministisch und wird ohne Ausgabe bis zum Zielpunkt vorgespult
+     * (20000 Ticks ~ 4 ms). Beim nächsten Tick werden alle Kanäle neu "geprimt" (DMA läuft auf dem Stille-Wort),
+     * danach latcht die Differenzprüfung das Loop-Fenster der gerade klingenden Welle ein: haltende Wellen
+     * klingen sofort weiter (mit neuer Phase). One-Shot-Samples, die gerade abklingen, werden dabei bewusst
+     * NICHT neu angeschlagen (das wäre nach dem Spulen ein hörbarer Fehltreffer), sie bleiben still.
+     */
+    seekToTick(frame) {
+        let f = frame | 0;
+        if (f < 0) f = 0;
+        if (this.songTicks > 0 && f >= this.songTicks) f = this.songTicks - 1;
+        this.replayer.seek(f);
+        this.resyncAll();
+    }
+
+    resyncAll() {
+        this.curLC.fill(0);
+        this.curLEN.fill(0);
+        this.pendingSilence.fill(0);
+        this.dmaPrimed.fill(0);
+        this.lastLoopStart.fill(0);
+        this.lastLoopLen.fill(0);
     }
 
     get voices() { return this.legacyVoices; }
@@ -224,3 +249,4 @@ export class CosoVirtualMachine {
         }
     }
 }
+

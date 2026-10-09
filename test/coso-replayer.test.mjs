@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import { parseCoso } from '../js/parsers/hipc-parser.js';
-import { CosoReplayer, REG, COSO_PERIODS } from '../js/worklets/lib/coso-replayer.js';
+import { CosoReplayer, REG, COSO_PERIODS, cosoSongTicks } from '../js/worklets/lib/coso-replayer.js';
 import { buildCoso, WAVE32, SMP0, IDLE_PATTERN } from './helpers/coso-builder.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -429,4 +429,60 @@ test('envSpec: Envelope-Opcodes wie in der Amberstar-Spec ($E0 SUSTAIN, $E8 LOOP
     const rp = new CosoReplayer(parseCoso(bytes, { name: 'spec' }), { envSpec: true });
     const v = []; for (let i = 0; i < 6; i++) { rp.tick(); v.push(reg(rp, 0, REG.VOLUME)); }
     assert.deepEqual(v, [32, 32, 32, 32, 16, 16]);
+});
+
+// =========================================================
+// Laufzeit, Position im Durchlauf, Seek
+// =========================================================
+const twoDivSong = (effect1 = 0) => synth({ monos: [[0xFE, 3, ...N(24), 0xFF], IDLE_PATTERN],
+    divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]], [[0, 0, effect1], [1, 0, 0], [1, 0, 0], [1, 0, 0]]] });
+
+test('cosoSongTicks: synthetischer Song aus 2 Divisions à 4 Ticks = 8 Ticks', () => {
+    const { mod } = twoDivSong();
+    assert.deepEqual(cosoSongTicks(mod, 0), { ticks: 8, complete: true });
+});
+
+test('cosoSongTicks: FULL-STOP ($8y) beendet den Song vor dem Loop-Punkt', () => {
+    const { mod } = twoDivSong(0x80);
+    assert.deepEqual(cosoSongTicks(mod, 0), { ticks: 4, complete: true });
+});
+
+test('cosoSongTicks: Sicherheitsgrenze meldet complete:false statt zu hängen', () => {
+    const { mod } = twoDivSong();
+    assert.deepEqual(cosoSongTicks(mod, 0, 5), { ticks: 5, complete: false });
+});
+
+test('passTick: zählt 1..N im Durchlauf und springt beim Loop-Wrap auf 1', () => {
+    const { rp } = twoDivSong();
+    const seen = []; for (let i = 0; i < 18; i++) { rp.tick(); seen.push(rp.passTick); }
+    assert.deepEqual(seen, [1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2]);
+    assert.equal(rp.tickCount, 18);                              // tickCount bleibt monoton
+});
+
+test('seek(): Zustand nach dem Spulen ist bitgleich zu einem durchgehenden Lauf (synthetisch)', () => {
+    const a = twoDivSong().rp, b = twoDivSong().rp;
+    for (const target of [0, 1, 3, 4, 7, 8, 9, 13]) {
+        b.seek(target);
+        a.reset(); for (let i = 0; i < target; i++) a.tick();
+        for (let k = 0; k < 12; k++) {
+            a.tick(); b.tick();
+            assert.deepEqual(Array.from(b.regs), Array.from(a.regs), `Ziel ${target}, Folgetick ${k}`);
+        }
+        assert.equal(b.passTick, a.passTick); assert.equal(b.tickCount, a.tickCount);
+    }
+});
+
+for (const [file, song, ticks] of [[L1, 0, 10752], [L1, 1, 384], [L2, 0, 8000], ['dragonflight_titletune.HIPC', 0, 22880]]) {
+    test(`Original-Laufzeit ${file} Song ${song} = ${ticks} Ticks (${(ticks / 50).toFixed(2)} s)`, { skip: !has(file) }, () => {
+        assert.deepEqual(cosoSongTicks(loadMod(file, song), song), { ticks, complete: true });
+    });
+}
+
+test('seek(): auf echten Daten bitgleich zu einem durchgehenden Lauf (Dragonflight, 5 Ziele)', { skip: !has('dragonflight_titletune.HIPC') }, () => {
+    const mod = loadMod('dragonflight_titletune.HIPC');
+    const a = new CosoReplayer(mod), b = new CosoReplayer(mod);
+    for (const target of [1, 777, 5000, 12345, 22879]) {
+        b.seek(target); a.reset(); for (let i = 0; i < target; i++) a.tick();
+        for (let k = 0; k < 40; k++) { a.tick(); b.tick(); assert.deepEqual(Array.from(b.regs), Array.from(a.regs), `Ziel ${target}+${k}`); }
+    }
 });

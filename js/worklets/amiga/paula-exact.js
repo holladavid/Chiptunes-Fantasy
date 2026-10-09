@@ -455,15 +455,8 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 if (this.isSequenced) {
                     if (this.seqType === 'HIPC' || this.seqType === 'COSO') {
                         this.sampleCounter = 0;
-                        if (this.cosoVM) {
-                            this.cosoVM.tickCounter = 0;
-                            for (let v = 0; v < 4; v++) {
-                                this.cosoVM.voices[v].trackPtr = this.cosoVM.voices[v].startTrackPtr;
-                                this.cosoVM.voices[v].patternPtr = -1;
-                                this.cosoVM.voices[v].wait = 0;
-                                this.cosoVM.voices[v].trackStack = [];
-                            }
-                        }
+                        // Echtes Spulen auf den Ziel-Tick (statt immer zum Songanfang zu springen)
+                        if (this.cosoVM) this.cosoVM.seekToTick(msg.frame);
                     } else {
                         const ticksPerOrder = 64 * this.speed;
                         const targetOrder = Math.floor(msg.frame / ticksPerOrder);
@@ -760,7 +753,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 let currentFrameVal = 0;
                 if (this.isSequenced) {
                     if (this.seqType === 'HIPC' || this.seqType === 'COSO') {
-                        currentFrameVal = this.cosoVM ? this.cosoVM.tickCounter : 0;
+                        currentFrameVal = this.cosoVM ? this.cosoVM.position : 0;      // Ticks im aktuellen Durchlauf (springt beim Loop auf 1)
                     } else {
                         currentFrameVal = (this.currentOrder * 64 * this.speed + this.currentRow * this.speed + this.currentTick);
                     }

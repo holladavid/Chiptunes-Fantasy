@@ -169,6 +169,8 @@ export class CosoReplayer {
 
         this.tickCount = 0;
         this.loopCount = 0;
+        this.passTick = 0;                                       // Ticks im aktuellen Durchlauf (springt beim Loop-Wrap auf 1)
+        this.passWrapped = false;
         this.finished = false;
         // Diagnosezähler (keine Warnungen im Hot-Path, nur Zähler)
         this.stats = { badTimbre: 0, badInstrument: 0, badPattern: 0, badSample: 0, guardHits: 0, silentNotes: 0, instRunoff: 0 };
@@ -178,6 +180,8 @@ export class CosoReplayer {
     reset() {
         this.tickCount = 0;
         this.loopCount = 0;
+        this.passTick = 0;
+        this.passWrapped = false;
         this.finished = false;
         this.regs.fill(0);
         for (let i = 0; i < NUM_VOICES; i++) {
@@ -228,7 +232,7 @@ export class CosoReplayer {
             if (!this.loop) { this.finished = true; return; }
             dv = this.songStart;
             v.loops++;
-            if (v.index === 0) this.loopCount++;
+            if (v.index === 0) { this.loopCount++; this.passWrapped = true; }
         }
         this.loadDivision(v, dv);
     }
@@ -530,5 +534,31 @@ export class CosoReplayer {
             this.writeRegs(v);
         }
         this.tickCount++;
+        if (this.passWrapped) { this.passTick = 1; this.passWrapped = false; }   // dieser Tick ist der erste des neuen Durchlaufs
+        else this.passTick++;
+    }
+
+    /**
+     * Springt zu Tick `target` (relativ zum Songanfang): Neustart, dann ohne Ausgabe vorspulen.
+     * Der Zustand ist danach bitgleich zu einem durchgehenden Lauf (der Replayer ist deterministisch).
+     * Kosten: ein reiner tick() pro Zielposition, keine Allokation.
+     */
+    seek(target) {
+        this.reset();
+        const n = target | 0;
+        for (let i = 0; i < n && !this.finished; i++) this.tick();
     }
 }
+
+/**
+ * Original-Laufzeit eines Songs in Ticks (50 Hz): Ticks bis zum Ende des ersten Durchlaufs
+ * (Loop-Punkt bzw. $8y FULL-STOP). Simuliert ohne Ausgabe; Sicherheitsgrenze maxTicks.
+ * @returns {{ticks:number, complete:boolean}}  complete=false, wenn die Grenze erreicht wurde
+ */
+export function cosoSongTicks(mod, songIndex, maxTicks = 360000) {
+    const rp = new CosoReplayer(mod, { song: songIndex, loop: false });
+    while (!rp.finished && rp.tickCount < maxTicks) rp.tick();
+    // Im Ende-Tick (Wrap bzw. FULL-STOP) wird tickCount noch erhöht, dieser Tick gehört aber nicht mehr zum Song.
+    return { ticks: rp.finished ? rp.tickCount - 1 : rp.tickCount, complete: rp.finished };
+}
+

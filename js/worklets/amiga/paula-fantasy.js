@@ -462,15 +462,8 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                 if (this.isSequenced) {
                     if (this.seqType === 'HIPC' || this.seqType === 'COSO') {
                         this.sampleCounter = 0;
-                        if (this.cosoVM) {
-                            this.cosoVM.tickCounter = 0;
-                            for (let v = 0; v < 4; v++) {
-                                this.cosoVM.voices[v].trackPtr = this.cosoVM.voices[v].startTrackPtr;
-                                this.cosoVM.voices[v].patternPtr = -1;
-                                this.cosoVM.voices[v].wait = 0;
-                                this.cosoVM.voices[v].trackStack = [];
-                            }
-                        }
+                        // Echtes Spulen auf den Ziel-Tick (statt immer zum Songanfang zu springen)
+                        if (this.cosoVM) this.cosoVM.seekToTick(msg.frame);
                     } else {
                         const ticksPerOrder = 64 * this.speed;
                         const targetOrder = Math.floor(msg.frame / ticksPerOrder);
@@ -888,7 +881,7 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                 view[0] = 1; // Amiga
                 view[1] = this.isPlaying ? 1 : 0;
                 view[2] = this.isSequenced 
-                    ? (this.seqType === 'HIPC' || this.seqType === 'COSO' ? (this.cosoVM ? this.cosoVM.tickCounter : 0) : (this.currentOrder * 64 * this.speed + this.currentRow * this.speed + this.currentTick))
+                    ? (this.seqType === 'HIPC' || this.seqType === 'COSO' ? (this.cosoVM ? this.cosoVM.position : 0) : (this.currentOrder * 64 * this.speed + this.currentRow * this.speed + this.currentTick))
                     : this.currentFrame;
                 view[3] = oscValue;
 

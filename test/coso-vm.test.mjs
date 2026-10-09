@@ -11,6 +11,7 @@ import path from 'node:path';
 
 import { parseCoso } from '../js/parsers/hipc-parser.js';
 import { CosoVirtualMachine, CHIP_BASE, SILENCE_LC } from '../js/worklets/lib/coso-vm.js';
+import { CosoReplayer, REG } from '../js/worklets/lib/coso-replayer.js';
 import { buildCoso, WAVE32, SMP0, IDLE_PATTERN } from './helpers/coso-builder.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -249,5 +250,129 @@ for (const kind of [{ name: 'exact', file: paulaPath, cls: 'PaulaChannel', proc:
         globalThis.gc();
         const delta = process.memoryUsage().heapUsed - before;
         assert.ok(delta < 256 * 1024, `Heap-Zuwachs ${delta} Byte`);
+    });
+}
+
+// =========================================================
+// Spulen und Position (UI: Zeitanzeige, Slider, Titelwechsel)
+// =========================================================
+function eightTickMod() {
+    const bytes = buildCoso({
+        instruments: [[0xE2, 0, 0, 0xE1]], timbres: [[1, 0, 0, 0, 0, 0x3F, 0xE1]], monos: [[0xFE, 3, 24, 0, 0xFF], IDLE_PATTERN],
+        divisions: [[[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]], [[0, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]]],
+        songs: [{ start: 0, end: 1, speed: 1 }], samples: [SMP0], pcm: WAVE32
+    });
+    return parseCoso(bytes, { name: 'eight' });
+}
+
+test('position: 1..N im Durchlauf, springt beim Loop auf 1; tickCounter bleibt monoton', () => {
+    const vm = new CosoVirtualMachine(eightTickMod(), {});
+    const ch = hwChans(), pos = [], tc = [];
+    for (let i = 0; i < 10; i++) { vm.processTick(ch); pos.push(vm.position); tc.push(vm.tickCounter); }
+    assert.deepEqual(pos, [1, 2, 3, 4, 5, 6, 7, 8, 1, 2]);
+    assert.deepEqual(tc, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+});
+
+test('Titelwechsel-Bedingung aus app.js (previousFrame > length-20 und Frame < 10) löst pro Durchlauf genau einmal aus', { skip }, () => {
+    const mod = parseCoso(new Uint8Array(readFileSync(path.join(fixtures, 'Wings_Of_Death-Level_2.hipc'))), { name: 'L2' });
+    assert.equal(mod.length, 8000);
+    const vm = new CosoVirtualMachine(mod, {}), ch = hwChans();
+    let prev = 0, fired = 0, maxPos = 0;
+    for (let i = 0; i < 8000 * 2 + 50; i++) {
+        vm.processTick(ch);
+        const frame = vm.position;
+        maxPos = Math.max(maxPos, frame);
+        if (prev > mod.length - 20 && frame < 10) fired++;
+        prev = frame;
+    }
+    assert.equal(fired, 2);                                              // zwei Loop-Wraps in zwei Durchläufen
+    assert.equal(maxPos, 8000);                                          // Position läuft nie über die Laufzeit hinaus
+});
+
+test('seekToTick: Position, Klemmung und Neustart-Verhalten', () => {
+    const vm = new CosoVirtualMachine(eightTickMod(), {});
+    const ch = hwChans();
+    vm.seekToTick(5);
+    assert.equal(vm.position, 5);
+    vm.seekToTick(10_000);                                               // hinter das Ende -> letzter Tick
+    assert.equal(vm.position, vm.songTicks - 1);
+    vm.seekToTick(-7);
+    assert.equal(vm.position, 0);
+    vm.processTick(ch);
+    assert.equal(vm.position, 1);
+});
+
+test('Nach dem Spulen: Kanäle werden neu geprimt, dann latcht das Loop-Fenster der klingenden Welle ein, ohne Neustart', { skip }, () => {
+    const mod = loadMod();
+    const vm = new CosoVirtualMachine(mod, {});
+    const ref = new CosoReplayer(mod, { song: mod.selectedSong });
+    ref.seek(4993); ref.tick();                                          // erwarteter Zustand im ersten Tick nach dem Spulen
+    vm.seekToTick(4993);
+    const ch = hwChans();
+    vm.processTick(ch);
+    let looped = 0, oneShot = 0;
+    for (let v = 0; v < 4; v++) {
+        const o = v * REG.STRIDE, calls = ch[v].calls, starts = calls.filter(c => c[0] === 'START').length;
+        const retriggered = (ref.regs[o + REG.FLAGS] & 1) !== 0;
+        assert.deepEqual(calls.slice(0, 4), [['ATTACH'], ['LC', SILENCE_LC], ['LEN', 1], ['START']], `Stimme ${v}: Priming fehlt`);
+        if (!retriggered && ref.regs[o + REG.SAMPLE] >= 0 && ref.regs[o + REG.LOOP_LEN] <= 2 && ref.regs[o + REG.VOLUME] > 0) oneShot++;
+        if (!retriggered) assert.equal(starts, 1, `Stimme ${v}: unerwarteter DMA-Neustart (spurious hit nach dem Spulen)`);
+        if (ref.regs[o + REG.SAMPLE] >= 0 && ref.regs[o + REG.LOOP_LEN] > 2 && !retriggered) {
+            looped++;
+            assert.ok(calls.some(c => c[0] === 'LC' && c[1] === CHIP_BASE + ref.regs[o + REG.LOOP_START]), `Stimme ${v}: Loop-Fenster nicht gelatcht`);
+        }
+    }
+    assert.ok(looped >= 1, 'an Position 4993 sollte mindestens eine Stimme eine Loop-Welle halten');
+    assert.ok(oneShot >= 1, 'an Position 4993 sollte ein One-Shot laufen: er darf nicht neu angeschlagen werden');
+});
+
+test('Spulen MITTEN im laufenden Stück: alle Kanäle werden zuerst gestoppt (kein Weiterklingen von Tönen vor dem Sprung)', { skip }, () => {
+    const vm = new CosoVirtualMachine(loadMod(), {});
+    const ch = hwChans();
+    for (let i = 0; i < 400; i++) vm.processTick(ch);                    // laufende Wiedergabe: alle Kanäle sind bereits geprimt
+    for (const c of ch) c.calls.length = 0;
+    vm.seekToTick(100);
+    vm.processTick(ch);
+    for (let v = 0; v < 4; v++) {
+        assert.deepEqual(ch[v].calls.slice(0, 3), [['LC', SILENCE_LC], ['LEN', 1], ['START']], `Stimme ${v}: alter Ton läuft nach dem Spulen weiter`);
+    }
+});
+
+test('tickCounter = 0 (alter SEEK-Aufruf) setzt Position und Zustand zurück', () => {
+    const vm = new CosoVirtualMachine(eightTickMod(), {});
+    const ch = hwChans();
+    for (let i = 0; i < 5; i++) vm.processTick(ch);
+    vm.tickCounter = 0;
+    assert.equal(vm.position, 0);
+    assert.equal(vm.tickCounter, 0);
+});
+
+for (const kind of [{ name: 'exact', file: paulaPath, cls: 'PaulaChannel', proc: 'class PaulaProcessor' },
+                    { name: 'fantasy', file: fantasyPath, cls: 'PaulaFantasyChannel', proc: 'class PaulaFantasyProcessor' }]) {
+    const have = haveL1 && existsSync(kind.file);
+    const Ch = have ? (() => { const src = readFileSync(kind.file, 'utf8'); const a = src.indexOf(`class ${kind.cls} {`), b = src.indexOf(kind.proc);
+        return new Function(src.slice(a, b) + `\nreturn ${kind.cls};`)(); })() : null;
+    const patched = have && typeof Ch.prototype.hwStartDMA === 'function';
+
+    test(`[${kind.name}] Spulen mitten ins Stück: Ton ist sofort da, Pegel entspricht einem durchgehenden Lauf`, { skip: !patched }, () => {
+        const rms = (vm, ch, ticks) => {
+            let e = 0, n = 0;
+            for (let t = 0; t < ticks; t++) { vm.processTick(ch); for (let s = 0; s < 882; s++) { let a = 0; for (const c of ch) a += c.step(3546895 / 44100); e += a * a; n++; } }
+            return Math.sqrt(e / n);
+        };
+        const mod = structuredClone(loadMod());
+        const target = 5000;
+        const seeked = new CosoVirtualMachine(mod, {}), chS = [0, 1, 2, 3].map(i => new Ch(i));
+        seeked.seekToTick(target);
+        const early = rms(seeked, chS, 6);                               // nur die ersten 6 Ticks (120 ms) nach dem Spulen
+        assert.ok(early > 0.05, `nach dem Spulen fast stumm (RMS ${early})`);
+        const cont = new CosoVirtualMachine(mod, {}), chC = [0, 1, 2, 3].map(i => new Ch(i));
+        for (let i = 0; i < target; i++) cont.processTick(chC);
+        const ref = rms(cont, chC, 6);
+        assert.ok(Math.abs(early / ref - 1) < 0.05, `Pegel nach Spulen ${early}, durchgehend ${ref}`);
+        // Gegenprobe: ohne das Priming der Kanäle bliebe die haltende Welle stumm (Pegel ~0.72 des Referenzwerts)
+        const broken = new CosoVirtualMachine(mod, {}), chB = [0, 1, 2, 3].map(i => new Ch(i));
+        broken.seekToTick(target); broken.dmaPrimed.fill(1);
+        assert.ok(rms(broken, chB, 6) / ref < 0.9, 'Gegenprobe zeigt keinen Unterschied: Test wäre wirkungslos');
     });
 }
