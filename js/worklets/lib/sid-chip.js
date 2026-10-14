@@ -1,12 +1,11 @@
 // === js/worklets/lib/sid-chip.js ===
 // =========================================================
-// MOS Technology SID 6581 Sound Chip Emulation
+// MOS Technology SID 6581 Sound Chip Emulation (v1.5.0)
 // True Analog Master Edition:
-// - Wizball Highscore Rapid Arpeggio Fix (Stable Rate Counter Reset)
-// - Voice 3 DC-Leakage Persistence on 3OFF ($D418 Bit 7)
+// - Parallel 3-Voice Phase Accumulator & Symmetric Hard-Sync/RingMod
+// - Schematic-Accurate 3OFF ($D418 Bit 7) Unfiltered Disconnect & DC Leak
+// - Calibrated 6581 R3 Master-DC-to-Voice Gain Staging (+5.2 dB Digi Punch)
 // - Wizball-Stable 2MHz ZDF OTA Filter Solver (MOS 6581 R3 S-Curve)
-// - Dynamic High-Register Wire-AND Pulldown Relaxation (>2kHz)
-// - Calibrated PlaySID 4-Bit Drum DC Bias & Voice Gain Staging
 // =========================================================
 
 import { calculateWaveform8Bit } from './sid-waveforms.js';
@@ -65,8 +64,8 @@ export class SIDChip {
         this.thermalDcOffset = 0.0;
         this.thermalJfetDrive = 0.8;
 
-        this.thermalVoiceDcLeakage = 0.012;
-        this.thermalMasterDcBias = 0.70;
+        this.thermalVoiceDcLeakage = 0.045;
+        this.thermalMasterDcBias = 1.12;
 
         this.volWiggleActivity = 0.0;
         this.d418Writes = 0; 
@@ -109,8 +108,9 @@ export class SIDChip {
         if (this.thermalJfetDrive < 0.1) this.thermalJfetDrive = 0.1; 
 
         let tempNorm = (this._temperature - 15.0) / 40.0;
-        this.thermalVoiceDcLeakage = 0.003 + Math.pow(Math.max(0.0, tempNorm), 1.6) * 0.012;
-        this.thermalMasterDcBias = 0.70 + (this._temperature - 55.0) * 0.003;
+        this.thermalVoiceDcLeakage = 0.032 + Math.pow(Math.max(0.0, tempNorm), 1.4) * 0.020;
+        // Calibrated 6581 R3 Master Mixer DC Offset for authentic $D418 Digidrum Weight
+        this.thermalMasterDcBias = 1.12 + (this._temperature - 55.0) * 0.004;
     }
 
     writeReg(reg, val) {
@@ -134,8 +134,6 @@ export class SIDChip {
             if (gate !== prevGate) {
                 ch.envDelay = 1;
                 ch.state = gate ? ENV_ATTACK : ENV_RELEASE;
-                
-                // RESTORED: Verhindert den Deadlock bei schnellen Arpeggio-Wechseln!
                 if (gate) {
                     ch.rate_counter = 0;
                     ch.exponential_counter = 0;
@@ -186,7 +184,6 @@ export class SIDChip {
 
         ch.rate_counter++;
 
-        // Stabile Schwellenwert-Logik: Verhindert 32ms Deadlock bei Galway-Arpeggios
         if (ch.rate_counter >= ratePeriod) {
             ch.rate_counter = 0; 
 
@@ -224,45 +221,52 @@ export class SIDChip {
         }
     }
 
+    clockOscillatorsOneCycle() {
+        // Step 1: Advance all 3 24-bit phase accumulators & 23-bit Noise LFSRs in parallel
+        for (let v = 0; v < 3; v++) {
+            let ch = this.voices[v];
+            if ((ch.ctrl & 8) === 0) {
+                let oldAcc = ch.phase;
+                let newAcc = (oldAcc + ch.freq) & 0xFFFFFF;
+                ch.msbRisingEdge = ((oldAcc & 0x800000) === 0) && ((newAcc & 0x800000) !== 0);
+                ch.phase = newAcc;
+
+                let oldStep = oldAcc & 0x080000;
+                let newStep = newAcc & 0x080000;
+                if (!oldStep && newStep) {
+                    let bit = ((ch.lfsr >> 22) ^ (ch.lfsr >> 17)) & 1;
+
+                    if ((ch.ctrl & 0x80) && (ch.ctrl & 0x70) !== 0) {
+                        let testPhase = (newAcc >> 12) & 0xFFF;
+                        let pwMapped = PWM_LUT[ch.pw & 0xFFF];
+                        let isPulseLow = (ch.ctrl & 0x40) && (testPhase >= pwMapped);
+                        
+                        if (isPulseLow || (ch.ctrl & 0x30)) {
+                            bit = 0; 
+                        }
+                    }
+
+                    ch.lfsr = ((ch.lfsr << 1) & 0x7FFFFF) | bit;
+                }
+            } else {
+                ch.msbRisingEdge = false;
+            }
+        }
+
+        // Step 2: Apply Hard-Sync symmetrically across all 3 voices
+        for (let v = 0; v < 3; v++) {
+            let ch = this.voices[v];
+            let prevIdx = v === 0 ? 2 : v - 1;
+            if ((ch.ctrl & 2) !== 0 && (ch.ctrl & 8) === 0 && this.voices[prevIdx].msbRisingEdge) {
+                ch.phase = 0;
+            }
+        }
+    }
+
     synthesizeVoiceOneCycle(v) {
         let ch = this.voices[v];
 
-        let freqInt = ch.freq;
-        let pwInt = ch.pw;
-
-        if ((ch.ctrl & 8) === 0) {
-            let oldAcc = ch.phase;
-            let newAcc = (ch.phase + freqInt) & 0xFFFFFF;
-
-            let prevIdx = v === 0 ? 2 : v - 1;
-            let prevCh = this.voices[prevIdx];
-            if ((ch.ctrl & 2) !== 0 && prevCh.msbRisingEdge) newAcc = 0; 
-
-            ch.msbRisingEdge = ((oldAcc & 0x800000) === 0) && ((newAcc & 0x800000) !== 0);
-            ch.phase = newAcc;
-
-            let oldStep = oldAcc & 0x080000;
-            let newStep = ch.phase & 0x080000;
-            if (!oldStep && newStep) {
-                let bit = ((ch.lfsr >> 22) ^ (ch.lfsr >> 17)) & 1;
-
-                if ((ch.ctrl & 0x80) && (ch.ctrl & 0x70) !== 0) {
-                    let testPhase = (ch.phase >> 12) & 0xFFF;
-                    let pwMapped = PWM_LUT[pwInt & 0xFFF];
-                    let isPulseLow = (ch.ctrl & 0x40) && (testPhase >= pwMapped);
-                    
-                    if (isPulseLow || (ch.ctrl & 0x30)) {
-                        bit = 0; 
-                    }
-                }
-
-                ch.lfsr = ((ch.lfsr << 1) & 0x7FFFFF) | bit;
-            }
-        } else {
-            ch.msbRisingEdge = false;
-        }
-
-        // Physical MOS 6581 Ring Modulation:
+        // Physical MOS 6581 Ring Modulation (uses synchronized phases from clockOscillatorsOneCycle)
         let prevIdx = v === 0 ? 2 : v - 1;
         let prevCh = this.voices[prevIdx];
         let ownMSB = (ch.phase >> 23) & 1;
@@ -271,14 +275,12 @@ export class SIDChip {
 
         let hasWave = (ch.ctrl & 0xF0) !== 0;
         if (hasWave) {
-            // Frequenzabhängige Wire-AND Berechnung (>2kHz Entladung)
-            let rawWave8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, pwInt, ch.lfsr, ringMSB, freqInt);
+            let rawWave8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, ch.pw, ch.lfsr, ringMSB, ch.freq);
             let waveMask = ch.ctrl & 0xF0;
             let isCombined = (waveMask !== 0x10 && waveMask !== 0x20 && waveMask !== 0x40 && waveMask !== 0x80);
 
             if (isCombined) {
-                // Physikalische C_gate (~1.0pF) Ladungskonstante bei ~35kHz RC-Zeitkonstante
-                ch.busCharge += 0.22 * (rawWave8Bit - ch.busCharge);
+                ch.busCharge += 0.35 * (rawWave8Bit - ch.busCharge);
                 ch.waveOut8Bit = ch.busCharge;
             } else {
                 ch.busCharge = rawWave8Bit;
@@ -305,6 +307,8 @@ export class SIDChip {
             this.clockEnvelopeOneCycle(v);
         }
 
+        this.clockOscillatorsOneCycle();
+
         let voice0 = this.synthesizeVoiceOneCycle(0);
         let voice1 = this.synthesizeVoiceOneCycle(1);
         let voice2 = this.synthesizeVoiceOneCycle(2);
@@ -323,24 +327,29 @@ export class SIDChip {
         if (this.regs[23] & 2) filteredSum += bleed1; else unfilteredSum += bleed1;
 
         // =========================================================
-        // VOICE 3 DISCONNECT ($D418 BIT 7) & DC-LEAKAGE PERSISTENCE
+        // SCHEMATIC-ACCURATE VOICE 3 DISCONNECT ($D418 BIT 7 "3OFF")
+        // Bit 7 only disconnects Voice 3 from the UNFILTERED summer;
+        // if routed to the filter ($D417 Bit 2), Voice 3 remains active!
+        // When disconnected, Voice 3's envelope-scaled DC offset still leaks.
         // =========================================================
-        if (!isVoice3Off) {
-            if (this.regs[23] & 4) filteredSum += bleed2; else unfilteredSum += bleed2;
+        if (this.regs[23] & 4) {
+            filteredSum += bleed2;
+        } else if (!isVoice3Off) {
+            unfilteredSum += bleed2;
         } else {
             let envDac3 = DAC_LUT[this.voices[2].env8Bit];
-            let v3DcLeak = (this.thermalVoiceDcLeakage * envDac3) + (bleed0 * 0.004 + bleed1 * 0.008);
-            if (this.regs[23] & 4) filteredSum += v3DcLeak; else unfilteredSum += v3DcLeak;
+            let v3DcLeak = (0.14 * envDac3) + (bleed0 * 0.004 + bleed1 * 0.008);
+            unfilteredSum += v3DcLeak;
         }
 
         // =========================================================
         // ZERO-DELAY FEEDBACK (ZDF) TRAPEZOIDAL STATE-SPACE SOLVER (2MHz)
         // =========================================================
-        let subG = Math.tan((Math.PI * this.activeCutoff) / 1970496); // 2MHz Sub-sample Grid
+        let subG = Math.tan((Math.PI * this.activeCutoff) / 1970496);
         
         let resReg = this.regs[23] >> 4;
         let normRes = resReg / 15.0;
-        let k = 1.414 - (normRes * 1.08); // Q_max clamp to ~3.0 (reSID-fp matched)
+        let k = 1.414 - (normRes * 1.08);
         
         let denom = 1.0 + subG * (subG + k);
         let filterOut = 0;
@@ -349,7 +358,6 @@ export class SIDChip {
             let hp = (filteredSum - this.x1 * (subG + k) - this.x2) / denom;
             let bpRaw = subG * hp + this.x1;
             
-            // Symmetrisches JFET Triode Quenching
             let bp = bpRaw;
             if (this.useJfetSaturation) {
                 let summerDrive = this.thermalJfetDrive * 0.70;
@@ -358,7 +366,6 @@ export class SIDChip {
 
             let lp = subG * bp + this.x2;
 
-            // Trapezoidales Zustandsgedächtnis
             this.x1 = 2.0 * bp - this.x1;
             this.x2 = 2.0 * lp - this.x2;
 
@@ -370,13 +377,12 @@ export class SIDChip {
             let outHP = (this.filterMode & 64) ? hp : 0;
 
             if ((this.filterMode & 80) === 80) { 
-                outHP = -outHP * 0.90; // Notch Phase Inversion
+                outHP = -outHP * 0.90;
             }
 
             filterOut = outLP + outBP + outHP;
         }
 
-        // Anti-NaN Failsafe
         if (isNaN(this.filterLow) || isNaN(this.filterBand)) {
             this.filterLow = 0.0;
             this.filterBand = 0.0;
@@ -391,12 +397,12 @@ export class SIDChip {
         let rawSum = unfilteredSum + filteredMix;
 
         // =========================================================
-        // MASTER VCA SATURATION & DC OFFSET
+        // MASTER VCA SATURATION & CALIBRATED 6581 DIGI DC OFFSET
         // =========================================================
         let vcaIn = rawSum * 0.35; 
         let vcaCurve = vcaIn + (this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0);
         let acSaturated = Math.tanh(vcaCurve);
-        let finalMix = (acSaturated * 1.65) + this.thermalMasterDcBias;
+        let finalMix = (acSaturated * 1.45) + this.thermalMasterDcBias;
 
         this.outputSample = (finalMix * this.masterVol) + this.thermalDcOffset;
     }

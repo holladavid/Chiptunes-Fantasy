@@ -1,9 +1,9 @@
 // === js/worklets/lib/sid-waveforms.js ===
 // =========================================================
-// MOS 6581 WAVEFORM GENERATOR & BIT-LOGIC
-// Hardware-accurate 8-Bit DAC quantization & Floating DC Bias
-// Employs physical LUTs for Wire-AND combined waveforms (O(1) execution)
-// with Dynamic High-Register Frequency-Dependent Pulldown Relaxation (>2kHz)
+// MOS 6581 WAVEFORM GENERATOR & BIT-LOGIC (v1.5.0)
+// - Authentic Test-Bit ($08) Pulse Comparator Force-High (0xFF)
+// - True NMOS Wire-AND Combined Waveform Gating ($30, $50, $60, $70)
+// - Dynamic High-Register Frequency-Dependent Pulldown Relaxation (>2kHz)
 // =========================================================
 
 import { 
@@ -17,19 +17,13 @@ import {
 export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB, freq = 0) {
     let hasWave = false;
     
-    // Basis-Wellenformen in 8-Bit berechnen
     let tri = 0xFF, saw = 0xFF, pulse = 0xFF, noise = 0xFF;
 
     if (ctrl & 16) {
-        // Exakte 11-Bit Phasen-Akkumulator Magnitude (Bits 22..12)
         let raw11 = (phase24 >> 12) & 0x7FF;
-        
-        // RingMod / Triangle Richtung:
         if (ringMSB) {
             raw11 = raw11 ^ 0x7FF;
         }
-        
-        // Skalierung von 11-Bit auf 8-Bit
         tri = raw11 >> 3;
         hasWave = true;
     }
@@ -40,14 +34,18 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB, freq
     }
 
     if (ctrl & 64) {
-        let testPhase = (phase24 >> 12) & 0xFFF;
-        let pwMapped = PWM_LUT[pw12 & 0xFFF];
-        pulse = (testPhase < pwMapped) ? 0xFF : 0x00;
+        // MOS 6581 Silicon Rule: Setting the Test Bit (ctrl & 8) latches the Pulse output HIGH (0xFF)
+        if (ctrl & 8) {
+            pulse = 0xFF;
+        } else {
+            let testPhase = (phase24 >> 12) & 0xFFF;
+            let pwMapped = PWM_LUT[pw12 & 0xFFF];
+            pulse = (testPhase < pwMapped) ? 0xFF : 0x00;
+        }
         hasWave = true;
     }
 
     if (ctrl & 128) {
-        // Hardware-exakte LFSR Noise-Taps (6581)
         let rawNoise = ((lfsr23 & 0x100000) >> 13) | // Bit 20 -> Bit 7
                        ((lfsr23 & 0x040000) >> 12) | // Bit 18 -> Bit 6
                        ((lfsr23 & 0x004000) >>  9) | // Bit 14 -> Bit 5
@@ -61,7 +59,6 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB, freq
         hasWave = true;
     }
 
-    // Floating DAC DC-Bias
     if (!hasWave) {
         return 0x18; 
     }
@@ -75,9 +72,8 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB, freq
     if (waveMask === 0x80) return noise;
 
     // =========================================================
-    // NMOS TRANSISTOR WIRE-AND LUTS & FREQUENCY DEGRADATION
+    // NMOS TRANSISTOR WIRE-AND LUTS & FREQUENCY RELAXATION
     // =========================================================
-    // Frequenz-Normierungsfaktor für hohe Oktaven (ab ~1 kHz ansteigend)
     let freqNorm = freq > 4000 ? Math.min(1.0, (freq - 4000) / 28000.0) : 0.0;
 
     // 1. TRIANGLE + SAWTOOTH ($30)
@@ -89,23 +85,24 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB, freq
         return base;
     }
 
-    // 2. TRIANGLE + PULSE ($50) - DIE HÜLSBECK ENGELSSTIMME!
+    // 2. TRIANGLE + PULSE ($50) - HÜLSBECK PWM LEAD
     if (waveMask === 0x50) {
         let pIdx = (pulse === 0xFF) ? 1 : 0;
         let base = WAVE_LUT_TRIPULSE[(pIdx << 8) | tri];
-        if (pIdx === 0 && freqNorm > 0.0) {
-            // Parasitäre Ladungs-Entspannung: Pulldown schwächt bei hohen Frequenzen sachte ab
-            return Math.min(255, Math.floor(base + (tri - base) * (0.28 * freqNorm)));
+        if (freqNorm > 0.0) {
+            let target = (pIdx === 1) ? tri : (tri * 0.14);
+            return Math.min(255, Math.floor(base + (target - base) * (0.24 * freqNorm)));
         }
         return base;
     }
 
-    // 3. SAWTOOTH + PULSE ($60) - DER MON / GALWAY BASS!
+    // 3. SAWTOOTH + PULSE ($60) - GALWAY / TEL BASS
     if (waveMask === 0x60) {
         let pIdx = (pulse === 0xFF) ? 1 : 0;
         let base = WAVE_LUT_SAWPULSE[(pIdx << 8) | saw];
-        if (pIdx === 0 && freqNorm > 0.0) {
-            return Math.min(255, Math.floor(base + (saw - base) * (0.25 * freqNorm)));
+        if (freqNorm > 0.0) {
+            let target = (pIdx === 1) ? saw : (saw * 0.12);
+            return Math.min(255, Math.floor(base + (target - base) * (0.22 * freqNorm)));
         }
         return base;
     }
@@ -114,14 +111,14 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB, freq
     if (waveMask === 0x70) {
         let pIdx = (pulse === 0xFF) ? 1 : 0;
         let base = WAVE_LUT_TRISAWPULSE[(pIdx << 16) | (tri << 8) | saw];
-        if (pIdx === 0 && freqNorm > 0.0) {
+        if (pIdx === 1 && freqNorm > 0.0) {
             let triSaw = WAVE_LUT_TRISAW[(tri << 8) | saw];
-            return Math.min(255, Math.floor(base + (triSaw - base) * (0.22 * freqNorm)));
+            return Math.min(255, Math.floor(base + (triSaw - base) * (0.20 * freqNorm)));
         }
         return base;
     }
 
-    // 5. NOISE + COMBINED WAVEFORMS (0x90, 0xA0, 0xC0, 0xD0, 0xE0, 0xF0)
+    // 5. NOISE + COMBINED WAVEFORMS
     let bitAnd = 0xFF;
     let xorSum = 0;
 
