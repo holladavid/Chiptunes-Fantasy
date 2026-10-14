@@ -662,6 +662,13 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                 view[3] = visualValue;
 
                 for (let r = 0; r < 29; r++) view[4 + r] = this.sid.regs[r];
+                // Sub-Frame $D418 Digi & PlaySID DMA Telemetry for Living Silicon
+                let deltaDigi = Math.max(0, this.sid.d418Writes - (this.lastVisD418Writes || 0));
+                this.lastVisD418Writes = this.sid.d418Writes;
+                view[4 + 25] = Math.min(255, deltaDigi);
+                view[4 + 26] = this.cpu.psidSampleActive ? 1 : 0;
+                view[4 + 27] = Math.floor(this.sid.voices[2].waveOut8Bit) & 0xFF;
+                view[4 + 28] = Math.floor(this.sid.voices[2].env8Bit) & 0xFF;
                 view[33] = this.temperature;
                 for (let v = 0; v < 3; v++) view[34 + v] = this.sid.voices[v].envelope_counter / 255.0;
                 view[37] = 0.0;
