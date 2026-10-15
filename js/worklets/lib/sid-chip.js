@@ -3,8 +3,7 @@
 // MOS Technology SID 6581 Sound Chip Emulation (v1.5.0)
 // True Analog Master Edition:
 // - Parallel 3-Voice Phase Accumulator & Symmetric Hard-Sync/RingMod
-// - Schematic-Accurate 3OFF ($D418 Bit 7) Unfiltered Disconnect & DC Leak
-// - Calibrated 6581 R3 Master-DC-to-Voice Gain Staging (+5.2 dB Digi Punch)
+// - Full 1.65x Voice Gain + Calibrated 0.90V Master Digi DC Bias
 // - Wizball-Stable 2MHz ZDF OTA Filter Solver (MOS 6581 R3 S-Curve)
 // =========================================================
 
@@ -21,7 +20,7 @@ const VOLUME_DAC_6581 = new Float32Array([
 export class SIDChip {
     constructor() {
         this.regs = new Uint8Array(29);
-        this.regs[24] = 0x0F; // PSID Standard Default: Volume 15
+        this.regs[24] = 0x0F;
         this.voices = [];
         for (let i = 0; i < 3; i++) {
             this.voices.push({
@@ -41,10 +40,9 @@ export class SIDChip {
             });
         }
         this.cutoff = 30; this.resonance = 0; this.filterMode = 0x0F;
-        this.masterVol = VOLUME_DAC_6581[15]; // 1.000
+        this.masterVol = VOLUME_DAC_6581[15];
         this.filterLow = 0; this.filterBand = 0;
         
-        // Zero-Delay Feedback (ZDF) State-Space Memory
         this.x1 = 0.0;
         this.x2 = 0.0;
 
@@ -64,8 +62,8 @@ export class SIDChip {
         this.thermalDcOffset = 0.0;
         this.thermalJfetDrive = 0.8;
 
-        this.thermalVoiceDcLeakage = 0.045;
-        this.thermalMasterDcBias = 1.12;
+        this.thermalVoiceDcLeakage = 0.015;
+        this.thermalMasterDcBias = 0.90;
 
         this.volWiggleActivity = 0.0;
         this.d418Writes = 0; 
@@ -85,7 +83,6 @@ export class SIDChip {
 
         let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
         
-        // Original MOS 6581 R3 S-Kurve (30Hz bis 6.200Hz)
         let baseHz = 30.0 + (1200.0 * norm) + (7200.0 * norm * norm) - (2230.0 * norm * norm * norm);
         if (baseHz > 6200.0) baseHz = 6200.0;
         
@@ -108,9 +105,8 @@ export class SIDChip {
         if (this.thermalJfetDrive < 0.1) this.thermalJfetDrive = 0.1; 
 
         let tempNorm = (this._temperature - 15.0) / 40.0;
-        this.thermalVoiceDcLeakage = 0.032 + Math.pow(Math.max(0.0, tempNorm), 1.4) * 0.020;
-        // Calibrated 6581 R3 Master Mixer DC Offset for authentic $D418 Digidrum Weight
-        this.thermalMasterDcBias = 1.12 + (this._temperature - 55.0) * 0.004;
+        this.thermalVoiceDcLeakage = 0.005 + Math.pow(Math.max(0.0, tempNorm), 1.6) * 0.015;
+        this.thermalMasterDcBias = 0.90 + (this._temperature - 55.0) * 0.003;
     }
 
     writeReg(reg, val) {
@@ -222,7 +218,6 @@ export class SIDChip {
     }
 
     clockOscillatorsOneCycle() {
-        // Step 1: Advance all 3 24-bit phase accumulators & 23-bit Noise LFSRs in parallel
         for (let v = 0; v < 3; v++) {
             let ch = this.voices[v];
             if ((ch.ctrl & 8) === 0) {
@@ -253,7 +248,6 @@ export class SIDChip {
             }
         }
 
-        // Step 2: Apply Hard-Sync symmetrically across all 3 voices
         for (let v = 0; v < 3; v++) {
             let ch = this.voices[v];
             let prevIdx = v === 0 ? 2 : v - 1;
@@ -266,7 +260,6 @@ export class SIDChip {
     synthesizeVoiceOneCycle(v) {
         let ch = this.voices[v];
 
-        // Physical MOS 6581 Ring Modulation (uses synchronized phases from clockOscillatorsOneCycle)
         let prevIdx = v === 0 ? 2 : v - 1;
         let prevCh = this.voices[prevIdx];
         let ownMSB = (ch.phase >> 23) & 1;
@@ -280,7 +273,7 @@ export class SIDChip {
             let isCombined = (waveMask !== 0x10 && waveMask !== 0x20 && waveMask !== 0x40 && waveMask !== 0x80);
 
             if (isCombined) {
-                ch.busCharge += 0.35 * (rawWave8Bit - ch.busCharge);
+                ch.busCharge += 0.22 * (rawWave8Bit - ch.busCharge);
                 ch.waveOut8Bit = ch.busCharge;
             } else {
                 ch.busCharge = rawWave8Bit;
@@ -326,20 +319,12 @@ export class SIDChip {
         if (this.regs[23] & 1) filteredSum += bleed0; else unfilteredSum += bleed0;
         if (this.regs[23] & 2) filteredSum += bleed1; else unfilteredSum += bleed1;
 
-        // =========================================================
-        // SCHEMATIC-ACCURATE VOICE 3 DISCONNECT ($D418 BIT 7 "3OFF")
-        // Bit 7 only disconnects Voice 3 from the UNFILTERED summer;
-        // if routed to the filter ($D417 Bit 2), Voice 3 remains active!
-        // When disconnected, Voice 3's envelope-scaled DC offset still leaks.
-        // =========================================================
-        if (this.regs[23] & 4) {
-            filteredSum += bleed2;
-        } else if (!isVoice3Off) {
-            unfilteredSum += bleed2;
+        if (!isVoice3Off) {
+            if (this.regs[23] & 4) filteredSum += bleed2; else unfilteredSum += bleed2;
         } else {
             let envDac3 = DAC_LUT[this.voices[2].env8Bit];
-            let v3DcLeak = (0.14 * envDac3) + (bleed0 * 0.004 + bleed1 * 0.008);
-            unfilteredSum += v3DcLeak;
+            let v3DcLeak = (this.thermalVoiceDcLeakage * envDac3) + (bleed0 * 0.004 + bleed1 * 0.008);
+            if (this.regs[23] & 4) filteredSum += v3DcLeak; else unfilteredSum += v3DcLeak;
         }
 
         // =========================================================
@@ -397,12 +382,12 @@ export class SIDChip {
         let rawSum = unfilteredSum + filteredMix;
 
         // =========================================================
-        // MASTER VCA SATURATION & CALIBRATED 6581 DIGI DC OFFSET
+        // MASTER VCA SATURATION & DC OFFSET (Full 1.65x Voice Gain)
         // =========================================================
         let vcaIn = rawSum * 0.35; 
         let vcaCurve = vcaIn + (this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0);
         let acSaturated = Math.tanh(vcaCurve);
-        let finalMix = (acSaturated * 1.45) + this.thermalMasterDcBias;
+        let finalMix = (acSaturated * 1.65) + this.thermalMasterDcBias;
 
         this.outputSample = (finalMix * this.masterVol) + this.thermalDcOffset;
     }

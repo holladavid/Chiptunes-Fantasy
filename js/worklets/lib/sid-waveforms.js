@@ -1,9 +1,9 @@
 // === js/worklets/lib/sid-waveforms.js ===
 // =========================================================
-// MOS 6581 WAVEFORM GENERATOR & BIT-LOGIC (v1.5.0)
-// - Authentic Test-Bit ($08) Pulse Comparator Force-High (0xFF)
-// - True NMOS Wire-AND Combined Waveform Gating ($30, $50, $60, $70)
-// - Dynamic High-Register Frequency-Dependent Pulldown Relaxation (>2kHz)
+// MOS 6581 WAVEFORM GENERATOR & BIT-LOGIC
+// Hardware-accurate 8-Bit DAC quantization & Floating DC Bias
+// Employs physical LUTs for Wire-AND combined waveforms (O(1) execution)
+// with Dynamic High-Register Frequency-Dependent Pulldown Relaxation (>2kHz)
 // =========================================================
 
 import { 
@@ -34,7 +34,6 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB, freq
     }
 
     if (ctrl & 64) {
-        // MOS 6581 Silicon Rule: Setting the Test Bit (ctrl & 8) latches the Pulse output HIGH (0xFF)
         if (ctrl & 8) {
             pulse = 0xFF;
         } else {
@@ -72,7 +71,7 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB, freq
     if (waveMask === 0x80) return noise;
 
     // =========================================================
-    // NMOS TRANSISTOR WIRE-AND LUTS & FREQUENCY RELAXATION
+    // NMOS TRANSISTOR WIRE-AND LUTS & FREQUENCY DEGRADATION
     // =========================================================
     let freqNorm = freq > 4000 ? Math.min(1.0, (freq - 4000) / 28000.0) : 0.0;
 
@@ -85,24 +84,22 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB, freq
         return base;
     }
 
-    // 2. TRIANGLE + PULSE ($50) - HÜLSBECK PWM LEAD
+    // 2. TRIANGLE + PULSE ($50) - DIE HÜLSBECK ENGELSSTIMME!
     if (waveMask === 0x50) {
         let pIdx = (pulse === 0xFF) ? 1 : 0;
         let base = WAVE_LUT_TRIPULSE[(pIdx << 8) | tri];
-        if (freqNorm > 0.0) {
-            let target = (pIdx === 1) ? tri : (tri * 0.14);
-            return Math.min(255, Math.floor(base + (target - base) * (0.24 * freqNorm)));
+        if (pIdx === 0 && freqNorm > 0.0) {
+            return Math.min(255, Math.floor(base + (tri - base) * (0.28 * freqNorm)));
         }
         return base;
     }
 
-    // 3. SAWTOOTH + PULSE ($60) - GALWAY / TEL BASS
+    // 3. SAWTOOTH + PULSE ($60) - DER MON / GALWAY BASS!
     if (waveMask === 0x60) {
         let pIdx = (pulse === 0xFF) ? 1 : 0;
         let base = WAVE_LUT_SAWPULSE[(pIdx << 8) | saw];
-        if (freqNorm > 0.0) {
-            let target = (pIdx === 1) ? saw : (saw * 0.12);
-            return Math.min(255, Math.floor(base + (target - base) * (0.22 * freqNorm)));
+        if (pIdx === 0 && freqNorm > 0.0) {
+            return Math.min(255, Math.floor(base + (saw - base) * (0.25 * freqNorm)));
         }
         return base;
     }
@@ -111,9 +108,9 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB, freq
     if (waveMask === 0x70) {
         let pIdx = (pulse === 0xFF) ? 1 : 0;
         let base = WAVE_LUT_TRISAWPULSE[(pIdx << 16) | (tri << 8) | saw];
-        if (pIdx === 1 && freqNorm > 0.0) {
+        if (pIdx === 0 && freqNorm > 0.0) {
             let triSaw = WAVE_LUT_TRISAW[(tri << 8) | saw];
-            return Math.min(255, Math.floor(base + (triSaw - base) * (0.20 * freqNorm)));
+            return Math.min(255, Math.floor(base + (triSaw - base) * (0.22 * freqNorm)));
         }
         return base;
     }

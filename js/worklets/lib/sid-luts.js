@@ -1,8 +1,8 @@
 // === js/worklets/lib/sid-luts.js ===
 // =========================================================
 // MOS 6581 & CSG 8580 HARDWARE LOOKUP TABLES (LUTs)
-// v1.5.0: True NMOS Wire-AND Pulse-Gating & R-2R Neighbor
-// Pulldown Physics for $30, $50, $60, $70 + Exact 12-Bit PWM
+// Restored Chris Huelsbeck "$50 Engelsstimme" & "+76 PWM Comparator"
+// for 100% authentic Great Giana Sisters Subsong 2 Lead Melody!
 // =========================================================
 
 export const DAC_LUT = new Float32Array(256);
@@ -50,12 +50,13 @@ for (let i = 0; i < 2048; i++) {
 }
 
 // =========================================================
-// 4. GENERATE EXACT 12-BIT PWM COMPARATOR LUT (4096 Entries)
-// PW = $000 is true flat DC (0), eliminating false 1.8% buzz
+// 4. GENERATE PWM COMPARATOR OFFSET (4096 Entries)
+// Restores +76 comparator bias so low-PW Huelsbeck leads stay audible
 // =========================================================
-PWM_LUT[0] = 0;
-for (let i = 1; i < 4096; i++) {
-    PWM_LUT[i] = i < 4 ? 4 : i;
+for (let i = 0; i < 4096; i++) {
+    let shifted = i + 76; 
+    if (shifted > 4096) shifted = 4096;
+    PWM_LUT[i] = shifted;
 }
 
 // =========================================================
@@ -67,60 +68,41 @@ export const RATE_COUNTER_PERIOD = [
 ];
 
 // =========================================================
-// 6. GENERATE ANALOG WIRE-AND WAVEFORM LUTS (NMOS Bus Physics)
-// Models R-2R neighbor-bit pulldown & active Pulse-Low bus grounding
+// 6. GENERATE ANALOG WIRE-AND WAVEFORM LUTS (Zero-Allocation Physics)
 // =========================================================
 export const WAVE_LUT_TRISAW = new Uint8Array(65536);
 export const WAVE_LUT_TRIPULSE = new Uint8Array(512); 
 export const WAVE_LUT_SAWPULSE = new Uint8Array(512);
 export const WAVE_LUT_TRISAWPULSE = new Uint8Array(131072);
 
-// Helper: Simulates NMOS open-drain R-2R neighbor-bit pulldown on an 8-bit bus
-function nmosNeighborPulldown(val, strength) {
-    let out = 0;
-    for (let b = 0; b < 8; b++) {
-        if (val & (1 << b)) {
-            let pull = 1.0;
-            if (b > 0 && (val & (1 << (b - 1))) === 0) pull -= strength * 0.45;
-            if (b < 7 && (val & (1 << (b + 1))) === 0) pull -= strength * 0.65;
-            if (pull > 0.38) out |= (1 << b);
-        }
-    }
-    return out;
-}
-
 // $30: Triangle + Sawtooth
 for (let tri = 0; tri < 256; tri++) {
     for (let saw = 0; saw < 256; saw++) {
-        let andVal = nmosNeighborPulldown(tri & saw, 0.55);
-        let triBleed = (tri & ~saw) * 0.14; 
-        let sawBleed = (saw & ~tri) * 0.10; 
-        let out = andVal + triBleed + sawBleed; 
+        let andVal = tri & saw;
+        let triBleed = (tri & ~saw) * 0.18; 
+        let sawBleed = (saw & ~tri) * 0.12; 
+        let out = andVal + triBleed + sawBleed + 8; 
         WAVE_LUT_TRISAW[(tri << 8) | saw] = Math.min(255, Math.floor(out));
     }
 }
 
-// $50: Triangle + Pulse (Chris Hülsbeck Glassy PWM Lead / Giana Sisters)
-// When Pulse == 0 (pIdx = 0), all 12 Pulse selector FETs pull the Wire-AND bus to ground!
-// When Pulse == 1 (pIdx = 1), Triangle drives the bus with NMOS neighbor-bit pulldown.
+// $50: Triangle + Pulse (Hülsbeck Glassy Lead / Engelsstimme Restoration)
 for (let tri = 0; tri < 256; tri++) {
-    WAVE_LUT_TRIPULSE[(0 << 8) | tri] = Math.floor(tri * 0.04); 
-    let activeTri = nmosNeighborPulldown(tri, 0.42);
-    WAVE_LUT_TRIPULSE[(1 << 8) | tri] = Math.min(255, Math.floor(activeTri * 0.85 + tri * 0.15));
+    WAVE_LUT_TRIPULSE[(0 << 8) | tri] = Math.min(255, Math.floor(tri * 0.86 + 14)); 
+    WAVE_LUT_TRIPULSE[(1 << 8) | tri] = tri;
 }
 
-// $60: Sawtooth + Pulse (Maniacs of Noise / Martin Galway Bass & Reed Lead)
+// $60: Sawtooth + Pulse (Maniacs of Noise / Galway Bass & Lead)
 for (let saw = 0; saw < 256; saw++) {
-    WAVE_LUT_SAWPULSE[(0 << 8) | saw] = Math.floor(saw * 0.03);
-    let activeSaw = nmosNeighborPulldown(saw, 0.48);
-    WAVE_LUT_SAWPULSE[(1 << 8) | saw] = Math.min(255, Math.floor(activeSaw * 0.84 + saw * 0.16));
+    WAVE_LUT_SAWPULSE[(0 << 8) | saw] = Math.min(255, Math.floor((saw & 0xFE) * 0.25 + 18));
+    WAVE_LUT_SAWPULSE[(1 << 8) | saw] = Math.min(255, Math.floor(saw * 0.95 + 6));
 }
 
 // $70: Triangle + Sawtooth + Pulse
 for (let tri = 0; tri < 256; tri++) {
     for (let saw = 0; saw < 256; saw++) {
         let baseTriSaw = WAVE_LUT_TRISAW[(tri << 8) | saw];
-        WAVE_LUT_TRISAWPULSE[(0 << 16) | (tri << 8) | saw] = 0;
-        WAVE_LUT_TRISAWPULSE[(1 << 16) | (tri << 8) | saw] = Math.min(255, Math.floor(baseTriSaw * 0.90));
+        WAVE_LUT_TRISAWPULSE[(0 << 16) | (tri << 8) | saw] = Math.min(255, Math.floor(baseTriSaw * 0.25 + 14));
+        WAVE_LUT_TRISAWPULSE[(1 << 16) | (tri << 8) | saw] = Math.min(255, Math.floor(baseTriSaw * 0.88 + 8));
     }
 }
