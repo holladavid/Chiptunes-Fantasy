@@ -440,10 +440,32 @@ export function parseCoso(input, options = {}) {
 // BROWSER-LOADER (bisherige API bleibt erhalten)
 // =========================================================
 export async function loadHipcFile(url, options = {}) {
+    const { sampleBankUrl, replayerOptions, ...parseOptions } = options;
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Datei nicht gefunden: ${url}`);
-    const buffer = await response.arrayBuffer();
-    const mod = parseCoso(buffer, { name: url.split('/').pop(), ...options });
+    let data = new Uint8Array(await response.arrayBuffer());
+
+    if (sampleBankUrl !== undefined) {
+        const name = url.split('/').pop();
+        if (data.length < HEADER_BYTES || tag(data, 0) !== 'COSO' || tag(data, 0x20) !== 'TFMX') {
+            return parseCoso(data, { name, ...parseOptions });
+        }
+        const sampleOffset = be32(data, 0x1C);
+        if (sampleOffset < HEADER_BYTES || sampleOffset > data.length) {
+            return parseCoso(data, { name, ...parseOptions });
+        }
+
+        const bankResponse = await fetch(sampleBankUrl);
+        if (!bankResponse.ok) throw new Error(`Samplebank nicht gefunden: ${sampleBankUrl}`);
+        const sampleBank = new Uint8Array(await bankResponse.arrayBuffer());
+        const combined = new Uint8Array(sampleOffset + sampleBank.length);
+        combined.set(data.subarray(0, sampleOffset));
+        combined.set(sampleBank, sampleOffset);
+        data = combined;
+    }
+
+    const mod = parseCoso(data, { name: url.split('/').pop(), ...parseOptions });
+    if (replayerOptions !== undefined) mod.replayerOptions = replayerOptions;
 
     console.log(`[COSO] ${mod.metadata.name}: ${mod.header.counts.instruments} instr / ${mod.header.counts.timbres} timbres / ` +
                 `${mod.header.counts.monopatterns} patterns / ${mod.header.counts.divisions} divisions / ` +
@@ -451,4 +473,3 @@ export async function loadHipcFile(url, options = {}) {
     for (let i = 0; i < mod.warnings.length; i++) console.warn(`[COSO] ${mod.warnings[i]}`);
     return mod;
 }
-

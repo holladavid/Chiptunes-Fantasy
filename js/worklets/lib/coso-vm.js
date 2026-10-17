@@ -53,6 +53,7 @@ export class CosoVirtualMachine {
             song: trackModule.selectedSong,
             loop: true,
             waveChange: options.waveChange || COSO_WAVE_CHANGE,
+            ...(trackModule.replayerOptions || {}),
             ...(options.replayer || {})                      // Messhaken: runoff, loopConv, portShift, vibShift
         });
 
@@ -249,4 +250,3 @@ export class CosoVirtualMachine {
         }
     }
 }
-

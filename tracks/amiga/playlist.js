@@ -26,6 +26,27 @@ const myModFiles = [
     "dragonflight_ani.HIPC",        // Cinematic Dragon Flight & Intro Anim
     "dragonflight_always.HIPC",     // Atmospheric Mystic Motif
 
+    // --- JOCHEN HIPPEL: AMBERSTAR AMIGA COSO SUITE ---
+    "amberstar/City_Walk.hipc",
+    "amberstar/Dreamcave.hipc",
+    "amberstar/Eriks_Revenge.hipc",
+    "amberstar/Fanfares.hipc",
+    "amberstar/Flying_High.hipc",
+    "amberstar/Funkey_Dungeon.hipc",
+    "amberstar/Gwens_Lament.hipc",
+    "amberstar/Hasta_La_Vista.hipc",
+    "amberstar/High_Seas.hipc",
+    "amberstar/Horse_Song.hipc",
+    "amberstar/Irish_Spring.hipc",
+    "amberstar/Lullaby.hipc",
+    "amberstar/Lurking_Horror.hipc",
+    "amberstar/Minor_Quarrels.hipc",
+    "amberstar/Misty_Orc_Hop.hipc",
+    "amberstar/Mystic_Moments.hipc",
+    "amberstar/Ode_To_Schnism.hipc",
+    "amberstar/Travellers_Tune.hipc",
+    "amberstar/Ingame.hipc",
+
     // --- JOCHEN HIPPEL: WINGS OF DEATH (7-VOICE COSO / HIP SUITE) ---
     "Wings_Of_Death-Title.hip",     // Main Title Theme
     "Wings_Of_Death-Level_1.hipc",   // Level 1: Over the Trees
@@ -83,6 +104,105 @@ const composerMetadata = {
         <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
         <p><strong>Mystic Motif („Always“)</strong> – Ein melancholisches, hochgradig intimes musikalisches Leitmotiv, das in Schlüsselmomenten der Erzählung ertönt.</p>
         <p><strong>DSP- & Replay-Fokus:</strong> Feingliedrige Glocken- und Clavi-Wellenformen mit zarten Hüllkurven-Abklingkurven. Hier glänzt das analoge LF347-Op-Amp-Modell mit seiner begrenzten Slew Rate ($13\text{ V}/\mu\text{s}$), die selbst feinsten 8-Bit-Transienten den warmen, analogen Amiga-Schmelz verleiht.</p>
+    `,
+
+    // =========================================================
+    // AMBERSTAR (JOCHEN HIPPEL / MAD MAX) METADATA
+    // =========================================================
+    "amberstar/City_Walk.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>City Walk</strong> – Der Name klingt nach einem ruhigen Streifzug durch eine Stadt Lyramions statt nach einer Schlachtfanfare; ein schönes Gegenstück zur großen Fantasy-Geste des Spiels.</p>
+        <p><strong>COSO-Forensik:</strong> Der Track enthält 38 Divisions, 34 Monopatterns, 8 Instrumente und 13 Timbres. Die Sequenz verweist also auf 34 wiederverwendbare Pattern-Bausteine und eine Sample-Tabelle mit 10 Einträgen.</p>
+    `,
+    "amberstar/Dreamcave.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Dreamcave</strong> – Der Titel verspricht eher eine traumartige Höhle als einen konventionellen Dungeon; Hippels Amberstar-Musik lebt gerade von solchen Stimmungswechseln zwischen Abenteuer und Innenschau.</p>
+        <p><strong>COSO-Forensik:</strong> 60 Divisions werden mit nur 14 Monopatterns gebaut. Dazu kommen 6 Instrumente, 7 Timbres und 6 Samples – ein kompaktes Beispiel dafür, wie viel Wiederholung und Variation eine kleine Pattern-Bibliothek ermöglicht.</p>
+    `,
+    "amberstar/Eriks_Revenge.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Erik's Revenge</strong> – Der augenzwinkernde Dateiname liest sich wie ein persönlicher Mini-Plot innerhalb des großen Rollenspiel-Soundtracks.</p>
+        <p><strong>COSO-Forensik:</strong> 50 Monopatterns speisen 41 Divisions; das Modul nutzt 9 Instrumente und 17 Timbres. Eine Division ist dabei ein kleiner Sequenzschritt, der Pattern und Transposition pro Stimme festlegt.</p>
+    `,
+    "amberstar/Fanfares.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Fanfares</strong> – Ein Titel wie gemacht für Ankünfte, Entdeckungen oder große RPG-Momente. Die Datei bündelt tatsächlich eine vollständige Sequenz und nicht bloß einen einzelnen kurzen Signalton.</p>
+        <p><strong>COSO-Forensik:</strong> 63 Divisions greifen auf 45 Monopatterns, 11 Instrumente und 19 Timbres zurück. Die 12 Sample-Einträge im Header zeigen, wie das Format synthetische Wellenformen und digitale Samples in derselben Komposition verwaltet.</p>
+    `,
+    "amberstar/Flying_High.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Flying High</strong> – Der Name gibt der Musik einen klaren Aufwärtsimpuls: ein passender Kontrast zu den düsteren Höhlen- und Horror-Titeln im selben Set.</p>
+        <p><strong>COSO-Forensik:</strong> Das Modul ist in 64 Divisions organisiert, verwendet aber nur 26 Monopatterns. 8 Instrumente, 12 Timbres und 10 Samples bilden die Klangpalette.</p>
+    `,
+    "amberstar/Funkey_Dungeon.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Funkey Dungeon</strong> – Schon die Schreibweise macht aus dem Dungeon-Motiv eher einen Groove als eine reine Gruselkulisse; genau solche spielerischen Kontraste halten lange RPG-Soundtracks abwechslungsreich.</p>
+        <p><strong>COSO-Forensik:</strong> 43 Monopatterns verteilen sich auf 64 Divisions. Dafür reichen 6 Instrumente und 11 Timbres – mit 7 Sample-Einträgen ein vergleichsweise kleines Klanginventar.</p>
+    `,
+    "amberstar/Gwens_Lament.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Gwen's Lament</strong> – Der Titel deutet auf eine persönliche, melancholische Szene hin. Hippel komponierte für Amberstar nicht nur funktionale Kampf- und Reisemusik, sondern auch solche erzählerisch gefärbten Miniaturen.</p>
+        <p><strong>COSO-Forensik:</strong> 68 Divisions und 52 Monopatterns bilden die längste Sequenz dieses Sets (geteilt mit <em>Irish Spring</em>); der Header nennt außerdem 9 Instrumente, 16 Timbres und 12 Samples.</p>
+    `,
+    "amberstar/Hasta_La_Vista.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Hasta La Vista</strong> – Ein ungewöhnlich umgangssprachlicher Abschiedsgruß zwischen den eher märchenhaften Tracknamen; gerade dieser Kontrast macht die Archivsammlung charmant.</p>
+        <p><strong>COSO-Forensik:</strong> Die Sequenz verwendet 24 Monopatterns über 59 Divisions, dazu 9 Instrumente, 15 Timbres und 7 Sample-Einträge.</p>
+    `,
+    "amberstar/High_Seas.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>High Seas</strong> – Der Titel öffnet den Maßstab vom Dungeon auf eine weite Seereise. Ein guter Anlass, auf Hippels Fähigkeit zu achten, innerhalb derselben Spielwelt sehr unterschiedliche Klangräume anzudeuten.</p>
+        <p><strong>COSO-Forensik:</strong> Mit 36 Divisions ist dies eine der kürzeren Sequenzen im Set. Die Klangpalette ist dafür breit: 13 Instrumente, 13 Timbres und 12 Samples.</p>
+    `,
+    "amberstar/Horse_Song.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Horse Song</strong> – Der Name klingt nach Reisebegleitung und gibt dem Stück eine bodenständigere Farbe als den magischen oder bedrohlichen Titeln.</p>
+        <p><strong>COSO-Forensik:</strong> 66 Divisions nutzen 23 Monopatterns. Besonders nerdig: 8 Instrumente und 13 Timbres teilen sich 10 Sample-Einträge – Instrumente und Timbres sind im COSO-Format getrennte Ebenen.</p>
+    `,
+    "amberstar/Irish_Spring.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Irish Spring</strong> – Der Titel weckt folkige Assoziationen, ohne dass dafür ein echtes irisches Instrument nötig wäre: Das Arrangement entsteht aus Hippels programmierten Instrumenten und Samples.</p>
+        <p><strong>COSO-Forensik:</strong> Wie <em>Gwen's Lament</em> umfasst der Track 68 Divisions, nutzt aber 41 statt 52 Monopatterns. Der Header zählt 8 Instrumente, 13 Timbres und 12 Samples.</p>
+    `,
+    "amberstar/Lullaby.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Lullaby</strong> – Ein Wiegenlied-Titel mitten in einem epischen Rollenspiel ist ein Hinweis auf die Bandbreite des Scores: nicht jede Szene braucht ein heroisches Leitmotiv.</p>
+        <p><strong>COSO-Forensik:</strong> Der Header zählt 17 Instrumente und 17 Timbres – gemeinsam mit <em>Travellers Tune</em> die höchsten Werte dieses Sets. Die 40 Divisions greifen auf 47 Monopatterns und 9 Samples zurück.</p>
+    `,
+    "amberstar/Lurking_Horror.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Lurking Horror</strong> – Der Titel setzt auf Spannung durch Erwartung: Das Unheimliche lauert, statt sofort als großes Action-Thema aufzutreten.</p>
+        <p><strong>COSO-Forensik:</strong> 52 Divisions werden aus 26 Monopatterns zusammengesetzt. Das Modul hat 8 Instrumente, 12 Timbres und 7 Sample-Einträge.</p>
+    `,
+    "amberstar/Minor_Quarrels.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Minor Quarrels</strong> – „Kleine Streitigkeiten“ klingt nach einem bewusst weniger apokalyptischen Konfliktmaßstab – ein hübscher Kontrast zu den Weltrettungsdimensionen des Spiels.</p>
+        <p><strong>COSO-Forensik:</strong> Mit 113 Divisions ist dies die mit Abstand längste Sequenz der 19 Module. Sie verwendet 65 Monopatterns, 10 Instrumente, 19 Timbres und 9 Samples.</p>
+    `,
+    "amberstar/Misty_Orc_Hop.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Misty Orc Hop</strong> – Nebel, Orks und ein „Hop“: Der Titel mischt Fantasy-Gefahr mit einem unerwartet tänzerischen Augenzwinkern.</p>
+        <p><strong>COSO-Forensik:</strong> 39 Monopatterns verteilen sich auf 49 Divisions; die vergleichsweise kleine Palette umfasst 6 Instrumente, 7 Timbres und 7 Samples.</p>
+    `,
+    "amberstar/Mystic_Moments.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Mystic Moments</strong> – Ein Titel für kurze magische Atempausen im Abenteuer. Hippels Rollenspielmusik ist nicht nur Kulisse, sondern arbeitet mit wiedererkennbaren Stimmungsfarben.</p>
+        <p><strong>COSO-Forensik:</strong> 31 Monopatterns speisen 42 Divisions. Im Header stehen 7 Instrumente, 12 Timbres und 7 Sample-Einträge.</p>
+    `,
+    "amberstar/Ode_To_Schnism.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Ode to Schnism</strong> – Ein rätselhafter Eigenname im Titel, der die Trackliste wie eine kleine Widmung wirken lässt; die Bedeutung von „Schnism“ ist aus den Dateidaten allein nicht belegbar.</p>
+        <p><strong>COSO-Forensik:</strong> 19 Timbres sind hier mit 12 Instrumenten kombiniert. Die 45 Divisions greifen auf 46 Monopatterns und 12 Samples zu.</p>
+    `,
+    "amberstar/Travellers_Tune.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Traveller's Tune</strong> – Der Titel passt zum Kern eines großen Rollenspiels: unterwegs sein. Als Gegenstück zu <em>City Walk</em> steht hier eher die Reise als der einzelne Ort im Vordergrund.</p>
+        <p><strong>COSO-Forensik:</strong> Nur 19 Monopatterns tragen die 44 Divisions. Mit 17 Instrumenten und 17 Timbres ist die Klangpalette trotzdem besonders groß; der Header führt 9 Samples.</p>
+    `,
+    "amberstar/Ingame.hipc": `
+        <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
+        <p><strong>Ingame</strong> – Der generische Name markiert vermutlich eine allgemeine Spielmusik-Datei; eine konkretere Szenenzuordnung lässt sich aus dem Dateinamen nicht sicher ableiten.</p>
+        <p><strong>COSO-Forensik:</strong> Das kleinste Instrumentarium der Sammlung: 5 Instrumente und 7 Timbres strukturieren 26 Monopatterns über 40 Divisions, ergänzt um 7 Sample-Einträge.</p>
     `,
 
     // =========================================================
@@ -169,6 +289,7 @@ export const amigaPlaylist = myModFiles.map((filename, index) => {
     const isHip = fnLower.endsWith('.hipc') || fnLower.endsWith('.hip') || fnLower.endsWith('.coso');
     const isDw = fnLower.endsWith('.dw');
     const label = isHip ? "HIPPEL-COSO" : (isDw ? "WHITTAKER" : (isXm ? "FASTTRACKER" : "PROTRACKER"));
+    const displayFilename = filename.split('/').pop();
 
     const metaInfo = composerMetadata[filename] || `
         <h3>[ CLASSIC AMIGA MODULE ]</h3>
@@ -176,11 +297,17 @@ export const amigaPlaylist = myModFiles.map((filename, index) => {
     `;
 
     return {
-        title: `${index + 1}. LOAD ${label}: ${filename}`,
+        title: `${index + 1}. LOAD ${label}: ${displayFilename}`,
         composerInfo: metaInfo,
         generator: function() { return []; },
         loadAsync: async function() {
             if (isHip) {
+                if (filename.startsWith('amberstar/')) {
+                    return await loadHipcFile(`tracks/amiga/${filename}`, {
+                        sampleBankUrl: 'tracks/amiga/amberstar/hipc.samp',
+                        replayerOptions: { envSpec: true }
+                    });
+                }
                 return await loadHipcFile(`tracks/amiga/${filename}`);
             } else if (isDw) {
                 return await loadDwFile(`tracks/amiga/${filename}`);

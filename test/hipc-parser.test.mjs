@@ -11,9 +11,10 @@ import path from 'node:path';
 
 import { buildCoso } from './helpers/coso-builder.mjs';
 import {
-    parseCoso, CosoFormatError,
+    parseCoso, loadHipcFile, CosoFormatError,
     disassembleInstrument, disassembleMonopattern
 } from '../js/parsers/hipc-parser.js';
+import { CosoVirtualMachine } from '../js/worklets/lib/coso-vm.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fixtures = process.env.HIPC_FIXTURES || path.join(here, '..', 'tracks', 'amiga');
@@ -24,6 +25,30 @@ const load = (n) => new Uint8Array(readFileSync(fx(n)));
 const L1 = 'Wings_Of_Death-Level_1.hipc';
 const L2 = 'Wings_Of_Death-Level_2.hipc';
 const TITLE = 'Wings_Of_Death-Title.hip';
+
+test('Amberstar: gemeinsame externe Samplebank wird beim Laden eingebunden', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+        const fixture = url === 'samplebank'
+            ? fx('amberstar/hipc.samp')
+            : fx('amberstar/City_Walk.hipc');
+        const bytes = Uint8Array.from(readFileSync(fixture));
+        return { ok: true, arrayBuffer: async () => bytes.buffer };
+    };
+
+    try {
+        const mod = await loadHipcFile('amberstar/City_Walk.hipc', {
+            sampleBankUrl: 'samplebank',
+            replayerOptions: { envSpec: true }
+        });
+        assert.equal(mod.pcm.length, 57576);
+        assert.deepEqual(mod.replayerOptions, { envSpec: true });
+        assert.equal(new CosoVirtualMachine(mod, {}).replayer.envSpec, true);
+        assert.deepEqual(mod.warnings, []);
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
 
 test('Level 1: Header, Counts und Sektionen', { skip: !has(L1) }, () => {
     const m = parseCoso(load(L1), { name: L1 });
