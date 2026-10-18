@@ -169,28 +169,36 @@ export class Paula8364 extends BaseChip {
                 <text x="402" y="152" class="paula-filt-label" font-size="6" fill="var(--highlight-color)" font-weight="bold" text-anchor="middle" dominant-baseline="middle">LED: BYPASS</text>
 
                 <!-- == L-R-R-L DIE ROUTING BUSES == -->
+                <!-- Base Solid Circuit Wires -->
+                <path class="silicon-bus-wire" d="M 155 62 L 175 62 L 175 68 L 290 68" />
+                <path class="silicon-bus-wire" d="M 155 137 L 165 137 L 165 85 L 290 85" />
+                <path class="silicon-bus-wire" d="M 155 87 L 175 87 L 175 115 L 290 115" />
+                <path class="silicon-bus-wire" d="M 155 112 L 185 112 L 185 130 L 290 130" />
+                <path class="silicon-bus-wire" d="M 345 77 L 375 77" />
+                <path class="silicon-bus-wire" d="M 345 122 L 375 122" />
+                <path class="silicon-bus-wire" d="M 402 60 L 402 45 L 320 45 L 320 30" />
+                <path class="silicon-bus-wire" d="M 402 140 L 436 140 L 436 41 L 304 41 L 304 30" />
+
+                <!-- Traveling Discrete Energy Packets (Photon Pulses) -->
                 <!-- CH0 -> MDAC L -->
-                <path class="signal-bus sig-path-0" d="M 155 62 L 175 62 L 175 68 L 290 68" fill="none" stroke="var(--text-color)" stroke-width="1.5" />
+                <path class="silicon-bus-packet sig-path-0" d="M 155 62 L 175 62 L 175 68 L 290 68" />
                 <!-- CH3 -> MDAC L -->
-                <path class="signal-bus sig-path-3" d="M 155 137 L 165 137 L 165 85 L 290 85" fill="none" stroke="var(--text-color)" stroke-width="1.5" />
+                <path class="silicon-bus-packet sig-path-3" d="M 155 137 L 165 137 L 165 85 L 290 85" />
                 
                 <!-- CH1 -> MDAC R -->
-                <path class="signal-bus sig-path-1" d="M 155 87 L 175 87 L 175 115 L 290 115" fill="none" stroke="var(--text-color)" stroke-width="1.5" />
+                <path class="silicon-bus-packet sig-path-1" d="M 155 87 L 175 87 L 175 115 L 290 115" />
                 <!-- CH2 -> MDAC R -->
-                <path class="signal-bus sig-path-2" d="M 155 112 L 185 112 L 185 130 L 290 130" fill="none" stroke="var(--text-color)" stroke-width="1.5" />
+                <path class="silicon-bus-packet sig-path-2" d="M 155 112 L 185 112 L 185 130 L 290 130" />
 
                 <!-- MDAC to EXTERNAL FILTER -->
-                <path class="signal-bus sig-dac-l" d="M 345 77 L 375 77" fill="none" stroke="var(--text-color)" stroke-width="1.5" />
-                <path class="signal-bus sig-dac-r" d="M 345 122 L 375 122" fill="none" stroke="var(--text-color)" stroke-width="1.5" />
+                <path class="silicon-bus-packet sig-dac-l" d="M 345 77 L 375 77" />
+                <path class="silicon-bus-packet sig-dac-r" d="M 345 122 L 375 122" />
 
                 <!-- == PIN ROUTING (Pin 32 & 33) == -->
-                <!-- Spacing is ~16.6px. Left edge is 50. Top right is pin 25. 
-                     Pin 32 = 50 + 16*16.66 = ~316 -->
-
-                <path class="signal-bus sig-path-out-l" d="M 402 60 L 402 45 L 320 45 L 320 20" fill="none" stroke="var(--text-color)" stroke-width="1.5" />
+                <path class="silicon-bus-packet sig-path-out-l" d="M 402 60 L 402 45 L 320 45 L 320 30" />
                 <text x="320" y="38" font-size="5" fill="var(--panel-text)" text-anchor="middle" dominant-baseline="middle">AUDL</text>
 
-                <path class="signal-bus sig-path-out-r" d="M 402 140 L 402 155 L 304 155 L 304 20" fill="none" stroke="var(--text-color)" stroke-width="1.5" />
+                <path class="silicon-bus-packet sig-path-out-r" d="M 402 140 L 436 140 L 436 41 L 304 41 L 304 30" />
                 <text x="304" y="38" font-size="5" fill="var(--panel-text)" text-anchor="middle" dominant-baseline="middle">AUDR</text>
             </svg>
         `;

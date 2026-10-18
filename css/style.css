@@ -1265,9 +1265,11 @@ body.theme-atari .silicon-chip-label {
 }
 
 /* =========================================================
-   C64 MOS 6581: DISCRETE ENERGY PACKET / PHOTON FLOW (IDEE 3)
+   LIVING SILICON: DISCRETE ENERGY PACKET / PHOTON FLOW
    Solid PCB/die traces + discrete traveling photon packets
+   Universal for C64 (SID), Amiga (Paula) and Atari ST (YM)
    ========================================================= */
+.silicon-bus-wire,
 .sid-bus-wire {
     fill: none;
     stroke: var(--text-color);
@@ -1277,6 +1279,7 @@ body.theme-atari .silicon-chip-label {
     stroke-linejoin: round;
 }
 
+.silicon-bus-packet,
 .sid-bus-packet {
     fill: none;
     stroke: var(--highlight-color);
@@ -1284,10 +1287,19 @@ body.theme-atari .silicon-chip-label {
     stroke-linecap: round;
     stroke-linejoin: round;
     stroke-dasharray: 4 55;
-    animation: sid-packet-pulse 1.2s linear infinite;
+    animation: silicon-packet-pulse 1.2s linear infinite;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.08s ease, filter 0.08s ease;
+}
+
+@keyframes silicon-packet-pulse {
+    from {
+        stroke-dashoffset: 0;
+    }
+    to {
+        stroke-dashoffset: -59;
+    }
 }
 
 @keyframes sid-packet-pulse {

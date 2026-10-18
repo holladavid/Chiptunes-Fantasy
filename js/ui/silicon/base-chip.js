@@ -26,15 +26,11 @@ export class BaseChip {
 
     updateBusFlow(el, volume) {
         if (!el) return;
-        el.style.opacity = 0.1 + volume * 0.9;
-        if (volume > 0.05) {
-            const duration = Math.max(0.15, 1.2 - volume * 1.0);
-            el.style.animationDuration = `${duration}s`;
-            el.style.stroke = 'var(--highlight-color)';
-            el.style.filter = `drop-shadow(0 0 ${2 + volume * 6}px var(--text-color))`;
+        if (volume > 0.04) {
+            el.style.opacity = Math.min(1.0, 0.25 + volume * 0.75);
+            el.style.filter = `drop-shadow(0 0 ${2 + volume * 4}px var(--highlight-color))`;
         } else {
-            el.style.animationDuration = '0s';
-            el.style.stroke = 'var(--text-color)';
+            el.style.opacity = '0';
             el.style.filter = 'none';
         }
     }

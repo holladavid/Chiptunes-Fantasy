@@ -25,17 +25,6 @@ export class Sid6581 extends BaseChip {
         this.lastT = 0.0;
     }
 
-    updateBusFlow(el, volume) {
-        if (!el) return;
-        if (volume > 0.04) {
-            el.style.opacity = Math.min(1.0, 0.25 + volume * 0.75);
-            el.style.filter = `drop-shadow(0 0 ${2 + volume * 4}px var(--highlight-color))`;
-        } else {
-            el.style.opacity = '0';
-            el.style.filter = 'none';
-        }
-    }
-
     cacheDOM() {
         const q = (sel) => this.container.querySelector(sel);
         this.cache = {
