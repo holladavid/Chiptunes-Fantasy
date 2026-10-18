@@ -1264,6 +1264,41 @@ body.theme-atari .silicon-chip-label {
     transition: opacity 0.1s ease, stroke 0.1s ease, filter 0.1s ease;
 }
 
+/* =========================================================
+   C64 MOS 6581: DISCRETE ENERGY PACKET / PHOTON FLOW (IDEE 3)
+   Solid PCB/die traces + discrete traveling photon packets
+   ========================================================= */
+.sid-bus-wire {
+    fill: none;
+    stroke: var(--text-color);
+    stroke-width: 1.2px;
+    opacity: 0.20;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.sid-bus-packet {
+    fill: none;
+    stroke: var(--highlight-color);
+    stroke-width: 2.2px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 4 55;
+    animation: sid-packet-pulse 1.2s linear infinite;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.08s ease, filter 0.08s ease;
+}
+
+@keyframes sid-packet-pulse {
+    from {
+        stroke-dashoffset: 0;
+    }
+    to {
+        stroke-dashoffset: -59;
+    }
+}
+
 /* =========================================
    11. TERMINAL CARDS & HEX GRIDS (MUSEUM)
    ========================================= */
