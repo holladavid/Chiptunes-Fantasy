@@ -13,6 +13,7 @@
     --highlight-color: #ffffff;
     
     --screen-bg: #1c1544;     /* Dunkler CRT-Hintergrund */
+    --bus-active-color: #5c94fc; /* C64 Leuchtend Blau */
     
     --font-main: 'Press Start 2P', monospace;
     /* GFX UPGRADE: Fluid Typography wächst dynamisch mit der Bildschirmbreite mit */
@@ -30,6 +31,7 @@ body.theme-amiga {
     --highlight-color: #ffffff; 
     
     --screen-bg: #0a0500;     /* Tiefer Bernstein-Glow Background */
+    --bus-active-color: #ff8800; /* Amiga Warmes Bernstein / Orange */
     
     --font-main: 'VT323', monospace;
     --font-size-base: clamp(18px, 1.3vw, 22px);
@@ -46,6 +48,7 @@ body.theme-atari {
     --highlight-color: #ffffff;
     
     --screen-bg: #001100;     /* Phosphor-Grün Background */
+    --bus-active-color: #39ff14; /* Atari Vivid Phosphor-Grün */
     
     --font-main: 'VT323', monospace;
     --font-size-base: 20px;
@@ -1277,6 +1280,7 @@ body.theme-atari .silicon-chip-label {
     opacity: 0.20;
     stroke-linecap: round;
     stroke-linejoin: round;
+    transition: stroke 0.12s ease, opacity 0.12s ease, filter 0.12s ease;
 }
 
 .silicon-bus-packet,

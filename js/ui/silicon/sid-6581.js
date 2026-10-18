@@ -528,11 +528,12 @@ export class Sid6581 extends BaseChip {
                      OSC3 -> OSC1 -> OSC2 -> OSC3
                      ========================================================= -->
                 <path class="sid-bus-wire" d="M 79 135 L 74 135 L 74 65 L 79 65" />
-                <path class="sid-bus-wire" d="M 79 65 L 76 65 L 76 100 L 79 100" />
-                <path class="sid-bus-wire" d="M 79 100 L 76 100 L 76 135 L 79 135" />
-
                 <path class="sid-bus-packet sig-xmod-1" d="M 79 135 L 74 135 L 74 65 L 79 65" />
+
+                <path class="sid-bus-wire" d="M 79 65 L 76 65 L 76 100 L 79 100" />
                 <path class="sid-bus-packet sig-xmod-2" d="M 79 65 L 76 65 L 76 100 L 79 100" />
+
+                <path class="sid-bus-wire" d="M 79 100 L 76 100 L 76 135 L 79 135" />
                 <path class="sid-bus-packet sig-xmod-3" d="M 79 100 L 76 100 L 76 135 L 79 135" />
 
                 <!-- =========================================================
@@ -699,15 +700,25 @@ export class Sid6581 extends BaseChip {
                 <!-- =========================================================
                      SIGNAL BUS: FILTER MULTIPLEXER, BYPASS & 3OFF GATE
                      ========================================================= -->
-                <!-- Base Solid Circuit Wires -->
+                <!-- Paths to Filter -->
                 <path class="sid-bus-wire" d="M 204 65 L 238 65" />
+                <path class="sid-bus-packet sig-osc1-filt" d="M 204 65 L 238 65" />
+
                 <path class="sid-bus-wire" d="M 204 100 L 238 100" />
+                <path class="sid-bus-packet sig-osc2-filt" d="M 204 100 L 238 100" />
+
                 <path class="sid-bus-wire" d="M 204 135 L 238 135" />
+                <path class="sid-bus-packet sig-osc3-filt" d="M 204 135 L 238 135" />
 
                 <!-- Paths bypassing the Filter (Direct to Master VCA) -->
                 <path class="sid-bus-wire" d="M 204 56 L 216 56 L 216 48 L 368 48 L 368 50" />
+                <path class="sid-bus-packet sig-osc1-byp" d="M 204 56 L 216 56 L 216 48 L 368 48 L 368 50" />
+
                 <path class="sid-bus-wire" d="M 204 91 L 212 91 L 212 48" />
+                <path class="sid-bus-packet sig-osc2-byp" d="M 204 91 L 212 91 L 212 48" />
+
                 <path class="sid-bus-wire" d="M 204 144 L 216 144 L 216 152 L 368 152 L 368 150" />
+                <path class="sid-bus-packet sig-osc3-byp" d="M 204 144 L 216 144 L 216 152 L 368 152 L 368 150" />
 
                 <!-- Schematic-Accurate 3OFF Gate Badge on Voice 3 Unfiltered Bypass -->
                 <g class="sid-3off-box" style="opacity: 0.35;">
@@ -717,31 +728,23 @@ export class Sid6581 extends BaseChip {
 
                 <!-- VCF Output to Master VCA -->
                 <path class="sid-bus-wire" d="M 340 100 L 352 100" />
+                <path class="sid-bus-packet sig-vcf-out" d="M 340 100 L 352 100" />
                 
                 <!-- Master VCA Output to Pin 27 (Routed cleanly above pins at y=8) -->
                 <path class="sid-bus-wire" d="M 422 100 L 436 100 L 436 8 L 93 8 L 93 15" />
+                <path class="sid-bus-packet sig-master-out" d="M 422 100 L 436 100 L 436 8 L 93 8 L 93 15" />
 
                 <!-- VCF Integrators to External Polystyrene Filter Capacitors (Pins 1-4) -->
                 <path class="sid-bus-wire" d="M 255 150 L 255 160 L 64 160 L 64 170" />
-                <path class="sid-bus-wire" d="M 275 150 L 275 163 L 93 163 L 93 170" />
-                <path class="sid-bus-wire" d="M 295 150 L 295 163 L 121 163 L 121 170" />
-                <path class="sid-bus-wire" d="M 315 150 L 315 160 L 150 160 L 150 170" />
-
-                <!-- Traveling Discrete Energy Packets (Photon Pulses) -->
-                <path class="sid-bus-packet sig-osc1-filt" d="M 204 65 L 238 65" />
-                <path class="sid-bus-packet sig-osc2-filt" d="M 204 100 L 238 100" />
-                <path class="sid-bus-packet sig-osc3-filt" d="M 204 135 L 238 135" />
-
-                <path class="sid-bus-packet sig-osc1-byp" d="M 204 56 L 216 56 L 216 48 L 368 48 L 368 50" />
-                <path class="sid-bus-packet sig-osc2-byp" d="M 204 91 L 212 91 L 212 48" />
-                <path class="sid-bus-packet sig-osc3-byp" d="M 204 144 L 216 144 L 216 152 L 368 152 L 368 150" />
-
-                <path class="sid-bus-packet sig-vcf-out" d="M 340 100 L 352 100" />
-                <path class="sid-bus-packet sig-master-out" d="M 422 100 L 436 100 L 436 8 L 93 8 L 93 15" />
-
                 <path class="sid-bus-packet sig-cap-1" d="M 255 150 L 255 160 L 64 160 L 64 170" />
+
+                <path class="sid-bus-wire" d="M 275 150 L 275 163 L 93 163 L 93 170" />
                 <path class="sid-bus-packet sig-cap-2" d="M 275 150 L 275 163 L 93 163 L 93 170" />
+
+                <path class="sid-bus-wire" d="M 295 150 L 295 163 L 121 163 L 121 170" />
                 <path class="sid-bus-packet sig-cap-3" d="M 295 150 L 295 163 L 121 163 L 121 170" />
+
+                <path class="sid-bus-wire" d="M 315 150 L 315 160 L 150 160 L 150 170" />
                 <path class="sid-bus-packet sig-cap-4" d="M 315 150 L 315 160 L 150 160 L 150 170" />
             </svg>
         `;

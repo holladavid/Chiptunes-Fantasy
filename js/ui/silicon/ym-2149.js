@@ -222,39 +222,44 @@ export class Ym2149 extends BaseChip {
                 </g>
 
                 <!-- == SIGNAL BUS PATHS == -->
-                <!-- Base Solid Circuit Wires -->
+                <!-- Tone A, B, C -->
                 <path class="silicon-bus-wire" d="M 140 64 L 140 50 L 199 50 L 199 55" />
-                <path class="silicon-bus-wire" d="M 140 98 L 195 98" />
-                <path class="silicon-bus-wire" d="M 140 129 L 140 144 L 213 144 L 213 105" />
-
-                <path class="silicon-bus-wire" d="M 185 64 L 195 64" />
-                <path class="silicon-bus-wire" d="M 185 67 L 189 67 L 189 80 L 195 80" />
-                <path class="silicon-bus-wire" d="M 185 70 L 185 90 L 195 90" />
-
-                <path class="silicon-bus-wire" d="M 255 67 L 290 67" />
-                <path class="silicon-bus-wire" d="M 255 80 L 270 80 L 270 98 L 290 98" />
-                <path class="silicon-bus-wire" d="M 255 93 L 265 93 L 265 129 L 290 129" />
-
-                <!-- DACS to OUTPUT PINS -->
-                <path class="silicon-bus-wire" d="M 345 67 L 355 67 L 355 155 L 120 155 L 120 170" />
-                <path class="silicon-bus-wire" d="M 345 98 L 365 98 L 365 162 L 100 162 L 100 170" />
-                <path class="silicon-bus-wire" d="M 345 129 L 375 129 L 375 42 L 100 42 L 100 30" />
-
-                <!-- Traveling Discrete Energy Packets (Photon Pulses) -->
                 <path class="silicon-bus-packet sig-tone-a" d="M 140 64 L 140 50 L 199 50 L 199 55" />
+
+                <path class="silicon-bus-wire" d="M 140 98 L 195 98" />
                 <path class="silicon-bus-packet sig-tone-b" d="M 140 98 L 195 98" />
+
+                <path class="silicon-bus-wire" d="M 140 129 L 140 144 L 213 144 L 213 105" />
                 <path class="silicon-bus-packet sig-tone-c" d="M 140 129 L 140 144 L 213 144 L 213 105" />
 
+                <!-- Noise A, B, C -->
+                <path class="silicon-bus-wire" d="M 185 64 L 195 64" />
                 <path class="silicon-bus-packet sig-noise-a" d="M 185 64 L 195 64" />
+
+                <path class="silicon-bus-wire" d="M 185 67 L 189 67 L 189 80 L 195 80" />
                 <path class="silicon-bus-packet sig-noise-b" d="M 185 67 L 189 67 L 189 80 L 195 80" />
+
+                <path class="silicon-bus-wire" d="M 185 70 L 185 90 L 195 90" />
                 <path class="silicon-bus-packet sig-noise-c" d="M 185 70 L 185 90 L 195 90" />
 
+                <!-- Mixer to DACs -->
+                <path class="silicon-bus-wire" d="M 255 67 L 290 67" />
                 <path class="silicon-bus-packet sig-mix-a" d="M 255 67 L 290 67" />
+
+                <path class="silicon-bus-wire" d="M 255 80 L 270 80 L 270 98 L 290 98" />
                 <path class="silicon-bus-packet sig-mix-b" d="M 255 80 L 270 80 L 270 98 L 290 98" />
+
+                <path class="silicon-bus-wire" d="M 255 93 L 265 93 L 265 129 L 290 129" />
                 <path class="silicon-bus-packet sig-mix-c" d="M 255 93 L 265 93 L 265 129 L 290 129" />
 
+                <!-- DACs to Output Pins -->
+                <path class="silicon-bus-wire" d="M 345 67 L 355 67 L 355 155 L 120 155 L 120 170" />
                 <path class="silicon-bus-packet sig-out-a" d="M 345 67 L 355 67 L 355 155 L 120 155 L 120 170" />
+
+                <path class="silicon-bus-wire" d="M 345 98 L 365 98 L 365 162 L 100 162 L 100 170" />
                 <path class="silicon-bus-packet sig-out-b" d="M 345 98 L 365 98 L 365 162 L 100 162 L 100 170" />
+
+                <path class="silicon-bus-wire" d="M 345 129 L 375 129 L 375 42 L 100 42 L 100 30" />
                 <path class="silicon-bus-packet sig-out-c" d="M 345 129 L 375 129 L 375 42 L 100 42 L 100 30" />
             </svg>
         `;

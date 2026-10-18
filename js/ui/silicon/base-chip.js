@@ -26,12 +26,27 @@ export class BaseChip {
 
     updateBusFlow(el, volume) {
         if (!el) return;
+        const wire = el._wire || (el._wire = (el.previousElementSibling && (el.previousElementSibling.classList.contains('silicon-bus-wire') || el.previousElementSibling.classList.contains('sid-bus-wire'))) ? el.previousElementSibling : null);
+
         if (volume > 0.04) {
+            // 1. Traveling Discrete Energy Packet (Photon)
             el.style.opacity = Math.min(1.0, 0.25 + volume * 0.75);
             el.style.filter = `drop-shadow(0 0 ${2 + volume * 4}px var(--highlight-color))`;
+
+            // 2. Base Circuit Wire Gentle Glow in System Color (C64 Blue, Amiga Orange, Atari Green)
+            if (wire) {
+                wire.style.stroke = 'var(--bus-active-color)';
+                wire.style.opacity = Math.min(0.85, 0.35 + volume * 0.50);
+                wire.style.filter = `drop-shadow(0 0 ${1 + volume * 3}px var(--bus-active-color))`;
+            }
         } else {
             el.style.opacity = '0';
             el.style.filter = 'none';
+            if (wire) {
+                wire.style.stroke = 'var(--text-color)';
+                wire.style.opacity = '0.20';
+                wire.style.filter = 'none';
+            }
         }
     }
 
