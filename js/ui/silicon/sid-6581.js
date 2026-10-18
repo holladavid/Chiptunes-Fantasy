@@ -518,7 +518,7 @@ export class Sid6581 extends BaseChip {
                 <rect class="silicon-chip-body" x="50" y="30" width="400" height="140" rx="4" />
                 <path d="M 50 85 A 15 15 0 0 1 50 115 Z" fill="var(--chassis-dark)" />
                 <circle cx="63" cy="42" r="3.5" fill="var(--chassis-dark)" />
-                <text x="250" y="39" class="silicon-chip-label" fill="var(--panel-text)" text-anchor="middle" dominant-baseline="middle">MOS 6581 SOUND INTERFACE DEVICE (1MHz DIE)</text>
+                <text x="250" y="38" class="silicon-chip-label" font-size="6" fill="var(--panel-text)" text-anchor="middle" dominant-baseline="middle">MOS 6581 SOUND INTERFACE DEVICE (1MHz DIE)</text>
 
                 <!-- Silicon Die Cavity Window -->
                 <rect x="70" y="46" width="360" height="108" rx="2" fill="var(--screen-bg)" stroke="var(--chassis-dark)" stroke-width="2" />

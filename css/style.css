@@ -1234,7 +1234,13 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
 }
 
 .silicon-chip-label {
-    font-size: 10px !important;
+    font-size: 6px !important;
+    letter-spacing: 0.5px;
+}
+
+body.theme-amiga .silicon-chip-label,
+body.theme-atari .silicon-chip-label {
+    font-size: 8px !important;
     letter-spacing: 0.5px;
 }
 
