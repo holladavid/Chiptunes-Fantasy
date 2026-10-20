@@ -278,10 +278,9 @@ function handleWorkletMessage(e) {
         
         for (let i = 0; i < 32; i++) {
             currentChipRegs[i] = view[4 + i];
-            channelVolumes[0] = view[34];
-            channelVolumes[1] = view[35];
-            channelVolumes[2] = view[36];
-            channelVolumes[3] = view[37];            
+        }
+        for (let channel = 0; channel < channelVolumes.length; channel++) {
+            channelVolumes[channel] = view[34 + channel];
         }
 
         if (systemId === 0) {
@@ -294,16 +293,21 @@ function handleWorkletMessage(e) {
             const overrideState = Math.round(view[38]); 
             currentChipRegs[29] = ledState; 
             currentChipRegs[30] = overrideState; 
+            currentChipRegs[31] = Math.round(view[39] || 0);
             
             const pwrLed = document.getElementById('amiga-led-pwr');
             if (pwrLed) {
-                if (ledState === 0) { 
+                if (ledState === 1) {
                     pwrLed.classList.add('on');
                     pwrLed.style.background = '#ff0000';
                     pwrLed.style.boxShadow = '0 0 8px #ff0000';
-                } else { 
+                } else if (ledState === 0) {
                     pwrLed.classList.remove('on');
                     pwrLed.style.background = '#440000';
+                    pwrLed.style.boxShadow = 'none';
+                } else {
+                    pwrLed.classList.remove('on');
+                    pwrLed.style.background = '';
                     pwrLed.style.boxShadow = 'none';
                 }
             }

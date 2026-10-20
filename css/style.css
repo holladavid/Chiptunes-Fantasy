@@ -1241,6 +1241,54 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     letter-spacing: 0.5px;
 }
 
+.paula-section-label,
+.paula-channel-name,
+.paula-channel-state,
+.paula-channel-registers,
+.paula-stage-title,
+.paula-stage-caption,
+.paula-filter-status,
+.paula-pin-label {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 5px;
+    letter-spacing: 0.15px;
+}
+
+.paula-pin-number {
+    fill: var(--panel-text);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 4px;
+}
+
+.paula-audio-pin,
+.paula-pin-label {
+    fill: var(--highlight-color);
+}
+
+.paula-section-label,
+.paula-filter-status {
+    fill: var(--text-color);
+}
+
+.paula-channel-name,
+.paula-stage-title {
+    font-size: 7px;
+}
+
+.paula-channel-state,
+.paula-channel-registers,
+.paula-stage-caption {
+    font-size: 5.6px;
+}
+
+.paula-board-frame {
+    fill: rgba(0, 0, 0, 0.12);
+}
+
+.paula-visualization .silicon-bus-wire[marker-end] {
+    marker-end: url(#paula-arrow);
+}
+
 body.theme-amiga .silicon-chip-label,
 body.theme-atari .silicon-chip-label {
     font-size: 8px !important;
@@ -1312,6 +1360,35 @@ body.theme-atari .silicon-chip-label {
     }
     to {
         stroke-dashoffset: -59;
+    }
+}
+
+.silicon-chassis:has(.paula-visualization) {
+    height: clamp(360px, 48vh, 440px);
+}
+
+.paula-visualization {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+@media (max-width: 720px) {
+    .silicon-chassis:has(.paula-visualization) {
+        height: 380px;
+    }
+
+    .silicon-chassis:has(.paula-visualization) .silicon-die-wrapper {
+        justify-content: flex-start;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+
+    .silicon-chassis:has(.paula-visualization) .paula-visualization {
+        width: 800px;
+        min-width: 800px;
+        height: 355px;
+        max-height: none;
     }
 }
 

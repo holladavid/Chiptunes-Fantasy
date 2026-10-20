@@ -899,14 +899,17 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                     view[4 + offset + 6] = Math.round(ch.vol) & 0xFF;
                 }
 
-                view[33] = 0.0;
+                view[33] = 2.0; // Filter state: not modeled by this core.
 
+                let dmaMask = 0;
                 for (let c = 0; c < 4; c++) {
                     let ch = this.channels[c];
                     view[34 + c] = (ch.data || ch.dmaEnabled) ? (ch.vol / 64.0) : 0.0;
+                    if (ch.dmaEnabled) dmaMask |= 1 << c;
                 }
 
-                view[38] = 1.0;
+                view[38] = 0.0;
+                view[39] = dmaMask;
 
                 this.port.postMessage(view);
             }

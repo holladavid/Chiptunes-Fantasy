@@ -783,12 +783,15 @@ class PaulaProcessor extends AudioWorkletProcessor {
 
                 view[33] = this.ledFilterOn ? 1.0 : 0.0;
 
+                let dmaMask = 0;
                 for (let c = 0; c < 4; c++) {
                     let ch = this.channels[c];
                     view[34 + c] = ch.dmaEnabled ? (ch.audVol / 64.0) : 0.0;
+                    if (ch.dmaEnabled) dmaMask |= 1 << c;
                 }
 
                 view[38] = this.filterModeState;
+                view[39] = dmaMask;
 
                 this.port.postMessage(view);
             }
