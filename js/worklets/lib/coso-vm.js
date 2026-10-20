@@ -22,6 +22,7 @@
 // =========================================================
 
 import { CosoReplayer, REG } from './coso-replayer.js';
+import { HipVirtualMachine } from './hip-vm.js';
 
 // Tickrate des Original-Players: 50 Hz. Gegen UADE gemessen (Abschnitt 15 der Spec): der Player läuft mit dem CIA-Standardtakt
 // (Timer 14188 -> 49.9985 Hz, 27-28 ppm langsamer als exakt 50 Hz). Die ~49.707 Hz der YouTube-Aufnahmen sind ein Artefakt
@@ -44,6 +45,8 @@ const NUM_VOICES = 4;
 
 export class CosoVirtualMachine {
     constructor(trackModule, samplesDict, traceCallback = null, options = {}) {
+        // Unkomprimierte HIP-Dateien: der Original-68k-Code läuft (gleiche Schnittstelle), die Worklets bleiben unverändert
+        if (trackModule && trackModule.format === 'HIP68K') return new HipVirtualMachine(trackModule, samplesDict, traceCallback, options);
         if (!trackModule || !(trackModule.pcm instanceof Int8Array) || !trackModule.data || !trackModule.sampleTable) {
             throw new Error('CosoVirtualMachine: Track ist kein v1.5-COSO-Modul (parseCoso() erwartet).');
         }

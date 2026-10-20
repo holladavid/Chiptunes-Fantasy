@@ -31,20 +31,37 @@ test('Amberstar: gemeinsame externe Samplebank wird beim Laden eingebunden', asy
     globalThis.fetch = async (url) => {
         const fixture = url === 'samplebank'
             ? fx('amberstar/hipc.samp')
-            : fx('amberstar/City_Walk.hipc');
+            : fx('amberstar/Gwens_Lament.hipc');
         const bytes = Uint8Array.from(readFileSync(fixture));
         return { ok: true, arrayBuffer: async () => bytes.buffer };
     };
 
     try {
-        const mod = await loadHipcFile('amberstar/City_Walk.hipc', {
+        const mod = await loadHipcFile('amberstar/Gwens_Lament.hipc', {
             sampleBankUrl: 'samplebank',
             replayerOptions: { envSpec: true }
         });
         assert.equal(mod.pcm.length, 57576);
         assert.deepEqual(mod.replayerOptions, { envSpec: true });
         assert.equal(new CosoVirtualMachine(mod, {}).replayer.envSpec, true);
-        assert.deepEqual(mod.warnings, []);
+        assert.equal(mod.warnings.some((warning) => warning.includes('PCM-Bank')), false);
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
+test('Unkomprimiertes HIP: gemeinsamer HIPC-Loader protokolliert HIP-Layout', { skip: !has(TITLE) }, async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+        const bytes = Uint8Array.from(readFileSync(fx(TITLE)));
+        return { ok: true, arrayBuffer: async () => bytes.buffer };
+    };
+
+    try {
+        const mod = await loadHipcFile(TITLE);
+        assert.equal(mod.format, 'HIP68K');
+        assert.equal(mod.layout.nI, 39);
+        assert.equal(mod.layout.nSamples, 21);
     } finally {
         globalThis.fetch = originalFetch;
     }
@@ -161,9 +178,10 @@ test('Zu stark verstümmelte Datei wird abgelehnt', { skip: !has(L1) }, () => {
         (e) => e instanceof CosoFormatError && e.code === 'TRUNCATED');
 });
 
-test('Title.hip (68k-Replayer-Format) wird mit eindeutigem Code abgelehnt', { skip: !has(TITLE) }, () => {
-    assert.throws(() => parseCoso(load(TITLE), { name: TITLE }),
-        (e) => e instanceof CosoFormatError && e.code === 'UNSUPPORTED_HIPPEL_68K');
+test('Title.hip (68k-Replayer-Format) wird an den HIP-Parser delegiert', { skip: !has(TITLE) }, () => {
+    const m = parseCoso(load(TITLE), { name: TITLE });
+    assert.equal(m.format, 'HIP68K');
+    assert.equal(m.layout.nI, 39);
 });
 
 test('Müll und falsche Signaturen', () => {

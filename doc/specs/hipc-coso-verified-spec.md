@@ -1,6 +1,6 @@
 # Hippel-COSO (.hipc) — Verifizierte Layout-Spezifikation
 
-**Status:** Phasen 2 (Forensik), 4 (Replay-Kern), 5 (Paula-Hardwareanbindung), 7 (zweite Referenz, Dragonflight), 8 (UADE als Referenz) und 9 (Laufzeit, Spulen) abgeschlossen · **Stand:** v1.5.0-dev
+**Status:** Phasen 2 (Forensik), 4 (Replay-Kern), 5 (Paula-Hardwareanbindung), 7 (zweite Referenz, Dragonflight), 8 (UADE als Referenz), 9 (Laufzeit, Spulen) und 10 (unkomprimierte HIP-Dateien) abgeschlossen · **Stand:** v1.5.0-dev
 **Verifiziert an:** `Wings_Of_Death-Level_1.hipc` (18282 B), `Wings_Of_Death-Level_2.hipc` (17112 B)
 **Externe Referenz (nur Gegenprüfung):** Pyrdacor/Amberstar `FileSpecs/Hippel-CoSo.md`
 
@@ -158,7 +158,7 @@ Referenz seit Phase 8: UADE-Renderings (Abschnitt 15). Die YouTube-Aufnahmen (Ab
 | 11 | Timbre-Aliase (zwei Indexeinträge, ein Offset) | ✅ Elementende = nächster größerer Offset; Dragonflight Timbre 3 ist stumm |
 | 12 | Envelope × `channel_volume`, `E5`, `E6`, `E9`, `E0`-LOOP, `FULL-STOP` | ❓ in keiner der drei Dateien genutzt |
 | 13 | `word2E` im Header | Beobachtung: entspricht in allen drei Dateien dem Speed von Song 0 (2, 2, 5) |
-| 14 | `Wings_Of_Death-Title.hip` (68k-Replayer-Format) | ⚠️ Datenlayout großteils entschlüsselt (Abschnitt 13), Pattern-Zeilensemantik offen |
+| 14 | Unkomprimierte HIP-Dateien (`Title.hip`) | ✅ spielen über den Original-68k-Code (Abschnitt 17); ⚠️ noch nicht gegen UADE-Audio geprüft |
 
 ## 10. Referenzmessung (Phase 4)
 
@@ -236,6 +236,8 @@ Gesamteffekt der neuen Standardwerte gegenüber Phase 5: 4-s-Segmente +0,008 (gr
 **Tickrate:** Eine unabhängige Referenz aus einer anderen Aufnahmekette würde die Frage klären, z. B. ein WAV-Export derselben `.hipc`-Datei mit UADE. Liegt dieser bei exakt 50 Hz, ist die Abweichung ein Aufnahmeartefakt; liegt er ebenfalls bei ≈ 49,7 Hz, steckt sie im Timer des Originals.
 
 ## 13. `Wings_Of_Death-Title.hip` (unkomprimierter Hippel-Container)
+
+> **Überholt durch Abschnitt 17.** Die hier beschriebene Deutung der Monopatterns als 4-Byte-Zeilenraster war falsch (richtig: 32 Einheiten zu 2 Byte). Das übrige Layout ist bestätigt.
 
 Beleg: Die Datei ist der **unkomprimierte Vorläufer** des COSO-Formats, mit 68k-Replayer vorweg.
 
@@ -375,4 +377,61 @@ Mit lokaler Phase erreichen praktisch alle Instrumente R² 0,96–1,00. Der Rest
 Die Werte stimmen mit den UADE-Dauern aus Abschnitt 15 überein (160,03 s und 457,65 s). UADE spielt Level 1 mit 222,8 s über den ersten Durchlauf (215,04 s) hinaus; die Anzeige folgt dem Loop-Punkt der Songdaten.
 
 **Verhaltensänderung:** Weil der Frame jetzt am Songende zurückspringt, wechselt die UI bei HIPC wie bei den anderen Formaten zum nächsten Titel, statt endlos zu loopen.
+
+## 17. Phase 10: Unkomprimierte HIP-Dateien, der Original-68k-Code läuft
+
+### 17.1 Entscheidung
+
+Die Datei beginnt mit `BRA.W init` (Datei+0) und `BRA.W play` (Datei+4), danach folgt der **Original-Replay-Code** des Komponisten. Die Lektüre dieses Codes (68k-Disassembler `tools/m68k/disasm.mjs`) zeigt, dass es eine **andere Player-Version** ist als der COSO-Player, den UADE ausführt:
+
+| | COSO-Player (UADE-verifiziert, Abschnitte 15) | HIP-Player (Original-Code, Title.hip) |
+|---|---|---|
+| Portamento | proportional `period·t·slope>>10` | additiv `period -= (t·slope)>>5` (Akkumulator `+= slope<<11`, oberes Wort abgezogen) |
+| Vibrato | Start `+depth/2`, proportional `>>10` | Start `pos = depth` (Offset 0), additiv in rohen Einheiten, Offset `pos - depth` zwischen `-depth` und `+depth` |
+
+Eine Konvertierung in das COSO-Modell wäre deshalb nicht klanggleich. Statt die Semantik nachzubauen, wird der echte Code in einem M68000-Interpreter ausgeführt, wie UADE es tut.
+
+### 17.2 Layout
+
+Hinter der Signatur `TFMX` (hier `$0A94`) steht derselbe Zählerblock wie im COSO-Header (Zähler + 1 für Instrumente, Timbres, Patterns, Divisions; Songs und Samples direkt, dazu Bytes pro Pattern `$40`). Der Player berechnet die Abschnitte selbst:
+
+| Abschnitt | Berechnung | Title.hip |
+|---|---|---|
+| Instrumente | `header + 32`, je 64 Byte | `$0AB4`, 39 |
+| Timbres | + Instrumente, je 64 Byte | `$1474`, 48 |
+| Patterns | + Timbres, je `patBytes` (64) | `$2074`, 153 |
+| Divisions | + Patterns, je 12 Byte | `$46B4`, 132 |
+| Songs | + Divisions, `(n+1)` × 6 Byte | `$4CE4`, 3 |
+| Sample-Tabelle | + Songs, je **30 Byte** (Name, Startoffset, Länge in Words, Loop-Start, Loop-Länge) | `$4CFC`, 21 |
+| PCM | + Sample-Tabelle | `$4F72` |
+
+Subsongs sind für `init` **1-basiert** (`D0 = 0` setzt ein Stopp-Flag und schaltet alle Kanäle stumm).
+
+### 17.3 Aus dem Original-Code gelesene Semantik
+
+* **Takt:** Pro Tick wird ein Zähler heruntergezählt; bei 0 (alle `speed` Ticks, hier 4) läuft der Pattern-Schritt für alle vier Stimmen.
+* **Pattern:** 32 Einheiten zu je 2 Byte (Note, Info), jede dauert `speed` Ticks. **Das Extra-Byte einer Note ist das Info-Byte der vorherigen Einheit** (`move.b -2(a3),76(a0)`), bei der ersten Einheit das letzte Byte des Patterns. Das Pattern endet bei Notenwert `1` oder Offset 64. Bit 7 der Note = Legato (kein Trigger). Division und Effekt wie in COSO (`$80` = Stopp).
+* **Instrument-Opcodes** (Tabelle bei `$42C`): `E0` Loop auf absolute Position; `E1` Ende; `E2` Sample, **stoppt die DMA und merkt den Neustart vor**; `E3` Vibrato (Slope, Tiefe); `E4` Sample **ohne** DMA-Stopp, schreibt nur `AUDxLC`/`AUDxLEN` (Latch); `E5` Sample + Slide (9 Byte); `E6` Slide (6 Byte); `E7` Neustart **nur wenn das Sample wechselt**, die Hüllkurve wird **immer** zurückgesetzt; `E8` Instrument-Verzögerung in Ticks; `E9` Sample mit Offset (erzwungener Neustart).
+* **Hüllkurve:** `E8` = **SUSTAIN(ticks)** (Zähler `71(a0)`), `E0` = **LOOP** auf `Operand - 5` (der Operand zählt den 5-Byte-Header mit), `E1`..`E7` halten, sonst Lautstärke. Das bestätigt am Quellcode, was für das COSO-Modell per Audio und strukturell ermittelt worden war (Abschnitt 14.3, 15.3).
+* **DMA-Protokoll:** Neustart = `DMACON` löschen, `LC/LEN/PER/VOL` schreiben, drei Rasterzeilen warten, `DMACON` setzen, eine Zeile warten, danach `LC/LEN` der **Loop-Zeiger** schreiben. Die Wartezeiten sind Rasterzeilen-Schleifen auf `VHPOSR`.
+* **Periodentabelle:** 72 Einträge ab `$A04` (die ersten 72 unserer Tabelle); höhere Notenwerte lesen hinter die Tabelle.
+
+### 17.4 Architektur
+
+* `js/worklets/lib/m68k.js`: M68000-Interpreter (Integer-Befehlssatz, ohne Zyklen/Exceptions, ca. 75 Mio. Instruktionen/s, allokationsfrei im Betrieb). Nicht implementiert (meldet einen Fehler mit PC): BCD, TRAP, RTE/STOP/RESET, Line-A/F, MOVEP.
+* `js/worklets/lib/hip-vm.js`: `HipVirtualMachine` ruft `init` und danach `play` pro Tick und übersetzt jeden Schreibzugriff auf `AUDx`/`DMACON` in die Hardware-API der Kanäle (`hwWriteLC`, `hwWriteLEN`, `writeAUDxPER/VOL`, `hwStartDMA`, `hwStopDMA`). Der Chip-RAM der Kanäle ist **derselbe Speicher**, in dem der Code läuft, absolute Sample-Adressen stimmen automatisch.
+* `js/parsers/hip-parser.js`: prüft Einsprung und Layout und ermittelt die Original-Laufzeit; `parseCoso()` und damit `loadHipcFile()` delegieren bei `BRA.W` am Dateianfang dorthin. `CosoVirtualMachine` liefert für `format === 'HIP68K'` die 68k-VM, **die Worklets bleiben unverändert** (sie brauchen weiterhin die Patches `paula-hw-dma` und `paula-hipc-seek-position`).
+* **Loop und Laufzeit:** Die Stimmen-Struktur im Zustandsbereich wird über die vier Division-Zeiger im Abstand `$52` gefunden; das Zurücksetzen des Division-Offsets (`58(a0)` auf 0) markiert den Loop. Title.hip: 16896 Ticks = 5:37 (= 132 Divisions × 32 Einheiten × Speed 4).
+* **Spulen:** Neustart des Players und Vorlauf ohne Ausgabe (der ganze Song in etwa 75 ms), danach werden die Kanäle aus den Schattenregistern neu aufgebaut.
+* **Fehler im Player** (Instruktionslimit, unbekannter Opcode): die VM wird stumm und blockiert nicht.
+
+### 17.5 Verifikation und Stand
+
+* Interpreter: 19 Tests mit handassembliertem Code (Flags, Randfälle, Adressierungsarten, MOVEM, Schiebebefehle, MUL/DIV).
+* Register-Übersetzung: Gegenprobe gegen die unabhängige Dekodierung des Orakels (`tools/m68k/hip-oracle.mjs`) über 600 Ticks: Periode, Lautstärke, `LC`, `LEN` und DMA-Zustand aller vier Kanäle stimmen in jedem Tick.
+* Struktur: Die vom Interpreter gelaufene Songlänge (16896 Ticks) entspricht der aus den Daten berechneten (132 × 32 × 4).
+* Loop: zwischen erstem und zweitem Durchlauf unterscheiden sich von 135168 Registerwerten nur 3, alle in den ersten Ticks.
+* Spulen: bitgleich zu einem durchgehenden Lauf (Speicherabbild, Register, Position), auch aus dem laufenden Stück.
+* **Noch nicht geprüft:** gegen UADE-Audio. Dafür `uade123 -f title.wav -e wav --filter=none --panning=0 Wings_Of_Death-Title.hip` rendern und mit `tools/uade-compare/uade_fit.py` auswerten (am Level-2-Rendering reproduziert das Werkzeug 89,1 % fest / 98,0 % lokal).
+* **Offen:** Rasterwartezeiten laufen ohne Zeitbezug (Registerfolge stimmt, der Abstand zwischen Neustart und Loop-Zeigern ist 0 µs), Player mit CIA-Timer-Takt (der Tick wird fest mit 50 Hz aufgerufen), andere `.hip`-Dateien mit weiteren Befehlen (die VM meldet den ersten fehlenden Opcode mit PC).
 

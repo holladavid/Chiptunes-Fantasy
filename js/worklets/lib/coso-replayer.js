@@ -409,8 +409,12 @@ export class CosoReplayer {
                     v.slideSpeed = d[v.instPtr + 5] || 1; v.slideCount = v.slideSpeed;
                     if (v.sample >= 0) { v.slideActive = true; v.slideStart = this.smpLoopStart[v.sample] - this.smpStart[v.sample]; }
                     v.instPtr += 6; break;
-                case 0xE7:                                                                      // SAMPLE(s,0)+RESET-VOL
-                    this.setSample(v, d[v.instPtr + 1], false, true); this.resetEnvelope(v); v.instPtr += 2; break;
+                case 0xE7: {                                                                    // SAMPLE(s,0)+RESET-VOL
+                    // Original-Player-Code (Title.hip, $468): DMA-Neustart nur wenn sich das Sample ändert, Hüllkurve immer zurück
+                    const s7 = d[v.instPtr + 1];
+                    if (s7 !== v.sample) this.setSample(v, s7, true, false);
+                    this.resetEnvelope(v); v.instPtr += 2; break;
+                }
                 case 0xE8:                                                                      // INSTRUMENT-DELAY (UNVERIFIED)
                     v.instWait = d[v.instPtr + 1]; v.instPtr += 2; return;
                 case 0xE9:                                                                      // SAMPLE-CUSTOM (UNVERIFIED: Offset ignoriert)

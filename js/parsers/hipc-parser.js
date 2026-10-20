@@ -19,6 +19,7 @@
 // =========================================================
 
 import { cosoSongTicks } from '../worklets/lib/coso-replayer.js';
+import { parseHip } from './hip-parser.js';
 
 export class CosoFormatError extends Error {
     constructor(code, message) {
@@ -191,9 +192,8 @@ export function parseCoso(input, options = {}) {
 
     // ---------- 1. Container-Erkennung ----------
     if (src.length >= 2 && src[0] === 0x60 && src[1] === 0x00) {
-        throw new CosoFormatError('UNSUPPORTED_HIPPEL_68K',
-            `"${name}" ist kein COSO-Container, sondern das Hippel-Format mit 68k-Replayer am Dateianfang (BRA.W). ` +
-            `Dieses Format wird von diesem Parser nicht unterstützt.`);
+        // BRA.W am Dateianfang: unkomprimiertes Hippel-Format mit 68k-Player vor den Daten -> Original-Code ausführen
+        return parseHip(src, options);
     }
     if (src.length < HEADER_BYTES) {
         throw new CosoFormatError('TOO_SHORT', `"${name}": Datei zu kurz für einen COSO-Header (${src.length} Byte).`);
@@ -445,31 +445,33 @@ export async function loadHipcFile(url, options = {}) {
     if (!response.ok) throw new Error(`Datei nicht gefunden: ${url}`);
     let data = new Uint8Array(await response.arrayBuffer());
 
-    if (sampleBankUrl !== undefined) {
-        const name = url.split('/').pop();
-        if (data.length < HEADER_BYTES || tag(data, 0) !== 'COSO' || tag(data, 0x20) !== 'TFMX') {
-            return parseCoso(data, { name, ...parseOptions });
-        }
+    if (sampleBankUrl !== undefined &&
+        data.length >= HEADER_BYTES && tag(data, 0) === 'COSO' && tag(data, 0x20) === 'TFMX') {
         const sampleOffset = be32(data, 0x1C);
-        if (sampleOffset < HEADER_BYTES || sampleOffset > data.length) {
-            return parseCoso(data, { name, ...parseOptions });
+        if (sampleOffset >= HEADER_BYTES && sampleOffset <= data.length) {
+            const bankResponse = await fetch(sampleBankUrl);
+            if (!bankResponse.ok) throw new Error(`Samplebank nicht gefunden: ${sampleBankUrl}`);
+            const sampleBank = new Uint8Array(await bankResponse.arrayBuffer());
+            const combined = new Uint8Array(sampleOffset + sampleBank.length);
+            combined.set(data.subarray(0, sampleOffset));
+            combined.set(sampleBank, sampleOffset);
+            data = combined;
         }
-
-        const bankResponse = await fetch(sampleBankUrl);
-        if (!bankResponse.ok) throw new Error(`Samplebank nicht gefunden: ${sampleBankUrl}`);
-        const sampleBank = new Uint8Array(await bankResponse.arrayBuffer());
-        const combined = new Uint8Array(sampleOffset + sampleBank.length);
-        combined.set(data.subarray(0, sampleOffset));
-        combined.set(sampleBank, sampleOffset);
-        data = combined;
     }
 
     const mod = parseCoso(data, { name: url.split('/').pop(), ...parseOptions });
     if (replayerOptions !== undefined) mod.replayerOptions = replayerOptions;
 
-    console.log(`[COSO] ${mod.metadata.name}: ${mod.header.counts.instruments} instr / ${mod.header.counts.timbres} timbres / ` +
-                `${mod.header.counts.monopatterns} patterns / ${mod.header.counts.divisions} divisions / ` +
-                `${mod.songs.length} songs / ${mod.sampleTable.length} samples (PCM ${mod.pcm.length} B)`);
-    for (let i = 0; i < mod.warnings.length; i++) console.warn(`[COSO] ${mod.warnings[i]}`);
+    if (mod.format === 'HIP68K') {
+        console.log(`[HIP] ${mod.metadata.name}: ${mod.layout.nI} instr / ${mod.layout.nT} timbres / ` +
+                    `${mod.layout.nP} patterns / ${mod.layout.nD} divisions / ` +
+                    `${mod.songs.length} songs / ${mod.layout.nSamples} samples`);
+    } else {
+        console.log(`[COSO] ${mod.metadata.name}: ${mod.header.counts.instruments} instr / ${mod.header.counts.timbres} timbres / ` +
+                    `${mod.header.counts.monopatterns} patterns / ${mod.header.counts.divisions} divisions / ` +
+                    `${mod.songs.length} songs / ${mod.sampleTable.length} samples (PCM ${mod.pcm.length} B)`);
+    }
+    const logPrefix = mod.format === 'HIP68K' ? 'HIP' : 'COSO';
+    for (let i = 0; i < mod.warnings.length; i++) console.warn(`[${logPrefix}] ${mod.warnings[i]}`);
     return mod;
 }
