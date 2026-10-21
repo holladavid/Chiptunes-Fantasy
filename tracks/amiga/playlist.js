@@ -18,13 +18,13 @@ const myModFiles = [
     "turrican_2_title.xm",          // Chris Huelsbeck (5)
     
     // --- JOCHEN HIPPEL: DRAGONFLIGHT (THALION 1990, COSO RPG SUITE) ---
-    "dragonflight_titletune.HIPC",  // Main Title Theme (7.5 Min. Epos)
-    "dragonflight_surface.HIPC",    // Overworld / Wilderness Travel
-    "dragonflight_town.HIPC",       // Towns, Taverns & Marketplaces
-    "dragonflight_dungeon.HIPC",    // Underground Catacombs & Caverns
-    "dragonflight_endsequence.HIPC",// Victory Fanfare & End Credits
-    "dragonflight_ani.HIPC",        // Cinematic Dragon Flight & Intro Anim
-    "dragonflight_always.HIPC",     // Atmospheric Mystic Motif
+    "dragonflight/dragonflight_titletune.HIPC",  // Main Title Theme (7.5 Min. Epos)
+    "dragonflight/dragonflight_surface.HIPC",    // Overworld / Wilderness Travel
+    "dragonflight/dragonflight_town.HIPC",       // Towns, Taverns & Marketplaces
+    "dragonflight/dragonflight_dungeon.HIPC",    // Underground Catacombs & Caverns
+    "dragonflight/dragonflight_endsequence.HIPC",// Victory Fanfare & End Credits
+    "dragonflight/dragonflight_ani.HIPC",        // Cinematic Dragon Flight & Intro Anim
+    "dragonflight/dragonflight_always.HIPC",     // Atmospheric Mystic Motif
 
     // --- JOCHEN HIPPEL: AMBERSTAR AMIGA COSO SUITE ---
     "amberstar/City_Walk.hipc",
@@ -48,15 +48,15 @@ const myModFiles = [
     "amberstar/Ingame.hipc",
 
     // --- JOCHEN HIPPEL: WINGS OF DEATH (7-VOICE COSO / HIP SUITE) ---
-    "Wings_Of_Death-Title.hip",     // Main Title Theme
-    "Wings_Of_Death-Level_1.hipc",   // Level 1: Over the Trees
-    "Wings_Of_Death-Level_2.hipc",   // Level 2: Inside the Cave
-    "Wings_Of_Death-Level_3.hipc",   // Level 3: Desert Rocks
-    "Wings_Of_Death-Level_4.hipc",   // Level 4: Mechanical Castle
-    "Wings_Of_Death-Level_5.hipc",   // Level 5: Bio-Hazard / Organic
-    "Wings_Of_Death-Level_6.hipc",   // Level 6: Glacier / Ice
-    "Wings_Of_Death-Level_7.hipc",   // Level 7: Volcanic / Fire
-    "Wings_Of_Death-End.hipc",       // End / Highscore Credits
+    "wings-of-death/Wings_Of_Death-Title.hip",     // Main Title Theme
+    "wings-of-death/Wings_Of_Death-Level_1.hipc",   // Level 1: Over the Trees
+    "wings-of-death/Wings_Of_Death-Level_2.hipc",   // Level 2: Inside the Cave
+    "wings-of-death/Wings_Of_Death-Level_3.hipc",   // Level 3: Desert Rocks
+    "wings-of-death/Wings_Of_Death-Level_4.hipc",   // Level 4: Mechanical Castle
+    "wings-of-death/Wings_Of_Death-Level_5.hipc",   // Level 5: Bio-Hazard / Organic
+    "wings-of-death/Wings_Of_Death-Level_6.hipc",   // Level 6: Glacier / Ice
+    "wings-of-death/Wings_Of_Death-Level_7.hipc",   // Level 7: Volcanic / Fire
+    "wings-of-death/Wings_Of_Death-End.hipc",       // End / Highscore Credits
 
     // --- EXTENDED ARCHIVE ---
     "blood_money_title.mod",
@@ -291,7 +291,7 @@ export const amigaPlaylist = myModFiles.map((filename, index) => {
     const label = isHip ? "HIPPEL-COSO" : (isDw ? "WHITTAKER" : (isXm ? "FASTTRACKER" : "PROTRACKER"));
     const displayFilename = filename.split('/').pop();
 
-    const metaInfo = composerMetadata[filename] || `
+    const metaInfo = composerMetadata[filename] || composerMetadata[displayFilename] || `
         <h3>[ CLASSIC AMIGA MODULE ]</h3>
         <p>Ein historisches Amiga-Tracker-Dokument. Geladen und emuliert direkt im RAM des Webbrowsers über unseren maßgeschneiderten MOS Paula 8364 Core.</p>
     `;
