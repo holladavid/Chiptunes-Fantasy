@@ -11,31 +11,50 @@ export class BaseChip {
     }
 
     // Erzeugt physikalisch korrekte DIP-Pins
-    generatePins(pinCount, startX, width) {
+    generatePins(pinCount, startX, width, topY = 15, bottomY = 170, showNumbers = false) {
         const pinsPerSide = pinCount / 2;
         const spacing = width / pinsPerSide;
         let pinsHTML = '';
         for (let i = 0; i < pinsPerSide; i++) {
             const px = startX + (i * spacing) + (spacing * 0.25);
             const pinW = spacing * 0.5;
-            pinsHTML += `<rect class="silicon-pin pin-bot-${i + 1}" x="${px}" y="170" width="${pinW}" height="15" rx="1" />`;
-            pinsHTML += `<rect class="silicon-pin pin-top-${pinCount - i}" x="${px}" y="15" width="${pinW}" height="15" rx="1" />`;
+            const bottomPin = i + 1;
+            const topPin = pinCount - i;
+            const bottomCenter = px + pinW / 2;
+            const topCenter = bottomCenter + (topPin === 38 ? 15 : 0);
+            pinsHTML += `<rect class="silicon-pin pin-bot-${bottomPin}" x="${px}" y="${bottomY}" width="${pinW}" height="15" rx="1" />`;
+            pinsHTML += `<rect class="silicon-pin pin-top-${topPin}" x="${px}" y="${topY}" width="${pinW}" height="15" rx="1" />`;
+            if (showNumbers) {
+                pinsHTML += `<text class="silicon-pin-number" x="${bottomCenter}" y="${bottomY + 26}" text-anchor="middle">${bottomPin}</text>`;
+                pinsHTML += `<text class="silicon-pin-number" x="${topCenter}" y="${topY - 5}" text-anchor="middle">${topPin}</text>`;
+            }
         }
         return pinsHTML;
     }
 
     updateBusFlow(el, volume) {
         if (!el) return;
-        el.style.opacity = 0.1 + volume * 0.9;
-        if (volume > 0.05) {
-            const duration = Math.max(0.15, 1.2 - volume * 1.0);
-            el.style.animationDuration = `${duration}s`;
-            el.style.stroke = 'var(--highlight-color)';
-            el.style.filter = `drop-shadow(0 0 ${2 + volume * 6}px var(--text-color))`;
+        const wire = el._wire || (el._wire = (el.previousElementSibling && (el.previousElementSibling.classList.contains('silicon-bus-wire') || el.previousElementSibling.classList.contains('sid-bus-wire'))) ? el.previousElementSibling : null);
+
+        if (volume > 0.04) {
+            // 1. Traveling Discrete Energy Packet (Photon)
+            el.style.opacity = Math.min(1.0, 0.25 + volume * 0.75);
+            el.style.filter = `drop-shadow(0 0 ${2 + volume * 4}px var(--highlight-color))`;
+
+            // 2. Base Circuit Wire Gentle Glow in System Color (C64 Blue, Amiga Orange, Atari Green)
+            if (wire) {
+                wire.style.stroke = 'var(--bus-active-color)';
+                wire.style.opacity = Math.min(0.85, 0.35 + volume * 0.50);
+                wire.style.filter = `drop-shadow(0 0 ${1 + volume * 3}px var(--bus-active-color))`;
+            }
         } else {
-            el.style.animationDuration = '0s';
-            el.style.stroke = 'var(--text-color)';
+            el.style.opacity = '0';
             el.style.filter = 'none';
+            if (wire) {
+                wire.style.stroke = 'var(--text-color)';
+                wire.style.opacity = '0.20';
+                wire.style.filter = 'none';
+            }
         }
     }
 

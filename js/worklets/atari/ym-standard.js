@@ -182,6 +182,7 @@ class YMProcessor extends AudioWorkletProcessor {
             }
             
             let envVolIndex = Math.min(15, Math.max(0, Math.floor(envVolRaw * 15.99)));
+            this.visualEnvelopeLevel = envVolIndex / 15;
 
             let volA = (this.regs[8] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[8] & 0x0F];
             let volB = (this.regs[9] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[9] & 0x0F];
@@ -215,7 +216,7 @@ class YMProcessor extends AudioWorkletProcessor {
             if (i === 0) currentVisualValue = finalOutput;
         }
 
-        this.visualizer.update(this.isPlaying, this.currentFrame, currentVisualValue, this.regs, this.volA, this.volB, this.volC);
+        this.visualizer.update(this.isPlaying, this.currentFrame, currentVisualValue, this.regs, this.volA, this.volB, this.volC, this.noiseOutput, this.visualEnvelopeLevel || 0);
         return true; 
     }
 }

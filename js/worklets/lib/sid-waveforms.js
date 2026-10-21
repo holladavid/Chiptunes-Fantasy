@@ -17,19 +17,13 @@ import {
 export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB, freq = 0) {
     let hasWave = false;
     
-    // Basis-Wellenformen in 8-Bit berechnen
     let tri = 0xFF, saw = 0xFF, pulse = 0xFF, noise = 0xFF;
 
     if (ctrl & 16) {
-        // Exakte 11-Bit Phasen-Akkumulator Magnitude (Bits 22..12)
         let raw11 = (phase24 >> 12) & 0x7FF;
-        
-        // RingMod / Triangle Richtung:
         if (ringMSB) {
             raw11 = raw11 ^ 0x7FF;
         }
-        
-        // Skalierung von 11-Bit auf 8-Bit
         tri = raw11 >> 3;
         hasWave = true;
     }
@@ -40,14 +34,17 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB, freq
     }
 
     if (ctrl & 64) {
-        let testPhase = (phase24 >> 12) & 0xFFF;
-        let pwMapped = PWM_LUT[pw12 & 0xFFF];
-        pulse = (testPhase < pwMapped) ? 0xFF : 0x00;
+        if (ctrl & 8) {
+            pulse = 0xFF;
+        } else {
+            let testPhase = (phase24 >> 12) & 0xFFF;
+            let pwMapped = PWM_LUT[pw12 & 0xFFF];
+            pulse = (testPhase < pwMapped) ? 0xFF : 0x00;
+        }
         hasWave = true;
     }
 
     if (ctrl & 128) {
-        // Hardware-exakte LFSR Noise-Taps (6581)
         let rawNoise = ((lfsr23 & 0x100000) >> 13) | // Bit 20 -> Bit 7
                        ((lfsr23 & 0x040000) >> 12) | // Bit 18 -> Bit 6
                        ((lfsr23 & 0x004000) >>  9) | // Bit 14 -> Bit 5
@@ -61,7 +58,6 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB, freq
         hasWave = true;
     }
 
-    // Floating DAC DC-Bias
     if (!hasWave) {
         return 0x18; 
     }
@@ -77,7 +73,6 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB, freq
     // =========================================================
     // NMOS TRANSISTOR WIRE-AND LUTS & FREQUENCY DEGRADATION
     // =========================================================
-    // Frequenz-Normierungsfaktor für hohe Oktaven (ab ~1 kHz ansteigend)
     let freqNorm = freq > 4000 ? Math.min(1.0, (freq - 4000) / 28000.0) : 0.0;
 
     // 1. TRIANGLE + SAWTOOTH ($30)
@@ -94,7 +89,6 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB, freq
         let pIdx = (pulse === 0xFF) ? 1 : 0;
         let base = WAVE_LUT_TRIPULSE[(pIdx << 8) | tri];
         if (pIdx === 0 && freqNorm > 0.0) {
-            // Parasitäre Ladungs-Entspannung: Pulldown schwächt bei hohen Frequenzen sachte ab
             return Math.min(255, Math.floor(base + (tri - base) * (0.28 * freqNorm)));
         }
         return base;
@@ -121,7 +115,7 @@ export function calculateWaveform8Bit(ctrl, phase24, pw12, lfsr23, ringMSB, freq
         return base;
     }
 
-    // 5. NOISE + COMBINED WAVEFORMS (0x90, 0xA0, 0xC0, 0xD0, 0xE0, 0xF0)
+    // 5. NOISE + COMBINED WAVEFORMS
     let bitAnd = 0xFF;
     let xorSum = 0;
 

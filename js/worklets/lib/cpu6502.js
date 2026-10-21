@@ -1,12 +1,12 @@
 // === js/worklets/lib/cpu6502.js ===
 // =========================================================
 // 6502 CPU EMULATOR & C64 I/O INTERCEPTOR
-// High-Performance Zero-Allocation Edition
-// Sub-Cycle Instruction Write Pipelining (Hardware Bus Commit on Final Cycle)
-// PlaySID Amiga-Paula (3.6x Divider) & C64 PAL Cycle-Exact Converter
-// Corrected Big-Endian 4-Bit Sample Nibble Streamer (High-Nibble First)
-// Patched with CIA-1 ACK on $EA7E (Prevents 380Hz IRQ Loop for 'To Be On Top')
-// Physical 6502 NMI Falling-Edge Pin Latching
+// High-Performance Zero-Allocation Edition (v1.5.0)
+// - Sub-Cycle Instruction Write Pipelining + 6510 RMW Dummy-Writes
+// - Re-Entrant KERNAL Play-IRQ Dispatcher ($FFD0) for Galway Foreground Digis
+// - Isolated PlaySID Extended Trap ((addr & 0x1F) >= 0x1D) & Volume Restore
+// - PlaySID 3.6x Amiga-Paula Divider, Loop Support & $D47D Nibble Order
+// - Physical 6502 NMI Falling-Edge Pin Latching
 // =========================================================
 
 export class CPU6502 {
@@ -26,7 +26,7 @@ export class CPU6502 {
         
         this.cia1TimerA = 19705; 
         this.cia1TimerALatch = 19705;
-        this.cia1CtrlA = 0x01; // C64 KERNAL Boot-Default
+        this.cia1CtrlA = 0x01;
         this.cia1Icr = 0; 
         this.cia1IrqMask = 0x00; 
         this.cia1TimerAUnderflowed = false;
@@ -50,8 +50,6 @@ export class CPU6502 {
         this.nmiPending = false;
         this.irqAccepted = false;
         this.nmiAccepted = false;
-        
-        // Physical NMI Wire State (false = HIGH, true = LOW / Asserted)
         this.nmiLineState = false; 
 
         this.rdy = true; 
@@ -63,19 +61,24 @@ export class CPU6502 {
 
         this.defaultIrqLo = 0x31; 
         this.defaultIrqHi = 0xEA; 
+        this.prgOverlapsKernalStub = false;
 
-        // PSID Sample Trap Hardware State (PlaySID Standard Base Rate = 252 Cycles = 3.91 kHz)
         this.psidSampleActive = false;
         this.psidSamplePtr = 0;
         this.psidSampleEnd = 0;
+        this.psidSampleRepPtr = 0;
+        this.psidSampleLoop = false;
         this.psidNibblePhase = 0;
-        this.psidSampleStep = 1;
+        this.psidNibbleOrder = 0;
+        this.psidSampleStep = 0;
         this.psidSampleCycleCounter = 252;
         this.psidSamplePeriod = 252;
+        this.cpuLastD418 = 0x0F;
 
-        // =========================================================
-        // SUB-CYCLE HARDWARE BUS WRITE PIPELINING
-        // =========================================================
+        this.hasDummyWrite = false;
+        this.dummyWriteAddr = 0;
+        this.dummyWriteVal = 0;
+
         this.hasPendingWrite = false;
         this.pendingWriteAddr = 0;
         this.pendingWriteVal = 0;
@@ -85,7 +88,7 @@ export class CPU6502 {
         this.ram.fill(0);
         this.kernalRom.fill(0);
         
-        // PSID Standard: Default Master Volume $D418 is $0F (Volume 15)
+        this.cpuLastD418 = 0x0F;
         this.ram[0xD418] = 0x0F;
         if (this.sid) {
             this.sid.writeReg(24, 0x0F);
@@ -94,21 +97,26 @@ export class CPU6502 {
         this.psidSampleActive = false;
         this.psidSamplePtr = 0;
         this.psidSampleEnd = 0;
+        this.psidSampleRepPtr = 0;
+        this.psidSampleLoop = false;
         this.psidNibblePhase = 0;
-        this.psidSampleStep = 1;
+        this.psidNibbleOrder = 0;
+        this.psidSampleStep = 0;
         this.psidSamplePeriod = 252;
         this.psidSampleCycleCounter = 252;
+
+        this.hasDummyWrite = false;
+        this.dummyWriteAddr = 0;
+        this.dummyWriteVal = 0;
 
         this.hasPendingWrite = false;
         this.pendingWriteAddr = 0;
         this.pendingWriteVal = 0;
 
-        // --- 1. PRG CODE LADEN ---
         for (let i = 0; i < prgCode.length; i++) {
             this.ram[loadAddr + i] = prgCode[i];
         }
 
-        // --- 2. DYNAMIC BANK-SWITCHING (MMU) ---
         let p0001 = 0x37; 
         let prgEnd = loadAddr + prgCode.length;
         
@@ -116,6 +124,8 @@ export class CPU6502 {
                              (initAddr >= 0xE000 && initAddr < 0x10000) ||
                              (playAddr >= 0xE000 && playAddr < 0x10000);
         
+        this.prgOverlapsKernalStub = (loadAddr <= 0xFFE3 && prgEnd > 0xFFD0);
+
         if (overlapsKernal) {
             p0001 &= ~2; 
         }
@@ -123,18 +133,34 @@ export class CPU6502 {
         this.ram[0x0000] = 0x2F; 
         this.ram[0x0001] = p0001; 
 
-        // --- 3. PHANTOM VECTORS & HANDLERS (ROM ONLY!) ---
-        this.ram[0xFFE0] = 0x4C; this.ram[0xFFE1] = 0xE0; this.ram[0xFFE2] = 0xFF; 
-        this.kernalRom[0x1FE0] = 0x4C; this.kernalRom[0x1FE1] = 0xE0; this.kernalRom[0x1FE2] = 0xFF; 
+        const playLo = playAddr & 0xFF;
+        const playHi = (playAddr >> 8) & 0xFF;
+        const reentrantPlayStub = [
+            0x48, 0x8A, 0x48, 0x98, 0x48,
+            0x20, playLo, playHi,
+            0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40
+        ];
+        for (let i = 0; i < reentrantPlayStub.length; i++) {
+            this.kernalRom[0x1FD0 + i] = reentrantPlayStub[i];
+            if (!this.prgOverlapsKernalStub) {
+                this.ram[0xFFD0 + i] = reentrantPlayStub[i];
+            }
+        }
+
+        const idleStub = [0x58, 0x4C, 0xE0, 0xFF];
+        for (let i = 0; i < idleStub.length; i++) {
+            this.kernalRom[0x1FE0 + i] = idleStub[i];
+            if (!this.prgOverlapsKernalStub) {
+                this.ram[0xFFE0 + i] = idleStub[i];
+            }
+        }
         
-        // SAFE RAM HANDLERS bei $0220 / $0240
         const safeIrqReturn = [0xAD, 0x0D, 0xDC, 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40];
         for (let i = 0; i < safeIrqReturn.length; i++) {
             this.ram[0x0220 + i] = safeIrqReturn[i]; 
             this.kernalRom[0x0A31 + i] = safeIrqReturn[i]; 
         }
 
-        // KERNAL Standard IRQ Exit Handler ($EA7E)
         const safeIrqExit = [0xAD, 0x0D, 0xDC, 0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40];
         for (let i = 0; i < safeIrqExit.length; i++) {
             this.kernalRom[0x0A7E + i] = safeIrqExit[i];
@@ -169,7 +195,6 @@ export class CPU6502 {
             this.kernalRom[0x1F60 + i] = nmiEntry[i];
         }
 
-        // --- 4. RESET RUNTIME STATE ---
         this.a = 0; this.x = 0; this.y = 0;
         this.sp = 0xFF; 
         this.p = 0x24; 
@@ -235,6 +260,9 @@ export class CPU6502 {
         let p0001 = this.ram[0x0001] & 0x07;
 
         if (addr >= 0xE000) {
+            if (addr >= 0xFFD0 && addr <= 0xFFE3 && !this.prgOverlapsKernalStub) {
+                return this.kernalRom[addr - 0xE000];
+            }
             let kernalEnabled = (p0001 & 2) !== 0; 
             if (kernalEnabled) {
                 return this.kernalRom[addr - 0xE000];
@@ -318,14 +346,28 @@ export class CPU6502 {
         return this.ram[addr];
     }
 
-    // =========================================================
-    // SUB-CYCLE WRITE PIPELINE (Staging & Final Bus Commit)
-    // =========================================================
     stageWrite(addr, val) {
-        this.ram[addr] = val; // RAM-Schreibzugriff sofort für CPU-Lesekonsistenz
+        this.ram[addr] = val; 
         this.hasPendingWrite = true;
         this.pendingWriteAddr = addr;
         this.pendingWriteVal = val;
+    }
+
+    stageRmwWrite(addr, oldVal, newVal) {
+        this.ram[addr] = newVal;
+        this.hasDummyWrite = true;
+        this.dummyWriteAddr = addr;
+        this.dummyWriteVal = oldVal;
+
+        this.hasPendingWrite = true;
+        this.pendingWriteAddr = addr;
+        this.pendingWriteVal = newVal;
+    }
+
+    commitDummyWrite() {
+        if (!this.hasDummyWrite) return;
+        this.hasDummyWrite = false;
+        this.writeHardware(this.dummyWriteAddr, this.dummyWriteVal);
     }
 
     commitPendingWrite() {
@@ -342,30 +384,37 @@ export class CPU6502 {
     writeHardware(addr, val) {
         if (addr < 0xD000 || addr > 0xDFFF) return;
 
-        // --- PSID SAMPLE TRAP INTERCEPTOR ($D41D - $D47D) ---
-        if (addr >= 0xD41D && addr <= 0xD47D) {
+        // --- PSID EXTENDED SAMPLE TRAP INTERCEPTOR ($D41D..$D47F, Offsets $1D..$1F only!) ---
+        if (addr >= 0xD41D && addr <= 0xD47F && (addr & 0x1F) >= 0x1D) {
             this.ram[addr] = val;
             if (addr === 0xD45F) {
                 this.psidSampleStep = val;
+            } else if (addr === 0xD47D) {
+                this.psidNibbleOrder = val;
+            } else if (addr === 0xD43F) {
+                this.psidSampleLoop = (val !== 0 && val !== 0xFF);
             } else if (addr === 0xD45D || addr === 0xD45E) {
                 let pLo = this.ram[0xD45D];
                 let pHi = this.ram[0xD45E] & 0x0F;
                 let rawPeriod = pLo | (pHi << 8);
-                
-                // Amiga-Paula (>= 280) vs Native C64 PAL Cycles (< 280) Auto-Conversion
                 let period = rawPeriod >= 280 
                     ? Math.round(rawPeriod * 985248 / 3546895) 
                     : rawPeriod;
                 this.psidSamplePeriod = period >= 16 ? period : 252;
             } else if (addr === 0xD41D) {
-                if (val === 0xFE || val === 0x01 || val === 0x81) {
+                if (val === 0xFE || val === 0x01 || val === 0x81 || val === 0xFD) {
                     let startLo = this.ram[0xD41E];
                     let startHi = this.ram[0xD41F];
                     let endLo = this.ram[0xD43D];
                     let endHi = this.ram[0xD43E];
+                    let repLo = this.ram[0xD47E];
+                    let repHi = this.ram[0xD47F];
 
                     this.psidSamplePtr = startLo | (startHi << 8);
-                    this.psidSampleEnd = (endLo === 0) ? ((endHi << 8) | 0xFF) : (endLo | (endHi << 8));
+                    this.psidSampleEnd = (endLo === 0 && endHi !== 0) ? (endHi << 8) : (endLo | (endHi << 8));
+                    let repAddr = repLo | (repHi << 8);
+                    this.psidSampleRepPtr = (repAddr > 0) ? repAddr : this.psidSamplePtr;
+                    this.psidSampleLoop = (val === 0xFD) || (this.ram[0xD43F] !== 0 && this.ram[0xD43F] !== 0xFF);
 
                     let pLo = this.ram[0xD45D];
                     let pHi = this.ram[0xD45E] & 0x0F;
@@ -376,11 +425,15 @@ export class CPU6502 {
                     this.psidSamplePeriod = period >= 16 ? period : 252;
 
                     this.psidSampleStep = this.ram[0xD45F];
+                    this.psidNibbleOrder = this.ram[0xD47D];
                     this.psidNibblePhase = 0;
-                    this.psidSampleCycleCounter = this.psidSamplePeriod;
+                    this.psidSampleCycleCounter = 1;
                     this.psidSampleActive = true;
                 } else if (val === 0x00 || val === 0xFF) {
-                    this.psidSampleActive = false;
+                    if (this.psidSampleActive) {
+                        this.psidSampleActive = false;
+                        this.sid.writeReg(24, this.cpuLastD418);
+                    }
                 }
             }
             return;
@@ -393,6 +446,12 @@ export class CPU6502 {
         if (addr >= 0xD400 && addr <= 0xD7FF) {
             let reg = addr & 0x1F; 
             if (reg < 29) {
+                if (reg === 24) {
+                    this.cpuLastD418 = val;
+                    if (this.psidSampleActive) {
+                        val = (val & 0xF0) | (this.sid.regs[24] & 0x0F);
+                    }
+                }
                 this.sid.writeReg(reg, val);
             }
         } else if (addr === 0xD011) {
@@ -494,11 +553,7 @@ export class CPU6502 {
     clockHardware(cycles) {
         for (let i = 0; i < cycles; i++) {
             
-            let hasHighFreqCia1 = (this.cia1CtrlA & 0x01) !== 0 && (this.cia1TimerALatch < 2000);
-            let hasHighFreqCia2 = (this.cia2CtrlA & 0x01) !== 0 && (this.cia2TimerALatch < 2000);
-            
-            // --- AUTONOMOUS PSID SAMPLE TRAP STREAMER ---
-            if (this.psidSampleActive && !hasHighFreqCia1 && !hasHighFreqCia2) {
+            if (this.psidSampleActive) {
                 this.psidSampleCycleCounter--;
                 if (this.psidSampleCycleCounter <= 0) {
                     this.psidSampleCycleCounter += this.psidSamplePeriod; 
@@ -506,9 +561,6 @@ export class CPU6502 {
                 }
             }
 
-            // =========================================================
-            // CIA-1 TIMER KASKADIERUNG (1-CYCLE LATENCY)
-            // =========================================================
             let cia1PulseLastCycle = this.cia1TimerAPulse;
             this.cia1TimerAPulse = false;
             let timerBUnderflowTriggered = false;
@@ -520,10 +572,6 @@ export class CPU6502 {
                     this.cia1TimerA = Math.max(2, this.cia1TimerALatch);
                     this.cia1TimerAUnderflowed = true;
                     this.cia1TimerAPulse = true; 
-
-                    if (this.psidSampleActive && hasHighFreqCia1) {
-                        this.streamPsidSampleNibble();
-                    }
 
                     if (this.cia1CtrlA & 0x08) this.cia1CtrlA &= ~0x01; 
                     this.updateIrqState();
@@ -548,9 +596,6 @@ export class CPU6502 {
                 this.updateIrqState();
             }
 
-            // =========================================================
-            // CIA-2 TIMER KASKADIERUNG (1-CYCLE LATENCY)
-            // =========================================================
             let cia2PulseLastCycle = this.cia2TimerAPulse;
             this.cia2TimerAPulse = false;
             let cia2TimerBUnderflow = false;
@@ -561,10 +606,6 @@ export class CPU6502 {
                     this.cia2Icr |= 0x01; 
                     this.cia2TimerA = Math.max(2, this.cia2TimerALatch);
                     this.cia2TimerAPulse = true; 
-
-                    if (this.psidSampleActive && hasHighFreqCia2) {
-                        this.streamPsidSampleNibble();
-                    }
 
                     if (this.cia2CtrlA & 0x08) this.cia2CtrlA &= ~0x01; 
                     this.updateIrqState();
@@ -707,7 +748,7 @@ export class CPU6502 {
         let cycles = 2;
 
         switch (op) {
-            case 0x00: { // BRK
+            case 0x00: {
                 this.pc = (this.pc + 1) & 0xFFFF;
                 this.push(this.pc >> 8);
                 this.push(this.pc & 0xFF);
@@ -787,7 +828,6 @@ export class CPU6502 {
                 cycles = 4 + (this.pageCrossed(addr, addrX) ? 1 : 0); 
             } break;
 
-            // STORES: Verwenden jetzt alle stageWrite für sub-zyklische Genauigkeit!
             case 0x85: this.stageWrite(this.zp(), this.a); cycles = 3; break; 
             case 0x95: this.stageWrite(this.zpX(), this.a); cycles = 4; break; 
             case 0x8D: this.stageWrite(this.abs(), this.a); cycles = 4; break; 
@@ -816,16 +856,15 @@ export class CPU6502 {
             case 0xC8: this.y = (this.y + 1) & 0xFF; this.setNZ(this.y); cycles = 2; break; 
             case 0x88: this.y = (this.y - 1) & 0xFF; this.setNZ(this.y); cycles = 2; break; 
 
-            // RMW-Operationen mit gepufferter End-Stufen-Ausführung
-            case 0xE6: { let z = this.zp(); let v = (this.read(z) + 1) & 0xFF; this.setNZ(v); this.stageWrite(z, v); cycles = 5; } break; 
-            case 0xF6: { let z = this.zpX(); let v = (this.read(z) + 1) & 0xFF; this.setNZ(v); this.stageWrite(z, v); cycles = 6; } break; 
-            case 0xEE: { let a = this.abs(); let v = (this.read(a) + 1) & 0xFF; this.setNZ(v); this.stageWrite(a, v); cycles = 6; } break; 
-            case 0xFE: { let a = this.absX(); let v = (this.read(a) + 1) & 0xFF; this.setNZ(v); this.stageWrite(a, v); cycles = 7; } break; 
+            case 0xE6: { let z = this.zp(); let oldV = this.read(z); let v = (oldV + 1) & 0xFF; this.setNZ(v); this.stageRmwWrite(z, oldV, v); cycles = 5; } break; 
+            case 0xF6: { let z = this.zpX(); let oldV = this.read(z); let v = (oldV + 1) & 0xFF; this.setNZ(v); this.stageRmwWrite(z, oldV, v); cycles = 6; } break; 
+            case 0xEE: { let a = this.abs(); let oldV = this.read(a); let v = (oldV + 1) & 0xFF; this.setNZ(v); this.stageRmwWrite(a, oldV, v); cycles = 6; } break; 
+            case 0xFE: { let a = this.absX(); let oldV = this.read(a); let v = (oldV + 1) & 0xFF; this.setNZ(v); this.stageRmwWrite(a, oldV, v); cycles = 7; } break; 
 
-            case 0xC6: { let z = this.zp(); let v = (this.read(z) - 1) & 0xFF; this.setNZ(v); this.stageWrite(z, v); cycles = 5; } break; 
-            case 0xD6: { let z = this.zpX(); let v = (this.read(z) - 1) & 0xFF; this.setNZ(v); this.stageWrite(z, v); cycles = 6; } break; 
-            case 0xCE: { let a = this.abs(); let v = (this.read(a) - 1) & 0xFF; this.setNZ(v); this.stageWrite(a, v); cycles = 6; } break; 
-            case 0xDE: { let a = this.absX(); let v = (this.read(a) - 1) & 0xFF; this.setNZ(v); this.stageWrite(a, v); cycles = 7; } break;
+            case 0xC6: { let z = this.zp(); let oldV = this.read(z); let v = (oldV - 1) & 0xFF; this.setNZ(v); this.stageRmwWrite(z, oldV, v); cycles = 5; } break; 
+            case 0xD6: { let z = this.zpX(); let oldV = this.read(z); let v = (oldV - 1) & 0xFF; this.setNZ(v); this.stageRmwWrite(z, oldV, v); cycles = 6; } break; 
+            case 0xCE: { let a = this.abs(); let oldV = this.read(a); let v = (oldV - 1) & 0xFF; this.setNZ(v); this.stageRmwWrite(a, oldV, v); cycles = 6; } break; 
+            case 0xDE: { let a = this.absX(); let oldV = this.read(a); let v = (oldV - 1) & 0xFF; this.setNZ(v); this.stageRmwWrite(a, oldV, v); cycles = 7; } break;
 
             case 0xA7: { let val = this.read(this.zp()); this.a = val; this.x = val; this.setNZ(val); cycles = 3; } break;
             case 0xB7: { let val = this.read(this.zpY()); this.a = val; this.x = val; this.setNZ(val); cycles = 4; } break;
@@ -841,37 +880,37 @@ export class CPU6502 {
             case 0x97: { this.stageWrite(this.zpY(), this.a & this.x); cycles = 4; } break;
             case 0x8F: { this.stageWrite(this.abs(), this.a & this.x); cycles = 4; } break;
 
-            case 0xC7: { let z = this.zp(); let v = (this.read(z) - 1) & 0xFF; let diff = this.a - v; this.setNZ(diff & 0xFF); if (this.a >= v) this.p |= 1; else this.p &= ~1; this.stageWrite(z, v); cycles = 5; } break;
-            case 0xD7: { let z = this.zpX(); let v = (this.read(z) - 1) & 0xFF; let diff = this.a - v; this.setNZ(diff & 0xFF); if (this.a >= v) this.p |= 1; else this.p &= ~1; this.stageWrite(z, v); cycles = 6; } break;
-            case 0xCF: { let a = this.abs(); let v = (this.read(a) - 1) & 0xFF; let diff = this.a - v; this.setNZ(diff & 0xFF); if (this.a >= v) this.p |= 1; else this.p &= ~1; this.stageWrite(a, v); cycles = 6; } break;
-            case 0xDF: { let a = this.absX(); let v = (this.read(a) - 1) & 0xFF; let diff = this.a - v; this.setNZ(diff & 0xFF); if (this.a >= v) this.p |= 1; else this.p &= ~1; this.stageWrite(a, v); cycles = 7; } break;
-            case 0xDB: { let a = this.absY(); let v = (this.read(a) - 1) & 0xFF; let diff = this.a - v; this.setNZ(diff & 0xFF); if (this.a >= v) this.p |= 1; else this.p &= ~1; this.stageWrite(a, v); cycles = 7; } break;
+            case 0xC7: { let z = this.zp(); let oldV = this.read(z); let v = (oldV - 1) & 0xFF; let diff = this.a - v; this.setNZ(diff & 0xFF); if (this.a >= v) this.p |= 1; else this.p &= ~1; this.stageRmwWrite(z, oldV, v); cycles = 5; } break;
+            case 0xD7: { let z = this.zpX(); let oldV = this.read(z); let v = (oldV - 1) & 0xFF; let diff = this.a - v; this.setNZ(diff & 0xFF); if (this.a >= v) this.p |= 1; else this.p &= ~1; this.stageRmwWrite(z, oldV, v); cycles = 6; } break;
+            case 0xCF: { let a = this.abs(); let oldV = this.read(a); let v = (oldV - 1) & 0xFF; let diff = this.a - v; this.setNZ(diff & 0xFF); if (this.a >= v) this.p |= 1; else this.p &= ~1; this.stageRmwWrite(a, oldV, v); cycles = 6; } break;
+            case 0xDF: { let a = this.absX(); let oldV = this.read(a); let v = (oldV - 1) & 0xFF; let diff = this.a - v; this.setNZ(diff & 0xFF); if (this.a >= v) this.p |= 1; else this.p &= ~1; this.stageRmwWrite(a, oldV, v); cycles = 7; } break;
+            case 0xDB: { let a = this.absY(); let oldV = this.read(a); let v = (oldV - 1) & 0xFF; let diff = this.a - v; this.setNZ(diff & 0xFF); if (this.a >= v) this.p |= 1; else this.p &= ~1; this.stageRmwWrite(a, oldV, v); cycles = 7; } break;
 
-            case 0xE7: { let z = this.zp(); let v = (this.read(z) + 1) & 0xFF; this.sbcInternal(v); this.stageWrite(z, v); cycles = 5; } break;
-            case 0xF7: { let z = this.zpX(); let v = (this.read(z) + 1) & 0xFF; this.sbcInternal(v); this.stageWrite(z, v); cycles = 6; } break;
-            case 0xEF: { let a = this.abs(); let v = (this.read(a) + 1) & 0xFF; this.sbcInternal(v); this.stageWrite(a, v); cycles = 6; } break;
-            case 0xFF: { let a = this.absX(); let v = (this.read(a) + 1) & 0xFF; this.sbcInternal(v); this.stageWrite(a, v); cycles = 7; } break;
-            case 0xFB: { let a = this.absY(); let v = (this.read(a) + 1) & 0xFF; this.sbcInternal(v); this.stageWrite(a, v); cycles = 7; } break;
+            case 0xE7: { let z = this.zp(); let oldV = this.read(z); let v = (oldV + 1) & 0xFF; this.sbcInternal(v); this.stageRmwWrite(z, oldV, v); cycles = 5; } break;
+            case 0xF7: { let z = this.zpX(); let oldV = this.read(z); let v = (oldV + 1) & 0xFF; this.sbcInternal(v); this.stageRmwWrite(z, oldV, v); cycles = 6; } break;
+            case 0xEF: { let a = this.abs(); let oldV = this.read(a); let v = (oldV + 1) & 0xFF; this.sbcInternal(v); this.stageRmwWrite(a, oldV, v); cycles = 6; } break;
+            case 0xFF: { let a = this.absX(); let oldV = this.read(a); let v = (oldV + 1) & 0xFF; this.sbcInternal(v); this.stageRmwWrite(a, oldV, v); cycles = 7; } break;
+            case 0xFB: { let a = this.absY(); let oldV = this.read(a); let v = (oldV + 1) & 0xFF; this.sbcInternal(v); this.stageRmwWrite(a, oldV, v); cycles = 7; } break;
 
-            case 0x07: { let z = this.zp(); let v = this.read(z); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.a |= v; this.setNZ(this.a); this.stageWrite(z, v); cycles = 5; } break; 
-            case 0x17: { let z = this.zpX(); let v = this.read(z); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.a |= v; this.setNZ(this.a); this.stageWrite(z, v); cycles = 6; } break; 
-            case 0x0F: { let a = this.abs(); let v = this.read(a); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.a |= v; this.setNZ(this.a); this.stageWrite(a, v); cycles = 6; } break; 
-            case 0x1F: { let a = this.absX(); let v = this.read(a); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.a |= v; this.setNZ(this.a); this.stageWrite(a, v); cycles = 7; } break; 
+            case 0x07: { let z = this.zp(); let oldV = this.read(z); if (oldV & 128) this.p |= 1; else this.p &= ~1; let v = (oldV << 1) & 0xFF; this.a |= v; this.setNZ(this.a); this.stageRmwWrite(z, oldV, v); cycles = 5; } break; 
+            case 0x17: { let z = this.zpX(); let oldV = this.read(z); if (oldV & 128) this.p |= 1; else this.p &= ~1; let v = (oldV << 1) & 0xFF; this.a |= v; this.setNZ(this.a); this.stageRmwWrite(z, oldV, v); cycles = 6; } break; 
+            case 0x0F: { let a = this.abs(); let oldV = this.read(a); if (oldV & 128) this.p |= 1; else this.p &= ~1; let v = (oldV << 1) & 0xFF; this.a |= v; this.setNZ(this.a); this.stageRmwWrite(a, oldV, v); cycles = 6; } break; 
+            case 0x1F: { let a = this.absX(); let oldV = this.read(a); if (oldV & 128) this.p |= 1; else this.p &= ~1; let v = (oldV << 1) & 0xFF; this.a |= v; this.setNZ(this.a); this.stageRmwWrite(a, oldV, v); cycles = 7; } break; 
 
-            case 0x27: { let z = this.zp(); let v = this.read(z); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.a &= v; this.setNZ(this.a); this.stageWrite(z, v); cycles = 5; } break; 
-            case 0x37: { let z = this.zpX(); let v = this.read(z); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.a &= v; this.setNZ(this.a); this.stageWrite(z, v); cycles = 6; } break; 
-            case 0x2F: { let a = this.abs(); let v = this.read(a); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.a &= v; this.setNZ(this.a); this.stageWrite(a, v); cycles = 6; } break; 
-            case 0x3F: { let a = this.absX(); let v = this.read(a); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.a &= v; this.setNZ(this.a); this.stageWrite(a, v); cycles = 7; } break; 
+            case 0x27: { let z = this.zp(); let oldV = this.read(z); let c = this.p & 1; if (oldV & 128) this.p |= 1; else this.p &= ~1; let v = ((oldV << 1) & 0xFF) | c; this.a &= v; this.setNZ(this.a); this.stageRmwWrite(z, oldV, v); cycles = 5; } break; 
+            case 0x37: { let z = this.zpX(); let oldV = this.read(z); let c = this.p & 1; if (oldV & 128) this.p |= 1; else this.p &= ~1; let v = ((oldV << 1) & 0xFF) | c; this.a &= v; this.setNZ(this.a); this.stageRmwWrite(z, oldV, v); cycles = 6; } break; 
+            case 0x2F: { let a = this.abs(); let oldV = this.read(a); let c = this.p & 1; if (oldV & 128) this.p |= 1; else this.p &= ~1; let v = ((oldV << 1) & 0xFF) | c; this.a &= v; this.setNZ(this.a); this.stageRmwWrite(a, oldV, v); cycles = 6; } break; 
+            case 0x3F: { let a = this.absX(); let oldV = this.read(a); let c = this.p & 1; if (oldV & 128) this.p |= 1; else this.p &= ~1; let v = ((oldV << 1) & 0xFF) | c; this.a &= v; this.setNZ(this.a); this.stageRmwWrite(a, oldV, v); cycles = 7; } break; 
 
-            case 0x47: { let z = this.zp(); let v = this.read(z); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.a ^= v; this.setNZ(this.a); this.stageWrite(z, v); cycles = 5; } break; 
-            case 0x57: { let z = this.zpX(); let v = this.read(z); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.a ^= v; this.setNZ(this.a); this.stageWrite(z, v); cycles = 6; } break; 
-            case 0x4F: { let a = this.abs(); let v = this.read(a); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.a ^= v; this.setNZ(this.a); this.stageWrite(a, v); cycles = 6; } break; 
-            case 0x5F: { let a = this.absX(); let v = this.read(a); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.a ^= v; this.setNZ(this.a); this.stageWrite(a, v); cycles = 7; } break; 
+            case 0x47: { let z = this.zp(); let oldV = this.read(z); if (oldV & 1) this.p |= 1; else this.p &= ~1; let v = (oldV >> 1) & 0x7F; this.a ^= v; this.setNZ(this.a); this.stageRmwWrite(z, oldV, v); cycles = 5; } break; 
+            case 0x57: { let z = this.zpX(); let oldV = this.read(z); if (oldV & 1) this.p |= 1; else this.p &= ~1; let v = (oldV >> 1) & 0x7F; this.a ^= v; this.setNZ(this.a); this.stageRmwWrite(z, oldV, v); cycles = 6; } break; 
+            case 0x4F: { let a = this.abs(); let oldV = this.read(a); if (oldV & 1) this.p |= 1; else this.p &= ~1; let v = (oldV >> 1) & 0x7F; this.a ^= v; this.setNZ(this.a); this.stageRmwWrite(a, oldV, v); cycles = 6; } break; 
+            case 0x5F: { let a = this.absX(); let oldV = this.read(a); if (oldV & 1) this.p |= 1; else this.p &= ~1; let v = (oldV >> 1) & 0x7F; this.a ^= v; this.setNZ(this.a); this.stageRmwWrite(a, oldV, v); cycles = 7; } break; 
 
-            case 0x67: { let z = this.zp(); let v = this.read(z); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.adcInternal(v); this.stageWrite(z, v); cycles = 5; } break; 
-            case 0x77: { let z = this.zpX(); let v = this.read(z); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.adcInternal(v); this.stageWrite(z, v); cycles = 6; } break; 
-            case 0x6F: { let a = this.abs(); let v = this.read(a); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.adcInternal(v); this.stageWrite(a, v); cycles = 6; } break; 
-            case 0x7F: { let a = this.absX(); let v = this.read(a); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.adcInternal(v); this.stageWrite(a, v); cycles = 7; } break; 
+            case 0x67: { let z = this.zp(); let oldV = this.read(z); let c = this.p & 1; if (oldV & 1) this.p |= 1; else this.p &= ~1; let v = (oldV >> 1) | (c << 7); this.adcInternal(v); this.stageRmwWrite(z, oldV, v); cycles = 5; } break; 
+            case 0x77: { let z = this.zpX(); let oldV = this.read(z); let c = this.p & 1; if (oldV & 1) this.p |= 1; else this.p &= ~1; let v = (oldV >> 1) | (c << 7); this.adcInternal(v); this.stageRmwWrite(z, oldV, v); cycles = 6; } break; 
+            case 0x6F: { let a = this.abs(); let oldV = this.read(a); let c = this.p & 1; if (oldV & 1) this.p |= 1; else this.p &= ~1; let v = (oldV >> 1) | (c << 7); this.adcInternal(v); this.stageRmwWrite(a, oldV, v); cycles = 6; } break; 
+            case 0x7F: { let a = this.absX(); let oldV = this.read(a); let c = this.p & 1; if (oldV & 1) this.p |= 1; else this.p &= ~1; let v = (oldV >> 1) | (c << 7); this.adcInternal(v); this.stageRmwWrite(a, oldV, v); cycles = 7; } break; 
 
             case 0x0B: case 0x2B: { this.a &= this.read(this.pc++); this.setNZ(this.a); if (this.a & 0x80) this.p |= 1; else this.p &= ~1; cycles = 2; } break; 
             case 0x4B: { this.a &= this.read(this.pc++); if (this.a & 1) this.p |= 1; else this.p &= ~1; this.a >>= 1; this.setNZ(this.a); cycles = 2; } break; 
@@ -912,25 +951,25 @@ export class CPU6502 {
             case 0x2A: { let c = this.p & 1; if (this.a & 128) this.p |= 1; else this.p &= ~1; this.a = ((this.a << 1) & 0xFF) | c; this.setNZ(this.a); cycles = 2; } break; 
             case 0x6A: { let c = this.p & 1; if (this.a & 1) this.p |= 1; else this.p &= ~1; this.a = (this.a >> 1) | (c << 7); this.setNZ(this.a); cycles = 2; } break; 
 
-            case 0x06: { let z = this.zp(); let v = this.read(z); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.setNZ(v); this.stageWrite(z, v); cycles = 5; } break; 
-            case 0x46: { let z = this.zp(); let v = this.read(z); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.setNZ(v); this.stageWrite(z, v); cycles = 5; } break; 
-            case 0x26: { let z = this.zp(); let v = this.read(z); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.setNZ(v); this.stageWrite(z, v); cycles = 5; } break; 
-            case 0x66: { let z = this.zp(); let v = this.read(z); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.setNZ(v); this.stageWrite(z, v); cycles = 5; } break; 
+            case 0x06: { let z = this.zp(); let oldV = this.read(z); if (oldV & 128) this.p |= 1; else this.p &= ~1; let v = (oldV << 1) & 0xFF; this.setNZ(v); this.stageRmwWrite(z, oldV, v); cycles = 5; } break; 
+            case 0x46: { let z = this.zp(); let oldV = this.read(z); if (oldV & 1) this.p |= 1; else this.p &= ~1; let v = (oldV >> 1) & 0x7F; this.setNZ(v); this.stageRmwWrite(z, oldV, v); cycles = 5; } break; 
+            case 0x26: { let z = this.zp(); let oldV = this.read(z); let c = this.p & 1; if (oldV & 128) this.p |= 1; else this.p &= ~1; let v = ((oldV << 1) & 0xFF) | c; this.setNZ(v); this.stageRmwWrite(z, oldV, v); cycles = 5; } break; 
+            case 0x66: { let z = this.zp(); let oldV = this.read(z); let c = this.p & 1; if (oldV & 1) this.p |= 1; else this.p &= ~1; let v = (oldV >> 1) | (c << 7); this.setNZ(v); this.stageRmwWrite(z, oldV, v); cycles = 5; } break; 
             
-            case 0x16: { let z = this.zpX(); let v = this.read(z); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.setNZ(v); this.stageWrite(z, v); cycles = 6; } break; 
-            case 0x56: { let z = this.zpX(); let v = this.read(z); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.setNZ(v); this.stageWrite(z, v); cycles = 6; } break; 
-            case 0x36: { let z = this.zpX(); let v = this.read(z); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.setNZ(v); this.stageWrite(z, v); cycles = 6; } break; 
-            case 0x76: { let z = this.zpX(); let v = this.read(z); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.setNZ(v); this.stageWrite(z, v); cycles = 6; } break; 
+            case 0x16: { let z = this.zpX(); let oldV = this.read(z); if (oldV & 128) this.p |= 1; else this.p &= ~1; let v = (oldV << 1) & 0xFF; this.setNZ(v); this.stageRmwWrite(z, oldV, v); cycles = 6; } break; 
+            case 0x56: { let z = this.zpX(); let oldV = this.read(z); if (oldV & 1) this.p |= 1; else this.p &= ~1; let v = (oldV >> 1) & 0x7F; this.setNZ(v); this.stageRmwWrite(z, oldV, v); cycles = 6; } break; 
+            case 0x36: { let z = this.zpX(); let oldV = this.read(z); let c = this.p & 1; if (oldV & 128) this.p |= 1; else this.p &= ~1; let v = ((oldV << 1) & 0xFF) | c; this.setNZ(v); this.stageRmwWrite(z, oldV, v); cycles = 6; } break; 
+            case 0x76: { let z = this.zpX(); let oldV = this.read(z); let c = this.p & 1; if (oldV & 1) this.p |= 1; else this.p &= ~1; let v = (oldV >> 1) | (c << 7); this.setNZ(v); this.stageRmwWrite(z, oldV, v); cycles = 6; } break; 
             
-            case 0x0E: { let a = this.abs(); let v = this.read(a); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.setNZ(v); this.stageWrite(a, v); cycles = 6; } break; 
-            case 0x4E: { let a = this.abs(); let v = this.read(a); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.setNZ(v); this.stageWrite(a, v); cycles = 6; } break; 
-            case 0x2E: { let a = this.abs(); let v = this.read(a); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.setNZ(v); this.stageWrite(a, v); cycles = 6; } break; 
-            case 0x6E: { let a = this.abs(); let v = this.read(a); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.setNZ(v); this.stageWrite(a, v); cycles = 6; } break; 
+            case 0x0E: { let a = this.abs(); let oldV = this.read(a); if (oldV & 128) this.p |= 1; else this.p &= ~1; let v = (oldV << 1) & 0xFF; this.setNZ(v); this.stageRmwWrite(a, oldV, v); cycles = 6; } break; 
+            case 0x4E: { let a = this.abs(); let oldV = this.read(a); if (oldV & 1) this.p |= 1; else this.p &= ~1; let v = (oldV >> 1) & 0x7F; this.setNZ(v); this.stageRmwWrite(a, oldV, v); cycles = 6; } break; 
+            case 0x2E: { let a = this.abs(); let oldV = this.read(a); let c = this.p & 1; if (oldV & 128) this.p |= 1; else this.p &= ~1; let v = ((oldV << 1) & 0xFF) | c; this.setNZ(v); this.stageRmwWrite(a, oldV, v); cycles = 6; } break; 
+            case 0x6E: { let a = this.abs(); let oldV = this.read(a); let c = this.p & 1; if (oldV & 1) this.p |= 1; else this.p &= ~1; let v = (oldV >> 1) | (c << 7); this.setNZ(v); this.stageRmwWrite(a, oldV, v); cycles = 6; } break; 
             
-            case 0x1E: { let a = this.absX(); let v = this.read(a); if (v & 128) this.p |= 1; else this.p &= ~1; v = (v << 1) & 0xFF; this.setNZ(v); this.stageWrite(a, v); cycles = 7; } break;
-            case 0x5E: { let a = this.absX(); let v = this.read(a); if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) & 0x7F; this.setNZ(v); this.stageWrite(a, v); cycles = 7; } break;
-            case 0x3E: { let a = this.absX(); let v = this.read(a); let c = this.p & 1; if (v & 128) this.p |= 1; else this.p &= ~1; v = ((v << 1) & 0xFF) | c; this.setNZ(v); this.stageWrite(a, v); cycles = 7; } break;
-            case 0x7E: { let a = this.absX(); let v = this.read(a); let c = this.p & 1; if (v & 1) this.p |= 1; else this.p &= ~1; v = (v >> 1) | (c << 7); this.setNZ(v); this.stageWrite(a, v); cycles = 7; } break;
+            case 0x1E: { let a = this.absX(); let oldV = this.read(a); if (oldV & 128) this.p |= 1; else this.p &= ~1; let v = (oldV << 1) & 0xFF; this.setNZ(v); this.stageRmwWrite(a, oldV, v); cycles = 7; } break;
+            case 0x5E: { let a = this.absX(); let oldV = this.read(a); if (oldV & 1) this.p |= 1; else this.p &= ~1; let v = (oldV >> 1) & 0x7F; this.setNZ(v); this.stageRmwWrite(a, oldV, v); cycles = 7; } break;
+            case 0x3E: { let a = this.absX(); let oldV = this.read(a); let c = this.p & 1; if (oldV & 128) this.p |= 1; else this.p &= ~1; let v = ((oldV << 1) & 0xFF) | c; this.setNZ(v); this.stageRmwWrite(a, oldV, v); cycles = 7; } break;
+            case 0x7E: { let a = this.absX(); let oldV = this.read(a); let c = this.p & 1; if (oldV & 1) this.p |= 1; else this.p &= ~1; let v = (oldV >> 1) | (c << 7); this.setNZ(v); this.stageRmwWrite(a, oldV, v); cycles = 7; } break;
 
             default: 
                 cycles = this.handleALU(op); 
@@ -1107,32 +1146,40 @@ export class CPU6502 {
         if (!this.psidSampleActive) return;
         if (this.psidSamplePtr < this.psidSampleEnd && this.psidSamplePtr < 65536) {
             let byteVal = this.ram[this.psidSamplePtr];
-            let filterMode = this.sid.regs[24] & 0xF0;
+            let filterMode = this.cpuLastD418 & 0xF0;
 
             if (this.psidSampleStep === 0) {
-                // --- HÜLSBECK MODUS 1: STEP = 0 (BIG-ENDIAN: HIGH-NIBBLE ZUERST, DANN LOW-NIBBLE) ---
-                let nibble = (this.psidNibblePhase === 0) 
-                    ? ((byteVal >> 4) & 0x0F) 
-                    : (byteVal & 0x0F);
-
-                this.sid.writeReg(24, filterMode | nibble);
-
+                let highFirst = (this.psidNibbleOrder === 0);
+                let nibble;
                 if (this.psidNibblePhase === 0) {
+                    nibble = highFirst ? ((byteVal >> 4) & 0x0F) : (byteVal & 0x0F);
                     this.psidNibblePhase = 1;
                 } else {
+                    nibble = highFirst ? (byteVal & 0x0F) : ((byteVal >> 4) & 0x0F);
                     this.psidNibblePhase = 0;
                     this.psidSamplePtr++;
                 }
+                this.sid.writeReg(24, filterMode | nibble);
             } else {
-                // --- HÜLSBECK MODUS 2: STEP > 0 (NUR LOW NIBBLE + JUMP BY STEP BYTES) ---
                 let nibble = byteVal & 0x0F;
                 this.sid.writeReg(24, filterMode | nibble);
 
                 this.psidNibblePhase = 0;
                 this.psidSamplePtr += this.psidSampleStep;
             }
+
+            if (this.psidSamplePtr >= this.psidSampleEnd) {
+                if (this.psidSampleLoop && this.psidSampleRepPtr < this.psidSampleEnd) {
+                    this.psidSamplePtr = this.psidSampleRepPtr;
+                    this.psidNibblePhase = 0;
+                } else {
+                    this.psidSampleActive = false;
+                    this.sid.writeReg(24, this.cpuLastD418);
+                }
+            }
         } else {
             this.psidSampleActive = false;
+            this.sid.writeReg(24, this.cpuLastD418);
         }
     }
 }

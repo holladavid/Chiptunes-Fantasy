@@ -1,16 +1,22 @@
 // === js/worklets/amiga/paula-exact.js ===
 // ==========================================
 // MOS TECHNOLOGY PAULA 8364 CHIP EMULATION
-// True Analog Master Edition: 192kHz Oversampling, Zero-Order Hold (ZOH) DAC,
-// LF347 JFET Op-Amp Slew-Rate Modeling, 255-Tap Sinc-FIR Decimation,
-// L-R-R-L Physical Hard-Panning (3.5% Crosstalk) & Word-Aligned DMA
+// True Hardware DMA Master Edition:
+// - Physical Agnus/Paula Audio DMA State Machine
+// - Explicit Hardware Registers: AUDxLC, AUDxLEN, AUDxPER, AUDxVOL, AUDxDAT
+// - 16-Bit Word-Fetch & 2-Phase High/Low-Byte Demultiplexing
+// - Automated Loop-Reload on curLen <= 0
+// - 192kHz Oversampling ZOH DAC, LF347 JFET Slew-Rate Stage,
+//   Passive 4.42kHz RC Filter, Active 3.09kHz Butterworth LED Filter,
+//   255-Tap Sinc-FIR Decimator & L-R-R-L Physical Hard-Panning (3.5% Bleed)
+// - Native Jochen Hippel (COSO / HIPC) Virtual Machine Integration
 // ==========================================
+
+import { CosoVirtualMachine } from '../lib/coso-vm.js';
 
 class LF347OpAmpStage {
     constructor(sampleRate) {
         this.lastOut = 0.0;
-        // Slew-Rate-Limit pro Sample-Schritt bei 192 kHz (LF347: ~13 V/µs)
-        // Inklusive 1.25x JFET-Eingangsstufen-Asymmetrie (Rising vs. Falling)
         const baseSlew = (192000.0 / sampleRate) * 0.26;
         this.maxSlewRise = baseSlew * 1.12;
         this.maxSlewFall = baseSlew * 0.90;
@@ -19,8 +25,6 @@ class LF347OpAmpStage {
     process(input) {
         let delta = input - this.lastOut;
         let limit = delta >= 0 ? this.maxSlewRise : this.maxSlewFall;
-        
-        // Glatte S-Kurven Slew-Limitation (Hyperbolic Tangent Transition)
         let change = limit * Math.tanh(delta / limit);
         this.lastOut += change;
         return this.lastOut;
@@ -34,7 +38,6 @@ class LF347OpAmpStage {
 class StaticRCFilter {
     constructor(sampleRate) {
         this.lastOut = 0;
-        // RC Lowpass bei 4.42 kHz (berechnet für die 192 kHz High-Res Samplerate)
         this.alpha = Math.exp(-2.0 * Math.PI * 4421.0 / sampleRate);
     }
     process(input) {
@@ -46,7 +49,6 @@ class StaticRCFilter {
 
 class AmigaLEDFilter {
     constructor(sampleRate) {
-        // Butterworth Lowpass bei 3.09 kHz (12 dB/Okt)
         const fc = 3090; 
         const q = 0.707; 
         const w0 = 2 * Math.PI * fc / sampleRate;
@@ -71,113 +73,248 @@ class AmigaLEDFilter {
     }
 }
 
+// =========================================================
+// ECHTE PAULA 8364 / AGNUS AUDIO DMA STATE MACHINE
+// =========================================================
 class PaulaChannel {
-    constructor() {
-        this.vol = 0;       
-        this.per = 428;     
-        this.data = null;   
-        this.pointer = 0;   
-        this.length = 0;    
-        this.repPointer = 0;
-        this.repLength = 0; 
-        this.phase = 0;     
-        this.activeSample = 1; 
-        
-        // Zero-Order Hold (ZOH) DAC State
-        this.heldValue = 0; 
+    constructor(channelId) {
+        this.id = channelId;
 
+        // --- PHYSISCHE PAULA-HARDWARE-REGISTER ---
+        this.audLc  = 0x00020000; // AUDxLC (Location Pointer im Chip-RAM) ($DFF0A0)
+        this.audLen = 16;         // AUDxLEN (Länge in 16-Bit Words) ($DFF0A4)
+        this.audPer = 428;        // AUDxPER (Perioden-Zähler / PAL Clock Ticks) ($DFF0A6)
+        this.audVol = 0;          // AUDxVOL (6-Bit Volume Multiplier 0..64) ($DFF0A8)
+        this.audDat = 0;          // AUDxDAT (16-Bit Audio Data Buffer) ($DFF0AA)
+
+        // --- AGNUS DMA CONTROLLER ZUSTAND ---
+        this.dmaEnabled  = false;
+        this.dataBuffer  = null;  // Zeiger auf das Chip-RAM Array
+        this.curPtr      = 0;     // Aktueller Byte-Offset im Puffer
+        this.curLen      = 0;     // Verbleibende Wörter bis zum Loop/Ende
+        
+        // Agnus Loop-Reload Register
+        this.loopPtr     = 0;     // Loop-Neustart Byte-Offset
+        this.loopLen     = 0;     // Loop-Länge in Words
+        this.isLooping   = false;
+
+        // Takt- und Demultiplexer-Zustand
+        this.periodCounter = 428.0; // Zählt PAL-Takte herunter
+        this.bytePhase     = 0;     // 0 = High-Byte aktiv, 1 = Low-Byte aktiv
+        this.nextWord      = 0;     // Vor-geholtes 16-Bit DMA-Wort
+        this.heldValue     = 0;     // 8-Bit DAC Latch (-128..+127)
+
+        // Tracker Kompatibilitäts-Felder
+        this.activeSample = 1;
         this.targetPeriod = 0;
         this.basePeriod = 428;
         this.currentNote = 0;
         this.targetNote = 0;
-        
         this.portamentoSpeed = 0;
         this.portamentoUpSpeed = 0;
         this.portamentoDownSpeed = 0;
         this.volSlideSpeed = 0;
         this.sampleOffset = 0;
-        
         this.vibratoSpeed = 0;
         this.vibratoDepth = 0;
         this.vibratoPhase = 0;
         this.hasVibrato = false;
-        
         this.lastPlayedSample = 0;
-        
         this.patternLoopRow = 0;
         this.patternLoopCount = 0;
+
+        // Hardware-DMA-Modus (COSO-VM): gemeinsames Chip-RAM + Reload aus AUDxLC/AUDxLEN
+        this.hw = false;
+        this.chipRam = null;
     }
 
-    trigger(data, loopStart, loopLen) {
-        this.data = data;
-        this.pointer = 0;
-        this.phase = 0;
+    writeAUDxLC(address, dataBuffer, loopStartWords = 0, loopLengthWords = 0) {
+        this.audLc = address & ~1;
+        this.dataBuffer = dataBuffer;
+        this.loopPtr = (loopStartWords * 2) & ~1;
+        this.loopLen = loopLengthWords;
+        this.isLooping = loopLengthWords > 1;
+    }
+
+    writeAUDxLEN(lengthWords) {
+        this.audLen = lengthWords;
+    }
+
+    writeAUDxPER(period) {
+        this.audPer = Math.max(113, period);
+    }
+
+    writeAUDxVOL(volume) {
+        this.audVol = Math.max(0, Math.min(64, volume));
+    }
+
+    enableDMA(dataBuffer = null, loopStartWords = 0, loopLengthWords = 0) {
+        this.hw = false;
+        this.dmaEnabled = true;
+        if (dataBuffer) this.dataBuffer = dataBuffer;
         
-        // Word-Alignment (Paula DMA Word-Raster)
-        loopStart &= ~1;
-        loopLen &= ~1;
+        this.curPtr = 0;
+        this.curLen = this.audLen;
+        this.periodCounter = this.audPer;
+        this.bytePhase = 0;
         
-        if (loopLen > 2) {
-            if (loopStart >= data.length) loopStart = 0;
-            if (loopStart + loopLen > data.length) loopLen = data.length - loopStart;
-            this.length = loopStart + loopLen;
-            this.repPointer = loopStart;
-            this.repLength = loopLen;
+        if (loopLengthWords > 1) {
+            this.loopPtr = (loopStartWords * 2) & ~1;
+            this.loopLen = loopLengthWords;
+            this.isLooping = true;
         } else {
-            this.length = data.length;
-            this.repPointer = -1; 
-            this.repLength = 0;
+            this.isLooping = false;
+            this.loopLen = 0;
         }
 
-        // Initiale DAC-Ladung
-        this.heldValue = this.data[0] || 0;
+        this.fetchDMAWord();
+        // Kein Vorab-Fetch: Die erste Ausgabe (bytePhase 0) lädt nextWord ohnehin nach und würde ein hier
+        // geladenes Word 1 überschreiben (ging verloren). Bei einem 1-Word-Sample schaltete der Vorab-Fetch
+        // die DMA sogar sofort ab (Sample blieb stumm).
+        this.nextWord = 0;
+
+        if (this.dataBuffer && this.dataBuffer.length > 0) {
+            this.heldValue = (this.audDat >> 8) & 0xFF;
+            if (this.heldValue > 127) this.heldValue -= 256;
+        } else {
+            this.heldValue = 0;
+        }
     }
 
-    step(clockTicksPerSample) {
-        if (!this.data || this.vol === 0 || this.per === 0 || this.length <= 0) return 0;
+    disableDMA() {
+        this.dmaEnabled = false;
+        this.heldValue = 0;
+        this.curLen = 0;
+    }
 
-        this.phase += clockTicksPerSample / this.per;
-        
-        // ZOH Überlauf
-        while (this.phase >= 1.0) {
-            this.phase -= 1.0;
-            this.pointer++;
-            this.length--;
-            
-            if (this.length <= 0) {
-                if (this.repPointer === -1) {
-                    this.data = null; 
-                    return 0;
-                } else {
-                    this.pointer = this.repPointer;
-                    this.length = this.repLength;
-                }
-            }
+    // ---------------------------------------------------------------
+    // HARDWARE-DMA-API (v1.5.0, für COSO-VM)
+    // Gemeinsames Chip-RAM + echte AUDxLC/AUDxLEN-Latch-Semantik:
+    // Schreibzugriffe auf LC/LEN greifen erst beim nächsten Reload (Loop-Wrap),
+    // hwStartDMA() lädt LC/LEN sofort in die internen Zähler.
+    // Der MOD/XM-Pfad (writeAUDxLC/enableDMA/trigger) bleibt unverändert.
+    // ---------------------------------------------------------------
+    hwAttach(chipRam) {
+        this.chipRam = chipRam;
+    }
 
-            if (this.data) {
-                let idx = this.pointer | 0;
-                if (idx >= this.data.length) idx = this.data.length - 1;
-                this.heldValue = this.data[idx];
+    hwWriteLC(address) {
+        this.audLc = address & ~1;
+    }
+
+    hwWriteLEN(words) {
+        this.audLen = (words === 0) ? 0x10000 : words;      // Hardware: LEN 0 = 65536 Words
+    }
+
+    hwStartDMA() {
+        this.hw = true;
+        this.dmaEnabled = true;
+        this.dataBuffer = this.chipRam;
+        this.isLooping = false;
+        this.curPtr = this.audLc;
+        this.curLen = this.audLen;
+        this.periodCounter = this.audPer;
+        this.bytePhase = 0;
+
+        this.fetchDMAWord();                                // AUDxDAT = erstes Word
+        this.nextWord = 0;                                  // wird erst bei der ersten Ausgabe nachgeladen:
+                                                            // ein Vorab-Fetch würde dort überschrieben (Word 1 ginge verloren)
+        const hi = (this.audDat >> 8) & 0xFF;
+        this.heldValue = hi > 127 ? hi - 256 : hi;
+    }
+
+    hwStopDMA() {
+        this.dmaEnabled = false;
+        this.heldValue = 0;
+        this.curLen = 0;
+    }
+
+    fetchDMAWord() {
+        if (!this.dataBuffer || this.curPtr >= this.dataBuffer.length) {
+            this.audDat = 0;
+            return;
+        }
+        const b0 = this.dataBuffer[this.curPtr] & 0xFF;
+        const b1 = (this.curPtr + 1 < this.dataBuffer.length) ? (this.dataBuffer[this.curPtr + 1] & 0xFF) : 0;
+        this.audDat = (b0 << 8) | b1;
+        this.curPtr += 2;
+        this.curLen--;
+    }
+
+    fetchNextWordBuffer() {
+        if (!this.dmaEnabled) {
+            this.nextWord = 0;
+            return;
+        }
+
+        if (this.curLen <= 0) {
+            if (this.hw) {
+                // Hardware-Reload aus den aktuell gelatchten Registern
+                this.curPtr = this.audLc;
+                this.curLen = this.audLen;
+            } else if (this.isLooping && this.dataBuffer) {
+                this.curPtr = this.loopPtr;
+                this.curLen = this.loopLen;
+            } else {
+                this.dmaEnabled = false;
+                this.nextWord = 0;
+                return;
             }
         }
 
-        // 14-Bit Multiplying DAC Output (8-Bit Sample x 6-Bit Volume)
-        let vol6 = Math.round(this.vol); 
-        return (this.heldValue * vol6) / 8128.0; 
+        if (this.dataBuffer && this.curPtr < this.dataBuffer.length) {
+            const b0 = this.dataBuffer[this.curPtr] & 0xFF;
+            const b1 = (this.curPtr + 1 < this.dataBuffer.length) ? (this.dataBuffer[this.curPtr + 1] & 0xFF) : 0;
+            this.nextWord = (b0 << 8) | b1;
+            this.curPtr += 2;
+            this.curLen--;
+        } else {
+            this.nextWord = 0;
+        }
+    }
+
+    trigger(data, loopStart, loopLen, audLc = 0x00020000, audLenWords = 0) {
+        this.audLc = audLc & ~1;
+        this.audLen = audLenWords > 0 ? audLenWords : Math.floor(data.length / 2);
+        this.enableDMA(data, Math.floor(loopStart / 2), Math.floor(loopLen / 2));
+    }
+
+    step(clockTicks) {
+        if (!this.dmaEnabled || this.audVol === 0 || this.audPer === 0) return 0;
+
+        this.periodCounter -= clockTicks;
+
+        while (this.periodCounter <= 0) {
+            this.periodCounter += this.audPer;
+
+            if (this.bytePhase === 0) {
+                this.bytePhase = 1;
+                let rawLow = this.audDat & 0xFF;
+                this.heldValue = rawLow > 127 ? rawLow - 256 : rawLow;
+                this.fetchNextWordBuffer();
+            } else {
+                this.bytePhase = 0;
+                this.audDat = this.nextWord;
+                let rawHigh = (this.audDat >> 8) & 0xFF;
+                this.heldValue = rawHigh > 127 ? rawHigh - 256 : rawHigh;
+            }
+        }
+
+        return (this.heldValue * this.audVol) / 8128.0;
     }
 }
 
 class PaulaProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.clock = 3546895; // Amiga PAL Master Clock (Hz)
+        this.clock = 3546895; // PAL Master Clock (Hz)
         
         this.OVERSAMPLING = 4;
         this.internalRate = sampleRate * this.OVERSAMPLING; // 192 kHz
         
         this.channels = [];
         for (let i = 0; i < 64; i++) {
-            this.channels.push(new PaulaChannel());
+            this.channels.push(new PaulaChannel(i));
         }
         
         this.samples = {}; 
@@ -199,15 +336,16 @@ class PaulaProcessor extends AudioWorkletProcessor {
         this.currentRow = 0;
         this.currentTick = 0;
         this.samplesUntilNextTick = 0;
+        this.sampleCounter = 0;
         
         this.patternDelay = 0;
         this.breakPending = false;
         this.breakOrder = 0;
         this.breakRow = 0;
 
-        // =========================================================
-        // ANALOGE SIGNALKETTE (192 kHz High-Res Domain)
-        // =========================================================
+        this.cosoVM = null;
+
+        // Analoge Signalstufen (192 kHz Domain)
         this.opampL = new LF347OpAmpStage(this.internalRate);
         this.opampR = new LF347OpAmpStage(this.internalRate);
         
@@ -246,44 +384,12 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.samples[msg.name] = msg.data;
                 }
             } else if (msg.type === 'PLAY_TRACK') {
+                const isHipc = msg.track && (msg.track.type === 'HIPC' || msg.track.type === 'COSO');
                 this.linearFreq = msg.track ? (msg.track.linearFreq || false) : false;
                 
-                for (let i = 0; i < 64; i++) {
-                    this.channels[i].data = null;
-                    this.channels[i].vol = 0;
-                    this.channels[i].per = 428;
-                    this.channels[i].pointer = 0;
-                    this.channels[i].length = 0;
-                    this.channels[i].repPointer = 0;
-                    this.channels[i].repLength = 0;
-                    this.channels[i].phase = 0;
-                    this.channels[i].activeSample = 1;
-                    this.channels[i].heldValue = 0;
-                    
-                    this.channels[i].targetPeriod = 0;
-                    this.channels[i].basePeriod = 428;
-                    this.channels[i].currentNote = 0;
-                    this.channels[i].targetNote = 0;
-                    
-                    this.channels[i].portamentoSpeed = 0;
-                    this.channels[i].portamentoUpSpeed = 0;
-                    this.channels[i].portamentoDownSpeed = 0;
-                    this.channels[i].volSlideSpeed = 0;
-                    this.channels[i].sampleOffset = 0;
-                    
-                    this.channels[i].patternLoopRow = 0;
-                    this.channels[i].patternLoopCount = 0;
-                    this.channels[i].lastPlayedSample = 0;
-                    
-                    this.channels[i].vibratoSpeed = 0;
-                    this.channels[i].vibratoDepth = 0;
-                    this.channels[i].vibratoPhase = 0;
-                    this.channels[i].hasVibrato = false;
-                }
-
-                this.filterModeState = 0;
-                this.trackLedFilterOn = true; 
-                this.ledFilterOn = true;      
+                this.filterModeState = isHipc ? 2 : 0;
+                this.trackLedFilterOn = !isHipc; 
+                this.ledFilterOn = !isHipc;      
 
                 this.opampL.reset();
                 this.opampR.reset();
@@ -291,50 +397,77 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 this.ringBufferR.fill(0);
                 this.ringIndex = 0;
 
+                for (let i = 0; i < 64; i++) {
+                    this.channels[i].disableDMA();
+                    this.channels[i].writeAUDxVOL(0);
+                    this.channels[i].writeAUDxPER(428);
+                }
+
                 if (msg.track && msg.track.isSequenced) {
                     this.isSequenced = true;
                     this.seqType = msg.track.type;
-                    this.songLength = msg.track.songLength;
-                    this.orderTable = msg.track.orderTable;
-                    this.patterns = msg.track.patterns;
-                    this.bpm = msg.track.bpm || 125;
-                    this.speed = msg.track.speed || 6;
-                    this.numChannels = msg.track.numChannels || 4;
 
-                    this.currentOrder = 0;
-                    this.currentRow = 0;
-                    this.currentTick = 0;
-                    this.samplesUntilNextTick = 0;
-                    this.patternDelay = 0;
-                    this.breakPending = false;
-                    this.isPlaying = true;
+                    if (this.seqType === 'HIPC' || this.seqType === 'COSO') {
+                        this.cosoVM = new CosoVirtualMachine(
+                            msg.track,
+                            msg.track.samples || this.samples,
+                            (logMsg) => this.port.postMessage({ type: 'LAB_LOG', msg: logMsg })
+                        );
+                        this.sampleCounter = 0;
+                        this.numChannels = 4;
+                        this.isPlaying = true;
+                    } else {
+                        this.cosoVM = null;
+                        this.songLength = msg.track.songLength;
+                        this.orderTable = msg.track.orderTable;
+                        this.patterns = msg.track.patterns;
+                        this.bpm = msg.track.bpm || 125;
+                        this.speed = msg.track.speed || 6;
+                        this.numChannels = msg.track.numChannels || 4;
+
+                        this.currentOrder = 0;
+                        this.currentRow = 0;
+                        this.currentTick = 0;
+                        this.samplesUntilNextTick = 0;
+                        this.patternDelay = 0;
+                        this.breakPending = false;
+                        this.isPlaying = true;
+                    }
                 } else {
                     this.isSequenced = false;
+                    this.cosoVM = null;
                     this.trackData = msg.track;
                     this.numChannels = 4; 
                     this.currentFrame = 0;
                     this.sampleCounter = 0;
                     this.isPlaying = true;
                 }
+
             } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
                 for (let i = 0; i < 64; i++) {
-                    this.channels[i].data = null;
-                    this.channels[i].vol = 0;
+                    this.channels[i].disableDMA();
+                    this.channels[i].writeAUDxVOL(0);
                 }
             } else if (msg.type === 'RESUME_TRACK') {
                 this.isPlaying = true;
             } else if (msg.type === 'SEEK_TRACK') {
                 if (this.isSequenced) {
-                    const ticksPerOrder = 64 * this.speed;
-                    const targetOrder = Math.floor(msg.frame / ticksPerOrder);
-                    const remainingTicks = msg.frame % ticksPerOrder;
-                    
-                    this.currentOrder = targetOrder % this.songLength;
-                    this.currentRow = Math.floor(remainingTicks / this.speed) % 64;
-                    this.currentTick = remainingTicks % this.speed;
-                    this.patternDelay = 0;
-                    this.breakPending = false;
+                    if (this.seqType === 'HIPC' || this.seqType === 'COSO') {
+                        this.sampleCounter = 0;
+                        // Echtes Spulen auf den Ziel-Tick (statt immer zum Songanfang zu springen)
+                        if (this.cosoVM) this.cosoVM.seekToTick(msg.frame);
+                    } else {
+                        const ticksPerOrder = 64 * this.speed;
+                        const targetOrder = Math.floor(msg.frame / ticksPerOrder);
+                        const remainingTicks = msg.frame % ticksPerOrder;
+                        
+                        this.currentOrder = targetOrder % this.songLength;
+                        this.currentRow = Math.floor(remainingTicks / this.speed) % 64;
+                        this.currentTick = remainingTicks % this.speed;
+                        this.patternDelay = 0;
+                        this.breakPending = false;
+                    }
                 } else {
                     if (this.trackData) this.currentFrame = msg.frame % this.trackData.length;
                 }
@@ -359,7 +492,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
         const pattern = patternObj.data;
         const numRows = patternObj.numRows;
         const rowOffset = this.currentRow * this.numChannels * 6;
-        const clockTicksPerSample = this.clock / this.internalRate; 
 
         for (let ch = 0; ch < this.numChannels; ch++) {
             const cellOffset = rowOffset + (ch * 6);
@@ -376,16 +508,23 @@ class PaulaProcessor extends AudioWorkletProcessor {
             }
             
             const activeSample = channel.activeSample || 1;
-            const smpName = this.seqType === 'MOD' ? `mod_sample_${activeSample}` : `xm_sample_${activeSample}`;
-            const currentSmpObj = this.samples[smpName];
+            const smpPrefix = this.seqType.toLowerCase();
+            let smpName = `${smpPrefix}_sample_${activeSample}`;
+            let currentSmpObj = this.samples[smpName];
+            if (!currentSmpObj) {
+                currentSmpObj = this.samples[`mod_sample_${activeSample}`] || 
+                                this.samples[`xm_sample_${activeSample}`] || 
+                                this.samples[`hipc_sample_${activeSample}`] || 
+                                this.samples[`dw_sample_${activeSample}`];
+            }
 
             const isSampleChange = (sample > 0 && sample !== channel.lastPlayedSample);
-            const isPortamento = (effect === 0x03 || effect === 0x05) && (channel.data !== null) && 
+            const isPortamento = (effect === 0x03 || effect === 0x05) && (channel.dataBuffer !== null) && 
                                  (this.seqType === 'XM' ? true : !isSampleChange);
 
             if (this.currentTick === 0) {
                 const hasNote = (period > 0 && period !== 97);
-                if (period === 97) channel.vol = 0;
+                if (period === 97) channel.writeAUDxVOL(0);
 
                 if (hasNote) {
                     let calculatedPeriod = period;
@@ -403,7 +542,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                         channel.targetPeriod = calculatedPeriod;
                         channel.targetNote = actualNote;
                     } else {
-                        channel.per = calculatedPeriod;
+                        channel.writeAUDxPER(calculatedPeriod);
                         channel.basePeriod = calculatedPeriod;
                         channel.targetPeriod = 0;
                         channel.currentNote = actualNote;
@@ -414,12 +553,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 if (hasNote && currentSmpObj && currentSmpObj.data) {
                     if (!isPortamento) {
                         channel.trigger(currentSmpObj.data, currentSmpObj.loopStart, currentSmpObj.loopLen);
-                        channel.phase = overshoot * (clockTicksPerSample / channel.per);
-                        
-                        if (effect === 0x09) {
-                            if (param > 0) channel.sampleOffset = param * 256;
-                            channel.pointer = channel.sampleOffset & ~1;
-                        }
                     }
                     if (sample > 0) {
                         channel.lastPlayedSample = sample;
@@ -427,18 +560,17 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 }
 
                 if (sample > 0 && currentSmpObj) {
-                    channel.vol = currentSmpObj.baseVolume; 
+                    channel.writeAUDxVOL(currentSmpObj.baseVolume); 
                 }
 
                 if (volume !== 0xFF && volume <= 64) {
-                    channel.vol = volume; 
+                    channel.writeAUDxVOL(volume); 
                 }
 
                 if (effect !== 0x04 && effect !== 0x06) {
                     channel.hasVibrato = false;
                 }
 
-                // --- TICK 0: EFFECTS ---
                 switch (effect) {
                     case 0x01: if (param > 0) channel.portamentoUpSpeed = param; break;
                     case 0x02: if (param > 0) channel.portamentoDownSpeed = param; break;
@@ -459,7 +591,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                         channel.hasVibrato = true;
                         break;
                     case 0x0C: 
-                        channel.vol = param > 64 ? 64 : param;
+                        channel.writeAUDxVOL(param > 64 ? 64 : param);
                         break;
                     case 0x0F: 
                         if (param > 0) {
@@ -484,134 +616,16 @@ class PaulaProcessor extends AudioWorkletProcessor {
                             this.trackLedFilterOn = (subParam === 0);
                             if (this.filterModeState === 0) this.ledFilterOn = (subParam === 0); 
                         } else if (subEffect === 0x0A) { 
-                            channel.vol = Math.min(64, channel.vol + subParam);
+                            channel.writeAUDxVOL(channel.audVol + subParam);
                         } else if (subEffect === 0x0B) { 
-                            channel.vol = Math.max(0, channel.vol - subParam);
+                            channel.writeAUDxVOL(channel.audVol - subParam);
                         } else if (subEffect === 0x01) { 
-                            if (this.seqType === 'XM' && this.linearFreq) {
-                                channel.currentNote = Math.min(96, channel.currentNote + (subParam / 16.0));
-                                channel.per = Math.round(428.0 * Math.pow(2.0, (49 - channel.currentNote) / 12.0));
-                            } else if (channel.per > 0) {
-                                channel.per = Math.max(113, channel.per - subParam);
-                            }
+                            channel.writeAUDxPER(channel.audPer - subParam);
                         } else if (subEffect === 0x02) { 
-                            if (this.seqType === 'XM' && this.linearFreq) {
-                                channel.currentNote = Math.max(1, channel.currentNote - (subParam / 16.0));
-                                channel.per = Math.round(428.0 * Math.pow(2.0, (49 - channel.currentNote) / 12.0));
-                            } else if (channel.per > 0) {
-                                channel.per = Math.min(856, channel.per + subParam);
-                            }
-                        }
-                        else if (subEffect === 0x0E) {
+                            channel.writeAUDxPER(channel.audPer + subParam);
+                        } else if (subEffect === 0x0E) {
                             this.patternDelay = subParam;
                         }
-                        else if (subEffect === 0x06) {
-                            if (subParam === 0) {
-                                channel.patternLoopRow = this.currentRow;
-                            } else {
-                                if (channel.patternLoopCount === 0) {
-                                    channel.patternLoopCount = subParam;
-                                } else {
-                                    channel.patternLoopCount--;
-                                }
-                                if (channel.patternLoopCount > 0) {
-                                    this.breakOrder = this.currentOrder;
-                                    this.breakRow = channel.patternLoopRow;
-                                    this.breakPending = true;
-                                }
-                            }
-                        }
-                        break;
-                }
-            } else {
-                // --- TICK > 0: EFFECTS ---
-                switch (effect) {
-                    case 0x00: 
-                        if (param > 0 && channel.per > 0) {
-                            const arpOffsets = [0, (param >> 4) & 0x0F, param & 0x0F];
-                            const currentOffset = arpOffsets[this.currentTick % 3];
-                            if (this.seqType === 'XM' && this.linearFreq) {
-                                const arpNote = channel.currentNote + currentOffset; 
-                                const clampedNote = Math.min(96, Math.max(1, arpNote));
-                                channel.per = Math.round(428.0 * Math.pow(2.0, (49 - clampedNote) / 12.0));
-                            } else {
-                                const base = (period > 0 && period !== 97) ? period : channel.basePeriod;
-                                channel.per = base * Math.pow(0.9438, currentOffset);
-                            }
-                        }
-                        break;
-                    case 0x01: 
-                        if (this.seqType === 'XM' && this.linearFreq) {
-                            channel.currentNote = Math.min(96, channel.currentNote + (channel.portamentoUpSpeed / 16.0));
-                            channel.per = Math.round(428.0 * Math.pow(2.0, (49 - channel.currentNote) / 12.0));
-                        } else if (channel.per > 0) {
-                            channel.per = Math.max(113, channel.per - channel.portamentoUpSpeed); 
-                        }
-                        break;
-                    case 0x02: 
-                        if (this.seqType === 'XM' && this.linearFreq) {
-                            channel.currentNote = Math.max(1, channel.currentNote - (channel.portamentoDownSpeed / 16.0));
-                            channel.per = Math.round(428.0 * Math.pow(2.0, (49 - channel.currentNote) / 12.0));
-                        } else if (channel.per > 0) {
-                            channel.per = Math.min(856, channel.per + channel.portamentoDownSpeed); 
-                        }
-                        break;
-                    case 0x03:
-                    case 0x05:
-                        if (this.seqType === 'XM' && this.linearFreq) {
-                            if (channel.targetNote > 0 && channel.currentNote !== channel.targetNote) {
-                                const slideAmount = channel.portamentoSpeed / 16.0;
-                                if (channel.currentNote < channel.targetNote) {
-                                    channel.currentNote = Math.min(channel.targetNote, channel.currentNote + slideAmount);
-                                } else {
-                                    channel.currentNote = Math.max(channel.targetNote, channel.currentNote - slideAmount);
-                                }
-                                const clampedNote = Math.min(96, Math.max(1, channel.currentNote));
-                                channel.per = Math.round(428.0 * Math.pow(2.0, (49 - clampedNote) / 12.0));
-                            }
-                        } else {
-                            if (channel.targetPeriod > 0 && channel.per !== channel.targetPeriod) {
-                                if (channel.per < channel.targetPeriod) {
-                                    channel.per = Math.min(channel.targetPeriod, channel.per + channel.portamentoSpeed);
-                                } else {
-                                    channel.per = Math.max(channel.targetPeriod, channel.per - channel.portamentoSpeed);
-                                }
-                            }
-                        }
-                        if (effect === 0x05) {
-                            const slideUp = (channel.volSlideSpeed >> 4) & 0x0F;
-                            const slideDown = channel.volSlideSpeed & 0x0F;
-                            if (slideUp > 0) channel.vol = Math.min(64, channel.vol + slideUp);
-                            else if (slideDown > 0) channel.vol = Math.max(0, channel.vol - slideDown);
-                        }
-                        break;
-                    case 0x04: 
-                    case 0x06: 
-                        if (channel.hasVibrato) {
-                            channel.vibratoPhase = (channel.vibratoPhase + channel.vibratoSpeed) & 63;
-                            const vibSine = Math.sin(channel.vibratoPhase * (Math.PI / 32));
-                            
-                            if (this.seqType === 'XM' && this.linearFreq) {
-                                const vibOffsetNotes = vibSine * (channel.vibratoDepth / 16.0);
-                                const clampedNote = Math.min(96, Math.max(1, channel.currentNote + vibOffsetNotes));
-                                channel.per = Math.round(428.0 * Math.pow(2.0, (49 - clampedNote) / 12.0));
-                            } else {
-                                const vibOffset = vibSine * channel.vibratoDepth * 2.5; 
-                                channel.per = Math.max(113, Math.min(856, Math.round(channel.basePeriod + vibOffset)));
-                            }
-                        }
-                        if (effect === 0x06) {
-                            const slideUp = (channel.volSlideSpeed >> 4) & 0x0F;
-                            const slideDown = channel.volSlideSpeed & 0x0F;
-                            if (slideUp > 0) channel.vol = Math.min(64, channel.vol + slideUp);
-                            else if (slideDown > 0) channel.vol = Math.max(0, channel.vol - slideDown);
-                        }
-                        break;
-                    case 0x0A: 
-                        const slideUp = (channel.volSlideSpeed >> 4) & 0x0F;
-                        const slideDown = channel.volSlideSpeed & 0x0F;
-                        if (slideUp > 0) channel.vol = Math.min(64, channel.vol + slideUp);
-                        else if (slideDown > 0) channel.vol = Math.max(0, channel.vol - slideDown);
                         break;
                 }
             }
@@ -621,7 +635,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
         if (this.currentTick >= this.speed * (this.patternDelay + 1)) {
             this.currentTick = 0;
             this.patternDelay = 0;
-            
             if (this.breakPending) {
                 this.currentOrder = this.breakOrder;
                 this.currentRow = this.breakRow;
@@ -642,7 +655,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
         let oscValue = 0;
 
         let clockTicksPerSample = this.clock / this.internalRate;
-        const CROSSTALK_BLEED = 0.035; // 3.5% physikalisches Übersprechen
+        const CROSSTALK_BLEED = 0.035;
 
         for (let i = 0; i < outL.length; i++) {
             if (!this.isPlaying) {
@@ -651,50 +664,36 @@ class PaulaProcessor extends AudioWorkletProcessor {
             }
             
             if (this.isSequenced) {
-                this.samplesUntilNextTick--;
-                if (this.samplesUntilNextTick <= 0) {
-                    const overshoot = -this.samplesUntilNextTick; 
-                    this.processTrackerTick(overshoot);
-                    const samplesPerTick = (2.5 / this.bpm) * sampleRate;
-                    this.samplesUntilNextTick += samplesPerTick;
-                }
-            } else {
-                this.sampleCounter--;
-                if (this.sampleCounter <= 0) {
-                    this.sampleCounter += sampleRate / 50.0;
-                    let frame = this.trackData[this.currentFrame];
-                    if (frame && frame.cmds) {
-                        for (let cmd of frame.cmds) {
-                            const ch = this.channels[cmd.ch];
-                            if (cmd.smp) {
-                                let sampleObj = this.samples[cmd.smp];
-                                if (sampleObj && sampleObj.data) {
-                                    ch.trigger(sampleObj.data, sampleObj.loopStart, sampleObj.loopLen);
-                                }
-                            }
-                            if (cmd.per !== undefined) ch.per = cmd.per;
-                            if (cmd.vol !== undefined) ch.vol = cmd.vol; 
+                if (this.seqType === 'HIPC' || this.seqType === 'COSO') {
+                    this.sampleCounter--;
+                    if (this.sampleCounter <= 0) {
+                        this.sampleCounter += sampleRate / 50.0;
+                        if (this.cosoVM) {
+                            this.cosoVM.processTick(this.channels);
                         }
                     }
-                    this.currentFrame = (this.currentFrame + 1) % this.trackData.length;
+                } else {
+                    this.samplesUntilNextTick--;
+                    if (this.samplesUntilNextTick <= 0) {
+                        const overshoot = -this.samplesUntilNextTick; 
+                        this.processTrackerTick(overshoot);
+                        const samplesPerTick = (2.5 / this.bpm) * sampleRate;
+                        this.samplesUntilNextTick += samplesPerTick;
+                    }
                 }
             }
 
-            // =========================================================
-            // 192 kHz OVERSAMPLING LOOP (Analog Modeling Stage)
-            // =========================================================
+            // 192 kHz Oversampling Loop
             for (let os = 0; os < this.OVERSAMPLING; os++) {
-                
                 let rawL = 0;
                 let rawR = 0;
                 
-                // Paula L-R-R-L Physical Hard-Panning
                 for (let c = 0; c < this.numChannels; c++) {
                     let smp = this.channels[c].step(clockTicksPerSample);
                     if (smp !== 0) {
                         let panMod = c % 4;
-                        if (panMod === 0 || panMod === 3) rawL += smp; // Channels 0 & 3 (Left)
-                        else rawR += smp;                              // Channels 1 & 2 (Right)
+                        if (panMod === 0 || panMod === 3) rawL += smp;
+                        else rawR += smp;
                     }
                 }
                 
@@ -704,25 +703,20 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     rawR *= mixAtten;
                 }
                 
-                // Induktives Mainboard-Übersprechen
                 let bleedL = rawL * (1.0 - CROSSTALK_BLEED) + rawR * CROSSTALK_BLEED;
                 let bleedR = rawR * (1.0 - CROSSTALK_BLEED) + rawL * CROSSTALK_BLEED;
 
-                // 1. ANALOGES LF347 JFET OP-AMP SLEW-RATE MODELL
                 let slewedL = this.opampL.process(bleedL);
                 let slewedR = this.opampR.process(bleedR);
 
-                // 2. PASSIVER RC-TIEFPASS (4.42 kHz, 6 dB/Okt)
                 let filteredL = this.staticL.process(slewedL);
                 let filteredR = this.staticR.process(slewedR);
 
-                // 3. AKTIVES BUTTERWORTH LED-FILTER (3.09 kHz, 12 dB/Okt)
                 if (this.ledFilterOn) {
                     filteredL = this.ledL.process(filteredL);
                     filteredR = this.ledR.process(filteredR);
                 }
                 
-                // 4. BIPOLARE AUSGANGSSTUFEN-SÄTTIGUNG
                 filteredL = Math.tanh(filteredL * 1.15) / 1.05;
                 filteredR = Math.tanh(filteredR * 1.15) / 1.05;
 
@@ -731,9 +725,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 this.ringIndex = (this.ringIndex + 1) & 511;
             }
 
-            // =========================================================
-            // 255-TAP SINC-FIR DECIMATION (Downsampling auf 48 kHz)
-            // =========================================================
             let decL = 0;
             let decR = 0;
             let firIdx = (this.ringIndex - 1) & 511;
@@ -744,7 +735,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 firIdx = (firIdx - 1) & 511;
             }
 
-            outL[i] = decL * 0.7; // Master Headroom
+            outL[i] = decL * 0.7;
             if (outR) outR[i] = decR * 0.7; 
             else outL[i] += decR * 0.7; 
             
@@ -756,39 +747,51 @@ class PaulaProcessor extends AudioWorkletProcessor {
             let isAudible = Math.abs(oscValue) > 0.001;
             if (isAudible || this.wasAudible) {
                 const view = this.visualView;
-                view[0] = 1; // System Flag: Amiga
+                view[0] = 1; // Amiga
                 view[1] = this.isPlaying ? 1 : 0;
-                view[2] = this.isSequenced 
-                    ? (this.currentOrder * 64 * this.speed + this.currentRow * this.speed + this.currentTick)
-                    : this.currentFrame;
+                
+                let currentFrameVal = 0;
+                if (this.isSequenced) {
+                    if (this.seqType === 'HIPC' || this.seqType === 'COSO') {
+                        currentFrameVal = this.cosoVM ? this.cosoVM.position : 0;      // Ticks im aktuellen Durchlauf (springt beim Loop auf 1)
+                    } else {
+                        currentFrameVal = (this.currentOrder * 64 * this.speed + this.currentRow * this.speed + this.currentTick);
+                    }
+                } else {
+                    currentFrameVal = this.currentFrame;
+                }
+                view[2] = currentFrameVal;
                 view[3] = oscValue;
 
                 for(let c = 0; c < 4; c++) {
                     let offset = c * 7;
                     let ch = this.channels[c];
                     
-                    let simulatedAddress = ch.data ? 0x00020000 + c * 0x4000 + Math.floor(ch.pointer) : 0;
-                    view[4 + offset] = (simulatedAddress >> 8) & 0xFF; 
-                    view[4 + offset + 1] = simulatedAddress & 0xFF;       
+                    let lc = ch.audLc || 0;
+                    view[4 + offset] = (lc >> 8) & 0xFF; 
+                    view[4 + offset + 1] = lc & 0xFF;       
                     
-                    let len = ch.data ? Math.floor(ch.data.length / 2) : 0;
+                    let len = ch.audLen || 0;
                     view[4 + offset + 2] = (len >> 8) & 0xFF;
                     view[4 + offset + 3] = len & 0xFF;
                     
-                    view[4 + offset + 4] = (ch.per >> 8) & 0xFF;
-                    view[4 + offset + 5] = ch.per & 0xFF;
+                    view[4 + offset + 4] = (ch.audPer >> 8) & 0xFF;
+                    view[4 + offset + 5] = ch.audPer & 0xFF;
                     
-                    view[4 + offset + 6] = Math.round(ch.vol) & 0xFF;
+                    view[4 + offset + 6] = ch.audVol & 0xFF;
                 }
 
                 view[33] = this.ledFilterOn ? 1.0 : 0.0;
 
+                let dmaMask = 0;
                 for (let c = 0; c < 4; c++) {
                     let ch = this.channels[c];
-                    view[34 + c] = ch.data ? (ch.vol / 64.0) : 0.0;
+                    view[34 + c] = ch.dmaEnabled ? (ch.audVol / 64.0) : 0.0;
+                    if (ch.dmaEnabled) dmaMask |= 1 << c;
                 }
 
                 view[38] = this.filterModeState;
+                view[39] = dmaMask;
 
                 this.port.postMessage(view);
             }

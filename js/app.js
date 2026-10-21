@@ -3,7 +3,7 @@
 //                  CHIPTUNES FANTASY - MAIN APP CONTROLLER
 // =========================================================================
 import { FullscreenUI } from './ui/fullscreen-ui.js';
-import { trackRegistry } from '../tracks/index.js';
+import { getTracklistEntries, trackRegistry } from '../tracks/index.js';
 import { systemDescriptions } from './content/museum.js'; 
 import { chipCheatSheets } from './content/cheatsheets.js'; 
 import { workletRegistry } from './worklets/registry.js';
@@ -32,6 +32,7 @@ let activeSystem = 'c64'; // Standard-System auf 'c64' korrigiert (passend zum B
 let trackData = [];    
 let isPlaying = false; 
 let currentTrackIndex = 0;
+let tracklistDirectory = '';
 let currentScrollerText = "+++ INITIALIZING DEMO ENGINE... +++";
 let lastKnownFrame = 0; 
 let previousFrame = 0;       
@@ -278,10 +279,9 @@ function handleWorkletMessage(e) {
         
         for (let i = 0; i < 32; i++) {
             currentChipRegs[i] = view[4 + i];
-            channelVolumes[0] = view[34];
-            channelVolumes[1] = view[35];
-            channelVolumes[2] = view[36];
-            channelVolumes[3] = view[37];            
+        }
+        for (let channel = 0; channel < channelVolumes.length; channel++) {
+            channelVolumes[channel] = view[34 + channel];
         }
 
         if (systemId === 0) {
@@ -294,16 +294,21 @@ function handleWorkletMessage(e) {
             const overrideState = Math.round(view[38]); 
             currentChipRegs[29] = ledState; 
             currentChipRegs[30] = overrideState; 
+            currentChipRegs[31] = Math.round(view[39] || 0);
             
             const pwrLed = document.getElementById('amiga-led-pwr');
             if (pwrLed) {
-                if (ledState === 0) { 
+                if (ledState === 1) {
                     pwrLed.classList.add('on');
                     pwrLed.style.background = '#ff0000';
                     pwrLed.style.boxShadow = '0 0 8px #ff0000';
-                } else { 
+                } else if (ledState === 0) {
                     pwrLed.classList.remove('on');
                     pwrLed.style.background = '#440000';
+                    pwrLed.style.boxShadow = 'none';
+                } else {
+                    pwrLed.classList.remove('on');
+                    pwrLed.style.background = '';
                     pwrLed.style.boxShadow = 'none';
                 }
             }
@@ -312,6 +317,10 @@ function handleWorkletMessage(e) {
             if (pwrLedOverride) {
                 pwrLedOverride.style.display = overrideState > 0 ? 'block' : 'none';
             }
+        }
+        if (systemId === 2) {
+            currentChipRegs[30] = Math.round(view[38]);
+            currentChipRegs[31] = view[39];
         }
 
         previousFrame = lastKnownFrame;
@@ -518,6 +527,7 @@ async function setTheme(themeName, isBootSequence = false) {
     });
 
     activeSystem = newSystem;
+    tracklistDirectory = '';
     
     const tempContainer = document.getElementById('temp-control-container');
     if (tempContainer) {
@@ -640,11 +650,38 @@ function renderTracklist(system) {
     const songs = trackRegistry[system];
     if (!songs) return;
 
-    songs.forEach((song, index) => {
+    const supportsFolderNavigation = system === 'amiga' || system === 'atari';
+
+    if (supportsFolderNavigation && tracklistDirectory) {
+        const upItem = document.createElement('li');
+        upItem.classList.add('tracklist-navigation');
+        upItem.textContent = '[UP] ..';
+        upItem.addEventListener('click', () => {
+            const separatorIndex = tracklistDirectory.lastIndexOf('/');
+            tracklistDirectory = separatorIndex === -1 ? '' : tracklistDirectory.slice(0, separatorIndex);
+            renderTracklist(system);
+        });
+        listElement.appendChild(upItem);
+    }
+
+    const entries = supportsFolderNavigation
+        ? getTracklistEntries(songs, tracklistDirectory)
+        : songs.map((song, index) => ({ type: 'track', index, song }));
+
+    entries.forEach(entry => {
         const li = document.createElement('li');
-        li.textContent = song.title;
-        if (index === currentTrackIndex) li.classList.add('active-track');
-        li.addEventListener('click', () => selectAndPlayTrack(index, system));
+        if (entry.type === 'folder') {
+            li.classList.add('tracklist-folder');
+            li.textContent = `[DIR] ${entry.name}/`;
+            li.addEventListener('click', () => {
+                tracklistDirectory = entry.path;
+                renderTracklist(system);
+            });
+        } else {
+            li.textContent = entry.song.title;
+            if (entry.index === currentTrackIndex) li.classList.add('active-track');
+            li.addEventListener('click', () => selectAndPlayTrack(entry.index, system));
+        }
         listElement.appendChild(li);
     });
 }
@@ -966,7 +1003,13 @@ document.getElementById('btn-play').addEventListener('click', () => {
     if (isPlaying) {
         stopPlayback(); 
     } else {
-        trackData.length === 0 ? selectAndPlayTrack(0, activeSystem) : resumePlayback();
+        if (trackData.length === 0) {
+            const visibleEntries = getTracklistEntries(trackRegistry[activeSystem], tracklistDirectory);
+            const firstVisibleTrack = visibleEntries.find(entry => entry.type === 'track');
+            if (firstVisibleTrack) selectAndPlayTrack(firstVisibleTrack.index, activeSystem);
+        } else {
+            resumePlayback();
+        }
     }
 });
 

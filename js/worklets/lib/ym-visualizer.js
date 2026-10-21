@@ -10,13 +10,14 @@ export class YMVisualizer {
         this.visualView = new Float32Array(40);
         this.visCounter = 0;
         this.wasAudible = false;
+        this.wasPlaying = false;
     }
 
-    update(isPlaying, currentFrame, currentVisualValue, regs, volA, volB, volC) {
+    update(isPlaying, currentFrame, currentVisualValue, regs, volA, volB, volC, noiseOutput = 0, envelopeLevel = 0) {
         this.visCounter++;
         if (this.visCounter % 4 === 0) {
-            let isAudible = Math.abs(currentVisualValue) > 0.001;
-            if (isAudible || this.wasAudible) {
+            const isAudible = Math.abs(currentVisualValue) > 0.001;
+            if (isPlaying || this.wasPlaying || isAudible || this.wasAudible) {
                 const view = this.visualView;
                 view[0] = 2; // System Flag: 2 = Atari ST
                 view[1] = isPlaying ? 1 : 0;
@@ -33,10 +34,13 @@ export class YMVisualizer {
                 view[35] = volB;
                 view[36] = volC;
                 view[37] = 0.0; // Ungenutzt für ST
+                view[38] = noiseOutput > 0 ? 1 : 0;
+                view[39] = Math.round(Math.max(0, Math.min(1, envelopeLevel)) * 255);
 
                 this.port.postMessage(view);
             }
             this.wasAudible = isAudible;
+            this.wasPlaying = isPlaying;
         }
     }
 }

@@ -96,10 +96,10 @@ const composerMetadata = {
         <p>Wenn Hubbard der Rocker war, dann war <strong>Martin Galway</strong> der Pink Floyd der Chiptunes. Sein Soundtrack zu <em>Wizball</em> (1987) ist episch, atmosphärisch und von langsamen, organischen Filter-Sweeps geprägt.</p>
         <p><strong>DSP-Fokus:</strong> Galway war der Meister des "Floating DAC"-Hacks. In diesem Track nutzt er das Master-Volume-Register <code>$D418</code>, um digitale Rhythmus-Samples auszugeben. Unsere Engine fängt dieses Gleichspannungs-Leck auf die Mikrosekunde genau ab, während das analog gemodelte JFET-Filter für den knurrenden Sweep im Bass sorgt.</p>
     `,
-    "Great_Giana_Sisters_PSID.sid": `
+    "Great_Giana_Sisters.sid": `
         <h3>[ COMPOSER SPOTLIGHT: CHRIS HUELSBECK ]</h3>
         <p>Bevor er den Amiga dominierte, zeigte <strong>Chris Hülsbeck</strong> auf dem C64 seine melodische Genialität. <em>The Great Giana Sisters</em> (1987) beweist, wie man mit nur drei Stimmen komplette orchestrale Pop-Hymnen aufbaut.</p>
-        <p><strong>DSP-Fokus:</strong> Höre genau auf den legendären, perlenden Lead-Synthesizer. Er basiert auf <strong>Ring-Modulation</strong> (XOR-Bit-Kopplung) zwischen Dreieck- und Rechteck-Oszillator. Im Hintergrund murmelt ein fetter PWM-Bass, dessen Resonanz durch unser asymmetrisches JFET-Transistor-Modell weich und warm bei extrem tiefen Frequenzen sättigt.</p>
+        <p><strong>DSP-Fokus:</strong> Höre genau auf den legendären, perlenden Lead-Synthesizer. Er basiert auf <strong>Ring-Modulation</strong> (XOR-Bit-Kopplung) und der kombinierten Wellenform <code>$50</code> (Dreieck + Puls). Im Hintergrund treiben PlaySID-Digidrums über unser 3.6x Paula-zu-C64-Taktteiler-Netzwerk den Beat voran, während das asymmetrische JFET-Filter weich und warm sättigt.</p>
     `,
     "Bionic_Commando.sid": `
         <h3>[ COMPOSER SPOTLIGHT: TIM FOLLIN ]</h3>

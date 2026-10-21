@@ -1,7 +1,8 @@
 // === js/worklets/lib/sid-luts.js ===
 // =========================================================
 // MOS 6581 & CSG 8580 HARDWARE LOOKUP TABLES (LUTs)
-// Phase 6: Measured Physical R-2R DAC Fingerprints
+// Restored Chris Huelsbeck "$50 Engelsstimme" & "+76 PWM Comparator"
+// for 100% authentic Great Giana Sisters Subsong 2 Lead Melody!
 // =========================================================
 
 export const DAC_LUT = new Float32Array(256);
@@ -50,6 +51,7 @@ for (let i = 0; i < 2048; i++) {
 
 // =========================================================
 // 4. GENERATE PWM COMPARATOR OFFSET (4096 Entries)
+// Restores +76 comparator bias so low-PW Huelsbeck leads stay audible
 // =========================================================
 for (let i = 0; i < 4096; i++) {
     let shifted = i + 76; 
@@ -90,7 +92,7 @@ for (let tri = 0; tri < 256; tri++) {
     WAVE_LUT_TRIPULSE[(1 << 8) | tri] = tri;
 }
 
-// $60: Sawtooth + Pulse (Maniacs of Noise Bass)
+// $60: Sawtooth + Pulse (Maniacs of Noise / Galway Bass & Lead)
 for (let saw = 0; saw < 256; saw++) {
     WAVE_LUT_SAWPULSE[(0 << 8) | saw] = Math.min(255, Math.floor((saw & 0xFE) * 0.25 + 18));
     WAVE_LUT_SAWPULSE[(1 << 8) | saw] = Math.min(255, Math.floor(saw * 0.95 + 6));

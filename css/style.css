@@ -13,6 +13,7 @@
     --highlight-color: #ffffff;
     
     --screen-bg: #1c1544;     /* Dunkler CRT-Hintergrund */
+    --bus-active-color: #5c94fc; /* C64 Leuchtend Blau */
     
     --font-main: 'Press Start 2P', monospace;
     /* GFX UPGRADE: Fluid Typography wächst dynamisch mit der Bildschirmbreite mit */
@@ -30,6 +31,7 @@ body.theme-amiga {
     --highlight-color: #ffffff; 
     
     --screen-bg: #0a0500;     /* Tiefer Bernstein-Glow Background */
+    --bus-active-color: #ff8800; /* Amiga Warmes Bernstein / Orange */
     
     --font-main: 'VT323', monospace;
     --font-size-base: clamp(18px, 1.3vw, 22px);
@@ -46,6 +48,7 @@ body.theme-atari {
     --highlight-color: #ffffff;
     
     --screen-bg: #001100;     /* Phosphor-Grün Background */
+    --bus-active-color: #39ff14; /* Atari Vivid Phosphor-Grün */
     
     --font-main: 'VT323', monospace;
     --font-size-base: 20px;
@@ -391,6 +394,11 @@ details[open] > summary::before { content: "[-] "; }
 
 #tracklist li:last-child { border-bottom: none; }
 #tracklist li::before { content: "> "; opacity: 0; font-weight: bold; }
+
+#tracklist li.tracklist-folder,
+#tracklist li.tracklist-navigation {
+    color: var(--highlight-color);
+}
 
 #tracklist li:hover {
     background: rgba(255, 255, 255, 0.1); 
@@ -1233,8 +1241,69 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     transition: fill 0.05s ease, filter 0.05s ease;
 }
 
+.silicon-pin-number {
+    fill: var(--panel-text);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 5px;
+    pointer-events: none;
+}
+
 .silicon-chip-label {
-    font-size: 10px !important;
+    font-size: 6px !important;
+    letter-spacing: 0.5px;
+}
+
+.paula-section-label,
+.paula-channel-name,
+.paula-channel-state,
+.paula-channel-registers,
+.paula-stage-title,
+.paula-stage-caption,
+.paula-filter-status,
+.paula-pin-label {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 5px;
+    letter-spacing: 0.15px;
+}
+
+.paula-pin-number {
+    fill: var(--panel-text);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 4px;
+}
+
+.paula-audio-pin,
+.paula-pin-label {
+    fill: var(--highlight-color);
+}
+
+.paula-section-label,
+.paula-filter-status {
+    fill: var(--text-color);
+}
+
+.paula-channel-name,
+.paula-stage-title {
+    font-size: 7px;
+}
+
+.paula-channel-state,
+.paula-channel-registers,
+.paula-stage-caption {
+    font-size: 5.6px;
+}
+
+.paula-board-frame {
+    fill: rgba(0, 0, 0, 0.12);
+}
+
+.paula-visualization .silicon-bus-wire[marker-end] {
+    marker-end: url(#paula-arrow);
+}
+
+body.theme-amiga .silicon-chip-label,
+body.theme-atari .silicon-chip-label {
+    font-size: 8px !important;
     letter-spacing: 0.5px;
 }
 
@@ -1256,6 +1325,209 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     animation: signal-pulse-right 1s linear infinite;
     stroke-linecap: round;
     transition: opacity 0.1s ease, stroke 0.1s ease, filter 0.1s ease;
+}
+
+/* =========================================================
+   LIVING SILICON: DISCRETE ENERGY PACKET / PHOTON FLOW
+   Solid PCB/die traces + discrete traveling photon packets
+   Universal for C64 (SID), Amiga (Paula) and Atari ST (YM)
+   ========================================================= */
+.silicon-bus-wire,
+.sid-bus-wire {
+    fill: none;
+    stroke: var(--text-color);
+    stroke-width: 1.2px;
+    opacity: 0.20;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: stroke 0.12s ease, opacity 0.12s ease, filter 0.12s ease;
+}
+
+.silicon-bus-packet,
+.sid-bus-packet {
+    fill: none;
+    stroke: var(--highlight-color);
+    stroke-width: 2.2px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 4 55;
+    animation: silicon-packet-pulse 1.2s linear infinite;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.08s ease, filter 0.08s ease;
+}
+
+@keyframes silicon-packet-pulse {
+    from {
+        stroke-dashoffset: 0;
+    }
+    to {
+        stroke-dashoffset: -59;
+    }
+}
+
+@keyframes sid-packet-pulse {
+    from {
+        stroke-dashoffset: 0;
+    }
+    to {
+        stroke-dashoffset: -59;
+    }
+}
+
+.silicon-chassis:has(.paula-visualization) {
+    height: clamp(360px, 48vh, 440px);
+}
+
+.paula-visualization {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.silicon-chassis:has(.ym-visualization) {
+    height: clamp(280px, 32vw, 500px);
+}
+
+.silicon-chassis:has(.ym-visualization) .silicon-die-wrapper {
+    justify-content: center;
+    overflow-x: hidden;
+    overflow-y: hidden;
+}
+
+.silicon-die-wrapper svg.ym-visualization {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    max-height: 100%;
+    display: block;
+}
+
+.ym-visualization text {
+    fill: var(--text-color);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    pointer-events: none;
+}
+
+.ym-visualization .silicon-pin {
+    fill: var(--panel-text);
+}
+
+.ym-visualization .silicon-pin-number {
+    fill: var(--panel-text);
+    font-size: 5px;
+    font-family: 'Press Start 2P', monospace;
+    pointer-events: none;
+}
+
+.ym-section-label,
+.ym-pin-label,
+.ym-board-title {
+    fill: var(--highlight-color) !important;
+    font-size: 9px !important;
+}
+
+.ym-pin-label {
+    font-size: 6px !important;
+}
+
+.ym-board-note {
+    opacity: 0.7;
+    font-size: 6px !important;
+}
+
+.ym-registers rect,
+.ym-noise-gen rect,
+.ym-env-gen > rect:first-child,
+.ym-ioports rect,
+.ym-channel rect,
+.ym-gates > rect,
+.ym-dac rect,
+.ym-board > rect {
+    fill: var(--screen-bg);
+    stroke: var(--text-color);
+    stroke-width: 1.5px;
+}
+
+.ym-registers text,
+.ym-noise-gen text,
+.ym-env-gen text,
+.ym-ioports text,
+.ym-channel text,
+.ym-gates text,
+.ym-dac text {
+    font-size: 7px;
+}
+
+.ym-gates > rect {
+    fill: rgba(0, 0, 0, 0.16);
+}
+
+.ym-env-shape-preview {
+    fill: none;
+    stroke: var(--highlight-color);
+    stroke-width: 1.5px;
+}
+
+.ym-envelope-meter-bg {
+    fill: var(--chassis-dark) !important;
+    stroke: none !important;
+}
+
+.ym-env-level {
+    fill: var(--bus-active-color);
+    stroke: none;
+}
+
+.ym-board > rect:first-child {
+    fill: rgba(0, 0, 0, 0.18);
+    stroke: var(--panel-text);
+    stroke-dasharray: 5 4;
+}
+
+.ym-board text {
+    font-size: 7px;
+}
+
+.ym-board-title {
+    font-size: 8px !important;
+}
+
+@media (max-width: 720px) {
+    .silicon-chassis:has(.paula-visualization) {
+        height: 380px;
+    }
+
+    .silicon-chassis:has(.paula-visualization) .silicon-die-wrapper {
+        justify-content: flex-start;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+
+    .silicon-chassis:has(.paula-visualization) .paula-visualization {
+        width: 800px;
+        min-width: 800px;
+        height: 355px;
+        max-height: none;
+    }
+
+    .silicon-chassis:has(.ym-visualization) {
+        height: 520px;
+    }
+
+    .silicon-chassis:has(.ym-visualization) .silicon-die-wrapper {
+        justify-content: flex-start;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+
+    .silicon-chassis:has(.ym-visualization) .silicon-die-wrapper svg.ym-visualization {
+        width: 1240px;
+        min-width: 1240px;
+        height: 480px;
+        max-height: none;
+    }
 }
 
 /* =========================================

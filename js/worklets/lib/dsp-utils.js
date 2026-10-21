@@ -1,7 +1,7 @@
 // === js/worklets/lib/dsp-utils.js ===
 // =========================================================
 // DSP UTILITIES & FILTERS
-// Das Effekt-Rack für alle Worklets
+// Das Effekt-Rack für alle Worklets (v1.5.0)
 // =========================================================
 
 export const YM_DAC = [
@@ -23,7 +23,6 @@ export function cubicInterpolate(y0, y1, y2, y3, mu) {
     return (a0 * mu * mu2 + a1 * mu2 + a2 * mu + y1);
 }
 
-// 12dB Moog-Style Filter (Für Blade Runner & Noise)
 export class MoogFilter {
     constructor() { this.low = 0; this.band = 0; }
     process(input, cutoffHz, resonance, sampleRate) {
@@ -42,7 +41,6 @@ export class MoogFilter {
     }
 }
 
-// 24dB 4-Pole Filter (Für Chiptunes Fantasy)
 export class FourPoleFilter {
     constructor() { this.l1 = 0; this.b1 = 0; this.l2 = 0; this.b2 = 0; }
     process(input, cutoffHz, resonance, sampleRate) {
@@ -65,7 +63,6 @@ export class FourPoleFilter {
     }
 }
 
-// DC Blocker (Hält die Lautsprecher-Membranen mittig)
 export class DCBlocker {
     constructor() { this.lastIn = 0; this.lastOut = 0; }
     process(input) {
@@ -74,14 +71,6 @@ export class DCBlocker {
         return out;
     }
 }
-
-// =========================================================
-// C64 ANALOG OUTPUT STAGE (1-Pole RC + Sinc-Droop Equalizer)
-// =========================================================
-// === js/worklets/lib/dsp-utils.js ===
-// =========================================================
-// C64 ANALOG OUTPUT STAGE (1-Pole RC + 45Hz AC-Coupling + Sinc-Droop)
-// =========================================================
 
 export class C64AnalogFilter {
     constructor(sampleRate) {
@@ -94,24 +83,21 @@ export class C64AnalogFilter {
         this.alphaLp = Math.exp(-2.0 * Math.PI * fc / sampleRate);
         this.lastLp = 0;
 
-        // 3. C64 Motherboard 45Hz AC-Coupling Highpass Filter (C12/C13 Capacitors)
-        // Rolls off infrasonic sub-50Hz rumble to match physical C64 A/V output stage
-        const fhp = 45.0;
+        // 3. C64 Motherboard 16Hz AC-Coupling Highpass Filter (C13 10uF Capacitor)
+        // Preserves full 35-90Hz Kick-Drum & Bass weight on $D418 Digidrums without DC bounce!
+        const fhp = 16.0;
         this.alphaHp = Math.exp(-2.0 * Math.PI * fhp / sampleRate);
         this.lastHpIn = 0;
         this.lastHpOut = 0;
     }
 
     process(x) {
-        // A) Sinc-Droop Pre-Equalization
         let comp = (1.0 + this.cComp) * x - this.cComp * this.lastX;
         this.lastX = x;
 
-        // B) 16kHz 1-Pole Lowpass RC Filter
         let lp = (1.0 - this.alphaLp) * comp + this.alphaLp * this.lastLp;
         this.lastLp = lp;
 
-        // C) 45Hz 1-Pole AC-Coupling Highpass Filter (Motherboard C12/C13)
         let hp = this.alphaHp * (this.lastHpOut + lp - this.lastHpIn);
         this.lastHpIn = lp;
         this.lastHpOut = hp;
@@ -120,9 +106,6 @@ export class C64AnalogFilter {
     }
 }
 
-/**
- * Erkennt Digidrum-Trigger innerhalb eines YM5/YM6-Register-Frames.
- */
 export function detectDigidrum(frame) {
     let activeDigiTrigger = 0;
 
