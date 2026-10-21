@@ -12,21 +12,21 @@ const myYmFiles = [
     "SyntaxTerror.YM",             
     "UnionDemo_Mega_Apocalypse.YM",
     "BIONIC1.YM",                  
-    "Dragonflight_City_1.YM",      
+    "dragonflight/Dragonflight_City_1.YM",
     
     // --- EXTENDED ARCHIVE (Die restlichen Dumps) ---
     "turrican1_world_1_1.YM",      
     "Turrican2_TheDesertRocks.YM",
-    "WINGLEV1.YM",               
-    "WINGLEV2.YM",
-    "WINGLEV3.YM",
-    "WINGLEV4.YM",
-    "WINGLEV5.YM",
-    "WINGLEV6.YM",
-    "WINGLEV7.YM",
-    "WINGLEV8.YM",
-    "WINGLEV9.YM",
-    "WINGLOAD.YM",
+    "wings-of-death/WINGLEV1.YM",
+    "wings-of-death/WINGLEV2.YM",
+    "wings-of-death/WINGLEV3.YM",
+    "wings-of-death/WINGLEV4.YM",
+    "wings-of-death/WINGLEV5.YM",
+    "wings-of-death/WINGLEV6.YM",
+    "wings-of-death/WINGLEV7.YM",
+    "wings-of-death/WINGLEV8.YM",
+    "wings-of-death/WINGLEV9.YM",
+    "wings-of-death/WINGLOAD.YM",
     "LethalXcess1.YM",
     "LethalXcess2.YM",
     "LethalXcess3.YM",
@@ -39,10 +39,10 @@ const myYmFiles = [
     "XN3.YM",
     "GOLDRUN.YM",
     "spherical_intro.YM",
-    "Dragonflight_Title.YM",
-    "Dragonflight_City_2.YM",
-    "Dragonflight_City_3.YM",
-    "Dragonflight_unspec.YM",
+    "dragonflight/Dragonflight_Title.YM",
+    "dragonflight/Dragonflight_City_2.YM",
+    "dragonflight/Dragonflight_City_3.YM",
+    "dragonflight/Dragonflight_unspec.YM",
     "EnchantedLands_Intro.YM",    
     "Giana_Title.YM",
     "Giana_InGame1.YM",
@@ -63,26 +63,26 @@ const myYmFiles = [
     "UnionDemo_Cybernoid.YM",
     "SyntaxTerror_tex.YM",
     "SyntaxTerror_tlb.YM",
-    "AMBER01.YM",
-    "AMBER02.YM",
-    "AMBER03.YM",
-    "AMBER04.YM",
-    "AMBER05.YM",
-    "AMBER06.YM",
-    "AMBER07.YM",
-    "AMBER08.YM",
-    "AMBER09.YM",
-    "AMBER10.YM",
-    "AMBER11.YM",
-    "AMBER12.YM",
-    "AMBER13.YM",
-    "AMBER14.YM",
-    "AMBER15.YM",
-    "AMBER16.YM",
-    "AMBER17.YM",
-    "AMBER18.YM",
-    "AMBER19.YM",
-    "AMBER20.YM"
+    "amberstar/AMBER01.YM",
+    "amberstar/AMBER02.YM",
+    "amberstar/AMBER03.YM",
+    "amberstar/AMBER04.YM",
+    "amberstar/AMBER05.YM",
+    "amberstar/AMBER06.YM",
+    "amberstar/AMBER07.YM",
+    "amberstar/AMBER08.YM",
+    "amberstar/AMBER09.YM",
+    "amberstar/AMBER10.YM",
+    "amberstar/AMBER11.YM",
+    "amberstar/AMBER12.YM",
+    "amberstar/AMBER13.YM",
+    "amberstar/AMBER14.YM",
+    "amberstar/AMBER15.YM",
+    "amberstar/AMBER16.YM",
+    "amberstar/AMBER17.YM",
+    "amberstar/AMBER18.YM",
+    "amberstar/AMBER19.YM",
+    "amberstar/AMBER20.YM"
 ];
 
 const composerMetadata = {
@@ -283,13 +283,15 @@ const composerMetadata = {
 };
 
 export const atariPlaylist = myYmFiles.map((filename, index) => {
-    const metaInfo = composerMetadata[filename] || `
+    const displayFilename = filename.split('/').pop();
+    const metaInfo = composerMetadata[filename] || composerMetadata[displayFilename] || `
         <h3>[ CLASSIC ATARI ST YM2149F ]</h3>
         <p>Ein historischer YM-Register-Dump (YM5/YM6). Dieses Format enthält die rohen Hardware-Befehle, die ursprünglich 50-mal pro Sekunde an den Soundchip geschickt wurden, verarbeitet durch unsere zyklengenaue 2MHz-Emulation.</p>
     `;
 
     return {
-        title: `${index + 1}. LOAD YM: ${filename}`,
+        path: filename,
+        title: `${index + 1}. LOAD YM: ${displayFilename}`,
         composerInfo: metaInfo,
         generator: function() { return []; },
         loadAsync: async function() {
