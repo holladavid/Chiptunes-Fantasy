@@ -1236,6 +1236,13 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     transition: fill 0.05s ease, filter 0.05s ease;
 }
 
+.silicon-pin-number {
+    fill: var(--panel-text);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 5px;
+    pointer-events: none;
+}
+
 .silicon-chip-label {
     font-size: 6px !important;
     letter-spacing: 0.5px;

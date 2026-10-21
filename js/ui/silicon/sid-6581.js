@@ -512,7 +512,7 @@ export class Sid6581 extends BaseChip {
         return `
             <svg viewBox="0 0 500 200" xmlns="http://www.w3.org/2000/svg">
                 <!-- 28 DIP Pins (1-14 Bottom, 28-15 Top) -->
-                ${this.generatePins(28, 50, 400)}
+                ${this.generatePins(28, 50, 400, 15, 170, true)}
                 
                 <!-- Ceramic / NMOS DIP-28 Package Body -->
                 <rect class="silicon-chip-body" x="50" y="30" width="400" height="140" rx="4" />
