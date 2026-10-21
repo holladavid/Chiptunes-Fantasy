@@ -12,6 +12,12 @@ test('Amiga tracklist shows game folders and navigates their tracks', () => {
     assert.ok(amberstarFolder);
     assert.ok(dragonflightFolder);
     assert.ok(wingsFolder);
+    assert.deepEqual(
+        rootEntries.slice(0, 3).map(entry => entry.name),
+        ['dragonflight', 'amberstar', 'wings-of-death']
+    );
+    assert.ok(rootEntries.slice(0, 3).every(entry => entry.type === 'folder'));
+    assert.ok(rootEntries.slice(3).every(entry => entry.type === 'track'));
     assert.equal(rootEntries.some(entry => entry.song?.path?.startsWith('amberstar/')), false);
     assert.equal(rootEntries.filter(entry => entry.type === 'track').length, 10);
 

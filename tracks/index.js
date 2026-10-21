@@ -39,5 +39,8 @@ export function getTracklistEntries(songs, directory = '') {
         });
     });
 
-    return entries;
+    return [
+        ...entries.filter(entry => entry.type === 'folder'),
+        ...entries.filter(entry => entry.type === 'track')
+    ];
 }
