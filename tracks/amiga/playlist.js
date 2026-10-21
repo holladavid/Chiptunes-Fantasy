@@ -297,6 +297,7 @@ export const amigaPlaylist = myModFiles.map((filename, index) => {
     `;
 
     return {
+        path: filename,
         title: `${index + 1}. LOAD ${label}: ${displayFilename}`,
         composerInfo: metaInfo,
         generator: function() { return []; },

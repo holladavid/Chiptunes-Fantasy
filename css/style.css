@@ -395,6 +395,11 @@ details[open] > summary::before { content: "[-] "; }
 #tracklist li:last-child { border-bottom: none; }
 #tracklist li::before { content: "> "; opacity: 0; font-weight: bold; }
 
+#tracklist li.tracklist-folder,
+#tracklist li.tracklist-navigation {
+    color: var(--highlight-color);
+}
+
 #tracklist li:hover {
     background: rgba(255, 255, 255, 0.1); 
     color: var(--highlight-color);      

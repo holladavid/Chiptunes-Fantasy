@@ -3,7 +3,7 @@
 //                  CHIPTUNES FANTASY - MAIN APP CONTROLLER
 // =========================================================================
 import { FullscreenUI } from './ui/fullscreen-ui.js';
-import { trackRegistry } from '../tracks/index.js';
+import { getTracklistEntries, trackRegistry } from '../tracks/index.js';
 import { systemDescriptions } from './content/museum.js'; 
 import { chipCheatSheets } from './content/cheatsheets.js'; 
 import { workletRegistry } from './worklets/registry.js';
@@ -32,6 +32,7 @@ let activeSystem = 'c64'; // Standard-System auf 'c64' korrigiert (passend zum B
 let trackData = [];    
 let isPlaying = false; 
 let currentTrackIndex = 0;
+let tracklistDirectory = '';
 let currentScrollerText = "+++ INITIALIZING DEMO ENGINE... +++";
 let lastKnownFrame = 0; 
 let previousFrame = 0;       
@@ -526,6 +527,7 @@ async function setTheme(themeName, isBootSequence = false) {
     });
 
     activeSystem = newSystem;
+    tracklistDirectory = '';
     
     const tempContainer = document.getElementById('temp-control-container');
     if (tempContainer) {
@@ -648,11 +650,36 @@ function renderTracklist(system) {
     const songs = trackRegistry[system];
     if (!songs) return;
 
-    songs.forEach((song, index) => {
+    if (system === 'amiga' && tracklistDirectory) {
+        const upItem = document.createElement('li');
+        upItem.classList.add('tracklist-navigation');
+        upItem.textContent = '[UP] ..';
+        upItem.addEventListener('click', () => {
+            const separatorIndex = tracklistDirectory.lastIndexOf('/');
+            tracklistDirectory = separatorIndex === -1 ? '' : tracklistDirectory.slice(0, separatorIndex);
+            renderTracklist(system);
+        });
+        listElement.appendChild(upItem);
+    }
+
+    const entries = system === 'amiga'
+        ? getTracklistEntries(songs, tracklistDirectory)
+        : songs.map((song, index) => ({ type: 'track', index, song }));
+
+    entries.forEach(entry => {
         const li = document.createElement('li');
-        li.textContent = song.title;
-        if (index === currentTrackIndex) li.classList.add('active-track');
-        li.addEventListener('click', () => selectAndPlayTrack(index, system));
+        if (entry.type === 'folder') {
+            li.classList.add('tracklist-folder');
+            li.textContent = `[DIR] ${entry.name}/`;
+            li.addEventListener('click', () => {
+                tracklistDirectory = entry.path;
+                renderTracklist(system);
+            });
+        } else {
+            li.textContent = entry.song.title;
+            if (entry.index === currentTrackIndex) li.classList.add('active-track');
+            li.addEventListener('click', () => selectAndPlayTrack(entry.index, system));
+        }
         listElement.appendChild(li);
     });
 }
@@ -974,7 +1001,17 @@ document.getElementById('btn-play').addEventListener('click', () => {
     if (isPlaying) {
         stopPlayback(); 
     } else {
-        trackData.length === 0 ? selectAndPlayTrack(0, activeSystem) : resumePlayback();
+        if (trackData.length === 0) {
+            if (activeSystem === 'amiga') {
+                const visibleEntries = getTracklistEntries(trackRegistry.amiga, tracklistDirectory);
+                const firstVisibleTrack = visibleEntries.find(entry => entry.type === 'track');
+                if (firstVisibleTrack) selectAndPlayTrack(firstVisibleTrack.index, activeSystem);
+            } else {
+                selectAndPlayTrack(0, activeSystem);
+            }
+        } else {
+            resumePlayback();
+        }
     }
 });
 
