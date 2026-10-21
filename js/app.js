@@ -650,7 +650,9 @@ function renderTracklist(system) {
     const songs = trackRegistry[system];
     if (!songs) return;
 
-    if (system === 'amiga' && tracklistDirectory) {
+    const supportsFolderNavigation = system === 'amiga' || system === 'atari';
+
+    if (supportsFolderNavigation && tracklistDirectory) {
         const upItem = document.createElement('li');
         upItem.classList.add('tracklist-navigation');
         upItem.textContent = '[UP] ..';
@@ -662,7 +664,7 @@ function renderTracklist(system) {
         listElement.appendChild(upItem);
     }
 
-    const entries = system === 'amiga'
+    const entries = supportsFolderNavigation
         ? getTracklistEntries(songs, tracklistDirectory)
         : songs.map((song, index) => ({ type: 'track', index, song }));
 
@@ -1002,13 +1004,9 @@ document.getElementById('btn-play').addEventListener('click', () => {
         stopPlayback(); 
     } else {
         if (trackData.length === 0) {
-            if (activeSystem === 'amiga') {
-                const visibleEntries = getTracklistEntries(trackRegistry.amiga, tracklistDirectory);
-                const firstVisibleTrack = visibleEntries.find(entry => entry.type === 'track');
-                if (firstVisibleTrack) selectAndPlayTrack(firstVisibleTrack.index, activeSystem);
-            } else {
-                selectAndPlayTrack(0, activeSystem);
-            }
+            const visibleEntries = getTracklistEntries(trackRegistry[activeSystem], tracklistDirectory);
+            const firstVisibleTrack = visibleEntries.find(entry => entry.type === 'track');
+            if (firstVisibleTrack) selectAndPlayTrack(firstVisibleTrack.index, activeSystem);
         } else {
             resumePlayback();
         }
