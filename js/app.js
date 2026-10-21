@@ -317,6 +317,10 @@ function handleWorkletMessage(e) {
                 pwrLedOverride.style.display = overrideState > 0 ? 'block' : 'none';
             }
         }
+        if (systemId === 2) {
+            currentChipRegs[30] = Math.round(view[38]);
+            currentChipRegs[31] = view[39];
+        }
 
         previousFrame = lastKnownFrame;
         lastKnownFrame = frameVal;

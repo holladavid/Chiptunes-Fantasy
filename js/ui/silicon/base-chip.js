@@ -11,15 +11,23 @@ export class BaseChip {
     }
 
     // Erzeugt physikalisch korrekte DIP-Pins
-    generatePins(pinCount, startX, width) {
+    generatePins(pinCount, startX, width, topY = 15, bottomY = 170, showNumbers = false) {
         const pinsPerSide = pinCount / 2;
         const spacing = width / pinsPerSide;
         let pinsHTML = '';
         for (let i = 0; i < pinsPerSide; i++) {
             const px = startX + (i * spacing) + (spacing * 0.25);
             const pinW = spacing * 0.5;
-            pinsHTML += `<rect class="silicon-pin pin-bot-${i + 1}" x="${px}" y="170" width="${pinW}" height="15" rx="1" />`;
-            pinsHTML += `<rect class="silicon-pin pin-top-${pinCount - i}" x="${px}" y="15" width="${pinW}" height="15" rx="1" />`;
+            const bottomPin = i + 1;
+            const topPin = pinCount - i;
+            const bottomCenter = px + pinW / 2;
+            const topCenter = bottomCenter + (topPin === 38 ? 15 : 0);
+            pinsHTML += `<rect class="silicon-pin pin-bot-${bottomPin}" x="${px}" y="${bottomY}" width="${pinW}" height="15" rx="1" />`;
+            pinsHTML += `<rect class="silicon-pin pin-top-${topPin}" x="${px}" y="${topY}" width="${pinW}" height="15" rx="1" />`;
+            if (showNumbers) {
+                pinsHTML += `<text class="silicon-pin-number" x="${bottomCenter}" y="${bottomY + 26}" text-anchor="middle">${bottomPin}</text>`;
+                pinsHTML += `<text class="silicon-pin-number" x="${topCenter}" y="${topY - 5}" text-anchor="middle">${topPin}</text>`;
+            }
         }
         return pinsHTML;
     }

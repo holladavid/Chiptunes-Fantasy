@@ -227,6 +227,7 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             else { let flip = (cycles % 2 === 1) && alt; let up = attack ? !flip : flip; envVolRaw = up ? localPhase : (1.0 - localPhase); }
             
             let envVolIndex = Math.min(15, Math.max(0, Math.floor(envVolRaw * 15.99)));
+            this.visualEnvelopeLevel = envVolIndex / 15;
 
             let targetVolA = (this.regs[8] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[8] & 0x0F];
             let targetVolB = (this.regs[9] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[9] & 0x0F];
@@ -341,7 +342,7 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
         }
 
         // Taktgenaue Visualisierungs-Ausgabe
-        this.visualizer.update(this.isPlaying, this.currentFrame, currentVisualValue, this.regs, this.volA, this.volB, this.volC);
+        this.visualizer.update(this.isPlaying, this.currentFrame, currentVisualValue, this.regs, this.volA, this.volB, this.volC, this.noiseOutput, this.visualEnvelopeLevel || 0);
         return true; 
     }
 }

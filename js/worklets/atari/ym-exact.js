@@ -320,7 +320,7 @@ class YMExactProcessor extends AudioWorkletProcessor {
             if (i === 0) currentVisualValue = finalSample;
         }
 
-        this.visualizer.update(this.isPlaying, this.currentFrame, currentVisualValue, this.regs, this.volA, this.volB, this.volC);
+        this.visualizer.update(this.isPlaying, this.currentFrame, currentVisualValue, this.regs, this.volA, this.volB, this.volC, this.noiseOut, this.envVol5Bit / 31);
         return true; 
     }
 }
