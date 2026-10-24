@@ -678,7 +678,9 @@ function renderTracklist(system) {
                 renderTracklist(system);
             });
         } else {
-            li.textContent = entry.song.title;
+            li.textContent = system === 'amiga'
+                ? entry.song.path.split('/').pop().replace(/\.[^.]+$/, '').replaceAll('_', ' ')
+                : entry.song.title;
             if (entry.index === currentTrackIndex) li.classList.add('active-track');
             li.addEventListener('click', () => selectAndPlayTrack(entry.index, system));
         }
