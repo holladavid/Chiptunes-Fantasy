@@ -37,6 +37,11 @@ let currentScrollerText = "+++ INITIALIZING DEMO ENGINE... +++";
 let lastKnownFrame = 0; 
 let previousFrame = 0;       
 let lastTrackChangeTime = 0; 
+const livingSiliconChipNames = {
+    c64: 'MOS 6581 SID',
+    amiga: 'MOS 8364 PAULA',
+    atari: 'ATARI ST YM2149F'
+};
 let isEcoMode = false;      
 let isUserDragging = false; 
 let currentSubsongIndex = 1; 
@@ -141,9 +146,10 @@ function initApp() {
         // =========================================================
         const btnToggleArchive = document.getElementById('btn-toggle-archive');
         if (btnToggleArchive) {
-            btnToggleArchive.addEventListener('click', (e) => {
+            btnToggleArchive.addEventListener('click', () => {
                 const isExpanded = document.body.classList.toggle('archive-expanded');
-                e.target.innerText = isExpanded ? '[ COLLAPSE ]' : '[ EXPAND ]';
+                btnToggleArchive.textContent = isExpanded ? '[ EXPAND ]' : '[ COLLAPSE ]';
+                btnToggleArchive.setAttribute('aria-expanded', String(!isExpanded));
             });
         }
 
@@ -528,6 +534,14 @@ async function setTheme(themeName, isBootSequence = false) {
 
     activeSystem = newSystem;
     tracklistDirectory = '';
+    document.body.classList.remove('archive-expanded');
+    const btnToggleArchive = document.getElementById('btn-toggle-archive');
+    if (btnToggleArchive) {
+        btnToggleArchive.textContent = '[ COLLAPSE ]';
+        btnToggleArchive.setAttribute('aria-expanded', 'true');
+    }
+    document.getElementById('living-silicon-title').textContent =
+        `> LIVING SILICON · ${livingSiliconChipNames[activeSystem]}`;
     
     const tempContainer = document.getElementById('temp-control-container');
     if (tempContainer) {
