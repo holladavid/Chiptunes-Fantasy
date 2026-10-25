@@ -94,53 +94,53 @@ Vintage Amiga PlaySID rips (such as Chris Hülsbeck's *The Great Giana Sisters*)
 
 ---
 
-## 3. MOS 6581 Digital Core: Oscillators, Waveforms & ADSR (`sid-chip.js`, `sid-waveforms.js`, `sid-luts.js`)
+## 3. MOS 6581 R3 Digital Core: Oscillators, Waveforms & ADSR (`sid-chip.js`, `sid-waveforms-6581.js`, `sid-envelope.js`)
 
 ### 3.1. Parallel 24-Bit Phase Accumulators & Symmetric Hard-Sync / RingMod
 On a real MOS 6581, all three 24-bit phase accumulators are clocked simultaneously on the $\Phi_1/\Phi_2$ clock phases. Our engine splits the 1MHz oscillator step into two parallel passes:
 1. **Pass 1 (`clockOscillatorsOneCycle`):** All 3 voices advance their 24-bit `phase`, latch their MSB rising edge (`0x800000`), and clock their 23-bit Noise LFSR on bit-19 (`0x080000`) rising edges.
 2. **Pass 2 (Hard-Sync & RingMod):** Hard-Sync (`ctrl & 2`) resets `ch.phase = 0` if the modulating neighbor voice (`v-1`) latched an MSB rising edge in Pass 1. Ring-Modulation (`ctrl & 4`) XORs the current voice's MSB with the synchronized neighbor voice's MSB (`ownMSB ^ prevMSB`).
 
-### 3.2. True NMOS Open-Drain Wire-AND Combined Waveforms (`$30, $50, $60, $70`)
-When multiple waveforms are selected simultaneously on the MOS 6581, the 12-bit waveform selector acts as an **NMOS open-drain Wire-AND bus** driving the R-2R ladder:
-* **Active Pulse-Low Bus Grounding (`$50, $60, $70`):** During the low half-cycle of the Pulse waveform (`pulse === 0x00`), all 12 bits of the pulse generator are `0`. The NMOS selector FETs pull the entire 12-bit bus to ground, gating the Triangle (`$50`) or Sawtooth (`$60`) wave. During the high half-cycle (`pulse === 0xFF`), the Triangle/Sawtooth wave drives the R-2R ladder with **neighbor-bit pulldown** (`nmosNeighborPulldown`), where `0` bits pull down adjacent `1` bits across the R-2R bridge resistors. This restores the unmistakable, glassy PWM-gated triangle lead in *The Great Giana Sisters* (`$50`) and the nasal reed bass in Jeroen Tel tracks (`$60`).
-* **Dynamic High-Register Pulldown Relaxation ($>2\text{ kHz}$):** At high oscillator frequencies (`freq > 4000`), the parasitic gate capacitance ($C_{\text{gate}} \approx 1\text{ pF}$) cannot discharge completely between clock cycles. Our waveform generator interpolates the Wire-AND pulldown depth as a function of frequency, giving high-octave leads a warm, liquid analog character.
-* **Capacitive Bus Charge & Floating DAC Decay:** A 1MHz capacitive state variable (`busCharge`) models the finite charging time of the 8-bit waveform bus (`alpha = 0.35` on combined waveforms) and slowly bleeds toward the floating NMOS DC bias (`0x18` at `alpha = 0.00015`) when all waveform bits are cleared (`ctrl & 0xF0 === 0`).
+### 3.2. Full 12-Bit Waveform Selector & DAC Latch
+The Exact path keeps the full 12-bit DAC input for sawtooth, triangle, pulse and noise; only the OSC3 read mirror is reduced to eight bits. Noise uses the documented LFSR taps at full scale. The direct 12-bit pulse comparator has no artificial PWM offset, and TEST forces all 12 pulse bits high.
+* **No-waveform latch:** With `ctrl & 0xF0 === 0`, the last 12-bit waveform-DAC input is retained instead of drifting toward a synthetic DC constant.
+* **Combined-selector baseline:** Multiple selected generators use the documented wired-AND topology at 12-bit resolution. The former invented bleed coefficients, frequency relaxation and `busCharge` approximation are removed from Exact. Analogue 6581 pull-down interactions still require real-chip capture calibration; logical AND alone is not claimed to reproduce them.
+* **Model-specific conversion:** `SIDChip.model` is explicitly `MOS6581_R3`, with separate waveform and envelope DAC bindings. The artistic Fantasy core remains separate and is not an Exact 8580 profile.
 
-### 3.3. Exact 12-Bit PWM Comparator & Test-Bit (`$08`) Force-High Latch
-* **True DC at `PW = $000`:** `PWM_LUT[0] = 0` ensures that setting Pulse Width to `$000` produces flat DC rather than a false 1.8% pulse buzz.
-* **Test-Bit Pulse Latch:** In accordance with MOS 6581 silicon behavior, setting the Test Bit (`ctrl & 8`) while the Pulse waveform (`ctrl & 64`) is selected forces the pulse comparator output to **`0xFF` (all ones)**, supporting Martin Galway's and Rob Hubbard's Test-Bit DC-offset and digi-booster tricks.
+### 3.3. 15-Bit ADSR Envelope State Machine
+* **Persistent rate state:** The rate counter wraps at `$7FFF`, cannot be reset by GATE or TEST, and fires only on exact period equality. Shortening a rate below the running counter therefore waits for wraparound instead of forcing an immediate tick.
+* **Two-clock GATE pipeline:** Gate changes enter Attack or Release after two SID clocks. Attack resets the exponential divider and zero hold, but not the rate counter.
+* **Piecewise exponential Decay/Release:** Divider periods `1, 2, 4, 8, 16, 30` are loaded after decrements through envelope thresholds `93, 54, 26, 14, 6`. Attack increments linearly and switches to Decay at 255; envelope zero holds until the next Attack.
 
-### 3.4. 15-Bit ADSR Envelope State Machine
-* **Exact Rate & Exponential Counters:** Uses the hardware-verified `RATE_COUNTER_PERIOD` table (`9` to `31256` cycles) and the 6-step exponential counter divider (`1, 2, 4, 8, 16, 30` at envelope thresholds `255, 93, 54, 26, 14, 6`) with a 1-cycle gate-transition pipeline delay (`envDelay`).
-* **Wizball Highscore Arpeggio Protection:** Enforces `rate_counter >= ratePeriod` and resets the rate/exponential dividers on `Gate-On` transitions, preventing 32ms ADSR counter wrap-around deadlocks during rapid 50Hz note re-triggers (*Wizball Subsong 7*).
+See `sid-digital-model.md` for the exact digital contract, source references and remaining hardware-validation limits.
 
 ---
 
-## 4. MOS 6581 Analog Core: R-2R DACs, 2MHz ZDF VCF & Thermal Drift (`sid-chip.js`, `dsp-utils.js`)
+## 4. MOS 6581 R3 Analog Path: Calibrated Filter, Mixer Routing & Parameterized DAC/DC (`sid-chip.js`, `sid-filter-6581.js`)
 
-### 4.1. Non-Linear 8-Bit R-2R DAC Fingerprints (`DAC_LUT_6581_R3`)
-The MOS 6581's 8-bit voice and envelope DACs suffer from imperfect NMOS transistor length-to-width ratios (`2R/R > 2.0`), creating voltage kinks at bit transitions (especially bit 7). `DAC_LUT_6581_R3` models the measured bit weights (`[1.00, 1.98, 3.92, 8.08, 15.82, 31.90, 63.20, 127.10]`), mid-scale kink, and cubic MOSFET saturation.
+### 4.1. Parameterized R-2R DAC Fingerprints (`WAVE_DAC_6581_R3`, `DAC_LUT_6581_R3`)
+The 8-bit envelope DAC retains the project's parameterized R3 bit weights (`[1.00, 1.98, 3.92, 8.08, 15.82, 31.90, 63.20, 127.10]`), mid-scale kink and cubic saturation. The waveform path expands that existing fingerprint to 4096 entries, adding four lower DAC-input bits by monotone segment interpolation. This removes premature 8-bit waveform quantization; it is not a new independent analogue DAC calibration. Phase 3 measures cutoff, damping and modal feedthrough, while DAC, DC and amplitude-dependent distortion acceptance remain open.
 
-### 4.2. 2MHz Oversampled Zero-Delay Feedback (ZDF) State-Space OTA Filter
-The 6581's 12dB/oct multimode State-Variable Filter (LP / BP / HP / Notch) is solved at **1.97 MHz** (2× oversampled inside the 1MHz cycle loop) using a trapezoidal **Zero-Delay Feedback (ZDF)** integrator:
-$$\text{hp} = \frac{x - (g + k) \cdot s_1 - s_2}{1 + g(g + k)}, \quad \text{bp} = \frac{\tanh\left((g \cdot \text{hp} + s_1) \cdot d_{\text{JFET}}\right)}{d_{\text{JFET}}}, \quad \text{lp} = g \cdot \text{bp} + s_2$$
-* **MOS 6581 R3 S-Curve Cutoff (`30 Hz – 6,200 Hz`):** Models the physical JFET voltage-controlled resistance S-curve, preventing unnatural digital screeching on full-scale filter sweeps.
-* **Symmetric JFET Triode Resonance Quenching:** Non-linear $\tanh$ saturation inside the bandpass feedback loop caps self-oscillation at $Q_{\max} \approx 3.0$, guaranteeing zero DC latchup on extreme $R=15$ sweeps (*Wizball Title*).
+### 4.2. Black-Box-Calibrated 2MHz Zero-Delay Feedback Filter
+The existing two-integrator multimode filter is solved at **1.970496 MHz** (two substeps per 985248Hz PAL SID clock) using trapezoidal **Zero-Delay Feedback (ZDF)** integration:
+$$\text{hp} = \frac{x - (g + k) \cdot s_1 - s_2}{1 + g(g + k)}, \quad \text{bp} = g \cdot \text{hp} + s_1, \quad \text{lp} = g \cdot \text{bp} + s_2$$
+* **Measured register maps:** `sid-filter-6581.js` expands nine measured cutoff anchors into 2048 entries and cutoff-dependent base damping/resonance slopes into a 2048×16 matrix. The fitted cutoff anchors span 240Hz to approximately 14.124kHz; they replace the former unsupported 30Hz–6.2kHz polynomial.
+* **Direct parameter binding:** Register writes set $g=\tan(\pi f_c/1970496)$ and damping $k$ directly from these maps. The old second feedback calculation, uncalibrated bandpass `tanh` path and temperature detuning of the measured filter are removed.
+* **Evidence boundary:** The maps were independently fitted to EXT-IN observations from libresidfp revision `c1791383ca843a855e5d4366da6a7277e34e801d` through its public API. No reference implementation code or internal tables were imported. This is agreement with an external reference model at the documented stimulus level, not a real-chip capture or universal MOS 6581 calibration.
 
-### 4.3. Schematic-Accurate `3OFF` (`$D418` Bit 7) & Calibrated `$D418` Digidrum Bias
-* **`3OFF` Unfiltered Disconnect:** Just like on the physical MOS 6581 schematic, setting Bit 7 of `$D418` (`3OFF`) disconnects Voice 3 **only** from the direct unfiltered summer (`unfilteredSum`). If Voice 3 is routed into the VCF (`$D417` Bit 2), it remains audible through the filter! When muted via `3OFF`, Voice 3's envelope-scaled analog DC offset (`0.14 * envDac3`) still leaks into the summer.
-* **Calibrated Master Mixer DC Bias (`1.12`):** The ratio between the saturated AC voice sum (`acSaturated * 1.45`) and the static mixer DC offset (`thermalMasterDcBias = 1.12`) is calibrated to real 6581 R3 voltage measurements, giving 4-bit `$D418` volume-wiggling digis their full chest-hitting analog weight alongside active synth voices.
+### 4.3. Additive Filter Modes, Feedthrough & Linear Master Volume
+* LP, BP and HP outputs remain additive, including LP+HP notch behavior. HP uses the documented $1/\sqrt{2}$ (−3dB) tap in every mode combination.
+* Separate BP and HP feedthrough terms (`0.24` and `0.08`) fit measured stopband floors. The previous shared heuristic leakage and inter-voice bleed coefficients are removed.
+* The sixteen `$D418` master-volume steps are linear from 0 through 1. The production analog entry point `processFilterMixer()` is directly exercised by the 639-point external-reference comparison: 1.876dB median absolute error, 6.737dB p95 and 3.396dB RMS. These are measured model-comparison results, not hardware acceptance figures.
 
-### 4.4. Real-Time Semiconductor Thermal Drift ($15^\circ\text{C} - 75^\circ\text{C}$)
-Controlled live via the `[ TEMP ]` fader in the Hardware Lab UI, seven coupled equations modulate the analog silicon parameters around the $55^\circ\text{C}$ nominal operating point:
-1. **VCF Cutoff Drift:** $\text{coeff} = e^{-(T - 55) \cdot 0.003}$ (cooler = brighter; hotter = darker/creamy).
-2. **Integrator Constant ($g$):** $+0.05\%$ per $^\circ\text{C}$.
-3. **Resonance Damping ($Q$):** $+0.15\%$ damping per $^\circ\text{C}$.
-4. **JFET Triode Saturation Drive:** Earlier, warmer harmonic clipping as die temperature rises.
-5. **VCF Unfiltered Bleed (`thermalLeakage`):** Increases with temperature.
-6. **Voice & Master VCA DC-Leakage:** Scales exponentially with die heat.
-7. **R-2R DAC Gain & Offset Drift:** Subtle compression of DAC swing at high temperatures.
+### 4.4. `3OFF` Routing & Parameterized Output VCA/DC
+* **`3OFF` direct disconnect:** Setting `$D418` bit 7 disconnects Voice 3 only from the direct unfiltered summer. Voice 3 routed into the filter through `$D417` bit 2 remains audible. No invented Voice-3 DC leakage path is added.
+* **Output VCA and DC remain parameterized:** The existing gain, soft saturation and nominal 0.9 master DC-bias model are retained. They are not relabeled as real-chip measurements; multi-level distortion, DC drift and `$D418` behavior still require hardware/reference identification.
+
+### 4.5. Temperature Control Boundary
+The Hardware Lab temperature control still adjusts the project's parameterized DAC gain/offset and output DC terms around 55°C. It no longer modifies cutoff, integrator constant or resonance damping, because doing so would detune the archived Phase-3 calibration. These remaining thermal terms are exploratory model parameters, not measured semiconductor laws.
+
+See `sid-filter-model.md` for provenance, measurement conditions, complete cutoff anchors and reproduction commands.
 
 ---
 

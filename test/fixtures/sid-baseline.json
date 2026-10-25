@@ -1,0 +1,108 @@
+{
+  "format": "chiptunes-fantasy-sid-phase3-v1",
+  "purpose": "self-generated regression pin; not a hardware accuracy reference",
+  "eventSemantics": "write at cycle start, then one SID clock",
+  "signalTap": "raw SID output before resampling, motherboard and master DSP",
+  "cases": {
+    "silence": {
+      "cycles": 65536,
+      "traceStride": 64,
+      "clock": 985248,
+      "vcfOffset": 0,
+      "temperature": 55,
+      "rawSha256": "374acc995355f74058d0ae28972b448019c8bf1f70e7a95618a2fb121773646a",
+      "traceSha256": "9428154c07fd4796a9b51fdc2e9fd4490d93482b8b07bed963775add3b5bbf7d",
+      "wavSha256": "7e78c8668c62b16863d5c06b5107ca395c46095ddb47cb0efc2d823d64d45609"
+    },
+    "pulse-adsr": {
+      "cycles": 65536,
+      "traceStride": 64,
+      "clock": 985248,
+      "vcfOffset": 0,
+      "temperature": 55,
+      "rawSha256": "4dae629144a5664a2209eb11b8809c95c67608226faa2c14484b631fba4553c3",
+      "traceSha256": "13f069e851c9305fd7f51e117a5b7f1e0b17795867aaf01ba3454745e32e02a6",
+      "wavSha256": "b72a9bacaf554d7a69a0d0dda7ba015a9df9d623b8b191d6bde436ca126754a3"
+    },
+    "saw-adsr": {
+      "cycles": 65536,
+      "traceStride": 64,
+      "clock": 985248,
+      "vcfOffset": 0,
+      "temperature": 55,
+      "rawSha256": "584b29637c4bedf6aeee95e1b52776903d2538bbda7347d1c34009c560ad5a88",
+      "traceSha256": "554945d806b7c7f6f615d3650f7018ec2c8917641ed45b0535d743ba86ea0a2f",
+      "wavSha256": "dba70fb36d5f5f0a8c1edbc4bdec303aa08d39251b88298ac436287a84ec77c6"
+    },
+    "triangle-adsr": {
+      "cycles": 65536,
+      "traceStride": 64,
+      "clock": 985248,
+      "vcfOffset": 0,
+      "temperature": 55,
+      "rawSha256": "606ead92476a109f9e83df4e91546f637969e7500735497c03702a8c4f167107",
+      "traceSha256": "b621b348f7735136a3f9c5948fed436eb3d493eab3a18ad74eeb7da3c079c284",
+      "wavSha256": "91875d4bf9a36738354bcc2cfdad9c0f16ab38ec36c69b41fb6782d07eef9881"
+    },
+    "noise-adsr": {
+      "cycles": 65536,
+      "traceStride": 64,
+      "clock": 985248,
+      "vcfOffset": 0,
+      "temperature": 55,
+      "rawSha256": "bf70bd6fb9edfd13c6dfc9658a203fa1ce664022cdef3dd73f6bdc21cda19fc9",
+      "traceSha256": "02b37aac6cf1b74849577c90eacb8b6e8ba196fcc71b13414972bcf62dcee151",
+      "wavSha256": "2ccc8a20ea5725faaca42ce3000a501d8dc9c75da37deaf9e26e6c3d24761c84"
+    },
+    "combined-triangle-pulse": {
+      "cycles": 65536,
+      "traceStride": 64,
+      "clock": 985248,
+      "vcfOffset": 0,
+      "temperature": 55,
+      "rawSha256": "2c0f20de52cbe951467d53e196306e8173bf6f2ddfb38411e4c90601f1a75d83",
+      "traceSha256": "33528082d6b778c1fd24ffc36e974bbde93c62a039db59f382a553071b8ff79c",
+      "wavSha256": "6ef4f055130c45b532b82105866474745ad991827feb7e47b937f0052f6c0b3f"
+    },
+    "hard-sync-ring": {
+      "cycles": 65536,
+      "traceStride": 64,
+      "clock": 985248,
+      "vcfOffset": 0,
+      "temperature": 55,
+      "rawSha256": "3836695307f007625e04bc8260ff6b8c505abf04ffa250411ca0d047a1b60419",
+      "traceSha256": "acffe39660cab040cf73f38e45c27f16274db375907dbf93a1fc9ea6edd3976c",
+      "wavSha256": "ae49ddde7f6ded646f0fdb01160906fd53ba653cc155d2e45bd70287c0b74889"
+    },
+    "filter-sweep": {
+      "cycles": 65536,
+      "traceStride": 64,
+      "clock": 985248,
+      "vcfOffset": 0,
+      "temperature": 55,
+      "rawSha256": "eb0f90babb70b386c327a440a57ca16f96507a49d581a27cbaad8cd82bacf599",
+      "traceSha256": "2457024310d0f35dd63c896f688daea500ffe109d2b2f0f9d11220385019b45a",
+      "wavSha256": "ea56c19ff5a800b78ab3f11b6e858262ac0a2079919786240077cf470a2fcec1"
+    },
+    "d418-volume-writes": {
+      "cycles": 65536,
+      "traceStride": 64,
+      "clock": 985248,
+      "vcfOffset": 0,
+      "temperature": 55,
+      "rawSha256": "78d1fa1403d4e5495839b23c0acbaa09ab4c96829e67fa1a94e311adcdb76fe2",
+      "traceSha256": "edec17c2fbf704d2f824ee454cbf90adb8067394b9e91fcd578ba67fa44c08fa",
+      "wavSha256": "d1893bd1216f1da5ff71bd21182a8b3c0b0064d3353b3d0dfeb13908cc0809b4"
+    },
+    "test-bit-reset": {
+      "cycles": 65536,
+      "traceStride": 64,
+      "clock": 985248,
+      "vcfOffset": 0,
+      "temperature": 55,
+      "rawSha256": "120be6399b18c96806074fce31e9b665a11700ec2a6d4ac9ded57443949c9dfe",
+      "traceSha256": "37f23418fe76b284f98c738463f6161a8c0a905e3a422554a1a12c77bfee2a39",
+      "wavSha256": "82797b7429de0ae060b5b03fd3b5be35f958deb8dae09c073391800d238a4480"
+    }
+  }
+}

@@ -1,18 +1,19 @@
 // === js/worklets/lib/sid-luts.js ===
 // =========================================================
-// MOS 6581 & CSG 8580 HARDWARE LOOKUP TABLES (LUTs)
-// Restored Chris Huelsbeck "$50 Engelsstimme" & "+76 PWM Comparator"
-// for 100% authentic Great Giana Sisters Subsong 2 Lead Melody!
+// MOS 6581 & CSG 8580 PARAMETERIZED LOOKUP TABLES (LUTs)
+// Exact uses the R3 waveform/envelope DACs. Legacy PWM/combined-wave LUTs
+// remain isolated to the artistic Fantasy studio core.
 // =========================================================
 
 export const DAC_LUT = new Float32Array(256);
 export const DAC_LUT_6581_R3 = new Float32Array(256);
+export const WAVE_DAC_6581_R3 = new Float32Array(4096);
 export const DAC_LUT_8580 = new Float32Array(256);
 export const CUTOFF_LUT = new Float32Array(2048);
 export const PWM_LUT = new Uint16Array(4096);
 
 // =========================================================
-// 1. GENERATE PHYSICAL MOS 6581 R3 DAC FINGERPRINT (256 Entries)
+// 1. PARAMETERIZED MOS 6581 R3 ENVELOPE DAC (256 Entries)
 // =========================================================
 const bitWeights6581 = [1.00, 1.98, 3.92, 8.08, 15.82, 31.90, 63.20, 127.10];
 let maxWeight6581 = 0;
@@ -29,6 +30,18 @@ for (let i = 0; i < 256; i++) {
     
     DAC_LUT_6581_R3[i] = Math.max(0.0, Math.min(1.0, vSaturated));
     DAC_LUT[i] = DAC_LUT_6581_R3[i]; 
+}
+
+// Extend the existing R3 DAC fingerprint to the waveform generator's 12-bit
+// input without reducing it to the eight OSC3-visible bits. The four lower
+// bits interpolate the same monotone DAC segment; analogue DAC calibration is
+// a separate measurement concern and is not claimed by this digital model.
+for (let i = 0; i < 4096; i++) {
+    const upper = i >>> 4;
+    const lower = i & 15;
+    const first = DAC_LUT_6581_R3[upper];
+    const second = upper === 255 ? 1.0 : DAC_LUT_6581_R3[upper + 1];
+    WAVE_DAC_6581_R3[i] = first + (second - first) * (lower / 16.0);
 }
 
 // =========================================================
@@ -50,8 +63,8 @@ for (let i = 0; i < 2048; i++) {
 }
 
 // =========================================================
-// 4. GENERATE PWM COMPARATOR OFFSET (4096 Entries)
-// Restores +76 comparator bias so low-PW Huelsbeck leads stay audible
+// 4. FANTASY-ONLY PWM COMPARATOR OFFSET (4096 Entries)
+// The Exact 6581 comparator uses the direct 12-bit PW register instead.
 // =========================================================
 for (let i = 0; i < 4096; i++) {
     let shifted = i + 76; 
@@ -68,7 +81,7 @@ export const RATE_COUNTER_PERIOD = [
 ];
 
 // =========================================================
-// 6. GENERATE ANALOG WIRE-AND WAVEFORM LUTS (Zero-Allocation Physics)
+// 6. FANTASY-ONLY COMBINED-WAVEFORM LUTS (Setup-Time Allocation)
 // =========================================================
 export const WAVE_LUT_TRISAW = new Uint8Array(65536);
 export const WAVE_LUT_TRIPULSE = new Uint8Array(512); 
