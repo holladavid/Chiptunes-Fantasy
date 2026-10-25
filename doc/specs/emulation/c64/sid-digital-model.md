@@ -37,9 +37,24 @@ Each voice has an independent cycle-level state machine:
 - Decay/Release use exponential divider periods 1, 2, 4, 8, 16 and 30.
 - The divider period is reloaded after an envelope decrement at thresholds 93, 54, 26, 14 and 6.
 - Entering Attack resets the exponential counter and clears the zero hold; the rate counter continues.
-- Envelope zero holds until a later Attack, preventing release wraparound.
+- Envelope zero holds until a later Attack, preventing release wraparound. This lower bound also applies when a short GATE pulse enters Release before Attack has produced the first increment.
 
 These rules make rapid retriggering and rate changes dependent on prior internal state instead of hiding that state through a convenient reset.
+
+### Zero-level GATE-pulse regression
+
+The v1.5.1 Exact worklet produced non-finite output for two supplied tunes. Production-processor tracing reduced both failures to the same sequence: GATE switched on at envelope zero and cleared the zero hold, then switched off before Attack incremented the envelope. Release subsequently decremented the counter below zero, so the envelope-DAC lookup returned `undefined` and arithmetic produced `NaN`.
+
+The correction enforces the existing zero-level lower bound at the Decay/Release decrement. It does not change CPU/CIA scheduling, filter/mixer calibration, resampling, parser behavior, or Fantasy DSP. A focused regression drives GATE on and off at zero with the slowest Attack and fastest Release; it failed with envelope `-1` before the correction and now holds at zero with finite voice output.
+
+Twenty-second Exact worklet renders used the supplied binaries. Wizball Subsong 7 was selected through a temporary copy whose PSID start-song field alone was changed; the original upload remained unchanged.
+
+| Reproduction | Tune SHA-256 | Non-finite frames before | Non-finite frames after | RMS after |
+| --- | --- | ---: | ---: | ---: |
+| Crazy Comets, Subsong 1 | `1666b2d22866794f2a0bf78e017664349f0a00e4ffd815b5ae1247c34670a3d3` | 680646 | 0 | 0.182350 |
+| Wizball, Subsong 7 (start-song override) | `dd87b77203439680b1d84cf4203a5f5cf682cea44450d1a91d3cb16391d9593c` | 939519 | 0 | 0.122529 |
+
+Chromium playback additionally used both original uploads through the application UI. Wizball starts at Subsong 4 in its original header and was advanced with the Next control to Subsong 7. Both Exact-core checks reported finite, nonzero analyser output and no page or console errors; Crazy Comets was observed beyond its former failure at 5.819875 seconds.
 
 ## Regression evidence
 

@@ -71,6 +71,13 @@ export function clockSidEnvelope(voice) {
         return;
     }
 
+    // A gate pulse can enter Release before Attack has lifted a zero envelope.
+    // The 8-bit counter must hold at zero rather than indexing the DAC below 0.
+    if (voice.envelope_counter === 0) {
+        voice.hold_zero = true;
+        return;
+    }
+
     if (voice.state === SID_ENV_DECAY) {
         if (voice.envelope_counter === voice.sustain_level) return;
         voice.envelope_counter--;

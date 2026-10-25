@@ -167,6 +167,29 @@ test('release preserves the running counters and zero holds until the next attac
     assert.equal(voice.hold_zero, false);
 });
 
+test('a zero-level gate pulse cannot underflow the envelope into release', () => {
+    const sid = new SIDChip(0);
+    const voice = sid.voices[0];
+    sid.writeReg(5, 0xF0); // Slowest attack; fastest release below.
+    sid.writeReg(6, 0x00);
+
+    sid.writeReg(4, 0x21);
+    clock(sid, 2);
+    assert.equal(voice.state, SID_ENV_ATTACK);
+    assert.equal(voice.envelope_counter, 0);
+    assert.equal(voice.hold_zero, false);
+
+    sid.writeReg(4, 0x20);
+    clock(sid, 2);
+    assert.equal(voice.state, SID_ENV_RELEASE);
+    assert.equal(voice.envelope_counter, 0);
+
+    clock(sid, 100);
+    assert.equal(voice.envelope_counter, 0);
+    assert.equal(voice.hold_zero, true);
+    assert.ok(Number.isFinite(sid.synthesizeVoiceOneCycle(0)));
+});
+
 test('waveform DAC latch holds its last 12-bit value when no waveform is selected', () => {
     const sid = new SIDChip(0);
     const voice = sid.voices[0];
