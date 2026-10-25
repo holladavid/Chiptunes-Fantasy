@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.5.0)
+# 💾 CHIPTUNES FANTASY (v1.5.1)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -16,7 +16,37 @@ Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with rut
 
 ---
 
-## 🔬 New in v1.5.0: Next-Gen "Living Silicon" & Authentic Chip Physics
+## 🚀 v1.5.1 Release Highlights
+
+### 🎵 SID Refinement Program — Phases 0–5
+The C64 engine has been refined through six bounded, individually documented phases:
+
+| Phase | Delivered improvement |
+|---|---|
+| **0 — Measurement foundation** | Added a deterministic raw-chip harness with cycle-stamped events, PCM/CSV traces and archived regression baselines. Measurements bypass hidden output processing and distinguish self-generated regression pins from independent evidence. |
+| **1 — Resampling and output** | Added measured 256-phase interpolated Kaiser-Sinc resampling with a 20 kHz passband and at least 96 dB stopband attenuation at 44.1/48 kHz, while retaining the parameterized motherboard output stage. |
+| **2 — MOS 6581 R3 digital model** | Preserves full 12-bit waveform DAC inputs, explicit noise taps and the no-waveform DAC latch. The stateful ADSR model adds a two-clock GATE pipeline, wrapping 15-bit rate counter, exact period matching and documented exponential divider thresholds. |
+| **3 — Filter and mixer calibration** | Fits cutoff and damping maps through the public libresidfp API and corrects additive LP/BP/HP routing, feedthrough, linear master volume and direct-path-only `3OFF`. The archived 639-point comparison reports 1.876 dB median and 6.737 dB p95 absolute response error. |
+| **4 — CPU and CIA timing** | Corrects final-cycle stores, NMOS RMW dummy writes, interrupt polling, selected final-cycle ICR reads, RDY behavior, CIA timer pipelines and delayed IRQ/NMI outputs. Coverage is bounded to the documented scheduler paths, not a complete physical C64 model. |
+| **5 — Fantasy studio acceptance** | Adds deterministic production-worklet comparisons and sample-rate-independent 16 Hz stereo output coupling to `sid-fantasy`. The Exact renders remained byte-identical; no Exact analog settings were inferred from the Fantasy tuning. |
+
+The hardware-oriented path explicitly targets the **MOS 6581 R3**. A separate hardware-oriented CSG 8580 model remains future work. `sid-fantasy` is an artistic stereo studio interpretation, not an Exact hardware mode. External libsidplayfp/reSIDfp observations are black-box references only; no implementation code or internal tables were imported. Reference-model agreement and self-generated baselines are not real-chip captures or proof of universal hardware accuracy.
+
+Technical evidence: [measurement harness](doc/specs/emulation/c64/sid-measurement-harness.md), [digital model](doc/specs/emulation/c64/sid-digital-model.md), [filter/mixer](doc/specs/emulation/c64/sid-filter-model.md), [CPU/CIA timing](doc/specs/emulation/c64/sid-cpu-cia-timing.md), and [Fantasy studio acceptance](doc/specs/emulation/c64/sid-fantasy-studio.md).
+
+### 📱 Media Session System Controls
+The browser's Media Session integration exposes the decoded track title, composer, sound system and dedicated cover artwork to supported OS media controls and lock screens. Play, pause, stop, next and previous use the same transport functions as the on-screen and fullscreen controls. Next/previous preserves SID subsong order before advancing through the playlist.
+
+Amiga and Atari tracks additionally support system seeking, ten-second skip actions and throttled position reporting. C64/SID playback deliberately exposes no seek actions because its generative music programs do not currently provide reliable random-access seeking. Missing Media Session APIs and unsupported individual actions are ignored safely.
+
+Media Session improves system integration; it does **not** guarantee uninterrupted background playback. Mobile operating systems may suspend audio or the page, especially on iOS, according to their own browser and power-management policies.
+
+### 🖼️ Player Stability
+The visualizer now skips the complete frame when its canvas has a zero-sized drawable surface. This prevents `drawImage` failures while hidden or before layout and resumes normally after a positive resize.
+
+---
+
+## 🔬 Living Silicon & Hardware-Oriented Chip Telemetry
 
 ### 🧬 Interactive "Living Silicon" Die & Motherboard Telemetry
 Each of the three sound pillars now features a zero-allocation, schematic-grade SVG silicon die and external motherboard circuit model that breathes in 60FPS lockstep with the emulators:
