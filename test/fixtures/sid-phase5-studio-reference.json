@@ -1,0 +1,329 @@
+{
+  "format": "chiptunes-fantasy-sid-phase5-studio-v1",
+  "purpose": "reproducible external-model musical comparisons and self-generated Fantasy tuning pins; not real-hardware proof",
+  "inputs": {
+    "Commando": {
+      "file": "Commando.sid",
+      "source": "https://hvsc.c64.org/download/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid",
+      "sha256": "5295378dacb06593a9c1853ce11a325ce885a16e26d56274d424e06492948de8"
+    },
+    "Arkanoid": {
+      "file": "Arkanoid.sid",
+      "source": "https://hvsc.c64.org/download/C64Music/MUSICIANS/G/Galway_Martin/Arkanoid.sid",
+      "sha256": "9a576463b6d9e46f35cf2c8fbf40b6b3915424b2207d7c44c73b36e6ce9bc1cd"
+    }
+  },
+  "externalReference": {
+    "projects": [
+      {
+        "project": "libsidplayfp",
+        "revision": "6d1da4dce5ec2eea18f2b1a6a483e49a532f9b41",
+        "sourceArchiveSha256": "b2161dd220729f44f25f60e07f57e8348e961b0cfe632cfa5685516e96e33993"
+      },
+      {
+        "project": "libresidfp",
+        "revision": "c1791383ca843a855e5d4366da6a7277e34e801d",
+        "sourceArchiveSha256": "deff740e2af2be38839cf9f7f474606476b08ef6e0082e44ed78848b335b96c4"
+      }
+    ],
+    "publicApi": [
+      "SidTune",
+      "sidplayfp",
+      "SidConfig",
+      "ReSIDfpBuilder",
+      "sidplayfp.play(cycles)",
+      "sidplayfp.mix"
+    ],
+    "configuration": {
+      "c64Model": "PAL, forced",
+      "sidModel": "MOS6581, forced",
+      "sampleRate": 48000,
+      "channels": 1,
+      "samplingMethod": "RESAMPLE_INTERPOLATE",
+      "powerOnDelay": 0,
+      "filter": "engine.filter(0, true)",
+      "mixer": "engine.initMixer(false)"
+    },
+    "referenceWavSha256": {
+      "Commando": "47d40aade00c4acefd669550456a7c3092a005f7549333eda881743f499f8959",
+      "Arkanoid": "f35f357ed398af5e867fa97da7241310389bb0ae6e693615d35947c7740d9465"
+    },
+    "limitation": "External reSIDfp/libsidplayfp observations are not captures from a physical MOS 6581 and do not establish universal hardware accuracy."
+  },
+  "workletRender": {
+    "tools": [
+      "tools/sid-worklet-render.mjs",
+      "tools/sid-worklet-compare.mjs"
+    ],
+    "productionWorklets": "imported unchanged; AudioWorkletProcessor/registerProcessor stubbed offline",
+    "seconds": 20,
+    "sampleRate": 48000,
+    "channels": 2,
+    "output": "PCM16 WAV plus JSON metrics",
+    "deterministicSetup": "Math.random pinned to 0.5 before processor construction; browser per-instance variation is unchanged",
+    "spectralMethod": "mono channel average; 4096-point symmetric Hann STFT; 2048-frame hop; no boundary padding; 40-20000 Hz; per-frame uncentered magnitude cosine; median and p10 over 467 frames",
+    "bandMethod": "8192-point symmetric Hann STFT; 4096-frame hop; summed squared magnitudes; dB change is candidate power / reference power"
+  },
+  "cases": {
+    "Commando": {
+      "exact": {
+        "before": {
+          "engine": "exact",
+          "processor": "sid-exact-processor",
+          "input": "Commando.sid",
+          "tuneSha256": "5295378dacb06593a9c1853ce11a325ce885a16e26d56274d424e06492948de8",
+          "sampleRate": 48000,
+          "seconds": 20,
+          "frames": 960000,
+          "rmsL": 0.1599045940830517,
+          "rmsR": 0.1599045940830517,
+          "rms": 0.1599045940830517,
+          "peak": 0.8218657970428467,
+          "dcL": 0.000020137553748012553,
+          "dcR": 0.000020137553748012553,
+          "stereoCorrelation": 1,
+          "sideRms": 0,
+          "nonFinite": 0
+        },
+        "after": {
+          "engine": "exact",
+          "processor": "sid-exact-processor",
+          "input": "Commando.sid",
+          "tuneSha256": "5295378dacb06593a9c1853ce11a325ce885a16e26d56274d424e06492948de8",
+          "sampleRate": 48000,
+          "seconds": 20,
+          "frames": 960000,
+          "rmsL": 0.1599045940830517,
+          "rmsR": 0.1599045940830517,
+          "rms": 0.1599045940830517,
+          "peak": 0.8218657970428467,
+          "dcL": 0.000020137553748012553,
+          "dcR": 0.000020137553748012553,
+          "stereoCorrelation": 1,
+          "sideRms": 0,
+          "nonFinite": 0
+        },
+        "beforeWavSha256": "2f7ca8bc63467464b6b4975b220d8c6da37a41c2512157f8f6a8370510ba2f48",
+        "afterWavSha256": "2f7ca8bc63467464b6b4975b220d8c6da37a41c2512157f8f6a8370510ba2f48",
+        "byteIdenticalBeforeAfter": true,
+        "externalSpectralShape": {
+          "size": 4096,
+          "hop": 2048,
+          "window": "symmetric Hann, no boundary padding",
+          "frames": 467,
+          "median": 0.8874536913682423,
+          "p10": 0.8161059390186866
+        }
+      },
+      "fantasy": {
+        "before": {
+          "engine": "fantasy",
+          "processor": "sid-fantasy-processor",
+          "input": "Commando.sid",
+          "tuneSha256": "5295378dacb06593a9c1853ce11a325ce885a16e26d56274d424e06492948de8",
+          "sampleRate": 48000,
+          "seconds": 20,
+          "frames": 960000,
+          "rmsL": 0.18329712251836486,
+          "rmsR": 0.174891216229567,
+          "rms": 0.17914347969961064,
+          "peak": 0.7312515377998352,
+          "dcL": -0.00231086105885345,
+          "dcR": -0.0029292042712569773,
+          "stereoCorrelation": 0.9606663780496746,
+          "sideRms": 0.02545829706491083,
+          "nonFinite": 0
+        },
+        "after": {
+          "engine": "fantasy",
+          "processor": "sid-fantasy-processor",
+          "input": "Commando.sid",
+          "tuneSha256": "5295378dacb06593a9c1853ce11a325ce885a16e26d56274d424e06492948de8",
+          "sampleRate": 48000,
+          "seconds": 20,
+          "frames": 960000,
+          "rmsL": 0.19253451580124953,
+          "rmsR": 0.18479772385084947,
+          "rms": 0.18870577430920923,
+          "peak": 0.7160099744796753,
+          "dcL": -0.001804953356671957,
+          "dcR": -0.0022787404670280803,
+          "stereoCorrelation": 0.9627573134689462,
+          "sideRms": 0.026029037031573894,
+          "nonFinite": 0
+        },
+        "externalSpectralShapeAfter": {
+          "size": 4096,
+          "hop": 2048,
+          "window": "symmetric Hann, no boundary padding",
+          "frames": 467,
+          "median": 0.8706202292540927,
+          "p10": 0.8020284509244907
+        },
+        "tuning": {
+          "beforeAfterSpectralShape": {
+            "size": 4096,
+            "hop": 2048,
+            "window": "symmetric Hann, no boundary padding",
+            "frames": 467,
+            "median": 0.9992217486300247,
+            "p10": 0.9980142275273021
+          },
+          "bandPowerChange": {
+            "16-32Hz": {
+              "changeDb": 3.9186529043137326
+            },
+            "32-40Hz": {
+              "changeDb": 2.3513164024297395
+            },
+            "40-56Hz": {
+              "changeDb": 1.5332519663296917
+            },
+            "56-64Hz": {
+              "changeDb": 1.1609713883769492
+            },
+            "64-128Hz": {
+              "changeDb": 0.3982782857221878
+            },
+            "128-1000Hz": {
+              "changeDb": 0.01577428430322549
+            },
+            "1000-20000Hz": {
+              "changeDb": -0.017139942824725553
+            }
+          }
+        }
+      }
+    },
+    "Arkanoid": {
+      "exact": {
+        "before": {
+          "engine": "exact",
+          "processor": "sid-exact-processor",
+          "input": "Arkanoid.sid",
+          "tuneSha256": "9a576463b6d9e46f35cf2c8fbf40b6b3915424b2207d7c44c73b36e6ce9bc1cd",
+          "sampleRate": 48000,
+          "seconds": 20,
+          "frames": 960000,
+          "rmsL": 0.30876848434974075,
+          "rmsR": 0.30876848434974075,
+          "rms": 0.30876848434974075,
+          "peak": 0.7323122024536133,
+          "dcL": 0.0001801019958055969,
+          "dcR": 0.0001801019958055969,
+          "stereoCorrelation": 1,
+          "sideRms": 0,
+          "nonFinite": 0
+        },
+        "after": {
+          "engine": "exact",
+          "processor": "sid-exact-processor",
+          "input": "Arkanoid.sid",
+          "tuneSha256": "9a576463b6d9e46f35cf2c8fbf40b6b3915424b2207d7c44c73b36e6ce9bc1cd",
+          "sampleRate": 48000,
+          "seconds": 20,
+          "frames": 960000,
+          "rmsL": 0.30876848434974075,
+          "rmsR": 0.30876848434974075,
+          "rms": 0.30876848434974075,
+          "peak": 0.7323122024536133,
+          "dcL": 0.0001801019958055969,
+          "dcR": 0.0001801019958055969,
+          "stereoCorrelation": 1,
+          "sideRms": 0,
+          "nonFinite": 0
+        },
+        "beforeWavSha256": "5f2ffa44f95c4c7b7edd61fa4e18adce6ebbfffe98169e75625dc9e255b80413",
+        "afterWavSha256": "5f2ffa44f95c4c7b7edd61fa4e18adce6ebbfffe98169e75625dc9e255b80413",
+        "byteIdenticalBeforeAfter": true,
+        "externalSpectralShape": {
+          "size": 4096,
+          "hop": 2048,
+          "window": "symmetric Hann, no boundary padding",
+          "frames": 467,
+          "median": 0.8637787808530069,
+          "p10": 0.6599085032255775
+        }
+      },
+      "fantasy": {
+        "before": {
+          "engine": "fantasy",
+          "processor": "sid-fantasy-processor",
+          "input": "Arkanoid.sid",
+          "tuneSha256": "9a576463b6d9e46f35cf2c8fbf40b6b3915424b2207d7c44c73b36e6ce9bc1cd",
+          "sampleRate": 48000,
+          "seconds": 20,
+          "frames": 960000,
+          "rmsL": 0.3620749957764247,
+          "rmsR": 0.3609460337963517,
+          "rms": 0.36151095549085027,
+          "peak": 0.7416598796844482,
+          "dcL": 0.0011059724786951657,
+          "dcR": 0.0010479370345813771,
+          "stereoCorrelation": 0.9836452768685876,
+          "sideRms": 0.03269578273084399,
+          "nonFinite": 0
+        },
+        "after": {
+          "engine": "fantasy",
+          "processor": "sid-fantasy-processor",
+          "input": "Arkanoid.sid",
+          "tuneSha256": "9a576463b6d9e46f35cf2c8fbf40b6b3915424b2207d7c44c73b36e6ce9bc1cd",
+          "sampleRate": 48000,
+          "seconds": 20,
+          "frames": 960000,
+          "rmsL": 0.38700666999029637,
+          "rmsR": 0.3858090589327805,
+          "rms": 0.38640832843740297,
+          "peak": 0.735154926776886,
+          "dcL": -0.00022228390084998466,
+          "dcR": -0.00033625886979831977,
+          "stereoCorrelation": 0.9847027633254426,
+          "sideRms": 0.033799097126074394,
+          "nonFinite": 0
+        },
+        "externalSpectralShapeAfter": {
+          "size": 4096,
+          "hop": 2048,
+          "window": "symmetric Hann, no boundary padding",
+          "frames": 467,
+          "median": 0.8315143287952586,
+          "p10": 0.653255018668036
+        },
+        "tuning": {
+          "beforeAfterSpectralShape": {
+            "size": 4096,
+            "hop": 2048,
+            "window": "symmetric Hann, no boundary padding",
+            "frames": 467,
+            "median": 0.9991871561711774,
+            "p10": 0.9973532960739697
+          },
+          "bandPowerChange": {
+            "16-32Hz": {
+              "changeDb": 3.8396464239454096
+            },
+            "32-40Hz": {
+              "changeDb": 2.669960818819239
+            },
+            "40-56Hz": {
+              "changeDb": 1.622520217301777
+            },
+            "56-64Hz": {
+              "changeDb": 1.0509604327320394
+            },
+            "64-128Hz": {
+              "changeDb": 0.4160674037189587
+            },
+            "128-1000Hz": {
+              "changeDb": 0.14937893135769453
+            },
+            "1000-20000Hz": {
+              "changeDb": -0.15172466641796398
+            }
+          }
+        }
+      }
+    }
+  }
+}

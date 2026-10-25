@@ -64,9 +64,16 @@ export class FourPoleFilter {
 }
 
 export class DCBlocker {
-    constructor() { this.lastIn = 0; this.lastOut = 0; }
+    constructor(sampleRate = 0, cutoffHz = 0) {
+        this.lastIn = 0; this.lastOut = 0;
+        // Preserve the legacy coefficient for existing Atari callers. C64
+        // Fantasy supplies an explicit sample-rate-independent coupling corner.
+        this.coefficient = sampleRate > 0 && cutoffHz > 0
+            ? Math.exp(-2.0 * Math.PI * cutoffHz / sampleRate)
+            : 0.995;
+    }
     process(input) {
-        let out = input - this.lastIn + 0.995 * this.lastOut;
+        let out = input - this.lastIn + this.coefficient * this.lastOut;
         this.lastIn = input; this.lastOut = out;
         return out;
     }

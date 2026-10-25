@@ -354,8 +354,8 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
         this.sid = new SIDFantasyChip();
         this.cpu = new CPU6502(this.sid);
         
-        this.dcBlockL = new DCBlocker();
-        this.dcBlockR = new DCBlocker();
+        this.dcBlockL = new DCBlocker(sampleRate, 16.0);
+        this.dcBlockR = new DCBlocker(sampleRate, 16.0);
 
         this.prgCode = null;
         this.loadAddr = 0;

@@ -2,7 +2,7 @@
 
 ## Scope
 
-Introduced in Phase 0, the harness measures the SID implementation directly without hidden output processing. Phase 2 extended its waveform trace to the full 12-bit DAC input. Phase 3 added a separate analog entry point and an archived external-reference comparison for the filter/mixer. Phase 4 adds a distinct CPU/CIA instruction-and-register timing corpus; it does not change the audio signal tap or its baselines. The audio harness runs against `SIDChip` in Node or another ES-module runtime and requires neither a DOM nor an `AudioWorklet`.
+Introduced in Phase 0, the harness measures the SID implementation directly without hidden output processing. Phase 2 extended its waveform trace to the full 12-bit DAC input. Phase 3 added a separate analog entry point and an archived external-reference comparison for the filter/mixer. Phase 4 adds a distinct CPU/CIA instruction-and-register timing corpus; it does not change the audio signal tap or its baselines. Phase 5 complements the raw-chip harness with deterministic production-AudioWorklet renders and external-model musical comparisons. The original audio harness runs against `SIDChip` in Node or another ES-module runtime and requires neither a DOM nor an `AudioWorklet`.
 
 It provides one fixed signal tap:
 
@@ -64,6 +64,17 @@ node tools/sid-filter-measure.mjs --check
 # Export all 639 response-comparison rows for independent inspection.
 node tools/sid-filter-measure.mjs --out artifacts/sid/filter-r3-report.json
 
+# Render a production Exact or Fantasy worklet from a local PSID/RSID file.
+node tools/sid-worklet-render.mjs --engine fantasy --input /path/to/tune.sid \
+  --seconds 20 --sample-rate 48000 --out fantasy.wav --report fantasy.json
+
+# Compare PCM16 worklet/reference renders without phase-sensitive waveform correlation.
+node tools/sid-worklet-compare.mjs --reference reference.wav \
+  --candidate fantasy.wav --report comparison.json
+
+# Verify the 16 Hz Fantasy coupling and legacy DCBlocker compatibility.
+node --test test/sid-fantasy-studio.test.mjs test/sid-worklet-resampler.test.mjs
+
 # Intentionally re-pin after a reviewed emulation change.
 node tools/sid-render.mjs --case all --update-baseline
 ```
@@ -78,6 +89,6 @@ Each artifact directory contains a JSON manifest with event semantics, signal-ta
 
 `test/fixtures/sid-phase4-timing-reference.json` separately archives external libsidplayfp CPU/CIA observations and self-generated engine periods. Its SIDLite backend is only a register sink. The external comparison is restricted to long latches 100 and 244; small-latch write periods are handler-bound and are not treated as linear timer periods. Program hash, revision, source-archive hash, cycle convention, observed periods and remaining bus-model limits are documented in `sid-cpu-cia-timing.md`.
 
-The synthetic audio corpus covers silence, basic waveforms, ADSR/gate activity, a combined waveform, hard sync/ring modulation, a filter sweep, `$D418` writes and TEST-bit reset. Real PSID tunes and aligned reSIDfp/VICE captures remain necessary for musical and external-reference validation. Those binary assets are not included in this source export.
+The synthetic audio corpus covers silence, basic waveforms, ADSR/gate activity, a combined waveform, hard sync/ring modulation, a filter sweep, `$D418` writes and TEST-bit reset. Phase 5 adds two real PSID tunes at the production-worklet tap, but their binary assets and generated WAVs are not included in the repository. `test/fixtures/sid-phase5-studio-reference.json` archives their hashes, external provenance, numerical results and the unchanged Exact before/after WAV hashes. See `sid-fantasy-studio.md` for the phase-insensitive spectral method, Fantasy coupling measurements and reproduction commands.
 
-For further external comparisons, render the same event stream and calibration conditions in the reference implementation, align the write/clock convention and filter delay, and compare the raw tap before introducing any output-stage processing. The Phase-3 EXT-IN fixture isolates the analog path; it does not replace aligned whole-tune, real-hardware or listening validation.
+For further raw-chip external comparisons, render the same event stream and calibration conditions in the reference implementation, align the write/clock convention and filter delay, and compare the raw tap before introducing any output-stage processing. The Phase-3 EXT-IN fixture isolates the analog path; the Phase-5 whole-tune STFT comparison instead diagnoses the complete production worklets. Neither replaces real-hardware or controlled listening validation.

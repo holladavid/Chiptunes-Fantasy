@@ -179,3 +179,6 @@ For listeners who prefer the crystal-clear HMOS-II sound of the later C64C (CSG 
 * **20 kHz Studio Airband ZDF Stereo VCF** with extended high-frequency sheen.
 * **Constant-Power StereoSID Spatializer:** Voice 1 panned $-25\%$ Left (Lead), Voice 2 panned $+25\%$ Right (Chords/Arps), Voice 3 centered (Bass/Drums) — feeding directly into the Master Bus **Bauer Binaural Crossfeed (bs2b)** for zero headphone fatigue.
 * **48 Hz Sub-Harmonic Digidrum Transient Exciter:** Automatically detects steep `$D418` volume edges and injects a phase-locked 48 Hz sub-bass sine transient underneath 4-bit digidrums.
+* **Sample-Rate-Independent 16 Hz Output Coupling:** Both stereo output channels use `DCBlocker(sampleRate, 16.0)`, measured at −3.00 dB at 16 Hz and approximately −0.448 dB at 48 Hz. The coefficient is calculated during setup; the audio hot path remains allocation-free. Existing callers that omit the new arguments retain the legacy `0.995` coefficient.
+
+Phase 5 archives deterministic production-worklet renders, external-model STFT comparisons and before/after studio measurements in `sid-fantasy-studio.md` and `test/fixtures/sid-phase5-studio-reference.json`. The Exact renders remained byte-identical during this Fantasy-only adjustment. These comparisons are not real-chip captures and do not justify further analog retuning.
