@@ -4,7 +4,7 @@
 // True Analog Master Edition (v1.5.0):
 // - Re-Entrant 50Hz Play-IRQ Dispatching (Arkanoid Foreground Digi Fix)
 // - 6510 Penultimate-Cycle RMW Dummy-Write Commit
-// - 32-Phase Polyphase Sinc-FIR Decimator (255 Taps)
+// - 256-Phase Kaiser-Sinc Resampler (20kHz Passband, 96dB Design)
 // - 2MHz Zero-Delay Feedback (ZDF) State-Space OTA Filter
 // - Motherboard 16Hz C13 AC-Coupling & 16kHz Lowpass
 // =========================================================
@@ -12,6 +12,7 @@
 import { CPU6502 } from '../lib/cpu6502.js';
 import { SIDChip } from '../lib/sid-chip.js';
 import { C64AnalogFilter } from '../lib/dsp-utils.js';
+import { SidResampler } from '../lib/sid-resampler.js';
 
 class SIDProcessor extends AudioWorkletProcessor {
     constructor() {
@@ -21,7 +22,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         
         this.sid.useJfetSaturation = true;
         this.cpu = new CPU6502(this.sid);
-        this.c64Output = new C64AnalogFilter(sampleRate);
+        this.c64Output = new C64AnalogFilter(sampleRate, 0.0);
 
         this.prgCode = null;
         this.loadAddr = 0;
@@ -33,7 +34,6 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.isPlaying = false;
         this.fadeVol = 0.0; 
         
-        this.cycleAccumulator = 0.0;
         this.vblankTimer = 19656; 
         this.currentFrame = 0;
         this.hostPlayPending = false;
@@ -43,42 +43,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         
         this.visualView = new Float32Array(40);
 
-        // =========================================================
-        // 32-PHASE POLYPHASE SINC-FIR FILTERBANK (255 Taps)
-        // =========================================================
-        this.FIR_TAPS = 255;
-        this.NUM_PHASES = 32;
-        this.polyphaseTable = new Float32Array(this.NUM_PHASES * this.FIR_TAPS);
-        this.ringBuffer = new Float32Array(512); 
-        this.ringIndex = 0;
-
-        const fc = 20000.0 / this.clock;
-        const halfK = (this.FIR_TAPS - 1) / 2;
-
-        for (let p = 0; p < this.NUM_PHASES; p++) {
-            const dt = p / this.NUM_PHASES;
-            let sum = 0.0;
-            const phaseOffset = p * this.FIR_TAPS;
-
-            for (let i = 0; i < this.FIR_TAPS; i++) {
-                const x = (i - halfK) - dt;
-                const sinc = (Math.abs(x) < 1e-7) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
-                const wPos = (i - dt) / (this.FIR_TAPS - 1);
-                const window = (wPos >= 0.0 && wPos <= 1.0)
-                    ? (0.42 - 0.5 * Math.cos(2 * Math.PI * wPos) + 0.08 * Math.cos(4 * Math.PI * wPos))
-                    : 0.0;
-
-                const val = sinc * window;
-                this.polyphaseTable[phaseOffset + i] = val;
-                sum += val;
-            }
-
-            if (sum > 0) {
-                for (let i = 0; i < this.FIR_TAPS; i++) {
-                    this.polyphaseTable[phaseOffset + i] /= sum;
-                }
-            }
-        }
+        this.resampler = new SidResampler(this.clock, sampleRate);
 
         this.diagCycles = 0;
         this.diagInstructions = 0;
@@ -96,9 +61,7 @@ class SIDProcessor extends AudioWorkletProcessor {
             }
 
             if (msg.isSidFile) {
-                this.c64Output = new C64AnalogFilter(sampleRate);
-                this.ringBuffer.fill(0);
-                this.ringIndex = 0;
+                this.c64Output = new C64AnalogFilter(sampleRate, 0.0);
 
                 this.prgCode = msg.c64Code;
                 this.loadAddr = msg.loadAddress;
@@ -118,9 +81,7 @@ class SIDProcessor extends AudioWorkletProcessor {
             } else if (msg.type === 'RESUME_TRACK') {
                 this.isPlaying = true;
             } else if (msg.type === 'CHANGE_SUBSONG') {
-                this.c64Output = new C64AnalogFilter(sampleRate);
-                this.ringBuffer.fill(0);
-                this.ringIndex = 0;
+                this.c64Output = new C64AnalogFilter(sampleRate, 0.0);
 
                 this.sid = new SIDChip();
                 this.sid.useJfetSaturation = true;
@@ -202,7 +163,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.playSpeedCycles = this.useCiaTimer ? 19583 : 19656;
         this.vblankTimer = this.playSpeedCycles;
 
-        this.cycleAccumulator = 0.0;
+        this.resampler.reset();
         this.currentFrame = 0;
         this.maxFrames = maxFrames;
         this.hostPlayPending = false;
@@ -226,13 +187,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 continue; 
             }
             
-            this.cycleAccumulator += this.clock / sampleRate;
-            let cyclesToRun = Math.floor(this.cycleAccumulator);
-            this.cycleAccumulator -= cyclesToRun;
-
-            let phaseIdx = Math.floor(this.cycleAccumulator * this.NUM_PHASES);
-            if (phaseIdx >= this.NUM_PHASES) phaseIdx = this.NUM_PHASES - 1;
-            let kernelBase = phaseIdx * this.FIR_TAPS;
+            const cyclesToRun = this.resampler.beginSample();
 
             // 1MHz PAL Lockstep Cycling
             for (let c = 0; c < cyclesToRun; c++) {
@@ -241,8 +196,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.clockHardware(1); 
                 this.sid.clock();          
                 
-                this.ringBuffer[this.ringIndex] = this.sid.outputSample;
-                this.ringIndex = (this.ringIndex + 1) & 511;
+                this.resampler.write(this.sid.outputSample);
 
                 if (this.playAddress === 0) {
                     this.vblankTimer--;
@@ -332,15 +286,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 }
             }
             
-            // =========================================================
-            // FRACTIONAL POLYPHASE SINC-FIR CONVOLUTION (48 kHz Output)
-            // =========================================================
-            let decimatedSample = 0.0;
-            let firIdx = (this.ringIndex - 1) & 511;
-            for (let k = 0; k < this.FIR_TAPS; k++) {
-                decimatedSample += this.ringBuffer[firIdx] * this.polyphaseTable[kernelBase + k];
-                firIdx = (firIdx - 1) & 511;
-            }
+            const decimatedSample = this.resampler.process();
 
             // Motherboard 16kHz LP + 16Hz C13 AC-Coupling
             let analogSample = this.c64Output.process(decimatedSample);

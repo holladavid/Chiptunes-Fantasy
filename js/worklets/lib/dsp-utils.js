@@ -73,9 +73,9 @@ export class DCBlocker {
 }
 
 export class C64AnalogFilter {
-    constructor(sampleRate) {
-        // 1. Sinc-Droop Equalizer Pre-Emphasis (+2.5 dB bei 16 kHz)
-        this.cComp = 0.22;
+    constructor(sampleRate, droopCompensation = 0.22) {
+        // Optional compensation for a separately measured resampler droop.
+        this.cComp = droopCompensation;
         this.lastX = 0;
 
         // 2. C64 Motherboard 16kHz Lowpass Filter

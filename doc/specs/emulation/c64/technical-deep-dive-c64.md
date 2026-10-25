@@ -24,18 +24,18 @@ Every single PAL clock cycle ($\approx 1.015\ \mu\text{s}$), the system advances
 │  │  VIC-II + 2x CIA    │                                  │ 985.248 kHz      │
 │  │  + PlaySID DMA Trap │                                  ▼                  │
 │  └─────────────────────┘                   ┌──────────────────────────────┐  │
-│                                            │  512-Sample Ring Buffer      │  │
+│                                            │  Rate-Sized SID Ring Buffer  │  │
 │                                            └──────────────┬───────────────┘  │
 └───────────────────────────────────────────────────────────┼──────────────────┘
                                                             │
 ┌───────────────────────────────────────────────────────────┼──────────────────┐
 │                        48 kHz HOST AUDIO DOMAIN           ▼                  │
 │  ┌────────────────────────────────────────────────────────────────────────┐  │
-│  │ 32-Phase Fractional Polyphase Sinc-FIR Decimator (255 Taps, >75dB)     │  │
+│  │ 256-Phase Kaiser-Sinc Resampler (20kHz Passband, 96dB Design)          │  │
 │  └────────────────────────────────────┬───────────────────────────────────┘  │
 │                                       ▼                                      │
 │  ┌────────────────────────────────────────────────────────────────────────┐  │
-│  │ C64 Mainboard Analog Stage (Sinc-Droop EQ + 16kHz RC LP + 16Hz C13 HP) │  │
+│  │ C64 Mainboard Analog Stage (16kHz RC LP + 16Hz C13 HP)                 │  │
 │  └────────────────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -146,15 +146,20 @@ Controlled live via the `[ TEMP ]` fader in the Hardware Lab UI, seven coupled e
 
 ## 5. Polyphase Decimation & C64 Mainboard Output Stage
 
-### 5.1. 32-Phase Fractional Polyphase Sinc-FIR Decimator (`sid-exact.js`)
-Downsampling from $985,248\text{ Hz}$ to $48,000\text{ Hz}$ involves a non-integer ratio ($20.526\text{ cycles/sample}$). Integer-cycle convolution introduces $\pm 0.5\ \mu\text{s}$ sub-cycle sampling jitter, which aliases high-frequency Hard-Sync sweeps (*Commando*).
-* Our decimator maintains a **512-sample ring buffer** at 1MHz and convolves it using a **255-tap Blackman-windowed Sinc-FIR filterbank** pre-computed across **32 fractional sub-cycle phases** ($>75\text{ dB}$ stopband rejection at $20\text{ kHz}$, $0.0\ \mu\text{s}$ phase jitter).
+### 5.1. 256-Phase Kaiser-Sinc Resampler (`sid-resampler.js`)
+Downsampling from $985,248\text{ Hz}$ to $48,000\text{ Hz}$ involves a non-integer ratio ($20.526\text{ cycles/sample}$). `SidResampler` preserves the existing cycle scheduler while replacing the former 32-phase/255-tap kernel in both C64 cores.
+* A causal, odd-length **Kaiser-windowed sinc** is designed for the actual host rate. The bank contains 256 fractional phases plus an explicit interpolation endpoint; adjacent phases are interpolated per output sample.
+* At 48 kHz the filter uses 1511 taps, reaches $-0.00014\text{ dB}$ at 20 kHz in the worst un-interpolated branch, and measures at least $96.3\text{ dB}$ attenuation at the 24 kHz stopband start. At 44.1 kHz it uses 2741 taps and measures at least $96.4\text{ dB}$ at 22.05 kHz.
+* The linear-phase group delay is explicit: approximately $0.766\text{ ms}$ at 48/96 kHz and $1.391\text{ ms}$ at 44.1 kHz. Impulse tests verify the runtime alignment.
+* Ring storage and coefficient tables are allocated only during setup. Mono and stereo convolution allocate nothing in the audio hot path; stereo shares each interpolated coefficient across both channels.
 
 ### 5.2. C64 Mainboard Analog Stage & 16Hz `C13` Coupling (`dsp-utils.js`)
-The decimated 48 kHz signal passes through `C64AnalogFilter`, modeling the passive components on the Commodore 64 motherboard:
-1. **Sinc-Droop Pre-Emphasis Equalizer:** Restores $+2.5\text{ dB}$ of airband presence at $16\text{ kHz}$.
+The resampled signal passes through `C64AnalogFilter`, modeling the passive components on the Commodore 64 motherboard:
+1. **No Resampler-Droop EQ in the Exact path:** The old $+2.5\text{ dB}$ compensation belonged to the former 255-tap kernel and is disabled with `droopCompensation = 0` to avoid boosting the now-flat resampler.
 2. **16 kHz 1-Pole RC Lowpass:** Models the external audio output EMI filter cap.
-3. **16 Hz 1-Pole AC-Coupling Highpass (`C13` 10 µF Capacitor):** Replaces generic 45 Hz DC blockers with the historically accurate **16 Hz** cutoff of the C64's 10 µF coupling capacitor, preserving 100% of the 35–90 Hz sub-bass fundamental on `$D418` kick drums without artificial DC bounce.
+3. **16 Hz 1-Pole AC-Coupling Highpass (`C13` 10 µF Capacitor):** Preserves the 35–90 Hz sub-bass fundamental on `$D418` kick drums without a higher-cutoff generic DC blocker.
+
+Reproduce coefficient and timing measurements with `node tools/sid-resampler-measure.mjs` and streaming tests with `node --expose-gc --test test/sid-resampler.test.mjs`.
 
 ---
 
