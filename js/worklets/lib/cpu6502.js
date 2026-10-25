@@ -27,24 +27,40 @@ export class CPU6502 {
         this.cia1TimerA = 19705; 
         this.cia1TimerALatch = 19705;
         this.cia1CtrlA = 0x01;
-        this.cia1Icr = 0; 
-        this.cia1IrqMask = 0x00; 
+        this.cia1Icr = 0;
+        this.cia1IrqMask = 0x00;
+        this.cia1InterruptActive = false;
+        this.cia1InterruptDelay = 0;
         this.cia1TimerAUnderflowed = false;
         this.cia1TimerAPulse = false;
-        
+        this.cia1TimerAStartDelay = 0;
+        this.cia1TimerALoadPending = false;
+        this.cia1TimerAReloadSkip = false;
+
         this.cia1TimerB = 0xFFFF;
         this.cia1TimerBLatch = 0xFFFF;
         this.cia1CtrlB = 0;
+        this.cia1TimerBStartDelay = 0;
+        this.cia1TimerBLoadPending = false;
+        this.cia1TimerBReloadSkip = false;
 
         this.cia2TimerA = 0xFFFF;
         this.cia2TimerALatch = 0xFFFF;
         this.cia2CtrlA = 0x00;
         this.cia2Icr = 0; this.cia2IrqMask = 0x00;
+        this.cia2InterruptActive = false;
+        this.cia2InterruptDelay = 0;
         this.cia2TimerAPulse = false;
-        
+        this.cia2TimerAStartDelay = 0;
+        this.cia2TimerALoadPending = false;
+        this.cia2TimerAReloadSkip = false;
+
         this.cia2TimerB = 0xFFFF;
         this.cia2TimerBLatch = 0xFFFF;
         this.cia2CtrlB = 0x00;
+        this.cia2TimerBStartDelay = 0;
+        this.cia2TimerBLoadPending = false;
+        this.cia2TimerBReloadSkip = false;
 
         this.irqPending = false;
         this.nmiPending = false;
@@ -82,6 +98,10 @@ export class CPU6502 {
         this.hasPendingWrite = false;
         this.pendingWriteAddr = 0;
         this.pendingWriteVal = 0;
+
+        this.hasPendingIcrRead = false;
+        this.pendingIcrReadAddr = 0;
+        this.pendingIcrReadTarget = 0;
     }
 
     reset(loadAddr, prgCode, initAddr = 0, playAddr = 0) {
@@ -112,6 +132,10 @@ export class CPU6502 {
         this.hasPendingWrite = false;
         this.pendingWriteAddr = 0;
         this.pendingWriteVal = 0;
+
+        this.hasPendingIcrRead = false;
+        this.pendingIcrReadAddr = 0;
+        this.pendingIcrReadTarget = 0;
 
         for (let i = 0; i < prgCode.length; i++) {
             this.ram[loadAddr + i] = prgCode[i];
@@ -205,17 +229,36 @@ export class CPU6502 {
         
         this.cia1TimerA = 19705; this.cia1TimerALatch = 19705;
         this.cia1CtrlA = 0x01;
-        this.cia1Icr = 0; this.cia1IrqMask = 0x00; 
+        this.cia1Icr = 0; this.cia1IrqMask = 0x00;
+        this.cia1InterruptActive = false;
+        this.cia1InterruptDelay = 0;
         this.cia1TimerAUnderflowed = false;
         this.cia1TimerAPulse = false;
-        
+        this.cia1TimerAStartDelay = 0;
+        this.cia1TimerALoadPending = false;
+        this.cia1TimerAReloadSkip = false;
+
+        this.cia1TimerB = 0xFFFF; this.cia1TimerBLatch = 0xFFFF;
+        this.cia1CtrlB = 0;
+        this.cia1TimerBStartDelay = 0;
+        this.cia1TimerBLoadPending = false;
+        this.cia1TimerBReloadSkip = false;
+
         this.cia2TimerA = 0xFFFF; this.cia2TimerALatch = 0xFFFF;
         this.cia2CtrlA = 0x00;
         this.cia2Icr = 0; this.cia2IrqMask = 0x00;
+        this.cia2InterruptActive = false;
+        this.cia2InterruptDelay = 0;
         this.cia2TimerAPulse = false;
-        
+        this.cia2TimerAStartDelay = 0;
+        this.cia2TimerALoadPending = false;
+        this.cia2TimerAReloadSkip = false;
+
         this.cia2TimerB = 0xFFFF; this.cia2TimerBLatch = 0xFFFF;
         this.cia2CtrlB = 0x00;
+        this.cia2TimerBStartDelay = 0;
+        this.cia2TimerBLoadPending = false;
+        this.cia2TimerBReloadSkip = false;
 
         this.irqPending = false;
         this.nmiPending = false;
@@ -307,11 +350,10 @@ export class CPU6502 {
         }
 
         if (addr === 0xDC0D) {
-            let anyEnabled = (this.cia1Icr & this.cia1IrqMask & 0x1F) !== 0;
             let val = this.cia1Icr & 0x1F;
-            if (anyEnabled) val |= 0x80; 
-            this.cia1Icr = 0; 
-            this.updateIrqState(); 
+            if (this.cia1InterruptActive) val |= 0x80;
+            this.hasPendingIcrRead = true;
+            this.pendingIcrReadAddr = addr;
             return val;
         }
         if (addr === 0xDC0E) return this.cia1CtrlA & 0xEF; 
@@ -323,11 +365,10 @@ export class CPU6502 {
             if (addr === 0xDD06) return this.cia2TimerB & 0xFF;
             if (addr === 0xDD07) return (this.cia2TimerB >> 8) & 0xFF;
             if (addr === 0xDD0D) {
-                let anyEnabled = (this.cia2Icr & this.cia2IrqMask & 0x1F) !== 0;
                 let val = this.cia2Icr & 0x1F;
-                if (anyEnabled) val |= 0x80; 
-                this.cia2Icr = 0; 
-                this.updateIrqState(); 
+                if (this.cia2InterruptActive) val |= 0x80;
+                this.hasPendingIcrRead = true;
+                this.pendingIcrReadAddr = addr;
                 return val;
             }
             if (addr === 0xDD0E) return this.cia2CtrlA & 0xEF; 
@@ -374,6 +415,31 @@ export class CPU6502 {
         if (!this.hasPendingWrite) return;
         this.hasPendingWrite = false;
         this.writeHardware(this.pendingWriteAddr, this.pendingWriteVal);
+    }
+
+    commitPendingIcrRead() {
+        if (!this.hasPendingIcrRead) return;
+        this.hasPendingIcrRead = false;
+        let value;
+        if (this.pendingIcrReadAddr === 0xDC0D) {
+            value = this.cia1Icr & 0x1F;
+            if (this.cia1InterruptActive) value |= 0x80;
+            this.cia1Icr = 0;
+            this.cia1InterruptActive = false;
+            this.cia1InterruptDelay = 0;
+        } else {
+            value = this.cia2Icr & 0x1F;
+            if (this.cia2InterruptActive) value |= 0x80;
+            this.cia2Icr = 0;
+            this.cia2InterruptActive = false;
+            this.cia2InterruptDelay = 0;
+        }
+        if (this.pendingIcrReadTarget === 1) {
+            this.a = value;
+            this.setNZ(value);
+        }
+        this.pendingIcrReadTarget = 0;
+        this.updateIrqState();
     }
 
     write(addr, val) {
@@ -484,11 +550,17 @@ export class CPU6502 {
             else this.cia1IrqMask &= ~maskBits;
             this.updateIrqState();
         } else if (addr === 0xDC0E) {
-            this.cia1CtrlA = val & 0xEF; 
-            if (val & 0x10) this.cia1TimerA = this.cia1TimerALatch; 
+            if ((val & 0x01) !== 0 && (this.cia1CtrlA & 0x01) === 0) {
+                this.cia1TimerAStartDelay = 2;
+            }
+            this.cia1CtrlA = val & 0xEF;
+            if (val & 0x10) this.cia1TimerALoadPending = true;
         } else if (addr === 0xDC0F) {
-            this.cia1CtrlB = val & 0xEF; 
-            if (val & 0x10) this.cia1TimerB = this.cia1TimerBLatch;
+            if ((val & 0x01) !== 0 && (this.cia1CtrlB & 0x01) === 0) {
+                this.cia1TimerBStartDelay = 2;
+            }
+            this.cia1CtrlB = val & 0xEF;
+            if (val & 0x10) this.cia1TimerBLoadPending = true;
         }
         
         else if (addr >= 0xDD00 && addr <= 0xDD0F) {
@@ -509,36 +581,98 @@ export class CPU6502 {
                 else this.cia2IrqMask &= ~maskBits;
                 this.updateIrqState();
             } else if (addr === 0xDD0E) {
-                this.cia2CtrlA = val & 0xEF; 
-                if (val & 0x10) this.cia2TimerA = this.cia2TimerALatch; 
+                if ((val & 0x01) !== 0 && (this.cia2CtrlA & 0x01) === 0) {
+                    this.cia2TimerAStartDelay = 2;
+                }
+                this.cia2CtrlA = val & 0xEF;
+                if (val & 0x10) this.cia2TimerALoadPending = true;
             } else if (addr === 0xDD0F) {
+                if ((val & 0x01) !== 0 && (this.cia2CtrlB & 0x01) === 0) {
+                    this.cia2TimerBStartDelay = 2;
+                }
                 this.cia2CtrlB = val & 0xEF;
-                if (val & 0x10) this.cia2TimerB = this.cia2TimerBLatch;
+                if (val & 0x10) this.cia2TimerBLoadPending = true;
             }
             return;
         }
     }
 
     updateIrqState() {
-        let vicIrq = (this.ram[0xD019] & this.ram[0xD01A] & 0x0F) !== 0;
-        let ciaIrq = (this.cia1Icr & this.cia1IrqMask & 0x1F) !== 0;
-        let cia2NmiLine = (this.cia2Icr & this.cia2IrqMask & 0x1F) !== 0;
-        
-        this.irqPending = vicIrq || ciaIrq;
-        
-        if (cia2NmiLine && !this.nmiLineState) {
-            this.nmiPending = true;
+        const vicIrq = (this.ram[0xD019] & this.ram[0xD01A] & 0x0F) !== 0;
+        const cia1Condition = (this.cia1Icr & this.cia1IrqMask & 0x1F) !== 0;
+        const cia2Condition = (this.cia2Icr & this.cia2IrqMask & 0x1F) !== 0;
+
+        if (cia1Condition && !this.cia1InterruptActive && this.cia1InterruptDelay === 0) {
+            this.cia1InterruptDelay = 1;
+        } else if (!cia1Condition && !this.cia1InterruptActive) {
+            this.cia1InterruptDelay = 0;
         }
-        this.nmiLineState = cia2NmiLine;
+        if (cia2Condition && !this.cia2InterruptActive && this.cia2InterruptDelay === 0) {
+            this.cia2InterruptDelay = 1;
+        } else if (!cia2Condition && !this.cia2InterruptActive) {
+            this.cia2InterruptDelay = 0;
+        }
+
+        this.irqPending = vicIrq || this.cia1InterruptActive;
+        if (this.cia2InterruptActive && !this.nmiLineState) this.nmiPending = true;
+        this.nmiLineState = this.cia2InterruptActive;
 
         if (vicIrq) this.ram[0xD019] |= 0x80;
         else this.ram[0xD019] &= 0x7F;
-
-        if (ciaIrq) this.cia1Icr |= 0x80;
+        if (this.cia1InterruptActive) this.cia1Icr |= 0x80;
         else this.cia1Icr &= 0x7F;
-
-        if (cia2NmiLine) this.cia2Icr |= 0x80;
+        if (this.cia2InterruptActive) this.cia2Icr |= 0x80;
         else this.cia2Icr &= 0x7F;
+    }
+
+    clockInterruptDelays() {
+        if (this.cia1InterruptDelay > 0) {
+            this.cia1InterruptDelay--;
+            if (this.cia1InterruptDelay === 0 &&
+                (this.cia1Icr & this.cia1IrqMask & 0x1F) !== 0) {
+                this.cia1InterruptActive = true;
+            }
+        }
+        if (this.cia2InterruptDelay > 0) {
+            this.cia2InterruptDelay--;
+            if (this.cia2InterruptDelay === 0 &&
+                (this.cia2Icr & this.cia2IrqMask & 0x1F) !== 0) {
+                this.cia2InterruptActive = true;
+            }
+        }
+        this.updateIrqState();
+    }
+
+    pollInterrupts() {
+        this.irqAccepted = this.irqPending && (this.p & 0x04) === 0;
+        this.nmiAccepted = this.nmiPending;
+    }
+
+    canAdvanceCycle(cyclesRemaining) {
+        if (this.rdy) return true;
+        if (cyclesRemaining === 2 && this.hasDummyWrite) return true;
+        return cyclesRemaining === 1 && this.hasPendingWrite;
+    }
+
+    commitWritesForCycle(cyclesRemaining) {
+        if (cyclesRemaining === 1 && this.hasDummyWrite) this.commitDummyWrite();
+        if (cyclesRemaining === 0) {
+            if (this.hasPendingWrite) this.commitPendingWrite();
+            this.commitPendingIcrRead();
+        }
+    }
+
+    beginInstruction() {
+        this.pollInterrupts();
+        const cyclesRemaining = this.step() - 1;
+        this.commitWritesForCycle(cyclesRemaining);
+        return cyclesRemaining;
+    }
+
+    advanceCycle(cyclesRemaining) {
+        const nextRemaining = cyclesRemaining - 1;
+        this.commitWritesForCycle(nextRemaining);
+        return nextRemaining;
     }
 
     triggerHardwareNmi() {
@@ -561,72 +695,120 @@ export class CPU6502 {
                 }
             }
 
-            let cia1PulseLastCycle = this.cia1TimerAPulse;
+            this.clockInterruptDelays();
+
+            const cia1PulseLastCycle = this.cia1TimerAPulse;
             this.cia1TimerAPulse = false;
             let timerBUnderflowTriggered = false;
 
-            if (this.cia1CtrlA & 0x01) { 
-                this.cia1TimerA--;
-                if (this.cia1TimerA < 0) {
-                    this.cia1Icr |= 0x01; 
-                    this.cia1TimerA = Math.max(2, this.cia1TimerALatch);
-                    this.cia1TimerAUnderflowed = true;
-                    this.cia1TimerAPulse = true; 
-
-                    if (this.cia1CtrlA & 0x08) this.cia1CtrlA &= ~0x01; 
-                    this.updateIrqState();
+            const cia1ALoaded = this.cia1TimerALoadPending;
+            if (cia1ALoaded) {
+                this.cia1TimerA = this.cia1TimerALatch;
+                this.cia1TimerALoadPending = false;
+                this.cia1TimerAReloadSkip = true;
+            }
+            if (this.cia1TimerAStartDelay > 0) this.cia1TimerAStartDelay--;
+            if ((this.cia1CtrlA & 0x01) && this.cia1TimerAStartDelay === 0 && !cia1ALoaded) {
+                if (this.cia1TimerAReloadSkip) {
+                    this.cia1TimerAReloadSkip = false;
+                } else {
+                    this.cia1TimerA--;
+                    if (this.cia1TimerA <= 0) {
+                        this.cia1Icr |= 0x01;
+                        this.cia1TimerA = this.cia1TimerALatch;
+                        this.cia1TimerAReloadSkip = true;
+                        this.cia1TimerAUnderflowed = true;
+                        this.cia1TimerAPulse = true;
+                        if (this.cia1CtrlA & 0x08) this.cia1CtrlA &= ~0x01;
+                        this.updateIrqState();
+                    }
                 }
             }
 
-            if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x00)) {
-                this.cia1TimerB--;
-                if (this.cia1TimerB < 0) timerBUnderflowTriggered = true;
-            } 
-            else if ((this.cia1CtrlB & 0x01) && ((this.cia1CtrlB & 0x60) === 0x40)) {
-                if (cia1PulseLastCycle) {
+            const cia1BLoaded = this.cia1TimerBLoadPending;
+            if (cia1BLoaded) {
+                this.cia1TimerB = this.cia1TimerBLatch;
+                this.cia1TimerBLoadPending = false;
+                this.cia1TimerBReloadSkip = true;
+            }
+            if (this.cia1TimerBStartDelay > 0) this.cia1TimerBStartDelay--;
+            const cia1BPhi2 = (this.cia1CtrlB & 0x60) === 0x00;
+            const cia1BCascade = (this.cia1CtrlB & 0x60) === 0x40;
+            const cia1BClock = (this.cia1CtrlB & 0x01) !== 0 &&
+                this.cia1TimerBStartDelay === 0 && !cia1BLoaded &&
+                (cia1BPhi2 || (cia1BCascade && cia1PulseLastCycle));
+            if (cia1BClock) {
+                if (this.cia1TimerBReloadSkip) {
+                    this.cia1TimerBReloadSkip = false;
+                } else {
                     this.cia1TimerB--;
-                    if (this.cia1TimerB < 0) timerBUnderflowTriggered = true;
+                    timerBUnderflowTriggered = cia1BPhi2
+                        ? this.cia1TimerB <= 0
+                        : this.cia1TimerB < 0;
                 }
             }
-
             if (timerBUnderflowTriggered) {
-                this.cia1Icr |= 0x02; 
-                this.cia1TimerB = Math.max(2, this.cia1TimerBLatch);
-                if (this.cia1CtrlB & 0x08) this.cia1CtrlB &= ~0x01; 
+                this.cia1Icr |= 0x02;
+                this.cia1TimerB = this.cia1TimerBLatch;
+                this.cia1TimerBReloadSkip = true;
+                if (this.cia1CtrlB & 0x08) this.cia1CtrlB &= ~0x01;
                 this.updateIrqState();
             }
 
-            let cia2PulseLastCycle = this.cia2TimerAPulse;
+            const cia2PulseLastCycle = this.cia2TimerAPulse;
             this.cia2TimerAPulse = false;
             let cia2TimerBUnderflow = false;
 
-            if (this.cia2CtrlA & 0x01) { 
-                this.cia2TimerA--;
-                if (this.cia2TimerA < 0) {
-                    this.cia2Icr |= 0x01; 
-                    this.cia2TimerA = Math.max(2, this.cia2TimerALatch);
-                    this.cia2TimerAPulse = true; 
-
-                    if (this.cia2CtrlA & 0x08) this.cia2CtrlA &= ~0x01; 
-                    this.updateIrqState();
+            const cia2ALoaded = this.cia2TimerALoadPending;
+            if (cia2ALoaded) {
+                this.cia2TimerA = this.cia2TimerALatch;
+                this.cia2TimerALoadPending = false;
+                this.cia2TimerAReloadSkip = true;
+            }
+            if (this.cia2TimerAStartDelay > 0) this.cia2TimerAStartDelay--;
+            if ((this.cia2CtrlA & 0x01) && this.cia2TimerAStartDelay === 0 && !cia2ALoaded) {
+                if (this.cia2TimerAReloadSkip) {
+                    this.cia2TimerAReloadSkip = false;
+                } else {
+                    this.cia2TimerA--;
+                    if (this.cia2TimerA <= 0) {
+                        this.cia2Icr |= 0x01;
+                        this.cia2TimerA = this.cia2TimerALatch;
+                        this.cia2TimerAReloadSkip = true;
+                        this.cia2TimerAPulse = true;
+                        if (this.cia2CtrlA & 0x08) this.cia2CtrlA &= ~0x01;
+                        this.updateIrqState();
+                    }
                 }
             }
 
-            if ((this.cia2CtrlB & 0x01) && ((this.cia2CtrlB & 0x60) === 0x00)) {
-                this.cia2TimerB--;
-                if (this.cia2TimerB < 0) cia2TimerBUnderflow = true;
+            const cia2BLoaded = this.cia2TimerBLoadPending;
+            if (cia2BLoaded) {
+                this.cia2TimerB = this.cia2TimerBLatch;
+                this.cia2TimerBLoadPending = false;
+                this.cia2TimerBReloadSkip = true;
             }
-            else if ((this.cia2CtrlB & 0x01) && ((this.cia2CtrlB & 0x60) === 0x40)) {
-                if (cia2PulseLastCycle) {
+            if (this.cia2TimerBStartDelay > 0) this.cia2TimerBStartDelay--;
+            const cia2BPhi2 = (this.cia2CtrlB & 0x60) === 0x00;
+            const cia2BCascade = (this.cia2CtrlB & 0x60) === 0x40;
+            const cia2BClock = (this.cia2CtrlB & 0x01) !== 0 &&
+                this.cia2TimerBStartDelay === 0 && !cia2BLoaded &&
+                (cia2BPhi2 || (cia2BCascade && cia2PulseLastCycle));
+            if (cia2BClock) {
+                if (this.cia2TimerBReloadSkip) {
+                    this.cia2TimerBReloadSkip = false;
+                } else {
                     this.cia2TimerB--;
-                    if (this.cia2TimerB < 0) cia2TimerBUnderflow = true;
+                    cia2TimerBUnderflow = cia2BPhi2
+                        ? this.cia2TimerB <= 0
+                        : this.cia2TimerB < 0;
                 }
             }
-
             if (cia2TimerBUnderflow) {
-                this.cia2Icr |= 0x02; 
-                this.cia2TimerB = Math.max(2, this.cia2TimerBLatch);
-                if (this.cia2CtrlB & 0x08) this.cia2CtrlB &= ~0x01; 
+                this.cia2Icr |= 0x02;
+                this.cia2TimerB = this.cia2TimerBLatch;
+                this.cia2TimerBReloadSkip = true;
+                if (this.cia2CtrlB & 0x08) this.cia2CtrlB &= ~0x01;
                 this.updateIrqState();
             }
 
@@ -774,7 +956,13 @@ export class CPU6502 {
             case 0xA9: this.a = this.read(this.pc++); this.setNZ(this.a); cycles = 2; break; 
             case 0xA5: this.a = this.read(this.zp()); this.setNZ(this.a); cycles = 3; break; 
             case 0xB5: this.a = this.read(this.zpX()); this.setNZ(this.a); cycles = 4; break; 
-            case 0xAD: this.a = this.read(this.abs()); this.setNZ(this.a); cycles = 4; break; 
+            case 0xAD: {
+                const addr = this.abs();
+                this.a = this.read(addr);
+                if (this.hasPendingIcrRead) this.pendingIcrReadTarget = 1;
+                this.setNZ(this.a);
+                cycles = 4;
+            } break;
             case 0xBD: { 
                 let addr = this.abs();
                 let addrX = (addr + this.x) & 0xFFFF;

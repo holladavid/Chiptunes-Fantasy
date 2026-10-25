@@ -2,7 +2,7 @@
 
 ## Scope
 
-Introduced in Phase 0, the harness measures the SID implementation directly without hidden output processing. Phase 2 extended its waveform trace to the full 12-bit DAC input. Phase 3 adds a separate analog entry point and an archived external-reference comparison for the filter/mixer. It runs against `SIDChip` in Node or another ES-module runtime and requires neither a DOM nor an `AudioWorklet`.
+Introduced in Phase 0, the harness measures the SID implementation directly without hidden output processing. Phase 2 extended its waveform trace to the full 12-bit DAC input. Phase 3 added a separate analog entry point and an archived external-reference comparison for the filter/mixer. Phase 4 adds a distinct CPU/CIA instruction-and-register timing corpus; it does not change the audio signal tap or its baselines. The audio harness runs against `SIDChip` in Node or another ES-module runtime and requires neither a DOM nor an `AudioWorklet`.
 
 It provides one fixed signal tap:
 
@@ -55,6 +55,9 @@ node tools/sid-render.mjs --case all --check
 # Run the harness, digital-model and analog-routing regression tests.
 node --test test/sid-offline.test.mjs test/sid-digital.test.mjs test/sid-filter.test.mjs
 
+# Run the Phase 4 CPU/CIA scheduler and external long-latch comparisons.
+node --test test/sid-cpu-timing.test.mjs
+
 # Compare the production filter/mixer against the external R3 fixture.
 node tools/sid-filter-measure.mjs --check
 
@@ -69,10 +72,12 @@ Each artifact directory contains a JSON manifest with event semantics, signal-ta
 
 ## Baseline meaning and limits
 
-`test/fixtures/sid-baseline.json` is the current **self-generated Phase 3 regression pin**, not a hardware truth reference. `sid-phase2-baseline.json` and `sid-phase0-baseline.json` preserve earlier output for historical comparison. These fixtures make changes visible and reproducible; they do not prove that the current model sounds like a MOS 6581.
+`test/fixtures/sid-baseline.json` is the current **self-generated Phase 3 regression pin**, not a hardware truth reference. `sid-phase3-baseline.json` preserves a historical copy of that pin; `sid-phase2-baseline.json` and `sid-phase0-baseline.json` preserve earlier output for historical comparison. These fixtures make changes visible and reproducible; they do not prove that the current model sounds like a MOS 6581.
 
 `test/fixtures/sid-r3-filter-reference.json` is a different kind of evidence: externally generated black-box observations from libresidfp revision `c1791383ca843a855e5d4366da6a7277e34e801d`, with source-archive hash, stimulus and measurement conditions. `tools/sid-filter-measure.mjs` compares those observations with the production `processFilterMixer()` path using one global API output-scale alignment. It currently covers 639 responses and enforces a median absolute error of at most 2.5dB and p95 of at most 8dB. See `sid-filter-model.md` for the full method and limitations.
 
-The synthetic corpus covers silence, basic waveforms, ADSR/gate activity, a combined waveform, hard sync/ring modulation, a filter sweep, `$D418` writes and TEST-bit reset. Real PSID tunes and aligned reSIDfp/VICE captures remain necessary for musical and external-reference validation. Those binary assets are not included in this source export.
+`test/fixtures/sid-phase4-timing-reference.json` separately archives external libsidplayfp CPU/CIA observations and self-generated engine periods. Its SIDLite backend is only a register sink. The external comparison is restricted to long latches 100 and 244; small-latch write periods are handler-bound and are not treated as linear timer periods. Program hash, revision, source-archive hash, cycle convention, observed periods and remaining bus-model limits are documented in `sid-cpu-cia-timing.md`.
+
+The synthetic audio corpus covers silence, basic waveforms, ADSR/gate activity, a combined waveform, hard sync/ring modulation, a filter sweep, `$D418` writes and TEST-bit reset. Real PSID tunes and aligned reSIDfp/VICE captures remain necessary for musical and external-reference validation. Those binary assets are not included in this source export.
 
 For further external comparisons, render the same event stream and calibration conditions in the reference implementation, align the write/clock convention and filter delay, and compare the raw tap before introducing any output-stage processing. The Phase-3 EXT-IN fixture isolates the analog path; it does not replace aligned whole-tune, real-hardware or listening validation.

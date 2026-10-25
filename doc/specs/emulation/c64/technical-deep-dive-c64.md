@@ -79,18 +79,28 @@ In Martin Galway's *Arkanoid*, the drum synthesizer does not use NMI interrupts;
   ```
 * When a 50Hz frame tick (`hostPlayPending`) arrives while the CPU is spinning inside Galway's foreground drum loop with interrupts enabled (`I == 0`), the CPU pushes `PC` and `P`, sets `I = 1` (`SEI`), and vectors to `$FFD0`. The 3 SID voices are updated for the new 50Hz frame, and `RTI` returns the CPU **to the exact cycle and register state** of the ongoing drum synthesis loop.
 
-### 2.3. VIC-II Badline DMA Stalling (`RDY` Line)
-Whenever display output is enabled (`$D011` Bit 4) on raster lines `$30` through `$F7` and `(rasterCounter & 7) === ($D011 & 7)`, the VIC-II asserts a **Badline**, pulling the 6510 `RDY` line low for 40 cycles (`rasterCycles 12..51`). During this window, CPU execution freezes while timers and SID oscillators continue to run, reproducing the authentic pitch-grit on CPU-timed digi loops.
+### 2.3. Phase 4 Interrupt Polling & Final-Cycle ICR Reads
+Both C64 engines now share the CPU scheduler primitives `beginInstruction()`, `pollInterrupts()`, `canAdvanceCycle()` and `advanceCycle()`:
+* **Penultimate-cycle polling:** Longer instructions poll IRQ/NMI at `cyclesRemaining === 2`; a new IRQ after that poll waits through the following instruction. `beginInstruction()` also pre-polls so two-cycle CLI/SEI retain their delayed mask behavior.
+* **CLI/SEI pipeline:** CLI delays recognition through one following instruction, while SEI does not cancel an IRQ already accepted with I clear.
+* **Targeted final ICR read:** `LDA $DC0D` samples the ICR value, acknowledges it and updates A/N/Z on the final read cycle. This prevents a newly raised timer flag from being skipped by an early instruction-level read. It is not a general conversion of all ALU/RMW reads to a complete bus-cycle model.
+* **Bounded scope:** Branch-specific interrupt quirks and every interrupt stack cycle are not newly modeled. The Phase 4 tests establish deterministic behavior and bounded agreement with an external implementation, not complete physical-hardware equivalence.
 
-### 2.4. Dual CIA 6526 Cascading & Physical NMI Edge Latching
-* **1-Cycle Timer Cascade Latency:** Both CIA-1 (`$DC00`) and CIA-2 (`$DD00`) model Timer A and Timer B in 1MHz lockstep, including 1-cycle delayed underflow pulses for 32-bit cascaded timer modes (`(CtrlB & 0x60) === 0x40`) and BCD Time-Of-Day (`TOD`) read latches.
-* **Falling-Edge NMI Latch:** CIA-2 NMI generation tracks the physical wire state (`nmiLineState`). An NMI is triggered strictly on a **high-to-low transition** (`cia2NmiLine && !this.nmiLineState`), preventing infinite NMI re-trigger loops when routines leave `$DD0D` unacknowledged (*Turbo Outrun*, *Robocop 3*).
+### 2.4. VIC-II Badline DMA Stalling (`RDY` Line)
+Whenever display output is enabled (`$D011` Bit 4) on raster lines `$30` through `$F7` and `(rasterCounter & 7) === ($D011 & 7)`, the VIC-II asserts a **Badline**, pulling the 6510 `RDY` line low for 40 cycles (`rasterCycles 12..51`). Timers and SID oscillators continue to run. Phase 4 distinguishes CPU read cycles from staged writes: store read cycles stall, while a final store write and NMOS RMW dummy/final writes still proceed. Coverage is limited to these existing staged paths rather than claiming a new universal RDY/bus model.
 
-### 2.5. PlaySID Extended Register Trap (`$D41D–$D47F`) — The *Giana Sisters* Engine
+### 2.5. Dual MOS 6526 Timer Pipeline & Interrupt Output Latching
+* **Start, force-load and reload pipeline:** Both CIA-1 (`$DC00`) and CIA-2 (`$DD00`) model Timer A/B start delay, pending FORCE LOAD and the skipped decrement after reload. The former `Math.max(2, latch)` clamp is removed, so short latches are no longer artificially extended.
+* **Timer modes:** Underflow sets ICR, reloads and emits the Timer A pulse; one-shot clears START. Cascaded Timer B exposes zero for one input interval before reload, while Phi2 mode uses its distinct underflow boundary. BCD Time-Of-Day read latches remain supported.
+* **One-clock delayed interrupt output:** Newly enabled ICR conditions activate the CIA interrupt output after one clock. Once active, IMR clearing cannot clear the CIA1 IRQ flip-flop or CIA2 NMI line state; committed ICR reads acknowledge them. CIA2 NMI remains latched until acknowledgement and can trigger again afterwards.
+
+### 2.6. PlaySID Extended Register Trap (`$D41D–$D47F`) — The *Giana Sisters* Engine
 Vintage Amiga PlaySID rips (such as Chris Hülsbeck's *The Great Giana Sisters*) offload 4-bit digidrums to extended virtual DMA registers:
 * **Mirror-Safe Address Decoding:** Intercepts strictly addresses where `(addr & 0x1F) >= 0x1D`, allowing mirrored SID writes in `$D420–$D438` to pass unhindered to the SID core.
 * **3.6× Amiga-Paula Clock Auto-Conversion:** Detects Amiga Paula 3.55 MHz periods ($\ge 280$) written to `$D45D/$D45E` and scales them to C64 PAL cycles via $\text{Period}_{\text{C64}} = \text{round}\left(\text{Period}_{\text{Paula}} \times \frac{985248}{3546895}\right)$ (e.g. $907 \to 252\text{ cycles} \approx 3.91\text{ kHz}$).
 * **Nibble Endianness, Loops & Volume Restore:** Supports packed 4-bit streaming (`$D45F == 0`), transposed byte-stepping (`$D45F > 0`), configurable nibble order (`$D47D`: Big-Endian vs. Little-Endian), sample looping (`$D43F`, `$D47E/$D47F`), and automatically restores the tracker's last written `$D418` master volume and filter flags (`cpuLastD418`) the instant a one-shot sample finishes.
+
+Phase 4 timing provenance, the pinned 513-byte CIA corpus, external long-latch observations and separate self-generated regression periods are documented in `sid-cpu-cia-timing.md`. The libsidplayfp comparison uses only public API instruction traces and a SIDLite register sink; it provides no analog evidence and is not a real-chip capture.
 
 ---
 

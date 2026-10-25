@@ -113,10 +113,7 @@ class SIDProcessor extends AudioWorkletProcessor {
             this.cpu.clockHardware(1);
             this.sid.clock();
             
-            if (this.cpuCyclesRemaining === 1) {
-                this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
-                this.cpu.nmiAccepted = this.cpu.nmiPending;
-            }
+            if (this.cpuCyclesRemaining === 2) this.cpu.pollInterrupts();
 
             if (this.cpu.rdy && this.cpuCyclesRemaining <= 0) {
                 if (this.cpu.nmiAccepted) {
@@ -128,23 +125,10 @@ class SIDProcessor extends AudioWorkletProcessor {
                     this.cpu.triggerHardwareIrq();
                     this.cpuCyclesRemaining = 7 - 1;
                 } else {
-                    let cyclesUsed = this.cpu.step(); 
-                    this.cpuCyclesRemaining = cyclesUsed - 1; 
-                    if (this.cpuCyclesRemaining === 1 && this.cpu.hasDummyWrite) {
-                        this.cpu.commitDummyWrite();
-                    }
-                    if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
-                        this.cpu.commitPendingWrite();
-                    }
+                    this.cpuCyclesRemaining = this.cpu.beginInstruction();
                 }
-            } else if (this.cpu.rdy) {
-                this.cpuCyclesRemaining--;
-                if (this.cpuCyclesRemaining === 1 && this.cpu.hasDummyWrite) {
-                    this.cpu.commitDummyWrite();
-                }
-                if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
-                    this.cpu.commitPendingWrite();
-                }
+            } else if (this.cpu.canAdvanceCycle(this.cpuCyclesRemaining)) {
+                this.cpuCyclesRemaining = this.cpu.advanceCycle(this.cpuCyclesRemaining);
             }
         }
         
@@ -160,7 +144,7 @@ class SIDProcessor extends AudioWorkletProcessor {
             this.cpu.cia1CtrlA |= 0x01; 
         }
 
-        this.playSpeedCycles = this.useCiaTimer ? 19583 : 19656;
+        this.playSpeedCycles = 19656;
         this.vblankTimer = this.playSpeedCycles;
 
         this.resampler.reset();
@@ -222,12 +206,9 @@ class SIDProcessor extends AudioWorkletProcessor {
                 if (this.cpu.irqAccepted && this.cpuCyclesRemaining === 0) this.diagIrqCount++;
                 if (this.cpu.nmiAccepted && this.cpuCyclesRemaining === 0) this.diagNmiCount++;
 
-                if (this.cpuCyclesRemaining === 1) {
-                    this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
-                    this.cpu.nmiAccepted = this.cpu.nmiPending;
-                }
+                if (this.cpuCyclesRemaining === 2) this.cpu.pollInterrupts();
 
-                if (this.cpu.rdy) {
+                if (this.cpu.canAdvanceCycle(this.cpuCyclesRemaining)) {
                     if (this.cpuCyclesRemaining <= 0) {
                         const inIdleStub = (this.cpu.pc >= 0xFFE0 && this.cpu.pc <= 0xFFE3);
                         const canInterruptForeground = !inIdleStub && ((this.cpu.p & 0x04) === 0) && (this.cpu.sp > 0x60);
@@ -263,25 +244,11 @@ class SIDProcessor extends AudioWorkletProcessor {
                             this.cpu.triggerHardwareIrq();
                             this.cpuCyclesRemaining = 7 - 1; 
                         } else {
-                            let cyclesUsed = this.cpu.step(); 
-                            this.cpuCyclesRemaining = cyclesUsed - 1; 
-                            this.diagInstructions++; 
-
-                            if (this.cpuCyclesRemaining === 1 && this.cpu.hasDummyWrite) {
-                                this.cpu.commitDummyWrite();
-                            }
-                            if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
-                                this.cpu.commitPendingWrite();
-                            }
+                            this.cpuCyclesRemaining = this.cpu.beginInstruction();
+                            this.diagInstructions++;
                         }
                     } else {
-                        this.cpuCyclesRemaining--;
-                        if (this.cpuCyclesRemaining === 1 && this.cpu.hasDummyWrite) {
-                            this.cpu.commitDummyWrite();
-                        }
-                        if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
-                            this.cpu.commitPendingWrite();
-                        }
+                        this.cpuCyclesRemaining = this.cpu.advanceCycle(this.cpuCyclesRemaining);
                     }
                 }
             }
