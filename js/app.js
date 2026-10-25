@@ -23,6 +23,7 @@ import {
     setMasterCrossfeed // NEU IMPORTIERT!
 } from './audio/audio-controller.js';
 import { LivingSilicon } from './ui/living-silicon.js';
+import { MediaSessionController } from './audio/media-session.js';
 
 let fsUI = null;
 let siliconVisualizer = null; // Living Silicon Instanz
@@ -37,12 +38,37 @@ let currentScrollerText = "+++ INITIALIZING DEMO ENGINE... +++";
 let lastKnownFrame = 0; 
 let previousFrame = 0;       
 let lastTrackChangeTime = 0; 
+const livingSiliconChipNames = {
+    c64: 'MOS 6581 SID',
+    amiga: 'MOS 8364 PAULA',
+    atari: 'ATARI ST YM2149F'
+};
 let isEcoMode = false;      
 let isUserDragging = false; 
 let currentSubsongIndex = 1; 
 let channelVolumes = new Float32Array(4);
 let playRequestToken = 0; // NEU: Async Race Condition Schutz
 let playbackSessionId = 0; // NEU: Unidirectional State Sync für den Scene-DJ
+
+const mediaSessionArtwork = [{
+    src: new URL('./assets/media-session-cover.png', window.location.href).href,
+    sizes: '512x512',
+    type: 'image/png'
+}];
+const mediaSessionAlbums = {
+    c64: 'Chiptunes Fantasy · MOS 6581 SID',
+    amiga: 'Chiptunes Fantasy · MOS 8364 Paula',
+    atari: 'Chiptunes Fantasy · Yamaha YM2149F'
+};
+const mediaSession = new MediaSessionController({
+    onPlay: () => requestPlay(),
+    onPause: () => requestPause(),
+    onNext: () => requestNextTrack(),
+    onPrevious: () => requestPreviousTrack(),
+    onSeekBackward: offset => seekBySeconds(-offset),
+    onSeekForward: offset => seekBySeconds(offset),
+    onSeekTo: seconds => seekToSeconds(seconds)
+});
 
 // Cursor-Hiding Inaktivitäts-Timer
 let mouseIdleTimer = null;
@@ -141,9 +167,10 @@ function initApp() {
         // =========================================================
         const btnToggleArchive = document.getElementById('btn-toggle-archive');
         if (btnToggleArchive) {
-            btnToggleArchive.addEventListener('click', (e) => {
+            btnToggleArchive.addEventListener('click', () => {
                 const isExpanded = document.body.classList.toggle('archive-expanded');
-                e.target.innerText = isExpanded ? '[ COLLAPSE ]' : '[ EXPAND ]';
+                btnToggleArchive.textContent = isExpanded ? '[ EXPAND ]' : '[ COLLAPSE ]';
+                btnToggleArchive.setAttribute('aria-expanded', String(!isExpanded));
             });
         }
 
@@ -203,6 +230,7 @@ function updateTimelineUI() {
         document.getElementById('time-total').innerText = formatTime(trackData.length);
         document.getElementById('progress-slider').value = (lastKnownFrame / trackData.length) * 100;
     }
+    mediaSession.updatePosition(trackData.length / 50, lastKnownFrame / 50);
 }
 
 const progressSlider = document.getElementById('progress-slider');
@@ -219,29 +247,37 @@ progressSlider.addEventListener('input', (e) => {
 });
 
 progressSlider.addEventListener('change', (e) => {
-
-    // --- NEU: Generative C64 Programme können nicht per Slider gespult werden! ---
-    if (trackData.length === 0 || activeSystem === 'c64') return;
-
     const targetPercent = parseFloat(e.target.value);
-    const targetFrame = Math.floor((targetPercent / 100) * trackData.length);
-    
-    lastKnownFrame = targetFrame;
-    previousFrame = targetFrame;
-
-    const seekMsg = { type: 'SEEK_TRACK', frame: targetFrame };
-    const paulaNode = getPaulaNode();
-    const sidNode = getSidNode();
-    const ymNode = getYmNode();
-
-    if (activeSystem === 'amiga' && paulaNode) {
-        paulaNode.port.postMessage(seekMsg);
-    } else if (activeSystem === 'c64' && sidNode) {
-        sidNode.port.postMessage(seekMsg);
-    } else if (ymNode) {
-        ymNode.port.postMessage(seekMsg);
-    }
+    seekToFrame(Math.floor((targetPercent / 100) * trackData.length));
 });
+
+function canSeekActiveTrack() {
+    return trackData.length > 0 && (activeSystem === 'amiga' || activeSystem === 'atari');
+}
+
+function seekToFrame(targetFrame) {
+    if (!canSeekActiveTrack() || !Number.isFinite(targetFrame)) return false;
+
+    const clampedFrame = Math.min(Math.max(Math.floor(targetFrame), 0), trackData.length);
+    const node = activeSystem === 'amiga' ? getPaulaNode() : getYmNode();
+    if (!node) return false;
+
+    lastKnownFrame = clampedFrame;
+    previousFrame = clampedFrame;
+    node.port.postMessage({ type: 'SEEK_TRACK', frame: clampedFrame });
+    mediaSession.updatePosition(trackData.length / 50, clampedFrame / 50, true);
+    return true;
+}
+
+function seekToSeconds(seconds) {
+    if (!Number.isFinite(seconds)) return false;
+    return seekToFrame(Math.floor(seconds * 50));
+}
+
+function seekBySeconds(offset) {
+    if (!Number.isFinite(offset)) return false;
+    return seekToSeconds((lastKnownFrame / 50) + offset);
+}
 
 function handleWorkletMessage(e) {
     // --- NEU: LAB-LOGS AUS DEM HINTERGRUND-THREAD ABFANGEN ---
@@ -382,6 +418,23 @@ function handleWorkletMessage(e) {
     }
 }
 
+function syncMediaSessionTrack(selectedSong) {
+    if (!selectedSong || trackData.length === 0) return;
+
+    const metadata = trackData.metadata;
+    let title = metadata?.name || selectedSong.title;
+    const artist = metadata?.author || '';
+
+    if (activeSystem === 'c64' && trackData.isSidFile) {
+        const totalSongs = metadata?.songs || 1;
+        title += ` [SUB ${currentSubsongIndex}/${totalSongs}]`;
+    }
+
+    mediaSession.setMetadata(title, artist, mediaSessionAlbums[activeSystem], mediaSessionArtwork);
+    mediaSession.setSeekable(canSeekActiveTrack());
+    mediaSession.updatePosition(trackData.length / 50, lastKnownFrame / 50, true);
+}
+
 function changeC64Subsong(subsongId) {
     const sidNode = getSidNode();
     if (activeSystem === 'c64' && trackData && trackData.isSidFile && sidNode) { 
@@ -415,6 +468,7 @@ function changeC64Subsong(subsongId) {
         if (fsUI) {
             fsUI.updateTrack(`${meta.name.toUpperCase()} [SUB ${subsongId}/${meta.songs}]`);
         }
+        syncMediaSessionTrack(trackRegistry[activeSystem][currentTrackIndex]);
     }    
 
 }
@@ -452,7 +506,9 @@ function startPlayback() {
         }
     }
 
-    if (fsUI) fsUI.updatePlayState(true);  
+    if (fsUI) fsUI.updatePlayState(true);
+    mediaSession.setPlaybackState('playing');
+    mediaSession.updatePosition(trackData.length / 50, lastKnownFrame / 50, true);
 }
 
 function resumePlayback() {
@@ -469,6 +525,8 @@ function resumePlayback() {
     else if (ymNode) ymNode.port.postMessage({ type: 'RESUME_TRACK' });
 
     if (fsUI) fsUI.updatePlayState(true);
+    mediaSession.setPlaybackState('playing');
+    mediaSession.updatePosition(trackData.length / 50, lastKnownFrame / 50, true);
 }
 
 function stopPlayback() {
@@ -487,7 +545,9 @@ function stopPlayback() {
     // FIX: Allokationsfreies Zurücksetzen der Volume-Spuren bei Pause
     // =========================================================
     if (fsUI) fsUI.updatePlayState(false);
-    channelVolumes.fill(0); 
+    channelVolumes.fill(0);
+    mediaSession.setPlaybackState(trackData.length > 0 ? 'paused' : 'none');
+    mediaSession.updatePosition(trackData.length / 50, lastKnownFrame / 50, true);
 }
 
 let isTransitioning = false; // Verhindert Spam-Klicken der Tabs
@@ -528,6 +588,14 @@ async function setTheme(themeName, isBootSequence = false) {
 
     activeSystem = newSystem;
     tracklistDirectory = '';
+    document.body.classList.remove('archive-expanded');
+    const btnToggleArchive = document.getElementById('btn-toggle-archive');
+    if (btnToggleArchive) {
+        btnToggleArchive.textContent = '[ COLLAPSE ]';
+        btnToggleArchive.setAttribute('aria-expanded', 'true');
+    }
+    document.getElementById('living-silicon-title').textContent =
+        `> LIVING SILICON · ${livingSiliconChipNames[activeSystem]}`;
     
     const tempContainer = document.getElementById('temp-control-container');
     if (tempContainer) {
@@ -571,6 +639,9 @@ async function setTheme(themeName, isBootSequence = false) {
     trackData = [];
     currentTrackIndex = 0;
     currentChipRegs = null;
+    lastKnownFrame = 0;
+    previousFrame = 0;
+    mediaSession.clear();
     playbackSessionId++; // Erzwingt auch im DJ-Skillset einen State Sync Reset
     
     resetHUD();
@@ -678,7 +749,9 @@ function renderTracklist(system) {
                 renderTracklist(system);
             });
         } else {
-            li.textContent = entry.song.title;
+            li.textContent = system === 'amiga'
+                ? entry.song.path.split('/').pop().replace(/\.[^.]+$/, '').replaceAll('_', ' ')
+                : entry.song.title;
             if (entry.index === currentTrackIndex) li.classList.add('active-track');
             li.addEventListener('click', () => selectAndPlayTrack(entry.index, system));
         }
@@ -710,6 +783,7 @@ async function selectAndPlayTrack(index, system) {
     if (pwrLedOverride) pwrLedOverride.style.display = 'none';
 
     stopPlayback();
+    mediaSession.setSeekable(false);
     currentTrackIndex = index;
     const selectedSong = songs[index];
     
@@ -863,7 +937,8 @@ async function selectAndPlayTrack(index, system) {
 
             // --- NEU: HIER IST DER RICHTIGE ORT! ---
             // Jetzt liegen die NEUEN Metadaten sicher in trackData bereit
-            playbackSessionId++; 
+            playbackSessionId++;
+            syncMediaSessionTrack(selectedSong);
             startPlayback();
             
         } catch (err) {
@@ -892,6 +967,7 @@ async function selectAndPlayTrack(index, system) {
         `;
         currentScrollerText = "+++ NOW PLAYING: " + selectedSong.title + " +++";
         trackData = selectedSong.generator();
+        syncMediaSessionTrack(selectedSong);
         startPlayback();
     }
     if (fsUI) fsUI.updateTrack(selectedSong.title);
@@ -998,35 +1074,43 @@ async function disableEcoMode() {
     window.dispatchEvent(new Event('resize'));
 }
 
-document.getElementById('btn-play').addEventListener('click', () => {
-    resumeAudioContext().catch(e=>console.log(e));
-    if (isPlaying) {
-        stopPlayback(); 
+function requestPlay() {
+    if (isPlaying || !getAudioContext()) return;
+    resumeAudioContext().catch(e => console.log(e));
+    if (trackData.length === 0) {
+        const visibleEntries = getTracklistEntries(trackRegistry[activeSystem], tracklistDirectory);
+        const firstVisibleTrack = visibleEntries.find(entry => entry.type === 'track');
+        if (firstVisibleTrack) selectAndPlayTrack(firstVisibleTrack.index, activeSystem);
     } else {
-        if (trackData.length === 0) {
-            const visibleEntries = getTracklistEntries(trackRegistry[activeSystem], tracklistDirectory);
-            const firstVisibleTrack = visibleEntries.find(entry => entry.type === 'track');
-            if (firstVisibleTrack) selectAndPlayTrack(firstVisibleTrack.index, activeSystem);
-        } else {
-            resumePlayback();
-        }
+        resumePlayback();
     }
-});
+}
 
-document.getElementById('btn-next').addEventListener('click', () => {
-    resumeAudioContext().catch(e=>console.log(e));
+function requestPause() {
+    if (isPlaying) stopPlayback();
+}
+
+function requestPlayPause() {
+    if (isPlaying) requestPause();
+    else requestPlay();
+}
+
+function requestNextTrack() {
+    if (!getAudioContext()) return;
+    resumeAudioContext().catch(e => console.log(e));
     if (activeSystem === 'c64' && trackData && trackData.isSidFile) {
         const totalSongs = trackData.metadata.songs || 1;
         if (currentSubsongIndex < totalSongs) {
             changeC64Subsong(currentSubsongIndex + 1);
-            return; 
+            return;
         }
     }
     selectAndPlayTrack((currentTrackIndex + 1) % trackRegistry[activeSystem].length, activeSystem);
-});
+}
 
-document.getElementById('btn-prev').addEventListener('click', () => {
-    resumeAudioContext().catch(e=>console.log(e));
+function requestPreviousTrack() {
+    if (!getAudioContext()) return;
+    resumeAudioContext().catch(e => console.log(e));
     if (activeSystem === 'c64' && trackData && trackData.isSidFile) {
         if (currentSubsongIndex > 1) {
             changeC64Subsong(currentSubsongIndex - 1);
@@ -1036,7 +1120,11 @@ document.getElementById('btn-prev').addEventListener('click', () => {
     let prevIdx = currentTrackIndex - 1;
     if (prevIdx < 0) prevIdx = trackRegistry[activeSystem].length - 1;
     selectAndPlayTrack(prevIdx, activeSystem);
-});
+}
+
+document.getElementById('btn-play').addEventListener('click', requestPlayPause);
+document.getElementById('btn-next').addEventListener('click', requestNextTrack);
+document.getElementById('btn-prev').addEventListener('click', requestPreviousTrack);
 
 document.getElementById('volume-slider').addEventListener('input', (e) => {
     const masterGain = getMasterGain();

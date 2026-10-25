@@ -64,18 +64,25 @@ export class FourPoleFilter {
 }
 
 export class DCBlocker {
-    constructor() { this.lastIn = 0; this.lastOut = 0; }
+    constructor(sampleRate = 0, cutoffHz = 0) {
+        this.lastIn = 0; this.lastOut = 0;
+        // Preserve the legacy coefficient for existing Atari callers. C64
+        // Fantasy supplies an explicit sample-rate-independent coupling corner.
+        this.coefficient = sampleRate > 0 && cutoffHz > 0
+            ? Math.exp(-2.0 * Math.PI * cutoffHz / sampleRate)
+            : 0.995;
+    }
     process(input) {
-        let out = input - this.lastIn + 0.995 * this.lastOut;
+        let out = input - this.lastIn + this.coefficient * this.lastOut;
         this.lastIn = input; this.lastOut = out;
         return out;
     }
 }
 
 export class C64AnalogFilter {
-    constructor(sampleRate) {
-        // 1. Sinc-Droop Equalizer Pre-Emphasis (+2.5 dB bei 16 kHz)
-        this.cComp = 0.22;
+    constructor(sampleRate, droopCompensation = 0.22) {
+        // Optional compensation for a separately measured resampler droop.
+        this.cComp = droopCompensation;
         this.lastX = 0;
 
         // 2. C64 Motherboard 16kHz Lowpass Filter

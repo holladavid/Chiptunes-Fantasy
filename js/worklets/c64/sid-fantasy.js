@@ -3,7 +3,7 @@
 // MOS 6581 / CSG 8580 "CHIPTUNES FANTASY STUDIO" CORE (v1.5.0)
 // Audiophile Edition: 1MHz 6502 Lockstep, Re-Entrant 50Hz Play-IRQ
 // Dispatcher, Parallel 3-Voice Sync/RingMod Clocking, Dual-Channel
-// 32-Phase Fractional Polyphase Sinc-FIR Decimator (255 Taps),
+// 256-Phase Kaiser-Sinc Resampler (20kHz Passband, 96dB Design),
 // CSG 8580 Linear R-2R DACs & 20kHz Studio Airband ZDF VCF
 // =========================================================
 
@@ -11,6 +11,7 @@ import { CPU6502 } from '../lib/cpu6502.js';
 import { calculateWaveform8Bit } from '../lib/sid-waveforms.js';
 import { DAC_LUT_8580, PWM_LUT, RATE_COUNTER_PERIOD } from '../lib/sid-luts.js';
 import { DCBlocker } from '../lib/dsp-utils.js';
+import { SidResampler } from '../lib/sid-resampler.js';
 
 const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_RELEASE = 2; 
 
@@ -353,8 +354,8 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
         this.sid = new SIDFantasyChip();
         this.cpu = new CPU6502(this.sid);
         
-        this.dcBlockL = new DCBlocker();
-        this.dcBlockR = new DCBlocker();
+        this.dcBlockL = new DCBlocker(sampleRate, 16.0);
+        this.dcBlockR = new DCBlocker(sampleRate, 16.0);
 
         this.prgCode = null;
         this.loadAddr = 0;
@@ -366,7 +367,6 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
         this.isPlaying = false;
         this.fadeVol = 0.0;
         
-        this.cycleAccumulator = 0.0;
         this.vblankTimer = 19656; 
         this.currentFrame = 0;
         this.hostPlayPending = false;
@@ -376,40 +376,7 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
         
         this.visualView = new Float32Array(40);
 
-        this.FIR_TAPS = 255;
-        this.NUM_PHASES = 32;
-        this.polyphaseTable = new Float32Array(this.NUM_PHASES * this.FIR_TAPS);
-        this.ringBufferL = new Float32Array(512); 
-        this.ringBufferR = new Float32Array(512); 
-        this.ringIndex = 0;
-
-        const fc = 20000.0 / this.clock;
-        const halfK = (this.FIR_TAPS - 1) / 2;
-
-        for (let p = 0; p < this.NUM_PHASES; p++) {
-            const dt = p / this.NUM_PHASES;
-            let sum = 0.0;
-            const phaseOffset = p * this.FIR_TAPS;
-
-            for (let i = 0; i < this.FIR_TAPS; i++) {
-                const x = (i - halfK) - dt;
-                const sinc = (Math.abs(x) < 1e-7) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
-                const wPos = (i - dt) / (this.FIR_TAPS - 1);
-                const window = (wPos >= 0.0 && wPos <= 1.0)
-                    ? (0.42 - 0.5 * Math.cos(2 * Math.PI * wPos) + 0.08 * Math.cos(4 * Math.PI * wPos))
-                    : 0.0;
-
-                const val = sinc * window;
-                this.polyphaseTable[phaseOffset + i] = val;
-                sum += val;
-            }
-
-            if (sum > 0) {
-                for (let i = 0; i < this.FIR_TAPS; i++) {
-                    this.polyphaseTable[phaseOffset + i] /= sum;
-                }
-            }
-        }
+        this.resampler = new SidResampler(this.clock, sampleRate, { channels: 2 });
 
         this.port.onmessage = (e) => {
             const msg = e.data;
@@ -419,9 +386,6 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
             }
 
             if (msg.isSidFile) {
-                this.ringBufferL.fill(0);
-                this.ringBufferR.fill(0);
-                this.ringIndex = 0;
 
                 this.prgCode = msg.c64Code;
                 this.loadAddr = msg.loadAddress;
@@ -439,9 +403,6 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
             } else if (msg.type === 'RESUME_TRACK') {
                 this.isPlaying = true;
             } else if (msg.type === 'CHANGE_SUBSONG') {
-                this.ringBufferL.fill(0);
-                this.ringBufferR.fill(0);
-                this.ringIndex = 0;
 
                 this.sid = new SIDFantasyChip();
                 this.cpu.sid = this.sid;
@@ -470,10 +431,7 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
             this.cpu.clockHardware(1);
             this.sid.clock();
             
-            if (this.cpuCyclesRemaining === 1) {
-                this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
-                this.cpu.nmiAccepted = this.cpu.nmiPending;
-            }
+            if (this.cpuCyclesRemaining === 2) this.cpu.pollInterrupts();
 
             if (this.cpu.rdy && this.cpuCyclesRemaining <= 0) {
                 if (this.cpu.nmiAccepted) {
@@ -485,23 +443,10 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                     this.cpu.triggerHardwareIrq();
                     this.cpuCyclesRemaining = 7 - 1;
                 } else {
-                    let cyclesUsed = this.cpu.step(); 
-                    this.cpuCyclesRemaining = cyclesUsed - 1; 
-                    if (this.cpuCyclesRemaining === 1 && this.cpu.hasDummyWrite) {
-                        this.cpu.commitDummyWrite();
-                    }
-                    if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
-                        this.cpu.commitPendingWrite();
-                    }
+                    this.cpuCyclesRemaining = this.cpu.beginInstruction();
                 }
-            } else if (this.cpu.rdy) {
-                this.cpuCyclesRemaining--;
-                if (this.cpuCyclesRemaining === 1 && this.cpu.hasDummyWrite) {
-                    this.cpu.commitDummyWrite();
-                }
-                if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
-                    this.cpu.commitPendingWrite();
-                }
+            } else if (this.cpu.canAdvanceCycle(this.cpuCyclesRemaining)) {
+                this.cpuCyclesRemaining = this.cpu.advanceCycle(this.cpuCyclesRemaining);
             }
         }
 
@@ -513,10 +458,10 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
         this.useCiaTimer = ((this.songSpeedFlags >> Math.min(31, songIndex)) & 1) !== 0;
         if (this.useCiaTimer) this.cpu.cia1CtrlA |= 0x01; 
 
-        this.playSpeedCycles = this.useCiaTimer ? 19583 : 19656;
+        this.playSpeedCycles = 19656;
         this.vblankTimer = this.playSpeedCycles;
 
-        this.cycleAccumulator = 0.0;
+        this.resampler.reset();
         this.currentFrame = 0;
         this.maxFrames = maxFrames;
         this.hostPlayPending = false;
@@ -536,21 +481,13 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                 continue; 
             }
             
-            this.cycleAccumulator += this.clock / sampleRate;
-            let cyclesToRun = Math.floor(this.cycleAccumulator);
-            this.cycleAccumulator -= cyclesToRun;
-
-            let phaseIdx = Math.floor(this.cycleAccumulator * this.NUM_PHASES);
-            if (phaseIdx >= this.NUM_PHASES) phaseIdx = this.NUM_PHASES - 1;
-            let kernelBase = phaseIdx * this.FIR_TAPS;
+            const cyclesToRun = this.resampler.beginSample();
 
             for (let c = 0; c < cyclesToRun; c++) {
                 this.cpu.clockHardware(1); 
                 this.sid.clock();          
                 
-                this.ringBufferL[this.ringIndex] = this.sid.outputSampleL;
-                this.ringBufferR[this.ringIndex] = this.sid.outputSampleR;
-                this.ringIndex = (this.ringIndex + 1) & 511;
+                this.resampler.write(this.sid.outputSampleL, this.sid.outputSampleR);
 
                 if (this.playAddress === 0) {
                     this.vblankTimer--;
@@ -573,12 +510,9 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                     }
                 }
 
-                if (this.cpuCyclesRemaining === 1) {
-                    this.cpu.irqAccepted = this.cpu.irqPending && (this.cpu.p & 0x04) === 0;
-                    this.cpu.nmiAccepted = this.cpu.nmiPending;
-                }
+                if (this.cpuCyclesRemaining === 2) this.cpu.pollInterrupts();
 
-                if (this.cpu.rdy) {
+                if (this.cpu.canAdvanceCycle(this.cpuCyclesRemaining)) {
                     if (this.cpuCyclesRemaining <= 0) {
                         const inIdleStub = (this.cpu.pc >= 0xFFE0 && this.cpu.pc <= 0xFFE3);
                         const canInterruptForeground = !inIdleStub && ((this.cpu.p & 0x04) === 0) && (this.cpu.sp > 0x60);
@@ -610,35 +544,17 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                             this.cpu.triggerHardwareIrq();
                             this.cpuCyclesRemaining = 7 - 1; 
                         } else {
-                            let cyclesUsed = this.cpu.step(); 
-                            this.cpuCyclesRemaining = cyclesUsed - 1; 
-                            if (this.cpuCyclesRemaining === 1 && this.cpu.hasDummyWrite) {
-                                this.cpu.commitDummyWrite();
-                            }
-                            if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
-                                this.cpu.commitPendingWrite();
-                            }
+                            this.cpuCyclesRemaining = this.cpu.beginInstruction();
                         }
                     } else {
-                        this.cpuCyclesRemaining--;
-                        if (this.cpuCyclesRemaining === 1 && this.cpu.hasDummyWrite) {
-                            this.cpu.commitDummyWrite();
-                        }
-                        if (this.cpuCyclesRemaining === 0 && this.cpu.hasPendingWrite) {
-                            this.cpu.commitPendingWrite();
-                        }
+                        this.cpuCyclesRemaining = this.cpu.advanceCycle(this.cpuCyclesRemaining);
                     }
                 }
             }
             
-            let decL = 0.0, decR = 0.0;
-            let firIdx = (this.ringIndex - 1) & 511;
-            for (let k = 0; k < this.FIR_TAPS; k++) {
-                let coeff = this.polyphaseTable[kernelBase + k];
-                decL += this.ringBufferL[firIdx] * coeff;
-                decR += this.ringBufferR[firIdx] * coeff;
-                firIdx = (firIdx - 1) & 511;
-            }
+            this.resampler.processStereo();
+            const decL = this.resampler.outputL;
+            const decR = this.resampler.outputR;
 
             let dcL = this.dcBlockL.process(decL);
             let dcR = this.dcBlockR.process(decR);

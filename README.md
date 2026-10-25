@@ -1,10 +1,10 @@
-# 💾 CHIPTUNES FANTASY (v1.5.0)
+# 💾 CHIPTUNES FANTASY (v1.5.1)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
 
 ## 🎯 The Vision ("Von Nerds für Nerds")
-**Chiptunes Fantasy** is not a simple music player. It is a high-fidelity, real-time emulated music disk and interactive hardware laboratory that runs entirely in your web browser with 100% hardware accuracy and zero external framework dependencies. 
+**Chiptunes Fantasy** is not a simple music player. It is a high-fidelity, real-time emulated music disk and interactive hardware laboratory that runs entirely in your web browser with zero external framework dependencies. Hardware-oriented emulation is validated subsystem by subsystem; measured reference agreement is not a claim of universal chip accuracy.
 
 We do not play MP3s or pre-recorded audio. We parse genuine, vintage binary tracker and music-driver formats (`.sid`, `.hipc`, `.mod`, `.xm`, `.dw`, `.ym`) and synthesize every single waveform, DMA fetch, filter, and envelope on-the-fly using highly optimized, low-latency asynchronous `AudioWorkletProcessors`.
 
@@ -16,7 +16,37 @@ Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with rut
 
 ---
 
-## 🔬 New in v1.5.0: Next-Gen "Living Silicon" & Authentic Chip Physics
+## 🚀 v1.5.1 Release Highlights
+
+### 🎵 SID Refinement Program — Phases 0–5
+The C64 engine has been refined through six bounded, individually documented phases:
+
+| Phase | Delivered improvement |
+|---|---|
+| **0 — Measurement foundation** | Added a deterministic raw-chip harness with cycle-stamped events, PCM/CSV traces and archived regression baselines. Measurements bypass hidden output processing and distinguish self-generated regression pins from independent evidence. |
+| **1 — Resampling and output** | Added measured 256-phase interpolated Kaiser-Sinc resampling with a 20 kHz passband and at least 96 dB stopband attenuation at 44.1/48 kHz, while retaining the parameterized motherboard output stage. |
+| **2 — MOS 6581 R3 digital model** | Preserves full 12-bit waveform DAC inputs, explicit noise taps and the no-waveform DAC latch. The stateful ADSR model adds a two-clock GATE pipeline, wrapping 15-bit rate counter, exact period matching and documented exponential divider thresholds. |
+| **3 — Filter and mixer calibration** | Fits cutoff and damping maps through the public libresidfp API and corrects additive LP/BP/HP routing, feedthrough, linear master volume and direct-path-only `3OFF`. The archived 639-point comparison reports 1.876 dB median and 6.737 dB p95 absolute response error. |
+| **4 — CPU and CIA timing** | Corrects final-cycle stores, NMOS RMW dummy writes, interrupt polling, selected final-cycle ICR reads, RDY behavior, CIA timer pipelines and delayed IRQ/NMI outputs. Coverage is bounded to the documented scheduler paths, not a complete physical C64 model. |
+| **5 — Fantasy studio acceptance** | Adds deterministic production-worklet comparisons and sample-rate-independent 16 Hz stereo output coupling to `sid-fantasy`. The Exact renders remained byte-identical; no Exact analog settings were inferred from the Fantasy tuning. |
+
+The hardware-oriented path explicitly targets the **MOS 6581 R3**. A separate hardware-oriented CSG 8580 model remains future work. `sid-fantasy` is an artistic stereo studio interpretation, not an Exact hardware mode. External libsidplayfp/reSIDfp observations are black-box references only; no implementation code or internal tables were imported. Reference-model agreement and self-generated baselines are not real-chip captures or proof of universal hardware accuracy.
+
+Technical evidence: [measurement harness](doc/specs/emulation/c64/sid-measurement-harness.md), [digital model](doc/specs/emulation/c64/sid-digital-model.md), [filter/mixer](doc/specs/emulation/c64/sid-filter-model.md), [CPU/CIA timing](doc/specs/emulation/c64/sid-cpu-cia-timing.md), and [Fantasy studio acceptance](doc/specs/emulation/c64/sid-fantasy-studio.md).
+
+### 📱 Media Session System Controls
+The browser's Media Session integration exposes the decoded track title, composer, sound system and dedicated cover artwork to supported OS media controls and lock screens. Play, pause, stop, next and previous use the same transport functions as the on-screen and fullscreen controls. Next/previous preserves SID subsong order before advancing through the playlist.
+
+Amiga and Atari tracks additionally support system seeking, ten-second skip actions and throttled position reporting. C64/SID playback deliberately exposes no seek actions because its generative music programs do not currently provide reliable random-access seeking. Missing Media Session APIs and unsupported individual actions are ignored safely.
+
+Media Session improves system integration; it does **not** guarantee uninterrupted background playback. Mobile operating systems may suspend audio or the page, especially on iOS, according to their own browser and power-management policies.
+
+### 🖼️ Player Stability
+The visualizer now skips the complete frame when its canvas has a zero-sized drawable surface. This prevents `drawImage` failures while hidden or before layout and resumes normally after a positive resize.
+
+---
+
+## 🔬 Living Silicon & Hardware-Oriented Chip Telemetry
 
 ### 🧬 Interactive "Living Silicon" Die & Motherboard Telemetry
 Each of the three sound pillars now features a zero-allocation, schematic-grade SVG silicon die and external motherboard circuit model that breathes in 60FPS lockstep with the emulators:
@@ -29,13 +59,16 @@ Each of the three sound pillars now features a zero-allocation, schematic-grade 
 ## 🎛️ The Three Soundchip Pillars
 
 ### 1. MOS Technology SID 6581 / CSG 8580 (Commodore 64)
-Our cycle-exact 1MHz SID engine is one of the deepest analog emulations available on the web:
+Our PAL-clock SID engine combines a documented digital core with independently measured analogue calibration:
 *   **Re-Entrant 50Hz Play-IRQ Dispatcher (`$FFD0–$FFDD`):** A 14-byte phantom KERNAL IRQ wrapper allows 50Hz music voice updates to cleanly interrupt Martin Galway's multi-frame foreground `$D418` drum synthesis loops (*Arkanoid*) whenever `CLI` (`I = 0`) is active, resuming the procedural drum loop via `RTI` with zero dropped music frames.
-*   **6510 Sub-Cycle Bus Write Pipelining & RMW Dummy-Writes:** Store instructions (`STA/STX/STY`) commit to the hardware bus strictly on the final 4th clock cycle, while Read-Modify-Write instructions (`INC/DEC/ASL/LSR/ROL/ROR`) execute a genuine penultimate-cycle dummy write of the unmodified byte before committing the new value.
+*   **6510 Sub-Cycle Bus Write Pipelining & RMW Dummy-Writes:** Store instructions (`STA/STX/STY`) commit to the hardware bus strictly on the final 4th clock cycle, while Read-Modify-Write instructions (`INC/DEC/ASL/LSR/ROL/ROR`) execute a penultimate-cycle dummy write of the unmodified byte before committing the new value.
+*   **Phase 4 CPU / MOS 6526 Timing:** Penultimate-cycle IRQ polling, delayed CLI/SEI mask behavior, RDY write-cycle progression, CIA timer start/force-load/reload pipelines, cascaded Timer B, one-clock delayed IRQ/NMI outputs and final-cycle `LDA $DC0D` acknowledgement are regression-tested against a synthetic corpus and external libsidplayfp black-box traces. This is bounded reference-model agreement, not a complete bus-cycle CPU or real-hardware proof; see `doc/specs/emulation/c64/sid-cpu-cia-timing.md`.
 *   **Mirror-Safe PlaySID 3.6× Auto-Conversion & Volume Restore:** Isolates PlaySID extended DMA registers strictly to `(addr & 0x1F) >= 0x1D`, converts Amiga-Paula clock periods ($\ge 280$) to C64 PAL cycles ($907 \to 252$ cycles = $3.91\text{ kHz}$), supports `$D47D` nibble endianness and sample loops, and automatically restores the tracker's shadow `$D418` master volume upon sample completion (*The Great Giana Sisters*).
-*   **Parallel 3-Voice Clocking & Dynamic Wire-AND Relaxation:** Advances all three 24-bit phase accumulators and Hard-Sync/RingMod edges in parallel on the 1MHz grid, models Chris Hülsbeck's `$50` "Engelsstimme" Wire-AND LUT (*Giana Sisters Subsong 2*), latches Pulse output to `0xFF` on `Test-Bit` (`$08`), and models NMOS parasitic gate capacitance ($C_{\text{gate}} \approx 1\text{ pF}$) relaxation above $2\text{ kHz}$.
-*   **Wizball-Stable 2MHz ZDF State-Space Solver & 16Hz `C13` Coupling:** Enforces the physical MOS 6581 R3 S-curve cutoff ceiling ($30\text{ Hz} - 6.2\text{ kHz}$), symmetric JFET triode resonance quenching ($Q_{\max} \approx 3.0$), real-time semiconductor thermal drift ($15^\circ\text{C} - 75^\circ\text{C}$), 32-phase 255-tap Polyphase Sinc-FIR decimation ($>75\text{ dB}$ stopband rejection), and the authentic **16 Hz** motherboard `C13` AC-coupling highpass filter for full kick-drum weight.
-*   **SID 6581/8580 "Chiptunes Fantasy Studio" Core:** Audiophile dual-channel engine featuring CSG 8580 linear R-2R DACs, 20kHz Studio Airband ZDF VCF, Constant-Power StereoSID dynamic voice staging, and a 48Hz digidrum sub-harmonic transient exciter.
+*   **MOS 6581 R3 12-Bit Digital Core:** Advances three 24-bit phase accumulators with Hard-Sync/RingMod on the 1MHz grid, preserves full 12-bit saw/triangle/pulse/noise DAC inputs, retains the DAC latch with no waveform selected, and uses a documented wired-AND combined-selector baseline. Combined-waveform analogue pull-down calibration remains explicitly measurement-dependent.
+*   **Stateful 15-Bit ADSR:** Two-clock GATE pipeline, non-resettable wrapping rate counter, exact period matching, linear Attack, and documented exponential divider thresholds reproduce state-dependent retrigger behavior instead of resetting it away.
+*   **Black-Box-Calibrated MOS 6581 R3 Filter & Mixer:** The two-substep ZDF solver uses cutoff and damping maps fitted through the public API of libresidfp revision `c1791383`—without importing its code or internal tables. The archived 639-point EXT-IN comparison currently measures 1.876dB median and 6.737dB p95 absolute response error. Additive LP/BP/HP routing, separate measured feedthrough, linear 16-step master volume and direct-path-only `3OFF` are regression-tested. This is reference-model agreement, not a real-chip capture or universal hardware-accuracy claim; see `doc/specs/emulation/c64/sid-filter-model.md`.
+*   **Measured Resampling & Output Coupling:** 256-phase interpolated Kaiser-Sinc resampling provides a measured 20kHz passband and at least 96dB stopband attenuation at 44.1/48kHz. The motherboard stage retains its parameterized 16kHz output low-pass and **16Hz** `C13` AC-coupling high-pass.
+*   **SID 6581/8580 "Chiptunes Fantasy Studio" Core:** Audiophile dual-channel engine featuring CSG 8580 linear R-2R DACs, 20kHz Studio Airband ZDF VCF, Constant-Power StereoSID dynamic voice staging, and a 48Hz digidrum sub-harmonic transient exciter. Phase 5 adds measured sample-rate-independent **16Hz stereo output coupling** (−0.448dB at 48Hz), with deterministic 20-second worklet comparisons archived for *Commando* and *Arkanoid*. The Exact renders remained byte-identical; external-model STFT agreement is diagnostic evidence, not real-hardware proof. See `doc/specs/emulation/c64/sid-fantasy-studio.md`.
 
 ### 2. MOS Technology Paula 8364 / AHI (Amiga 500 & A1200)
 *   **Native Jochen Hippel COSO / HIPC Replay Engine (v1.5.0):** Bit-accurate binary parser (`parseCoso`) and zero-allocation 50Hz state machine (`CosoReplayer` & `CosoVirtualMachine`) verified against UADE reference renders ($>95\%$ energy correlation) for *Wings of Death* (Levels 1–7) and *Dragonflight* (Title, Surface, Town, Dungeon). Features two-layer Timbre/Instrument execution (`$E8` envelope sustain, `$E2` vs. `$E4/$E7` split wave-latching, `$E5/$E6` loop sliding, proportional portamento `period * t * slope >> 10`), exact pre-computed song durations (`cosoSongTicks`), and instant deterministic seeking (`seekToTick`).

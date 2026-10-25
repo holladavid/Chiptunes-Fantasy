@@ -1,0 +1,46 @@
+{
+  "format": "chiptunes-fantasy-sid-phase4-timing-v1",
+  "purpose": "external CPU/CIA black-box observations plus a separate self-generated engine regression pin; not real-hardware or analog proof",
+  "externalReference": {
+    "project": "libsidplayfp",
+    "revision": "6d1da4dce5ec2eea18f2b1a6a483e49a532f9b41",
+    "sourceArchive": "https://codeload.github.com/libsidplayfp/libsidplayfp/tar.gz/refs/heads/master",
+    "sourceArchiveSha256": "95e885c96a119a3421be66997b09bd637519375094b96029fc6b3bf4b3668eac",
+    "configureVersion": "3.2.0a",
+    "publicApi": [
+      "SidTune memory loading",
+      "sidplayfp.play",
+      "sidplayfp.debug instruction trace",
+      "sidplayfp.getSidStatus"
+    ],
+    "c64Model": "PAL",
+    "ciaModel": "MOS6526",
+    "powerOnDelay": 0,
+    "sidBackend": "SIDLite; used only as a register sink, never as analog evidence",
+    "writeCycleConvention": "STA $D418 instruction start plus three CPU cycles",
+    "programSha256": "13437a077249ec57a4f03ff69478cc359f1494634722053abe27aa6123f2679b",
+    "observations": {
+      "0": { "periods": [69, 69, 69, 69, 69, 69] },
+      "1": { "periods": [69, 69, 69, 69, 69, 69, 69] },
+      "2": { "periods": [69, 69, 69, 69, 69, 69, 69] },
+      "3": { "periods": [69, 69, 69, 69, 69, 69, 69] },
+      "5": { "periods": [69, 69, 69, 69, 69, 69, 69] },
+      "17": { "periods": [69, 69, 69, 69, 69, 69, 69] },
+      "100": { "periods": [102, 102, 99, 102, 102, 99, 102] },
+      "244": { "periods": [246, 246, 243, 246] }
+    }
+  },
+  "engineRegression": {
+    "purpose": "Phase 4 self-generated timing pin; distinct from external truth",
+    "periods": {
+      "0": [80, 80, 80, 80, 80, 80, 80],
+      "1": [80, 80, 80, 80, 80, 80, 80],
+      "2": [80, 80, 80, 80, 80, 80, 80],
+      "3": [80, 80, 80, 80, 80, 80, 80],
+      "5": [80, 80, 80, 80, 80, 80, 80],
+      "17": [80, 80, 80, 80, 80, 80, 80],
+      "100": [100, 103, 100, 100, 102, 100, 103],
+      "244": [245, 245, 245, 245, 245, 245, 245]
+    }
+  }
+}

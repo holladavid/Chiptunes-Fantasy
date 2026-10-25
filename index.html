@@ -25,7 +25,7 @@
 
     <div id="boot-screen">
         <div class="boot-box">
-            <p class="boot-header">**** CHIPTUNES FANTASY V1.5.0 ****</p>
+            <p class="boot-header">**** CHIPTUNES FANTASY V1.5.1 ****</p>
             <p class="boot-subheader">64K RAM SYSTEM  38911 BASIC BYTES FREE</p>
             <div class="boot-logs">
                 <p>EMU CORES LOADED: OK</p>
@@ -159,13 +159,15 @@
 
             <!-- Rechte Spalte: Museum / Info -->
             <div id="museum-panel">
-                <!-- Das Living Silicon Modul rutscht bündig an die Gehäuseoberkante -->
+                <div class="museum-toolbar living-silicon-toolbar">
+                    <span class="museum-toolbar-title" id="living-silicon-title">&gt; LIVING SILICON · MOS 6581 SID</span>
+                    <button id="btn-toggle-archive" type="button" title="Living Silicon ein- oder ausblenden"
+                        aria-controls="living-silicon-container" aria-expanded="true">[ COLLAPSE ]</button>
+                </div>
                 <div id="living-silicon-container" style="margin-bottom: 15px;"></div>
                 
-                <!-- NEU: Die gefräste Toolbar für die Archiv-Steuerung -->
                 <div class="museum-toolbar">
                     <span class="museum-toolbar-title">&gt; DATABASE & ARCHIVE</span>
-                    <button id="btn-toggle-archive" title="Toggle Archive Size">[ EXPAND ]</button>
                 </div>
                 
                 <div class="museum-content" id="info-text">

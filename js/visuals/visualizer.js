@@ -147,6 +147,14 @@ let lastDrawTime = performance.now();
         }
 
         const now = performance.now();
+
+        // A hidden or not-yet-laid-out canvas has no drawable surface. Skip the
+        // complete frame before any offscreen canvas can reach drawImage at 0px.
+        if (canvas.width === 0 || canvas.height === 0) {
+            requestAnimationFrame(draw);
+            return;
+        }
+
         const t = (now - startTime) * 0.001; 
         let dt = (now - lastDrawTime) * 0.001;
         if (dt > 0.1) dt = 0.016; // FPS-Drop Protection

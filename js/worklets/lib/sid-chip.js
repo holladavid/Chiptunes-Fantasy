@@ -3,41 +3,54 @@
 // MOS Technology SID 6581 Sound Chip Emulation (v1.5.0)
 // True Analog Master Edition:
 // - Parallel 3-Voice Phase Accumulator & Symmetric Hard-Sync/RingMod
-// - Full 1.65x Voice Gain + Calibrated 0.90V Master Digi DC Bias
-// - Wizball-Stable 2MHz ZDF OTA Filter Solver (MOS 6581 R3 S-Curve)
+// - Full 12-Bit Waveform DAC Input, Persistent 15-Bit ADSR State
+// - Black-Box-Calibrated R3 Cutoff/Resonance and 2MHz ZDF Filter
 // =========================================================
 
-import { calculateWaveform8Bit } from './sid-waveforms.js';
-import { DAC_LUT, CUTOFF_LUT, PWM_LUT, RATE_COUNTER_PERIOD } from './sid-luts.js';
+import { calculateWaveform12Bit6581R3 } from './sid-waveforms-6581.js';
+import { WAVE_DAC_6581_R3, DAC_LUT_6581_R3, RATE_COUNTER_PERIOD } from './sid-luts.js';
+import {
+    clockSidEnvelope,
+    initializeSidEnvelope,
+    setSidEnvelopeGate
+} from './sid-envelope.js';
+import {
+    BP_FEEDTHROUGH_6581_R3,
+    CUTOFF_HZ_6581_R3,
+    FILTER_DAMPING_6581_R3,
+    HP_FEEDTHROUGH_6581_R3,
+    HP_GAIN_6581_R3,
+    SID_FILTER_SUBCLOCK
+} from './sid-filter-6581.js';
 
-const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_RELEASE = 2; 
-
-const VOLUME_DAC_6581 = new Float32Array([
-    0.000, 0.078, 0.149, 0.228, 0.307, 0.378, 0.449, 0.512,
-    0.606, 0.669, 0.724, 0.787, 0.842, 0.898, 0.953, 1.000
-]);
+// The datasheet defines sixteen linear master-volume steps.
+const VOLUME_DAC_6581 = new Float32Array(16);
+for (let i = 0; i < 16; i++) VOLUME_DAC_6581[i] = i / 15;
 
 export class SIDChip {
-    constructor() {
+    // Optional deterministic calibration hook for offline measurements.
+    // Browser playback keeps the original per-instance analogue variation.
+    constructor(vcfOffset = (Math.random() - 0.5) * 80.0) {
+        this.model = 'MOS6581_R3';
+        this.waveformDac = WAVE_DAC_6581_R3;
+        this.envelopeDac = DAC_LUT_6581_R3;
         this.regs = new Uint8Array(29);
         this.regs[24] = 0x0F;
         this.voices = [];
         for (let i = 0; i < 3; i++) {
-            this.voices.push({
-                freq: 0, pw: 2048, ctrl: 0, env: 0, phase: 0,
-                state: ENV_RELEASE, prevGate: false,
-                waveOut8Bit: 0x18, 
-                busCharge: 0x18, 
+            const voice = {
+                freq: 0, pw: 2048, ctrl: 0, phase: 0,
+                waveOut12Bit: 0,
+                waveOut8Bit: 0,
                 env8Bit: 0, lfsr: 0x7FFFFF,
-                rate_counter: 0, exponential_counter: 0, envelope_counter: 0,
                 attack_period: RATE_COUNTER_PERIOD[0],
                 decay_period: RATE_COUNTER_PERIOD[0],
                 sustain_level: 0,
                 release_period: RATE_COUNTER_PERIOD[0],
-                msbRisingEdge: false,
-                envDelay: 0,
-                wrapped: false
-            });
+                msbRisingEdge: false
+            };
+            initializeSidEnvelope(voice);
+            this.voices.push(voice);
         }
         this.cutoff = 30; this.resonance = 0; this.filterMode = 0x0F;
         this.masterVol = VOLUME_DAC_6581[15];
@@ -53,16 +66,12 @@ export class SIDChip {
         this.q = 1.0;
         this.activeCutoff = 30.0;
         
-        this.vcfOffset = (Math.random() - 0.5) * 80.0;
+        this.vcfOffset = vcfOffset;
 
         this._temperature = 55.0;
         this.thermalDacGain = 1.0;
         this.thermalDacOffset = 0.0;
-        this.thermalLeakage = 0.03; 
         this.thermalDcOffset = 0.0;
-        this.thermalJfetDrive = 0.8;
-
-        this.thermalVoiceDcLeakage = 0.015;
         this.thermalMasterDcBias = 0.90;
 
         this.volWiggleActivity = 0.0;
@@ -78,34 +87,19 @@ export class SIDChip {
     }
 
     updateFilterParameters() {
-        let cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
-        let norm = cutoffReg / 2047.0;
+        const cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
+        const resonance = this.regs[23] >> 4;
 
-        let thermalCoefficient = Math.exp(-(this._temperature - 55.0) * 0.003);
-        
-        let baseHz = 30.0 + (1200.0 * norm) + (7200.0 * norm * norm) - (2230.0 * norm * norm * norm);
-        if (baseHz > 6200.0) baseHz = 6200.0;
-        
-        this.activeCutoff = Math.max(30.0, Math.min(6800.0, baseHz * thermalCoefficient + this.vcfOffset));
-
-        let baseG = Math.PI * this.activeCutoff / 985248;
-        this.g = baseG * (1.0 + (this._temperature - 55.0) * 0.0005);
-        
-        let resReg = this.regs[23] >> 4;
-        let normRes = resReg / 15.0;
-        let q = 1.0 - normRes * 0.945;
-        let thermalDamp = 1.0 + (this._temperature - 55.0) * 0.0015;
-        this.q = Math.min(1.0, Math.max(0.035, q * thermalDamp));
+        // vcfOffset is an explicit per-chip calibration offset, not a random
+        // temperature curve. Temperature no longer changes the measured map.
+        this.activeCutoff = Math.max(30.0,
+            CUTOFF_HZ_6581_R3[cutoffReg] + this.vcfOffset);
+        this.g = Math.tan(Math.PI * this.activeCutoff / SID_FILTER_SUBCLOCK);
+        this.q = FILTER_DAMPING_6581_R3[cutoffReg * 16 + resonance];
 
         this.thermalDacGain = 1.0 - (this._temperature - 55.0) * 0.0008;
         this.thermalDacOffset = (this._temperature - 55.0) * 0.0003;
-        this.thermalLeakage = 0.09 + (this._temperature - 25.0) * 0.0008;
         this.thermalDcOffset = (this._temperature - 55.0) * 0.005;
-        this.thermalJfetDrive = 0.8 * (1.0 - (this._temperature - 55.0) * 0.004);
-        if (this.thermalJfetDrive < 0.1) this.thermalJfetDrive = 0.1; 
-
-        let tempNorm = (this._temperature - 15.0) / 40.0;
-        this.thermalVoiceDcLeakage = 0.005 + Math.pow(Math.max(0.0, tempNorm), 1.6) * 0.015;
         this.thermalMasterDcBias = 0.90 + (this._temperature - 55.0) * 0.003;
     }
 
@@ -124,18 +118,9 @@ export class SIDChip {
             let prevCtrl = ch.ctrl;
             ch.ctrl = this.regs[base+4];
             
-            let gate = (ch.ctrl & 1) !== 0;
-            let prevGate = (prevCtrl & 1) !== 0;
-            
-            if (gate !== prevGate) {
-                ch.envDelay = 1;
-                ch.state = gate ? ENV_ATTACK : ENV_RELEASE;
-                if (gate) {
-                    ch.rate_counter = 0;
-                    ch.exponential_counter = 0;
-                }
-            }
-            ch.prevGate = gate;
+            const gate = (ch.ctrl & 1) !== 0;
+            const previousGate = (prevCtrl & 1) !== 0;
+            if (gate !== previousGate) setSidEnvelopeGate(ch, gate);
 
             if (ch.ctrl & 8) {
                 ch.phase = 0; 
@@ -167,54 +152,7 @@ export class SIDChip {
     }
 
     clockEnvelopeOneCycle(v) {
-        let ch = this.voices[v];
-
-        if (ch.envDelay > 0) {
-            ch.envDelay--;
-            return;
-        }
-
-        let ratePeriod = ch.release_period;
-        if (ch.state === ENV_ATTACK) ratePeriod = ch.attack_period;
-        else if (ch.state === ENV_DECAY) ratePeriod = ch.decay_period;
-
-        ch.rate_counter++;
-
-        if (ch.rate_counter >= ratePeriod) {
-            ch.rate_counter = 0; 
-
-            let expPeriod = 1;
-            if (ch.state !== ENV_ATTACK) {
-                let envVal = ch.envelope_counter;
-                if (envVal >= 93) expPeriod = 1;
-                else if (envVal >= 54) expPeriod = 2;
-                else if (envVal >= 26) expPeriod = 4;
-                else if (envVal >= 14) expPeriod = 8;
-                else if (envVal >= 6) expPeriod = 16;
-                else expPeriod = 30;
-            }
-
-            ch.exponential_counter++;
-            if (ch.exponential_counter >= expPeriod) {
-                ch.exponential_counter = 0;
-
-                if (ch.state === ENV_ATTACK) {
-                    ch.envelope_counter++;
-                    if (ch.envelope_counter >= 255) {
-                        ch.envelope_counter = 255;
-                        ch.state = ENV_DECAY;
-                    }
-                } else if (ch.state === ENV_DECAY) {
-                    if (ch.envelope_counter !== ch.sustain_level) {
-                        if (ch.envelope_counter > 0) ch.envelope_counter--;
-                    }
-                } else if (ch.state === ENV_RELEASE) {
-                    if (ch.envelope_counter > 0) {
-                        ch.envelope_counter--;
-                    }
-                }
-            }
-        }
+        clockSidEnvelope(this.voices[v]);
     }
 
     clockOscillatorsOneCycle() {
@@ -232,9 +170,8 @@ export class SIDChip {
                     let bit = ((ch.lfsr >> 22) ^ (ch.lfsr >> 17)) & 1;
 
                     if ((ch.ctrl & 0x80) && (ch.ctrl & 0x70) !== 0) {
-                        let testPhase = (newAcc >> 12) & 0xFFF;
-                        let pwMapped = PWM_LUT[ch.pw & 0xFFF];
-                        let isPulseLow = (ch.ctrl & 0x40) && (testPhase >= pwMapped);
+                        const testPhase = (newAcc >> 12) & 0xFFF;
+                        const isPulseLow = (ch.ctrl & 0x40) && (testPhase >= (ch.pw & 0xFFF));
                         
                         if (isPulseLow || (ch.ctrl & 0x30)) {
                             bit = 0; 
@@ -266,33 +203,22 @@ export class SIDChip {
         let prevMSB = (prevCh.phase >> 23) & 1;
         let ringMSB = (ch.ctrl & 4) ? (ownMSB ^ prevMSB) : ownMSB;
 
-        let hasWave = (ch.ctrl & 0xF0) !== 0;
-        if (hasWave) {
-            let rawWave8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, ch.pw, ch.lfsr, ringMSB, ch.freq);
-            let waveMask = ch.ctrl & 0xF0;
-            let isCombined = (waveMask !== 0x10 && waveMask !== 0x20 && waveMask !== 0x40 && waveMask !== 0x80);
-
-            if (isCombined) {
-                ch.busCharge += 0.22 * (rawWave8Bit - ch.busCharge);
-                ch.waveOut8Bit = ch.busCharge;
-            } else {
-                ch.busCharge = rawWave8Bit;
-                ch.waveOut8Bit = rawWave8Bit;
-            }
-        } else {
-            ch.busCharge += 0.00015 * (0x18 - ch.busCharge);
-            ch.waveOut8Bit = ch.busCharge;
+        if ((ch.ctrl & 0xF0) !== 0) {
+            ch.waveOut12Bit = calculateWaveform12Bit6581R3(
+                ch.ctrl, ch.phase, ch.pw, ch.lfsr, ringMSB
+            );
         }
-
+        // With no selected waveform the DAC input latch retains its last value.
+        ch.waveOut8Bit = ch.waveOut12Bit >>> 4;
         ch.env8Bit = ch.envelope_counter;
 
-        let envDac = DAC_LUT[ch.env8Bit];
-        let waveDac = DAC_LUT[Math.floor(ch.waveOut8Bit)];
+        const envDac = this.envelopeDac[ch.env8Bit];
+        const waveDac = this.waveformDac[ch.waveOut12Bit];
 
         let waveOutFloat = (waveDac * 2.0) - 1.0;
         waveOutFloat = waveOutFloat * this.thermalDacGain + this.thermalDacOffset;
         
-        return (waveOutFloat + this.thermalVoiceDcLeakage) * envDac;
+        return waveOutFloat * envDac;
     }
 
     clock() {
@@ -306,89 +232,61 @@ export class SIDChip {
         let voice1 = this.synthesizeVoiceOneCycle(1);
         let voice2 = this.synthesizeVoiceOneCycle(2);
 
-        // --- INTER-VOICE CROSSTALK ---
-        let bleed0 = voice0 + voice1 * 0.008 + voice2 * 0.004;
-        let bleed1 = voice1 + voice0 * 0.008 + voice2 * 0.008;
-        let bleed2 = voice2 + voice1 * 0.008 + voice0 * 0.004;
-
         let filteredSum = 0;
         let unfilteredSum = 0;
+        const routing = this.regs[23];
+        const voice3Off = (this.filterMode & 128) !== 0;
 
-        const isVoice3Off = (this.filterMode & 128) !== 0;
+        if (routing & 1) filteredSum += voice0; else unfilteredSum += voice0;
+        if (routing & 2) filteredSum += voice1; else unfilteredSum += voice1;
 
-        if (this.regs[23] & 1) filteredSum += bleed0; else unfilteredSum += bleed0;
-        if (this.regs[23] & 2) filteredSum += bleed1; else unfilteredSum += bleed1;
+        // 3 OFF disconnects only the direct path. A filtered voice 3 remains
+        // audible, as documented in the datasheet; no invented crosstalk path.
+        if (routing & 4) filteredSum += voice2;
+        else if (!voice3Off) unfilteredSum += voice2;
 
-        if (!isVoice3Off) {
-            if (this.regs[23] & 4) filteredSum += bleed2; else unfilteredSum += bleed2;
-        } else {
-            let envDac3 = DAC_LUT[this.voices[2].env8Bit];
-            let v3DcLeak = (this.thermalVoiceDcLeakage * envDac3) + (bleed0 * 0.004 + bleed1 * 0.008);
-            if (this.regs[23] & 4) filteredSum += v3DcLeak; else unfilteredSum += v3DcLeak;
-        }
+        this.processFilterMixer(filteredSum, unfilteredSum);
+    }
 
-        // =========================================================
-        // ZERO-DELAY FEEDBACK (ZDF) TRAPEZOIDAL STATE-SPACE SOLVER (2MHz)
-        // =========================================================
-        let subG = Math.tan((Math.PI * this.activeCutoff) / 1970496);
-        
-        let resReg = this.regs[23] >> 4;
-        let normRes = resReg / 15.0;
-        let k = 1.414 - (normRes * 1.08);
-        
-        let denom = 1.0 + subG * (subG + k);
+    // Separate analog entry point for deterministic EXT IN-style measurements.
+    // No objects or arrays are created in this hot path.
+    processFilterMixer(filteredSum, unfilteredSum) {
+        const subG = this.g;
+        const k = this.q;
+        const denom = 1.0 + subG * (subG + k);
         let filterOut = 0;
 
+        // Two trapezoidal-integrator substeps per SID clock.
         for (let sub = 0; sub < 2; sub++) {
-            let hp = (filteredSum - this.x1 * (subG + k) - this.x2) / denom;
-            let bpRaw = subG * hp + this.x1;
-            
-            let bp = bpRaw;
-            if (this.useJfetSaturation) {
-                let summerDrive = this.thermalJfetDrive * 0.70;
-                bp = Math.tanh(bpRaw * summerDrive) / summerDrive;
-            }
-
-            let lp = subG * bp + this.x2;
+            const hp = (filteredSum - this.x1 * (subG + k) - this.x2) / denom;
+            const bp = subG * hp + this.x1;
+            const lp = subG * bp + this.x2;
 
             this.x1 = 2.0 * bp - this.x1;
             this.x2 = 2.0 * lp - this.x2;
-
             this.filterBand = bp;
             this.filterLow = lp;
 
-            let outLP = (this.filterMode & 16) ? lp : 0;
-            let outBP = (this.filterMode & 32) ? bp : 0;
-            let outHP = (this.filterMode & 64) ? hp : 0;
-
-            if ((this.filterMode & 80) === 80) { 
-                outHP = -outHP * 0.90;
-            }
-
-            filterOut = outLP + outBP + outHP;
+            filterOut = ((this.filterMode & 16) ? lp : 0) +
+                ((this.filterMode & 32) ?
+                    bp + filteredSum * BP_FEEDTHROUGH_6581_R3 : 0) +
+                ((this.filterMode & 64) ?
+                    hp * HP_GAIN_6581_R3 + filteredSum * HP_FEEDTHROUGH_6581_R3 : 0);
         }
 
-        if (isNaN(this.filterLow) || isNaN(this.filterBand)) {
-            this.filterLow = 0.0;
-            this.filterBand = 0.0;
-            this.x1 = 0.0;
-            this.x2 = 0.0;
-            filterOut = 0.0;
+        if (!Number.isFinite(this.filterLow) || !Number.isFinite(this.filterBand)) {
+            this.filterLow = 0;
+            this.filterBand = 0;
+            this.x1 = 0;
+            this.x2 = 0;
+            filterOut = 0;
         }
 
-        let leakage = filteredSum * this.thermalLeakage;
-        let filteredMix = filterOut + leakage;
-
-        let rawSum = unfilteredSum + filteredMix;
-
-        // =========================================================
-        // MASTER VCA SATURATION & DC OFFSET (Full 1.65x Voice Gain)
-        // =========================================================
-        let vcaIn = rawSum * 0.35; 
-        let vcaCurve = vcaIn + (this.useJfetSaturation ? (0.05 * Math.pow(vcaIn, 2)) : 0);
-        let acSaturated = Math.tanh(vcaCurve);
-        let finalMix = (acSaturated * 1.65) + this.thermalMasterDcBias;
-
-        this.outputSample = (finalMix * this.masterVol) + this.thermalDcOffset;
+        const mixed = unfilteredSum + filterOut;
+        const vcaIn = mixed * 0.35;
+        const acSaturated = this.useJfetSaturation ? Math.tanh(vcaIn) : vcaIn;
+        const finalMix = acSaturated * 1.65 + this.thermalMasterDcBias;
+        this.outputSample = finalMix * this.masterVol + this.thermalDcOffset;
+        return this.outputSample;
     }
 }
