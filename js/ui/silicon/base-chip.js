@@ -66,8 +66,10 @@ export class BaseChip {
 
     // Muss von Kind-Klassen überschrieben werden
     getSvg() { return ''; }
+    getChassisClass() { return ''; }
+    getSidePanelHTML() { return ''; }
     cacheDOM() {}
-    update(vols, regs, t) {}
+    update(vols, regs, t, telemetry) {}
 
     // Mountet den Chip physisch auf das Mainboard und injiziert die Flanken-Diagnostik
     mount() {
@@ -78,7 +80,7 @@ export class BaseChip {
         else if (this.constructor.name === 'Ym2149') { clockFreq = "2.00 MHz"; regCount = "16"; }
 
         this.container.innerHTML = `
-            <div class="silicon-chassis">
+            <div class="silicon-chassis ${this.getChassisClass()}">
                 <div class="silicon-diagnostics diag-left">
                     <div class="diag-block"><span class="d-lbl">CLOCK</span><span class="d-val">${clockFreq}</span></div>
                     <div class="diag-block"><span class="d-lbl">BUS</span><span class="d-val blink">ACTIVE</span></div>
@@ -90,6 +92,7 @@ export class BaseChip {
                     <div class="diag-block"><span class="d-lbl">REGS</span><span class="d-val">${regCount}</span></div>
                     <div class="diag-block"><span class="d-lbl">PWR</span><span class="d-val">NOMINAL</span></div>
                 </div>
+                ${this.getSidePanelHTML()}
             </div>
         `;
         this.cacheDOM();

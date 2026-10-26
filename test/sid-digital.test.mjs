@@ -66,7 +66,7 @@ test('6581 triangle-pulse uses independently fitted phase and pulse transfer sta
     assert.equal(calculateWaveform12Bit6581R3(0x50, 0x801000, 0, 0, 0), 4095);
 });
 
-test('GATE traverses two clock stages without resetting the 15-bit rate counter', () => {
+test('GATE traverses two clock stages and restarts the rate phase on attack', () => {
     const sid = new SIDChip(0);
     sid.writeReg(5, 0x00);
     clock(sid, 5);
@@ -79,8 +79,11 @@ test('GATE traverses two clock stages without resetting the 15-bit rate counter'
     assert.equal(voice.rate_counter, 6);
     clock(sid, 1);
     assert.equal(voice.state, SID_ENV_ATTACK);
-    assert.equal(voice.rate_counter, 7);
-    clock(sid, 2);
+    assert.equal(voice.rate_counter, 1);
+    clock(sid, 7);
+    assert.equal(voice.envelope_counter, 0);
+    assert.equal(voice.rate_counter, 8);
+    clock(sid, 1);
     assert.equal(voice.envelope_counter, 1);
     assert.equal(voice.rate_counter, 0);
 });

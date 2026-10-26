@@ -1,6 +1,6 @@
 // Cycle-level SID envelope generator shared by hardware-oriented chip models.
-// The rate counter cannot be reset through GATE or TEST. Gate changes traverse
-// a two-cycle input pipeline and only an exact 15-bit period match emits a tick.
+// Gate changes traverse a two-cycle input pipeline. Rising GATE restarts the
+// 15-bit rate phase; only an exact period match emits an envelope tick.
 
 export const SID_ENV_ATTACK = 0;
 export const SID_ENV_DECAY = 1;
@@ -41,6 +41,7 @@ export function clockSidEnvelope(voice) {
         voice.gate = resolvedGate;
         voice.state = resolvedGate ? SID_ENV_ATTACK : SID_ENV_RELEASE;
         if (resolvedGate) {
+            voice.rate_counter = 0;
             voice.exponential_counter = 0;
             voice.exponential_period = 1;
             voice.hold_zero = false;

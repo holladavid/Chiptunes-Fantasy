@@ -34,10 +34,10 @@ export class LivingSilicon {
         }
     }
 
-    update(channelVolumes, currentRegs, t) {
+    update(channelVolumes, currentRegs, t, sidRegisterWriteRate = 0) {
         if (this.activeChip) {
             // Delegation an das gekapselte Chip-Objekt
-            this.activeChip.update(channelVolumes, currentRegs, t);
+            this.activeChip.update(channelVolumes, currentRegs, t, sidRegisterWriteRate);
         }
     }
 }

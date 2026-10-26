@@ -53,15 +53,23 @@ The original upload has SHA-256 `014764e6ee11df4b458c6b30e235ea639d702bd56766a87
 Each voice has an independent cycle-level state machine:
 
 - GATE changes propagate through a two-clock input pipeline.
-- The 15-bit rate counter wraps at `$7FFF` and is never reset by GATE or TEST.
+- The 15-bit rate counter wraps at `$7FFF`; rising GATE restarts its phase, while TEST does not.
 - A rate tick occurs only on exact equality with the selected period, not on `>=`. Shortening a period below the current counter therefore waits for wraparound.
 - Attack increments linearly and enters Decay at envelope 255.
 - Decay/Release use exponential divider periods 1, 2, 4, 8, 16 and 30.
 - The divider period is reloaded after an envelope decrement at thresholds 93, 54, 26, 14 and 6.
-- Entering Attack resets the exponential counter and clears the zero hold; the rate counter continues.
+- Entering Attack restarts the rate phase, resets the exponential counter and clears the zero hold.
 - Envelope zero holds until a later Attack, preventing release wraparound. This lower bound also applies when a short GATE pulse enters Release before Attack has produced the first increment.
 
-These rules make rapid retriggering and rate changes dependent on prior internal state instead of hiding that state through a convenient reset.
+Release preserves the running counters. A new Attack deliberately establishes a fresh rate phase so that short retriggered notes do not depend on the preceding note's counter position.
+
+### Original-recording short-GATE calibration
+
+The supplied original-SID Wizball High Score recording contains the complete rising “bubble” sequence from six seconds onward. Its SHA-256 is `b092f00c615d7282852a2b2521cc7fe39ed8921bc797da4e8e9b62b403659c24` (48 kHz, stereo, 136.31275 seconds). Production-processor tracing of the original `Wizball.sid` binary found 21 short voice-2 GATE attacks between 5.5 and 10.5 seconds. With the former persistent rate phase, only one attack rose above envelope 128; the other 20 remained at envelope 0 or 1 and were effectively silent.
+
+Restarting the rate phase on rising GATE makes all 21 attacks reach envelope 255 and restores the chirp sequence visible and audible in the original recording. The correction retains the two-clock GATE pipeline, exact period comparator, 15-bit wraparound, exponential Decay/Release, zero hold, waveform/filter/DAC models and the separate Fantasy core. This is original-recording calibration for the observed short-GATE behavior, not a claim that every ADSR property or every 6581 revision has been validated.
+
+A 20-second render from the original Wizball upload, selecting Subsong 7 without modifying its header, has RMS 0.129946, peak 0.652550 and zero non-finite samples. Chromium reached Subsong 7 beyond ten seconds with finite nonzero analyser output and no page or console errors. Twenty-second Crazy Comets and 45-second Giana Subsong 2 regression renders also remain finite; Giana's `$50` voice retains its calibrated 1459…4095 waveform range with zero silent waveform samples in the measured 28–36-second interval.
 
 ### Zero-level GATE-pulse regression
 
@@ -92,7 +100,7 @@ node --expose-gc --test \
 
 `test/fixtures/sid-baseline.json` now pins the reviewed Phase 3 output, which includes the later analog changes. `sid-phase2-baseline.json` preserves the digital-model completion output and `sid-phase0-baseline.json` preserves the earlier Phase 0/1 fixture. All are self-generated regression pins, not hardware-truth references; the separate Phase-3 external reference fixture is documented in `sid-filter-model.md`.
 
-The focused digital tests cover primitive 12-bit values, every noise tap, combined-selector logic, GATE delay, rate-counter preservation/wraparound, linear attack, exponential thresholds, release/zero hold, DAC-latch retention and model/DAC identity. The offline trace stores waveform values as `Uint16`, so lower four DAC-input bits remain observable.
+The focused digital tests cover primitive 12-bit values, every noise tap, combined-selector logic, GATE delay and attack rate-phase restart, rate-counter wraparound, linear attack, exponential thresholds, release/zero hold, DAC-latch retention and model/DAC identity. The offline trace stores waveform values as `Uint16`, so lower four DAC-input bits remain observable.
 
 ## Documentation references and remaining validation
 

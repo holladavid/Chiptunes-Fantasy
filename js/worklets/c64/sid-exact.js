@@ -42,7 +42,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.temperature = 55.0;
         this.cpuCyclesRemaining = 0;
         
-        this.visualView = new Float32Array(40);
+        this.visualView = new Float32Array(41);
 
         this.resampler = new SidResampler(this.clock, sampleRate);
 
@@ -327,7 +327,12 @@ class SIDProcessor extends AudioWorkletProcessor {
                 view[4 + 28] = Math.floor(this.sid.voices[2].env8Bit) & 0xFF;
                 view[33] = this.temperature;
                 for (let v = 0; v < 3; v++) view[34 + v] = this.sid.voices[v].envelope_counter / 255.0;
-                view[37] = 0.0;
+                const writeTotal = this.sid.registerWrites;
+                const previousWriteTotal = this.lastVisRegisterWrites || 0;
+                const deltaWrites = writeTotal >= previousWriteTotal ? writeTotal - previousWriteTotal : writeTotal;
+                this.lastVisRegisterWrites = writeTotal;
+                view[37] = deltaWrites * sampleRate * 0.001953125; // 512 audio frames per packet
+                for (let v = 0; v < 3; v++) view[38 + v] = this.sid.voices[v].state;
 
                 this.port.postMessage(view);
             }

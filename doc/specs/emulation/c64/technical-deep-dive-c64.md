@@ -118,8 +118,8 @@ The Exact path keeps the full 12-bit DAC input for sawtooth, triangle, pulse and
 * **Model-specific conversion:** `SIDChip.model` is explicitly `MOS6581_R3`, with separate waveform and envelope DAC bindings. The artistic Fantasy core remains separate and is not an Exact 8580 profile.
 
 ### 3.3. 15-Bit ADSR Envelope State Machine
-* **Persistent rate state:** The rate counter wraps at `$7FFF`, cannot be reset by GATE or TEST, and fires only on exact period equality. Shortening a rate below the running counter therefore waits for wraparound instead of forcing an immediate tick.
-* **Two-clock GATE pipeline:** Gate changes enter Attack or Release after two SID clocks. Attack resets the exponential divider and zero hold, but not the rate counter.
+* **15-bit rate state:** The rate counter wraps at `$7FFF` and fires only on exact period equality. Shortening a rate below the running counter therefore waits for wraparound instead of forcing an immediate tick. A rising GATE restarts the rate phase; TEST does not.
+* **Two-clock GATE pipeline:** Gate changes enter Attack or Release after two SID clocks. Attack restarts the rate phase, resets the exponential divider and clears zero hold.
 * **Piecewise exponential Decay/Release:** Divider periods `1, 2, 4, 8, 16, 30` are loaded after decrements through envelope thresholds `93, 54, 26, 14, 6`. Attack increments linearly and switches to Decay at 255; envelope zero holds until the next Attack.
 
 See `sid-digital-model.md` for the exact digital contract, source references and remaining hardware-validation limits.

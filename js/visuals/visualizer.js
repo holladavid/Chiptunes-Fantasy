@@ -193,7 +193,8 @@ let lastDrawTime = performance.now();
         // =========================================================
         const activeSilicon = document.getElementById('living-silicon-container');
         if (activeSilicon && window.siliconVisualizerInstance) {
-            window.siliconVisualizerInstance.update(channelVolumes, chipRegs, t);
+            const sidBusRate = stateGetters.getSidRegisterWriteRate ? stateGetters.getSidRegisterWriteRate() : 0;
+            window.siliconVisualizerInstance.update(channelVolumes, chipRegs, t, sidBusRate);
         }
 
         // =========================================================

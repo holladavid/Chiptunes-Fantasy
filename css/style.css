@@ -1531,6 +1531,136 @@ body.theme-atari .silicon-chip-label {
 }
 
 /* =========================================
+   C64 SID ACTIVITY INSTRUMENT
+   Envelope segments + logarithmic register-write history
+   ========================================= */
+.silicon-chassis.sid-chassis {
+    grid-template-columns: 80px minmax(0, 1fr) 180px;
+    gap: 12px;
+}
+
+.silicon-chassis.sid-chassis .diag-right { display: none; }
+
+.sid-activity {
+    min-width: 0;
+    height: 100%;
+    padding-left: 10px;
+    border-left: 1px solid #222222;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.sid-activity svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-height: 190px;
+    overflow: visible;
+}
+
+.sid-activity text {
+    font-family: 'Press Start 2P', monospace;
+    pointer-events: none;
+}
+
+.sid-meter-title { fill: var(--highlight-color); font-size: 9px; }
+.sid-meter-caption { fill: var(--panel-text); font-size: 5.5px; }
+.sid-meter-voice-label { fill: var(--text-color); font-size: 6.5px; }
+.sid-meter-state { fill: var(--highlight-color); font-size: 5.5px; }
+.sid-meter-bus-value { fill: var(--highlight-color); font-size: 7px; }
+.sid-meter-digi-label { fill: var(--panel-text); font-size: 4.5px; }
+
+.sid-meter-segment {
+    fill: var(--chassis-dark);
+    opacity: 0.42;
+    shape-rendering: crispEdges;
+}
+
+.sid-meter-segment.is-active {
+    fill: var(--highlight-color);
+    opacity: 0.96;
+}
+
+.sid-meter-voice-1 .sid-meter-segment.is-active { fill: var(--text-color); }
+.sid-meter-voice-2 .sid-meter-segment.is-active { fill: var(--bus-active-color); }
+
+.sid-meter-gate,
+.sid-meter-digi {
+    fill: var(--chassis-dark);
+    opacity: 0.45;
+    shape-rendering: crispEdges;
+}
+
+.sid-meter-gate.is-active,
+.sid-meter-digi.is-active {
+    fill: var(--highlight-color);
+    opacity: 1;
+}
+
+.sid-meter-peak {
+    stroke: var(--panel-text);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+}
+
+.sid-bus-history-frame {
+    fill: #000000;
+    stroke: var(--chassis-dark);
+    stroke-width: 0.7;
+    shape-rendering: crispEdges;
+}
+
+.sid-bus-history-grid {
+    stroke: var(--chassis-dark);
+    stroke-width: 0.5;
+    stroke-dasharray: 2 3;
+    opacity: 0.55;
+}
+
+.sid-bus-history-bar {
+    fill: var(--text-color);
+    opacity: 0.82;
+    shape-rendering: crispEdges;
+}
+
+@media (max-width: 1400px) {
+    .silicon-chassis.sid-chassis {
+        grid-template-columns: minmax(0, 1fr) 180px;
+        height: clamp(210px, 25vh, 260px);
+    }
+
+    .sid-activity { padding-left: 8px; }
+}
+
+@media (max-width: 720px) {
+    .silicon-chassis.sid-chassis {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: 180px 142px;
+        height: 352px;
+        gap: 8px;
+    }
+
+    .sid-activity {
+        width: min(100%, 260px);
+        height: 142px;
+        justify-self: center;
+        padding: 8px 0 0;
+        border-left: 0;
+        border-top: 1px solid #222222;
+    }
+
+    .sid-activity svg { max-height: 134px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sid-meter-segment,
+    .sid-meter-gate,
+    .sid-meter-digi { transition: none !important; }
+}
+
+/* =========================================
    11. TERMINAL CARDS & HEX GRIDS (MUSEUM)
    ========================================= */
 .terminal-card {
