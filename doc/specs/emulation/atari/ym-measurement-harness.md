@@ -27,7 +27,7 @@ An event is a setup-time object:
 - Events may be unsorted. Setup sorts them by cycle while preserving input order within a cycle.
 - All writes for a cycle are applied before exactly one `YM2149Core.clockCycle()` call.
 - R13 value `$FF` preserves the current envelope state, matching the production register-dump convention.
-- Trace storage is preallocated; the harness itself performs no per-cycle trace allocation. The inherited envelope implementation still creates its legacy shape table, which remains a Phase 1 optimization target.
+- Trace storage is preallocated; the harness and digital core perform no object or array allocation in the cycle loop.
 
 ## Outputs
 
@@ -57,10 +57,17 @@ node --test test/ym-core.test.mjs test/ym-exact.test.mjs
 node tools/ym-render.mjs --case all --update-baseline
 ```
 
+## Phase 1 digital behavior
+
+- Writing R13, except for the `$FF` no-write convention, immediately selects level 31 for falling shapes and level 0 for rising shapes. The envelope divider starts at `8 * max(period, 1)`, so the first level lasts a full step.
+- Fixed volume register value 0 maps to silent DAC level 0. Other fixed values use the existing `2 * value + 1` mapping; envelope mode uses the 5-bit level directly.
+- `PLAY_TRACK` resets the digital core, effect progress, cycle accumulator, resampler ring, output filters, fade and displayed channel levels. `STOP_TRACK` and `RESUME_TRACK` do not reset the digital or transport state.
+- Envelope hold/continue selection uses shape bits rather than allocating a table on each envelope tick.
+
 ## Baseline meaning and limits
 
-`test/fixtures/ym-baseline.json` is a self-generated Phase 0 regression pin, not a hardware truth reference. It covers tone, noise, period-zero behavior, mixer activity and all envelope shapes.
+`test/fixtures/ym-baseline.json` is a self-generated Phase 1 regression pin, not a hardware truth reference. It covers tone, noise, period-zero behavior, mixer activity and all envelope shapes after the digital corrections.
 
-`test/fixtures/ym-production-baseline.json` archives one-second stereo production-worklet hashes captured before the core extraction for `Giana_Title.YM`, `WINGLEV1.YM` and `GOLDRUN.YM`. These hashes establish refactor equivalence at 48 kHz with 128-sample process blocks. They do not validate YM6 effect correctness or real-hardware agreement.
+`test/fixtures/ym-production-baseline.json` archives one-second stereo production-worklet hashes for `Giana_Title.YM`, `WINGLEV1.YM` and `GOLDRUN.YM` at 48 kHz with 128-sample process blocks. The hashes cover the Phase 1 envelope, zero-volume and reset behavior; they do not validate YM6 effect correctness or real-hardware agreement.
 
-The known envelope-start, Digidrum-rate, loop, resampling and analog-model issues remain intentionally unchanged in Phase 0. Their corrections belong to the subsequent release phases.
+The known Digidrum-rate, loop, resampling and analog-model issues remain intentionally unchanged. Their corrections belong to the subsequent release phases.

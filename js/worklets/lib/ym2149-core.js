@@ -39,7 +39,8 @@ export class YM2149Core {
             this.regs[13] = value;
             this.envShape = value & 0x0F;
             this.envPos = 0;
-            this.envDiv = 0;
+            this.envVol5Bit = (this.envShape & 0x04) ? 0 : 31;
+            this.envDiv = 8 * (((this.regs[12] << 8) | this.regs[11]) || 1);
             return;
         }
         this.regs[register] = value;
@@ -76,11 +77,10 @@ export class YM2149Core {
 
         if (--this.envDiv <= 0) {
             this.envDiv = 8 * pE;
-            const holds = [true, true, true, true, true, true, true, true, false, true, false, true, false, true, false, true];
 
             if (this.envPos < 32) {
                 this.envPos++;
-            } else if (!holds[this.envShape]) {
+            } else if (this.envShape >= 8 && (this.envShape & 1) === 0) {
                 this.envPos++;
                 if (this.envPos >= 64) this.envPos = 0;
             }
@@ -106,9 +106,9 @@ export class YM2149Core {
         const r8 = regs[8];
         const r9 = regs[9];
         const r10 = regs[10];
-        let vA5 = (r8 & 0x10) ? this.envVol5Bit : (r8 & 0x0F) * 2 + 1;
-        let vB5 = (r9 & 0x10) ? this.envVol5Bit : (r9 & 0x0F) * 2 + 1;
-        let vC5 = (r10 & 0x10) ? this.envVol5Bit : (r10 & 0x0F) * 2 + 1;
+        let vA5 = (r8 & 0x10) ? this.envVol5Bit : ((r8 & 0x0F) === 0 ? 0 : (r8 & 0x0F) * 2 + 1);
+        let vB5 = (r9 & 0x10) ? this.envVol5Bit : ((r9 & 0x0F) === 0 ? 0 : (r9 & 0x0F) * 2 + 1);
+        let vC5 = (r10 & 0x10) ? this.envVol5Bit : ((r10 & 0x0F) === 0 ? 0 : (r10 & 0x0F) * 2 + 1);
 
         if (digiVal5Bit !== -1) {
             if (hijackedVoice === 1 || hijackedVoice === 0) vA5 = digiVal5Bit;

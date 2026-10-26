@@ -1,5 +1,5 @@
 {
-  "format": "chiptunes-fantasy-ym-phase0-v1",
+  "format": "chiptunes-fantasy-ym-phase1-v1",
   "purpose": "self-generated regression pin; not a hardware accuracy reference",
   "eventSemantics": "write at cycle start, then one YM2149 clock",
   "signalTap": "raw digital core and current summing model before FIR, analog output and master DSP; no YM6 effects",
@@ -8,33 +8,33 @@
       "cycles": 4096,
       "traceStride": 64,
       "clock": 2000000,
-      "rawSha256": "4186dc8a56c370a5a2f6002e86b8c7fa20057cf4f3375cb1a8d42d67560a0707",
-      "traceSha256": "6a83751f6914ceb00b601bb38f583fa661cab6212c1788c2ab74ce4237dc162d",
-      "wavSha256": "e3cdb63053302e6ca1b599257c6e74601933f32b93cacb6a19e1d95a8c73c9b7"
+      "rawSha256": "73f1d7c063b62a24a24a327a37b4d4b8e691ae400a6a1e3e20bf3f154d5621da",
+      "traceSha256": "5247139f7d4d8716a22918d12d363c73306a7133275cacc3f479b7552a65874e",
+      "wavSha256": "8b2fcde992a3a456357bcb37fc4223d5227b3fe5aed3d705004c929de95bfa54"
     },
     "noise-a": {
       "cycles": 8192,
       "traceStride": 64,
       "clock": 2000000,
-      "rawSha256": "96119e4445c04092cceb8b68cfdda2ffea1e7d70ad1b3784b8ec64bbda3db6dd",
-      "traceSha256": "3c49773d217dc419c3f525314bcee3e2a56c78d876919b2f984bddca9f127cc4",
-      "wavSha256": "feea231fb9a896ebb19cd9d8c3b16cc371f0bab371d6003cf254a813dc3a9a52"
+      "rawSha256": "8382c943cf7123f384173dd7b9312d9bbb5f6cc3069c2df3cc6306352dadd233",
+      "traceSha256": "15b01e7af545ddbfad11e541c43f31bcb2ebc6ddca17e726c0263b6b799570bb",
+      "wavSha256": "05a8584d1dd2a2ac1f09cd86c7196c8100e9e4e78574973d86ad9f1132ddc128"
     },
     "envelope-shapes": {
       "cycles": 32768,
       "traceStride": 64,
       "clock": 2000000,
-      "rawSha256": "c2968e82d02543492fb9d2edee7cc2581c0d8cc814cbf194b67e9e78ab132a50",
-      "traceSha256": "92a493852f2daecef60fb1ed8de794d3cfeb1d63f8c4931d4c2cb725c8774cb3",
-      "wavSha256": "d26604068f03152919cd22fb80c12d81fdc1c5257b63338dd44c041d81e1c2f1"
+      "rawSha256": "cbc75946305d3679ef70f9c8ae9dbe7c96db081a705479b278bbeb5bf71038b4",
+      "traceSha256": "233324e004cd29e7ae2a7721137eb468df8147fab0f68f5c2c17ea3932f4916b",
+      "wavSha256": "7700c07fb94bad51b097c09f4bae172606547f1559d8f51e9f7f23cf29be3cba"
     },
     "period-zero-mixer": {
       "cycles": 4096,
       "traceStride": 64,
       "clock": 2000000,
-      "rawSha256": "e456bcf5ac1a0ee9a21e2e762858563c1e92effb8b0dd95b755be23eb940d2ff",
-      "traceSha256": "54ebf0a86ce6c957ec01895703279dd9fc0563606837d87ffd4452f20cbb9eed",
-      "wavSha256": "53bae4e1d41a6f044ac7725c0f3ea37db93199e6defb9701ae3375f9747b8846"
+      "rawSha256": "8db3ee297e18c96d0055b3404850bed72c665eacccba970b24018ecffe5dcd35",
+      "traceSha256": "8bd678453b0874e788324a8b946736d751682eef8f538da519156cb2376dfcbf",
+      "wavSha256": "93a907e64aff902e4051d40e046c5d73628f0e849f0994e77b315e84a262b608"
     }
   }
 }

@@ -38,7 +38,7 @@ function render(testCase) {
     return renderYMOffline({ cycles: testCase.cycles, events: testCase.events, traceStride: 64 });
 }
 
-test('YM synthetic corpus matches the reviewed Phase 0 raw/trace/WAV hashes', () => {
+test('YM synthetic corpus matches the reviewed Phase 1 raw/trace/WAV hashes', () => {
     for (const testCase of YM_SYNTHETIC_CORPUS) {
         const harness = render(testCase);
         const expected = baseline.cases[testCase.name];
@@ -188,4 +188,58 @@ test('raw harness output matches direct core clocks without hidden processing', 
     for (let cycle = 0; cycle < harness.raw.length; cycle++) {
         assert.equal(harness.raw[cycle], Math.fround(ym.clockCycle()));
     }
+});
+
+test('R13 immediately selects the first level and preserves a full first step', () => {
+    for (let shape = 0; shape < 16; shape++) {
+        const ym = new YM2149Core();
+        ym.writeRegister(11, 1);
+        ym.writeRegister(12, 0);
+        ym.writeRegister(13, shape);
+        const rising = (shape & 0x04) !== 0;
+        const first = rising ? 0 : 31;
+        assert.equal(ym.envPos, 0, `shape ${shape}: initial position`);
+        assert.equal(ym.envVol5Bit, first, `shape ${shape}: initial level`);
+        assert.equal(ym.envDiv, 8, `shape ${shape}: initial divider`);
+
+        for (let cycle = 0; cycle < 7; cycle++) {
+            ym.clockCycle();
+            assert.equal(ym.envPos, 0, `shape ${shape}: cycle ${cycle}`);
+            assert.equal(ym.envVol5Bit, first, `shape ${shape}: level at cycle ${cycle}`);
+        }
+        ym.clockCycle();
+        assert.equal(ym.envPos, 1, `shape ${shape}: first transition`);
+        assert.equal(ym.envVol5Bit, rising ? 1 : 30, `shape ${shape}: second level`);
+    }
+});
+
+test('fixed volume zero is silent and nonzero fixed levels reach the DAC', () => {
+    const ym = new YM2149Core();
+    ym.writeRegister(7, 0x3F);
+    ym.writeRegister(8, 0);
+    ym.writeRegister(9, 0);
+    ym.writeRegister(10, 0);
+    assert.equal(ym.clockCycle(), 0);
+    assert.deepEqual([ym.volA, ym.volB, ym.volC], [0, 0, 0]);
+
+    ym.writeRegister(8, 1);
+    ym.writeRegister(9, 15);
+    ym.clockCycle();
+    assert.ok(ym.volA > 0);
+    assert.ok(ym.volB > ym.volA);
+    assert.equal(ym.volC, 0);
+});
+
+test('reset restores every digital core state and subsequent clock sequence', () => {
+    const reset = new YM2149Core();
+    for (let register = 0; register < 16; register++) reset.writeRegister(register, register * 7);
+    for (let cycle = 0; cycle < 257; cycle++) reset.clockCycle();
+    reset.reset();
+    const fresh = new YM2149Core();
+    assert.deepEqual(reset, fresh);
+
+    for (let cycle = 0; cycle < 257; cycle++) {
+        assert.equal(reset.clockCycle(), fresh.clockCycle());
+    }
+    assert.deepEqual(reset, fresh);
 });

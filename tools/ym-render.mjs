@@ -71,7 +71,7 @@ for (const testCase of cases) {
         if (args.has('raw')) writeFileSync(join(outputDirectory, `${testCase.name}.raw.f32`), harness.raw);
         if (args.has('trace')) writeFileSync(join(outputDirectory, `${testCase.name}.trace.csv`), ymTraceToCsv(harness));
         writeFileSync(join(outputDirectory, `${testCase.name}.json`), JSON.stringify({
-            format: 'chiptunes-fantasy-ym-phase0-v1',
+            format: 'chiptunes-fantasy-ym-phase1-v1',
             eventSemantics: 'write at cycle start, then one YM2149 clock',
             signalTap: 'raw digital core and current summing model before FIR, analog output and master DSP; no YM6 effects',
             sampleFormat: 'mono IEEE-float32 WAV at native YM clock',
@@ -84,7 +84,7 @@ for (const testCase of cases) {
 
 if (args.has('update-baseline')) {
     const baseline = {
-        format: 'chiptunes-fantasy-ym-phase0-v1',
+        format: 'chiptunes-fantasy-ym-phase1-v1',
         purpose: 'self-generated regression pin; not a hardware accuracy reference',
         eventSemantics: 'write at cycle start, then one YM2149 clock',
         signalTap: 'raw digital core and current summing model before FIR, analog output and master DSP; no YM6 effects',

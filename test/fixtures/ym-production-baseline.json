@@ -1,6 +1,6 @@
 {
-  "format": "chiptunes-fantasy-ym-production-phase0-v1",
-  "purpose": "self-generated pre-refactor regression pin; not a hardware accuracy reference",
+  "format": "chiptunes-fantasy-ym-production-phase1-v1",
+  "purpose": "self-generated Phase 1 regression pin after envelope, zero-volume and reset corrections; not a hardware accuracy reference",
   "sampleRate": 48000,
   "seconds": 1,
   "blockSize": 128,
@@ -8,15 +8,15 @@
   "cases": {
     "Giana_Title": {
       "path": "tracks/atari/Giana_Title.YM",
-      "sha256": "5007a947fc45ba0424d9de3872855c55c975059daf5e43fc5e3ef4e7f8c0071b"
+      "sha256": "fec9afb531a8e036eba1d81651896e1b2c1f78b0234dbadc8e7549563f09407b"
     },
     "WINGLEV1": {
       "path": "tracks/atari/wings-of-death/WINGLEV1.YM",
-      "sha256": "877ba61d1097dd1fca9dde1cd894a8254e2a251fb9b25990c40a0850c8446b4d"
+      "sha256": "e83317f744b8f5ec9883db8b20444285f6a3e6b38bee74468287aab96638cd12"
     },
     "GOLDRUN": {
       "path": "tracks/atari/GOLDRUN.YM",
-      "sha256": "30b45c148b1e963fe0ec5a734f8fe15bc96840c79cde30deca7c1582344dac12"
+      "sha256": "cb1b29c530b7c828bbfbbaf485d0c8d954cad5cc3f1625e2ef1e5d5aea1864cc"
     }
   }
 }
