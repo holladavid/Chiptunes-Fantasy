@@ -60,9 +60,9 @@
       "clock": 985248,
       "vcfOffset": 0,
       "temperature": 55,
-      "rawSha256": "2c0f20de52cbe951467d53e196306e8173bf6f2ddfb38411e4c90601f1a75d83",
-      "traceSha256": "33528082d6b778c1fd24ffc36e974bbde93c62a039db59f382a553071b8ff79c",
-      "wavSha256": "6ef4f055130c45b532b82105866474745ad991827feb7e47b937f0052f6c0b3f"
+      "rawSha256": "b35f398861bad8ee8c0b07d47644742c7e3ad25a6993b9627ec390c2e04fd1b2",
+      "traceSha256": "93beb02ffe750c9f7b8e1f7dc2c545285132ccaeb5b8543ca8ee773bc4793ea5",
+      "wavSha256": "e4f3617089a2e90fd1bb99644f7cfa5c65b45f8738b15ba444f7cc8d6e2deacc"
     },
     "hard-sync-ring": {
       "cycles": 65536,

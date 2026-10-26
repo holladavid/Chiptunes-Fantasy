@@ -46,14 +46,24 @@ test('6581 noise taps feed eight full-scale DAC bits without gain attenuation', 
     assert.equal(noise12Bit(0x000001), 0x010);
 });
 
-test('6581 combined selectors use 12-bit wired-AND without heuristic bleed', () => {
+test('6581 other combined selectors retain 12-bit wired-AND without heuristic bleed', () => {
     const phase = 0x5A5000;
     const triangle = triangle12Bit(phase, 0);
     const saw = sawtooth12Bit(phase);
     assert.equal(calculateWaveform12Bit6581R3(0x30, phase, 0x800, 0, 0), triangle & saw);
-    assert.equal(calculateWaveform12Bit6581R3(0x50, 0xA5A000, 0x800, 0, 0), 0);
-    assert.equal(calculateWaveform12Bit6581R3(0x50, phase, 0x800, 0, 0), triangle);
     assert.equal(calculateWaveform12Bit6581R3(0x70, phase, 0x800, 0, 0), triangle & saw);
+});
+
+test('6581 triangle-pulse uses independently fitted phase and pulse transfer states', () => {
+    // Public-output reference fit: pulse low is audible and nonlinear, not forced to zero.
+    assert.equal(calculateWaveform12Bit6581R3(0x50, 0xA5A000, 0x800, 0, 0), 1552);
+    assert.equal(calculateWaveform12Bit6581R3(0x50, 0x5A5000, 0x800, 0, 0), 1461);
+    assert.equal(calculateWaveform12Bit6581R3(0x50, 0x7FF800, 0x008, 0, 0), 4095);
+
+    // Equal folded triangle values on opposite phase halves must remain distinct.
+    assert.equal(triangle12Bit(0x001000, 0), triangle12Bit(0x801000, 0));
+    assert.equal(calculateWaveform12Bit6581R3(0x50, 0x001000, 0, 0, 0), 1461);
+    assert.equal(calculateWaveform12Bit6581R3(0x50, 0x801000, 0, 0, 0), 4095);
 });
 
 test('GATE traverses two clock stages without resetting the 15-bit rate counter', () => {

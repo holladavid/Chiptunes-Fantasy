@@ -1,7 +1,9 @@
 // MOS 6581 R3 digital waveform selector.
 // Primitive generators retain the SID's full 12-bit DAC input resolution.
-// Combined waveforms use the documented wired-AND topology. The analogue
-// pull-down strength of a physical 6581 still requires chip capture calibration.
+// Triangle+pulse uses independently measured external-model anchors. Other
+// combined waveforms retain the documented wired-AND digital baseline.
+
+import { trianglePulse12Bit6581R3 } from './sid-combined-6581.js';
 
 export function triangle12Bit(phase24, ringMSB) {
     const triangle = (phase24 >>> 11) & 0x0FFF;
@@ -30,6 +32,13 @@ export function noise12Bit(lfsr23) {
 
 export function calculateWaveform12Bit6581R3(ctrl, phase24, pw12, lfsr23, ringMSB) {
     const selected = ctrl & 0xF0;
+    if (selected === 0x50) {
+        return trianglePulse12Bit6581R3(
+            (phase24 >>> 12) & 0x0FFF,
+            pulse12Bit(phase24, pw12, (ctrl & 0x08) !== 0)
+        );
+    }
+
     let output = 0x0FFF;
 
     // A zero on any selected DAC input dominates the wired combination.
