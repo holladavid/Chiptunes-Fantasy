@@ -36,6 +36,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         
         this.vblankTimer = 19656; 
         this.currentFrame = 0;
+        this.displayClockAccumulator = 0;
         this.hostPlayPending = false;
         
         this.temperature = 55.0;
@@ -149,6 +150,7 @@ class SIDProcessor extends AudioWorkletProcessor {
 
         this.resampler.reset();
         this.currentFrame = 0;
+        this.displayClockAccumulator = 0;
         this.maxFrames = maxFrames;
         this.hostPlayPending = false;
     }
@@ -178,7 +180,14 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.diagCycles++; 
                 
                 this.cpu.clockHardware(1); 
-                this.sid.clock();          
+                this.sid.clock();
+
+                // UI time is always 50Hz, independently of the PSID play-call rate.
+                this.displayClockAccumulator += 50;
+                if (this.displayClockAccumulator >= this.clock) {
+                    this.displayClockAccumulator -= this.clock;
+                    this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
+                }
                 
                 this.resampler.write(this.sid.outputSample);
 
@@ -186,7 +195,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                     this.vblankTimer--;
                     if (this.vblankTimer <= 0) {
                         this.vblankTimer += this.playSpeedCycles;
-                        this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                     }
                 } else {
                     if (!this.useCiaTimer) {
@@ -222,7 +230,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                             this.cpu.p |= 0x04;  // Enter Play with SEI (I=1), matching real C64 IRQ entry!
                             this.cpu.pc = this.playAddress;
                             this.cpuCyclesRemaining = 6 - 1; 
-                            this.currentFrame = (this.currentFrame + 1) % this.maxFrames; 
                             this.diagInstructions++;
                         } else if (this.hostPlayPending && canInterruptForeground) {
                             // Re-Entrant 50Hz Play Interrupt over active Foreground Digi Loop (Martin Galway's Arkanoid!)
@@ -233,7 +240,6 @@ class SIDProcessor extends AudioWorkletProcessor {
                             this.cpu.p |= 0x04;  // SEI during 50Hz voice update
                             this.cpu.pc = 0xFFD0; // KERNAL Re-Entrant Play Wrapper (saves A/X/Y, JSR playAddr, restores A/X/Y, RTI)
                             this.cpuCyclesRemaining = 7 - 1;
-                            this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                             this.diagInstructions++;
                         } else if (this.cpu.nmiAccepted) {
                             this.cpu.nmiAccepted = false;

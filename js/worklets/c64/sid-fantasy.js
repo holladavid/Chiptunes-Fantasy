@@ -369,6 +369,7 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
         
         this.vblankTimer = 19656; 
         this.currentFrame = 0;
+        this.displayClockAccumulator = 0;
         this.hostPlayPending = false;
         
         this.temperature = 55.0;
@@ -463,6 +464,7 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
 
         this.resampler.reset();
         this.currentFrame = 0;
+        this.displayClockAccumulator = 0;
         this.maxFrames = maxFrames;
         this.hostPlayPending = false;
     }
@@ -485,7 +487,14 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
 
             for (let c = 0; c < cyclesToRun; c++) {
                 this.cpu.clockHardware(1); 
-                this.sid.clock();          
+                this.sid.clock();
+
+                // UI time is always 50Hz, independently of the PSID play-call rate.
+                this.displayClockAccumulator += 50;
+                if (this.displayClockAccumulator >= this.clock) {
+                    this.displayClockAccumulator -= this.clock;
+                    this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
+                }
                 
                 this.resampler.write(this.sid.outputSampleL, this.sid.outputSampleR);
 
@@ -493,7 +502,6 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                     this.vblankTimer--;
                     if (this.vblankTimer <= 0) {
                         this.vblankTimer += this.playSpeedCycles;
-                        this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                     }
                 } else {
                     if (!this.useCiaTimer) {
@@ -525,7 +533,6 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                             this.cpu.p |= 0x04;
                             this.cpu.pc = this.playAddress;
                             this.cpuCyclesRemaining = 6 - 1; 
-                            this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                         } else if (this.hostPlayPending && canInterruptForeground) {
                             this.hostPlayPending = false;
                             this.cpu.push(this.cpu.pc >> 8);
@@ -534,7 +541,6 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                             this.cpu.p |= 0x04;
                             this.cpu.pc = 0xFFD0;
                             this.cpuCyclesRemaining = 7 - 1;
-                            this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                         } else if (this.cpu.nmiAccepted) {
                             this.cpu.nmiAccepted = false;
                             this.cpu.triggerHardwareNmi();
