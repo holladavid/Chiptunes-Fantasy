@@ -47,3 +47,27 @@ test('sid-fantasy worklet runs stereo blocks with the shared coefficient path', 
     const { processor } = exercise('sid-fantasy-processor', 2);
     assert.ok(processor.resampler.ringR instanceof Float32Array);
 });
+
+for (const name of ['sid-exact-processor', 'sid-fantasy-processor']) {
+    test(`${name} keeps the 50Hz display timeline independent of play-call rate`, () => {
+        const Processor = processors.get(name);
+        const processor = new Processor();
+        processor.prgCode = new Uint8Array([0x60, 0x60]); // Init and play both return immediately.
+        processor.loadAddr = 0x2000;
+        processor.initAddress = 0x2000;
+        processor.playAddress = 0x2001;
+        processor.songSpeedFlags = 1;
+        processor.runSubsongInit(0, 1000);
+        processor.isPlaying = true;
+        processor.fadeVol = 1.0;
+
+        const output = [new Float32Array(128), new Float32Array(128)];
+        // Step just beyond the one-second fractional input-cycle boundary.
+        for (let block = 0; block < 376; block++) {
+            // Deliberately request play at 375Hz. UI time must still advance at 50Hz.
+            processor.hostPlayPending = true;
+            processor.process([], [output]);
+        }
+        assert.equal(processor.currentFrame, 50);
+    });
+}

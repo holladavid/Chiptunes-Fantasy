@@ -101,6 +101,21 @@ Externally observed `$D418` periods:
 
 The engine's separate regression pin is 80 cycles for the small latches, `100, 103, 100, 100, 102, 100, 103` for latch 100 and stable 245 for latch 244. The different small-latch handler period is not presented as a hardware defect because the player stubs differ. The automated external comparison applies only to latches 100 and 244: every engine period must be within three cycles of an external observation and median drift must be at most two cycles.
 
+## 50 Hz display timeline versus PSID play rate
+
+The application's time display uses a 50 Hz frame domain; that domain is not necessarily the music driver's play-call rate. The supplied *Wizball* PSID has speed flags `$01FF`, selecting CIA timing for all nine subsongs. Its 100 Hz play calls made the former `currentFrame` counter advance twice as fast as the intended display time even though the music itself played at the correct speed.
+
+Both C64 worklets now maintain a separate allocation-free `displayClockAccumulator`. Each executed PAL clock adds 50; when the accumulator reaches 985248, it subtracts that clock count and advances only the UI frame. `hostPlayPending`, CIA underflow handling, play dispatch, and all audio-state sequencing remain independent of this counter. Subsong initialization resets both the UI frame and its accumulator.
+
+A regression for each worklet deliberately requests play on every 128-sample block while stepping just beyond one second. Before the correction, `currentFrame` reached 423; both engines now report exactly 50. Ten-second production-worklet renders of *Wizball* Subsong 7 remained byte-identical before and after the change in both engines:
+
+```text
+Exact SHA-256:   c24b752e41f8f639beac9ae96ddd3d0e762a84aa971b6907213f7645b405c971
+Fantasy SHA-256: cdcee4651e5140f9e3ad62cd02c2cb074fea4fc5c13c3f53a24b65673b7f0ed9
+```
+
+The *Crazy Comets* Exact control render also remained byte-identical. Chromium playback with the original *Wizball* upload verified UI-driven selection from its original Subsong 4 to Subsong 7 in both engines: displayed elapsed time followed `AudioContext.currentTime` within the one-second UI quantization, with finite nonzero audio and no page or console errors.
+
 ## Reproduction
 
 ```bash

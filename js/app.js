@@ -27,8 +27,9 @@ import { MediaSessionController } from './audio/media-session.js';
 
 let fsUI = null;
 let siliconVisualizer = null; // Living Silicon Instanz
-let currentOscValue = 0; 
-let currentChipRegs = null; 
+let currentOscValue = 0;
+let currentChipRegs = null;
+let sidRegisterWriteRate = 0;
 let activeSystem = 'c64'; // Standard-System auf 'c64' korrigiert (passend zum Boot-Screen)
 let trackData = [];    
 let isPlaying = false; 
@@ -139,7 +140,8 @@ function initApp() {
             getIsPlaying: () => isPlaying,
             getAudioContext: getAudioContext,
             getPlaybackSessionId: () => playbackSessionId,
-            getCurrentChipRegs: () => currentChipRegs 
+            getCurrentChipRegs: () => currentChipRegs,
+            getSidRegisterWriteRate: () => sidRegisterWriteRate
         }, {
             updateTimelineUI: () => updateTimelineUI(),
             updateChipHUD: () => updateChipHUD({
@@ -322,7 +324,11 @@ function handleWorkletMessage(e) {
 
         if (systemId === 0) {
             const tempVal = Math.round(view[33]);
-            currentChipRegs[29] = tempVal; 
+            currentChipRegs[29] = tempVal;
+            sidRegisterWriteRate = view[37] || 0;
+            for (let voice = 0; voice < 3; voice++) {
+                currentChipRegs[30 + voice] = view[38 + voice] || 0;
+            }
         }
 
         if (systemId === 1) {
@@ -546,6 +552,7 @@ function stopPlayback() {
     // =========================================================
     if (fsUI) fsUI.updatePlayState(false);
     channelVolumes.fill(0);
+    sidRegisterWriteRate = 0;
     mediaSession.setPlaybackState(trackData.length > 0 ? 'paused' : 'none');
     mediaSession.updatePosition(trackData.length / 50, lastKnownFrame / 50, true);
 }
@@ -594,8 +601,7 @@ async function setTheme(themeName, isBootSequence = false) {
         btnToggleArchive.textContent = '[ COLLAPSE ]';
         btnToggleArchive.setAttribute('aria-expanded', 'true');
     }
-    document.getElementById('living-silicon-title').textContent =
-        `> LIVING SILICON · ${livingSiliconChipNames[activeSystem]}`;
+    updateLivingSiliconTitle();
     
     const tempContainer = document.getElementById('temp-control-container');
     if (tempContainer) {
@@ -663,6 +669,7 @@ async function setTheme(themeName, isBootSequence = false) {
     }
     
     renderCoreSelector(activeSystem);
+    updateLivingSiliconTitle();
     
     if (typeof siliconVisualizer !== 'undefined' && siliconVisualizer) {
         siliconVisualizer.setSystem(activeSystem);
@@ -684,6 +691,17 @@ async function setTheme(themeName, isBootSequence = false) {
     }
 }
 // === js/app.js (Auszug) ===
+
+function updateLivingSiliconTitle() {
+    let chipName = livingSiliconChipNames[activeSystem];
+    if (activeSystem === 'c64') {
+        const coreIndex = Number(document.getElementById('core-selector').value) || 0;
+        chipName = workletRegistry.c64[coreIndex].id === 'sid-fantasy'
+            ? 'SID FANTASY STUDIO'
+            : 'MOS 6581 R3 EXACT';
+    }
+    document.getElementById('living-silicon-title').textContent = `> LIVING SILICON · ${chipName}`;
+}
 
 function renderCoreSelector(system) {
     const select = document.getElementById('core-selector');
@@ -1162,6 +1180,7 @@ document.getElementById('core-selector').addEventListener('change', async (e) =>
     stopPlayback();
     const coreIndex = e.target.value;
     const coreConfig = workletRegistry[activeSystem][coreIndex];
+    updateLivingSiliconTitle();
     document.getElementById('hud-content') ? document.getElementById('hud-content').innerText = "RE-WIRING DSP..." : null;
     await loadEmuCore(activeSystem, coreConfig, handleWorkletMessage);
     startPlayback(); 

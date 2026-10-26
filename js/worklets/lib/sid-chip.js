@@ -75,7 +75,9 @@ export class SIDChip {
         this.thermalMasterDcBias = 0.90;
 
         this.volWiggleActivity = 0.0;
-        this.d418Writes = 0; 
+        this.d418Writes = 0;
+        // Monotonic telemetry only; never read by the synthesis path.
+        this.registerWrites = 0;
 
         this.updateFilterParameters();
     }
@@ -105,6 +107,7 @@ export class SIDChip {
 
     writeReg(reg, val) {
         if (reg >= 29) return;
+        this.registerWrites++;
         this.regs[reg] = val;
         
         let vIdx = (reg / 7) | 0;

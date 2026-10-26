@@ -1,7 +1,7 @@
 // === js/ui/silicon/sid-6581.js ===
 // =========================================================
 // MOS 6581 / CSG 8580 (SID) LIVING SILICON DIE VISUALIZER (v1.5.0)
-// Zero-Allocation, 100% Hardware-Synchronized Die Telemetry:
+// Preallocated meter state and dirty-checked, hardware-synchronized telemetry:
 // - 3x 24-Bit Oscillators with Live 12-Bit PWM Bar, TEST-Bit & NMOS Wire-AND Badge
 // - Inter-Voice Cross-Modulation Pathways (Hard-Sync & XOR Ring-Modulation)
 // - 3x Dynamic 15-Bit ADSR Envelope Graphs with Live Phase/Level Tracer Dot
@@ -12,6 +12,9 @@
 // =========================================================
 
 import { BaseChip } from './base-chip.js';
+import { SidMeter } from './sid-meter.js';
+
+const ADSR_BASE_Y = new Uint8Array([60, 95, 130]);
 
 export class Sid6581 extends BaseChip {
     constructor(container) {
@@ -23,7 +26,12 @@ export class Sid6581 extends BaseChip {
         this.digiHoldTimer = 0.0;
         this.digiModeType = 0; // 0 = IDLE, 1 = $D418 DIGI, 2 = PLAYSID DMA
         this.lastT = 0.0;
+        this.meter = new SidMeter();
     }
+
+    getChassisClass() { return 'sid-chassis'; }
+
+    getSidePanelHTML() { return this.meter.getHTML(); }
 
     cacheDOM() {
         const q = (sel) => this.container.querySelector(sel);
@@ -103,11 +111,12 @@ export class Sid6581 extends BaseChip {
             this.cache.diagLbls[0].textContent = 'PAL CLK';
             this.cache.diagLbls[1].textContent = '$D418 BUS';
             this.cache.diagLbls[2].textContent = 'VCF MODE';
-            this.cache.diagLbls[3].textContent = 'DIE TEMP';
+            this.cache.diagLbls[3].textContent = 'MODEL TEMP';
         }
+        this.meter.cacheDOM(this.container);
     }
 
-    updateVoiceADSR(vIdx, baseX, baseY, ad, sr, gate, envNorm) {
+    updateVoiceADSR(vIdx, baseX, baseY, ad, sr, gate, envNorm, envState) {
         const packed = (ad << 8) | sr;
         const a = (ad >> 4) & 15;
         const d = ad & 15;
@@ -144,11 +153,13 @@ export class Sid6581 extends BaseChip {
         let stateStr = 'IDLE';
         const susNorm = s / 15.0;
 
-        if (gate) {
-            if (envNorm > 0.94) {
-                dotX = xA;
-                stateStr = 'ATK';
-            } else if (envNorm > susNorm + 0.04) {
+        if (!gate && envNorm <= 0.005) {
+            stateStr = 'IDLE';
+        } else if (envState === 0) {
+            dotX = Math.round(baseX + envNorm * (xA - baseX));
+            stateStr = 'ATK';
+        } else if (envState === 1) {
+            if (envNorm > susNorm + 0.01) {
                 const decProgress = 1.0 - ((envNorm - susNorm) / Math.max(0.01, 1.0 - susNorm));
                 dotX = Math.round(xA + Math.max(0, Math.min(1, decProgress)) * (xD - xA));
                 stateStr = 'DEC';
@@ -156,12 +167,10 @@ export class Sid6581 extends BaseChip {
                 dotX = Math.round((xD + xS) * 0.5);
                 stateStr = 'SUS';
             }
-        } else {
-            if (envNorm > 0.02) {
-                const relProgress = 1.0 - Math.min(1.0, envNorm / Math.max(0.05, susNorm || 0.5));
-                dotX = Math.round(xS + Math.max(0, Math.min(1, relProgress)) * (xR - xS));
-                stateStr = 'REL';
-            }
+        } else if (envNorm > 0.005) {
+            const relProgress = 1.0 - Math.min(1.0, envNorm / Math.max(0.05, susNorm || 0.5));
+            dotX = Math.round(xS + Math.max(0, Math.min(1, relProgress)) * (xR - xS));
+            stateStr = 'REL';
         }
 
         const dotEl = this.cache[`adsrDot${vIdx + 1}`];
@@ -242,7 +251,7 @@ export class Sid6581 extends BaseChip {
         pathEl.setAttribute('d', d);
     }
 
-    update(vols, regs, t) {
+    update(vols, regs, t, registerWriteRate = 0) {
         if (!regs) return;
         const dt = this.lastT === 0 ? 0.016 : Math.max(0.001, Math.min(0.1, t - this.lastT));
         this.lastT = t;
@@ -284,8 +293,6 @@ export class Sid6581 extends BaseChip {
         // =========================================================
         // 2. OSCILLATORS 1-3: FREQ, TEST-BIT, 12-BIT PWM, WIRE-AND & SYNC/RING
         // =========================================================
-        const adsrBaseY = [60, 95, 130];
-
         for (let v = 0; v < 3; v++) {
             const base = v * 7;
             const idx = v + 1;
@@ -346,7 +353,7 @@ export class Sid6581 extends BaseChip {
             if (this.cache[`env${idx}`]) this.cache[`env${idx}`].style.opacity = 0.30 + vol * 0.70;
 
             // Update Dynamic ADSR Graph & Live Tracer Dot
-            this.updateVoiceADSR(v, 156, adsrBaseY[v], ad, sr, isGate, vol);
+            this.updateVoiceADSR(v, 156, ADSR_BASE_Y[v], ad, sr, isGate, vol, regs[30 + v]);
         }
 
         // =========================================================
@@ -454,7 +461,7 @@ export class Sid6581 extends BaseChip {
         }
 
         if (this.cache.dieTempText) {
-            const tStr = `DIE:${temp}°C`;
+            const tStr = `SIM:${temp}°C`;
             if (this.cache.dieTempText.textContent !== tStr) this.cache.dieTempText.textContent = tStr;
         }
 
@@ -503,9 +510,11 @@ export class Sid6581 extends BaseChip {
             const busTxt = this.digiModeType === 2 ? 'DMA DIGI' : (this.digiModeType === 1 ? '$D418 MOD' : (hasBusWrite ? `$D4${activeAddr.toString(16).toUpperCase().padStart(2, '0')}` : 'LOCKSTEP'));
             if (this.cache.diagVals[1].textContent !== busTxt) this.cache.diagVals[1].textContent = busTxt;
             if (this.cache.diagVals[2].textContent !== modeStr) this.cache.diagVals[2].textContent = modeStr;
-            const tempTxt = `${temp}°C R3`;
+            const tempTxt = `${temp}°C SIM`;
             if (this.cache.diagVals[3].textContent !== tempTxt) this.cache.diagVals[3].textContent = tempTxt;
         }
+
+        this.meter.update(vols, regs, registerWriteRate, dt);
     }
 
     getSvg() {
@@ -518,7 +527,7 @@ export class Sid6581 extends BaseChip {
                 <rect class="silicon-chip-body" x="50" y="30" width="400" height="140" rx="4" />
                 <path d="M 50 85 A 15 15 0 0 1 50 115 Z" fill="var(--chassis-dark)" />
                 <circle cx="63" cy="42" r="3.5" fill="var(--chassis-dark)" />
-                <text x="250" y="38" class="silicon-chip-label" font-size="6" fill="var(--panel-text)" text-anchor="middle" dominant-baseline="middle">MOS 6581 SOUND INTERFACE DEVICE (1MHz DIE)</text>
+                <text x="250" y="38" class="silicon-chip-label" font-size="6" fill="var(--panel-text)" text-anchor="middle" dominant-baseline="middle">SID SOUND INTERFACE DEVICE · 3-VOICE DIE</text>
 
                 <!-- Silicon Die Cavity Window -->
                 <rect x="70" y="46" width="360" height="108" rx="2" fill="var(--screen-bg)" stroke="var(--chassis-dark)" stroke-width="2" />
@@ -640,7 +649,7 @@ export class Sid6581 extends BaseChip {
                      ========================================================= -->
                 <g class="sid-filt-block" style="opacity: 0.30;">
                     <rect x="238" y="50" width="102" height="100" rx="2" fill="none" stroke="var(--text-color)" stroke-width="1.5" />
-                    <text x="289" y="57" font-size="5.5" fill="var(--text-color)" font-weight="bold" text-anchor="middle" dominant-baseline="middle">2MHz ZDF OTA VCF</text>
+                    <text x="289" y="57" font-size="5.5" fill="var(--text-color)" font-weight="bold" text-anchor="middle" dominant-baseline="middle">ZDF MULTIMODE VCF</text>
                     
                     <text x="243" y="66" class="sid-filt-cut" font-size="5.5" fill="var(--highlight-color)" dominant-baseline="middle">FC:30Hz</text>
                     <text x="335" y="66" class="sid-filt-mode" font-size="5" fill="var(--text-color)" text-anchor="end" dominant-baseline="middle">OFF</text>
@@ -692,9 +701,9 @@ export class Sid6581 extends BaseChip {
                     </g>
 
                     <!-- Thermal Sensor & R3 Mixer DC Bias -->
-                    <text x="387" y="122" class="sid-die-temp" font-size="5" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">DIE:55°C</text>
-                    <text x="387" y="132" font-size="4.2" fill="var(--text-color)" text-anchor="middle" dominant-baseline="middle">DC BIAS: 1.12V</text>
-                    <text x="387" y="142" font-size="4.2" fill="var(--text-color)" text-anchor="middle" dominant-baseline="middle">C13 HP: 16Hz</text>
+                    <text x="387" y="122" class="sid-die-temp" font-size="5" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">SIM:55°C</text>
+                    <text x="387" y="132" font-size="4.2" fill="var(--text-color)" text-anchor="middle" dominant-baseline="middle">ANALOG OUTPUT MODEL</text>
+                    <text x="387" y="142" font-size="4.2" fill="var(--text-color)" text-anchor="middle" dominant-baseline="middle">C64 AC COUPLING</text>
                 </g>
 
                 <!-- =========================================================
