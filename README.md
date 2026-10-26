@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.5.1)
+# 💾 CHIPTUNES FANTASY (v1.5.2)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -16,7 +16,23 @@ Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with rut
 
 ---
 
-## 🚀 v1.5.1 Release Highlights
+## 🚀 v1.5.2 Release Highlights
+
+### Living Silicon — SID Activity Instrument
+The C64 hardware laboratory now includes a demoscene-style activity instrument driven by real emulator telemetry rather than decorative animation. Three 16-segment meters display the normalized envelope level of each SID voice, with GATE indicators, short peak holds, and the actual internal ADSR phase. A separate register-bus instrument reports writes per second on a bounded logarithmic scale, retains a 48-column history, and marks `$D418` activity independently.
+
+Envelope activity is deliberately not presented as loudness, processor utilization, or an undefined “SID load” percentage. Repeated writes of the same value and multiple writes between display frames are counted. Exact and Fantasy expose the same telemetry semantics, while their panel titles distinguish **MOS 6581 R3 Exact** from the artistic **SID Fantasy Studio** path. The responsive layout preserves the instrument on desktop, laptop, and mobile screens. Meter state and history storage are preallocated; numeric hot-path updates use primitive values and dirty-checked DOM writes.
+
+### Original-Recording Exact Calibration
+The MOS 6581 R3 Exact envelope restarts its 15-bit rate phase on a resolved rising GATE, resets the exponential divider, and clears zero hold. `TEST` does not restart this phase, and Release preserves the running counters. This bounded correction was calibrated against a supplied original-C64 recording of *Wizball*'s high-score melody, Subsong 7. In the examined 5.5–10.5-second passage, all 21 short voice-2 GATE attacks now reach envelope level 255; the former implementation left 20 of them at level 0 or 1. This validates the observed short-GATE sequence against that recording, not every ADSR property or every 6581 revision.
+
+The earlier zero-level hold remains in place, preventing short GATE pulses from underflowing the envelope and producing non-finite output. No synthesis behavior was imported from reSIDfp or VICE.
+
+### Giana `$50` Combined-Waveform Refinement
+*The Great Giana Sisters* high-score melody, Subsong 2, exposed a missing Exact-path “angel voice” around the 30-second mark. The hardware-oriented 6581 path now uses an independently measured, phase-indexed triangle-plus-pulse (`$50`) transfer model with 257 precomputed 12-bit anchors and primitive interpolation. Other combined selectors retain their documented wired-AND baseline. The artistic Fantasy DSP remains separate and unchanged by this calibration.
+
+### Independent Display Time
+The displayed SID timeline now advances from an independent 50 Hz display accumulator rather than the music program's play-call rate. Tracks using CIA or other non-50 Hz dispatch schemes therefore keep a meaningful elapsed-time display without altering CPU, CIA, audio, or subsong timing.
 
 ### 🎵 SID Refinement Program — Phases 0–5
 The C64 engine has been refined through six bounded, individually documented phases:
@@ -54,8 +70,8 @@ The visualizer now skips the complete frame when its canvas has a zero-sized dra
 ## 🔬 Living Silicon & Hardware-Oriented Chip Telemetry
 
 ### 🧬 Interactive "Living Silicon" Die & Motherboard Telemetry
-Each of the three sound pillars now features a zero-allocation, schematic-grade SVG silicon die and external motherboard circuit model that breathes in 60FPS lockstep with the emulators:
-*   **MOS 6581 (C64):** Features live 12-bit PWM duty-cycle bars, `TEST`-bit DC lock & `W&` (NMOS Wire-AND) indicators, inter-voice Hard-Sync (`SY`) and XOR Ring-Modulation (`RM`) pathways, register-driven dynamic A-D-S-R envelope graphs with live phase/level tracer dots, a morphing 2MHz ZDF VCF frequency response curve (`LP`/`BP`/`HP`/`NOTCH`), schematic-accurate `3OFF` bypass switching, `$D418` Galway/PlaySID digi detection, and active DIP-28 address/data (`A0–A4`, `D0–D7`, `/CS`, `PHI2`) pin flashing.
+Each of the three sound pillars features a real-time SVG silicon die and external motherboard circuit model driven by emulator telemetry:
+*   **MOS 6581 (C64):** Features live 12-bit PWM duty-cycle bars, `TEST`-bit DC lock & `W&` (NMOS Wire-AND) indicators, inter-voice Hard-Sync (`SY`) and XOR Ring-Modulation (`RM`) pathways, register-driven ADSR graphs with live phase/level tracer dots, a morphing 2MHz ZDF VCF response display (`LP`/`BP`/`HP`/`NOTCH`), direct-path `3OFF` routing, `$D418` Galway/PlaySID digi detection, and active DIP-28 address/data (`A0–A4`, `D0–D7`, `/CS`, `PHI2`) pin flashing. The v1.5.2 SID Activity instrument adds three envelope/GATE meters with peak holds and actual ADSR phases, plus a logarithmic register-write counter and 48-column bus history.
 *   **MOS 8364 Paula (Amiga 500):** Displays zero-clipping 4-channel Agnus/Paula DMA telemetry (`LC`, `LEN`, `PER`, `Hz`, 6-bit `AUDxVOL` bars), Dual 14-Bit Multiplying DACs with **live animated 192 kHz Zero-Order Hold (ZOH) staircase oscilloscopes**, an on-die `DMACON` (`D0–D3`) & 16-bit FIFO core, jumper-arc PCB routing, and an external **Amiga 500 Board** stage (`LF347` $13\text{ V}/\mu\text{s}$ op-amp + 4.42 kHz static RC + live morphing 3.09 kHz Butterworth LED filter curves).
 *   **Yamaha YM2149F (Atari ST):** Showcases live period-scaled **Square-Wave Oscilloscopes** in Tone A/B/C, a 17-bit LFSR noise activity bar, a dedicated CRT scope for all 16 5-bit Hardware Envelope (HEG) shapes with automatic **Sync-Buzzer** detection, visible HEG and Digidrum DAC injection buses, an on-die 32-step Log-DAC & Digidrum hijack detector, and an external **Atari ST Board** model with `R43–R45` ($1\text{ k}\Omega$) open-collector summing ("Atari Bus Glue" compression meter) and 15.9 kHz / 25 Hz analog filtering.
 
@@ -70,7 +86,8 @@ Our PAL-clock SID engine combines a documented digital core with independently m
 *   **Phase 4 CPU / MOS 6526 Timing:** Penultimate-cycle IRQ polling, delayed CLI/SEI mask behavior, RDY write-cycle progression, CIA timer start/force-load/reload pipelines, cascaded Timer B, one-clock delayed IRQ/NMI outputs and final-cycle `LDA $DC0D` acknowledgement are regression-tested against a synthetic corpus and external libsidplayfp black-box traces. This is bounded reference-model agreement, not a complete bus-cycle CPU or real-hardware proof; see `doc/specs/emulation/c64/sid-cpu-cia-timing.md`.
 *   **Mirror-Safe PlaySID 3.6× Auto-Conversion & Volume Restore:** Isolates PlaySID extended DMA registers strictly to `(addr & 0x1F) >= 0x1D`, converts Amiga-Paula clock periods ($\ge 280$) to C64 PAL cycles ($907 \to 252$ cycles = $3.91\text{ kHz}$), supports `$D47D` nibble endianness and sample loops, and automatically restores the tracker's shadow `$D418` master volume upon sample completion (*The Great Giana Sisters*).
 *   **MOS 6581 R3 12-Bit Digital Core:** Advances three 24-bit phase accumulators with Hard-Sync/RingMod on the 1MHz grid, preserves full 12-bit saw/triangle/pulse/noise DAC inputs, retains the DAC latch with no waveform selected, and uses a documented wired-AND combined-selector baseline. Combined-waveform analogue pull-down calibration remains explicitly measurement-dependent.
-*   **Stateful 15-Bit ADSR:** Two-clock GATE pipeline, non-resettable wrapping rate counter, exact period matching, linear Attack, and documented exponential divider thresholds reproduce state-dependent retrigger behavior instead of resetting it away. The zero-level hold also covers short GATE pulses that enter Release before Attack's first increment, preventing envelope underflow and non-finite output.
+*   **Measured `$50` Triangle+Pulse Transfer:** A 257-anchor phase-domain model restores the calibrated Exact-path combined waveform used by *The Great Giana Sisters* Subsong 2. It is special-cased before generic wired-AND and does not alter other combined selectors or Fantasy DSP.
+*   **Stateful 15-Bit ADSR:** Two-clock GATE pipeline, wrapping rate counter, exact period matching, linear Attack, and documented exponential divider thresholds preserve state-dependent timing. A resolved rising GATE restarts the rate phase and exponential divider; `TEST` does not, and Release preserves running counters. The zero-level hold also covers short GATE pulses that enter Release before Attack's first increment, preventing envelope underflow and non-finite output. The rising-GATE behavior is bounded to the original-recording calibration documented for *Wizball* Subsong 7.
 *   **Black-Box-Calibrated MOS 6581 R3 Filter & Mixer:** The two-substep ZDF solver uses cutoff and damping maps fitted through the public API of libresidfp revision `c1791383`—without importing its code or internal tables. The archived 639-point EXT-IN comparison currently measures 1.876dB median and 6.737dB p95 absolute response error. Additive LP/BP/HP routing, separate measured feedthrough, linear 16-step master volume and direct-path-only `3OFF` are regression-tested. This is reference-model agreement, not a real-chip capture or universal hardware-accuracy claim; see `doc/specs/emulation/c64/sid-filter-model.md`.
 *   **Measured Resampling & Output Coupling:** 256-phase interpolated Kaiser-Sinc resampling provides a measured 20kHz passband and at least 96dB stopband attenuation at 44.1/48kHz. The motherboard stage retains its parameterized 16kHz output low-pass and **16Hz** `C13` AC-coupling high-pass.
 *   **SID 6581/8580 "Chiptunes Fantasy Studio" Core:** Audiophile dual-channel engine featuring CSG 8580 linear R-2R DACs, 20kHz Studio Airband ZDF VCF, Constant-Power StereoSID dynamic voice staging, and a 48Hz digidrum sub-harmonic transient exciter. Phase 5 adds measured sample-rate-independent **16Hz stereo output coupling** (−0.448dB at 48Hz), with deterministic 20-second worklet comparisons archived for *Commando* and *Arkanoid*. The Exact renders remained byte-identical; external-model STFT agreement is diagnostic evidence, not real-hardware proof. See `doc/specs/emulation/c64/sid-fantasy-studio.md`.
