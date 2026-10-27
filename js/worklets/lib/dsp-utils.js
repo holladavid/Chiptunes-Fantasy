@@ -161,8 +161,17 @@ export const YM2149_DAC32 = new Float32Array([
 
 export class AtariAnalogFilter {
     constructor(sampleRate) {
-        this.lpAlpha = Math.exp(-2.0 * Math.PI * 15900.0 / sampleRate);
-        this.hpAlpha = Math.exp(-2.0 * Math.PI * 25.0 / sampleRate); 
+        const lpCosine = Math.cos(2.0 * Math.PI * 15900.0 / sampleRate);
+        const lpRoot = 2.0 - lpCosine;
+        this.lpAlpha = lpRoot - Math.sqrt(lpRoot * lpRoot - 1.0);
+        const hpWarp = Math.tan(Math.PI * 25.0 / sampleRate);
+        this.hpAlpha = (1.0 - hpWarp) / (1.0 + hpWarp);
+        this.lastLp = 0;
+        this.lastHpIn = 0;
+        this.lastHpOut = 0;
+    }
+
+    reset() {
         this.lastLp = 0;
         this.lastHpIn = 0;
         this.lastHpOut = 0;
@@ -174,6 +183,6 @@ export class AtariAnalogFilter {
         let hp = this.hpAlpha * (this.lastHpOut + lp - this.lastHpIn);
         this.lastHpIn = lp;
         this.lastHpOut = hp;
-        return Math.tanh(hp * 1.25) / 1.25;
+        return hp;
     }
 }

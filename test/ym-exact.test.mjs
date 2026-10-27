@@ -51,7 +51,26 @@ function renderBlocks(processor, count = 375) {
     return createHash('sha256').update(Buffer.concat(chunks)).digest('hex');
 }
 
-test('ym-exact production output matches the reviewed Phase 2 baseline', async () => {
+function renderVariableBlocks(processor, pattern, totalSamples = 4096) {
+    const hash = createHash('sha256');
+    let rendered = 0;
+    let block = 0;
+    while (rendered < totalSamples) {
+        const size = Math.min(pattern[block++ % pattern.length], totalSamples - rendered);
+        const left = new Float32Array(size);
+        const right = new Float32Array(size);
+        assert.equal(processor.process([], [[left, right]]), true);
+        for (let i = 0; i < size; i++) {
+            assert.ok(Number.isFinite(left[i]));
+            assert.ok(Number.isFinite(right[i]));
+        }
+        hash.update(Buffer.from(left.buffer)).update(Buffer.from(right.buffer));
+        rendered += size;
+    }
+    return hash.digest('hex');
+}
+
+test('ym-exact production output matches the reviewed Phase 4 baseline', async () => {
     for (const testCase of Object.values(baseline.cases)) {
         const track = await loadYmFile(testCase.path);
         const processor = new Processor();
@@ -97,6 +116,27 @@ test('changing tracks clears digital, effect, resampler and output state', async
     assert.equal(changedHash, renderBlocks(fresh));
 });
 
+test('44.1/48/96kHz output is deterministic and independent of audio block size', async () => {
+    const track = await loadYmFile(baseline.cases.Giana_Title.path);
+    const previousRate = globalThis.sampleRate;
+    try {
+        for (const outputRate of [44100, 48000, 96000]) {
+            globalThis.sampleRate = outputRate;
+            const regular = new Processor();
+            const irregular = new Processor();
+            startTrack(regular, track);
+            startTrack(irregular, track);
+            const expected = renderVariableBlocks(regular, [128]);
+            const actual = renderVariableBlocks(irregular, [1, 17, 64, 255, 3, 128]);
+            assert.equal(actual, expected, `${outputRate}Hz block-size dependence`);
+            assert.equal(regular.resampler.outputRate, outputRate);
+            assert.equal('outLp' in regular, false);
+        }
+    } finally {
+        globalThis.sampleRate = previousRate;
+    }
+});
+
 test('stop and resume preserve transport and digital core state', async () => {
     const track = await loadYmFile(baseline.cases.Giana_Title.path);
     const processor = new Processor();
@@ -108,7 +148,7 @@ test('stop and resume preserve transport and digital core state', async () => {
     const transportState = {
         currentFrame: processor.currentFrame,
         sampleCounter: processor.sampleCounter,
-        cycleAccumulator: processor.cycleAccumulator,
+        resamplerAccumulator: processor.resampler.cycleAccumulator,
         playerRate: processor.playerRate,
         loopFrame: processor.loopFrame
     };
@@ -119,7 +159,7 @@ test('stop and resume preserve transport and digital core state', async () => {
     assert.deepEqual({
         currentFrame: processor.currentFrame,
         sampleCounter: processor.sampleCounter,
-        cycleAccumulator: processor.cycleAccumulator,
+        resamplerAccumulator: processor.resampler.cycleAccumulator,
         playerRate: processor.playerRate,
         loopFrame: processor.loopFrame
     }, transportState);

@@ -3,6 +3,8 @@ import { YM2149_DAC32 } from './dsp-utils.js';
 export const YM2149_CLOCK = 2000000;
 export const YM2149_REGISTER_COUNT = 16;
 export const YM2149_VOICE_COUNT = 3;
+// Preserve the former three-voice full-scale level without nonlinear bus compression.
+export const YM2149_OUTPUT_SCALE = 0.42 / (1 + 0.22 * 3);
 
 export class YM2149Core {
     constructor(clock = YM2149_CLOCK) {
@@ -141,7 +143,7 @@ export class YM2149Core {
         const ampB = outB ? YM2149_DAC32[vB5] : 0;
         const ampC = outC ? YM2149_DAC32[vC5] : 0;
         const sumRaw = ampA + ampB + ampC;
-        this.outputSample = (sumRaw / (1 + 0.22 * sumRaw)) * 0.42;
+        this.outputSample = sumRaw * YM2149_OUTPUT_SCALE;
         this.volA = ampA;
         this.volB = ampB;
         this.volC = ampC;

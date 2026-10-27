@@ -1,14 +1,14 @@
 // === js/worklets/atari/ym-exact.js ===
 // =========================================================
 // YM2149F CORE (CYCLE-EXACT 2MHz, LOG-DAC, TRUE 5-BIT ENV)
-// Master Edition: 32-Phase Polyphase Sinc-FIR Decimator (255 Taps @ 12.5kHz),
-// Open-Collector Non-Linear Summing Bus Compression ("Atari Bus Glue"),
-// 64-Step Envelope State Machine & Digidrum DAC Injection
+// Interpolated 256-phase Kaiser polyphase resampling, linear channel summing,
+// 64-step envelope state machine and YM6 effect injection.
 // =========================================================
 
 import { AtariAnalogFilter } from '../lib/dsp-utils.js';
 import { YM2149Core } from '../lib/ym2149-core.js';
 import { YM6Effects } from '../lib/ym6-effects.js';
+import { PolyphaseResampler } from '../lib/polyphase-resampler.js';
 import { YMVisualizer } from '../lib/ym-visualizer.js';
 
 class YMExactProcessor extends AudioWorkletProcessor {
@@ -28,51 +28,15 @@ class YMExactProcessor extends AudioWorkletProcessor {
         this.sampleCounter = 0;
         this.isPlaying = false;
 
-        this.cycleAccumulator = 0.0;
-
         this.volA = 0.0; this.volB = 0.0; this.volC = 0.0;
         this.visualizer = new YMVisualizer(this.port);
 
-        // =========================================================
-        // DSP UPGRADE: 32-PHASE POLYPHASE SINC-FIR FILTERBANK (255 Taps)
-        // Brickwall-Filterung bei 12.5 kHz auf der 2-MHz-Ebene
-        // =========================================================
-        this.FIR_TAPS = 255;
-        this.NUM_PHASES = 32;
-        this.polyphaseTable = new Float32Array(this.NUM_PHASES * this.FIR_TAPS);
-        this.ringBuffer = new Float32Array(512);
-        this.ringIndex = 0;
-
-        const fc = 12500.0 / this.clock;
-        const halfK = (this.FIR_TAPS - 1) / 2;
-
-        for (let p = 0; p < this.NUM_PHASES; p++) {
-            const dt = p / this.NUM_PHASES; // Sub-Zyklus Phasen-Offset [0.0 .. 0.96875]
-            let sum = 0.0;
-            const phaseOffset = p * this.FIR_TAPS;
-
-            for (let i = 0; i < this.FIR_TAPS; i++) {
-                const x = (i - halfK) - dt;
-                const sinc = (Math.abs(x) < 1e-7) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
-                const wPos = (i - dt) / (this.FIR_TAPS - 1);
-                const window = (wPos >= 0.0 && wPos <= 1.0)
-                    ? (0.42 - 0.5 * Math.cos(2 * Math.PI * wPos) + 0.08 * Math.cos(4 * Math.PI * wPos))
-                    : 0.0;
-
-                const val = sinc * window;
-                this.polyphaseTable[phaseOffset + i] = val;
-                sum += val;
-            }
-
-            if (sum > 0) {
-                for (let i = 0; i < this.FIR_TAPS; i++) {
-                    this.polyphaseTable[phaseOffset + i] /= sum;
-                }
-            }
-        }
-
+        this.resampler = new PolyphaseResampler(this.clock, sampleRate, {
+            attenuation: 96,
+            passbandHz: 20000,
+            maximumStopbandHz: sampleRate * 0.5
+        });
         this.analogOut = new AtariAnalogFilter(sampleRate);
-        this.outLp = 0;
         this.fadeVol = 0.0;
 
         this.port.onmessage = (event) => {
@@ -88,17 +52,14 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     : 0;
                 this.sampleCounter = 0;
                 this.effects.reset();
-                this.cycleAccumulator = 0;
+                this.resampler.reset();
                 this.isPlaying = true;
 
-                this.ringBuffer.fill(0);
-                this.ringIndex = 0;
-                this.outLp = 0;
                 this.fadeVol = 0;
                 this.volA = 0;
                 this.volB = 0;
                 this.volC = 0;
-                this.analogOut = new AtariAnalogFilter(sampleRate);
+                this.analogOut.reset();
             } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
             } else if (msg.type === 'RESUME_TRACK') {
@@ -131,14 +92,7 @@ class YMExactProcessor extends AudioWorkletProcessor {
             let decimationSum = 0;
 
             if (this.isPlaying && this.trackData && this.trackData.length > 0) {
-                this.cycleAccumulator += this.clock / sampleRate;
-                let cyclesToRun = Math.floor(this.cycleAccumulator);
-                this.cycleAccumulator -= cyclesToRun;
-
-                // Sub-Cycle Phasen-Index [0 .. 31]
-                let phaseIdx = Math.floor(this.cycleAccumulator * this.NUM_PHASES);
-                if (phaseIdx >= this.NUM_PHASES) phaseIdx = this.NUM_PHASES - 1;
-                let kernelBase = phaseIdx * this.FIR_TAPS;
+                const cyclesToRun = this.resampler.beginSample();
 
                 this.sampleCounter--;
                 if (this.sampleCounter <= 0) {
@@ -167,22 +121,12 @@ class YMExactProcessor extends AudioWorkletProcessor {
                     this.volA = this.core.volA;
                     this.volB = this.core.volB;
                     this.volC = this.core.volC;
-                    this.ringBuffer[this.ringIndex] = mixedSample;
-                    this.ringIndex = (this.ringIndex + 1) & 511;
+                    this.resampler.write(mixedSample);
                 }
-
-                // =========================================================
-                // FRACTIONAL POLYPHASE SINC-FIR CONVOLUTION (2MHz -> 48kHz)
-                // =========================================================
-                let firIdx = (this.ringIndex - 1) & 511;
-                for (let k = 0; k < this.FIR_TAPS; k++) {
-                    decimationSum += this.ringBuffer[firIdx] * this.polyphaseTable[kernelBase + k];
-                    firIdx = (firIdx - 1) & 511;
-                }
+                decimationSum = this.resampler.process();
             }
 
-            this.outLp += 0.45 * (decimationSum - this.outLp);
-            let finalSample = this.analogOut.process(this.outLp) * this.fadeVol;
+            let finalSample = this.analogOut.process(decimationSum) * this.fadeVol;
 
             outL[i] = finalSample;
             if (outR) outR[i] = finalSample;

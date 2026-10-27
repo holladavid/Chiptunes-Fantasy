@@ -38,7 +38,7 @@ function render(testCase) {
     return renderYMOffline({ cycles: testCase.cycles, events: testCase.events, traceStride: 64 });
 }
 
-test('YM synthetic corpus matches the reviewed Phase 1 raw/trace/WAV hashes', () => {
+test('YM synthetic corpus matches the reviewed Phase 4 raw/trace/WAV hashes', () => {
     for (const testCase of YM_SYNTHETIC_CORPUS) {
         const harness = render(testCase);
         const expected = baseline.cases[testCase.name];
@@ -228,6 +228,20 @@ test('fixed volume zero is silent and nonzero fixed levels reach the DAC', () =>
     assert.ok(ym.volA > 0);
     assert.ok(ym.volB > ym.volA);
     assert.equal(ym.volC, 0);
+});
+
+test('three voices sum linearly and preserve the previous full-scale output level', () => {
+    const ym = new YM2149Core();
+    ym.writeRegister(7, 0x3F);
+    ym.writeRegister(8, 15);
+    const oneVoice = ym.clockCycle();
+    ym.writeRegister(9, 15);
+    const twoVoices = ym.clockCycle();
+    ym.writeRegister(10, 15);
+    const threeVoices = ym.clockCycle();
+    assert.ok(Math.abs(twoVoices - 2 * oneVoice) < 1e-12);
+    assert.ok(Math.abs(threeVoices - 3 * oneVoice) < 1e-12);
+    assert.ok(Math.abs(threeVoices - (3 / (1 + 0.22 * 3)) * 0.42) < 1e-12);
 });
 
 test('reset restores every digital core state and subsequent clock sequence', () => {

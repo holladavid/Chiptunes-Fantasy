@@ -12,7 +12,7 @@ cycle-stamped register events -> YM2149Core.clockCycle() -> raw Float32 output -
                                       +-> cycle/state trace
 ```
 
-The raw tap is before the polyphase FIR, `outLp`, `AtariAnalogFilter` and master DSP. It includes the current DAC and summing model so that the Phase 0 refactor remains comparable with the production core. The raw harness remains a register-only core harness; Phase 2 effects have their own cycle-level tests and are applied between effect timing and `YM2149Core.clockCycle()` in the production worklet.
+The raw tap is before the polyphase resampler, `AtariAnalogFilter` and master DSP. It includes the current DAC and summing model so that the Phase 0 refactor remains comparable with the production core. The raw harness remains a register-only core harness; Phase 2 effects have their own cycle-level tests and are applied between effect timing and `YM2149Core.clockCycle()` in the production worklet.
 
 ## Event and cycle contract
 
@@ -51,7 +51,7 @@ node tools/ym-render.mjs --case all --check
 node tools/ym-render.mjs --case tone-a --out artifacts/ym --raw --trace
 
 # Run focused parser, timing, core and production-worklet tests.
-node --test test/ym-parser.test.mjs test/ym-transport.test.mjs test/ym-core.test.mjs test/ym6-effects.test.mjs test/ym-exact.test.mjs
+node --test test/ym-parser.test.mjs test/ym-transport.test.mjs test/ym-core.test.mjs test/ym6-effects.test.mjs test/ym-resampler.test.mjs test/ym-exact.test.mjs
 
 # Re-pin only after a reviewed emulation change.
 node tools/ym-render.mjs --case all --update-baseline
@@ -84,10 +84,26 @@ YM5/YM6 metadata supplies `masterClock`, `playerRate`, `loopFrame` and sample at
 
 Synthetic tests cover non-50-Hz timing, explicit loop points, both register layouts, all sample encodings and malformed inputs. The parser also loads all 73 supplied corpus tracks, and production-worklet checks exercise all ten nonzero stored loop points.
 
+## Phase 4 resampling and output contract
+
+`PolyphaseResampler` generalizes the previously SID-specific Kaiser-windowed sinc implementation without changing its SID API or coefficient path. The YM Exact worklet uses its own explicit configuration: 256 interpolated phases, a 20 kHz requested passband, a 96 dB design attenuation and stopband start at output Nyquist. The former 32-phase, 255-tap, 12.5 kHz filter and the additional fixed-coefficient `outLp` are removed.
+
+Measured kernel limits across all 256 phases are:
+
+| Output rate | Taps | Group delay | Passband range at 1/10/16/20 kHz | Worst response at stopband start |
+|---:|---:|---:|---:|---:|
+| 44.1 kHz | 5561 | 1.3900 ms | -0.01092 to +0.00003 dB | -96.055 dB |
+| 48 kHz | 3067 | 0.7665 ms | -0.00014 to +0.00003 dB | -96.435 dB |
+| 96 kHz | 439 | 0.1095 ms | -0.00022 to -0.00003 dB | -97.211 dB |
+
+Every phase is checked for finite coefficients, normalized DC gain and passband response. Streamed tests verify 20 kHz unity gain, rejection of above-Nyquist tones and the declared constant group delay. Production-worklet output is bit-identical across regular and irregular audio block sizes at all three rates. These figures describe the implemented digital filter, not an analog hardware measurement.
+
+The three chip voices now sum linearly. `YM2149_OUTPUT_SCALE` preserves the former three-voice full-scale level; this is a level-continuity convention, not a real-hardware calibration. The unverified nonlinear bus compression is removed. `AtariAnalogFilter` retains its declared 15.9 kHz low-pass and 25 Hz high-pass model but no longer applies `tanh` saturation. Its discrete coefficients place both measured corner regions within 0.05 dB of -3 dB at 44.1/48/96 kHz. No claim of measured Atari mainboard agreement is made.
+
 ## Baseline meaning and limits
 
-`test/fixtures/ym-baseline.json` is a self-generated Phase 1 regression pin, not a hardware truth reference. It covers tone, noise, period-zero behavior, mixer activity and all envelope shapes after the digital corrections.
+`test/fixtures/ym-baseline.json` is a self-generated Phase 4 regression pin, not a hardware truth reference. It covers tone, noise, period-zero behavior, mixer activity and all envelope shapes. Its raw/WAV hashes and output-bearing traces were updated only after the linear-summing test passed; oscillator and register behavior was not redesigned in Phase 4.
 
-`test/fixtures/ym-production-baseline.json` archives one-second stereo production-worklet hashes for `Giana_Title.YM`, `WINGLEV1.YM` and `GOLDRUN.YM` at 48 kHz with 128-sample process blocks. Phase 2 changed only the `WINGLEV1.YM` hash after the cycle and amplitude tests passed; the other two hashes and all raw Phase 1 baselines remain unchanged. These self-generated hashes are regression anchors, not proof of real-hardware agreement.
+`test/fixtures/ym-production-baseline.json` archives one-second stereo production-worklet hashes for `Giana_Title.YM`, `WINGLEV1.YM` and `GOLDRUN.YM` at 48 kHz with 128-sample process blocks. Phase 2 changed only the `WINGLEV1.YM` hash. Phase 4 changed `WINGLEV1.YM` and `GOLDRUN.YM` after the FIR, analog, streaming and block-size tests passed; the `Giana_Title.YM` hash remains unchanged. These self-generated hashes are regression anchors, not proof of real-hardware agreement.
 
-The known resampling and analog-model issues remain intentionally unchanged. Their corrections belong to the subsequent release phases.
+Real-hardware DAC/mainboard calibration, performance evaluation and browser acceptance remain outside the completed checks and belong to the subsequent release work.
