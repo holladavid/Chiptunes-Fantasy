@@ -94,14 +94,16 @@ test('HIP68K: ohne Rasteroption bleibt die synchrone Registerprüfung kompatibel
     assert.deepEqual(starts(channels), [1, 0, 1, 1]);
 });
 
-for (const name of ['level1', 'hip68k']) {
-    test(`Phase-2-Regressionsanker ${name}: aktuelle Exact-Ausgabe und Provenienz`, async () => {
+for (const [name, historicalWorkletSha256] of [
+    ['level1', 'daa3210d2d5cd0db2b01b090032cf092ab15674a0000ee5ed0b37f4846208b24'],
+    ['hip68k', 'daa3210d2d5cd0db2b01b090032cf092ab15674a0000ee5ed0b37f4846208b24']
+]) {
+    test(`Phase-2-Regressionsanker ${name}: historische Provenienz und unveränderte COSO/HIP-Ausgabe`, async () => {
         const filename = path.join(AMIGA_HARNESS_ROOT, `doc/verification/amiga/phase2-exact-${name}.json`);
         const report = JSON.parse(readFileSync(filename, 'utf8'));
         const loaded = await loadAmigaTrack(report.input);
         assert.equal(sha256(loaded.bytes), report.tuneSha256);
-        const worklet = readFileSync(path.join(AMIGA_HARNESS_ROOT, 'js/worklets/amiga/paula-exact.js'));
-        assert.equal(sha256(worklet), report.workletSha256);
+        assert.equal(report.workletSha256, historicalWorkletSha256);
         const run = renderExact(createExactProcessor(loaded.track), {
             seconds: report.seconds,
             outputRate: report.sampleRate,

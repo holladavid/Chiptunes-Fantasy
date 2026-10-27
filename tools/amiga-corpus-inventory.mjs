@@ -78,7 +78,6 @@ function trackerFeatures(track, trackPath) {
         const bytes = readFileSync(path.join(root, 'tracks', 'amiga', trackPath));
         const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
         review.push(`declaredInstruments:${view.getUint16(72, true)}`);
-        if (track.linearFreq) review.push('linear-frequency-table-not-used-by-exact-worklet');
         if ([...Object.values(track.samples || {})].some(sample => sample.pan !== undefined && sample.pan !== 128)) {
             review.push('non-default-sample-panning-present');
         }
