@@ -103,6 +103,8 @@ Our PAL-clock SID engine combines a documented digital core with independently m
 *   **Linear Passive Summing Baseline:** Sums the three YM channels with one fixed level-preserving output scale. The previous additional bus compression and `tanh` saturation are not part of the Exact path; no uncalibrated motherboard-nonlinearity claim is made.
 *   **Two-Stage Interpolated 256-Phase Kaiser-Sinc Resampler:** Converts the 2MHz lockstep stream to 44.1, 48 or 96kHz with a 20kHz passband and a 96dB stopband design target. The two stages use 181+493, 163+297 and 73+87 taps respectively; measured worst-case stopband-start responses are −99.46, −103.00 and −98.94dB. Constant group delay and the linear 15.9kHz low-pass / 25Hz high-pass output model are documented in the Atari measurement notes.
 
+**Technical Deep Dive:** [Atari ST YM2149F emulation engine](doc/specs/emulation/atari/technical-deep-dive-atari.md) — parser and transport, 2MHz digital core, YM6/MFP-derived effects, DAC summing, two-stage resampling, output filtering, performance and evidence limits.
+
 ---
 
 ## 🎛️ Master Bus DSP Stage & Audiophile Headphone Acoustics

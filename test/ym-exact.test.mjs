@@ -204,7 +204,7 @@ test('track end jumps to the stored loop frame instead of frame zero', () => {
 });
 
 
-test('all ten corpus tracks with stored loop points return to their own loop frame', async () => {
+test('all twelve corpus tracks with stored loop points return to their own loop frame', async () => {
     const root = 'tracks/atari';
     const names = readdirSync(root, { recursive: true }).filter(name => /\.ym$/i.test(name));
     let checked = 0;
@@ -218,5 +218,5 @@ test('all ten corpus tracks with stored loop points return to their own loop fra
         assert.equal(processor.currentFrame, track.metadata.loopFrame, name);
         checked++;
     }
-    assert.equal(checked, 10);
+    assert.equal(checked, 12);
 });

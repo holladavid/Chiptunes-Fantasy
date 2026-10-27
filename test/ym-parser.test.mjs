@@ -127,10 +127,10 @@ test('invalid signatures, headers, ranges and truncated sections are rejected', 
     assert.throws(() => parseYM(badNibble), /4-Bit-Digidrumwert/);
 });
 
-test('all 73 corpus files parse with their documented clock, rate and loop points', () => {
+test('all 86 corpus files parse with their documented clock, rate and loop points', () => {
     const root = new URL('../tracks/atari/', import.meta.url).pathname;
     const files = readdirSync(root, { recursive: true }).filter(name => /\.ym$/i.test(name));
-    assert.equal(files.length, 73);
+    assert.equal(files.length, 86);
     let nonzeroLoops = 0;
     for (const name of files) {
         const track = parseYM(readFileSync(join(root, name)));
@@ -140,5 +140,5 @@ test('all 73 corpus files parse with their documented clock, rate and loop point
         assert.ok(track.metadata.loopFrame < track.frames.length, name);
         nonzeroLoops += track.metadata.loopFrame !== 0;
     }
-    assert.equal(nonzeroLoops, 10);
+    assert.equal(nonzeroLoops, 12);
 });

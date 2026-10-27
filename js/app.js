@@ -771,7 +771,7 @@ function renderTracklist(system) {
         } else {
             li.textContent = system === 'amiga'
                 ? entry.song.path.split('/').pop().replace(/\.[^.]+$/, '').replaceAll('_', ' ')
-                : entry.song.title;
+                : (entry.song.listTitle || entry.song.title);
             if (entry.index === currentTrackIndex) li.classList.add('active-track');
             li.addEventListener('click', () => selectAndPlayTrack(entry.index, system));
         }
