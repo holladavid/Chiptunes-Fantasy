@@ -9,16 +9,19 @@ import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
+import { createAmigaFixtureResolver } from './helpers/amiga-fixtures.mjs';
 import { parseCoso } from '../js/parsers/hipc-parser.js';
 import { CosoVirtualMachine, CHIP_BASE, SILENCE_LC } from '../js/worklets/lib/coso-vm.js';
 import { CosoReplayer, REG } from '../js/worklets/lib/coso-replayer.js';
 import { buildCoso, WAVE32, SMP0, IDLE_PATTERN } from './helpers/coso-builder.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const fixtures = process.env.HIPC_FIXTURES || path.join(here, '..', 'tracks', 'amiga');
-const paulaPath = process.env.PAULA_EXACT || path.join(here, '..', 'js', 'worklets', 'amiga', 'paula-exact.js');
-const fantasyPath = process.env.PAULA_FANTASY || path.join(here, '..', 'js', 'worklets', 'amiga', 'paula-fantasy.js');
-const L1 = path.join(fixtures, 'Wings_Of_Death-Level_1.hipc');
+const L1Name = 'Wings_Of_Death-Level_1.hipc';
+const L2Name = 'Wings_Of_Death-Level_2.hipc';
+const { fx } = createAmigaFixtureResolver([L1Name, L2Name]);
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const paulaPath = process.env.PAULA_EXACT || path.join(repoRoot, 'js', 'worklets', 'amiga', 'paula-exact.js');
+const fantasyPath = process.env.PAULA_FANTASY || path.join(repoRoot, 'js', 'worklets', 'amiga', 'paula-fantasy.js');
+const L1 = fx(L1Name);
 const haveL1 = existsSync(L1);
 const havePaula = existsSync(paulaPath);
 
@@ -274,7 +277,7 @@ test('position: 1..N im Durchlauf, springt beim Loop auf 1; tickCounter bleibt m
 });
 
 test('Titelwechsel-Bedingung aus app.js (previousFrame > length-20 und Frame < 10) löst pro Durchlauf genau einmal aus', { skip }, () => {
-    const mod = parseCoso(new Uint8Array(readFileSync(path.join(fixtures, 'Wings_Of_Death-Level_2.hipc'))), { name: 'L2' });
+    const mod = parseCoso(new Uint8Array(readFileSync(fx(L2Name))), { name: 'L2' });
     assert.equal(mod.length, 8000);
     const vm = new CosoVirtualMachine(mod, {}), ch = hwChans();
     let prev = 0, fired = 0, maxPos = 0;

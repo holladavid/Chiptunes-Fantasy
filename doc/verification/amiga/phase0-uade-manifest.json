@@ -1,0 +1,56 @@
+{
+  "format": "chiptunes-fantasy-amiga-uade-source-manifest-v1",
+  "status": "historical-results-documented-reference-wavs-not-in-source-archive",
+  "note": "Null means unavailable, not zero or unverified-by-assumption. Run tools/amiga-uade-reproduce.mjs with each concrete WAV to bind fresh metrics to its SHA-256.",
+  "commonReferenceSettings": {
+    "sampleRate": 44100,
+    "bits": 16,
+    "channels": 2,
+    "filter": "none",
+    "panning": 0,
+    "stereoMapping": "left voices 0+3, right voices 1+2"
+  },
+  "cases": [
+    {
+      "id": "wings-level1",
+      "module": "tracks/amiga/wings-of-death/Wings_Of_Death-Level_1.hipc",
+      "moduleBytes": 18282,
+      "moduleSha256": "c178d60880eed948d6b2dbc79881294a805f7bab29578cba39f58d8c1d77bddb",
+      "historicalReferenceFile": "level1.wav",
+      "referenceSha256": null,
+      "historicalSeconds": 150,
+      "historicalExplainedEnergyPercent": { "fixedPhase": 86.9, "localPhase": 95.2 }
+    },
+    {
+      "id": "wings-level2",
+      "module": "tracks/amiga/wings-of-death/Wings_Of_Death-Level_2.hipc",
+      "moduleBytes": 17112,
+      "moduleSha256": "51151bd5b1b73767cfe8ae4538fb0d040b8608c8b85a6ad7d78869d873d0ea71",
+      "historicalReferenceFile": "level2.wav",
+      "referenceSha256": null,
+      "historicalSeconds": 120,
+      "historicalExplainedEnergyPercent": { "fixedPhase": 89.1, "localPhase": 98.0 }
+    },
+    {
+      "id": "dragonflight-title",
+      "module": "tracks/amiga/dragonflight/dragonflight_titletune.HIPC",
+      "moduleBytes": 182276,
+      "moduleSha256": "ff75098224ee7016147021f283ea7e82cfd5b0c9869bebd9bd4945b28ca2784e",
+      "historicalReferenceFile": "dragonflight.wav",
+      "referenceSha256": null,
+      "historicalSeconds": 200,
+      "historicalExplainedEnergyPercent": { "fixedPhase": 83.3, "localPhase": 92.5 }
+    },
+    {
+      "id": "wings-title-hip68k",
+      "module": "tracks/amiga/wings-of-death/Wings_Of_Death-Title.hip",
+      "moduleBytes": 210448,
+      "moduleSha256": "7fa081abf82c336960f8cd5359558437baa228e9d9f9ba5b70036b5eedbfac98",
+      "historicalReferenceFile": null,
+      "referenceSha256": null,
+      "historicalSeconds": null,
+      "historicalExplainedEnergyPercent": null,
+      "status": "comparison-still-required"
+    }
+  ]
+}

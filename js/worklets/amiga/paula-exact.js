@@ -320,6 +320,9 @@ class PaulaProcessor extends AudioWorkletProcessor {
         this.samples = {}; 
         this.isPlaying = false;
         this.visualView = new Float32Array(40);
+        // Optionaler, standardmäßig inaktiver Messabgriff für den Offline-Harness.
+        // Stufen: 0 = Paula-Summe, 1 = ZOH/vor Analog, 2 = A500-Ausgang.
+        this.diagnosticTap = null;
 
         this.isSequenced = false;
         this.seqType = 'MOD';
@@ -702,9 +705,11 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     rawL *= mixAtten;
                     rawR *= mixAtten;
                 }
+                if (this.diagnosticTap) this.diagnosticTap(0, rawL, rawR);
                 
                 let bleedL = rawL * (1.0 - CROSSTALK_BLEED) + rawR * CROSSTALK_BLEED;
                 let bleedR = rawR * (1.0 - CROSSTALK_BLEED) + rawL * CROSSTALK_BLEED;
+                if (this.diagnosticTap) this.diagnosticTap(1, bleedL, bleedR);
 
                 let slewedL = this.opampL.process(bleedL);
                 let slewedR = this.opampR.process(bleedR);
@@ -737,7 +742,8 @@ class PaulaProcessor extends AudioWorkletProcessor {
 
             outL[i] = decL * 0.7;
             if (outR) outR[i] = decR * 0.7; 
-            else outL[i] += decR * 0.7; 
+            else outL[i] += decR * 0.7;
+            if (this.diagnosticTap) this.diagnosticTap(2, outL[i], outR ? outR[i] : outL[i]); 
             
             if (i === 0) oscValue = (decL + decR) / 2.0;
         }

@@ -9,20 +9,16 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
+import { readFileSync } from 'node:fs';
 
+import { createAmigaFixtureResolver } from './helpers/amiga-fixtures.mjs';
 import { parseCoso } from '../js/parsers/hipc-parser.js';
 import { CosoReplayer, REG, COSO_PERIODS, cosoSongTicks } from '../js/worklets/lib/coso-replayer.js';
 import { buildCoso, WAVE32, SMP0, IDLE_PATTERN } from './helpers/coso-builder.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const fixtures = process.env.HIPC_FIXTURES || path.join(here, '..', 'tracks', 'amiga');
-const fx = (n) => path.join(fixtures, n);
-const has = (n) => existsSync(fx(n));
 const L1 = 'Wings_Of_Death-Level_1.hipc';
 const L2 = 'Wings_Of_Death-Level_2.hipc';
+const { fx, has } = createAmigaFixtureResolver([L1, L2]);
 
 // ---------- Synthetik-Helfer ----------
 const INST0 = [0xE2, 0x00, 0x00, 0xE1];                  // Welle 0, Pitch REL 0, Ende
