@@ -181,8 +181,8 @@ class PaulaChannel {
     }
 
     // Vollständiger Track-Reset auf denselben Zustand wie ein neu erzeugter Kanal.
-    // STOP_TRACK verwendet absichtlich weiterhin disableDMA(), damit Pause/Resume
-    // weder Sampleposition noch Effekt- oder Filterhistorie verändert.
+    // Nur PLAY_TRACK setzt diesen Zustand zurück; STOP_TRACK friert ihn für
+    // Pause/Resume unverändert ein.
     reset() {
         this.audLc = 0x00020000;
         this.audLen = 16;
@@ -586,11 +586,10 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 }
 
             } else if (msg.type === 'STOP_TRACK') {
+                // Pause freezes the complete emulation state. PLAY_TRACK already
+                // performs a full reset, so mutating DMA/volume here would only
+                // make a later RESUME_TRACK restart with destroyed channel state.
                 this.isPlaying = false;
-                for (let i = 0; i < 64; i++) {
-                    this.channels[i].disableDMA();
-                    this.channels[i].writeAUDxVOL(0);
-                }
             } else if (msg.type === 'RESUME_TRACK') {
                 this.isPlaying = true;
             } else if (msg.type === 'SEEK_TRACK') {

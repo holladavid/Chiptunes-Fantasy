@@ -3,9 +3,9 @@
 // MOS 8364 (PAULA) & AMIGA 500 BOARD LIVING SILICON VISUALIZER
 // Zero-Allocation, Zero-Clipping, Schematic-Grade Routing:
 // - 4x Agnus/Paula DMA Channels with Live 6-Bit Volume Bars & Register Readout
-// - Dual 14-Bit Multiplying DACs (8x6 Bit) with Live 192kHz ZOH Staircase Scope
+// - Dual 14-Bit Multiplying DACs (8x6 Bit) with Live 4x-Host-Rate ZOH Scope
 // - On-Die DMA/Clock Control Core (3.55MHz PAL, DMACON D0-D3 LEDs, 2-Byte FIFO)
-// - External Amiga 500 Board Stage: LF347 Slew + 4.42kHz Static RC + 3.5% Bleed
+// - Linear A500 Approximation: 4.421kHz Static RC + 3.5% Bleed
 // - Left/Right 3.09kHz 12dB Butterworth LED Filters with Live Response Curves
 // =========================================================
 
@@ -193,7 +193,7 @@ export class Paula8364 extends BaseChip {
             }
         }
 
-        // Update Live 192kHz ZOH Staircase Scopes inside Left & Right MDACs
+        // Update live four-times-host-rate ZOH scopes inside Left & Right MDACs
         this.zohPhaseL = (this.zohPhaseL + (outL > 0.02 ? (600.0 / Math.max(113, avgPeriodL)) : 0)) % (Math.PI * 2);
         this.zohPhaseR = (this.zohPhaseR + (outR > 0.02 ? (600.0 / Math.max(113, avgPeriodR)) : 0)) % (Math.PI * 2);
 
@@ -258,7 +258,7 @@ export class Paula8364 extends BaseChip {
         // Side Chassis Diagnostics
         if (this.cache.diagVals && this.cache.diagVals.length >= 4) {
             const dmaStr = `${activeChannelCount}/4 CH`;
-            const zohStr = activeChannelCount > 0 ? '192k 14B' : 'STANDBY';
+            const zohStr = activeChannelCount > 0 ? '4x ZOH' : 'STANDBY';
             const ledStr = filterOn ? '3.09k ON' : 'BYPASS';
             if (this.cache.diagVals[1].textContent !== dmaStr) this.cache.diagVals[1].textContent = dmaStr;
             if (this.cache.diagVals[2].textContent !== zohStr) this.cache.diagVals[2].textContent = zohStr;
@@ -270,7 +270,7 @@ export class Paula8364 extends BaseChip {
         return `
             <svg class="paula-visualization" viewBox="0 -42 800 305" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="paula-title paula-description">
                 <title id="paula-title">MOS 8364 Paula &amp; Amiga 500 Audio Signalfluss</title>
-                <desc id="paula-description">Vier Agnus/Paula DMA-Kanäle speisen zwei 14-Bit Multiplying DACs mit 192 kHz Zero-Order Hold. Über Pin 32 und Pin 33 gelangt das Stereosignal in die externe Amiga-500-Mainboard-Filterstufe (LF347 Op-Amp, 4.42 kHz RC-Tiefpass und schaltbares 3.09 kHz Butterworth LED-Filter).</desc>
+                <desc id="paula-description">Vier Agnus/Paula DMA-Kanäle speisen zwei 14-Bit Multiplying DACs mit Zero-Order Hold auf der vierfachen Host-Abtastrate. Über Pin 32 und Pin 33 gelangt das Stereosignal in die lineare A500-Filterapproximation (4.421 kHz RC-Tiefpass und schaltbares 3.09 kHz Butterworth LED-Filter).</desc>
                 <defs>
                     <marker id="paula-arrow" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
                         <path d="M 0 0 L 5 2.5 L 0 5 Z" fill="var(--bus-active-color)" />
@@ -350,7 +350,7 @@ export class Paula8364 extends BaseChip {
                 <path class="silicon-bus-packet sig-path-2" d="M 234 188 L 252 188" />
 
                 <!-- =========================================================
-                     3. DUAL 14-BIT MULTIPLYING DAC + 192kHz ZOH STAIRCASE
+                     3. DUAL 14-BIT MULTIPLYING DAC + 4x-HOST-RATE ZOH STAIRCASE
                      ========================================================= -->
                 <!-- LEFT MDAC (CH 0 + CH 3) -->
                 <g class="paula-mix-l" style="opacity:0.35">
@@ -382,7 +382,7 @@ export class Paula8364 extends BaseChip {
 
                     <rect x="383" y="92" width="88" height="24" rx="1" fill="var(--chassis-dark)" stroke="var(--text-color)" stroke-width="0.6" />
                     <text x="427" y="101" class="paula-channel-registers" fill="var(--text-color)" text-anchor="middle">ZOH OVERSAMPLE</text>
-                    <text x="427" y="111" class="paula-channel-state" fill="var(--highlight-color)" text-anchor="middle">192.0 kHz (4x)</text>
+                    <text x="427" y="111" class="paula-channel-state" fill="var(--highlight-color)" text-anchor="middle">4x HOST RATE</text>
 
                     <!-- DMACON Active Channel Gate Matrix -->
                     <text x="427" y="128" class="paula-channel-registers" fill="var(--text-color)" text-anchor="middle">DMACON GATES</text>
@@ -420,11 +420,11 @@ export class Paula8364 extends BaseChip {
                 <rect class="paula-board-frame" x="546" y="27" width="242" height="216" rx="5" fill="var(--screen-bg)" stroke="var(--chassis-light)" stroke-dasharray="5 3" />
                 <text x="667" y="42" class="silicon-chip-label" fill="var(--panel-text)" text-anchor="middle">AMIGA 500 BOARD · ANALOG STAGE</text>
 
-                <!-- Stage 6A: LF347 JFET Op-Amp Slew & 4.42kHz Static RC Lowpass -->
+                <!-- Stage 6A: Linear 4.421kHz static RC approximation -->
                 <g class="paula-rc-stage" style="opacity:0.35">
                     <rect x="558" y="54" width="216" height="40" rx="3" fill="none" stroke="var(--text-color)" stroke-width="1.2" />
-                    <text x="568" y="68" class="paula-stage-title" fill="var(--text-color)">LF347 OP-AMP + STATIC RC</text>
-                    <text x="568" y="83" class="paula-stage-caption" fill="var(--highlight-color)">13V/us · 4.42kHz LP · 3.5% BLEED</text>
+                    <text x="568" y="68" class="paula-stage-title" fill="var(--text-color)">LINEAR A500 · STATIC RC</text>
+                    <text x="568" y="83" class="paula-stage-caption" fill="var(--highlight-color)">4.421kHz LP · 3.5% BLEED</text>
                 </g>
 
                 <!-- Stage 6B: Left 3.09kHz 12dB/oct Butterworth LED Filter -->

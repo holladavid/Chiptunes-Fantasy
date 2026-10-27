@@ -38,8 +38,16 @@ export function getMasterCrossfeed() {
     return isCrossfeedActive;
 }
 
-export async function initAudioEngine() {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+export async function initAudioEngine(sampleRate) {
+    if (sampleRate !== undefined && (!Number.isFinite(sampleRate) || sampleRate <= 0)) {
+        throw new RangeError('sampleRate must be a positive finite number');
+    }
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    // Die Produktions-App verwendet weiterhin die Host-Rate. Die optionale
+    // Rate ermöglicht reproduzierbare Browserabnahmen bei 44,1/48/96 kHz.
+    audioCtx = sampleRate === undefined
+        ? new AudioContextClass()
+        : new AudioContextClass({ sampleRate });
     try {
         analyserNode = audioCtx.createAnalyser();
         analyserNode.fftSize = 4096; 

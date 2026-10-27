@@ -11,6 +11,7 @@ const WORKLET_PATH = path.join(AMIGA_HARNESS_ROOT, 'js/worklets/amiga/paula-exac
 const STATIC_CUTOFF = 4421;
 const LED_CUTOFF = 3090;
 const SAMPLE_RATES = [44100, 48000, 96000];
+const PHASE4_WORKLET_SHA256 = '3c5097caa01dc6d21418500b360d00216d1983836456af2cf3cda2a07098236f';
 
 function loadA500Classes() {
     const source = readFileSync(WORKLET_PATH, 'utf8');
@@ -197,7 +198,7 @@ for (const name of ['level1', 'hip68k', 'mod', 'xm']) {
         ), 'utf8'));
         const loaded = await loadAmigaTrack(report.input);
         assert.equal(sha256(loaded.bytes), report.tuneSha256);
-        assert.equal(report.workletSha256, sha256(readFileSync(WORKLET_PATH)));
+        assert.equal(report.workletSha256, PHASE4_WORKLET_SHA256);
         const run = renderExact(createExactProcessor(loaded.track), {
             seconds: report.seconds, outputRate: report.sampleRate, blockSize: report.blockSize
         });
@@ -215,7 +216,7 @@ test('Phase-4-Charakterisierung: Filter, LED-Bypass und Superposition sind repro
     const report = JSON.parse(readFileSync(path.join(
         AMIGA_HARNESS_ROOT, 'doc/verification/amiga/phase4-a500-characterization.json'
     ), 'utf8'));
-    assert.equal(report.workletSha256, sha256(readFileSync(WORKLET_PATH)));
+    assert.equal(report.workletSha256, PHASE4_WORKLET_SHA256);
     assert.deepEqual(report.filters.map(filter => filter.sampleRate), SAMPLE_RATES);
     assert.equal(report.ledBypass.bitIdenticalToContinuousLed, true);
     assert.equal(report.ledBypass.maximumAbsoluteError, 0);
@@ -230,7 +231,7 @@ test('Phase-4-MOD/XM-Korpus: alle digitalen Phase-3-Hashes bleiben unverändert'
     const previous = JSON.parse(readFileSync(path.join(
         AMIGA_HARNESS_ROOT, 'doc/verification/amiga/phase3-modxm-corpus.json'
     ), 'utf8'));
-    assert.equal(report.workletSha256, sha256(readFileSync(WORKLET_PATH)));
+    assert.equal(report.workletSha256, PHASE4_WORKLET_SHA256);
     assert.equal(report.trackCount, 10);
     assert.equal(report.finite, true);
     for (let index = 0; index < report.tracks.length; index++) {

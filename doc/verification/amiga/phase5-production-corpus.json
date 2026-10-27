@@ -1,0 +1,2305 @@
+{
+  "format": "chiptunes-fantasy-amiga-phase5-production-v1",
+  "referenceStatus": "Self-generated production regression anchors; no hardware/UADE truth or browser-dropout claim.",
+  "workletSha256": "44e1a470617a36b7a4f8ab8e5def97bd67028b82152fb31c47325f7f46c6a364",
+  "audioControllerSha256": "45f90571dd3282e7606df6ae05ac38083f2a870ca3d304da7e428b5ac830e987",
+  "registrySha256": "f435a766372cfa646c923e3993375928504f6c4b0908734486528fcd415b44f9",
+  "corpus": {
+    "seconds": 5,
+    "sampleRate": 48000,
+    "blockSize": 128,
+    "irregularBlockPattern": [
+      1,
+      17,
+      64,
+      255,
+      3,
+      128
+    ],
+    "restartWarmupSeconds": 0.25,
+    "trackCount": 45,
+    "formatCounts": {
+      "HIPC": 35,
+      "MOD": 7,
+      "XM": 3
+    },
+    "finite": true,
+    "deterministic": true,
+    "blockIndependent": true,
+    "restartIdentical": true,
+    "maximumA500Peak": 1.2569701671600342,
+    "silentA500Tracks": [],
+    "maximumOfflineRealTimeRatio": 0.19268965460000326,
+    "tracks": [
+      {
+        "path": "ELYSIUM.MOD",
+        "tuneSha256": "73eaff8065dbc987045499b1bcf6d179a3043419a43306483caa96c93dfd4c37",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1861551638,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "664704dd9b8a773af11dc387766a118bf8dd6e1dae73d774a2e9948ca4196684",
+            "rms": 0.26746530796539286,
+            "peak": 1.2081692913385829,
+            "dc": -0.006906783649114819,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "faf28e6044d341de957d1146df03f9c6c96013e8f7428f23fbf3506b9e71a059",
+            "rms": 0.25869283476349714,
+            "peak": 1.18265563484252,
+            "dc": -0.00690678364911482,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "b164ce0e5a7e12a34dceb9bb5561725fed70043b6fbbfac962c1d23b98be8481",
+            "rms": 0.1754831088346953,
+            "peak": 0.8249404430389404,
+            "dc": -0.004842959946075241,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "space_debris.xm",
+        "tuneSha256": "7f8131135cf77247e4cace9a60ddac8bdc0b26c7c08ae701b944fbd17b40c0b8",
+        "type": "XM",
+        "channels": 32,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.19140940560000008,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "bf7015158109ea6a4ad435f98ba42b6849952fd1a72f667dd340eddce3c707ba",
+            "rms": 0.03663044541542736,
+            "peak": 0.23554430221672484,
+            "dc": -0.00019414136042615712,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "69d39a1dd99d317e8f0ae520b56fa3566a26d6dd4ec446c362c71cbb0c61ca25",
+            "rms": 0.03656534057778962,
+            "peak": 0.2340335565476287,
+            "dc": -0.00019414136042615707,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "ed1d903a8b8514fb04b771a313649d94192dc379b210eeb5893a295e22ca6626",
+            "rms": 0.02539856086673988,
+            "peak": 0.15324392914772034,
+            "dc": -0.00013324464149346856,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "GSLINGER.MOD",
+        "tuneSha256": "c229a506d1bae69c0681462bf85d5e0e02cbbfcff9efec064481d3b09b699728",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.14100392599999995,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "e82978f89420173220008e2b6065faa579bcad3319d6b6058c8a11b6c875553b",
+            "rms": 0.0577186561247296,
+            "peak": 0.6380413385826772,
+            "dc": -0.00017848384186351733,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "4c4cbd3b79d65d492a837d07160e83dd3bb861963fa41a9b02130d9cf8028263",
+            "rms": 0.055719921745865285,
+            "peak": 0.6161921751968504,
+            "dc": -0.0001784838418635173,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "ec80299d3194f51a7e1970431d4ad44ac028b6c438bb469c82ac0a757c1757a4",
+            "rms": 0.036621076721989165,
+            "peak": 0.417336642742157,
+            "dc": -0.00010957152342714762,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "agony_intro.mod",
+        "tuneSha256": "27f85e06236e14a44b330b65fe28d7a95f3377dea84dc4a09a2d78a8f8f26da7",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1482737276,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "c94c3086dac4297ff6afbe9ad4c5a8fc9e6268de1c89b572fcadd4b8c5da5ba8",
+            "rms": 0.11819101330255066,
+            "peak": 0.9212598425196851,
+            "dc": -0.023977701822927373,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "0f1c6aa3976f76ec9a4ee41c82649d09ef7dc979619ce91ac66f32f66aff3405",
+            "rms": 0.11449366142209243,
+            "peak": 0.8890157480314961,
+            "dc": -0.023977701822927373,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "3b081da47c95aed4237449c019248c454ab6a4055adc2c2b1240a14eec34c1af",
+            "rms": 0.07490963917199805,
+            "peak": 0.6263096928596497,
+            "dc": -0.016785250963720254,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "turrican_2_title.xm",
+        "tuneSha256": "f5fb4bd8914aeecc7b14c8b2cd6a66adde2330731dd6757d3bc555b0c766c628",
+        "type": "XM",
+        "channels": 16,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1560395964000003,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "7b4f219b26bc9b5d133760b56a4ef80c71cb71b31fe9dbdd9cb4f4b439f53870",
+            "rms": 0.18609293286073622,
+            "peak": 1.3949050486336265,
+            "dc": 0.03127323315237448,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "5f56c6267e9dd85b619b4be8a7a0db81fc79b22f1ff699965ad532c22a3ffb70",
+            "rms": 0.18609273954447159,
+            "peak": 1.3945236292843908,
+            "dc": 0.03127323315237448,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "5012728ef3b225aeb7a2f4689f21e666c6ade5b9fbaf1bb62876e158e72039fa",
+            "rms": 0.12064175474349789,
+            "peak": 0.7785516977310181,
+            "dc": 0.02188492730595964,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "dragonflight/dragonflight_titletune.HIPC",
+        "tuneSha256": "ff75098224ee7016147021f283ea7e82cfd5b0c9869bebd9bd4945b28ca2784e",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1558324864000002,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "10dc917c6684aa179344ccce699906f17b2e01d100bb0a9be1f38b5ea672dbad",
+            "rms": 0.04913354729503935,
+            "peak": 0.26820866141732286,
+            "dc": -0.0004127901492781519,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "1aab22735e0d9d888ac684f2cda97e73c863b12cb2599dd87f3565e940dd9c5d",
+            "rms": 0.04744504869118396,
+            "peak": 0.2588213582677166,
+            "dc": -0.0004127901492781519,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "5364db3a4487a73c8b073870e948847faf4ccd9c9b6aaa5384b9a1e2f7a50f01",
+            "rms": 0.0325804253684372,
+            "peak": 0.1765468865633011,
+            "dc": -0.00028767229065364486,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "dragonflight/dragonflight_surface.HIPC",
+        "tuneSha256": "27712763cdcfa026ed4aebd1a88574ec38ac211ee72e0e579fcad635caa836d8",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.14143924499999994,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "7b2b113e73016637ea8671a9a100eb9048e42f1e91fffe7d673fa57e6c9b1a6b",
+            "rms": 0.252360234321763,
+            "peak": 0.4881889763779528,
+            "dc": 0.16971693977143548,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "fe481890716da037f965c9320c17d5f293afa6d97eb5c62ec1387456fbbe202b",
+            "rms": 0.24727944706234925,
+            "peak": 0.47826771653543304,
+            "dc": 0.16971693977143548,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "56b9940b1d2968388d4a57e8df1723c188fd679f42952e8cda23c97de795f1cb",
+            "rms": 0.1669442189874788,
+            "peak": 0.3482358753681183,
+            "dc": 0.11878800192775649,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "dragonflight/dragonflight_town.HIPC",
+        "tuneSha256": "ee5f1e99dd09ffc5e768bcbe29604c04c923d5349d8e928d0ee8f9ed01c7f643",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1443289861999998,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "b38bce1d0a51c42a82f18909d934a0a70ebf013b25e26e892b407cc61afc08a0",
+            "rms": 0.16803373311597994,
+            "peak": 1.3494094488188977,
+            "dc": -0.07286937803734467,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "6790ddd90fdf9feb72a467a2f1b82a911906ba9dc859275ca451caf9dd00fc37",
+            "rms": 0.16300353776089035,
+            "peak": 1.3063484251968502,
+            "dc": -0.07286937803734467,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "0b8fdbad82147825dad8111ca434955434d0e06240b86d7474748988377316cc",
+            "rms": 0.11245915253260604,
+            "peak": 0.9057261943817139,
+            "dc": -0.050998597801096626,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "dragonflight/dragonflight_dungeon.HIPC",
+        "tuneSha256": "5992454f34a129f6b18ed30fe69abc3383e5d4402cc430d49e519972b2c4bc5a",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1462488544,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "f82f348d1dee690e6cade8fd0a98a706021819057479e9e77e30976a37c38c47",
+            "rms": 0.07715074828836746,
+            "peak": 0.2677165354330709,
+            "dc": -0.037117312646019834,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "588336557add54de49fedc1c0e7395dc4297d42b5ecfe1cba8d502e100af339d",
+            "rms": 0.07449942474376284,
+            "peak": 0.2583464566929134,
+            "dc": -0.037117312646019834,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "308f2e1e01971253c3465b7e5e83522006c4204ab78f8b552b6cac0ab1f0c613",
+            "rms": 0.05011505105911594,
+            "peak": 0.1801237314939499,
+            "dc": -0.025981121073701003,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "dragonflight/dragonflight_endsequence.HIPC",
+        "tuneSha256": "b4b1744729c5d3b03e95c32277fa7c2917e381187d1e84817526742c233f7d99",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.14298847860000025,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "71a4ac48cfdce4db56902153c25be691b9850fbb5ecbbecb09666607f90b6c83",
+            "rms": 0.12716628633852253,
+            "peak": 0.9921259842519685,
+            "dc": 0.013669233731645282,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "19769c0464408db878d92541011e259fc11a0af544c351b2e57e22f6c555bd18",
+            "rms": 0.12279730907450759,
+            "peak": 0.9586417322834645,
+            "dc": 0.013669233731645282,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "e1fd13f38edb8ddf408b8d1749a5fa700be01122398e0bd0257d7e0251ddd3b6",
+            "rms": 0.08582818927390849,
+            "peak": 0.6706334948539734,
+            "dc": 0.009568994845559078,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "dragonflight/dragonflight_ani.HIPC",
+        "tuneSha256": "8903051f54bfb73c65d94681d3e2ddc01c5a3332bcd2758e53d7cd31959b9a82",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.14789110040000014,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "ad3d764e0a2271d9841cb1f1d539dc106351a512d60ad8ebd7fe30f302550ee5",
+            "rms": 0.15243616899317255,
+            "peak": 0.9921259842519685,
+            "dc": 0.010439303372601192,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "1f0104e60b739b5da787a6a4dfcb1e9784832e2405df8a22cffe4abc13c2fc7f",
+            "rms": 0.14728423707660263,
+            "peak": 0.9606053149606298,
+            "dc": 0.010439303372601192,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "6149554239bd662cad77b520de30d4a91c0da73e9b88d75b92246d8019c37aa1",
+            "rms": 0.10222467285574227,
+            "peak": 0.6716893911361694,
+            "dc": 0.007320588631905754,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "dragonflight/dragonflight_always.HIPC",
+        "tuneSha256": "890290bac42a287273877b820d513cd9dc5a62e307ab69c3acbc753cac069940",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.14276662619999989,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "2cdb61661a6f021e291fc749f5f696d99db07884d42a9b768779681e09b1497f",
+            "rms": 0.08505363131860191,
+            "peak": 0.1889763779527559,
+            "dc": 0.03589827704642327,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "a622c302f0f85e60efcea61068336b307e87ee386e7ebee2eb2ceb327933bd15",
+            "rms": 0.08213072129795872,
+            "peak": 0.18236220472440945,
+            "dc": 0.03589827704642327,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "b470d9f4820418727adf81f61adf3f7edbea6da9a7df5c4c702f45c9688223f5",
+            "rms": 0.05477447357702643,
+            "peak": 0.13314896821975708,
+            "dc": 0.0251242843698337,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/City_Walk.hipc",
+        "tuneSha256": "def6906440df2e03f372bc14956f6007823edf471361a769116f53140d6ba211",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1445703686000008,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "227d5f07122b4a39fabd441744176c52512662c6eb3143cc8d822990592ee4a1",
+            "rms": 0.28078242768071876,
+            "peak": 1.111220472440945,
+            "dc": 0.0016453836275836303,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "266c66fc543728a4b4d7da00c1dd3f30856246c58be958a91f8ba102aea04c9a",
+            "rms": 0.27124353989055944,
+            "peak": 1.0885057824803148,
+            "dc": 0.00164538362758363,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "b9df53e4cc055363fedb94bd019a22b4a2dcbe21db2a910f4cf4f4589c9cc031",
+            "rms": 0.18761345136186267,
+            "peak": 0.7335766553878784,
+            "dc": 0.0011497101079149842,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Dreamcave.hipc",
+        "tuneSha256": "5f40ffce3d01eb10edc7c3bd4f649c5e086b78599a0d45106608ffe9365caf16",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.14240156940000015,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "b53c678e5ff313acc21975d327267bc1f28cb6ba2d64c181c59673900cbeb611",
+            "rms": 0.2028201959573418,
+            "peak": 1.3046259842519685,
+            "dc": -0.0001295515886442087,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "c4b9997c44d696aae8bc81927f951f32674a2c26dd290e4b7e5f496b064106a4",
+            "rms": 0.19584599046155177,
+            "peak": 1.26216781496063,
+            "dc": -0.00012955158864420862,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "1ca9dc3d7bf487325aa9eadb768cb7578ea886fa1245ddc25564b6ea4e4ae449",
+            "rms": 0.13618600500470743,
+            "peak": 0.8684859871864319,
+            "dc": -0.00004684858589840335,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Eriks_Revenge.hipc",
+        "tuneSha256": "5a67963a30633aa027afc89a6729891403c72c6165ff22d3358bb4900e4bb070",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.14814987980000005,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "9bf7623b002de650ab9ad1d811fcfed904fa4a12b76ae55a2fec08c11cc6e898",
+            "rms": 0.26698805118613367,
+            "peak": 1.2926919291338583,
+            "dc": 0.0012489598712269979,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "37f01fc5e98a3b5a74c1b8ee2b4c93d991e9b27de0e91ea81d3d84777bc749ca",
+            "rms": 0.2580919629054578,
+            "peak": 1.2622520915354332,
+            "dc": 0.0012489598712269979,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "72ebdd01099e985dfbaed3950a5a9e1ab2ba8f83d3136753780470a556855b56",
+            "rms": 0.17658324516732873,
+            "peak": 0.8710001707077026,
+            "dc": 0.0008625138862984251,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Fanfares.hipc",
+        "tuneSha256": "3829d58f5c6747a95ab4988f067ba61f49258736385accedab442c0a36b1e1e5",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.14120302419999933,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "54d4cd7167e683c85d04a6858c7949cf2761ea1cd444a1d42a9122c9a4f693fd",
+            "rms": 0.26301560244476363,
+            "peak": 0.9921259842519685,
+            "dc": 0.0018250129439382975,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "a8aeb88bab8a18caebef746672bb964507c31f447e3e7639375e2db80f2a5745",
+            "rms": 0.25359616663211504,
+            "peak": 0.9515538877952756,
+            "dc": 0.0018250129439382975,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "9b097f28c6130367de8f14e72a492380aa904a0b94b15f75ffa05884f9eefc2b",
+            "rms": 0.17520091764098775,
+            "peak": 0.66204833984375,
+            "dc": 0.0012717912004307217,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Flying_High.hipc",
+        "tuneSha256": "55069959ef2631175432070d6689cccca361c1f5a34d466c8be2f666b2f61901",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1448288532000006,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "972dea1aff743258998961850c4e250afc5a998c3a922a8c2d97172ef793b9a5",
+            "rms": 0.4241356259706101,
+            "peak": 1.2407726377952755,
+            "dc": 0.0005405928964689804,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "9fc882e10ab890258bcc982b1ebaa7e3cbde0377f5ec7804a82547c5ba382eeb",
+            "rms": 0.409523068335234,
+            "peak": 1.2122662401574802,
+            "dc": 0.0005405928964689811,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "89c4701775713a4b9ffab62cfe21f0489ce1630fdca2e176fe90fc1c4924b3b4",
+            "rms": 0.2837024375734754,
+            "peak": 0.8335976004600525,
+            "dc": 0.00038151642615243114,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Funkey_Dungeon.hipc",
+        "tuneSha256": "6682e4255b6287408d4d2aba376a82d6559b36014f6b7c0a38d2b384b07b2de4",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.14194647039999983,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "495be1fe9ddce34907125021f29292a18de4d4eec9695bc932734f6bc0588bba",
+            "rms": 0.27701721173738997,
+            "peak": 0.9921259842519685,
+            "dc": -0.0018331463510906502,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "3275871d4c5daa17e1dd9cc04279617df2ae75c66cdc4063014051f15ba16a53",
+            "rms": 0.26748026189539886,
+            "peak": 0.9720423228346456,
+            "dc": -0.0018331463510906506,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "123529c32224d3f523f91d05ecfe970edab5ddaee065215e991687cdf4b0f766",
+            "rms": 0.18654465536386444,
+            "peak": 0.6803810000419617,
+            "dc": -0.001267332816774658,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Gwens_Lament.hipc",
+        "tuneSha256": "1bb0529cb73338af2d2c9bfcee02a67c620c495de5c61c3439949e97ed613b41",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.14170191780000022,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "b8f36225f419c1c24770708f92858a43cba09e9e3772cabfe350d2dc7bcff19f",
+            "rms": 0.282312280414417,
+            "peak": 1.0884596456692914,
+            "dc": 0.0003479634442667376,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "c294aa2630cc14025c01edb1ee72434f53bda1b23c4e5749aa0b6ec209ab75fc",
+            "rms": 0.27261630421153443,
+            "peak": 1.0547256397637794,
+            "dc": 0.0003479634442667375,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "f16c6d8321d2c9e37f87f86a0bf78705010a1fffb09f41f74d480a33b89b4ac0",
+            "rms": 0.1880864135486889,
+            "peak": 0.7248107194900513,
+            "dc": 0.00025020577808812077,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Hasta_La_Vista.hipc",
+        "tuneSha256": "80ff05e63830ce028b1ed4c43cc3c95cfff1f1cbff041794c7ab050b4bc65c7b",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.14821030639999955,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "e614656b71a6082de16f260b37da024fab0d5ad2207dafa7edbc5f718d47a0a9",
+            "rms": 0.09095864597462634,
+            "peak": 0.42913385826771655,
+            "dc": 0.00042956446850386337,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "43c1026e3eb1d4e3b0647eb50f00a7ae21f74f81b6845bfdfbc4dbffe40eb7c3",
+            "rms": 0.08783280721083991,
+            "peak": 0.4141141732283465,
+            "dc": 0.00042956446850386337,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "13fe205c1908c7a1870d0d75e1de080e846dd7cd4e717feff98d6170f8bd14f2",
+            "rms": 0.06060346006889617,
+            "peak": 0.28980734944343567,
+            "dc": 0.00031020091904662955,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/High_Seas.hipc",
+        "tuneSha256": "abc5ecb6c3da8f2ca9f2d0301e88de155b14ee27c729d61afa4e429453aabc73",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1442621800000008,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "64150db4bc06bcb42768fe4c42d8d1c616d318421eeca0fc585e24804ba58092",
+            "rms": 0.3307246416532816,
+            "peak": 1.1172490157480315,
+            "dc": -0.0007053953155757469,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "76537627cb13115764f1b4fe536f04c7f3d53e72392abbf93727162392200c95",
+            "rms": 0.3193995898934034,
+            "peak": 1.0815944881889763,
+            "dc": -0.0007053953155757465,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "163be464c0594d4c6a498ed5e5fd204316de35dd60e056ce699f9e9687d16bbe",
+            "rms": 0.22171366115841995,
+            "peak": 0.7369799017906189,
+            "dc": -0.000518683448797231,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Horse_Song.hipc",
+        "tuneSha256": "75c3a8d17f7d7df92e193a28d80c23c1b1a1356317a1993b03d2fd4227a31f15",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.14812680859999963,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "7921bb0532731fe5cb3775adfdbfbd6236ce56e4e059bb846c36e076364ab9f2",
+            "rms": 0.3204192907378438,
+            "peak": 1.6975885826771653,
+            "dc": 0.005132677870222385,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "043031d4ebd28baf8fb5c945096f94f15fce3080ec227187f4d0677532713932",
+            "rms": 0.3093883445498011,
+            "peak": 1.6363041338582678,
+            "dc": 0.005132677870222385,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "e9d26a05b8f9765b2a5b0faadc4835d19afebca83a418c180e5cb88c3ae4f39f",
+            "rms": 0.21609749863592426,
+            "peak": 1.1413027048110962,
+            "dc": 0.0035624653444742476,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Irish_Spring.hipc",
+        "tuneSha256": "ca9cd91e4819a23b210d0758b3604bcf1a7e17f8e86bd95ebcfadd876b1decd4",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.14335375880000065,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "f6af59c63c866f7ab886c85330dd4cc1b04b6ae08d73e09f67f7b3d1a1c914a6",
+            "rms": 0.23760239162619237,
+            "peak": 0.7401574803149606,
+            "dc": -0.001012618610051467,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "7e4e434c194e0cdf27615da9cf9426327ab277900bdecdf8e9d3f0a0accfea87",
+            "rms": 0.22942786463729944,
+            "peak": 0.7258267716535434,
+            "dc": -0.0010126186100514669,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "42bd13e417887aaf39269aff0f34a33cfb6329e85237c9a9f656b4dcc76b55be",
+            "rms": 0.15980462472948395,
+            "peak": 0.5076698660850525,
+            "dc": -0.0006874402330328782,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Lullaby.hipc",
+        "tuneSha256": "a3aced36a54497cf0f8e727211852d5b82d330594438b9d4a7d1279b933d2331",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1431036988000007,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "d9c78b0df2daa9add4bc0cb1949163ef1a02b6a67de580039049f71271c9c9fc",
+            "rms": 0.12401711661446449,
+            "peak": 0.4881889763779528,
+            "dc": 0.0006524021258817094,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "6d107088ba5b1ca2b6703f45e3f2abe79940f8fa61a050981b4d49e48fbbe5ff",
+            "rms": 0.11975784674369094,
+            "peak": 0.47241141732283465,
+            "dc": 0.0006524021258817095,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "f40b022a05ec5354603fc05567232e969fd7f9ed2ceed3cf8a6e8b3fa5a3fddb",
+            "rms": 0.08214273609388448,
+            "peak": 0.32008352875709534,
+            "dc": 0.0004574411147758365,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Lurking_Horror.hipc",
+        "tuneSha256": "c1af916b44056cd1a0a0227ce0ec6c913df438b1964dbc13cbd09bc6640f0fef",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1436524196000013,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "4aca387f82e59cdf671a2363772d0ada2cf70f18a54cc8732326c38473b105bc",
+            "rms": 0.09981317547037105,
+            "peak": 0.484375,
+            "dc": -0.001347575830979982,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "17901c0f12e3c2917d45aa2555ee2888b841734c8ad5ba5953a55b76ff502f41",
+            "rms": 0.09638304642996645,
+            "peak": 0.467421875,
+            "dc": -0.001347575830979982,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "85ae16a23a570b5a5f973710769bd63343186e9a6656ee6df23c2b4fc5ae73e2",
+            "rms": 0.06589871192170216,
+            "peak": 0.323723703622818,
+            "dc": -0.0009483379626387143,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Minor_Quarrels.hipc",
+        "tuneSha256": "d010ffff37c10da62d577728877c3bb0bc8dda91907bd4a3a3351705689fa989",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1403097907999996,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "7bd9c26e7a59b9f7c736c8d4646dc0f69cd0b7998c0d3742934bf32092ff4896",
+            "rms": 0.37302455556000697,
+            "peak": 0.984375,
+            "dc": 0.0008589690601419139,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "72a05cc87ba858f1660135d495459f56d6eac36a495355badb1a96e70acd8887",
+            "rms": 0.3599434054358267,
+            "peak": 0.9769340551181102,
+            "dc": 0.0008589690601419125,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "d93fe695d002a4042b70eabc81fab9eefe5bc0d9d6b81573a38409cf82004fda",
+            "rms": 0.25007489802605753,
+            "peak": 0.6837354898452759,
+            "dc": 0.0006295561253729107,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Misty_Orc_Hop.hipc",
+        "tuneSha256": "fe4917b7386eedd8b15d87d1459ab26de7bf91bce5e3840471fd85e667e9ebe6",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.14626907020000218,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "4b29776ffcde0f1dbf408c42e70079b333b94120a1e6936e2cb1bc2f03dfbbe3",
+            "rms": 0.21322956783063673,
+            "peak": 1.3021653543307088,
+            "dc": 0.0005191209527763433,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "b6ed3382c0ec2ecfc3e34ecb70a2d4738546f94ed6b0dc4c5390be07d196c0e0",
+            "rms": 0.20662128842368893,
+            "peak": 1.2634405757874014,
+            "dc": 0.0005191209527763434,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "c47f46f7f2d34fb4de768efae6435413d12cdb1f6b8a27f6299c45d1b5fc5eaa",
+            "rms": 0.14242984730549377,
+            "peak": 0.8622382283210754,
+            "dc": 0.000354954446367195,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Mystic_Moments.hipc",
+        "tuneSha256": "f5a5c907aaca070934f5c2d7cbbf0294622a0379d5832b4a3819507043045eb8",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.14459143120000081,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "d17ada4d75d88f429c8865a95d0753ef254187c4f8b96e21b1d33248a5308101",
+            "rms": 0.08127333206547707,
+            "peak": 0.31496062992125984,
+            "dc": 0.0003371535894438184,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "a1b8a6b82e44955074780b0e68e74178356236f5efd1b75b247bd9dfffb71742",
+            "rms": 0.07848042446981449,
+            "peak": 0.30393700787401573,
+            "dc": 0.0003371535894438184,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "f650508ff01c09988dd2c451cf5431610f2e2ca43606ca33ce13f0380c30fadf",
+            "rms": 0.05463956679450629,
+            "peak": 0.2128024399280548,
+            "dc": 0.00022620027245725884,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Ode_To_Schnism.hipc",
+        "tuneSha256": "76bfdcef4b268c137b385c2da54168ce79399ee18a875c86701488346e939fa3",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1441673026000004,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "46746824db78e862100e24830d58e5c63e1d9c22da13b2bce2a730b89c8e5c25",
+            "rms": 0.40801387157602503,
+            "peak": 1.8834891732283465,
+            "dc": 0.0017025976306185406,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "9b6f1e2459d857204d5a9b9bb3de8340f966c53a7c291ee4013080848cbfdf75",
+            "rms": 0.39489139323723504,
+            "peak": 1.8117495078740158,
+            "dc": 0.0017025976306185406,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "2e4f93774fdd505c760d2296392a2bba51506b28f1f79d4089722f3413da1830",
+            "rms": 0.2737414320889266,
+            "peak": 1.2569701671600342,
+            "dc": 0.0012522866889706622,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Travellers_Tune.hipc",
+        "tuneSha256": "f7cefcda468c56c40f00788aab35e0f45d709a9360ebf7e3bbee043aab1e35e4",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.14071691260000224,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "e31c796010d627a68d06ef9ab9cc5e96f7e8575208daa9caf34946d43c5c3a02",
+            "rms": 0.2418188683174596,
+            "peak": 1.1738435039370079,
+            "dc": 0.0013437423105319918,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "b615bd3a794e44e0b1720c474021e84761e993edae2e57a1413e86db00da9fdd",
+            "rms": 0.23350864355219195,
+            "peak": 1.1327589812992125,
+            "dc": 0.001343742310531992,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "adff64f4610440f598de7bbfad54217d7dd9e29540d4f8ddd4183906048a8b84",
+            "rms": 0.16236355968491242,
+            "peak": 0.7775501012802124,
+            "dc": 0.0009217354760285436,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Ingame.hipc",
+        "tuneSha256": "46315de9958926b1deb93fbdb33fff18154edcc1199005d2e9cb3592f7a0c37e",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.14175678500000213,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "f37419d16ef2843c78b24b18eadbee0ce163b74195f7fdab5f30c288235e6d59",
+            "rms": 0.14337356801765908,
+            "peak": 0.6309055118110236,
+            "dc": 0.0012390906306389146,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "8db7a2d167252ae0bc4eda975338574d81940cd6fb54e144e11f21924d54f5a4",
+            "rms": 0.13857819437391372,
+            "peak": 0.6053100393700788,
+            "dc": 0.0012390906306389146,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "73d7bfcc34ead6e5084d520c507bb97f94b50b64a095f81b39eeebcc2edeb80c",
+            "rms": 0.0938823974997687,
+            "peak": 0.4047205448150635,
+            "dc": 0.0008657055831808972,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-Title.hip",
+        "tuneSha256": "7fa081abf82c336960f8cd5359558437baa228e9d9f9ba5b70036b5eedbfac98",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1794879337999999,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "1e0b359c00475828e2097c17c37f4806c11dc0e34ca5dd63e1262fa4c9bfb152",
+            "rms": 0.13608107799905259,
+            "peak": 0.9921259842519685,
+            "dc": -0.0008024672941274292,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "e8c6476546564a074b01380df26466590aed4e3671ff05e2f4820e11389ec8f8",
+            "rms": 0.1318307974717394,
+            "peak": 0.9921259842519685,
+            "dc": -0.0008024672941274294,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "a5d13aba290000800a02ea4b0e6c88893ef36fc6cf3f46a707d7c27ec3b92e40",
+            "rms": 0.0917410863182516,
+            "peak": 0.6952218413352966,
+            "dc": -0.000560853335866321,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-Level_1.hipc",
+        "tuneSha256": "c178d60880eed948d6b2dbc79881294a805f7bab29578cba39f58d8c1d77bddb",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.15078982360000082,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "6a646efc3c8306be117e761af73d09a391a33c7ae82dbc80a09c06fb2f6eb4af",
+            "rms": 0.3597139298249433,
+            "peak": 1.1220472440944882,
+            "dc": -0.2610636283014233,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "0bb5ded525fd1b7a4607dfc95a9200ff9b8cfc93f09302708f1b7a56690f4eff",
+            "rms": 0.3533682868064447,
+            "peak": 1.0919389763779528,
+            "dc": -0.2610636283014233,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "b362056f31a62befef9d1f76423423a78d41a2c5cfda7b634fc568aeca2f2ca8",
+            "rms": 0.24433442165263353,
+            "peak": 0.766058087348938,
+            "dc": -0.1827183569529842,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-Level_2.hipc",
+        "tuneSha256": "51151bd5b1b73767cfe8ae4538fb0d040b8608c8b85a6ad7d78869d873d0ea71",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1519613421999995,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "f7a15991c417137fc6a86786739a5b233233f9889b5c4326635ecd11ddb2f92f",
+            "rms": 0.31937654942200544,
+            "peak": 0.9921259842519685,
+            "dc": 0.09744216276561023,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "a266cfd2b6cd5939f32596cf2a447532f8e6f76068dc20da2811080ceed12e80",
+            "rms": 0.30945926583168903,
+            "peak": 0.9706299212598425,
+            "dc": 0.09744216276561023,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "4dcb90e64205d11accc8d9436db8450c71b6e8b835465fde1f598944c487b281",
+            "rms": 0.21217830232199852,
+            "peak": 0.6815692782402039,
+            "dc": 0.06818876393934344,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-Level_3.hipc",
+        "tuneSha256": "4c8d97a910b098e5ab0728a91870b2c6d9ebc7d67eb8094be45d0fbff49ac026",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.15468283019999798,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "bf6430e754e7abbee12341d59d070fbfe46a70352c44e055bc34696dbbe9e2b2",
+            "rms": 0.47255284866772457,
+            "peak": 1.4725639763779528,
+            "dc": -0.12650626601980408,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "bd601e81d1d35e1cf93f2b1da5e8cd0bd0af1a9b426ae8857d336abc96754f44",
+            "rms": 0.45631333678345587,
+            "peak": 1.4210242372047244,
+            "dc": -0.12650626601980408,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "e1ae0203ee0815ea961469ff16f1f8e9152b3600407252ecf6821562cb8c5b53",
+            "rms": 0.3182505092847694,
+            "peak": 0.9952768683433533,
+            "dc": -0.08851720412057386,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-Level_4.hipc",
+        "tuneSha256": "dc5e550f0ce11cc4db3accfce855491b50e017e29a0141afecc0d55949644c57",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.18249214199999989,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "f992c7d80cc84993e55de304e3cedde22d323b36836f46307b089b8b06224eba",
+            "rms": 0.3541868327147514,
+            "peak": 1.3719242125984252,
+            "dc": -0.003121632205032013,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "17af8cbdcfa58f572ba97865e19ed750d60f5aa0cbc59607c4ad434bb2609122",
+            "rms": 0.3425299927021134,
+            "peak": 1.3374710875984253,
+            "dc": -0.003121632205032013,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "589431ca2e495b5c6a94333f9a7b15aec9746d0a6d2d7898bebb4fad0be16b61",
+            "rms": 0.22829895491173652,
+            "peak": 0.8872066140174866,
+            "dc": -0.0022117006304560893,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-Level_5.hipc",
+        "tuneSha256": "ad007e6f78d155d9a47c82a13f1f771bc0654829f069d468dbeef96a9ab1facd",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1574941392000008,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "bc7c09b6166644b766629c9916af4639d96cce2a8b6022035669c6eda0131cf3",
+            "rms": 0.4382658306723899,
+            "peak": 1.4803149606299213,
+            "dc": -0.05489799618859538,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "e50a1d2617cab1ba6d4e6d18f8702ff73cedda852f554806f574f995ddc98db2",
+            "rms": 0.4204712696811425,
+            "peak": 1.4330511811023623,
+            "dc": -0.05489799618859538,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "a6089513b1407fdd95820d7f895e45e00f2564494b3b6e7fc5d927ca4d71e169",
+            "rms": 0.2921424907552145,
+            "peak": 1.0025392770767212,
+            "dc": -0.03837912045541922,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-Level_6.hipc",
+        "tuneSha256": "ef45fc531ab8507a9e5ae08b262e5445d761107068ac7e52fc0ba8c518cd0179",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1552396287999989,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "f49339706d6acb5efe63ecce75f3435eb989e9f034d31d11eeca9c6a604d6ae6",
+            "rms": 0.4669419692174635,
+            "peak": 1.5590551181102361,
+            "dc": 0.049376783572179915,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "bdd59774b13e6f62441d08e5e04e1532a191b5865abb7e6b1ee2f95f12fec37f",
+            "rms": 0.4508952779750509,
+            "peak": 1.5044881889763777,
+            "dc": 0.049376783572179915,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "c1f3cb24f5c0ca7b13d58948cbe062cbabae0a5e2ee8ac4713bfe50dab1daf6a",
+            "rms": 0.30867201523523463,
+            "peak": 1.06459641456604,
+            "dc": 0.03453808459525116,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-Level_7.hipc",
+        "tuneSha256": "49ed4feeff7b1beec887db922a33258ec6390eefabda7924f8335df143c5bd39",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.1512590178000013,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "8c2b436483490b6f8afe0353d71a4315f77306e2f5c81889b1c67bf74b237d97",
+            "rms": 0.3723585077748238,
+            "peak": 1.4803149606299213,
+            "dc": -0.11077740968720784,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "5e00682621ed933085f6104898222a431e5bf179cc98c02f7efda5920488dca2",
+            "rms": 0.3593223013060949,
+            "peak": 1.4338435039370079,
+            "dc": -0.11077740968720784,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "966aeabb757f5bded87bdd68fbbb2a671b665462d4c37eac36948e2b914fe29f",
+            "rms": 0.2495033599213005,
+            "peak": 1.0023643970489502,
+            "dc": -0.07753665230187137,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-End.hipc",
+        "tuneSha256": "49fe34cb7e57205fc54f56859ae1e21c205c709a5e37722e46a1003f688939d9",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.15722710059999953,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "a07895bb7454818f8062efac0fb1fa6763d4fe76a978db043a6fb8c4dc4fda01",
+            "rms": 0.18896217363985832,
+            "peak": 0.8661417322834646,
+            "dc": -0.003988026151882914,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "a275e5f33b2eacfe74b6043d52bbfb1fb4d3710d6faed4d65561489a8bfafe8a",
+            "rms": 0.18243476213513943,
+            "peak": 0.8455327263779527,
+            "dc": -0.003988026151882914,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "3fc74200c80a419ee131ca2551a7debaa7794bec6446da40cc1bb896ba35a0e8",
+            "rms": 0.1262085904171522,
+            "peak": 0.5897108912467957,
+            "dc": -0.0027525650433792444,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "blood_money_title.mod",
+        "tuneSha256": "9a74135c7fbf1b56ae3a8a7442f9a0edb143f1dafdfa7f099fd821121706213a",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.15195945219999993,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "1a2f51c00981cf39c740eb9b1055da225fbd4a8f22701f38270aac642f60d031",
+            "rms": 0.31722624837905095,
+            "peak": 1.2723917322834646,
+            "dc": -0.07447625709996174,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "8af4faaa9a0cc7a40c05328bcc39c03339e031b466473ef9c8e7c8c210922943",
+            "rms": 0.30637063944624987,
+            "peak": 1.2278580216535433,
+            "dc": -0.07447625709996174,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "7cc1ef57f9cd781fa8e81eb59c5bd0c65480fead572b474510669d63d6dbfed9",
+            "rms": 0.20227146441005953,
+            "peak": 0.8246209025382996,
+            "dc": -0.05208030699250148,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "moongazr.mod",
+        "tuneSha256": "66587ad6e327dc9527f27e74b548938a709950f1794d91af3c9ece866d5da978",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.15340707460000122,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "916ebb79c18d8e69cc3f1ab1cafcc952563ef54faaefe4add1b0e0f0ceb926ec",
+            "rms": 0.21405824758729763,
+            "peak": 1.436392716535433,
+            "dc": -0.007415486909962339,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "231965fd44b089e9ca726d03cbe0e679395fc59298d371670295c9d55afd6710",
+            "rms": 0.20670237568632832,
+            "peak": 1.3860672982283464,
+            "dc": -0.007415486909962339,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "04b9f9eed0f80f3d7ff1b24d8ee3530833fd40b3139347f4bbdf496a99c5304f",
+            "rms": 0.14335964904224222,
+            "peak": 0.7813665866851807,
+            "dc": -0.0051916011308649306,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "immortal.mod",
+        "tuneSha256": "b880b7f82e99839940564d6b3605e64c31b0fab7d1a9b90dd295ed77a9d45bf3",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.15860818459999865,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "9253f8b4099b74a80263f8571d05a4b84b6c478de609f0d482e47be1fb3974e1",
+            "rms": 0.26350025390584136,
+            "peak": 1.3930856299212597,
+            "dc": -0.0028580030706611987,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "0bf0a3c8f0e2aaba518edc4e422e13956dded4064e11efd345bae38de9356e94",
+            "rms": 0.25449591359413426,
+            "peak": 1.3435180856299211,
+            "dc": -0.0028580030706611987,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "627a5746e15a282aebb8de5e1bc394e39c04a72ad35c5df3a1b6e4a80608a70e",
+            "rms": 0.16370270091844719,
+            "peak": 0.7477168440818787,
+            "dc": -0.001982159707674398,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "lotus2-title.mod",
+        "tuneSha256": "b141bffe12488a515a601aa5092185f8dfc0361758b2675e1ea54d2aeca7172a",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.16164100019999897,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "8d96836b3f00eeead774eb23c6a00f78622067b78ca57bc27f9f338faa286865",
+            "rms": 0.1193218999752755,
+            "peak": 1.0078740157480315,
+            "dc": -0.003636731053147395,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "ad3d4fb3a65d6d9cf96321514e4a0c5840afd5c61035142cc27dec3abe867cb8",
+            "rms": 0.11520667232105408,
+            "peak": 0.9725984251968504,
+            "dc": -0.003636731053147395,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "b2530ced7675a630f4569691324c668256689a9af803fd85c991246e03253ef8",
+            "rms": 0.0246132983063906,
+            "peak": 0.2977914810180664,
+            "dc": -0.0025457116999617222,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "DEADLOCK.XM",
+        "tuneSha256": "f4e6e08e4a8d34aba80d7d1f98163088aef9635fcc72203248381b6e7fa20440",
+        "type": "XM",
+        "channels": 24,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "offlineRealTimeRatio": 0.19268965460000326,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "d1cfa16bf2075a0257004aed3a882fd1c9b37da2c65516f6ba15ea54bb0dbde2",
+            "rms": 0.210855791427123,
+            "peak": 1.557758428845582,
+            "dc": -0.039258477177554645,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "def64f99c93297a38ac4309c9f11cda1fa6ef4caf1f067bc494d04f847416973",
+            "rms": 0.2094777679785676,
+            "peak": 1.5478501586903595,
+            "dc": -0.03925847717755463,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "3208679fc2bd9775bca42ee46b21453272e4a0dce5c8ba7510aacf1b107b9bea",
+            "rms": 0.14072836972130767,
+            "peak": 0.8860925436019897,
+            "dc": -0.02746865134130737,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      }
+    ]
+  },
+  "sampleRates": [
+    {
+      "name": "level1",
+      "input": "wings-of-death/Wings_Of_Death-Level_1.hipc",
+      "sampleRate": 44100,
+      "deterministic": true,
+      "finite": true,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "80dc83f2709aca00a3f961a554bd7f5f47469690fafb051272c50b18b2cb3d06",
+          "rms": 0.35922045692299287,
+          "peak": 1.0846456692913384,
+          "dc": -0.25958336803183285,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "9a3470cf17b70b4a362a9bd5744d0f814310d58880ae4ff00a36cebaf5727645",
+          "rms": 0.3529742108328581,
+          "peak": 1.0519192913385826,
+          "dc": -0.25958336803183285,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "196bf9535125a6904ce7e5b85467344eb4f734bcba9ffde1eb6937ddbc268c9e",
+          "rms": 0.2437221767544338,
+          "peak": 0.729478657245636,
+          "dc": -0.18169316745560307,
+          "nonFiniteSamples": 0
+        }
+      ],
+      "passed": true
+    },
+    {
+      "name": "level1",
+      "input": "wings-of-death/Wings_Of_Death-Level_1.hipc",
+      "sampleRate": 48000,
+      "deterministic": true,
+      "finite": true,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "c247b6094d8f973fd47412276f9932d084b06377b0be94599cb850580a88c6d4",
+          "rms": 0.35919678534254995,
+          "peak": 1.0846456692913384,
+          "dc": -0.25955262704277876,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "721dbce170ebad92f94d879c643907e70c7ca27f7edf949026f75202b591a12a",
+          "rms": 0.3529512864215964,
+          "peak": 1.0519192913385826,
+          "dc": -0.25955262704277876,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "3a3513dc47e3ca9351b7f667970255187c34747bc07c0b6f5ab3e79735c66bb5",
+          "rms": 0.24370446133950324,
+          "peak": 0.7291646003723145,
+          "dc": -0.18167332998573735,
+          "nonFiniteSamples": 0
+        }
+      ],
+      "passed": true
+    },
+    {
+      "name": "level1",
+      "input": "wings-of-death/Wings_Of_Death-Level_1.hipc",
+      "sampleRate": 96000,
+      "deterministic": true,
+      "finite": true,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "87cea1554801d619eba1ea3cb13ace8679a9d43ff0118a8fb6d4659f8ee98deb",
+          "rms": 0.35917651110193305,
+          "peak": 1.0846456692913384,
+          "dc": -0.2595516105911478,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "e496141b0dc47f239c49240ee75436d1ae0543182203d3ceb60883ec288d788a",
+          "rms": 0.35293867081271807,
+          "peak": 1.0519192913385826,
+          "dc": -0.2595516105911478,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "f2afe39acc5c7775a3e2173e0527bab1d4d1a81003863dd41cfce44a713b12b6",
+          "rms": 0.2436902297044119,
+          "peak": 0.7296608090400696,
+          "dc": -0.18167907916226347,
+          "nonFiniteSamples": 0
+        }
+      ],
+      "passed": true
+    },
+    {
+      "name": "hip68k",
+      "input": "wings-of-death/Wings_Of_Death-Title.hip",
+      "sampleRate": 44100,
+      "deterministic": true,
+      "finite": true,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "c47a03163f756dce19eb2027a398c4d169164b96f32538c13ad6841623dc47fa",
+          "rms": 0.1519815964582795,
+          "peak": 0.9921259842519685,
+          "dc": -0.0009451866786741273,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "12ac3b55404594661853be413c095b6f8db39b0dfd6e089b3c2e6c5748fd48be",
+          "rms": 0.14723740005448593,
+          "peak": 0.9921259842519685,
+          "dc": -0.0009451866786741276,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "b31e10a11eee6010b0a55e41e9382e379d9ed168db4d1a91c2c26512f6c4c018",
+          "rms": 0.1024624399813288,
+          "peak": 0.6951135993003845,
+          "dc": -0.0006603958837771028,
+          "nonFiniteSamples": 0
+        }
+      ],
+      "passed": true
+    },
+    {
+      "name": "hip68k",
+      "input": "wings-of-death/Wings_Of_Death-Title.hip",
+      "sampleRate": 48000,
+      "deterministic": true,
+      "finite": true,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "049400e3f90d584be5bdad23f95a46129e23df4f1f64ad608fa363b571697592",
+          "rms": 0.15198999640662272,
+          "peak": 0.9921259842519685,
+          "dc": -0.0009462856983575543,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "f092d7e40cccb1d300fd2a96c3bd4c5c6ffed8074e54ba547c7b08aae3a97ce9",
+          "rms": 0.14724434128263592,
+          "peak": 0.9921259842519685,
+          "dc": -0.0009462856983575548,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "873a208502cfbb04e84d4cbe2f845c6954d4963ab3354f796cc0677899fc3b61",
+          "rms": 0.10246703070199319,
+          "peak": 0.6952218413352966,
+          "dc": -0.0006611634015699579,
+          "nonFiniteSamples": 0
+        }
+      ],
+      "passed": true
+    },
+    {
+      "name": "hip68k",
+      "input": "wings-of-death/Wings_Of_Death-Title.hip",
+      "sampleRate": 96000,
+      "deterministic": true,
+      "finite": true,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "9a5491bf714f5d20572d0ee2e9b2b8b357d3cc647be9d25289479d7f3f05e61a",
+          "rms": 0.15198924305924888,
+          "peak": 0.9921259842519685,
+          "dc": -0.0009464467767031338,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "856aadacbfb2d293a1fa991bc89b71f5dd2b505d62675b1715898775f858c254",
+          "rms": 0.1472438823982456,
+          "peak": 0.9921259842519685,
+          "dc": -0.0009464467767031335,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "af895368e9bf1041d28784bb56b8000d9f54139612caf47eff84aa4964a702db",
+          "rms": 0.10246556551858917,
+          "peak": 0.6960155963897705,
+          "dc": -0.000661442610601699,
+          "nonFiniteSamples": 0
+        }
+      ],
+      "passed": true
+    },
+    {
+      "name": "mod",
+      "input": "ELYSIUM.MOD",
+      "sampleRate": 44100,
+      "deterministic": true,
+      "finite": true,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "c414c2dc71bdb5b6a3f2e6ddbb764a0d9f90cc7df96aae823bd22222ac79cc6f",
+          "rms": 0.2717624042682736,
+          "peak": 1.2081692913385829,
+          "dc": -0.0020249814267077866,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "c12bfe0015894525ae25c9e313f8ca2939ba1475af14daf3b4759c142205d43b",
+          "rms": 0.2629045905868736,
+          "peak": 1.172486466535433,
+          "dc": -0.0020249814267077875,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "32806364b8e54019d671fe7f4aa3b456484f2d710370b98a3943851a12bb5248",
+          "rms": 0.17852803129086567,
+          "peak": 0.810981810092926,
+          "dc": -0.0014436754911515725,
+          "nonFiniteSamples": 0
+        }
+      ],
+      "passed": true
+    },
+    {
+      "name": "mod",
+      "input": "ELYSIUM.MOD",
+      "sampleRate": 48000,
+      "deterministic": true,
+      "finite": true,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "a98037a48f7cd0e296c8ebe3e80bb265b7e2ee2abf8250708c53f29081ed53d1",
+          "rms": 0.2718326343109519,
+          "peak": 1.2081692913385829,
+          "dc": -0.0019384959463684983,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "d847dc1ae96de2970f92f91bc9ab3fa7f1ad4d77e37b0ad1c7975df5b5007dbe",
+          "rms": 0.26297577880980694,
+          "peak": 1.172486466535433,
+          "dc": -0.0019384959463684987,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "2a183cedab0c22370d2dbe6167a36335925d52fa013873a2ac951b6f4a47f6c5",
+          "rms": 0.17857090432513062,
+          "peak": 0.8141171336174011,
+          "dc": -0.0013806445969595392,
+          "nonFiniteSamples": 0
+        }
+      ],
+      "passed": true
+    },
+    {
+      "name": "mod",
+      "input": "ELYSIUM.MOD",
+      "sampleRate": 96000,
+      "deterministic": true,
+      "finite": true,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "5cf450a7af79f057cd508b5cbed20c7afc3849059df9a619882649c64e0b111c",
+          "rms": 0.2717897522879274,
+          "peak": 1.2081692913385829,
+          "dc": -0.001961488979069148,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "852dc2e54ad1e867265afd2f92f1037953d5537433fa3bc3bd6623a3e10c4e92",
+          "rms": 0.2629414821287311,
+          "peak": 1.172486466535433,
+          "dc": -0.001961488979069149,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "5069e5ba3e553e61a2ad720d37ef2634c5b0b4cf3fb998dabe4f02749f48d7b4",
+          "rms": 0.17855457787912224,
+          "peak": 0.814517617225647,
+          "dc": -0.001367865592902587,
+          "nonFiniteSamples": 0
+        }
+      ],
+      "passed": true
+    },
+    {
+      "name": "xm",
+      "input": "space_debris.xm",
+      "sampleRate": 44100,
+      "deterministic": true,
+      "finite": true,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "5e78225b0fdeb9f7fe443d2d1079de87f70ff8ead5f96d949f9f20380766d46d",
+          "rms": 0.010316985890276992,
+          "peak": 0.06650578790103585,
+          "dc": 0.000046972841902560745,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "256ae0cb5d7cd035fb3fe8cb1189c0cea81ebf1e6d21fe6ea6cf5a4e0d2b9027",
+          "rms": 0.010300318272122636,
+          "peak": 0.0664243546814314,
+          "dc": 0.00004697284190256059,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "7bb76d5a2d137419fda51fa34eb25ba4f7900ae590917e325be0ef03fcff7d04",
+          "rms": 0.007136405140042444,
+          "peak": 0.0468575693666935,
+          "dc": 0.00003057794210560265,
+          "nonFiniteSamples": 0
+        }
+      ],
+      "passed": true
+    },
+    {
+      "name": "xm",
+      "input": "space_debris.xm",
+      "sampleRate": 48000,
+      "deterministic": true,
+      "finite": true,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "992f37f10ac103640a6e74ee40c5fc9b22bd367d8b94d11bb680cdd31ee51001",
+          "rms": 0.010315809622815041,
+          "peak": 0.06650578790103585,
+          "dc": 0.00004728232673418204,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "4cf929469e14cabec22214945a3979c8fad7f67fde2076c0aea1ebea93d3cf05",
+          "rms": 0.010299146064521038,
+          "peak": 0.0664243546814314,
+          "dc": 0.00004728232673418191,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "b7c48043ede9a757c348fb928062a0dc36b7605a6c3eaebabc13885ec2920fb1",
+          "rms": 0.007135733166507004,
+          "peak": 0.04685964807868004,
+          "dc": 0.000031037561969606776,
+          "nonFiniteSamples": 0
+        }
+      ],
+      "passed": true
+    },
+    {
+      "name": "xm",
+      "input": "space_debris.xm",
+      "sampleRate": 96000,
+      "deterministic": true,
+      "finite": true,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "6ccf6679ac9f71bf1c0e778b21ead605ad095ff40625af8b08dedba692950b39",
+          "rms": 0.010316479455604021,
+          "peak": 0.06650578790103585,
+          "dc": 0.00004700630359402427,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "b6aad33acfb041b77b567eefd2044f01ed339a64f6181db743acbc38dc8c3aba",
+          "rms": 0.010299816178077927,
+          "peak": 0.0664243546814314,
+          "dc": 0.000047006303594024313,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "7edaad17cc8640b4fc97ff43f4dc65da96503c0854f0ad960b75404be37be762",
+          "rms": 0.007136663716313418,
+          "peak": 0.0468594990670681,
+          "dc": 0.00003193243997347711,
+          "nonFiniteSamples": 0
+        }
+      ],
+      "passed": true
+    }
+  ],
+  "longRuns": [
+    {
+      "name": "level1",
+      "input": "wings-of-death/Wings_Of_Death-Level_1.hipc",
+      "seconds": 60,
+      "deterministic": true,
+      "finite": true,
+      "offlineRealTimeRatio": 0.14587886953333315,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "64499228615520af25b0aeb01951e5cee2301e218f40b78ad07dac7ece328439",
+          "rms": 0.35850392605084574,
+          "peak": 1.4803149606299213,
+          "dc": -0.05384487182326516,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "abea7efb42509c2c8a8de4c801f6399ba9ab76754297940f734580a9582a3d06",
+          "rms": 0.3470483160172983,
+          "peak": 1.4445226377952756,
+          "dc": -0.05384487182326516,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "efccfddea36bcb4b7739c7ffa0f1d1a2d8cb5e24e8dfb9076aef729485186e42",
+          "rms": 0.23888735508639555,
+          "peak": 1.0101161003112793,
+          "dc": -0.037694881232081805,
+          "nonFiniteSamples": 0
+        }
+      ],
+      "passed": true
+    },
+    {
+      "name": "hip68k",
+      "input": "wings-of-death/Wings_Of_Death-Title.hip",
+      "seconds": 60,
+      "deterministic": true,
+      "finite": true,
+      "offlineRealTimeRatio": 0.149743929533333,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "8bc6f4cac3451818996a5a52862f17f03abad830b261be7600d3dd69819ab655",
+          "rms": 0.3952284730503776,
+          "peak": 1.984251968503937,
+          "dc": -0.0336095173085675,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "a7fa78e30685cdb9be6ed5ca8ddcc8052ff21e41b07b1d688db6b322e7982add",
+          "rms": 0.3816542948750675,
+          "peak": 1.9492002952755905,
+          "dc": -0.0336095173085675,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "b46939d9fda7c54f1fb507934b163a8062a116ba269fc28aad3083407a62c94a",
+          "rms": 0.26149795427621597,
+          "peak": 1.3624591827392578,
+          "dc": -0.02353107199205843,
+          "nonFiniteSamples": 0
+        }
+      ],
+      "passed": true
+    },
+    {
+      "name": "mod",
+      "input": "ELYSIUM.MOD",
+      "seconds": 60,
+      "deterministic": true,
+      "finite": true,
+      "offlineRealTimeRatio": 0.1474058169333337,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "9814cc5808399f48914e3edcf69e2b1ecab4b8b46747ed6d3c91eaadb18e2ed5",
+          "rms": 0.2899008465007595,
+          "peak": 2.015748031496063,
+          "dc": -0.01927007165408777,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "992111c8d90c7d035c68534ff1d42ae87979884ba86e360c5dc34cba2ffc886a",
+          "rms": 0.2802019024396201,
+          "peak": 1.959251968503937,
+          "dc": -0.01927007165408777,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "f3fcf087b830e382a9eca0c475acb341da043b760ec7062f5263c39427c8df34",
+          "rms": 0.18808976838159314,
+          "peak": 1.3481172323226929,
+          "dc": -0.013486091817875204,
+          "nonFiniteSamples": 0
+        }
+      ],
+      "passed": true
+    },
+    {
+      "name": "xm",
+      "input": "space_debris.xm",
+      "seconds": 60,
+      "deterministic": true,
+      "finite": true,
+      "offlineRealTimeRatio": 0.17242580606666694,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "4f03f099f7209d72f66b162997896c6c74261021c758532009709a986f212305",
+          "rms": 0.14863442980155758,
+          "peak": 1.1809132556660846,
+          "dc": -0.01125556976968933,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "ee158321a8bf753d7329c0f7667baf4647e20ce78a50ededa59b15aa827032f0",
+          "rms": 0.1485261044158805,
+          "peak": 1.1781453038365175,
+          "dc": -0.01125556976968933,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "e7646df8a8388c33ef9a65862e1507becca1ff9cfde39cbacccebfd3035b1bfd",
+          "rms": 0.09963594647986451,
+          "peak": 0.7424141764640808,
+          "dc": -0.007878455894341763,
+          "nonFiniteSamples": 0
+        }
+      ],
+      "passed": true
+    }
+  ],
+  "performance": {
+    "scope": "Offline production worklet with three diagnostic hash taps; includes measurement overhead.",
+    "realTimeBudget": 1,
+    "withinOfflineRealTimeBudget": true,
+    "note": "This is not a browser underrun or device-specific performance proof."
+  },
+  "passed": true
+}

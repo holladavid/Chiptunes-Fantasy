@@ -1,0 +1,735 @@
+{
+  "format": "chiptunes-fantasy-amiga-phase5-browser-v1",
+  "referenceStatus": "Real headless Chromium production playback; no hardware/UADE, physical-device or underrun-proof claim.",
+  "browser": "151.0.7922.108",
+  "chromiumPath": "/usr/bin/chromium",
+  "workletSha256": "44e1a470617a36b7a4f8ab8e5def97bd67028b82152fb31c47325f7f46c6a364",
+  "audioControllerSha256": "45f90571dd3282e7606df6ae05ac38083f2a870ca3d304da7e428b5ac830e987",
+  "registrySha256": "f435a766372cfa646c923e3993375928504f6c4b0908734486528fcd415b44f9",
+  "playMilliseconds": 600,
+  "engineRuns": [
+    {
+      "device": "desktop",
+      "sampleRate": 44100,
+      "tracks": [
+        {
+          "path": "wings-of-death/Wings_Of_Death-Level_1.hipc",
+          "type": "HIPC",
+          "contextRate": 44100,
+          "contextState": "running",
+          "initial": {
+            "led": 0,
+            "mode": 2,
+            "dmaMask": 15
+          },
+          "output": {
+            "peak": 0.6916038990020752,
+            "rms": 0.286130274504693,
+            "nonFinite": 0
+          },
+          "cycles": [
+            {
+              "led": 0,
+              "mode": 0,
+              "dmaMask": 15
+            },
+            {
+              "led": 1,
+              "mode": 1,
+              "dmaMask": 15
+            },
+            {
+              "led": 0,
+              "mode": 2,
+              "dmaMask": 15
+            }
+          ],
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "rateMatches": true,
+          "contextRunning": true,
+          "filterCycleMatches": true,
+          "passed": true
+        },
+        {
+          "path": "wings-of-death/Wings_Of_Death-Title.hip",
+          "type": "HIPC",
+          "contextRate": 44100,
+          "contextState": "running",
+          "initial": {
+            "led": 0,
+            "mode": 2,
+            "dmaMask": 13
+          },
+          "output": {
+            "peak": 0.2346278578042984,
+            "rms": 0.07549363485338899,
+            "nonFinite": 0
+          },
+          "cycles": [
+            {
+              "led": 0,
+              "mode": 0,
+              "dmaMask": 13
+            },
+            {
+              "led": 1,
+              "mode": 1,
+              "dmaMask": 13
+            },
+            {
+              "led": 0,
+              "mode": 2,
+              "dmaMask": 13
+            }
+          ],
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "rateMatches": true,
+          "contextRunning": true,
+          "filterCycleMatches": true,
+          "passed": true
+        },
+        {
+          "path": "ELYSIUM.MOD",
+          "type": "MOD",
+          "contextRate": 44100,
+          "contextState": "running",
+          "initial": {
+            "led": 0,
+            "mode": 0,
+            "dmaMask": 14
+          },
+          "output": {
+            "peak": 0.38567209243774414,
+            "rms": 0.09119291709578549,
+            "nonFinite": 0
+          },
+          "cycles": [
+            {
+              "led": 1,
+              "mode": 1,
+              "dmaMask": 13
+            },
+            {
+              "led": 0,
+              "mode": 2,
+              "dmaMask": 15
+            },
+            {
+              "led": 0,
+              "mode": 0,
+              "dmaMask": 15
+            }
+          ],
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "rateMatches": true,
+          "contextRunning": true,
+          "filterCycleMatches": true,
+          "passed": true
+        },
+        {
+          "path": "space_debris.xm",
+          "type": "XM",
+          "contextRate": 44100,
+          "contextState": "running",
+          "initial": {
+            "led": 1,
+            "mode": 0,
+            "dmaMask": 0
+          },
+          "output": {
+            "peak": 0.01145133189857006,
+            "rms": 0.0036215158412319457,
+            "nonFinite": 0
+          },
+          "cycles": [
+            {
+              "led": 1,
+              "mode": 1,
+              "dmaMask": 0
+            },
+            {
+              "led": 0,
+              "mode": 2,
+              "dmaMask": 0
+            },
+            {
+              "led": 1,
+              "mode": 0,
+              "dmaMask": 0
+            }
+          ],
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "rateMatches": true,
+          "contextRunning": true,
+          "filterCycleMatches": true,
+          "passed": true
+        }
+      ],
+      "errors": [],
+      "passed": true
+    },
+    {
+      "device": "desktop",
+      "sampleRate": 48000,
+      "tracks": [
+        {
+          "path": "wings-of-death/Wings_Of_Death-Level_1.hipc",
+          "type": "HIPC",
+          "contextRate": 48000,
+          "contextState": "running",
+          "initial": {
+            "led": 0,
+            "mode": 2,
+            "dmaMask": 15
+          },
+          "output": {
+            "peak": 0.6913833618164062,
+            "rms": 0.31152189203279246,
+            "nonFinite": 0
+          },
+          "cycles": [
+            {
+              "led": 0,
+              "mode": 0,
+              "dmaMask": 15
+            },
+            {
+              "led": 1,
+              "mode": 1,
+              "dmaMask": 15
+            },
+            {
+              "led": 0,
+              "mode": 2,
+              "dmaMask": 15
+            }
+          ],
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "rateMatches": true,
+          "contextRunning": true,
+          "filterCycleMatches": true,
+          "passed": true
+        },
+        {
+          "path": "wings-of-death/Wings_Of_Death-Title.hip",
+          "type": "HIPC",
+          "contextRate": 48000,
+          "contextState": "running",
+          "initial": {
+            "led": 0,
+            "mode": 2,
+            "dmaMask": 13
+          },
+          "output": {
+            "peak": 0.23467212915420532,
+            "rms": 0.07682970283172098,
+            "nonFinite": 0
+          },
+          "cycles": [
+            {
+              "led": 0,
+              "mode": 0,
+              "dmaMask": 13
+            },
+            {
+              "led": 1,
+              "mode": 1,
+              "dmaMask": 13
+            },
+            {
+              "led": 0,
+              "mode": 2,
+              "dmaMask": 13
+            }
+          ],
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "rateMatches": true,
+          "contextRunning": true,
+          "filterCycleMatches": true,
+          "passed": true
+        },
+        {
+          "path": "ELYSIUM.MOD",
+          "type": "MOD",
+          "contextRate": 48000,
+          "contextState": "running",
+          "initial": {
+            "led": 0,
+            "mode": 0,
+            "dmaMask": 12
+          },
+          "output": {
+            "peak": 0.30649593472480774,
+            "rms": 0.08048425500953393,
+            "nonFinite": 0
+          },
+          "cycles": [
+            {
+              "led": 1,
+              "mode": 1,
+              "dmaMask": 13
+            },
+            {
+              "led": 0,
+              "mode": 2,
+              "dmaMask": 15
+            },
+            {
+              "led": 0,
+              "mode": 0,
+              "dmaMask": 15
+            }
+          ],
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "rateMatches": true,
+          "contextRunning": true,
+          "filterCycleMatches": true,
+          "passed": true
+        },
+        {
+          "path": "space_debris.xm",
+          "type": "XM",
+          "contextRate": 48000,
+          "contextState": "running",
+          "initial": {
+            "led": 1,
+            "mode": 0,
+            "dmaMask": 0
+          },
+          "output": {
+            "peak": 0.011456247419118881,
+            "rms": 0.0038091376561936495,
+            "nonFinite": 0
+          },
+          "cycles": [
+            {
+              "led": 1,
+              "mode": 1,
+              "dmaMask": 0
+            },
+            {
+              "led": 0,
+              "mode": 2,
+              "dmaMask": 0
+            },
+            {
+              "led": 1,
+              "mode": 0,
+              "dmaMask": 0
+            }
+          ],
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "rateMatches": true,
+          "contextRunning": true,
+          "filterCycleMatches": true,
+          "passed": true
+        }
+      ],
+      "errors": [],
+      "passed": true
+    },
+    {
+      "device": "mobile",
+      "sampleRate": 44100,
+      "tracks": [
+        {
+          "path": "wings-of-death/Wings_Of_Death-Level_1.hipc",
+          "type": "HIPC",
+          "contextRate": 44100,
+          "contextState": "running",
+          "initial": {
+            "led": 0,
+            "mode": 2,
+            "dmaMask": 15
+          },
+          "output": {
+            "peak": 0.6916207075119019,
+            "rms": 0.30990799429985094,
+            "nonFinite": 0
+          },
+          "cycles": [
+            {
+              "led": 0,
+              "mode": 0,
+              "dmaMask": 15
+            },
+            {
+              "led": 1,
+              "mode": 1,
+              "dmaMask": 15
+            },
+            {
+              "led": 0,
+              "mode": 2,
+              "dmaMask": 15
+            }
+          ],
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "rateMatches": true,
+          "contextRunning": true,
+          "filterCycleMatches": true,
+          "passed": true
+        },
+        {
+          "path": "wings-of-death/Wings_Of_Death-Title.hip",
+          "type": "HIPC",
+          "contextRate": 44100,
+          "contextState": "running",
+          "initial": {
+            "led": 0,
+            "mode": 2,
+            "dmaMask": 13
+          },
+          "output": {
+            "peak": 0.2346278578042984,
+            "rms": 0.0759359592149162,
+            "nonFinite": 0
+          },
+          "cycles": [
+            {
+              "led": 0,
+              "mode": 0,
+              "dmaMask": 13
+            },
+            {
+              "led": 1,
+              "mode": 1,
+              "dmaMask": 13
+            },
+            {
+              "led": 0,
+              "mode": 2,
+              "dmaMask": 13
+            }
+          ],
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "rateMatches": true,
+          "contextRunning": true,
+          "filterCycleMatches": true,
+          "passed": true
+        },
+        {
+          "path": "ELYSIUM.MOD",
+          "type": "MOD",
+          "contextRate": 44100,
+          "contextState": "running",
+          "initial": {
+            "led": 0,
+            "mode": 0,
+            "dmaMask": 14
+          },
+          "output": {
+            "peak": 0.38567209243774414,
+            "rms": 0.09119291709578549,
+            "nonFinite": 0
+          },
+          "cycles": [
+            {
+              "led": 1,
+              "mode": 1,
+              "dmaMask": 13
+            },
+            {
+              "led": 0,
+              "mode": 2,
+              "dmaMask": 15
+            },
+            {
+              "led": 0,
+              "mode": 0,
+              "dmaMask": 15
+            }
+          ],
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "rateMatches": true,
+          "contextRunning": true,
+          "filterCycleMatches": true,
+          "passed": true
+        },
+        {
+          "path": "space_debris.xm",
+          "type": "XM",
+          "contextRate": 44100,
+          "contextState": "running",
+          "initial": {
+            "led": 1,
+            "mode": 0,
+            "dmaMask": 0
+          },
+          "output": {
+            "peak": 0.01046376209706068,
+            "rms": 0.0033523109617795478,
+            "nonFinite": 0
+          },
+          "cycles": [
+            {
+              "led": 1,
+              "mode": 1,
+              "dmaMask": 0
+            },
+            {
+              "led": 0,
+              "mode": 2,
+              "dmaMask": 0
+            },
+            {
+              "led": 1,
+              "mode": 0,
+              "dmaMask": 0
+            }
+          ],
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "rateMatches": true,
+          "contextRunning": true,
+          "filterCycleMatches": true,
+          "passed": true
+        }
+      ],
+      "errors": [],
+      "passed": true
+    },
+    {
+      "device": "mobile",
+      "sampleRate": 48000,
+      "tracks": [
+        {
+          "path": "wings-of-death/Wings_Of_Death-Level_1.hipc",
+          "type": "HIPC",
+          "contextRate": 48000,
+          "contextState": "running",
+          "initial": {
+            "led": 0,
+            "mode": 2,
+            "dmaMask": 15
+          },
+          "output": {
+            "peak": 0.6913833618164062,
+            "rms": 0.32522722163560835,
+            "nonFinite": 0
+          },
+          "cycles": [
+            {
+              "led": 0,
+              "mode": 0,
+              "dmaMask": 15
+            },
+            {
+              "led": 1,
+              "mode": 1,
+              "dmaMask": 15
+            },
+            {
+              "led": 0,
+              "mode": 2,
+              "dmaMask": 15
+            }
+          ],
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "rateMatches": true,
+          "contextRunning": true,
+          "filterCycleMatches": true,
+          "passed": true
+        },
+        {
+          "path": "wings-of-death/Wings_Of_Death-Title.hip",
+          "type": "HIPC",
+          "contextRate": 48000,
+          "contextState": "running",
+          "initial": {
+            "led": 0,
+            "mode": 2,
+            "dmaMask": 13
+          },
+          "output": {
+            "peak": 0.23467212915420532,
+            "rms": 0.0761950813575613,
+            "nonFinite": 0
+          },
+          "cycles": [
+            {
+              "led": 0,
+              "mode": 0,
+              "dmaMask": 13
+            },
+            {
+              "led": 1,
+              "mode": 1,
+              "dmaMask": 13
+            },
+            {
+              "led": 0,
+              "mode": 2,
+              "dmaMask": 13
+            }
+          ],
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "rateMatches": true,
+          "contextRunning": true,
+          "filterCycleMatches": true,
+          "passed": true
+        },
+        {
+          "path": "ELYSIUM.MOD",
+          "type": "MOD",
+          "contextRate": 48000,
+          "contextState": "running",
+          "initial": {
+            "led": 0,
+            "mode": 0,
+            "dmaMask": 15
+          },
+          "output": {
+            "peak": 0.28625577688217163,
+            "rms": 0.07420759024751225,
+            "nonFinite": 0
+          },
+          "cycles": [
+            {
+              "led": 1,
+              "mode": 1,
+              "dmaMask": 13
+            },
+            {
+              "led": 0,
+              "mode": 2,
+              "dmaMask": 15
+            },
+            {
+              "led": 0,
+              "mode": 0,
+              "dmaMask": 15
+            }
+          ],
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "rateMatches": true,
+          "contextRunning": true,
+          "filterCycleMatches": true,
+          "passed": true
+        },
+        {
+          "path": "space_debris.xm",
+          "type": "XM",
+          "contextRate": 48000,
+          "contextState": "running",
+          "initial": {
+            "led": 1,
+            "mode": 0,
+            "dmaMask": 0
+          },
+          "output": {
+            "peak": 0.011456247419118881,
+            "rms": 0.003720583608322372,
+            "nonFinite": 0
+          },
+          "cycles": [
+            {
+              "led": 1,
+              "mode": 1,
+              "dmaMask": 0
+            },
+            {
+              "led": 0,
+              "mode": 2,
+              "dmaMask": 0
+            },
+            {
+              "led": 1,
+              "mode": 0,
+              "dmaMask": 0
+            }
+          ],
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "rateMatches": true,
+          "contextRunning": true,
+          "filterCycleMatches": true,
+          "passed": true
+        }
+      ],
+      "errors": [],
+      "passed": true
+    }
+  ],
+  "uiRuns": [
+    {
+      "device": "desktop",
+      "contextState": "running",
+      "sampleRate": 44100,
+      "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+      "activeTrack": "ELYSIUM",
+      "output": {
+        "peak": 0.4199698567390442,
+        "rms": 0.11860324074212904,
+        "nonFinite": 0
+      },
+      "ledExists": true,
+      "filterBefore": {
+        "led": 0,
+        "mode": 0
+      },
+      "filterAfter": {
+        "led": 1,
+        "mode": 1
+      },
+      "filterCycleMatches": true,
+      "errors": [],
+      "passed": true
+    },
+    {
+      "device": "mobile",
+      "contextState": "running",
+      "sampleRate": 44100,
+      "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+      "activeTrack": "ELYSIUM",
+      "output": {
+        "peak": 0.5262322425842285,
+        "rms": 0.18815039613579565,
+        "nonFinite": 0
+      },
+      "ledExists": true,
+      "filterBefore": {
+        "led": 0,
+        "mode": 0
+      },
+      "filterAfter": {
+        "led": 1,
+        "mode": 1
+      },
+      "filterCycleMatches": true,
+      "errors": [],
+      "passed": true
+    }
+  ],
+  "passed": true
+}

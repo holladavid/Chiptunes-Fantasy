@@ -78,7 +78,7 @@ const composerMetadata = {
     "dragonflight_surface.HIPC": `
         <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
         <p><strong>Overworld / Wilderness</strong> – Die Erkundungsmusik für die weiten Kontinente und Ebenen von <em>Dragonflight</em> (1990). Hippel erschafft hier eine heroische, naturverbundene Atmosphäre des Aufbruchs und der Reise.</p>
-        <p><strong>DSP- & Replay-Fokus:</strong> Schwebende Panflöten- und Oboen-Samples treffen auf sanfte, analog anmutende Basslinien. Durch die 14-Bit Hermite-Cubic-Interpolation unseres <em>Paula Fantasy Cores</em> klingen die Transienten gezupfter Instrumente wunderbar rund, während der <em>Paula Exact Core</em> mit 192 kHz ZOH-Oversampling den legendären kristallinen „Amiga-Schimmer“ bewahrt.</p>
+        <p><strong>DSP- & Replay-Fokus:</strong> Schwebende Panflöten- und Oboen-Samples treffen auf sanfte, analog anmutende Basslinien. Durch die 14-Bit Hermite-Cubic-Interpolation unseres <em>Paula Fantasy Cores</em> klingen die Transienten gezupfter Instrumente wunderbar rund, während der <em>Paula Exact Core</em> mit ZOH-Oversampling auf der vierfachen Host-Abtastrate den legendären kristallinen „Amiga-Schimmer“ bewahrt.</p>
     `,
     "dragonflight_town.HIPC": `
         <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
@@ -98,12 +98,12 @@ const composerMetadata = {
     "dragonflight_ani.HIPC": `
         <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
         <p><strong>Cinematic Flight Sequence</strong> – Die treibende Begleitmusik zur grafisch bahnbrechenden 3D-Flug- und Intro-Animation von Thalion-Legende Günter Schmitz.</p>
-        <p><strong>DSP- & Replay-Fokus:</strong> Rasante Tempo- und Notenwechsel, synchron getaktet zum 50Hz-VBLANK-Raster des Amiga. Der Track fordert die COSO-Interpreter-Zustandsmaschine heraus und demonstriert die makellose Umschaltung zwischen verschiedenen Timbre- und Instrumenten-Banken zur Laufzeit.</p>
+        <p><strong>DSP- & Replay-Fokus:</strong> Rasante Tempo- und Notenwechsel, synchron getaktet zum PAL-CIA-Timer mit etwa 50 Hz. Der Track fordert die COSO-Interpreter-Zustandsmaschine heraus und demonstriert die makellose Umschaltung zwischen verschiedenen Timbre- und Instrumenten-Banken zur Laufzeit.</p>
     `,
     "dragonflight_always.HIPC": `
         <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
         <p><strong>Mystic Motif („Always“)</strong> – Ein melancholisches, hochgradig intimes musikalisches Leitmotiv, das in Schlüsselmomenten der Erzählung ertönt.</p>
-        <p><strong>DSP- & Replay-Fokus:</strong> Feingliedrige Glocken- und Clavi-Wellenformen mit zarten Hüllkurven-Abklingkurven. Hier glänzt das analoge LF347-Op-Amp-Modell mit seiner begrenzten Slew Rate ($13\text{ V}/\mu\text{s}$), die selbst feinsten 8-Bit-Transienten den warmen, analogen Amiga-Schmelz verleiht.</p>
+        <p><strong>DSP- & Replay-Fokus:</strong> Feingliedrige Glocken- und Clavi-Wellenformen mit zarten Hüllkurven-Abklingkurven. Die lineare A500-Filterapproximation mit statischem 4,421-kHz-RC-Tiefpass und schaltbarem 3,09-kHz-LED-Filter formt das Klangbild, ohne eine nicht kalibrierte Verstärkersättigung hinzuzufügen.</p>
     `,
 
     // =========================================================
@@ -216,12 +216,12 @@ const composerMetadata = {
     "Wings_Of_Death-Level_1.hipc": `
         <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
         <p><strong>Level 1: Over the Trees</strong> – Die ikonische Eröffnungshymne von <em>Wings of Death</em>. Ein Paradebeispiel für Hippels melodische Finesse und das Zusammenspiel von 7 logischen Tracker-Spuren.</p>
-        <p><strong>DSP-Fokus:</strong> Achte auf die satten Slap-Bass-Lines und die butterweichen Pitch-Slides der Leadstimme. Unser 192kHz-Oversampling-Core mit analoger LF347-Slew-Rate-Modulation verleiht den 8-Bit-Samples einen seidigen, warmen Glanz.</p>
+        <p><strong>DSP-Fokus:</strong> Achte auf die satten Slap-Bass-Lines und die butterweichen Pitch-Slides der Leadstimme. Unser Exact-Core mit Oversampling auf der vierfachen Host-Abtastrate und linearer A500-Filterapproximation erhält die 8-Bit-Transienten ohne zusätzliche Sättigungsstufe.</p>
     `,
     "Wings_Of_Death-Level_2.hipc": `
         <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
         <p><strong>Level 2: Inside the Cave</strong> – Düsterer, treibender Höhlen-Techno aus <em>Wings of Death</em> (1990).</p>
-        <p><strong>DSP-Fokus:</strong> Hippel nutzt hier perkussive Chiptune-Echos und harte Snare-Akzente. Die dichten Event-Streams fordern das Timing der Sound-Makros heraus, die von unserem bitgenauen COSO-Interpreter frame-exakt getaktet werden.</p>
+        <p><strong>DSP-Fokus:</strong> Hippel nutzt hier perkussive Chiptune-Echos und harte Snare-Akzente. Die dichten Event-Streams fordern das Timing der Sound-Makros heraus, die von unserem deterministischen COSO-Interpreter CIA-getaktet werden.</p>
     `,
     "Wings_Of_Death-Level_3.hipc": `
         <h3>[ COMPOSER SPOTLIGHT: JOCHEN HIPPEL (MAD MAX) ]</h3>
