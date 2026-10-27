@@ -23,6 +23,8 @@ class YMExactProcessor extends AudioWorkletProcessor {
 
         this.trackData = null;
         this.currentFrame = 0;
+        this.playerRate = 50;
+        this.loopFrame = 0;
         this.sampleCounter = 0;
         this.isPlaying = false;
 
@@ -80,6 +82,10 @@ class YMExactProcessor extends AudioWorkletProcessor {
                 this.trackData = msg.track;
                 this.digidrums = msg.digidrums || [];
                 this.currentFrame = 0;
+                this.playerRate = Number.isFinite(msg.playerRate) && msg.playerRate > 0 ? msg.playerRate : 50;
+                this.loopFrame = Number.isInteger(msg.loopFrame) && msg.loopFrame >= 0 && msg.loopFrame < this.trackData.length
+                    ? msg.loopFrame
+                    : 0;
                 this.sampleCounter = 0;
                 this.effects.reset();
                 this.cycleAccumulator = 0;
@@ -136,7 +142,7 @@ class YMExactProcessor extends AudioWorkletProcessor {
 
                 this.sampleCounter--;
                 if (this.sampleCounter <= 0) {
-                    this.sampleCounter += sampleRate / 50.0;
+                    this.sampleCounter += sampleRate / this.playerRate;
 
                     let frame = this.trackData[this.currentFrame];
                     for (let r = 0; r < 16; r++) {
@@ -148,7 +154,8 @@ class YMExactProcessor extends AudioWorkletProcessor {
                         this.port.postMessage({ type: 'DEBUG', msg: 'YM6 Digidrum' });
                     }
 
-                    this.currentFrame = (this.currentFrame + 1) % this.trackData.length;
+                    this.currentFrame++;
+                    if (this.currentFrame >= this.trackData.length) this.currentFrame = this.loopFrame;
                 }
 
                 // =========================================================

@@ -24,6 +24,7 @@ import {
 } from './audio/audio-controller.js';
 import { LivingSilicon } from './ui/living-silicon.js';
 import { MediaSessionController } from './audio/media-session.js';
+import { formatFrameTime, framesToSeconds, getPlayerRate, isStoredLoopTransition, secondsToFrames } from './audio/playback-timing.js';
 
 let fsUI = null;
 let siliconVisualizer = null; // Living Silicon Instanz
@@ -218,11 +219,7 @@ if (document.readyState === 'loading') document.addEventListener("DOMContentLoad
 else initApp();
 
 function formatTime(frames) {
-    if (!frames) return "00:00";
-    let totalSeconds = Math.floor(frames / 50);
-    let mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-    let secs = (totalSeconds % 60).toString().padStart(2, '0');
-    return `${mins}:${secs}`;
+    return formatFrameTime(frames, trackData);
 }
 
 function updateTimelineUI() {
@@ -232,7 +229,7 @@ function updateTimelineUI() {
         document.getElementById('time-total').innerText = formatTime(trackData.length);
         document.getElementById('progress-slider').value = (lastKnownFrame / trackData.length) * 100;
     }
-    mediaSession.updatePosition(trackData.length / 50, lastKnownFrame / 50);
+    mediaSession.updatePosition(framesToSeconds(trackData.length, trackData), framesToSeconds(lastKnownFrame, trackData));
 }
 
 const progressSlider = document.getElementById('progress-slider');
@@ -267,18 +264,18 @@ function seekToFrame(targetFrame) {
     lastKnownFrame = clampedFrame;
     previousFrame = clampedFrame;
     node.port.postMessage({ type: 'SEEK_TRACK', frame: clampedFrame });
-    mediaSession.updatePosition(trackData.length / 50, clampedFrame / 50, true);
+    mediaSession.updatePosition(framesToSeconds(trackData.length, trackData), framesToSeconds(clampedFrame, trackData), true);
     return true;
 }
 
 function seekToSeconds(seconds) {
     if (!Number.isFinite(seconds)) return false;
-    return seekToFrame(Math.floor(seconds * 50));
+    return seekToFrame(secondsToFrames(seconds, trackData));
 }
 
 function seekBySeconds(offset) {
     if (!Number.isFinite(offset)) return false;
-    return seekToSeconds((lastKnownFrame / 50) + offset);
+    return seekToSeconds((framesToSeconds(lastKnownFrame, trackData)) + offset);
 }
 
 function handleWorkletMessage(e) {
@@ -369,7 +366,9 @@ function handleWorkletMessage(e) {
         lastKnownFrame = frameVal;
 
         if (isPlaying && trackData.length > 0) {
-            if (previousFrame > trackData.length - 20 && lastKnownFrame < 10) {
+            const reachedTrackBoundary = previousFrame > trackData.length - 20 && lastKnownFrame < 10;
+            const returnedToStoredLoop = isStoredLoopTransition(previousFrame, lastKnownFrame, trackData);
+            if (reachedTrackBoundary && !returnedToStoredLoop) {
                 if (performance.now() - lastTrackChangeTime > 2000) {
                     lastTrackChangeTime = performance.now(); 
                     
@@ -438,7 +437,7 @@ function syncMediaSessionTrack(selectedSong) {
 
     mediaSession.setMetadata(title, artist, mediaSessionAlbums[activeSystem], mediaSessionArtwork);
     mediaSession.setSeekable(canSeekActiveTrack());
-    mediaSession.updatePosition(trackData.length / 50, lastKnownFrame / 50, true);
+    mediaSession.updatePosition(framesToSeconds(trackData.length, trackData), framesToSeconds(lastKnownFrame, trackData), true);
 }
 
 function changeC64Subsong(subsongId) {
@@ -506,15 +505,18 @@ function startPlayback() {
         if (ymNode) {
             ymNode.port.postMessage({ 
                 type: 'PLAY_TRACK', 
-                track: trackData, 
-                digidrums: trackData.digidrums 
+                track: trackData,
+                digidrums: trackData.digidrums,
+                masterClock: trackData.metadata?.masterClock,
+                playerRate: getPlayerRate(trackData),
+                loopFrame: trackData.metadata?.loopFrame || 0
             });
         }
     }
 
     if (fsUI) fsUI.updatePlayState(true);
     mediaSession.setPlaybackState('playing');
-    mediaSession.updatePosition(trackData.length / 50, lastKnownFrame / 50, true);
+    mediaSession.updatePosition(framesToSeconds(trackData.length, trackData), framesToSeconds(lastKnownFrame, trackData), true);
 }
 
 function resumePlayback() {
@@ -532,7 +534,7 @@ function resumePlayback() {
 
     if (fsUI) fsUI.updatePlayState(true);
     mediaSession.setPlaybackState('playing');
-    mediaSession.updatePosition(trackData.length / 50, lastKnownFrame / 50, true);
+    mediaSession.updatePosition(framesToSeconds(trackData.length, trackData), framesToSeconds(lastKnownFrame, trackData), true);
 }
 
 function stopPlayback() {
@@ -554,7 +556,7 @@ function stopPlayback() {
     channelVolumes.fill(0);
     sidRegisterWriteRate = 0;
     mediaSession.setPlaybackState(trackData.length > 0 ? 'paused' : 'none');
-    mediaSession.updatePosition(trackData.length / 50, lastKnownFrame / 50, true);
+    mediaSession.updatePosition(framesToSeconds(trackData.length, trackData), framesToSeconds(lastKnownFrame, trackData), true);
 }
 
 let isTransitioning = false; // Verhindert Spam-Klicken der Tabs

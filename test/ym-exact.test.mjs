@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { readdirSync } from 'node:fs';
 
 const processors = new Map();
 globalThis.sampleRate = 48000;
@@ -24,9 +25,13 @@ await import('../js/worklets/atari/ym-exact.js');
 const baseline = JSON.parse(await readFile(new URL('./fixtures/ym-production-baseline.json', import.meta.url), 'utf8'));
 const Processor = processors.get('ym-exact-processor');
 
-function startTrack(processor, track) {
+function startTrack(processor, track, overrides = {}) {
     processor.port.onmessage({
-        data: { type: 'PLAY_TRACK', track: track.frames, digidrums: track.digidrums }
+        data: {
+            type: 'PLAY_TRACK', track: track.frames, digidrums: track.digidrums,
+            masterClock: track.metadata?.masterClock, playerRate: track.metadata?.playerRate,
+            loopFrame: track.metadata?.loopFrame, ...overrides
+        }
     });
     processor.fadeVol = 1;
 }
@@ -63,7 +68,11 @@ test('restarting a track is bit-identical to a fresh worklet', async () => {
     startTrack(restarted, track);
     renderBlocks(restarted, 37);
     restarted.port.onmessage({
-        data: { type: 'PLAY_TRACK', track: track.frames, digidrums: track.digidrums }
+        data: {
+            type: 'PLAY_TRACK', track: track.frames, digidrums: track.digidrums,
+            masterClock: track.metadata.masterClock, playerRate: track.metadata.playerRate,
+            loopFrame: track.metadata.loopFrame
+        }
     });
     assert.equal(restarted.fadeVol, 0);
     restarted.fadeVol = 1;
@@ -99,7 +108,9 @@ test('stop and resume preserve transport and digital core state', async () => {
     const transportState = {
         currentFrame: processor.currentFrame,
         sampleCounter: processor.sampleCounter,
-        cycleAccumulator: processor.cycleAccumulator
+        cycleAccumulator: processor.cycleAccumulator,
+        playerRate: processor.playerRate,
+        loopFrame: processor.loopFrame
     };
     processor.port.onmessage({ data: { type: 'STOP_TRACK' } });
     renderBlocks(processor, 8);
@@ -108,7 +119,9 @@ test('stop and resume preserve transport and digital core state', async () => {
     assert.deepEqual({
         currentFrame: processor.currentFrame,
         sampleCounter: processor.sampleCounter,
-        cycleAccumulator: processor.cycleAccumulator
+        cycleAccumulator: processor.cycleAccumulator,
+        playerRate: processor.playerRate,
+        loopFrame: processor.loopFrame
     }, transportState);
 
     processor.port.onmessage({ data: { type: 'RESUME_TRACK' } });
@@ -116,4 +129,54 @@ test('stop and resume preserve transport and digital core state', async () => {
     assert.deepEqual({ ...processor.core }, coreState);
     assert.deepEqual(structuredClone(processor.effects), effectState);
     renderBlocks(processor, 8);
+});
+
+test('playerRate controls production frame advancement', () => {
+    const track = {
+        frames: Array.from({ length: 200 }, () => new Uint8Array(16)),
+        digidrums: [], metadata: { playerRate: 50, loopFrame: 0 }
+    };
+    const at50 = new Processor();
+    const at100 = new Processor();
+    startTrack(at50, track);
+    startTrack(at100, track, { playerRate: 100 });
+    renderBlocks(at50, 100);
+    renderBlocks(at100, 100);
+    assert.equal(at50.currentFrame, 14);
+    assert.equal(at100.currentFrame, 27);
+});
+
+test('track end jumps to the stored loop frame instead of frame zero', () => {
+    const track = {
+        frames: [1, 2, 3].map(value => {
+            const frame = new Uint8Array(16);
+            frame[0] = value;
+            return frame;
+        }),
+        digidrums: [], metadata: { playerRate: 1000, loopFrame: 1 }
+    };
+    const processor = new Processor();
+    startTrack(processor, track);
+    renderBlocks(processor, 1);
+    assert.equal(processor.core.regs[0], 3);
+    assert.equal(processor.currentFrame, 1);
+    assert.equal(processor.loopFrame, 1);
+});
+
+
+test('all ten corpus tracks with stored loop points return to their own loop frame', async () => {
+    const root = 'tracks/atari';
+    const names = readdirSync(root, { recursive: true }).filter(name => /\.ym$/i.test(name));
+    let checked = 0;
+    for (const name of names) {
+        const track = await loadYmFile(`${root}/${name}`);
+        if (track.metadata.loopFrame === 0) continue;
+        const processor = new Processor();
+        startTrack(processor, track);
+        processor.port.onmessage({ data: { type: 'SEEK_TRACK', frame: track.frames.length - 1 } });
+        renderBlocks(processor, 1);
+        assert.equal(processor.currentFrame, track.metadata.loopFrame, name);
+        checked++;
+    }
+    assert.equal(checked, 10);
 });

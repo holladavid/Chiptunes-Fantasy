@@ -50,8 +50,8 @@ node tools/ym-render.mjs --case all --check
 # Render raw PCM, WAV, JSON metadata and a CSV state trace.
 node tools/ym-render.mjs --case tone-a --out artifacts/ym --raw --trace
 
-# Run focused core and production-worklet tests.
-node --test test/ym-core.test.mjs test/ym6-effects.test.mjs test/ym-exact.test.mjs
+# Run focused parser, timing, core and production-worklet tests.
+node --test test/ym-parser.test.mjs test/ym-transport.test.mjs test/ym-core.test.mjs test/ym6-effects.test.mjs test/ym-exact.test.mjs
 
 # Re-pin only after a reviewed emulation change.
 node tools/ym-render.mjs --case all --update-baseline
@@ -74,10 +74,20 @@ Unsigned 8-bit Digidrum data uses its upper four amplitude bits. Nibble zero is 
 
 Focused checks cover exact event cycles, both known corpus timer classes, all 16 unsigned amplitude nibbles, retriggering, effect end, continuous phase, both slots, SID-Voice, Sinus-SID and Sync-Buzzer. Five-second production renders of the five listed reference tracks are finite and repeatable. Only `WINGLEV1.YM` (6083.168317 Hz) and `Turrican2_TheDesertRocks.YM` (6023.529412 Hz) contain active YM6 timer commands in the supplied corpus. The YM5 files `GOLDRUN.YM`, `UnionDemo_NinjaRemix.YM` and `thalion_loader.YM` have zero timer fields and therefore do not provide production coverage for the other effects.
 
+## Phase 3 format and transport contract
+
+`parseYM()` accepts YM3!, YM3b, YM5! and YM6! data and validates signatures, fixed-header lengths, register ranges, sample ranges, zero-terminated metadata and the YM5/YM6 `End!` marker. YM3 uses 14 bytes per interleaved frame; YM3b additionally stores its loop frame as a trailing big-endian DWORD. YM5/YM6 register dumps may be interleaved or frame-serial according to attribute bit 0.
+
+YM5/YM6 metadata supplies `masterClock`, `playerRate`, `loopFrame` and sample attributes. Signed samples are normalized from signed 8-bit PCM, unsigned samples from offset-binary PCM, and already-4-bit data is accepted only in the range 0 through 15 before conversion to the normalized representation consumed by the effect engine. Invalid or truncated data is rejected rather than played as a partial track.
+
+`PLAY_TRACK` carries the parsed timing and loop metadata to the production worklet. Frame advance uses `sampleRate / playerRate`, and reaching the track end resumes at the stored `loopFrame`. UI duration, seeking and Media Session position use the same rate conversion. A stored loop transition is distinguished from the legacy end-of-track heuristic so that a loop to frame 0 is not treated as an automatic track change.
+
+Synthetic tests cover non-50-Hz timing, explicit loop points, both register layouts, all sample encodings and malformed inputs. The parser also loads all 73 supplied corpus tracks, and production-worklet checks exercise all ten nonzero stored loop points.
+
 ## Baseline meaning and limits
 
 `test/fixtures/ym-baseline.json` is a self-generated Phase 1 regression pin, not a hardware truth reference. It covers tone, noise, period-zero behavior, mixer activity and all envelope shapes after the digital corrections.
 
 `test/fixtures/ym-production-baseline.json` archives one-second stereo production-worklet hashes for `Giana_Title.YM`, `WINGLEV1.YM` and `GOLDRUN.YM` at 48 kHz with 128-sample process blocks. Phase 2 changed only the `WINGLEV1.YM` hash after the cycle and amplitude tests passed; the other two hashes and all raw Phase 1 baselines remain unchanged. These self-generated hashes are regression anchors, not proof of real-hardware agreement.
 
-The known loop, resampling and analog-model issues remain intentionally unchanged. Their corrections belong to the subsequent release phases.
+The known resampling and analog-model issues remain intentionally unchanged. Their corrections belong to the subsequent release phases.
