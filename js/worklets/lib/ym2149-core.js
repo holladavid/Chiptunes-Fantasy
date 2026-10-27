@@ -46,7 +46,7 @@ export class YM2149Core {
         this.regs[register] = value;
     }
 
-    clockCycle(digiVal5Bit = -1, hijackedVoice = 0) {
+    clockCycle(digiVal5Bit = -1, hijackedVoice = 0, effectLevels = null) {
         const regs = this.regs;
         const pA = (((regs[1] & 0x0F) << 8) | regs[0]) || 1;
         const pB = (((regs[3] & 0x0F) << 8) | regs[2]) || 1;
@@ -115,6 +115,11 @@ export class YM2149Core {
             else if (hijackedVoice === 2) vB5 = digiVal5Bit;
             else if (hijackedVoice === 3) vC5 = digiVal5Bit;
         }
+        if (effectLevels !== null) {
+            if (effectLevels[0] >= 0) vA5 = effectLevels[0];
+            if (effectLevels[1] >= 0) vB5 = effectLevels[1];
+            if (effectLevels[2] >= 0) vC5 = effectLevels[2];
+        }
 
         const mix = regs[7];
         let outA = ((mix & 0x01) | this.toneOutA) & (((mix & 0x08) >> 3) | this.noiseOut);
@@ -125,6 +130,11 @@ export class YM2149Core {
             if (hijackedVoice === 1 || hijackedVoice === 0) outA = 1;
             if (hijackedVoice === 2) outB = 1;
             if (hijackedVoice === 3) outC = 1;
+        }
+        if (effectLevels !== null) {
+            if (effectLevels[0] >= 0) outA = 1;
+            if (effectLevels[1] >= 0) outB = 1;
+            if (effectLevels[2] >= 0) outC = 1;
         }
 
         const ampA = outA ? YM2149_DAC32[vA5] : 0;

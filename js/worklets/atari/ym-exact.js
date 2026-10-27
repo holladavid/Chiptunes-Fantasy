@@ -6,8 +6,9 @@
 // 64-Step Envelope State Machine & Digidrum DAC Injection
 // =========================================================
 
-import { detectDigidrum, detectDigidrumVoice, AtariAnalogFilter } from '../lib/dsp-utils.js';
+import { AtariAnalogFilter } from '../lib/dsp-utils.js';
 import { YM2149Core } from '../lib/ym2149-core.js';
+import { YM6Effects } from '../lib/ym6-effects.js';
 import { YMVisualizer } from '../lib/ym-visualizer.js';
 
 class YMExactProcessor extends AudioWorkletProcessor {
@@ -18,12 +19,7 @@ class YMExactProcessor extends AudioWorkletProcessor {
         this.regs = this.core.regs;
 
         this.digidrums = [];
-        this.currentDigidrum = null;
-        this.digiPos = 0;
-        this.lastDigiTrigger = 0;
-
-        this.hijackedVoice = 0;
-        this.hijackReleaseVol = 0;
+        this.effects = new YM6Effects(this.clock);
 
         this.trackData = null;
         this.currentFrame = 0;
@@ -85,11 +81,7 @@ class YMExactProcessor extends AudioWorkletProcessor {
                 this.digidrums = msg.digidrums || [];
                 this.currentFrame = 0;
                 this.sampleCounter = 0;
-                this.currentDigidrum = null;
-                this.digiPos = 0;
-                this.lastDigiTrigger = 0;
-                this.hijackedVoice = 0;
-                this.hijackReleaseVol = 0;
+                this.effects.reset();
                 this.cycleAccumulator = 0;
                 this.isPlaying = true;
 
@@ -108,7 +100,7 @@ class YMExactProcessor extends AudioWorkletProcessor {
             } else if (msg.type === 'SEEK_TRACK') {
                 if (this.trackData) {
                     this.currentFrame = msg.frame % this.trackData.length;
-                    this.currentDigidrum = null;
+                    this.effects.reset();
                 }
             }
         };
@@ -151,28 +143,10 @@ class YMExactProcessor extends AudioWorkletProcessor {
                         this.core.writeRegister(r, frame[r]);
                     }
 
-                    let activeDigiTrigger = detectDigidrum(frame);
-                    let activeDigiVoice = detectDigidrumVoice(frame);
-
-                    if (activeDigiTrigger > 0 && activeDigiTrigger !== this.lastDigiTrigger) {
-                        if (this.digidrums[activeDigiTrigger - 1]) {
-                            this.currentDigidrum = this.digidrums[activeDigiTrigger - 1];
-                            this.digiPos = 0;
-
-                            if (activeDigiVoice > 0) {
-                                this.hijackedVoice = activeDigiVoice;
-                                if (activeDigiVoice === 1) this.hijackReleaseVol = frame[8];
-                                else if (activeDigiVoice === 2) this.hijackReleaseVol = frame[9];
-                                else if (activeDigiVoice === 3) this.hijackReleaseVol = frame[10];
-                            }
-                            this.port.postMessage({ type: 'DEBUG', msg: 'Drum ' + activeDigiTrigger });
-                        }
+                    this.effects.applyFrame(frame, this.digidrums);
+                    if (this.effects.digidrumStartMask !== 0) {
+                        this.port.postMessage({ type: 'DEBUG', msg: 'YM6 Digidrum' });
                     }
-                    this.lastDigiTrigger = activeDigiTrigger;
-
-                    if (this.hijackedVoice === 1 && frame[8] !== this.hijackReleaseVol) this.hijackedVoice = 0;
-                    if (this.hijackedVoice === 2 && frame[9] !== this.hijackReleaseVol) this.hijackedVoice = 0;
-                    if (this.hijackedVoice === 3 && frame[10] !== this.hijackReleaseVol) this.hijackedVoice = 0;
 
                     this.currentFrame = (this.currentFrame + 1) % this.trackData.length;
                 }
@@ -181,19 +155,8 @@ class YMExactProcessor extends AudioWorkletProcessor {
                 // 2.0 MHz CYCLE-EXACT LOCKSTEP LOOP
                 // =========================================================
                 for (let c = 0; c < cyclesToRun; c++) {
-                    let digiVal5Bit = -1;
-                    if (this.currentDigidrum) {
-                        let posInt = Math.floor(this.digiPos);
-                        if (posInt < this.currentDigidrum.length) {
-                            let floatSample = this.currentDigidrum[posInt];
-                            digiVal5Bit = Math.floor((floatSample + 1.0) * 15.5);
-                            this.digiPos += (7812.5 / this.clock);
-                        } else {
-                            this.currentDigidrum = null;
-                        }
-                    }
-
-                    const mixedSample = this.core.clockCycle(digiVal5Bit, this.hijackedVoice);
+                    const effectLevels = this.effects.clockCycle(this.core);
+                    const mixedSample = this.core.clockCycle(-1, 0, effectLevels);
                     this.volA = this.core.volA;
                     this.volB = this.core.volB;
                     this.volC = this.core.volC;

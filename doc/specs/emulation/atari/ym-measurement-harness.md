@@ -12,7 +12,7 @@ cycle-stamped register events -> YM2149Core.clockCycle() -> raw Float32 output -
                                       +-> cycle/state trace
 ```
 
-The raw tap is before the polyphase FIR, `outLp`, `AtariAnalogFilter` and master DSP. It includes the current DAC and summing model so that the Phase 0 refactor remains comparable with the production core. YM6 effects are outside this raw digital harness and remain a Phase 2 work item.
+The raw tap is before the polyphase FIR, `outLp`, `AtariAnalogFilter` and master DSP. It includes the current DAC and summing model so that the Phase 0 refactor remains comparable with the production core. The raw harness remains a register-only core harness; Phase 2 effects have their own cycle-level tests and are applied between effect timing and `YM2149Core.clockCycle()` in the production worklet.
 
 ## Event and cycle contract
 
@@ -51,7 +51,7 @@ node tools/ym-render.mjs --case all --check
 node tools/ym-render.mjs --case tone-a --out artifacts/ym --raw --trace
 
 # Run focused core and production-worklet tests.
-node --test test/ym-core.test.mjs test/ym-exact.test.mjs
+node --test test/ym-core.test.mjs test/ym6-effects.test.mjs test/ym-exact.test.mjs
 
 # Re-pin only after a reviewed emulation change.
 node tools/ym-render.mjs --case all --update-baseline
@@ -64,10 +64,20 @@ node tools/ym-render.mjs --case all --update-baseline
 - `PLAY_TRACK` resets the digital core, effect progress, cycle accumulator, resampler ring, output filters, fade and displayed channel levels. `STOP_TRACK` and `RESUME_TRACK` do not reset the digital or transport state.
 - Envelope hold/continue selection uses shape bits rather than allocating a table on each envelope tick.
 
+## Phase 2 YM6 effect timing
+
+`js/worklets/lib/ym6-effects.js` decodes both YM6 effect slots independently. R14/R15 are timer-count fields only; they are not generic Digidrum triggers. Timer frequency is `2457600 / predivisor / timerCount`, with the MFP predivisor table `[stopped, 4, 10, 16, 50, 64, 100, 200]`.
+
+The effect clock uses integer phase accumulation on the 2 MHz YM timeline. Each YM cycle adds 2,457,600 to a slot phase; an event consumes `ymClock * predivisor * timerCount`. This avoids accumulated floating-point rate error. A newly started effect schedules its first event at the next YM cycle. Unchanged continuous commands retain their phase across VBLs, while every Digidrum command re-triggers its sample.
+
+Unsigned 8-bit Digidrum data uses its upper four amplitude bits. Nibble zero is silent and nonzero nibbles use the existing `2 * n + 1` DAC-level mapping. The last sample remains for a full timer step; afterwards the voice returns to its current register volume. SID-Voice alternates 0/VMAX, Sinus-SID loops eight levels derived from `round(VMAX * (1 + sin(position * pi / 4)) / 2)`, and Sync-Buzzer writes the encoded R13 shape at timer events. These are digital format rules, not an analog or real-hardware calibration claim.
+
+Focused checks cover exact event cycles, both known corpus timer classes, all 16 unsigned amplitude nibbles, retriggering, effect end, continuous phase, both slots, SID-Voice, Sinus-SID and Sync-Buzzer. Five-second production renders of the five listed reference tracks are finite and repeatable. Only `WINGLEV1.YM` (6083.168317 Hz) and `Turrican2_TheDesertRocks.YM` (6023.529412 Hz) contain active YM6 timer commands in the supplied corpus. The YM5 files `GOLDRUN.YM`, `UnionDemo_NinjaRemix.YM` and `thalion_loader.YM` have zero timer fields and therefore do not provide production coverage for the other effects.
+
 ## Baseline meaning and limits
 
 `test/fixtures/ym-baseline.json` is a self-generated Phase 1 regression pin, not a hardware truth reference. It covers tone, noise, period-zero behavior, mixer activity and all envelope shapes after the digital corrections.
 
-`test/fixtures/ym-production-baseline.json` archives one-second stereo production-worklet hashes for `Giana_Title.YM`, `WINGLEV1.YM` and `GOLDRUN.YM` at 48 kHz with 128-sample process blocks. The hashes cover the Phase 1 envelope, zero-volume and reset behavior; they do not validate YM6 effect correctness or real-hardware agreement.
+`test/fixtures/ym-production-baseline.json` archives one-second stereo production-worklet hashes for `Giana_Title.YM`, `WINGLEV1.YM` and `GOLDRUN.YM` at 48 kHz with 128-sample process blocks. Phase 2 changed only the `WINGLEV1.YM` hash after the cycle and amplitude tests passed; the other two hashes and all raw Phase 1 baselines remain unchanged. These self-generated hashes are regression anchors, not proof of real-hardware agreement.
 
-The known Digidrum-rate, loop, resampling and analog-model issues remain intentionally unchanged. Their corrections belong to the subsequent release phases.
+The known loop, resampling and analog-model issues remain intentionally unchanged. Their corrections belong to the subsequent release phases.

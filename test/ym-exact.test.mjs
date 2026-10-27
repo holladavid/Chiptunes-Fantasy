@@ -46,7 +46,7 @@ function renderBlocks(processor, count = 375) {
     return createHash('sha256').update(Buffer.concat(chunks)).digest('hex');
 }
 
-test('ym-exact production output matches the reviewed Phase 1 baseline', async () => {
+test('ym-exact production output matches the reviewed Phase 2 baseline', async () => {
     for (const testCase of Object.values(baseline.cases)) {
         const track = await loadYmFile(testCase.path);
         const processor = new Processor();
@@ -95,28 +95,25 @@ test('stop and resume preserve transport and digital core state', async () => {
     renderBlocks(processor, 8);
 
     const coreState = structuredClone(processor.core);
+    const effectState = structuredClone(processor.effects);
     const transportState = {
         currentFrame: processor.currentFrame,
         sampleCounter: processor.sampleCounter,
-        cycleAccumulator: processor.cycleAccumulator,
-        digiPos: processor.digiPos,
-        lastDigiTrigger: processor.lastDigiTrigger,
-        hijackedVoice: processor.hijackedVoice
+        cycleAccumulator: processor.cycleAccumulator
     };
     processor.port.onmessage({ data: { type: 'STOP_TRACK' } });
     renderBlocks(processor, 8);
     assert.deepEqual({ ...processor.core }, coreState);
+    assert.deepEqual(structuredClone(processor.effects), effectState);
     assert.deepEqual({
         currentFrame: processor.currentFrame,
         sampleCounter: processor.sampleCounter,
-        cycleAccumulator: processor.cycleAccumulator,
-        digiPos: processor.digiPos,
-        lastDigiTrigger: processor.lastDigiTrigger,
-        hijackedVoice: processor.hijackedVoice
+        cycleAccumulator: processor.cycleAccumulator
     }, transportState);
 
     processor.port.onmessage({ data: { type: 'RESUME_TRACK' } });
     assert.equal(processor.isPlaying, true);
     assert.deepEqual({ ...processor.core }, coreState);
+    assert.deepEqual(structuredClone(processor.effects), effectState);
     renderBlocks(processor, 8);
 });
