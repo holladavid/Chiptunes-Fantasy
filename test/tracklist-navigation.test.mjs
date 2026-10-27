@@ -39,31 +39,96 @@ test('Amiga tracklist shows game folders and navigates their tracks', () => {
     assert.match(wingsEntries[0].song.composerInfo, /COMPOSER SPOTLIGHT/);
 });
 
-test('Atari tracklist shows Amberstar, Dragonflight, and Wings of Death folders', () => {
+test('Atari tracklist separates games, demos and five curated root tracks', () => {
     const rootEntries = getTracklistEntries(trackRegistry.atari);
     const folders = rootEntries.filter(entry => entry.type === 'folder');
+    const rootTracks = rootEntries.filter(entry => entry.type === 'track');
+
+    assert.equal(trackRegistry.atari.length, 86);
+    assert.deepEqual(folders.map(entry => entry.name), ['spiele', 'demo-szene']);
+    assert.deepEqual(rootTracks.map(entry => entry.song.listTitle), [
+        'Thalion – Intro',
+        'Bionic Commando',
+        'Stormlord – Titel',
+        'Goldrunner',
+        'Punish Your Machine – Best Part of Creation'
+    ]);
+    assert.ok(rootEntries.slice(0, 2).every(entry => entry.type === 'folder'));
+});
+
+test('Atari game folders contain the curated tracks without flattening their paths', () => {
+    const gameFolders = getTracklistEntries(trackRegistry.atari, 'spiele');
+    const expectedTracks = {
+        dragonflight: 5,
+        amberstar: 20,
+        'wings-of-death': 10,
+        'lethal-xcess': 7,
+        turrican: 2,
+        xenon: 3,
+        'giana-sisters': 6,
+        'ghouls-n-ghosts': 3,
+        speedball: 1,
+        stormlord: 1,
+        'chambers-of-shaolin': 2,
+        'xenon-2': 1,
+        'led-storm': 1,
+        'enchanted-land': 1
+    };
 
     assert.deepEqual(
-        folders.map(entry => entry.name).sort(),
-        ['amberstar', 'dragonflight', 'wings-of-death']
+        gameFolders.map(entry => entry.name),
+        Object.keys(expectedTracks)
     );
-    assert.ok(rootEntries.slice(0, folders.length).every(entry => entry.type === 'folder'));
+    assert.ok(gameFolders.every(entry => entry.type === 'folder'));
 
-    const expectedTracks = {
-        amberstar: 20,
-        dragonflight: 5,
-        'wings-of-death': 10
-    };
     for (const [folder, expectedCount] of Object.entries(expectedTracks)) {
-        const folderEntry = folders.find(entry => entry.name === folder);
-        const tracks = getTracklistEntries(trackRegistry.atari, folderEntry.path);
-        assert.equal(tracks.length, expectedCount);
+        const directory = `spiele/${folder}`;
+        const tracks = getTracklistEntries(trackRegistry.atari, directory);
+        assert.equal(tracks.length, expectedCount, directory);
         assert.ok(tracks.every(entry => entry.type === 'track'));
-        assert.ok(tracks.every(entry => entry.song.path.startsWith(`${folder}/`)));
+        assert.ok(tracks.every(entry => entry.song.path.startsWith(`${directory}/`)));
+        assert.ok(tracks.every(entry => entry.song.listTitle.length < entry.song.title.length + 1));
     }
 
-    const amberstarTracks = getTracklistEntries(trackRegistry.atari, 'amberstar');
-    assert.match(amberstarTracks[0].song.composerInfo, /COMPOSER SPOTLIGHT/);
-    const wingsTracks = getTracklistEntries(trackRegistry.atari, 'wings-of-death');
-    assert.match(wingsTracks[0].song.composerInfo, /COMPOSER SPOTLIGHT/);
+    const xenonTracks = getTracklistEntries(trackRegistry.atari, 'spiele/xenon');
+    assert.deepEqual(xenonTracks.map(entry => entry.song.listTitle), [
+        'Titel', 'Ingame', 'End-of-Level-Battle'
+    ]);
+});
+
+test('Atari demo folders preserve screen-specific groups and nested navigation', () => {
+    const demoFolders = getTracklistEntries(trackRegistry.atari, 'demo-szene');
+    const expectedTracks = {
+        'union-demo': 11,
+        'syntax-terror': 3,
+        spherical: 1,
+        synergy: 2,
+        remixes: 1
+    };
+
+    assert.deepEqual(demoFolders.map(entry => entry.name), Object.keys(expectedTracks));
+    for (const [folder, expectedCount] of Object.entries(expectedTracks)) {
+        const tracks = getTracklistEntries(trackRegistry.atari, `demo-szene/${folder}`);
+        assert.equal(tracks.length, expectedCount, folder);
+        assert.ok(tracks.every(entry => entry.type === 'track'));
+    }
+
+    const syntaxTracks = getTracklistEntries(trackRegistry.atari, 'demo-szene/syntax-terror');
+    assert.deepEqual(syntaxTracks.map(entry => entry.song.listTitle), [
+        'Screen unbekannt', 'TeX 24hours', 'TLB Screen'
+    ]);
+});
+
+test('Logical Atari folders do not change physical production baseline sources', () => {
+    const expectedSources = new Map([
+        ['spiele/giana-sisters/Giana_Title.YM', 'Giana_Title.YM'],
+        ['spiele/wings-of-death/WINGLEV1.YM', 'wings-of-death/WINGLEV1.YM'],
+        ['GOLDRUN.YM', 'GOLDRUN.YM']
+    ]);
+
+    for (const [logicalPath, sourcePath] of expectedSources) {
+        const song = trackRegistry.atari.find(entry => entry.path === logicalPath);
+        assert.ok(song, logicalPath);
+        assert.equal(song.sourcePath, sourcePath);
+    }
 });

@@ -1,0 +1,22 @@
+{
+  "format": "chiptunes-fantasy-ym-production-phase5-v1",
+  "purpose": "self-generated Phase 5 regression pin after reviewed two-stage resampling and allocation-free hot-path changes; not a hardware accuracy reference",
+  "sampleRate": 48000,
+  "seconds": 1,
+  "blockSize": 128,
+  "channelLayout": "left block followed by right block for each process call",
+  "cases": {
+    "Giana_Title": {
+      "path": "tracks/atari/Giana_Title.YM",
+      "sha256": "fec9afb531a8e036eba1d81651896e1b2c1f78b0234dbadc8e7549563f09407b"
+    },
+    "WINGLEV1": {
+      "path": "tracks/atari/wings-of-death/WINGLEV1.YM",
+      "sha256": "0c6def5fa27a895c6795b12656acbac082f22e7b47241bc2ce267b2be434e3c9"
+    },
+    "GOLDRUN": {
+      "path": "tracks/atari/GOLDRUN.YM",
+      "sha256": "18a44ef6dd096f9809a522d6f12c22d3f59de60444e6cea700c8426367475033"
+    }
+  }
+}

@@ -7,7 +7,13 @@ function createVisualizer() {
     const elements = new Map();
     const container = {
         querySelector(selector) {
-            if (!elements.has(selector)) elements.set(selector, { style: {} });
+            if (!elements.has(selector)) elements.set(selector, { style: {}, textContent: '', setAttribute() {} });
+            return elements.get(selector);
+        },
+        querySelectorAll(selector) {
+            if (!elements.has(selector)) {
+                elements.set(selector, Array.from({ length: 4 }, () => ({ style: {}, textContent: '' })));
+            }
             return elements.get(selector);
         }
     };
@@ -26,11 +32,12 @@ test('Paula visualization reports per-channel DMA, frequency and register state'
 
     visualizer.update([0.8, 0, 0, 0.5], regs);
 
-    assert.equal(elements.get('.paula-channel-state-0').textContent, 'DMA ON · 8287Hz · VOL 64/64');
-    assert.equal(elements.get('.paula-channel-registers-0').textContent, 'LC16 $1234 · LEN 16 · PER 428');
-    assert.equal(elements.get('.paula-channel-state-3').textContent, 'DMA ON · 8287Hz · VOL 32/64');
-    assert.equal(elements.get('.paula-channel-state-1').textContent, 'DMA OFF · IDLE · VOL 0/64');
-    assert.equal(elements.get('.paula-filter-status').textContent, 'LED FILTER: NOT MODELED');
+    assert.equal(elements.get('.paula-channel-state-0').textContent, 'DMA ON · 8287Hz');
+    assert.equal(elements.get('.paula-channel-registers-0').textContent, 'LC:$1234 LEN:16 PER:428');
+    assert.equal(elements.get('.paula-vol-txt-0').textContent, 'V:64');
+    assert.equal(elements.get('.paula-channel-state-3').textContent, 'DMA ON · 8287Hz');
+    assert.equal(elements.get('.paula-channel-state-1').textContent, 'DMA OFF · IDLE');
+    assert.equal(elements.get('.paula-filter-status').textContent, 'LED FILTER: BYPASS');
     assert.equal(elements.get('.sig-path-0').style.opacity > 0, true);
 });
 
@@ -40,8 +47,8 @@ test('Paula pin numbers and output traces use the package pin geometry', () => {
 
     assert.match(svg, /class="silicon-pin pin-paula-32" x="340\.375" y="8"/);
     assert.match(svg, /class="silicon-pin pin-paula-33" x="321\.625" y="8"/);
-    assert.match(svg, /d="M 315 79 L 344\.375 79 L 344\.375 8 L 344\.375 -20/);
-    assert.match(svg, /d="M 315 147 L 325\.625 147 L 325\.625 8 L 325\.625 -40/);
-    assert.match(svg, /PIN 32 · AUDL → BOARD/);
-    assert.match(svg, /PIN 33 · AUDR → BOARD/);
+    assert.match(svg, /d="M 344\.375 61 L 344\.375 8 L 344\.375 -14 L 528 -14 L 528 74 L 558 74/);
+    assert.match(svg, /d="M 360 171 L 368 171 L 368 53 L 348\.375 53 A 4 4 0 0 0 340\.375 53 L 325\.625 53 L 325\.625 8/);
+    assert.match(svg, /PIN 32 · AUDL · 12dB/);
+    assert.match(svg, /PIN 33 · AUDR · 12dB/);
 });

@@ -1,0 +1,40 @@
+{
+  "format": "chiptunes-fantasy-ym-phase4-v1",
+  "purpose": "self-generated regression pin; not a hardware accuracy reference",
+  "eventSemantics": "write at cycle start, then one YM2149 clock",
+  "signalTap": "raw digital core and current summing model before FIR, analog output and master DSP; no YM6 effects",
+  "cases": {
+    "tone-a": {
+      "cycles": 4096,
+      "traceStride": 64,
+      "clock": 2000000,
+      "rawSha256": "4843ba5e95021570e98e58e713e8a8475a0cfaf0f8ea4ba12419a9822393ac15",
+      "traceSha256": "b8f60239c195b08a45cd2b9aeabed98ade44323edebdb7c5b448bcc44b81b2db",
+      "wavSha256": "523f49c498b18aae571ad8670b9f3ee61254a131ab966e5e432a006647c44647"
+    },
+    "noise-a": {
+      "cycles": 8192,
+      "traceStride": 64,
+      "clock": 2000000,
+      "rawSha256": "2f791c9a706c378bcfca587ba08929fd50d44ff4f7b358e01a3d1ad5f3b18bf3",
+      "traceSha256": "a6a1aafa05f72b7d264a245f14cf51906a46cf16217454d288eae48aecc772de",
+      "wavSha256": "7bdff6e83d73e40c3f8d365bd7750421baf93f70d12de710d23b3534b0c91b40"
+    },
+    "envelope-shapes": {
+      "cycles": 32768,
+      "traceStride": 64,
+      "clock": 2000000,
+      "rawSha256": "067f240cf8d54976c1cabec927de486b989b2d08d78b17ff45f15f2428157386",
+      "traceSha256": "b0ce6b017ce02e7c9e5d3f530bdd3c31bee1dcf6cd7cc45d9b5c151d118d6704",
+      "wavSha256": "f4b1c9e883f947d264df72698bf25fa62ed4b1227d3dfe0c1892e831c9ab35dc"
+    },
+    "period-zero-mixer": {
+      "cycles": 4096,
+      "traceStride": 64,
+      "clock": 2000000,
+      "rawSha256": "852099f56731d5661f18e4524abd928e93ebed8da56c2429c6ad1fc8ec7f4078",
+      "traceSha256": "8bd678453b0874e788324a8b946736d751682eef8f538da519156cb2376dfcbf",
+      "wavSha256": "03f1ec9d244ca805b47986c2b0a2d2189df955dc5d1fff578a0c031645d2cb2b"
+    }
+  }
+}

@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.5.2)
+# 💾 CHIPTUNES FANTASY (v1.5.3)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -16,54 +16,53 @@ Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with rut
 
 ---
 
-## 🚀 v1.5.2 Release Highlights
+## 🚀 v1.5.3 Release Highlights
 
-### Living Silicon — SID Activity Instrument
-The C64 hardware laboratory now includes a demoscene-style activity instrument driven by real emulator telemetry rather than decorative animation. Three 16-segment meters display the normalized envelope level of each SID voice, with GATE indicators, short peak holds, and the actual internal ADSR phase. A separate register-bus instrument reports writes per second on a bounded logarithmic scale, retains a 48-column history, and marks `$D418` activity independently.
+### Atari ST / YM2149 Exact — deterministic 2 MHz register-dump playback
+Version 1.5.3 completes the bounded Atari-ST/YM2149 refinement program. The hardware-oriented `ym-exact` path now combines validated YM parsing and transport, deterministic digital state machines, MFP-derived YM6 effect timing, linear channel summing, and a measured two-stage output chain. It remains a fixed-2-MHz register-dump player—not a complete MC68000/MFP/SNDH emulator or a claim of universal physical-hardware equivalence.
 
-Envelope activity is deliberately not presented as loudness, processor utilization, or an undefined “SID load” percentage. Repeated writes of the same value and multiple writes between display frames are counted. Exact and Fantasy expose the same telemetry semantics, while their panel titles distinguish **MOS 6581 R3 Exact** from the artistic **SID Fantasy Studio** path. The responsive layout preserves the instrument on desktop, laptop, and mobile screens. Meter state and history storage are preallocated; numeric hot-path updates use primitive values and dirty-checked DOM writes.
+- **Raw measurement harness:** Cycle-stamped register events, stable same-cycle ordering, preallocated internal traces, CSV, and deterministic IEEE-float32 WAV expose the digital core without hidden resampling or output processing.
+- **Digital corrections:** R13 envelope writes select the correct initial level and preserve a full first step; `$FF` leaves the envelope running. Fixed volume zero is silent. Restarting a track is bit-identical to a fresh worklet, while stop/resume preserves digital and transport state.
+- **YM6 effects:** Two independent slots implement Digidrum, SID-Voice, Sinus-SID, and Sync-Buzzer with `2457600 / predivisor / timerCount` timing mapped onto the YM timeline through integer phase accumulation.
+- **Formats and transport:** YM3!, YM3b, YM5!, and YM6! support includes both register layouts, signed/unsigned/already-4-bit samples, parsed player rates, stored loop points, seeking, UI duration, and Media Session position.
 
-### Original-Recording Exact Calibration
-The MOS 6581 R3 Exact envelope restarts its 15-bit rate phase on a resolved rising GATE, resets the exponential divider, and clears zero hold. `TEST` does not restart this phase, and Release preserves the running counters. This bounded correction was calibrated against a supplied original-C64 recording of *Wizball*'s high-score melody, Subsong 7. In the examined 5.5–10.5-second passage, all 21 short voice-2 GATE attacks now reach envelope level 255; the former implementation left 20 of them at level 0 or 1. This validates the observed short-GATE sequence against that recording, not every ADSR property or every 6581 revision.
+### Measured linear output and two-stage resampling
+The three YM voices sum linearly with one fixed level-preserving scale. The former additional bus compression and `tanh` saturation are not part of Exact. Two cascaded 256-phase Kaiser-windowed-sinc stages retain a 20 kHz requested passband and 96 dB design target while using an intermediate rate of four times the host rate:
 
-The earlier zero-level hold remains in place, preventing short GATE pulses from underflowing the envelope and producing non-finite output. No synthesis behavior was imported from reSIDfp or VICE.
+| Output rate | Stage taps | Constant group delay | Worst stopband-start response |
+|---:|---:|---:|---:|
+| 44.1 kHz | 181 + 493 | 1.439558 ms | −99.463 dB |
+| 48 kHz | 163 + 297 | 0.811333 ms | −102.999 dB |
+| 96 kHz | 73 + 87 | 0.129979 ms | −98.939 dB |
 
-### Giana `$50` Combined-Waveform Refinement
-*The Great Giana Sisters* high-score melody, Subsong 2, exposed a missing Exact-path “angel voice” around the 30-second mark. The hardware-oriented 6581 path now uses an independently measured, phase-indexed triangle-plus-pulse (`$50`) transfer model with 257 precomputed 12-bit anchors and primitive interpolation. Other combined selectors retain their documented wired-AND baseline. The artistic Fantasy DSP remains separate and unchanged by this calibration.
+The declared output model uses a linear 15.9 kHz low-pass and 25 Hz high-pass. These are measured software/filter properties, not a physical Atari-mainboard calibration. Register-derived periods and fixed levels are cached on writes, and the mono FIR loop is unrolled without changing accumulation order.
 
-### Independent Display Time
-The displayed SID timeline now advances from an independent 50 Hz display accumulator rather than the music program's play-call rate. Tracks using CIA or other non-50 Hz dispatch schemes therefore keep a meaningful elapsed-time display without altering CPU, CIA, audio, or subsong timing.
+### Curated Atari library — 86 tracks, 13 new highlights
+The Atari music disk now contains **86 directly playable tracks**. New additions cover *Ghouls ’n Ghosts*, *Speedball*, *Stormlord*, *Chambers of Shaolin*, *Xenon 2 – Megablast*, *LED Storm*, *Synergy*, and *Punish Your Machine*.
 
-### 🎵 SID Refinement Program — Phases 0–5
-The C64 engine has been refined through six bounded, individually documented phases:
+Nested logical folders separate games and demo-scene productions, while concise `listTitle` labels keep browsing readable. Existing physical `sourcePath` locations and production-baseline paths remain unchanged. Every museum card was reviewed: generic fallbacks, incorrect credits, invented scene names, and unsupported technical superlatives were replaced by defensible metadata and editorial context.
 
-| Phase | Delivered improvement |
-|---|---|
-| **0 — Measurement foundation** | Added a deterministic raw-chip harness with cycle-stamped events, PCM/CSV traces and archived regression baselines. Measurements bypass hidden output processing and distinguish self-generated regression pins from independent evidence. |
-| **1 — Resampling and output** | Added measured 256-phase interpolated Kaiser-Sinc resampling with a 20 kHz passband and at least 96 dB stopband attenuation at 44.1/48 kHz, while retaining the parameterized motherboard output stage. |
-| **2 — MOS 6581 R3 digital model** | Preserves full 12-bit waveform DAC inputs, explicit noise taps and the no-waveform DAC latch. The stateful ADSR model adds a two-clock GATE pipeline, wrapping 15-bit rate counter, exact period matching and documented exponential divider thresholds. |
-| **3 — Filter and mixer calibration** | Fits cutoff and damping maps through the public libresidfp API and corrects additive LP/BP/HP routing, feedthrough, linear master volume and direct-path-only `3OFF`. The archived 639-point comparison reports 1.876 dB median and 6.737 dB p95 absolute response error. |
-| **4 — CPU and CIA timing** | Corrects final-cycle stores, NMOS RMW dummy writes, interrupt polling, selected final-cycle ICR reads, RDY behavior, CIA timer pipelines and delayed IRQ/NMI outputs. Coverage is bounded to the documented scheduler paths, not a complete physical C64 model. |
-| **5 — Fantasy studio acceptance** | Adds deterministic production-worklet comparisons and sample-rate-independent 16 Hz stereo output coupling to `sid-fantasy`. The Exact renders remained byte-identical; no Exact analog settings were inferred from the Fantasy tuning. |
+The new files were unpacked from their LH5 source archives without changing register data, embedded metadata, or Digidrums. Sources, inner filenames, provenance, and rights boundaries are documented in [Atari track sources](tracks/atari/SOURCES.md).
 
-The hardware-oriented path explicitly targets the **MOS 6581 R3**. A separate hardware-oriented CSG 8580 model remains future work. `sid-fantasy` is an artistic stereo studio interpretation, not an Exact hardware mode. External libsidplayfp/reSIDfp observations are black-box references only; no implementation code or internal tables were imported. Reference-model agreement and self-generated baselines are not real-chip captures or proof of universal hardware accuracy.
+### Technical Deep Dive and release documentation
+The [Atari ST YM2149F Technical Deep Dive](doc/specs/emulation/atari/technical-deep-dive-atari.md) explains the actual implementation: parser and transport, tone/noise/envelope state machines, YM6/MFP-derived effects, DAC summing, resampling, output filtering, performance, alternative cores, and evidence limits.
 
-Technical evidence: [measurement harness](doc/specs/emulation/c64/sid-measurement-harness.md), [digital model](doc/specs/emulation/c64/sid-digital-model.md), [filter/mixer](doc/specs/emulation/c64/sid-filter-model.md), [CPU/CIA timing](doc/specs/emulation/c64/sid-cpu-cia-timing.md), and [Fantasy studio acceptance](doc/specs/emulation/c64/sid-fantasy-studio.md).
+Copy-ready GitHub texts are included for the [v1.5.3 pull request](doc/releases/v1.5.3-PR-Text.md) and [v1.5.3 release](doc/releases/v1.5.3-Release-Text.md).
 
-### 🩹 SID Exact Hotfix — Short GATE Pulses
-A v1.5.1 playback failure affecting *Crazy Comets* and *Wizball* Subsong 7 was traced to a zero-level ADSR underflow. A short GATE pulse could enter Release before Attack produced its first increment; Release then decremented the envelope below zero, causing an invalid DAC lookup and non-finite audio output.
+### Validation and known limitations
+- **Focused Atari selection:** 48 tests — 48 passed, 0 failed.
+- **Full suite:** 273 tests — 211 passed, 1 known pre-existing SID-corpus failure, 61 skipped.
+- All **86** curated YM files parse as 2 MHz / 50 Hz register dumps; all **12** nonzero stored loop points are exercised through the production worklet.
+- Production output is deterministic and independent of audio block size at 44.1, 48, and 96 kHz.
+- Documented sixty-second production renders are bit-identical across fresh runs and contain zero non-finite samples.
+- Real Chromium AudioWorklet checks cover 44.1/48 kHz at desktop and mobile-emulation viewports; nested Atari navigation and representative YM3!/YM5!/YM6! playback were also checked.
 
-The Exact envelope now enforces the documented zero-level hold at the Decay/Release decrement. The correction is allocation-free and leaves CPU/CIA scheduling, filter/mixer calibration, resampling, parsing, and Fantasy DSP unchanged. Twenty-second production-worklet renders of both reproductions now contain zero non-finite frames and nonzero audio. Chromium playback additionally verified the original uploads, including UI-driven selection of *Wizball* Subsong 7.
+The single full-suite failure remains the previously documented SID synthetic-corpus mismatch; its baselines were not overwritten. Seventeen HIP tests skip because `tracks/amiga/Wings_Of_Death-Title.hip` is absent. Real YM2149 DAC/mainboard calibration, controlled reference-device listening tests, full SNDH replay, and arbitrary non-2-MHz production playback remain outside this release. Self-generated hashes are regression anchors, not hardware truth references.
 
-### 📱 Media Session System Controls
-The browser's Media Session integration exposes the decoded track title, composer, sound system and dedicated cover artwork to supported OS media controls and lock screens. Play, pause, stop, next and previous use the same transport functions as the on-screen and fullscreen controls. Next/previous preserves SID subsong order before advancing through the playlist.
+### Foundation carried forward from v1.5.2
+The C64 hardware laboratory retains its telemetry-driven **SID Activity** instrument with envelope/GATE meters, actual ADSR phases, register writes per second, and a 48-column bus history. The documented *Wizball* rising-GATE correction, *Giana Sisters* `$50` transfer refinement, and independent display-time accumulator also remain part of the player.
 
-Amiga and Atari tracks additionally support system seeking, ten-second skip actions and throttled position reporting. C64/SID playback deliberately exposes no seek actions because its generative music programs do not currently provide reliable random-access seeking. Missing Media Session APIs and unsupported individual actions are ignored safely.
-
-Media Session improves system integration; it does **not** guarantee uninterrupted background playback. Mobile operating systems may suspend audio or the page, especially on iOS, according to their own browser and power-management policies.
-
-### 🖼️ Player Stability
-The visualizer now skips the complete frame when its canvas has a zero-sized drawable surface. This prevents `drawImage` failures while hidden or before layout and resumes normally after a positive resize.
+Media Session metadata and transport, Atari/Amiga seeking, responsive Living Silicon telemetry, and zero-sized Canvas frame protection are retained. C64/SID system seeking remains unavailable because reliable random-access seeking is not implemented.
 
 ---
 
@@ -73,7 +72,7 @@ The visualizer now skips the complete frame when its canvas has a zero-sized dra
 Each of the three sound pillars features a real-time SVG silicon die and external motherboard circuit model driven by emulator telemetry:
 *   **MOS 6581 (C64):** Features live 12-bit PWM duty-cycle bars, `TEST`-bit DC lock & `W&` (NMOS Wire-AND) indicators, inter-voice Hard-Sync (`SY`) and XOR Ring-Modulation (`RM`) pathways, register-driven ADSR graphs with live phase/level tracer dots, a morphing 2MHz ZDF VCF response display (`LP`/`BP`/`HP`/`NOTCH`), direct-path `3OFF` routing, `$D418` Galway/PlaySID digi detection, and active DIP-28 address/data (`A0–A4`, `D0–D7`, `/CS`, `PHI2`) pin flashing. The v1.5.2 SID Activity instrument adds three envelope/GATE meters with peak holds and actual ADSR phases, plus a logarithmic register-write counter and 48-column bus history.
 *   **MOS 8364 Paula (Amiga 500):** Displays zero-clipping 4-channel Agnus/Paula DMA telemetry (`LC`, `LEN`, `PER`, `Hz`, 6-bit `AUDxVOL` bars), Dual 14-Bit Multiplying DACs with **live animated 192 kHz Zero-Order Hold (ZOH) staircase oscilloscopes**, an on-die `DMACON` (`D0–D3`) & 16-bit FIFO core, jumper-arc PCB routing, and an external **Amiga 500 Board** stage (`LF347` $13\text{ V}/\mu\text{s}$ op-amp + 4.42 kHz static RC + live morphing 3.09 kHz Butterworth LED filter curves).
-*   **Yamaha YM2149F (Atari ST):** Showcases live period-scaled **Square-Wave Oscilloscopes** in Tone A/B/C, a 17-bit LFSR noise activity bar, a dedicated CRT scope for all 16 5-bit Hardware Envelope (HEG) shapes with automatic **Sync-Buzzer** detection, visible HEG and Digidrum DAC injection buses, an on-die 32-step Log-DAC & Digidrum hijack detector, and an external **Atari ST Board** model with `R43–R45` ($1\text{ k}\Omega$) open-collector summing ("Atari Bus Glue" compression meter) and 15.9 kHz / 25 Hz analog filtering.
+*   **Yamaha YM2149F (Atari ST):** Showcases live period-scaled **Square-Wave Oscilloscopes** in Tone A/B/C, a 17-bit LFSR noise activity bar, a dedicated CRT scope for all 16 5-bit Hardware Envelope (HEG) shapes with automatic **Sync-Buzzer** detection, visible HEG and Digidrum DAC injection buses, an on-die 32-step Log-DAC & Digidrum hijack detector, and an external **Atari ST Board** model with linear `R43–R45` summing, a summed-level meter, 256-phase Kaiser-sinc resampling and linear 15.9 kHz / 25 Hz output filters.
 
 ---
 
@@ -99,9 +98,13 @@ Our PAL-clock SID engine combines a documented digital core with independently m
 *   **Paula 8364/AHI Studio Core:** Audiophile A1200/AHI 14-bit Hermite cubic interpolation (following the live DMA loop stream across sample boundaries), Constant-Power spatialized stereo panning, parametric Schroeder/Moorer stereo diffusion reverb, and $>8\text{ kHz}$ airband presence exciter.
 
 ### 3. Yamaha YM2149F (Atari ST)
-*   **2MHz True Lockstep & 32-Step Log-DAC:** Cycle-exact 2.0 MHz emulation with 32-step logarithmic DAC curves (-1.5dB/step), 64-step hardware envelope state machine, and 4-bit Digidrum DAC injection.
-*   **Open-Collector Passive Summing Bus:** Emulates mutual impedance loading and non-linear current compression on the Atari ST motherboard summing resistors ($R_{43}, R_{44}, R_{45}$), gluing complex 3-voice chords and digidrums naturally together ("Atari Bus Glue").
-*   **32-Phase Polyphase Sinc-FIR Decimator:** Downsamples the 2MHz lockstep audio stream to 48kHz with zero fractional phase flutter ($>75\text{ dB}$ stopband rejection @ 12.5 kHz).
+*   **2MHz Cycle-Stepped Digital Core:** Advances three tone generators, a shared 17-bit noise LFSR, the 5-bit hardware envelope, active-low mixer gates, and the project's 32-level logarithmic DAC table on the native YM timeline. The current production profile plays fixed-2-MHz register dumps rather than executing a complete Atari ST.
+*   **YM3/YM5/YM6 Formats & MFP-Derived Effects:** Supports YM3!, YM3b, YM5!, and YM6! register layouts, Digidrum encodings, player rates, and stored loop points. Two YM6 effect slots implement Digidrum, SID-Voice, Sinus-SID, and Sync-Buzzer with integer MFP-to-YM phase accumulation.
+*   **Linear Summing Baseline:** Sums the three YM channels with one fixed level-preserving output scale. The previous additional bus compression and `tanh` saturation are not part of the Exact path; no uncalibrated motherboard-nonlinearity claim is made.
+*   **Two-Stage Interpolated 256-Phase Kaiser-Sinc Resampler:** Converts the 2MHz stream to 44.1, 48 or 96kHz with a 20kHz requested passband and a 96dB stopband design target. The two stages use 181+493, 163+297 and 73+87 taps respectively; measured worst-case stopband-start responses are −99.46, −103.00 and −98.94dB. Constant group delay and the linear 15.9kHz low-pass / 25Hz high-pass output model are documented in the Atari measurement notes.
+*   **Curated 86-Track Library:** Adds 13 highlights, nested game/demo folders, concise list labels, reviewed museum cards, and documented source provenance while preserving existing physical and baseline paths.
+
+**Technical Deep Dive:** [Atari ST YM2149F emulation engine](doc/specs/emulation/atari/technical-deep-dive-atari.md) — parser and transport, 2MHz digital core, YM6/MFP-derived effects, DAC summing, two-stage resampling, output filtering, performance and evidence limits.
 
 ---
 
