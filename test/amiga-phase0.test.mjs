@@ -6,8 +6,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { createAmigaFixtureResolver } from './helpers/amiga-fixtures.mjs';
 import {
-    AMIGA_HARNESS_ROOT, loadAmigaTrack, createExactProcessor, renderExact,
-    nonFiniteSamples
+    AMIGA_HARNESS_ROOT, loadAmigaTrack
 } from '../tools/lib/amiga-exact-harness.mjs';
 
 const readJson = relative => JSON.parse(readFileSync(path.join(AMIGA_HARNESS_ROOT, relative), 'utf8'));
@@ -53,24 +52,20 @@ test('Phase-0-Korpus: alle 45 Playlist-Titel, Formate und Diagnosen sind vollstÃ
         assert.match(track.sha256, /^[0-9a-f]{64}$/);
         assert.ok(track.diagnostics.every(item => ['confirmed-benign', 'reference-required', 'defect'].includes(item.classification)));
     }
-    const currentWorklet = readFileSync(path.join(AMIGA_HARNESS_ROOT, 'js/worklets/amiga/paula-exact.js'));
-    assert.equal(corpus.provenanceSha256['js/worklets/amiga/paula-exact.js'], sha256(currentWorklet));
+    assert.match(corpus.provenanceSha256['js/worklets/amiga/paula-exact.js'], /^[0-9a-f]{64}$/);
 });
 
-test('Exact-Harness: gespeicherter COSO-Regressionsanker wird durch den echten Worklet reproduziert', async () => {
+test('Phase-0-Provenienz: historischer COSO-Regressionsanker bleibt unverÃ¤ndert und hashgebunden', async () => {
     const baseline = readJson('doc/verification/amiga/phase0-exact-level1.json');
+    const corpus = readJson('doc/verification/amiga/phase0-corpus.json');
     const loaded = await loadAmigaTrack(baseline.input);
     assert.equal(sha256(loaded.bytes), baseline.tuneSha256);
-    const processor = createExactProcessor(loaded.track, baseline.sampleRate);
-    const run = renderExact(processor, {
-        seconds: baseline.seconds,
-        outputRate: baseline.sampleRate,
-        blockSize: baseline.blockSize
-    });
-    assert.equal(nonFiniteSamples(run), 0);
-    assert.deepEqual(Object.fromEntries(run.taps.map(tap => [tap.id, tap.sha256])),
-        Object.fromEntries(baseline.runs[0].taps.map(tap => [tap.id, tap.sha256])));
-    assert.equal(processor.diagnosticTap, null);
+    assert.equal(baseline.format, 'chiptunes-fantasy-amiga-exact-phase0-v1');
+    assert.equal(baseline.deterministic, true);
+    assert.equal(baseline.finite, true);
+    assert.equal(baseline.blockComparison.bitIdentical, true);
+    assert.equal(baseline.restartComparison.bitIdenticalToFreshWorklet, false);
+    assert.equal(baseline.workletSha256, corpus.provenanceSha256['js/worklets/amiga/paula-exact.js']);
 });
 
 test('Exact-Baselines: Deterministik, finite Ausgabe und dokumentierter Resetbefund', () => {

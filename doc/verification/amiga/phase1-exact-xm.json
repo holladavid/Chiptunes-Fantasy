@@ -1,0 +1,264 @@
+{
+  "format": "chiptunes-fantasy-amiga-exact-phase1-v1",
+  "input": "space_debris.xm",
+  "tuneSha256": "7f8131135cf77247e4cace9a60ddac8bdc0b26c7c08ae701b944fbd17b40c0b8",
+  "workletSha256": "5eff4044743d8343b6c6de39bc2aa38efce4ba571167e8071b4d718d870000db",
+  "processor": "paula-exact-processor",
+  "masterProcessing": "excluded: no audio-controller/master-processor, gain, master crossfeed or limiter",
+  "taps": [
+    {
+      "id": "paula",
+      "stage": 0,
+      "rate": "internal",
+      "description": "L/R-Kanalsumme nach logischer Kanaldämpfung, vor Crosstalk und Analogstufen"
+    },
+    {
+      "id": "zoh",
+      "stage": 1,
+      "rate": "internal",
+      "description": "ZOH-/Panning-Signal nach 3,5-%Crosstalk, unmittelbar vor LF347/RC/LED"
+    },
+    {
+      "id": "a500",
+      "stage": 2,
+      "rate": "output",
+      "description": "A500-Ausgabestufe nach LF347, RC, optionalem LED-Filter, Sättigung, FIR und 0,7-Pegel"
+    }
+  ],
+  "sampleRate": 48000,
+  "oversampling": 4,
+  "seconds": 1,
+  "blockSize": 128,
+  "repeat": 2,
+  "deterministic": true,
+  "finite": true,
+  "runs": [
+    {
+      "frames": 48000,
+      "seconds": 1,
+      "blockSize": 128,
+      "blockPattern": null,
+      "elapsedMs": 410.247026,
+      "taps": [
+        {
+          "id": "paula",
+          "description": "L/R-Kanalsumme nach logischer Kanaldämpfung, vor Crosstalk und Analogstufen",
+          "sampleRate": 192000,
+          "frames": 192000,
+          "channels": 2,
+          "hashEncoding": "interleaved Float64LE before PCM quantization",
+          "sha256": "4f9364c90633ccbb0a610188f67802f9ade37afe7a7c6da8d8935bdda6d9f0ee",
+          "peak": 0.1670330979180821,
+          "dc": 0.00008579748595700198,
+          "rms": 0.0225403407448053,
+          "nonFiniteSamples": 0,
+          "elapsedMs": 410.247026
+        },
+        {
+          "id": "zoh",
+          "description": "ZOH-/Panning-Signal nach 3,5-%Crosstalk, unmittelbar vor LF347/RC/LED",
+          "sampleRate": 192000,
+          "frames": 192000,
+          "channels": 2,
+          "hashEncoding": "interleaved Float64LE before PCM quantization",
+          "sha256": "2f5fdfb886ab347098ca2d9b440fefa9ea487f9c96726da1db6cca22386aa778",
+          "peak": 0.16187508105580967,
+          "dc": 0.00008579748595700198,
+          "rms": 0.021789265198498317,
+          "nonFiniteSamples": 0,
+          "elapsedMs": 410.247026
+        },
+        {
+          "id": "a500",
+          "description": "A500-Ausgabestufe nach LF347, RC, optionalem LED-Filter, Sättigung, FIR und 0,7-Pegel",
+          "sampleRate": 48000,
+          "frames": 48000,
+          "channels": 2,
+          "hashEncoding": "interleaved Float64LE before PCM quantization",
+          "sha256": "3cf653988004894fedc5aac922ea2b271c1f0bc6dc50b5ce97694198d43e507e",
+          "peak": 0.12374182790517807,
+          "dc": 0.00006384295236533773,
+          "rms": 0.0164569278761359,
+          "nonFiniteSamples": 0,
+          "elapsedMs": 410.247026
+        }
+      ]
+    },
+    {
+      "frames": 48000,
+      "seconds": 1,
+      "blockSize": 128,
+      "blockPattern": null,
+      "elapsedMs": 284.818891,
+      "taps": [
+        {
+          "id": "paula",
+          "description": "L/R-Kanalsumme nach logischer Kanaldämpfung, vor Crosstalk und Analogstufen",
+          "sampleRate": 192000,
+          "frames": 192000,
+          "channels": 2,
+          "hashEncoding": "interleaved Float64LE before PCM quantization",
+          "sha256": "4f9364c90633ccbb0a610188f67802f9ade37afe7a7c6da8d8935bdda6d9f0ee",
+          "peak": 0.1670330979180821,
+          "dc": 0.00008579748595700198,
+          "rms": 0.0225403407448053,
+          "nonFiniteSamples": 0,
+          "elapsedMs": 284.818891
+        },
+        {
+          "id": "zoh",
+          "description": "ZOH-/Panning-Signal nach 3,5-%Crosstalk, unmittelbar vor LF347/RC/LED",
+          "sampleRate": 192000,
+          "frames": 192000,
+          "channels": 2,
+          "hashEncoding": "interleaved Float64LE before PCM quantization",
+          "sha256": "2f5fdfb886ab347098ca2d9b440fefa9ea487f9c96726da1db6cca22386aa778",
+          "peak": 0.16187508105580967,
+          "dc": 0.00008579748595700198,
+          "rms": 0.021789265198498317,
+          "nonFiniteSamples": 0,
+          "elapsedMs": 284.818891
+        },
+        {
+          "id": "a500",
+          "description": "A500-Ausgabestufe nach LF347, RC, optionalem LED-Filter, Sättigung, FIR und 0,7-Pegel",
+          "sampleRate": 48000,
+          "frames": 48000,
+          "channels": 2,
+          "hashEncoding": "interleaved Float64LE before PCM quantization",
+          "sha256": "3cf653988004894fedc5aac922ea2b271c1f0bc6dc50b5ce97694198d43e507e",
+          "peak": 0.12374182790517807,
+          "dc": 0.00006384295236533773,
+          "rms": 0.0164569278761359,
+          "nonFiniteSamples": 0,
+          "elapsedMs": 284.818891
+        }
+      ]
+    }
+  ],
+  "blockComparison": {
+    "pattern": [
+      1,
+      17,
+      64,
+      255,
+      3,
+      128
+    ],
+    "bitIdentical": true,
+    "run": {
+      "frames": 48000,
+      "seconds": 1,
+      "blockSize": 128,
+      "blockPattern": [
+        1,
+        17,
+        64,
+        255,
+        3,
+        128
+      ],
+      "elapsedMs": 192.00923899999998,
+      "taps": [
+        {
+          "id": "paula",
+          "description": "L/R-Kanalsumme nach logischer Kanaldämpfung, vor Crosstalk und Analogstufen",
+          "sampleRate": 192000,
+          "frames": 192000,
+          "channels": 2,
+          "hashEncoding": "interleaved Float64LE before PCM quantization",
+          "sha256": "4f9364c90633ccbb0a610188f67802f9ade37afe7a7c6da8d8935bdda6d9f0ee",
+          "peak": 0.1670330979180821,
+          "dc": 0.00008579748595700198,
+          "rms": 0.0225403407448053,
+          "nonFiniteSamples": 0,
+          "elapsedMs": 192.00923899999998
+        },
+        {
+          "id": "zoh",
+          "description": "ZOH-/Panning-Signal nach 3,5-%Crosstalk, unmittelbar vor LF347/RC/LED",
+          "sampleRate": 192000,
+          "frames": 192000,
+          "channels": 2,
+          "hashEncoding": "interleaved Float64LE before PCM quantization",
+          "sha256": "2f5fdfb886ab347098ca2d9b440fefa9ea487f9c96726da1db6cca22386aa778",
+          "peak": 0.16187508105580967,
+          "dc": 0.00008579748595700198,
+          "rms": 0.021789265198498317,
+          "nonFiniteSamples": 0,
+          "elapsedMs": 192.00923899999998
+        },
+        {
+          "id": "a500",
+          "description": "A500-Ausgabestufe nach LF347, RC, optionalem LED-Filter, Sättigung, FIR und 0,7-Pegel",
+          "sampleRate": 48000,
+          "frames": 48000,
+          "channels": 2,
+          "hashEncoding": "interleaved Float64LE before PCM quantization",
+          "sha256": "3cf653988004894fedc5aac922ea2b271c1f0bc6dc50b5ce97694198d43e507e",
+          "peak": 0.12374182790517807,
+          "dc": 0.00006384295236533773,
+          "rms": 0.0164569278761359,
+          "nonFiniteSamples": 0,
+          "elapsedMs": 192.00923899999998
+        }
+      ]
+    }
+  },
+  "restartComparison": {
+    "warmupSeconds": 0.25,
+    "bitIdenticalToFreshWorklet": true,
+    "note": "Ab Phase 1 ist true verbindlich; false ist ein Reset-Regressionsfehler.",
+    "run": {
+      "frames": 48000,
+      "seconds": 1,
+      "blockSize": 128,
+      "blockPattern": null,
+      "elapsedMs": 189.78831100000002,
+      "taps": [
+        {
+          "id": "paula",
+          "description": "L/R-Kanalsumme nach logischer Kanaldämpfung, vor Crosstalk und Analogstufen",
+          "sampleRate": 192000,
+          "frames": 192000,
+          "channels": 2,
+          "hashEncoding": "interleaved Float64LE before PCM quantization",
+          "sha256": "4f9364c90633ccbb0a610188f67802f9ade37afe7a7c6da8d8935bdda6d9f0ee",
+          "peak": 0.1670330979180821,
+          "dc": 0.00008579748595700198,
+          "rms": 0.0225403407448053,
+          "nonFiniteSamples": 0,
+          "elapsedMs": 189.78831100000002
+        },
+        {
+          "id": "zoh",
+          "description": "ZOH-/Panning-Signal nach 3,5-%Crosstalk, unmittelbar vor LF347/RC/LED",
+          "sampleRate": 192000,
+          "frames": 192000,
+          "channels": 2,
+          "hashEncoding": "interleaved Float64LE before PCM quantization",
+          "sha256": "2f5fdfb886ab347098ca2d9b440fefa9ea487f9c96726da1db6cca22386aa778",
+          "peak": 0.16187508105580967,
+          "dc": 0.00008579748595700198,
+          "rms": 0.021789265198498317,
+          "nonFiniteSamples": 0,
+          "elapsedMs": 189.78831100000002
+        },
+        {
+          "id": "a500",
+          "description": "A500-Ausgabestufe nach LF347, RC, optionalem LED-Filter, Sättigung, FIR und 0,7-Pegel",
+          "sampleRate": 48000,
+          "frames": 48000,
+          "channels": 2,
+          "hashEncoding": "interleaved Float64LE before PCM quantization",
+          "sha256": "3cf653988004894fedc5aac922ea2b271c1f0bc6dc50b5ce97694198d43e507e",
+          "peak": 0.12374182790517807,
+          "dc": 0.00006384295236533773,
+          "rms": 0.0164569278761359,
+          "nonFiniteSamples": 0,
+          "elapsedMs": 189.78831100000002
+        }
+      ]
+    }
+  }
+}

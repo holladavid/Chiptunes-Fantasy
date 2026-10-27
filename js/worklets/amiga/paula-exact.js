@@ -45,6 +45,10 @@ class StaticRCFilter {
         this.lastOut = out;
         return out;
     }
+
+    reset() {
+        this.lastOut = 0;
+    }
 }
 
 class AmigaLEDFilter {
@@ -70,6 +74,11 @@ class AmigaLEDFilter {
         this.x2 = this.x1; this.x1 = x;
         this.y2 = this.y1; this.y1 = y;
         return y;
+    }
+
+    reset() {
+        this.x1 = 0; this.x2 = 0;
+        this.y1 = 0; this.y2 = 0;
     }
 }
 
@@ -124,6 +133,51 @@ class PaulaChannel {
         this.patternLoopCount = 0;
 
         // Hardware-DMA-Modus (COSO-VM): gemeinsames Chip-RAM + Reload aus AUDxLC/AUDxLEN
+        this.hw = false;
+        this.chipRam = null;
+    }
+
+    // Vollständiger Track-Reset auf denselben Zustand wie ein neu erzeugter Kanal.
+    // STOP_TRACK verwendet absichtlich weiterhin disableDMA(), damit Pause/Resume
+    // weder Sampleposition noch Effekt- oder Filterhistorie verändert.
+    reset() {
+        this.audLc = 0x00020000;
+        this.audLen = 16;
+        this.audPer = 428;
+        this.audVol = 0;
+        this.audDat = 0;
+
+        this.dmaEnabled = false;
+        this.dataBuffer = null;
+        this.curPtr = 0;
+        this.curLen = 0;
+        this.loopPtr = 0;
+        this.loopLen = 0;
+        this.isLooping = false;
+
+        this.periodCounter = 428.0;
+        this.bytePhase = 0;
+        this.nextWord = 0;
+        this.heldValue = 0;
+
+        this.activeSample = 1;
+        this.targetPeriod = 0;
+        this.basePeriod = 428;
+        this.currentNote = 0;
+        this.targetNote = 0;
+        this.portamentoSpeed = 0;
+        this.portamentoUpSpeed = 0;
+        this.portamentoDownSpeed = 0;
+        this.volSlideSpeed = 0;
+        this.sampleOffset = 0;
+        this.vibratoSpeed = 0;
+        this.vibratoDepth = 0;
+        this.vibratoPhase = 0;
+        this.hasVibrato = false;
+        this.lastPlayedSample = 0;
+        this.patternLoopRow = 0;
+        this.patternLoopCount = 0;
+
         this.hw = false;
         this.chipRam = null;
     }
@@ -280,7 +334,9 @@ class PaulaChannel {
     }
 
     step(clockTicks) {
-        if (!this.dmaEnabled || this.audVol === 0 || this.audPer === 0) return 0;
+        // AUDxVOL wirkt ausschließlich auf den DAC-Multiplikator. Auch ein
+        // stummgeschalteter Kanal führt DMA, Periodenzähler und Loop-Reloads fort.
+        if (!this.dmaEnabled || this.audPer === 0) return 0;
 
         this.periodCounter -= clockTicks;
 
@@ -394,17 +450,45 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 this.trackLedFilterOn = !isHipc; 
                 this.ledFilterOn = !isHipc;      
 
+                // Ein neuer Titel beginnt mit demselben digitalen und analogen
+                // Zustand wie ein frisch instanziiertes Worklet. Koeffizienten,
+                // Filtermodus und die eigentliche DSP-Kette bleiben unverändert.
+                this.isPlaying = false;
                 this.opampL.reset();
                 this.opampR.reset();
+                this.staticL.reset();
+                this.staticR.reset();
+                this.ledL.reset();
+                this.ledR.reset();
                 this.ringBufferL.fill(0);
                 this.ringBufferR.fill(0);
                 this.ringIndex = 0;
 
-                for (let i = 0; i < 64; i++) {
-                    this.channels[i].disableDMA();
-                    this.channels[i].writeAUDxVOL(0);
-                    this.channels[i].writeAUDxPER(428);
-                }
+                this.visualView.fill(0);
+                this.visCounter = 0;
+                this.wasAudible = false;
+                this.isSequenced = false;
+                this.seqType = 'MOD';
+                this.songLength = 0;
+                this.orderTable = null;
+                this.patterns = null;
+                this.bpm = 125;
+                this.speed = 6;
+                this.numChannels = 4;
+                this.currentOrder = 0;
+                this.currentRow = 0;
+                this.currentTick = 0;
+                this.samplesUntilNextTick = 0;
+                this.sampleCounter = 0;
+                this.patternDelay = 0;
+                this.breakPending = false;
+                this.breakOrder = 0;
+                this.breakRow = 0;
+                this.cosoVM = null;
+                this.trackData = null;
+                this.currentFrame = 0;
+
+                for (let i = 0; i < 64; i++) this.channels[i].reset();
 
                 if (msg.track && msg.track.isSequenced) {
                     this.isSequenced = true;

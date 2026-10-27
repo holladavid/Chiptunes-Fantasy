@@ -1,7 +1,7 @@
 // Render and verify the real Paula Exact production worklet offline.
 //   node tools/amiga-worklet-render.mjs --input wings-of-death/Wings_Of_Death-Level_1.hipc \
-//     --seconds 5 --sample-rate 48000 --repeat 2 \
-//     --report doc/verification/amiga/phase0-exact-level1.json
+//     --seconds 5 --sample-rate 48000 --repeat 2 --phase 1 \
+//     --report doc/verification/amiga/phase1-exact-level1.json
 // Optional: --out-prefix /tmp/level1 writes level1.paula.wav, level1.zoh.wav
 // and level1.a500.wav. No master gain/crossfeed/limiter is involved.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -25,6 +25,8 @@ const blockSize = Number(args.get('block-size') || 128);
 const repeat = Number(args.get('repeat') || 2);
 const checkBlocks = args.get('check-blocks') !== '0';
 const checkRestart = args.get('check-restart') !== '0';
+const phase = Number(args.get('phase') || 0);
+if (!Number.isInteger(phase) || phase < 0) throw new RangeError('--phase must be a non-negative integer');
 if (!(seconds > 0) || !Number.isFinite(seconds)) throw new RangeError('--seconds must be positive');
 if (![44100, 48000, 96000].includes(outputRate)) throw new RangeError('--sample-rate must be 44100, 48000 or 96000');
 if (!Number.isInteger(blockSize) || blockSize < 1) throw new RangeError('--block-size must be a positive integer');
@@ -60,13 +62,15 @@ if (checkRestart) {
     restartComparison = {
         warmupSeconds: Math.min(0.25, seconds),
         bitIdenticalToFreshWorklet: sameTaps(restartedRun, runs[0]),
-        note: 'Ein false-Wert ist ein Messbefund für Phase 1, kein Harness- oder Deterministikfehler.',
+        note: phase === 0
+            ? 'Ein false-Wert ist ein Messbefund für Phase 1, kein Harness- oder Deterministikfehler.'
+            : 'Ab Phase 1 ist true verbindlich; false ist ein Reset-Regressionsfehler.',
         run: restartedRun
     };
 }
 
 const report = {
-    format: 'chiptunes-fantasy-amiga-exact-phase0-v1',
+    format: `chiptunes-fantasy-amiga-exact-phase${phase}-v1`,
     input: loaded.path,
     tuneSha256: sha256(loaded.bytes),
     workletSha256: sha256(await (await import('node:fs/promises')).readFile(path.join(AMIGA_HARNESS_ROOT, 'js/worklets/amiga/paula-exact.js'))),
@@ -101,4 +105,7 @@ if (args.get('report')) {
     writeFileSync(filename, json);
 }
 console.log(json);
-if (!deterministic || !report.finite || (blockComparison && !blockComparison.bitIdentical)) process.exitCode = 1;
+const restartFailed = phase > 0 && restartComparison && !restartComparison.bitIdenticalToFreshWorklet;
+if (!deterministic || !report.finite || (blockComparison && !blockComparison.bitIdentical) || restartFailed) {
+    process.exitCode = 1;
+}
