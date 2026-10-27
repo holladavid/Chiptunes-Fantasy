@@ -129,11 +129,11 @@ c64: `
             <p style="color: var(--highlight-color); margin-bottom: 8px; font-weight: bold; border-bottom: 1px dashed var(--text-color); padding-bottom: 4px;">>>> HARDWARE SPECIFICATIONS:</p>
             <div style="display: grid; grid-template-columns: 140px 1fr; gap: 6px; line-height: 1.4;">
                 <div><strong>Kanäle:</strong></div><div>3 Oszillatoren (Rechteck) + 1 LFSR Noise-Generator</div>
-                <div><strong>Taktfrequenz:</strong></div><div>2.000.000 Hz (2.0 MHz True Lockstep Emulation)</div>
-                <div><strong>D/A-Wandler:</strong></div><div>Logarithmisch, 32 diskrete Stufen (-1.5dB pro Stufe)</div>
-                <div><strong>Audioauflösung:</strong></div><div>8-Bit Sample × 6-Bit Volume = 14-Bit Multiplying DAC (MDAC)</div>
-                <div><strong>Analog-Filter:</strong></div><div>6dB/Okt statischer Lowpass (4.42kHz) + 12dB/Okt LED-Butterworth (3.09kHz)</div>
-                <div><strong>Sequenzierung:</strong></div><div>ProTracker (MOD) o. FastTracker (XM) Patterns via CIA-A-BPM-Timer</div>
+                <div><strong>Taktfrequenz:</strong></div><div>2.000.000 Hz im zyklischen digitalen YM-Modell</div>
+                <div><strong>D/A-Modell:</strong></div><div>Logarithmisch, 32 diskrete Stufen (Modellwert −1,5dB pro Stufe)</div>
+                <div><strong>Lautstärke:</strong></div><div>4-Bit Festpegel oder 5-Bit Hardware-Envelope je Stimme</div>
+                <div><strong>Ausgabemodell:</strong></div><div>Linear; 15,9kHz Tiefpass + 25Hz Hochpass, keine Mainboard-Kalibrierung</div>
+                <div><strong>Sequenzierung:</strong></div><div>YM-Registerframes; YM6-Effekte mit MFP-Timerintervallen</div>
             </div>
         </div>
 
@@ -146,17 +146,17 @@ c64: `
             <p>Auf dem Atari ST steuert der Soundchip deshalb nicht nur Töne, sondern über seine physischen Pins (I/O Port A) direkt das Diskettenlaufwerk, den Druckerport, die RS-232-Schnittstelle und die Tastatur! Ein Ausfall des Soundchips führte somit zum sofortigen Stillstand des gesamten Computers.</p>
 
             <h4 style="color: var(--highlight-color); margin: 25px 0 5px 0;">> DER 32-STEP LOG-DAC SKANDAL</h4>
-            <p>Während Konkurrenz-Chips (wie im ZX Spectrum) Lautstärken in simplen 16 Stufen linear auflösten, verbaute Yamaha im YM2149 einen <strong>echten 32-stufigen logarithmischen D/A-Wandler</strong>. Die Dämpfung beträgt exakt -1.5dB pro Stufe. <br>
-            <strong>Hardware-Hacking:</strong> Die normalen Lautstärkeregister des Chips akzeptieren zwar nur 4-Bit Werte (0-15), aber die Hardware mappt diese intern auf die 5-Bit Struktur via <code>(Vol * 2) + 1</code>. Unser Core bildet diesen physikalischen Schaltplan bitgenau nach. Dadurch klingen die Drums fetter, und die berüchtigten Hardware-Envelopes nutzen die vollen 32 Sub-Stufen für butterweiche Volume-Sweeps ("Zipper-Noise").</p>
+            <p>Während Konkurrenz-Chips (wie im ZX Spectrum) Lautstärken in simplen 16 Stufen linear auflösten, besitzt der YM2149 eine <strong>32-stufige logarithmische Lautstärkesteuerung</strong>. Unser verwendetes DAC-Modell setzt dafür -1,5dB pro Stufe an; eine reale Exemplar- und Mainboard-Kalibrierung ist damit ausdrücklich nicht behauptet. <br>
+            <strong>Hardware-Hacking:</strong> Die normalen Lautstärkeregister des Chips akzeptieren nur 4-Bit Werte (0-15), die im digitalen Modell über <code>(Vol * 2) + 1</code> auf die 5-Bit-Struktur abgebildet werden. Die Hardware-Envelopes nutzen dagegen alle 32 Sub-Stufen für feinere Volume-Sweeps.</p>
 
             <h3 style="color: var(--highlight-color); margin: 30px 0 15px 0;">[ CHIP-SPECS: EMULIERTE HARDWARE-KOMPONENTEN & SCENE-TRICKS ]</h3>
-            <p>Der YM2149 besitzt keinerlei analoge Filter oder native PCM-Sample-Wandler. Um dem Chip dennoch komplexe Töne zu entlocken, mussten die Musik-Magier der ST-Demoszene tief in die Trickkiste greifen. Unsere Synthese-Cores emulieren diese Hardware-Kniffe auf der 2-MHz-Ebene detailgetreu:</p>
+            <p>Der YM2149 besitzt keinerlei analoge Filter oder native PCM-Sample-Wandler. Um dem Chip dennoch komplexe Töne zu entlocken, mussten die Musik-Magier der ST-Demoszene tief in die Trickkiste greifen. Unsere Synthese-Cores bilden die verwendeten Scene-Tricks als zyklische digitale Modelle auf der 2-MHz-Ebene ab:</p>
 
             <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> SYNC-BUZZER & HIPPEL-ARPEGGIOS</h4>
             <p>Da der Chip nur simple Rechteckwellen ausspuckt, programmierten Coder wie Jochen Hippel hochfrequente CPU-Interrupts (Timer-B). Indem sie die Register hunderte Male pro Frame überschrieben, erzwangen sie Oszillator-Resets und mischten Rechteck mit Noise in aberwitzigen Geschwindigkeiten. Dadurch entstanden die berühmten rasselnden "ST-SID-Voices". Da unsere Engine mit <strong>2.000.000 Hz Lockstep</strong> läuft, schwingen diese Interrupt-Hacks phasenstarr und ohne digitales Artefakt-Zittern.</p>
 
-            <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> ZERO ALIASING (SINC-FIR DECIMATION)</h4>
-            <p>Rechteckwellen produzieren theoretisch unendlich hohe Obertöne. Wenn wir 2 MHz auf die 48 kHz der Soundkarte komprimieren, würde das ohne Schutz grauenhaft klirren (Aliasing). Unser Core jagt das rohe Signal deshalb in Echtzeit durch einen 255-Tap Polyphase Sinc-FIR Filter. Das wirkt wie eine analoge "Brickwall" bei 12.5 kHz – der Sound bleibt warm, druckvoll und kristallklar.</p>
+            <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> BANDBEGRENZTES KAISER-SINC-RESAMPLING</h4>
+            <p>Rechteckwellen produzieren theoretisch unendlich hohe Obertöne. Wenn wir 2 MHz auf die Ausgaberate der Soundkarte bringen, müssen die oberhalb von Nyquist liegenden Anteile ausreichend gedämpft werden. Unser Core verwendet dafür zwei aufeinanderfolgende interpolierte Kaiser-Windowed-Sinc-Polyphase-Stufen mit je 256 Phasen, 20-kHz-Passband und 96-dB-Zieldämpfung. Die FIR-Längen beider Stufen hängen von der Ausgaberate ab; 44,1, 48 und 96 kHz werden mit demselben Frequenzgangziel unterstützt. Danach folgt ein lineares Ausgabemodell mit 15,9-kHz-Tiefpass und 25-Hz-Hochpass – ohne zusätzliche Sättigung.</p>
 
             <h4 style="color: var(--highlight-color); margin: 20px 0 5px 0;">> YM6 SPEC: DIE DIGIDRUMS (DAC INJECTION)</h4>
             <p>Da der YM2149 keine D/A-Wandler für Samples besitzt, missbrauchten die Coder die 4-Bit-Lautstärkeregister. In unserem <em>Exact-Core</em> mischen wir Digidrums nicht einfach linear als Audio dazu. Wir injizieren die PCM-Samples "virtuell" in das Volume-Register der Oszillatoren. Dadurch werden sie durch die logarithmische 32-Step Yamaha-Tabelle gepresst, was ihnen den absolut rohen, verzerrten 4-Bit Atari-Crunch verleiht.</p>

@@ -1,36 +1,42 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { PolyphaseResampler } from '../js/worklets/lib/polyphase-resampler.js';
+import { TwoStagePolyphaseResampler } from '../js/worklets/lib/polyphase-resampler.js';
 import { AtariAnalogFilter } from '../js/worklets/lib/dsp-utils.js';
 
 const INPUT_RATE = 2000000;
 const RATES = [44100, 48000, 96000];
 
 function createResampler(outputRate) {
-    return new PolyphaseResampler(INPUT_RATE, outputRate, {
+    return new TwoStagePolyphaseResampler(INPUT_RATE, outputRate, {
         attenuation: 96,
         passbandHz: 20000,
         maximumStopbandHz: outputRate * 0.5
     });
 }
 
-function responseDb(resampler, phase, frequency) {
+function stageResponseDb(stage, phase, frequency) {
     let real = 0.0;
     let imaginary = 0.0;
-    const base = phase * resampler.taps;
-    for (let k = 0; k < resampler.taps; k++) {
-        const angle = -2.0 * Math.PI * frequency / INPUT_RATE * k;
-        const coefficient = resampler.polyphaseTable[base + k];
+    const base = phase * stage.taps;
+    for (let k = 0; k < stage.taps; k++) {
+        const angle = -2.0 * Math.PI * frequency / stage.inputRate * k;
+        const coefficient = stage.polyphaseTable[base + k];
         real += coefficient * Math.cos(angle);
         imaginary += coefficient * Math.sin(angle);
     }
     return 20.0 * Math.log10(Math.hypot(real, imaginary) + 1e-300);
 }
 
+function responseDb(resampler, phase, frequency) {
+    return resampler.stages.reduce(
+        (total, stage) => total + stageResponseDb(stage, phase, frequency), 0
+    );
+}
+
 function render(input, outputRate) {
     const resampler = createResampler(outputRate);
-    const frames = Math.ceil((input.length + 2 * resampler.taps) / resampler.step) + 8;
+    const frames = Math.ceil((input.length + 2 * resampler.groupDelaySeconds * INPUT_RATE) / resampler.step) + 8;
     const output = new Float32Array(frames);
     let inputIndex = 0;
     for (let frame = 0; frame < frames; frame++) {
@@ -65,29 +71,33 @@ function toneAmplitude(samples, frequency, sampleRate, start, count) {
 }
 
 test('every YM polyphase has unity DC gain and a flat measured passband', () => {
-    const expectedTaps = new Map([[44100, 5561], [48000, 3067], [96000, 439]]);
+    const expectedTaps = new Map([[44100, [181, 493]], [48000, [163, 297]], [96000, [73, 87]]]);
     for (const outputRate of RATES) {
         const resampler = createResampler(outputRate);
         assert.equal(resampler.phases, 256);
-        assert.equal(resampler.taps, expectedTaps.get(outputRate));
+        assert.deepEqual(resampler.stages.map(stage => stage.taps), expectedTaps.get(outputRate));
         assert.equal(resampler.stopbandHz, outputRate * 0.5);
-        for (let phase = 0; phase < resampler.phases; phase++) {
-            let sum = 0.0;
-            let peak = 0.0;
-            let peakIndex = 0;
-            const base = phase * resampler.taps;
-            for (let k = 0; k < resampler.taps; k++) {
-                const coefficient = resampler.polyphaseTable[base + k];
-                assert.ok(Number.isFinite(coefficient));
-                sum += coefficient;
-                if (Math.abs(coefficient) > peak) {
-                    peak = Math.abs(coefficient);
-                    peakIndex = k;
+        for (const stage of resampler.stages) {
+            for (let phase = 0; phase < resampler.phases; phase++) {
+                let sum = 0.0;
+                let peak = 0.0;
+                let peakIndex = 0;
+                const base = phase * stage.taps;
+                for (let k = 0; k < stage.taps; k++) {
+                    const coefficient = stage.polyphaseTable[base + k];
+                    assert.ok(Number.isFinite(coefficient));
+                    sum += coefficient;
+                    if (Math.abs(coefficient) > peak) {
+                        peak = Math.abs(coefficient);
+                        peakIndex = k;
+                    }
                 }
+                assert.ok(Math.abs(sum - 1.0) < 0.00001, `DC ${outputRate}Hz phase ${phase}: ${sum}`);
+                const expectedPeak = stage.groupDelayInput - (1 + phase / stage.phases);
+                assert.ok(Math.abs(peakIndex - expectedPeak) <= 1.0, `impulse ${outputRate}Hz phase ${phase}: ${peakIndex}`);
             }
-            assert.ok(Math.abs(sum - 1.0) < 0.00001, `DC ${outputRate}Hz phase ${phase}: ${sum}`);
-            const expectedPeak = resampler.groupDelayInput - (1 + phase / resampler.phases);
-            assert.ok(Math.abs(peakIndex - expectedPeak) <= 1.0, `impulse ${outputRate}Hz phase ${phase}: ${peakIndex}`);
+        }
+        for (let phase = 0; phase < resampler.phases; phase++) {
             for (const frequency of [1000, 10000, 16000, 20000]) {
                 const db = responseDb(resampler, phase, frequency);
                 assert.ok(Math.abs(db) < 0.1, `${outputRate}Hz phase ${phase} at ${frequency}Hz: ${db}dB`);
@@ -124,7 +134,11 @@ test('streamed YM passband tones remain unity and above-Nyquist tones are reject
 });
 
 test('YM impulse responses match their declared constant group delays', () => {
-    const expectedDelayMs = new Map([[44100, 1.39], [48000, 0.7665], [96000, 0.1095]]);
+    const expectedDelayMs = new Map([
+        [44100, 1.4395578231292516],
+        [48000, 0.8113333333333332],
+        [96000, 0.12997916666666667]
+    ]);
     for (const outputRate of RATES) {
         const impulseIndex = 5000;
         const input = new Float32Array(16000);
@@ -138,7 +152,7 @@ test('YM impulse responses match their declared constant group delays', () => {
                 peakIndex = i;
             }
         }
-        const expected = (impulseIndex + resampler.groupDelayInput) / resampler.step - 1.0;
+        const expected = (impulseIndex + resampler.groupDelaySeconds * INPUT_RATE) / resampler.step - 1.0;
         assert.ok(Math.abs(peakIndex - expected) <= 1.0, `${outputRate}Hz peak ${peakIndex}, expected ${expected}`);
         assert.ok(Math.abs(resampler.groupDelaySeconds * 1000 - expectedDelayMs.get(outputRate)) < 1e-12);
     }

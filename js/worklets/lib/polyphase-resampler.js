@@ -16,6 +16,82 @@ function besselI0(x) {
     return sum;
 }
 
+export class TwoStagePolyphaseResampler {
+    constructor(inputRate, outputRate, options = {}) {
+        const phases = options.phases ?? 256;
+        const attenuation = options.attenuation ?? 96;
+        const passbandHz = options.passbandHz ?? 20000;
+        const maximumStopbandHz = options.maximumStopbandHz ?? outputRate * 0.5;
+        const intermediateRate = outputRate * 4;
+        const stageOptions = { phases, attenuation, passbandHz };
+        this.stages = [
+            new PolyphaseResampler(inputRate, intermediateRate, {
+                ...stageOptions,
+                maximumStopbandHz: intermediateRate * 0.5
+            }),
+            new PolyphaseResampler(intermediateRate, outputRate, {
+                ...stageOptions,
+                maximumStopbandHz
+            })
+        ];
+        this.inputRate = inputRate;
+        this.outputRate = outputRate;
+        this.intermediateRate = intermediateRate;
+        this.step = inputRate / outputRate;
+        this.phases = phases;
+        this.attenuation = attenuation;
+        this.passbandHz = this.stages[1].passbandHz;
+        this.stopbandHz = this.stages[1].stopbandHz;
+        this.groupDelaySeconds = this.stages[0].groupDelaySeconds + this.stages[1].groupDelaySeconds;
+        this.groupDelayOutputSamples = this.groupDelaySeconds * outputRate;
+        this.pendingIntermediate = 0;
+        this.firstCyclesRemaining = 0;
+        this.reset();
+    }
+
+    reset() {
+        this.stages[0].reset();
+        this.stages[1].reset();
+        this.pendingIntermediate = 0;
+        this.firstCyclesRemaining = 0;
+    }
+
+    beginSample() {
+        const first = this.stages[0];
+        const required = this.stages[1].beginSample();
+        let accumulator = first.cycleAccumulator;
+        let cycles = 0;
+        for (let i = 0; i < required; i++) {
+            accumulator += first.step;
+            const current = Math.floor(accumulator);
+            accumulator -= current;
+            cycles += current;
+        }
+        this.pendingIntermediate = required;
+        this.firstCyclesRemaining = 0;
+        return cycles;
+    }
+
+    write(left) {
+        if (this.firstCyclesRemaining === 0) {
+            if (this.pendingIntermediate === 0) throw new Error('unexpected input sample');
+            this.firstCyclesRemaining = this.stages[0].beginSample();
+        }
+        this.stages[0].write(left);
+        if (--this.firstCyclesRemaining === 0) {
+            this.stages[1].write(this.stages[0].process());
+            this.pendingIntermediate--;
+        }
+    }
+
+    process() {
+        if (this.pendingIntermediate !== 0 || this.firstCyclesRemaining !== 0) {
+            throw new Error('incomplete two-stage input block');
+        }
+        return this.stages[1].process();
+    }
+}
+
 export class PolyphaseResampler {
     constructor(inputRate, outputRate, {
         channels = 1,
@@ -162,11 +238,33 @@ export class PolyphaseResampler {
         let index = (this.ringIndex - 1) & mask;
         let output = 0.0;
         const fraction = this.phaseLerp;
-        for (let k = 0; k < this.taps; k++) {
+        const taps = this.taps;
+        const nextBase = base + taps;
+        let k = 0;
+        // Four explicit steps reduce loop and index bookkeeping without changing
+        // coefficient interpolation or floating-point accumulation order.
+        for (; k + 3 < taps; k += 4) {
+            const first0 = coefficients[base + k];
+            const second0 = coefficients[nextBase + k];
+            output += ring[index] * (first0 + (second0 - first0) * fraction);
+            index = (index - 1) & mask;
+            const first1 = coefficients[base + k + 1];
+            const second1 = coefficients[nextBase + k + 1];
+            output += ring[index] * (first1 + (second1 - first1) * fraction);
+            index = (index - 1) & mask;
+            const first2 = coefficients[base + k + 2];
+            const second2 = coefficients[nextBase + k + 2];
+            output += ring[index] * (first2 + (second2 - first2) * fraction);
+            index = (index - 1) & mask;
+            const first3 = coefficients[base + k + 3];
+            const second3 = coefficients[nextBase + k + 3];
+            output += ring[index] * (first3 + (second3 - first3) * fraction);
+            index = (index - 1) & mask;
+        }
+        for (; k < taps; k++) {
             const first = coefficients[base + k];
-            const second = coefficients[base + this.taps + k];
-            const coefficient = first + (second - first) * fraction;
-            output += ring[index] * coefficient;
+            const second = coefficients[nextBase + k];
+            output += ring[index] * (first + (second - first) * fraction);
             index = (index - 1) & mask;
         }
         return output;

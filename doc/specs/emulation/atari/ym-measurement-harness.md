@@ -100,10 +100,16 @@ Every phase is checked for finite coefficients, normalized DC gain and passband 
 
 The three chip voices now sum linearly. `YM2149_OUTPUT_SCALE` preserves the former three-voice full-scale level; this is a level-continuity convention, not a real-hardware calibration. The unverified nonlinear bus compression is removed. `AtariAnalogFilter` retains its declared 15.9 kHz low-pass and 25 Hz high-pass model but no longer applies `tanh` saturation. Its discrete coefficients place both measured corner regions within 0.05 dB of -3 dB at 44.1/48/96 kHz. No claim of measured Atari mainboard agreement is made.
 
+## Phase 5 production performance and browser acceptance
+
+Phase 5 retains the Phase 4 digital filter targets but implements them as a two-stage cascade with 256 interpolated phases per stage. At 44.1/48/96 kHz the stages use 181+493, 163+297 and 73+87 taps. Worst stopband-start responses are −99.463, −102.999 and −98.939 dB; constant group delays are 1.439558, 0.811333 and 0.129979 ms. Register-derived periods and fixed volume levels are cached on writes, and the FIR loop is unrolled without changing accumulation order.
+
+Sixty-second production renders of `WINGLEV1.YM`, `Turrican2_TheDesertRocks.YM` and `GOLDRUN.YM` are deterministic and finite. Measured sandbox processing budgets are approximately 25–28% of audio duration. Real Chromium AudioWorklet runs cover 44.1/48 kHz at desktop and mobile-emulation viewports. Full quality figures, timing comparisons, browser limitations and reproduction commands are in `doc/specs/emulation/atari/ym-performance-browser.md`.
+
 ## Baseline meaning and limits
 
 `test/fixtures/ym-baseline.json` is a self-generated Phase 4 regression pin, not a hardware truth reference. It covers tone, noise, period-zero behavior, mixer activity and all envelope shapes. Its raw/WAV hashes and output-bearing traces were updated only after the linear-summing test passed; oscillator and register behavior was not redesigned in Phase 4.
 
-`test/fixtures/ym-production-baseline.json` archives one-second stereo production-worklet hashes for `Giana_Title.YM`, `WINGLEV1.YM` and `GOLDRUN.YM` at 48 kHz with 128-sample process blocks. Phase 2 changed only the `WINGLEV1.YM` hash. Phase 4 changed `WINGLEV1.YM` and `GOLDRUN.YM` after the FIR, analog, streaming and block-size tests passed; the `Giana_Title.YM` hash remains unchanged. These self-generated hashes are regression anchors, not proof of real-hardware agreement.
+`test/fixtures/ym-production-baseline.json` archives one-second stereo production-worklet hashes for `Giana_Title.YM`, `WINGLEV1.YM` and `GOLDRUN.YM` at 48 kHz with 128-sample process blocks. Phase 2 changed only the `WINGLEV1.YM` hash. Phase 4 changed `WINGLEV1.YM` and `GOLDRUN.YM` after the FIR, analog, streaming and block-size tests passed. Phase 5 changed those two hashes again after the two-stage cascade passed its cascaded-response, alias, delay and block-size tests; the silent one-second `Giana_Title.YM` anchor remains unchanged. These self-generated hashes are regression anchors, not proof of real-hardware agreement.
 
-Real-hardware DAC/mainboard calibration, performance evaluation and browser acceptance remain outside the completed checks and belong to the subsequent release work.
+Real-hardware DAC/mainboard calibration and controlled listening tests on physical reference devices remain outside the completed checks.

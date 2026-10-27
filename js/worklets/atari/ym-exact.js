@@ -8,7 +8,7 @@
 import { AtariAnalogFilter } from '../lib/dsp-utils.js';
 import { YM2149Core } from '../lib/ym2149-core.js';
 import { YM6Effects } from '../lib/ym6-effects.js';
-import { PolyphaseResampler } from '../lib/polyphase-resampler.js';
+import { TwoStagePolyphaseResampler } from '../lib/polyphase-resampler.js';
 import { YMVisualizer } from '../lib/ym-visualizer.js';
 
 class YMExactProcessor extends AudioWorkletProcessor {
@@ -31,7 +31,7 @@ class YMExactProcessor extends AudioWorkletProcessor {
         this.volA = 0.0; this.volB = 0.0; this.volC = 0.0;
         this.visualizer = new YMVisualizer(this.port);
 
-        this.resampler = new PolyphaseResampler(this.clock, sampleRate, {
+        this.resampler = new TwoStagePolyphaseResampler(this.clock, sampleRate, {
             attenuation: 96,
             passbandHz: 20000,
             maximumStopbandHz: sampleRate * 0.5

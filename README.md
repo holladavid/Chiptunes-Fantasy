@@ -73,7 +73,7 @@ The visualizer now skips the complete frame when its canvas has a zero-sized dra
 Each of the three sound pillars features a real-time SVG silicon die and external motherboard circuit model driven by emulator telemetry:
 *   **MOS 6581 (C64):** Features live 12-bit PWM duty-cycle bars, `TEST`-bit DC lock & `W&` (NMOS Wire-AND) indicators, inter-voice Hard-Sync (`SY`) and XOR Ring-Modulation (`RM`) pathways, register-driven ADSR graphs with live phase/level tracer dots, a morphing 2MHz ZDF VCF response display (`LP`/`BP`/`HP`/`NOTCH`), direct-path `3OFF` routing, `$D418` Galway/PlaySID digi detection, and active DIP-28 address/data (`A0–A4`, `D0–D7`, `/CS`, `PHI2`) pin flashing. The v1.5.2 SID Activity instrument adds three envelope/GATE meters with peak holds and actual ADSR phases, plus a logarithmic register-write counter and 48-column bus history.
 *   **MOS 8364 Paula (Amiga 500):** Displays zero-clipping 4-channel Agnus/Paula DMA telemetry (`LC`, `LEN`, `PER`, `Hz`, 6-bit `AUDxVOL` bars), Dual 14-Bit Multiplying DACs with **live animated 192 kHz Zero-Order Hold (ZOH) staircase oscilloscopes**, an on-die `DMACON` (`D0–D3`) & 16-bit FIFO core, jumper-arc PCB routing, and an external **Amiga 500 Board** stage (`LF347` $13\text{ V}/\mu\text{s}$ op-amp + 4.42 kHz static RC + live morphing 3.09 kHz Butterworth LED filter curves).
-*   **Yamaha YM2149F (Atari ST):** Showcases live period-scaled **Square-Wave Oscilloscopes** in Tone A/B/C, a 17-bit LFSR noise activity bar, a dedicated CRT scope for all 16 5-bit Hardware Envelope (HEG) shapes with automatic **Sync-Buzzer** detection, visible HEG and Digidrum DAC injection buses, an on-die 32-step Log-DAC & Digidrum hijack detector, and an external **Atari ST Board** model with `R43–R45` ($1\text{ k}\Omega$) open-collector summing ("Atari Bus Glue" compression meter) and 15.9 kHz / 25 Hz analog filtering.
+*   **Yamaha YM2149F (Atari ST):** Showcases live period-scaled **Square-Wave Oscilloscopes** in Tone A/B/C, a 17-bit LFSR noise activity bar, a dedicated CRT scope for all 16 5-bit Hardware Envelope (HEG) shapes with automatic **Sync-Buzzer** detection, visible HEG and Digidrum DAC injection buses, an on-die 32-step Log-DAC & Digidrum hijack detector, and an external **Atari ST Board** model with linear `R43–R45` summing, a summed-level meter, 256-phase Kaiser-sinc resampling and linear 15.9 kHz / 25 Hz output filters.
 
 ---
 
@@ -100,8 +100,8 @@ Our PAL-clock SID engine combines a documented digital core with independently m
 
 ### 3. Yamaha YM2149F (Atari ST)
 *   **2MHz True Lockstep & 32-Step Log-DAC:** Cycle-exact 2.0 MHz emulation with 32-step logarithmic DAC curves (-1.5dB/step), 64-step hardware envelope state machine, and 4-bit Digidrum DAC injection.
-*   **Open-Collector Passive Summing Bus:** Emulates mutual impedance loading and non-linear current compression on the Atari ST motherboard summing resistors ($R_{43}, R_{44}, R_{45}$), gluing complex 3-voice chords and digidrums naturally together ("Atari Bus Glue").
-*   **32-Phase Polyphase Sinc-FIR Decimator:** Downsamples the 2MHz lockstep audio stream to 48kHz with zero fractional phase flutter ($>75\text{ dB}$ stopband rejection @ 12.5 kHz).
+*   **Linear Passive Summing Baseline:** Sums the three YM channels with one fixed level-preserving output scale. The previous additional bus compression and `tanh` saturation are not part of the Exact path; no uncalibrated motherboard-nonlinearity claim is made.
+*   **Two-Stage Interpolated 256-Phase Kaiser-Sinc Resampler:** Converts the 2MHz lockstep stream to 44.1, 48 or 96kHz with a 20kHz passband and a 96dB stopband design target. The two stages use 181+493, 163+297 and 73+87 taps respectively; measured worst-case stopband-start responses are −99.46, −103.00 and −98.94dB. Constant group delay and the linear 15.9kHz low-pass / 25Hz high-pass output model are documented in the Atari measurement notes.
 
 ---
 

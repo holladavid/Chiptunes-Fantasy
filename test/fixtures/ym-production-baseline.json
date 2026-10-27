@@ -1,6 +1,6 @@
 {
-  "format": "chiptunes-fantasy-ym-production-phase4-v1",
-  "purpose": "self-generated Phase 4 regression pin after linear summing and measured resampling/output changes; not a hardware accuracy reference",
+  "format": "chiptunes-fantasy-ym-production-phase5-v1",
+  "purpose": "self-generated Phase 5 regression pin after reviewed two-stage resampling and allocation-free hot-path changes; not a hardware accuracy reference",
   "sampleRate": 48000,
   "seconds": 1,
   "blockSize": 128,
@@ -12,11 +12,11 @@
     },
     "WINGLEV1": {
       "path": "tracks/atari/wings-of-death/WINGLEV1.YM",
-      "sha256": "52de012d115472fca0df0ab5b7a3bc9249d9941e380bb003fe188934cd8b2794"
+      "sha256": "0c6def5fa27a895c6795b12656acbac082f22e7b47241bc2ce267b2be434e3c9"
     },
     "GOLDRUN": {
       "path": "tracks/atari/GOLDRUN.YM",
-      "sha256": "b65c823192aa09a177cf7df3ac345c2ffda4e192677db19c781202703d707f7a"
+      "sha256": "18a44ef6dd096f9809a522d6f12c22d3f59de60444e6cea700c8426367475033"
     }
   }
 }

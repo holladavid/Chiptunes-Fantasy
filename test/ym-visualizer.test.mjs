@@ -62,18 +62,25 @@ test('YM display uses hardware divider behavior and shows register-driven gates'
         setAttribute(name, value) { this.attributes[name] = value; },
         querySelector() { return createNode(); }
     });
-    const container = { querySelector(selector) {
-        if (!nodes.has(selector)) nodes.set(selector, createNode());
-        return nodes.get(selector);
-    } };
+    const container = {
+        querySelector(selector) {
+            if (!nodes.has(selector)) nodes.set(selector, createNode());
+            return nodes.get(selector);
+        },
+        querySelectorAll(selector) {
+            if (!nodes.has(selector)) nodes.set(selector, Array.from({ length: 4 }, createNode));
+            return nodes.get(selector);
+        }
+    };
     const chip = new Ym2149(container);
     chip.cacheDOM();
 
     const regs = new Uint8Array(32);
-    regs[0] = 0;
+    regs[0] = 1;
     regs[1] = 0;
     regs[6] = 0;
     regs[7] = 0b10000010;
+    regs[8] = 0x10;
     regs[11] = 0;
     regs[12] = 0;
     regs[13] = 0x0A;
@@ -84,14 +91,17 @@ test('YM display uses hardware divider behavior and shows register-driven gates'
 
     chip.update([0.1, 0.2, 0.3], regs, 0);
 
-    assert.match(nodes.get('.ym-tone-a-hz').textContent, /P000 · 125000Hz/);
-    assert.match(nodes.get('.ym-noise-hz').textContent, /P0 · 125000Hz/);
+    assert.equal(nodes.get('.ym-tone-a-per').textContent, 'R00/01:$001');
+    assert.equal(nodes.get('.ym-tone-a-hz').textContent, '125.0kHz');
+    assert.equal(nodes.get('.ym-noise-hz').textContent, 'R06:$00 · 125.0kHz');
     assert.equal(nodes.get('.mix-t-a').style.fill, 'var(--highlight-color)');
     assert.equal(nodes.get('.mix-t-b').style.fill, 'var(--chassis-dark)');
-    assert.equal(nodes.get('.ym-noise-gen').style.opacity, '1');
-    assert.equal(nodes.get('.ym-env-level').attributes.width, '38');
-    assert.equal(nodes.get('.ym-port-a-value').textContent, '$5A · OUT');
-    assert.equal(nodes.get('.ym-port-b-value').textContent, '$A5 · IN');
+    assert.equal(nodes.get('.ym-noise-gen').style.opacity, '1.0');
+    assert.equal(nodes.get('.ym-env-level').attributes.width, '33');
+    assert.equal(nodes.get('.ym-port-a-value').textContent, 'PA(FLP):$5A OUT');
+    assert.equal(nodes.get('.ym-port-b-value').textContent, 'PB(PRT):$A5 IN');
+    assert.equal(nodes.get('.ym-board-glue-txt').textContent, 'LINEAR SUM: 20%');
+    assert.equal(nodes.get('.ym-board-glue-bar').attributes.width, '30');
 });
 
 test('YM SVG labels separated board stages and routes audio to selected package pins', () => {
@@ -100,7 +110,10 @@ test('YM SVG labels separated board stages and routes audio to selected package 
 
     assert.match(svg, /ATARI ST · BOARD MODEL/);
     assert.match(svg, /A\/4 · B\/3 · C\/38/);
-    assert.match(svg, /M 203 420 L 213 430 V 442 H 880 V 219 H 955/);
-    assert.match(svg, /M 165 55 V 30 H 900 V 241 H 955/);
+    assert.match(svg, /2-STAGE · 256-PHASE KAISER-SINC · 20kHz PB · 96dB/);
+    assert.match(svg, /15\.9kHz LP · 25Hz HP · LINEAR/);
+    assert.doesNotMatch(svg, /BUS GLUE|TANH|255-TAP|I\/\(1\+0\.22\*I\)/);
+    assert.match(svg, /M 203 420 H 216 V 442 H 876 V 168 H 918/);
+    assert.match(svg, /M 165 55 V 28 H 886 V 216 H 918/);
     assert.equal((svg.match(/class="silicon-pin-number"/g) || []).length, 40);
 });

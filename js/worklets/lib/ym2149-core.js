@@ -16,6 +16,14 @@ export class YM2149Core {
 
     reset() {
         this.regs.fill(0);
+        this.periodA = 1;
+        this.periodB = 1;
+        this.periodC = 1;
+        this.periodN = 1;
+        this.periodE = 1;
+        this.fixedVolA5 = 0;
+        this.fixedVolB5 = 0;
+        this.fixedVolC5 = 0;
         this.toneDivA = 0;
         this.toneDivB = 0;
         this.toneDivC = 0;
@@ -42,35 +50,44 @@ export class YM2149Core {
             this.envShape = value & 0x0F;
             this.envPos = 0;
             this.envVol5Bit = (this.envShape & 0x04) ? 0 : 31;
-            this.envDiv = 8 * (((this.regs[12] << 8) | this.regs[11]) || 1);
+            this.envDiv = 8 * this.periodE;
             return;
         }
         this.regs[register] = value;
+        switch (register) {
+            case 0: this.periodA = (((this.regs[1] & 0x0F) << 8) | value) || 1; break;
+            case 1: this.periodA = (((value & 0x0F) << 8) | this.regs[0]) || 1; break;
+            case 2: this.periodB = (((this.regs[3] & 0x0F) << 8) | value) || 1; break;
+            case 3: this.periodB = (((value & 0x0F) << 8) | this.regs[2]) || 1; break;
+            case 4: this.periodC = (((this.regs[5] & 0x0F) << 8) | value) || 1; break;
+            case 5: this.periodC = (((value & 0x0F) << 8) | this.regs[4]) || 1; break;
+            case 6: this.periodN = (value & 0x1F) || 1; break;
+            case 8: this.fixedVolA5 = (value & 0x0F) === 0 ? 0 : (value & 0x0F) * 2 + 1; break;
+            case 9: this.fixedVolB5 = (value & 0x0F) === 0 ? 0 : (value & 0x0F) * 2 + 1; break;
+            case 10: this.fixedVolC5 = (value & 0x0F) === 0 ? 0 : (value & 0x0F) * 2 + 1; break;
+            case 11: this.periodE = ((this.regs[12] << 8) | value) || 1; break;
+            case 12: this.periodE = ((value << 8) | this.regs[11]) || 1; break;
+        }
     }
 
     clockCycle(digiVal5Bit = -1, hijackedVoice = 0, effectLevels = null) {
         const regs = this.regs;
-        const pA = (((regs[1] & 0x0F) << 8) | regs[0]) || 1;
-        const pB = (((regs[3] & 0x0F) << 8) | regs[2]) || 1;
-        const pC = (((regs[5] & 0x0F) << 8) | regs[4]) || 1;
-        const pN = (regs[6] & 0x1F) || 1;
-        const pE = ((regs[12] << 8) | regs[11]) || 1;
 
         if (--this.toneDivA <= 0) {
-            this.toneDivA = 8 * pA;
+            this.toneDivA = 8 * this.periodA;
             this.toneOutA ^= 1;
         }
         if (--this.toneDivB <= 0) {
-            this.toneDivB = 8 * pB;
+            this.toneDivB = 8 * this.periodB;
             this.toneOutB ^= 1;
         }
         if (--this.toneDivC <= 0) {
-            this.toneDivC = 8 * pC;
+            this.toneDivC = 8 * this.periodC;
             this.toneOutC ^= 1;
         }
 
         if (--this.noiseDiv <= 0) {
-            this.noiseDiv = 16 * pN;
+            this.noiseDiv = 16 * this.periodN;
             const bit0 = this.noiseLfsr & 1;
             const bit3 = (this.noiseLfsr >> 3) & 1;
             this.noiseLfsr = (this.noiseLfsr >> 1) | ((bit0 ^ bit3) << 16);
@@ -78,7 +95,7 @@ export class YM2149Core {
         }
 
         if (--this.envDiv <= 0) {
-            this.envDiv = 8 * pE;
+            this.envDiv = 8 * this.periodE;
 
             if (this.envPos < 32) {
                 this.envPos++;
@@ -108,9 +125,9 @@ export class YM2149Core {
         const r8 = regs[8];
         const r9 = regs[9];
         const r10 = regs[10];
-        let vA5 = (r8 & 0x10) ? this.envVol5Bit : ((r8 & 0x0F) === 0 ? 0 : (r8 & 0x0F) * 2 + 1);
-        let vB5 = (r9 & 0x10) ? this.envVol5Bit : ((r9 & 0x0F) === 0 ? 0 : (r9 & 0x0F) * 2 + 1);
-        let vC5 = (r10 & 0x10) ? this.envVol5Bit : ((r10 & 0x0F) === 0 ? 0 : (r10 & 0x0F) * 2 + 1);
+        let vA5 = (r8 & 0x10) ? this.envVol5Bit : this.fixedVolA5;
+        let vB5 = (r9 & 0x10) ? this.envVol5Bit : this.fixedVolB5;
+        let vC5 = (r10 & 0x10) ? this.envVol5Bit : this.fixedVolC5;
 
         if (digiVal5Bit !== -1) {
             if (hijackedVoice === 1 || hijackedVoice === 0) vA5 = digiVal5Bit;

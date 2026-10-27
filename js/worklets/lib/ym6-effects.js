@@ -84,7 +84,9 @@ export class YM6Effects {
             slot.sequencePosition = 0;
             slot.level = 0;
         }
-        this.voiceLevels.fill(-1);
+        this.voiceLevels[0] = -1;
+        this.voiceLevels[1] = -1;
+        this.voiceLevels[2] = -1;
         this.digidrumStartMask = 0;
     }
 
@@ -129,7 +131,9 @@ export class YM6Effects {
     }
 
     clockCycle(core) {
-        this.voiceLevels.fill(-1);
+        this.voiceLevels[0] = -1;
+        this.voiceLevels[1] = -1;
+        this.voiceLevels[2] = -1;
         for (let i = 0; i < 2; i++) {
             const slot = this.slots[i];
             if (!slot.active) continue;

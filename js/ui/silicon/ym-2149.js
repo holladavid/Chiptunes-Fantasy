@@ -7,7 +7,7 @@
 // - 5-Bit (32-Step) Hardware Envelope Generator with Dedicated Shape Scope & Sync-Buzzer Detector
 // - 3x 32-Step Logarithmic DACs (-1.5dB/step) with Live Envelope & Digidrum Injection Buses
 // - On-Die Digidrum / Timer-B Hijack Detector & 32-Step Log-DAC Curve Stage
-// - External Atari ST Board Model: R43/R44/R45 Open-Collector Summing ("Atari Bus Glue") & 15.9kHz Filter
+// - External Atari ST Board Model: linear passive summing, polyphase resampling & analog output filters
 // =========================================================
 
 import { BaseChip } from './base-chip.js';
@@ -118,8 +118,8 @@ export class Ym2149 extends BaseChip {
             boardInC: q('.ym-board-in-c'),
             boardSumFeed: q('.ym-board-sum-feed'),
             boardSum: q('.ym-board-sum'),
-            boardGlueBar: q('.ym-board-glue-bar'),
-            boardGlueText: q('.ym-board-glue-txt'),
+            boardSumBar: q('.ym-board-glue-bar'),
+            boardSumText: q('.ym-board-glue-txt'),
             boardFilterBlock: q('.ym-board-filter'),
             boardOutBar: q('.ym-board-out-bar'),
             boardOut: q('.ym-board-out'),
@@ -134,7 +134,7 @@ export class Ym2149 extends BaseChip {
             this.cache.diagLbls[0].textContent = 'ST CLK';
             this.cache.diagLbls[1].textContent = 'MIX R07';
             this.cache.diagLbls[2].textContent = 'HEG/DIGI';
-            this.cache.diagLbls[3].textContent = 'BUS GLUE';
+            this.cache.diagLbls[3].textContent = 'SUM LEVEL';
         }
     }
 
@@ -380,21 +380,20 @@ export class Ym2149 extends BaseChip {
             this.updateBusFlow(boardInputs[i], lvl);
         }
 
-        // 9. External Atari ST Board Model (Open-Collector Summing & Bus Glue)
+        // 9. External Atari ST Board Model (linear sum with fixed output scaling)
         const sumRaw = vA + vB + vC;
-        const compressedSum = sumRaw / (1.0 + 0.22 * sumRaw);
-        const normSum = Math.min(1.0, sumRaw / 2.4);
-        const gluePct = sumRaw > 0.05 ? Math.round((1.0 - (compressedSum / sumRaw)) * 100) : 0;
+        const normSum = Math.min(1.0, sumRaw / 3.0);
+        const sumPct = Math.round(normSum * 100);
 
         this.updateBusFlow(this.cache.boardSumFeed, normSum);
         if (this.cache.boardSum) {
             this.cache.boardSum.style.opacity = `${0.35 + normSum * 0.65}`;
             this.cache.boardSum.style.filter = normSum > 0.1 ? `drop-shadow(0 0 ${2 + normSum * 5}px var(--bus-active-color))` : 'none';
         }
-        if (this.cache.boardGlueBar) {
-            this.cache.boardGlueBar.setAttribute('width', `${Math.round(normSum * 150)}`);
+        if (this.cache.boardSumBar) {
+            this.cache.boardSumBar.setAttribute('width', `${Math.round(normSum * 150)}`);
         }
-        setText(this.cache.boardGlueText, `GLUE: -${gluePct}% COMP`);
+        setText(this.cache.boardSumText, `LINEAR SUM: ${sumPct}%`);
 
         if (this.cache.boardFilterBlock) {
             this.cache.boardFilterBlock.style.opacity = `${0.40 + normSum * 0.60}`;
@@ -419,7 +418,7 @@ export class Ym2149 extends BaseChip {
         if (this.cache.diagVals && this.cache.diagVals.length >= 4) {
             setText(this.cache.diagVals[1], `$${mixer.toString(16).toUpperCase().padStart(2, '0')}`);
             setText(this.cache.diagVals[2], isDigiActive ? `SMP#${this.activeDigiSample}` : (isSyncBuzzer ? 'BUZZER' : (anyEnvActive ? `SHP $${shape.toString(16).toUpperCase()}` : 'LOG-32')));
-            setText(this.cache.diagVals[3], gluePct > 0 ? `-${gluePct}% GLUE` : 'LINEAR');
+            setText(this.cache.diagVals[3], `${sumPct}% LINEAR`);
         }
     }
 
@@ -638,7 +637,7 @@ export class Ym2149 extends BaseChip {
                 <g class="ym-board">
                     <rect x="896" y="70" width="324" height="335" rx="6" />
                     <text x="1058" y="94" class="ym-board-title" text-anchor="middle">ATARI ST · BOARD MODEL</text>
-                    <text x="1058" y="110" class="ym-board-note" text-anchor="middle">OPEN-COLLECTOR BUS &amp; ANALOG STAGE</text>
+                    <text x="1058" y="110" class="ym-board-note" text-anchor="middle">LINEAR SUM · RESAMPLE · ANALOG MODEL</text>
 
                     <!-- External PCB Traces from Pin 4 (203, 420), Pin 3 (165, 420) & Pin 38 (165, 55) -->
                     <!-- Steps cleanly around Pin Numbers 4 & 3 (at y=431) -->
@@ -651,7 +650,7 @@ export class Ym2149 extends BaseChip {
                     <path class="silicon-bus-wire" d="M 165 55 V 28 H 886 V 216 H 918" marker-end="url(#ym-arrow)" />
                     <path class="silicon-bus-packet ym-board-in-c" d="M 165 55 V 28 H 886 V 216 H 918" />
 
-                    <!-- Stage 6A: Open-Collector Summing Bus (R43, R44, R45 = 1k Ohm) -->
+                    <!-- Stage 6A: Linear passive summing bus (R43, R44, R45 = 1k Ohm) -->
                     <rect x="918" y="128" width="280" height="122" rx="4" />
                     <text x="1058" y="145" text-anchor="middle" fill="var(--highlight-color)">PASSIVE SUMMING (R43-R45 1k)</text>
 
@@ -672,12 +671,12 @@ export class Ym2149 extends BaseChip {
 
                     <circle class="ym-board-sum" cx="1092" cy="192" r="9" fill="var(--highlight-color)" opacity="0.35" />
                     <text x="1152" y="188" text-anchor="middle" fill="var(--highlight-color)" style="font-size:6px;">ATARI BUS</text>
-                    <text class="ym-board-glue-txt" x="1152" y="201" text-anchor="middle" style="font-size:5.5px;">GLUE: 0%</text>
+                    <text class="ym-board-glue-txt" x="1152" y="201" text-anchor="middle" style="font-size:5.5px;">LINEAR SUM: 0%</text>
 
-                    <!-- Non-Linear Bus Glue Meter -->
+                    <!-- Linear summed-level meter -->
                     <rect x="932" y="234" width="150" height="6" class="ym-envelope-meter-bg" />
                     <rect class="ym-board-glue-bar" x="932" y="234" width="0" height="6" fill="var(--highlight-color)" />
-                    <text x="1142" y="240" text-anchor="middle" style="font-size:5.5px;">I/(1+0.22*I)</text>
+                    <text x="1142" y="240" text-anchor="middle" style="font-size:5.5px;">FIXED SCALE × (A+B+C)</text>
 
                     <!-- Connection from Summing Node to Analog Filter Stage -->
                     <path class="silicon-bus-wire" d="M 1092 201 V 268" marker-end="url(#ym-arrow)" />
@@ -687,8 +686,8 @@ export class Ym2149 extends BaseChip {
                     <g class="ym-board-filter" style="opacity:0.45">
                         <rect x="918" y="268" width="280" height="106" rx="4" fill="var(--screen-bg)" stroke="var(--text-color)" stroke-width="1.5" />
                         <text x="1058" y="286" text-anchor="middle" fill="var(--highlight-color)">ST ANALOG &amp; SINC-FIR STAGE</text>
-                        <text x="1058" y="303" text-anchor="middle" style="font-size:6px;">255-TAP SINC-FIR (12.5kHz BRICKWALL)</text>
-                        <text x="1058" y="319" text-anchor="middle" style="font-size:6px;">15.9kHz RC LP · 25Hz AC HP · TANH</text>
+                        <text x="1058" y="303" text-anchor="middle" style="font-size:6px;">2-STAGE · 256-PHASE KAISER-SINC · 20kHz PB · 96dB</text>
+                        <text x="1058" y="319" text-anchor="middle" style="font-size:6px;">15.9kHz LP · 25Hz HP · LINEAR</text>
 
                         <text x="932" y="343" style="font-size:6px;" fill="var(--highlight-color)">MONO OUT</text>
                         <rect x="996" y="336" width="150" height="7" class="ym-envelope-meter-bg" />

@@ -70,7 +70,7 @@ function renderVariableBlocks(processor, pattern, totalSamples = 4096) {
     return hash.digest('hex');
 }
 
-test('ym-exact production output matches the reviewed Phase 4 baseline', async () => {
+test('ym-exact production output matches the reviewed Phase 5 baseline', async () => {
     for (const testCase of Object.values(baseline.cases)) {
         const track = await loadYmFile(testCase.path);
         const processor = new Processor();
