@@ -6,8 +6,8 @@
 // - Explicit Hardware Registers: AUDxLC, AUDxLEN, AUDxPER, AUDxVOL, AUDxDAT
 // - 16-Bit Word-Fetch & 2-Phase High/Low-Byte Demultiplexing
 // - Automated Loop-Reload on curLen <= 0
-// - 192kHz Oversampling ZOH DAC, LF347 JFET Slew-Rate Stage,
-//   Passive 4.42kHz RC Filter, Active 3.09kHz Butterworth LED Filter,
+// - 192kHz Oversampling ZOH DAC, lineare A500-Filterapproximation mit
+//   passivem 4.421kHz RC Filter und aktivem 3.09kHz Butterworth LED Filter,
 //   255-Tap Sinc-FIR Decimator & L-R-R-L Physical Hard-Panning (3.5% Bleed)
 // - Native Jochen Hippel (COSO / HIPC) Virtual Machine Integration
 // ==========================================
@@ -51,27 +51,6 @@ function slideTrackerVolume(channel, param) {
     else if (down > 0) setTrackerVolume(channel, channel.trackVolume - down);
 }
 
-class LF347OpAmpStage {
-    constructor(sampleRate) {
-        this.lastOut = 0.0;
-        const baseSlew = (192000.0 / sampleRate) * 0.26;
-        this.maxSlewRise = baseSlew * 1.12;
-        this.maxSlewFall = baseSlew * 0.90;
-    }
-
-    process(input) {
-        let delta = input - this.lastOut;
-        let limit = delta >= 0 ? this.maxSlewRise : this.maxSlewFall;
-        let change = limit * Math.tanh(delta / limit);
-        this.lastOut += change;
-        return this.lastOut;
-    }
-
-    reset() {
-        this.lastOut = 0.0;
-    }
-}
-
 class StaticRCFilter {
     constructor(sampleRate) {
         this.lastOut = 0;
@@ -90,19 +69,19 @@ class StaticRCFilter {
 
 class AmigaLEDFilter {
     constructor(sampleRate) {
-        const fc = 3090; 
-        const q = 0.707; 
+        const fc = 3090;
+        const q = 0.707;
         const w0 = 2 * Math.PI * fc / sampleRate;
         const alpha = Math.sin(w0) / (2 * q);
         const cosw0 = Math.cos(w0);
-        
+
         const a0 = 1 + alpha;
         this.b0 = ((1 - cosw0) / 2) / a0;
         this.b1 = (1 - cosw0) / a0;
         this.b2 = ((1 - cosw0) / 2) / a0;
         this.a1 = (-2 * cosw0) / a0;
         this.a2 = (1 - alpha) / a0;
-        
+
         this.x1 = 0; this.x2 = 0;
         this.y1 = 0; this.y2 = 0;
     }
@@ -116,6 +95,27 @@ class AmigaLEDFilter {
     reset() {
         this.x1 = 0; this.x2 = 0;
         this.y1 = 0; this.y2 = 0;
+    }
+}
+
+// Lineare, nicht als hardwarevermessen ausgegebene A500-Approximation.
+// Das LED-Filter läuft auch im Bypass weiter: Beim erneuten Einschalten
+// entspricht sein Zustand dadurch einem ununterbrochen aktiven Filter.
+class A500ChannelFilter {
+    constructor(sampleRate) {
+        this.staticFilter = new StaticRCFilter(sampleRate);
+        this.ledFilter = new AmigaLEDFilter(sampleRate);
+    }
+
+    process(input, ledFilterOn) {
+        const fixed = this.staticFilter.process(input);
+        const led = this.ledFilter.process(fixed);
+        return ledFilterOn ? led : fixed;
+    }
+
+    reset() {
+        this.staticFilter.reset();
+        this.ledFilter.reset();
     }
 }
 
@@ -467,15 +467,9 @@ class PaulaProcessor extends AudioWorkletProcessor {
 
         this.cosoVM = null;
 
-        // Analoge Signalstufen (192 kHz Domain)
-        this.opampL = new LF347OpAmpStage(this.internalRate);
-        this.opampR = new LF347OpAmpStage(this.internalRate);
-        
-        this.staticL = new StaticRCFilter(this.internalRate);
-        this.staticR = new StaticRCFilter(this.internalRate);
-        
-        this.ledL = new AmigaLEDFilter(this.internalRate);
-        this.ledR = new AmigaLEDFilter(this.internalRate);
+        // Lineare A500-Filterapproximation (192 kHz Domain)
+        this.a500L = new A500ChannelFilter(this.internalRate);
+        this.a500R = new A500ChannelFilter(this.internalRate);
         
         this.trackLedFilterOn = true;
         this.ledFilterOn = true; 
@@ -517,12 +511,8 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 // Zustand wie ein frisch instanziiertes Worklet. Koeffizienten,
                 // Filtermodus und die eigentliche DSP-Kette bleiben unverändert.
                 this.isPlaying = false;
-                this.opampL.reset();
-                this.opampR.reset();
-                this.staticL.reset();
-                this.staticR.reset();
-                this.ledL.reset();
-                this.ledR.reset();
+                this.a500L.reset();
+                this.a500R.reset();
                 this.ringBufferL.fill(0);
                 this.ringBufferR.fill(0);
                 this.ringIndex = 0;
@@ -978,19 +968,8 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 let bleedR = rawR * (1.0 - CROSSTALK_BLEED) + rawL * CROSSTALK_BLEED;
                 if (this.diagnosticTap) this.diagnosticTap(1, bleedL, bleedR);
 
-                let slewedL = this.opampL.process(bleedL);
-                let slewedR = this.opampR.process(bleedR);
-
-                let filteredL = this.staticL.process(slewedL);
-                let filteredR = this.staticR.process(slewedR);
-
-                if (this.ledFilterOn) {
-                    filteredL = this.ledL.process(filteredL);
-                    filteredR = this.ledR.process(filteredR);
-                }
-                
-                filteredL = Math.tanh(filteredL * 1.15) / 1.05;
-                filteredR = Math.tanh(filteredR * 1.15) / 1.05;
+                const filteredL = this.a500L.process(bleedL, this.ledFilterOn);
+                const filteredR = this.a500R.process(bleedR, this.ledFilterOn);
 
                 this.ringBufferL[this.ringIndex] = filteredL;
                 this.ringBufferR[this.ringIndex] = filteredR;

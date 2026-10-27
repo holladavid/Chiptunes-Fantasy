@@ -10,7 +10,7 @@ import { CosoVirtualMachine } from '../js/worklets/lib/coso-vm.js';
 import { HipVirtualMachine } from '../js/worklets/lib/hip-vm.js';
 import {
     AMIGA_HARNESS_ROOT, loadAmigaTrack, createExactProcessor, renderExact,
-    tapHashes, sha256
+    digitalTapHashes, sha256
 } from '../tools/lib/amiga-exact-harness.mjs';
 
 const L1 = 'wings-of-death/Wings_Of_Death-Level_1.hipc';
@@ -98,7 +98,7 @@ for (const [name, historicalWorkletSha256] of [
     ['level1', 'daa3210d2d5cd0db2b01b090032cf092ab15674a0000ee5ed0b37f4846208b24'],
     ['hip68k', 'daa3210d2d5cd0db2b01b090032cf092ab15674a0000ee5ed0b37f4846208b24']
 ]) {
-    test(`Phase-2-Regressionsanker ${name}: historische Provenienz und unveränderte COSO/HIP-Ausgabe`, async () => {
+    test(`Phase-2-Regressionsanker ${name}: historische Provenienz und unveränderte digitale COSO/HIP-Ausgabe`, async () => {
         const filename = path.join(AMIGA_HARNESS_ROOT, `doc/verification/amiga/phase2-exact-${name}.json`);
         const report = JSON.parse(readFileSync(filename, 'utf8'));
         const loaded = await loadAmigaTrack(report.input);
@@ -109,7 +109,9 @@ for (const [name, historicalWorkletSha256] of [
             outputRate: report.sampleRate,
             blockSize: report.blockSize
         });
-        assert.deepEqual(tapHashes(run), tapHashes(report.runs[0]));
+        // Phase 4 ändert ausschliesslich die A500-Stufe; die historischen
+        // paula-/zoh-Anker müssen bitgleich bleiben.
+        assert.deepEqual(digitalTapHashes(run), digitalTapHashes(report.runs[0]));
         assert.equal(report.deterministic, true);
         assert.equal(report.finite, true);
         assert.equal(report.blockComparison.bitIdentical, true);

@@ -4,8 +4,10 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
     AMIGA_HARNESS_ROOT, loadAmigaTrack, createExactProcessor, renderExact,
-    tapHashes, nonFiniteSamples
+    digitalTapHashes, nonFiniteSamples
 } from '../tools/lib/amiga-exact-harness.mjs';
+
+const PHASE3_WORKLET_SHA256 = 'fe5a21871380b91dcfb11e310f21fc3265b897e242f767aaa674fba0f49f6dd4';
 
 function makeTrack(type = 'MOD', numChannels = 4, numRows = 4) {
     const data = new Uint8Array(numRows * numChannels * 6);
@@ -271,20 +273,19 @@ for (const item of [
     { name: 'mod', input: 'GSLINGER.MOD', phase2: false, seconds: 5 },
     { name: 'xm', input: 'space_debris.xm', phase2: false, seconds: 1 }
 ]) {
-    test(`Phase-3-Exact ${item.name}: Regression, Neustart und Provenienz`, async () => {
+    test(`Phase-3-Exact ${item.name}: digitale Regression und historische Provenienz`, async () => {
         const report = JSON.parse(readFileSync(path.join(
             AMIGA_HARNESS_ROOT, `doc/verification/amiga/phase3-exact-${item.name}.json`
         ), 'utf8'));
         const loaded = await loadAmigaTrack(report.input);
-        const worklet = readFileSync(path.join(AMIGA_HARNESS_ROOT, 'js/worklets/amiga/paula-exact.js'));
         const { sha256 } = await import('../tools/lib/amiga-exact-harness.mjs');
         assert.equal(sha256(loaded.bytes), report.tuneSha256);
-        assert.equal(sha256(worklet), report.workletSha256);
+        assert.equal(report.workletSha256, PHASE3_WORKLET_SHA256);
         const run = renderExact(createExactProcessor(loaded.track), {
             seconds: report.seconds, outputRate: report.sampleRate, blockSize: report.blockSize
         });
         assert.equal(nonFiniteSamples(run), 0);
-        assert.deepEqual(tapHashes(run), tapHashes(report.runs[0]));
+        assert.deepEqual(digitalTapHashes(run), digitalTapHashes(report.runs[0]));
         assert.equal(report.deterministic, true);
         assert.equal(report.blockComparison.bitIdentical, true);
         assert.equal(report.restartComparison.bitIdenticalToFreshWorklet, true);
@@ -292,7 +293,8 @@ for (const item of [
             const previous = JSON.parse(readFileSync(path.join(
                 AMIGA_HARNESS_ROOT, `doc/verification/amiga/phase2-exact-${item.name}.json`
             ), 'utf8'));
-            assert.deepEqual(tapHashes(run), tapHashes(previous.runs[0]), 'COSO/HIP68K darf sich in Phase 3 nicht ändern');
+            assert.deepEqual(digitalTapHashes(run), digitalTapHashes(previous.runs[0]),
+                'Die digitale COSO/HIP68K-Ausgabe darf sich seit Phase 2 nicht ändern');
         }
     });
 }
@@ -301,14 +303,11 @@ test('Phase-3-Korpus: alle zehn realen MOD/XM-Titel sind endlich und vollständi
     const report = JSON.parse(readFileSync(path.join(
         AMIGA_HARNESS_ROOT, 'doc/verification/amiga/phase3-modxm-corpus.json'
     ), 'utf8'));
-    const worklet = readFileSync(path.join(AMIGA_HARNESS_ROOT, 'js/worklets/amiga/paula-exact.js'));
+    assert.equal(report.workletSha256, PHASE3_WORKLET_SHA256);
     assert.equal(report.trackCount, 10);
     assert.equal(report.finite, true);
     assert.equal(report.tracks.filter(track => track.type === 'MOD').length, 7);
     assert.equal(report.tracks.filter(track => track.type === 'XM').length, 3);
     assert.deepEqual(report.tracks.filter(track => track.type === 'XM').map(track => track.channels).sort((a, b) => a - b), [16, 24, 32]);
     assert.equal(report.tracks.every(track => track.nonFiniteSamples === 0), true);
-    return import('../tools/lib/amiga-exact-harness.mjs').then(({ sha256 }) => {
-        assert.equal(sha256(worklet), report.workletSha256);
-    });
 });

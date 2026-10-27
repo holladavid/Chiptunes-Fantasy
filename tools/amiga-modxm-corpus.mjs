@@ -1,6 +1,6 @@
 // Render every MOD/XM playlist entry through the production Exact Worklet.
-//   node tools/amiga-modxm-corpus.mjs --seconds 1 \
-//     --report doc/verification/amiga/phase3-modxm-corpus.json
+//   node tools/amiga-modxm-corpus.mjs --seconds 1 --phase 4 \
+//     --report doc/verification/amiga/phase4-modxm-corpus.json
 // The hashes are regression anchors, not hardware/UADE reference proofs.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -17,7 +17,9 @@ for (let index = 2; index < process.argv.length; index += 2) {
     args.set(key.slice(2), process.argv[index + 1]);
 }
 const seconds = Number(args.get('seconds') || 1);
+const phase = Number(args.get('phase') || 3);
 if (!(seconds > 0) || !Number.isFinite(seconds)) throw new RangeError('--seconds must be positive');
+if (!Number.isInteger(phase) || phase < 0) throw new RangeError('--phase must be a non-negative integer');
 
 const entries = amigaPlaylist.filter(entry => /\.(mod|xm)$/i.test(entry.path));
 const tracks = [];
@@ -61,7 +63,7 @@ for (const entry of entries) {
 }
 
 const report = {
-    format: 'chiptunes-fantasy-amiga-phase3-modxm-corpus-v1',
+    format: `chiptunes-fantasy-amiga-phase${phase}-modxm-corpus-v1`,
     scope: 'Every MOD/XM entry in tracks/amiga/playlist.js through the production Exact Worklet; no master processing.',
     referenceStatus: 'Self-generated regression anchors only; no hardware or UADE truth claim.',
     seconds,
@@ -72,7 +74,7 @@ const report = {
     finite: tracks.every(track => track.nonFiniteSamples === 0),
     tracks
 };
-const filename = path.resolve(AMIGA_HARNESS_ROOT, args.get('report') || 'doc/verification/amiga/phase3-modxm-corpus.json');
+const filename = path.resolve(AMIGA_HARNESS_ROOT, args.get('report') || `doc/verification/amiga/phase${phase}-modxm-corpus.json`);
 mkdirSync(path.dirname(filename), { recursive: true });
 writeFileSync(filename, JSON.stringify(report, null, 2) + '\n');
 console.log(JSON.stringify({ trackCount: report.trackCount, finite: report.finite, workletSha256: report.workletSha256 }, null, 2));

@@ -15,8 +15,8 @@ import { loadDwFile } from '../../js/parsers/dw-parser.js';
 export const AMIGA_HARNESS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const TAP_DEFINITIONS = Object.freeze([
     Object.freeze({ id: 'paula', stage: 0, rate: 'internal', description: 'L/R-Kanalsumme nach logischer Kanaldämpfung, vor Crosstalk und Analogstufen' }),
-    Object.freeze({ id: 'zoh', stage: 1, rate: 'internal', description: 'ZOH-/Panning-Signal nach 3,5-%Crosstalk, unmittelbar vor LF347/RC/LED' }),
-    Object.freeze({ id: 'a500', stage: 2, rate: 'output', description: 'A500-Ausgabestufe nach LF347, RC, optionalem LED-Filter, Sättigung, FIR und 0,7-Pegel' })
+    Object.freeze({ id: 'zoh', stage: 1, rate: 'internal', description: 'ZOH-/Panning-Signal nach 3,5-%Crosstalk, unmittelbar vor RC/LED' }),
+    Object.freeze({ id: 'a500', stage: 2, rate: 'output', description: 'Lineare A500-Filterapproximation nach RC, optionalem LED-Filter, FIR und 0,7-Pegel' })
 ]);
 
 const processors = new Map();
@@ -192,6 +192,11 @@ export function renderExact(processor, {
 
 export function tapHashes(run) {
     return Object.fromEntries(run.taps.map(tap => [tap.id, tap.sha256]));
+}
+
+export function digitalTapHashes(run) {
+    const hashes = tapHashes(run);
+    return { paula: hashes.paula, zoh: hashes.zoh };
 }
 
 export function sameTaps(left, right) {
