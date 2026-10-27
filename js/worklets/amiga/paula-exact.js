@@ -12,7 +12,7 @@
 // - Native Jochen Hippel (COSO / HIPC) Virtual Machine Integration
 // ==========================================
 
-import { CosoVirtualMachine } from '../lib/coso-vm.js';
+import { CosoVirtualMachine, COSO_TICK_HZ } from '../lib/coso-vm.js';
 
 class LF347OpAmpStage {
     constructor(sampleRate) {
@@ -498,7 +498,8 @@ class PaulaProcessor extends AudioWorkletProcessor {
                         this.cosoVM = new CosoVirtualMachine(
                             msg.track,
                             msg.track.samples || this.samples,
-                            (logMsg) => this.port.postMessage({ type: 'LAB_LOG', msg: logMsg })
+                            (logMsg) => this.port.postMessage({ type: 'LAB_LOG', msg: logMsg }),
+                            { rasterTiming: true }
                         );
                         this.sampleCounter = 0;
                         this.numChannels = 4;
@@ -754,7 +755,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 if (this.seqType === 'HIPC' || this.seqType === 'COSO') {
                     this.sampleCounter--;
                     if (this.sampleCounter <= 0) {
-                        this.sampleCounter += sampleRate / 50.0;
+                        this.sampleCounter += sampleRate / COSO_TICK_HZ;
                         if (this.cosoVM) {
                             this.cosoVM.processTick(this.channels);
                         }
@@ -772,6 +773,11 @@ class PaulaProcessor extends AudioWorkletProcessor {
 
             // 192 kHz Oversampling Loop
             for (let os = 0; os < this.OVERSAMPLING; os++) {
+                // Nur HIP68K besitzt eine Rasterwarteschlange; COSO benötigt
+                // keine zusätzlichen Schreibzugriffe zwischen den Replay-Ticks.
+                if (this.cosoVM && typeof this.cosoVM.advance === 'function') {
+                    this.cosoVM.advance(clockTicksPerSample);
+                }
                 let rawL = 0;
                 let rawR = 0;
                 

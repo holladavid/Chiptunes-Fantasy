@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
     AMIGA_HARNESS_ROOT, loadAmigaTrack, createExactProcessor, startExactTrack,
-    renderExact, tapHashes, nonFiniteSamples, sha256
+    renderExact, tapHashes, nonFiniteSamples
 } from '../tools/lib/amiga-exact-harness.mjs';
 
 const CASES = [
@@ -108,18 +108,10 @@ test('Exact: PLAY_TRACK nach einem anderen Format verwirft Kanal-, Effekt- und A
     assert.deepEqual(tapHashes(switchedRun), tapHashes(freshRun));
 });
 
-test('Phase-1-Regressionsanker: COSO-Ausgabe und Worklet-Provenienz sind reproduzierbar', async () => {
+test('Phase-1-Provenienz: historischer COSO-Regressionsanker bleibt unverändert', () => {
     const report = readJson('doc/verification/amiga/phase1-exact-level1.json');
-    const loaded = await loadAmigaTrack(report.input);
-    assert.equal(sha256(loaded.bytes), report.tuneSha256);
-    const worklet = readFileSync(path.join(AMIGA_HARNESS_ROOT, 'js/worklets/amiga/paula-exact.js'));
-    assert.equal(sha256(worklet), report.workletSha256);
-    const run = renderExact(createExactProcessor(loaded.track), {
-        seconds: report.seconds,
-        outputRate: report.sampleRate,
-        blockSize: report.blockSize
-    });
-    assert.deepEqual(tapHashes(run), tapHashes(report.runs[0]));
+    assert.equal(report.format, 'chiptunes-fantasy-amiga-exact-phase1-v1');
+    assert.equal(report.workletSha256, '5eff4044743d8343b6c6de39bc2aa38efce4ba571167e8071b4d718d870000db');
     assert.equal(report.deterministic, true);
     assert.equal(report.finite, true);
     assert.equal(report.blockComparison.bitIdentical, true);

@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { COSO_TICK_HZ } from '../js/worklets/lib/amiga-timing.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = new Map();
@@ -33,7 +34,7 @@ if (!(seconds > 0) || !Number.isInteger(song) || song < 0 || !(lowpass >= 0) || 
     throw new RangeError('Ungültige Messparameter');
 }
 const sha256 = filename => createHash('sha256').update(readFileSync(filename)).digest('hex');
-const toolFiles = ['tools/uade_fit.py', 'tools/coso-render-paula.mjs', 'js/worklets/amiga/paula-exact.js', 'js/worklets/lib/coso-replayer.js', 'js/worklets/lib/coso-vm.js', 'js/worklets/lib/hip-vm.js', 'js/worklets/lib/m68k.js'];
+const toolFiles = ['tools/uade_fit.py', 'tools/coso-render-paula.mjs', 'js/worklets/amiga/paula-exact.js', 'js/worklets/lib/amiga-timing.js', 'js/worklets/lib/coso-replayer.js', 'js/worklets/lib/coso-vm.js', 'js/worklets/lib/hip-vm.js', 'js/worklets/lib/m68k.js'];
 const command = [
     'python3', 'tools/uade_fit.py',
     '--uade', referencePath,
@@ -62,7 +63,16 @@ const report = {
     },
     referenceRenderCommand: `uade123 -f <reference.wav> -e wav --filter=none --panning=0 ${JSON.stringify(path.relative(root, modulePath))}`,
     comparisonCommand: command,
-    settings: { seconds, song, lowpassHz: lowpass, localPhaseSamples: local, modelTickHz: 50, modelRenderPath: 'CosoVirtualMachine + PaulaChannel, four separate voices, no A500/master chain' },
+    settings: {
+        seconds,
+        song,
+        lowpassHz: lowpass,
+        localPhaseSamples: local,
+        modelTickHz: COSO_TICK_HZ,
+        tickSource: 'PAL CIA 709379 Hz / timer 14188',
+        hipRasterTiming: '227 Paula clocks per raster line; two VHPOSR reads per line',
+        modelRenderPath: 'CosoVirtualMachine + PaulaChannel, four separate voices, no A500/master chain'
+    },
     toolSha256: Object.fromEntries(toolFiles.map(file => [file, sha256(path.join(root, file))])),
     environment: {
         node: process.version,

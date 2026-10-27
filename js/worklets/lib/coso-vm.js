@@ -23,11 +23,11 @@
 
 import { CosoReplayer, REG } from './coso-replayer.js';
 import { HipVirtualMachine } from './hip-vm.js';
+import { COSO_TICK_HZ } from './amiga-timing.js';
 
-// Tickrate des Original-Players: 50 Hz. Gegen UADE gemessen (Abschnitt 15 der Spec): der Player läuft mit dem CIA-Standardtakt
-// (Timer 14188 -> 49.9985 Hz, 27-28 ppm langsamer als exakt 50 Hz). Die ~49.707 Hz der YouTube-Aufnahmen sind ein Artefakt
-// jener Aufnahmekette. Die Worklets teilen fest durch 50.0.
-export const COSO_TICK_HZ = 50;
+// Gegen UADE bestätigt (Abschnitt 15 der Spec): CIA-Timer 14188 bei 709379 Hz,
+// also 49.9985198759 Hz statt einer gerundeten 50-Hz-Annahme.
+export { COSO_TICK_HZ } from './amiga-timing.js';
 
 // Wie SAMPLE-Opcodes mitten in einer Note auf die DMA wirken (siehe CosoReplayer):
 // 'restart' | 'latch' | 'hybrid' | 'split'. 'split' = $E4/$E7 nur LC/LEN latchen, $E2/$E5/$E9 starten die DMA neu.

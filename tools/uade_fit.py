@@ -18,6 +18,7 @@ import argparse, os, struct, subprocess, sys, tempfile
 import numpy as np
 
 RATE = 44100
+TICK_HZ = (3546895 / 5) / 14188
 
 
 def read_wav(path):
@@ -48,9 +49,9 @@ def xlag(ref, mod, lo, hi):
     return int(ks[int(np.argmax([c[k] if k >= 0 else c[nfft + k] for k in ks]))])
 
 
-def render_quad(repo, module, song, seconds, paula, out):
+def render_quad(repo, module, song, seconds, paula, out, tickhz):
     cmd = ['node', os.path.join(repo, 'tools', 'coso-render-paula.mjs'), '--in', module, '--song', str(song),
-           '--seconds', str(seconds), '--tickhz', '50', '--stereo', '2', '--out', out]
+           '--seconds', str(seconds), '--tickhz', str(tickhz), '--stereo', '2', '--out', out]
     if paula:
         cmd += ['--paula', paula]
     subprocess.run(cmd, check=True, capture_output=True)
@@ -73,7 +74,7 @@ def block_lags(ref_mix, mod_mix, seconds, block_s=5.0):
     return np.array(lags), lag0, B
 
 
-def fit(U, Q, lags, B, seconds, local, tickhz=50.0):
+def fit(U, Q, lags, B, seconds, local, tickhz=TICK_HZ):
     spt = RATE / tickhz
     W = int(round(spt))
     tb = np.arange(len(lags)) * B + B // 2
@@ -118,13 +119,14 @@ def main():
     ap.add_argument('--lowpass', type=float, default=2500, help='Tiefpass in Hz für beide Signale (0 = aus)')
     ap.add_argument('--paula', default=None, help='Pfad zur Paula-Worklet-Datei (Standard: js/worklets/amiga/paula-exact.js)')
     ap.add_argument('--local', type=int, default=40, help='Phasenfreiheit in Samples für die lokale Anpassung')
+    ap.add_argument('--tickhz', type=float, default=TICK_HZ, help='Replay-Tickrate (Standard: CIA 709379/14188)')
     a = ap.parse_args()
     repo = os.getcwd()
 
     U, rate = read_wav(a.uade)
     assert rate == RATE and U.shape[1] == 2, 'UADE-Datei muss 44,1 kHz Stereo sein'
     with tempfile.TemporaryDirectory() as td:
-        Q = render_quad(repo, a.module, a.song, a.seconds + 3, a.paula, os.path.join(td, 'quad.wav'))
+        Q = render_quad(repo, a.module, a.song, a.seconds + 3, a.paula, os.path.join(td, 'quad.wav'), a.tickhz)
     if a.lowpass:
         from scipy.signal import butter, sosfiltfilt
         sos = butter(6, a.lowpass, btype='low', fs=RATE, output='sos')
@@ -134,7 +136,7 @@ def main():
     drift_ppm = (lags[-1] - lags[0]) / (len(lags) * 5.0 * RATE) * 1e6
     print(f'Anlauf UADE: {lag0 / RATE * 1000:.1f} ms | Drift {lags[-1] - lags[0]:+d} Samples über {len(lags) * 5} s ({drift_ppm:+.0f} ppm)')
     for label, local in (('feste Phase ', 0), ('lokale Phase', a.local)):
-        e, pw = fit(U, Q, lags, B, a.seconds, local)
+        e, pw = fit(U, Q, lags, B, a.seconds, local, a.tickhz)
         print(f'{label}: {100 * e:5.1f} % der UADE-Energie erklärt   | je 30 s: ' + ' '.join(f'{100 * v:.0f}' for k, v in sorted(pw.items())))
 
 

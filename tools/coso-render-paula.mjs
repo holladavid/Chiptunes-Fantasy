@@ -2,16 +2,16 @@
 // Rendert über den ECHTEN Laufzeitpfad: CosoVirtualMachine + PaulaChannel aus paula-exact.js
 // (ohne Analogfilter/Oversampling-Kette des Worklets). Zum Vergleich mit Referenz-Audio.
 //   node tools/coso-render-paula.mjs --in track.hipc --seconds 200 --out out.wav
-//        [--song 0] [--tickhz 50] [--stereo 0|1|2]   (1 = L-R-R-L Stereo, 2 = vier getrennte Stimmen) [--wave restart|latch|hybrid] [--class exact|fantasy]
+//        [--song 0] [--tickhz HZ] [--stereo 0|1|2]   (1 = L-R-R-L Stereo, 2 = vier getrennte Stimmen) [--wave restart|latch|hybrid] [--class exact|fantasy]
 //        [--opt runoff=restart,loopConv=toLoopEnd,portShift=9,vibShift=0] [--paula js/worklets/amiga/paula-exact.js]
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { parseCoso } from '../js/parsers/hipc-parser.js';
-import { CosoVirtualMachine } from '../js/worklets/lib/coso-vm.js';
+import { CosoVirtualMachine, COSO_TICK_HZ } from '../js/worklets/lib/coso-vm.js';
 
 const args = {};
 for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
-const seconds = +(args.seconds ?? 30), tickHz = +(args.tickhz ?? 50), rate = 44100, SUB = 4;
+const seconds = +(args.seconds ?? 30), tickHz = +(args.tickhz ?? COSO_TICK_HZ), rate = 44100, SUB = 4;
 const cls = args.class ?? 'exact';
 const paulaPath = args.paula ?? new URL(`../js/worklets/amiga/paula-${cls}.js`, import.meta.url).pathname;
 
@@ -25,7 +25,11 @@ const mod = parseCoso(new Uint8Array(readFileSync(args.in)), { name: args.in, so
 // --opt runoff=restart,loopConv=toLoopEnd,portShift=9,vibShift=0   (Messhaken des Replayers)
 const replayer = {};
 for (const kv of (args.opt ?? '').split(',').filter(Boolean)) { const [k, v] = kv.split('='); replayer[k] = /^-?\d+$/.test(v) ? +v : v; }
-const vm = new CosoVirtualMachine(structuredClone(mod), {}, null, { waveChange: args.wave ?? undefined, replayer });
+const vm = new CosoVirtualMachine(structuredClone(mod), {}, null, {
+    waveChange: args.wave ?? undefined,
+    rasterTiming: true,
+    replayer
+});
 const ch = [0, 1, 2, 3].map(i => new Paula(i));
 const clkPerSample = 3546895 / (rate * SUB);
 
@@ -40,7 +44,14 @@ for (let n = 0; n < total; n++) {
     acc--;
     let s = 0, sl = 0, sr = 0;
     const sv = [0, 0, 0, 0];
-    for (let k = 0; k < SUB; k++) for (let c = 0; c < 4; c++) { const v = ch[c].step(clk); s += v; sv[c] += v; if (c === 0 || c === 3) sl += v; else sr += v; }
+    for (let k = 0; k < SUB; k++) {
+        if (typeof vm.advance === 'function') vm.advance(clk);
+        for (let c = 0; c < 4; c++) {
+            const v = ch[c].step(clk);
+            s += v; sv[c] += v;
+            if (c === 0 || c === 3) sl += v; else sr += v;
+        }
+    }
     const q = (x) => Math.max(-32768, Math.min(32767, Math.round((x / SUB) * 0.3 * 32767)));
     if (quad) { for (let c = 0; c < 4; c++) out[4 * n + c] = q(sv[c]); }
     else if (stereo) { out[2 * n] = q(sl); out[2 * n + 1] = q(sr); } else out[n] = q(s);
