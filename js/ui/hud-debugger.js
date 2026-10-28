@@ -4,6 +4,8 @@
 // Dynamic Layouts & Symmetrical Column-Nested Amiga LEDs
 // =========================================================
 
+import { EnvironmentalSensors } from './environmental-sensors.js';
+
 const NOISE_LUT_HZ = [
     125000, 125000,  62500,  41667,  31250,  25000,  20833,  17857,
      15625,  13889,  12500,  11364,  10417,   9615,   8929,   8333,
@@ -21,10 +23,7 @@ const pitchHistC = new Float32Array(HIST_LEN);
 const pitchHistD = new Float32Array(HIST_LEN); 
 let histIdx = 0;
 
-// NEU: Globale Sensor-Akkumulatoren für gleitende Sensorwerte
-let lastVoltVal = 5.02;
-let lastNoiseVal = -74.0;
-let lastBiasVal = 0.82;
+const environmentalSensors = new EnvironmentalSensors();
 
 export function resetHUD() {
     pitchHistA.fill(0);
@@ -34,42 +33,36 @@ export function resetHUD() {
     histIdx = 0;
     cachedSystem = null;
     hudValElements = [];
+    environmentalSensors.reset();
 }
 
 function updateEnvironmentalSensors(stateGetters) {
+    const activeSystem = stateGetters.getActiveSystem();
     const isPlaying = stateGetters.getIsPlaying();
     const vols = stateGetters.getChannelVolumes ? stateGetters.getChannelVolumes() : null;
     const currentChipRegs = stateGetters.getCurrentChipRegs ? stateGetters.getCurrentChipRegs() : null;
 
-    let avgEnergy = 0.0;
-    if (isPlaying && vols) {
-        avgEnergy = (vols[0] + vols[1] + vols[2] + vols[3]) / 4.0;
-    }
+    // C64 and Atari provide three voice levels. On C64 the following telemetry
+    // slot is the register-write rate, not a fourth audio channel.
+    const channelCount = activeSystem === 'amiga' ? 4 : 3;
+    const temp = activeSystem === 'c64' && currentChipRegs && currentChipRegs[29] !== undefined
+        ? currentChipRegs[29]
+        : 55;
 
-    // Temperatur des SID-Chips abgreifen (Default: 55°C)
-    const temp = (currentChipRegs && currentChipRegs[29] !== undefined) ? currentChipRegs[29] : 55;
-    const tempDelta = (temp - 55.0);
-
-    // Physikalische Modellierung:
-    // 1. Voltage Sag durch Bass-Pegel & Temperatur-Drift
-    // 2. Thermisches Rauschen (Johnson-Nyquist Noise) steigt mit Temperatur an (+0.08 dB pro °C)
-    // 3. Transistor-Bias driftet thermisch (+0.002 pro °C)
-    const targetVolt = 5.02 - (avgEnergy * 0.12) - (tempDelta * 0.001) + (Math.random() - 0.5) * 0.008;
-    const targetNoise = -74.0 + (avgEnergy * 3.8) + (tempDelta * 0.08) + (Math.random() - 0.5) * 0.15;
-    const targetBias = 0.82 + (avgEnergy * 0.03) + (tempDelta * 0.0025) + (Math.random() - 0.5) * 0.004;
-
-    // Weiches Slew-Limiting für analoge Trägheit
-    lastVoltVal += (targetVolt - lastVoltVal) * 0.12;
-    lastNoiseVal += (targetNoise - lastNoiseVal) * 0.12;
-    lastBiasVal += (targetBias - lastBiasVal) * 0.12;
+    const sensors = environmentalSensors.update({
+        volumes: vols,
+        channelCount,
+        temperature: temp,
+        isPlaying
+    }, performance.now() * 0.001);
 
     const elVolt = document.getElementById('sensor-volt');
     const elNoise = document.getElementById('sensor-noise');
     const elBias = document.getElementById('sensor-bias');
 
-    if (elVolt) elVolt.innerText = lastVoltVal.toFixed(2) + 'V';
-    if (elNoise) elNoise.innerText = lastNoiseVal.toFixed(1) + 'dB';
-    if (elBias) elBias.innerText = lastBiasVal.toFixed(3);
+    if (elVolt) elVolt.innerText = sensors.voltage.toFixed(2) + 'V';
+    if (elNoise) elNoise.innerText = sensors.noiseDb.toFixed(1) + 'dB';
+    if (elBias) elBias.innerText = sensors.bias.toFixed(3);
 }
 
 function drawSparkline(canvasId, historyArr, headIdx, color) {
@@ -353,6 +346,10 @@ export function updateChipHUD(stateGetters) {
             cachedSystem = 'amiga';
         }
     }
+
+    // Keep updating while stopped so the readouts settle back to their rest
+    // values instead of freezing at the last musical transient.
+    updateEnvironmentalSensors(stateGetters);
     
     if (!isPlaying || !currentChipRegs) return;
     
@@ -530,7 +527,4 @@ export function updateChipHUD(stateGetters) {
         
         histIdx = (histIdx + 1) % HIST_LEN;
     }
-    
-    // NEU: Umweltsensoren im Render-Loop triggern
-    updateEnvironmentalSensors(stateGetters);
 }
