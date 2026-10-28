@@ -87,6 +87,16 @@ function parseYM3(data, signature) {
     };
 }
 
+function normalizeYM5Frame(frame) {
+    // YM5 uses R3 bits 4-5 exclusively for a Digidrum start on voice A/B/C.
+    // The shared runtime decoder expects the YM6 Digidrum type in bits 6-7.
+    // R1 is deliberately untouched: in YM5 it belongs to Timer-Synth, not DD.
+    if ((frame[3] & 0x30) !== 0) {
+        frame[3] = (frame[3] & 0x3F) | 0x40;
+    }
+    return frame;
+}
+
 function parseYM5OrYM6(data, signature) {
     requireBytes(data, 0, YM_HEADER_SIZE + 4, 'YM5/YM6-Header');
     if (ascii(data, 4, 8) !== 'LeOnArD!') throw new Error('Ungültige YM-Datei: LeOnArD!-Signatur fehlt');
@@ -139,7 +149,7 @@ function parseYM5OrYM6(data, signature) {
                 : registerStart + frameIndex * YM_FRAME_REGISTERS + register;
             frame[register] = data[offset];
         }
-        frames[frameIndex] = frame;
+        frames[frameIndex] = signature === 'YM5!' ? normalizeYM5Frame(frame) : frame;
     }
 
     return {

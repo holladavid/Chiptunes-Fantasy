@@ -8,16 +8,18 @@ import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
+import { createAmigaFixtureResolver } from './helpers/amiga-fixtures.mjs';
 import { parseHip, HipFormatError } from '../js/parsers/hip-parser.js';
 import { parseCoso } from '../js/parsers/hipc-parser.js';
 import { HipVirtualMachine, hipLayout, hipEntryPoints, HIP_BASE } from '../js/worklets/lib/hip-vm.js';
 import { CosoVirtualMachine } from '../js/worklets/lib/coso-vm.js';
 import { createRunner } from '../tools/m68k/hip-oracle.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const fixtures = process.env.HIPC_FIXTURES || path.join(here, '..', 'tracks', 'amiga');
-const amiga = (n) => path.join(here, '..', 'js', 'worklets', 'amiga', n);
-const TITLE = path.join(fixtures, 'Wings_Of_Death-Title.hip');
+const titleName = 'Wings_Of_Death-Title.hip';
+const { fx } = createAmigaFixtureResolver([titleName]);
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const amiga = (n) => path.join(repoRoot, 'js', 'worklets', 'amiga', n);
+const TITLE = fx(titleName);
 const have = existsSync(TITLE);
 const skip = !have;
 const bytes = () => new Uint8Array(readFileSync(TITLE));

@@ -1,0 +1,2741 @@
+{
+  "format": "chiptunes-fantasy-amiga-curation-library-v1",
+  "referenceStatus": "Self-generated curation regression anchors; no hardware/UADE truth or browser-dropout claim.",
+  "workletSha256": "44e1a470617a36b7a4f8ab8e5def97bd67028b82152fb31c47325f7f46c6a364",
+  "playlistSha256": "f44174b555a01717432fc78868586c1bfbfb9d8aa7b8a5a407a56970c524f350",
+  "museumSha256": "e1f4420ba98917facb8688dc7bd4cab39f2b0cc6428509467e4c6439d6d11605",
+  "provenanceSha256": "5e3ef253ba7e78195e2fe83578315cc276f540df4301c0a13c2a26353da2e559",
+  "corpus": {
+    "seconds": 2,
+    "sampleRate": 48000,
+    "blockSize": 128,
+    "irregularBlockPattern": [
+      1,
+      17,
+      64,
+      255,
+      3,
+      128
+    ],
+    "restartWarmupSeconds": 0.25,
+    "audibleThresholds": {
+      "a500RmsExclusive": 0.00001,
+      "a500PeakExclusive": 0.0001
+    },
+    "trackCount": 69,
+    "formatCounts": {
+      "HIPC": 35,
+      "MOD": 31,
+      "XM": 3
+    },
+    "finite": true,
+    "deterministic": true,
+    "blockIndependent": true,
+    "restartIdentical": true,
+    "audible": true,
+    "maximumA500Peak": 1.288774847984314,
+    "minimumA500Rms": 0.002947709976047353,
+    "silentA500Tracks": [],
+    "maximumOfflineRealTimeRatio": 0.22868163150000004,
+    "tracks": [
+      {
+        "path": "ELYSIUM.MOD",
+        "tuneSha256": "73eaff8065dbc987045499b1bcf6d179a3043419a43306483caa96c93dfd4c37",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.22868163150000004,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "a98037a48f7cd0e296c8ebe3e80bb265b7e2ee2abf8250708c53f29081ed53d1",
+            "rms": 0.2718326343109519,
+            "peak": 1.2081692913385829,
+            "dc": -0.0019384959463684983,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "d847dc1ae96de2970f92f91bc9ab3fa7f1ad4d77e37b0ad1c7975df5b5007dbe",
+            "rms": 0.26297577880980694,
+            "peak": 1.172486466535433,
+            "dc": -0.0019384959463684987,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "2a183cedab0c22370d2dbe6167a36335925d52fa013873a2ac951b6f4a47f6c5",
+            "rms": 0.17857090432513062,
+            "peak": 0.8141171336174011,
+            "dc": -0.0013806445969595392,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "space_debris.xm",
+        "tuneSha256": "7f8131135cf77247e4cace9a60ddac8bdc0b26c7c08ae701b944fbd17b40c0b8",
+        "type": "XM",
+        "channels": 32,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.2244532234999999,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "992f37f10ac103640a6e74ee40c5fc9b22bd367d8b94d11bb680cdd31ee51001",
+            "rms": 0.010315809622815041,
+            "peak": 0.06650578790103585,
+            "dc": 0.00004728232673418204,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "4cf929469e14cabec22214945a3979c8fad7f67fde2076c0aea1ebea93d3cf05",
+            "rms": 0.010299146064521038,
+            "peak": 0.0664243546814314,
+            "dc": 0.00004728232673418191,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "b7c48043ede9a757c348fb928062a0dc36b7605a6c3eaebabc13885ec2920fb1",
+            "rms": 0.007135733166507004,
+            "peak": 0.04685964807868004,
+            "dc": 0.000031037561969606776,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "GSLINGER.MOD",
+        "tuneSha256": "c229a506d1bae69c0681462bf85d5e0e02cbbfcff9efec064481d3b09b699728",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14275888999999983,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "ff9054da332a1024303b8eadb95577deef07c496a6ebc3827288815071742c31",
+            "rms": 0.004525236626543143,
+            "peak": 0.04392224409448819,
+            "dc": 0.00001407108657316336,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "900d112cbbff6f93aeec16bc55205ab2d3a07c25014fbc6a3e51750ea081b024",
+            "rms": 0.004369724636331947,
+            "peak": 0.0423849655511811,
+            "dc": 0.00001407108657316336,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "38bc6fbe75fac1a4d0727cbddaad3760a5e17402524663588f1f600f7d6f3a1f",
+            "rms": 0.002947709976047353,
+            "peak": 0.027945874258875847,
+            "dc": 0.000010197376242784579,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "agony_intro.mod",
+        "tuneSha256": "27f85e06236e14a44b330b65fe28d7a95f3377dea84dc4a09a2d78a8f8f26da7",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.15069959600000038,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "4fab38dec9ca4fd2f45f056334d740d9127dbea69978fbbf5a0f9c67d16b47de",
+            "rms": 0.10975966784977634,
+            "peak": 0.7678395669291338,
+            "dc": -0.024931038924090373,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "7ab0b50ab313ba8ea238b2d99ef42826df1a86d89497933c7b6ae1b0972c2b44",
+            "rms": 0.10632520140109473,
+            "peak": 0.7450387549212598,
+            "dc": -0.024931038924090373,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "87c2a4d3a971da4034b5bbb33ed5ab2bb802ea0d51efda54cb610e6ef8383933",
+            "rms": 0.06953854797987348,
+            "peak": 0.39718303084373474,
+            "dc": -0.017437535347446253,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "turrican_2_title.xm",
+        "tuneSha256": "f5fb4bd8914aeecc7b14c8b2cd6a66adde2330731dd6757d3bc555b0c766c628",
+        "type": "XM",
+        "channels": 16,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.16199515249999968,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "a722b603cb9b23ba7e1165aa0dd94a051c7b80567d29807f2bee9aabcd96460d",
+            "rms": 0.06629655604556586,
+            "peak": 0.41895939478153466,
+            "dc": 0.0006518860664267423,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "dd1aae41fe1ca1846a6a2592623533b451668a67abed100bec19e2cb5dbd4fcc",
+            "rms": 0.06629648717566888,
+            "peak": 0.41884483557202407,
+            "dc": 0.0006518860664267423,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "d6318c3987b189bb8cbcd7793e93aa4f80148b14c2f9221cd629579a7ecd49f7",
+            "rms": 0.03572399775738312,
+            "peak": 0.29637473821640015,
+            "dc": 0.00044530130045776256,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "dragonflight/dragonflight_titletune.HIPC",
+        "tuneSha256": "ff75098224ee7016147021f283ea7e82cfd5b0c9869bebd9bd4945b28ca2784e",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.18168230500000027,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "0e2e5877fa6ca44c51ffbdfb1db83f32a90869e9ae48144e179640c0efced2cf",
+            "rms": 0.048296808542590275,
+            "peak": 0.26820866141732286,
+            "dc": -0.0004224602005926007,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "a4cb37cb8b247ef54156689537f5cde38001677f42234c2428a63f316d7fc8e3",
+            "rms": 0.04663706487897327,
+            "peak": 0.2588213582677166,
+            "dc": -0.0004224602005926007,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "31569da7a1a23e0ae471042d686210293d1429e463890ec849a59f3441cdcf4b",
+            "rms": 0.03202583124544173,
+            "peak": 0.1759791076183319,
+            "dc": -0.00028768554728118243,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "dragonflight/dragonflight_surface.HIPC",
+        "tuneSha256": "27712763cdcfa026ed4aebd1a88574ec38ac211ee72e0e579fcad635caa836d8",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1446611429999998,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "2af46f151cf9bc51b4f4eb788ae0809c588f4c65a059bcf44010eee6cc0afa22",
+            "rms": 0.2505335160568335,
+            "peak": 0.4881889763779528,
+            "dc": 0.16225456193742047,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "a6648c12fbe24923444c9c792098f4290e0cf0891c4f421aaea98239f5e517ae",
+            "rms": 0.2451546906002829,
+            "peak": 0.47826771653543304,
+            "dc": 0.16225456193742047,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "25d0816bc7be2b57c11f04e7acfda7ff56df7aa60e7820893ce30400f3fe4686",
+            "rms": 0.16529781638948332,
+            "peak": 0.3474738597869873,
+            "dc": 0.1135087219168095,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "dragonflight/dragonflight_town.HIPC",
+        "tuneSha256": "ee5f1e99dd09ffc5e768bcbe29604c04c923d5349d8e928d0ee8f9ed01c7f643",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1496720779999996,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "59c8b080e8739b81fa861ac4350c631999670e8211f04800092f7ec8054c97c4",
+            "rms": 0.16856864232007054,
+            "peak": 1.2844488188976377,
+            "dc": -0.07104963295603273,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "dd02ff687a2f67873198136c883e5bd59a41cd5a1e8cd1cdb1d6272aef451c19",
+            "rms": 0.1634035255033753,
+            "peak": 1.2429035433070865,
+            "dc": -0.07104963295603273,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "35858ea1ba19ef52091869932b995e62aac96f6df3d77928b88dd131c44ac94a",
+            "rms": 0.11271838759231191,
+            "peak": 0.8512784838676453,
+            "dc": -0.04970655546811144,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "dragonflight/dragonflight_dungeon.HIPC",
+        "tuneSha256": "5992454f34a129f6b18ed30fe69abc3383e5d4402cc430d49e519972b2c4bc5a",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14991100199999982,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "f48aeec57b26698a50585bd7d940f641ccc369f7ad04f6c8af80e625d9188364",
+            "rms": 0.0743913237264294,
+            "peak": 0.2677165354330709,
+            "dc": -0.035729017523021565,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "9b241ff3515af2d0e904da3e2d048ede0ec99d86bc7a53f8ce772a9786847324",
+            "rms": 0.0718348291689116,
+            "peak": 0.2583464566929134,
+            "dc": -0.035729017523021565,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "71dc5233a79350ef9596dfa44912b496f293b7032555ce66c033b100919f7943",
+            "rms": 0.048185459581599935,
+            "peak": 0.1790585219860077,
+            "dc": -0.025004402070381865,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "dragonflight/dragonflight_endsequence.HIPC",
+        "tuneSha256": "b4b1744729c5d3b03e95c32277fa7c2917e381187d1e84817526742c233f7d99",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1423958315,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "fb7ca36def32edb9cf06901530afb1ce7e376dca6f3f6972ba2c7afe1f63586e",
+            "rms": 0.1414742334278889,
+            "peak": 0.9921259842519685,
+            "dc": 0.016447968089990425,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "1730115f9b32790fd062213ea111add54ba465431ade8a59eecb2d7d48f5f879",
+            "rms": 0.13661240156802384,
+            "peak": 0.9574015748031496,
+            "dc": 0.016447968089990425,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "56ba77cbd9c72ef72b1e0dc65b24c134fb224a9714bec6b267f5132cb6921e06",
+            "rms": 0.09548537160427593,
+            "peak": 0.6704808473587036,
+            "dc": 0.011518920676476526,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "dragonflight/dragonflight_ani.HIPC",
+        "tuneSha256": "8903051f54bfb73c65d94681d3e2ddc01c5a3332bcd2758e53d7cd31959b9a82",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14387927500000022,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "e6da84fdc6a25da4d6a01baa5c16d031b122f1d7db4be2666c3501a12336748f",
+            "rms": 0.15379425267525274,
+            "peak": 0.9921259842519685,
+            "dc": 0.00998642600552698,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "64bdc665166082e8c3baede1b2ee8833fa6cb28e7a3f93810467d9dafcaa866a",
+            "rms": 0.14828924572271274,
+            "peak": 0.9606053149606298,
+            "dc": 0.00998642600552698,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "9c2bccfb81044dbd0fd6337749b5aaa53b41b8b1b0efd987d0c97e78d5b43508",
+            "rms": 0.1027950744390481,
+            "peak": 0.6715682744979858,
+            "dc": 0.0069718180381527165,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "dragonflight/dragonflight_always.HIPC",
+        "tuneSha256": "890290bac42a287273877b820d513cd9dc5a62e307ab69c3acbc753cac069940",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.16828419699999994,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "2c2923212fbaad7afc36e238bd5a5a6ed6514df456c5463924f0f66e5cf57fd4",
+            "rms": 0.07881154583065841,
+            "peak": 0.1889763779527559,
+            "dc": 0.03232117692441655,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "5a526c03cdac62c361bd2e39c9f4c2dc47df52e138b2a31d07a9bb76f1fc1932",
+            "rms": 0.07610314815905272,
+            "peak": 0.18236220472440945,
+            "dc": 0.03232117692441655,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "d2f2d53afb0e36c9e9209b436069703e35a11c38f685ae44f7d0466706f71a65",
+            "rms": 0.05028368639550919,
+            "peak": 0.13314896821975708,
+            "dc": 0.022624288682018122,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/City_Walk.hipc",
+        "tuneSha256": "def6906440df2e03f372bc14956f6007823edf471361a769116f53140d6ba211",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.15485845700000028,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "a5e0612ab059dc2f29c44ce85350cd1599e0e08f33271d69d2187aefe205cba3",
+            "rms": 0.2827130574366804,
+            "peak": 1.0922736220472442,
+            "dc": 0.0012283842632463495,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "3a5586cd093e104132af18e38c57b9809b853ebd0d1d9c1ec2c2578555735931",
+            "rms": 0.27283421858243695,
+            "peak": 1.0552798966535433,
+            "dc": 0.001228384263246349,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "1947071c50d98f554663fe84679962f35e9f9f09a0c6a5ed6182ae8bcacd6b3a",
+            "rms": 0.1884995724275999,
+            "peak": 0.7279510498046875,
+            "dc": 0.000791510004701641,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Dreamcave.hipc",
+        "tuneSha256": "5f40ffce3d01eb10edc7c3bd4f649c5e086b78599a0d45106608ffe9365caf16",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14495704149999983,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "95f681aef409b0324328cbff15b1c0bf9a81fb49478f9f5c7b407493021b5b57",
+            "rms": 0.25560633379170444,
+            "peak": 1.2130905511811023,
+            "dc": -0.0003507296344427108,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "cc86e3fed7974220060c7d8c0203a02b642e0227b4628c9c696cfbf78939a806",
+            "rms": 0.24681024301587678,
+            "peak": 1.171838090551181,
+            "dc": -0.00035072963444271054,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "587015101f2b19c168e6d50fc9cbf81c13e8170783c8b1e26b79f7ea0510e9ec",
+            "rms": 0.17210859010799667,
+            "peak": 0.8057059049606323,
+            "dc": -0.00026988256053419804,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Eriks_Revenge.hipc",
+        "tuneSha256": "5a67963a30633aa027afc89a6729891403c72c6165ff22d3358bb4900e4bb070",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1443464780000013,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "add7377ad7412575da8216f5d0dd8ca81fb0064156b8a6e90c389720be00c242",
+            "rms": 0.2518420850347688,
+            "peak": 1.0666830708661417,
+            "dc": 0.0010495978728367365,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "9ad8e4c8d778660c637e468cedd889714604934d6348507e3357e63e0ffa7176",
+            "rms": 0.24329586086377722,
+            "peak": 1.0321259842519683,
+            "dc": 0.0010495978728367365,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "b81956e47248b6c7d9197761ad48e259d02ac21a0b1fda33275ac26c6cd06156",
+            "rms": 0.16610655033270663,
+            "peak": 0.7145475745201111,
+            "dc": 0.0007104972513147112,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Fanfares.hipc",
+        "tuneSha256": "3829d58f5c6747a95ab4988f067ba61f49258736385accedab442c0a36b1e1e5",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14431050499999948,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "97e6ead058ea8ee70190fbe673050a2bb2b307e3c92d67dcf2a0cf8fcf7f6ef2",
+            "rms": 0.20048175330251838,
+            "peak": 0.9146161417322834,
+            "dc": 0.0015160101142143226,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "3423e0f331e7edd1589a6cbdde33715741ff92d73437c2c9a1e0d216be86538c",
+            "rms": 0.19386008719225636,
+            "peak": 0.891681840551181,
+            "dc": 0.0015160101142143226,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "376aabbb2343a225c201971aa6638b11b6ea6f1211833549c0814f1bfd67e3b8",
+            "rms": 0.13314686029627965,
+            "peak": 0.6185895204544067,
+            "dc": 0.001067573221618292,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Flying_High.hipc",
+        "tuneSha256": "55069959ef2631175432070d6689cccca361c1f5a34d466c8be2f666b2f61901",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14439411350000045,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "3db5034a0d196bdef4df1e334535cae37ccb26556daf073a4c4ea2fa01e56bb3",
+            "rms": 0.42656538156908974,
+            "peak": 1.2407726377952755,
+            "dc": 0.0019053187733247261,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "bfa6ed5cca8b87e6b863e0425fa4370d92bec16eb2404169b40f2bd0026c4ed7",
+            "rms": 0.4118429838414657,
+            "peak": 1.2122662401574802,
+            "dc": 0.0019053187733247279,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "71fcb98a7b93f6579e331acfe1e596d2451b574aeacebd4a0a8c83a76e94fdc0",
+            "rms": 0.28535684884119067,
+            "peak": 0.8335976004600525,
+            "dc": 0.0013017991439339392,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Funkey_Dungeon.hipc",
+        "tuneSha256": "6682e4255b6287408d4d2aba376a82d6559b36014f6b7c0a38d2b384b07b2de4",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14661376349999955,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "3e85249f605d316743a8376807f0036c94b659124e3e037eb87e978b95e40de2",
+            "rms": 0.2776738929747468,
+            "peak": 0.9921259842519685,
+            "dc": -0.0009123793073839488,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "4143dd5dd27139fb2eabca27474b0d23639acefffc316a75d06829193b87a9f6",
+            "rms": 0.2680902421365358,
+            "peak": 0.969630905511811,
+            "dc": -0.0009123793073839499,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "78ada8c99c56917a4f2c924f621d301495122c26612c9c3683c5e0a0c59f6cd3",
+            "rms": 0.18694792721979658,
+            "peak": 0.6778042316436768,
+            "dc": -0.0006950010855744653,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Gwens_Lament.hipc",
+        "tuneSha256": "1bb0529cb73338af2d2c9bfcee02a67c620c495de5c61c3439949e97ed613b41",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1444334029999991,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "ea9374e9fa31c22d49174d33523d6f8f34db3f9597ed62a5e01beb809164405f",
+            "rms": 0.29971177102468316,
+            "peak": 1.0884596456692914,
+            "dc": 4.020951239075327e-8,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "5ee18201bb7e3d7e906519700a5ad955a857d75c40a754ced44c4b282b9085f7",
+            "rms": 0.289464697187879,
+            "peak": 1.0547256397637794,
+            "dc": 4.020951239047109e-8,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "c30cea258bf69091a73f803cdc0ac180cd1c903d1545695a73666c429c737287",
+            "rms": 0.19995344630077583,
+            "peak": 0.7248107194900513,
+            "dc": 0.0000062549874788939695,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Hasta_La_Vista.hipc",
+        "tuneSha256": "80ff05e63830ce028b1ed4c43cc3c95cfff1f1cbff041794c7ab050b4bc65c7b",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14575392849999844,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "d4953c55087d14792a4e37581e06b6629c15cc7260d4e98382b59fa1b8e6b95f",
+            "rms": 0.0903809398502839,
+            "peak": 0.42913385826771655,
+            "dc": 0.00045976421526407294,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "85574ff989bf83aa165251679dfa3c9c9718fdbb9713957a705474690436f61b",
+            "rms": 0.08727495424265028,
+            "peak": 0.4141141732283465,
+            "dc": 0.00045976421526407294,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "dc2ce31c0f1274a82a4a726811742a4968a3124177f252745a2d14e4654bbf5a",
+            "rms": 0.06020123729872054,
+            "peak": 0.28980734944343567,
+            "dc": 0.0003139181521259018,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/High_Seas.hipc",
+        "tuneSha256": "abc5ecb6c3da8f2ca9f2d0301e88de155b14ee27c729d61afa4e429453aabc73",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.15434838100000162,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "b2437cf3a9471d28907971b16fbdea8e9d33cf23255d69213337b1eaa24f7247",
+            "rms": 0.35098409907908157,
+            "peak": 1.1172490157480315,
+            "dc": -0.0005475734600557491,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "cba766b6b71557c790392635b0dec27e0b966a0e8669e235f2ca5a34b5b89c92",
+            "rms": 0.3389406675910759,
+            "peak": 1.0815944881889763,
+            "dc": -0.0005475734600557492,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "9436c8a5621c466c8d1687dc2e1b3b2e949ea727dd1fa2f40bb5fdcd75203f07",
+            "rms": 0.23505388638892682,
+            "peak": 0.7369799017906189,
+            "dc": -0.00041939466483553305,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Horse_Song.hipc",
+        "tuneSha256": "75c3a8d17f7d7df92e193a28d80c23c1b1a1356317a1993b03d2fd4227a31f15",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1431767135000009,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "aecfe1a04714b3eecab8ccd24ef21ad1fbfb39d35b98bb1b70151453b1b86acf",
+            "rms": 0.3198859090635957,
+            "peak": 0.9921259842519685,
+            "dc": 0.004353824965910221,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "0a8f6628275fd6127df5dedf2e24a6c3d5d79791d443f3d5bb70a5064c4e8bcf",
+            "rms": 0.3089726562101032,
+            "peak": 0.9731532972440945,
+            "dc": 0.004353824965910221,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "68949659d6a667463d7e72ad966f7e01902b17059e8c0bff29a47122da260951",
+            "rms": 0.21597371724133893,
+            "peak": 0.6808165907859802,
+            "dc": 0.0030268820571365367,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Irish_Spring.hipc",
+        "tuneSha256": "ca9cd91e4819a23b210d0758b3604bcf1a7e17f8e86bd95ebcfadd876b1decd4",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1436001565000006,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "709bb324c8640f806ef01d09e793608706dfa2012bbd0991d30e06006152723e",
+            "rms": 0.23705503800883174,
+            "peak": 0.7401574803149606,
+            "dc": -0.0008454972715203167,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "0e8cc4c37df4ba7ca486c35e3ace172886566e7d8eea49f91d385de0e3c1556f",
+            "rms": 0.22887313151185226,
+            "peak": 0.7258267716535434,
+            "dc": -0.0008454972715203158,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "74fdcb9de86ae36121f7161d204c4be902e60f81e1955314601aeecf62927cca",
+            "rms": 0.15947714942070673,
+            "peak": 0.5076698660850525,
+            "dc": -0.0006623948475744583,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Lullaby.hipc",
+        "tuneSha256": "a3aced36a54497cf0f8e727211852d5b82d330594438b9d4a7d1279b933d2331",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1411415879999986,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "986661e3b8e48604fb4f841178f3e3a2b8550c956cd7b4aecda2805ac544c174",
+            "rms": 0.12293801414951554,
+            "peak": 0.4881889763779528,
+            "dc": 0.0005888003852423625,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "cc57f0a71f5960c4e602b2efdf24f4a6ab1e47f4fa74edc975c614508e8d5b0a",
+            "rms": 0.11870230068167262,
+            "peak": 0.47241141732283465,
+            "dc": 0.0005888003852423626,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "a75a01cb2f1c06781186ab88e0111d921f2eb06e71a8209a5da7c778d20dd1a1",
+            "rms": 0.08121462664460746,
+            "peak": 0.32008352875709534,
+            "dc": 0.00042888124499619937,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Lurking_Horror.hipc",
+        "tuneSha256": "c1af916b44056cd1a0a0227ce0ec6c913df438b1964dbc13cbd09bc6640f0fef",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.15418482900000163,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "52b911015116cc7fc5a5f4a2d2c4fe3b476f0cba91d1369db91df91f314e58ab",
+            "rms": 0.0993163580145115,
+            "peak": 0.484375,
+            "dc": -0.0013367607537214728,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "98681f09c510c261132203e087eac6341dcde443a90dbb03b15fb090a03efad1",
+            "rms": 0.09590330235136921,
+            "peak": 0.467421875,
+            "dc": -0.0013367607537214728,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "8beea19f42ef079053f69f25c6938a65eef17105a0e9e7ec0ab0fc70a6f7a601",
+            "rms": 0.06552308524713492,
+            "peak": 0.3214379847049713,
+            "dc": -0.0009361394633837041,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Minor_Quarrels.hipc",
+        "tuneSha256": "d010ffff37c10da62d577728877c3bb0bc8dda91907bd4a3a3351705689fa989",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14635827499999868,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "1dc9d1ceae7da9fd8e5844b8d3ba710bac17db9a1a8d1e266563be4444be7a3e",
+            "rms": 0.3702032027432446,
+            "peak": 0.984375,
+            "dc": -0.00019803505244213467,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "13945d712d0dd276ca528eaf4c87c9f46611ec2abeb6995f674b50201e21558a",
+            "rms": 0.3563294319068794,
+            "peak": 0.9769340551181102,
+            "dc": -0.0001980350524421357,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "c948909d91dce6bb212ea7d6b7780dc2d08c5aa002d625cae7cadbbe238830f4",
+            "rms": 0.24779823071031362,
+            "peak": 0.6837354898452759,
+            "dc": -0.00012345244531514378,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Misty_Orc_Hop.hipc",
+        "tuneSha256": "fe4917b7386eedd8b15d87d1459ab26de7bf91bce5e3840471fd85e667e9ebe6",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1444078195000002,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "fe3240c5c6352842cc81486eb647247d31ae757f3300a3cfd1c49d1c913ece3a",
+            "rms": 0.21935965698397222,
+            "peak": 1.3021653543307088,
+            "dc": 0.0009352130239091041,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "d8e294ba74ffad6399467189f39495e88e51babd0f88dbc18fbb71477b8bc253",
+            "rms": 0.2127301450937083,
+            "peak": 1.256589566929134,
+            "dc": 0.0009352130239091044,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "bc0efd1cb97a33fb7d611d9d0b27b3df0c9b50d0716a0893b06eaccc7c99af3c",
+            "rms": 0.14616969913274566,
+            "peak": 0.8538141250610352,
+            "dc": 0.0006164250674276456,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Mystic_Moments.hipc",
+        "tuneSha256": "f5a5c907aaca070934f5c2d7cbbf0294622a0379d5832b4a3819507043045eb8",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14147023849999824,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "ba5e5a951f9f63f2e4220dc24ae0539970ace75b80e1880af8f58191d9ab6560",
+            "rms": 0.07912847634341727,
+            "peak": 0.31496062992125984,
+            "dc": 0.00034829127194062505,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "ae4bcba589af14a62196dc343609a54bc5db44f49e999d6d2554699a42638003",
+            "rms": 0.07640918719811528,
+            "peak": 0.30393700787401573,
+            "dc": 0.00034829127194062505,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "f615c97d2de271ec1363cd945ed55f30d4408b1bbf13a7f8f320b23beb331883",
+            "rms": 0.053205472390610645,
+            "peak": 0.2128024399280548,
+            "dc": 0.00024208756570852239,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Ode_To_Schnism.hipc",
+        "tuneSha256": "76bfdcef4b268c137b385c2da54168ce79399ee18a875c86701488346e939fa3",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14620950950000042,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "c477645719195ea200b3645226119aa3f5ccc0a27983e46b02b0d9b54a46fb7d",
+            "rms": 0.3851353645028919,
+            "peak": 1.3679872047244095,
+            "dc": 0.0012960238719550226,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "4c8809721946d62aabb0a83f13fb9a9498f1bab3fd372afdd64bed9789335573",
+            "rms": 0.37282872428635305,
+            "peak": 1.3225492125984253,
+            "dc": 0.0012960238719550224,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "1836c070d2b46a5ac8f81e4a7223208c468b2ea51766c1fe5167fdd38283339d",
+            "rms": 0.2586833223596826,
+            "peak": 0.9044762849807739,
+            "dc": 0.0009106478765746543,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Travellers_Tune.hipc",
+        "tuneSha256": "f7cefcda468c56c40f00788aab35e0f45d709a9360ebf7e3bbee043aab1e35e4",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1573767985000013,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "1f23ebb4dfb770dd6550cd92b13dc9d8d801ec3ed2780772257099b3a56b69d7",
+            "rms": 0.2469657533215319,
+            "peak": 1.1582185039370079,
+            "dc": 0.0013216603997496692,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "fa39e9db1e663d79b82c30ad37e45bf3ac1badfd243be084d3385dedcc2f136c",
+            "rms": 0.2384786533126876,
+            "peak": 1.1176808562992127,
+            "dc": 0.0013216603997496699,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "69a3af12828fc6add9a8ad3fd3e70256a349a793d0bf1b4a01613b2637dc68fc",
+            "rms": 0.16587044791576314,
+            "peak": 0.7775501012802124,
+            "dc": 0.0009065367942156754,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "amberstar/Ingame.hipc",
+        "tuneSha256": "46315de9958926b1deb93fbdb33fff18154edcc1199005d2e9cb3592f7a0c37e",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14223045749999802,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "a882e7b5a183dfd9cf7cdc9a47d5e904cd06e9ef83bad746f0ebc78c6eb838a7",
+            "rms": 0.1435936286581927,
+            "peak": 0.609251968503937,
+            "dc": 0.0012206459345780187,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "d901f037723332010196c461e9935c8ce1c6cca6f582aca1b0418e2a4203c71d",
+            "rms": 0.1388070312564306,
+            "peak": 0.5890305118110236,
+            "dc": 0.0012206459345780187,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "4d5599522915f76932f8809075562c8db80f64256b27bae323da1a710b6d4a38",
+            "rms": 0.09396752944030416,
+            "peak": 0.39547717571258545,
+            "dc": 0.0008358399827492607,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-Title.hip",
+        "tuneSha256": "7fa081abf82c336960f8cd5359558437baa228e9d9f9ba5b70036b5eedbfac98",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.19532524199999898,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "049400e3f90d584be5bdad23f95a46129e23df4f1f64ad608fa363b571697592",
+            "rms": 0.15198999640662272,
+            "peak": 0.9921259842519685,
+            "dc": -0.0009462856983575543,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "f092d7e40cccb1d300fd2a96c3bd4c5c6ffed8074e54ba547c7b08aae3a97ce9",
+            "rms": 0.14724434128263592,
+            "peak": 0.9921259842519685,
+            "dc": -0.0009462856983575548,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "873a208502cfbb04e84d4cbe2f845c6954d4963ab3354f796cc0677899fc3b61",
+            "rms": 0.10246703070199319,
+            "peak": 0.6952218413352966,
+            "dc": -0.0006611634015699579,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-Level_1.hipc",
+        "tuneSha256": "c178d60880eed948d6b2dbc79881294a805f7bab29578cba39f58d8c1d77bddb",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1457370785000021,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "c247b6094d8f973fd47412276f9932d084b06377b0be94599cb850580a88c6d4",
+            "rms": 0.35919678534254995,
+            "peak": 1.0846456692913384,
+            "dc": -0.25955262704277876,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "721dbce170ebad92f94d879c643907e70c7ca27f7edf949026f75202b591a12a",
+            "rms": 0.3529512864215964,
+            "peak": 1.0519192913385826,
+            "dc": -0.25955262704277876,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "3a3513dc47e3ca9351b7f667970255187c34747bc07c0b6f5ab3e79735c66bb5",
+            "rms": 0.24370446133950324,
+            "peak": 0.7291646003723145,
+            "dc": -0.18167332998573735,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-Level_2.hipc",
+        "tuneSha256": "51151bd5b1b73767cfe8ae4538fb0d040b8608c8b85a6ad7d78869d873d0ea71",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14487706600000091,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "ca42350eef2ee9cf6b19edeca202719f0522c27178353eb885ec9e2fb28f79a4",
+            "rms": 0.3036826195497113,
+            "peak": 0.9921259842519685,
+            "dc": 0.06968313494500193,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "b050c1af1d5f74f5cbe748d859dbefeaf9300ef1ad7e38fd8d55e77c4fc2c5b6",
+            "rms": 0.2934101368945121,
+            "peak": 0.9706299212598425,
+            "dc": 0.06968313494500193,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "c476a1d5d6febcffaaaf3e0ca1d46ec6653aeb8a13cc62bf4302e946990b7b0f",
+            "rms": 0.20081495232713992,
+            "peak": 0.6789447665214539,
+            "dc": 0.048757026525700534,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-Level_3.hipc",
+        "tuneSha256": "4c8d97a910b098e5ab0728a91870b2c6d9ebc7d67eb8094be45d0fbff49ac026",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14274265100000047,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "6222d7fc2dbda6b8ef55c45170ad82ca15dc93f6b75cd07beb04bbccc19f86fd",
+            "rms": 0.47946963905416023,
+            "peak": 1.4725639763779528,
+            "dc": -0.12933195787964524,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "2efcdab4d9fe4a0d18665c08779d8d81158ee0f409296e8ea6a392dca06f3067",
+            "rms": 0.46299242825424486,
+            "peak": 1.4210242372047244,
+            "dc": -0.12933195787964524,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "1960234d1bb6c1c8aeef3879afa01c077a7249b1b38c343e8aa157929c8c0614",
+            "rms": 0.3229528906271475,
+            "peak": 0.9947760105133057,
+            "dc": -0.09056177363608964,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-Level_4.hipc",
+        "tuneSha256": "dc5e550f0ce11cc4db3accfce855491b50e017e29a0141afecc0d55949644c57",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.17595451700000195,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "96352b48302202d9a6147c1c50fa3130692baa2ccced0319e5484caadd9eca89",
+            "rms": 0.3454051340619752,
+            "peak": 1.3719242125984252,
+            "dc": -0.0033035138948687686,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "348b66dcd151fca6c8f4c4cc0917d87ac0c485b1e9ca07af3efc7eb7d6a46e14",
+            "rms": 0.3340680263029532,
+            "peak": 1.3374710875984253,
+            "dc": -0.0033035138948687686,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "b24720be4cba9bdc3f9ef762fc5b53a33b7196511d96ace393e33e2811f363ab",
+            "rms": 0.22313214250156024,
+            "peak": 0.8872066140174866,
+            "dc": -0.0023124598494548383,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-Level_5.hipc",
+        "tuneSha256": "ad007e6f78d155d9a47c82a13f1f771bc0654829f069d468dbeef96a9ab1facd",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1491265409999978,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "4b04f773982b98fe111f46fa4a7372b3cc6c441fd15351e1a4f2ab962e9fe92d",
+            "rms": 0.43589338710088976,
+            "peak": 1.4803149606299213,
+            "dc": -0.048099052208917185,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "43d5ba6b12c12fa467b1e6ad151c3199007acb7bda08549da645977fc1e61b2a",
+            "rms": 0.4183111017849037,
+            "peak": 1.417566437007874,
+            "dc": -0.048099052208917185,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "33513e2313092ddeca57f098ed3a242c49beebcbc519863e1991a19e025f14a3",
+            "rms": 0.29065928028573906,
+            "peak": 0.9923816919326782,
+            "dc": -0.03362446349911378,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-Level_6.hipc",
+        "tuneSha256": "ef45fc531ab8507a9e5ae08b262e5445d761107068ac7e52fc0ba8c518cd0179",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.15544544349999706,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "ebf7f484bdcac4089549573f69dc2911816ef7b461296c8400b998150d14f7e0",
+            "rms": 0.4623415178887564,
+            "peak": 1.5590551181102361,
+            "dc": 0.04521502461270925,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "56b31479d3d82d6df358c3679a31882880f2dc27058ca709208b6eb21f5cbb3c",
+            "rms": 0.44645292342664117,
+            "peak": 1.5044881889763777,
+            "dc": 0.04521502461270925,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "49c3dffa42209705a85f96612bf18457f379fc5ac95a07437fdcbfa8856ff909",
+            "rms": 0.3056680446531786,
+            "peak": 1.06459641456604,
+            "dc": 0.03169677033784079,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-Level_7.hipc",
+        "tuneSha256": "49ed4feeff7b1beec887db922a33258ec6390eefabda7924f8335df143c5bd39",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14254075300000113,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "617da5cf0d9648fab74ee07ccd19eb26de7e8c816b9b10eea186e22c68831db6",
+            "rms": 0.37338928232789975,
+            "peak": 1.4803149606299213,
+            "dc": -0.10916535417051385,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "024c89feb2119c12f015fbc60e199a0cc8c2d680d7fe2043c6a4a89d2057da6f",
+            "rms": 0.36011304995396537,
+            "peak": 1.4338435039370079,
+            "dc": -0.10916535417051385,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "f30e0729a7c5d6fbca0a3621b97dcb63562dba2f83bf305fddc7985b8c990880",
+            "rms": 0.2501705898006433,
+            "peak": 1.0023643970489502,
+            "dc": -0.07640223037133521,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "wings-of-death/Wings_Of_Death-End.hipc",
+        "tuneSha256": "49fe34cb7e57205fc54f56859ae1e21c205c709a5e37722e46a1003f688939d9",
+        "type": "HIPC",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14730574850000266,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "4a019ddedef8305c9d8bb8e8f12ffe854d390568ea7222e6566d252bba5274d2",
+            "rms": 0.1601444993192327,
+            "peak": 0.8603592519685039,
+            "dc": -0.003727151064735007,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "741f1bdb040d7600ca55169aaca0bcf1875c2a97f7a81886f00681fefd0f9158",
+            "rms": 0.1545434015574168,
+            "peak": 0.830074434055118,
+            "dc": -0.003727151064735007,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "2c3b6ac721a0fe5d2c88ad843a63fd2bea10281fbb59b5a3086ce294006ebd2a",
+            "rms": 0.10701094667677295,
+            "peak": 0.5810675024986267,
+            "dc": -0.002622789763996067,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "blood_money_title.mod",
+        "tuneSha256": "9a74135c7fbf1b56ae3a8a7442f9a0edb143f1dafdfa7f099fd821121706213a",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1476781735000004,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "06030a4bbc56f027ad91b5c9ac53d21a9ed6de57e481b1ac784b87e1262e04b6",
+            "rms": 0.1728491659813593,
+            "peak": 1,
+            "dc": 0.004433896202428886,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "a2a0395863c57a9f12ea4403863b625ad4c2f37879e9a1a361008261a4ed728f",
+            "rms": 0.16694029084632614,
+            "peak": 0.9760925196850393,
+            "dc": 0.004433896202428886,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "57ba8035ece821bb9b2fd657f8cdf5b95bb4108821edc98f3a56c63318987cdc",
+            "rms": 0.1074352953764057,
+            "peak": 0.6934013366699219,
+            "dc": 0.0031029512119804536,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "moongazr.mod",
+        "tuneSha256": "66587ad6e327dc9527f27e74b548938a709950f1794d91af3c9ece866d5da978",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14595669149999957,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "f8e630e77167c86fa8d422925a8da6632280f5678046525a56b7e32f380a2366",
+            "rms": 0.21220342959479718,
+            "peak": 1.436392716535433,
+            "dc": -0.00909748067380246,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "6ac9be25c73285658e0f218fb2f69543a3ee044c8095510c790cd7b22fc78c71",
+            "rms": 0.20489785242041006,
+            "peak": 1.3860672982283464,
+            "dc": -0.009097480673802462,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "9d3be3b28016ac69e6681af0e95d18e95a149162a0ac27162d2b7cc2cf3f2610",
+            "rms": 0.1417012087908595,
+            "peak": 0.7813665866851807,
+            "dc": -0.006351948771037724,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "immortal.mod",
+        "tuneSha256": "b880b7f82e99839940564d6b3605e64c31b0fab7d1a9b90dd295ed77a9d45bf3",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1550536549999997,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "16518ca2240781681085c467c11115418df97603c1e948c57eca99859bf26caa",
+            "rms": 0.23661041046630937,
+            "peak": 1.3930856299212597,
+            "dc": -0.00199311376056014,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "79c63b3ff488ca679652bd6b009c44fadcb14655d8cad4ff3e2f777961e76d0f",
+            "rms": 0.22809049311597104,
+            "peak": 1.3435180856299211,
+            "dc": -0.00199311376056014,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "786b01c20a49960a081abfcbcbcfca5d9d7d1e22af09548d4045d068f41ef90a",
+            "rms": 0.14710294329885323,
+            "peak": 0.7198382616043091,
+            "dc": -0.001431053587833486,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "lotus2-title.mod",
+        "tuneSha256": "b141bffe12488a515a601aa5092185f8dfc0361758b2675e1ea54d2aeca7172a",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14920000150000123,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "986b026d26adf0f75197fa0714e4033268ee9d31932e0fa05a83beb364b6fb20",
+            "rms": 0.12392382497801996,
+            "peak": 1.0078740157480315,
+            "dc": -0.0033745642634495005,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "d084844394236ce2233778bd8ba7aef47be8c9e5dc4c952ab28b30a5d209e07d",
+            "rms": 0.11964746284650576,
+            "peak": 0.9725984251968504,
+            "dc": -0.0033745642634495005,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "443035a8bbade5044c1e1a942406d77706a98a703807e57faab3e1cba88c9653",
+            "rms": 0.026138931768249406,
+            "peak": 0.2977914810180664,
+            "dc": -0.002361977751805585,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "DEADLOCK.XM",
+        "tuneSha256": "f4e6e08e4a8d34aba80d7d1f98163088aef9635fcc72203248381b6e7fa20440",
+        "type": "XM",
+        "channels": 24,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1964671469999994,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "e9f192d1f84b7142e4b3d695e8ab2b5c5f555aae22d8bc0fd3a50d7e6d21c163",
+            "rms": 0.16981458853538342,
+            "peak": 1.557758428845582,
+            "dc": -0.012771650091738664,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "5872b2a0bd54cd6f04dc5cad0b5db5a028d2445fc5f0f13605bf3cd0e35a2f9c",
+            "rms": 0.1693770601395291,
+            "peak": 1.5478501586903595,
+            "dc": -0.012771650091738664,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "60696ca36a62e590717bf826e46f7f6158e79541bed8819d64b11cc27f634bfb",
+            "rms": 0.10712003352154773,
+            "peak": 0.8860925436019897,
+            "dc": -0.008913597094577341,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/games/cannon-fodder.mod",
+        "tuneSha256": "889c89dbeb8ca837819c708e0512cb5e25a99e521d86ec383775a652cfae6e61",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1522706070000022,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "45ee84d45ce4efed85571790a4cfa5a2d89263da65f6a1e514b13657a979cd55",
+            "rms": 0.037885443978995244,
+            "peak": 0.375,
+            "dc": -0.0001277214310613793,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "b869535b502fc74b1aa371cd4826e74dc6bd5309e438a6af7568e924d0a1f7e0",
+            "rms": 0.03658349199736874,
+            "peak": 0.361875,
+            "dc": -0.0001277214310613793,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "ce1565876b9464a6d3484e70e4867faa4f100ebf35d638cee3d1124b8b9a00d9",
+            "rms": 0.023587613016000382,
+            "peak": 0.25781068205833435,
+            "dc": -0.00011811713793656637,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/games/chaos-engine-k8.mod",
+        "tuneSha256": "c0b419226b2a5c939f7e414c17e82de0e4208f788549ab8e18a53d8dc8d5ad96",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14755262899999796,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "506744f8e5f936640d57ba092630881cd4e1ac98449d00547b7f916c4d6d789f",
+            "rms": 0.19614993733961375,
+            "peak": 0.968503937007874,
+            "dc": -0.002494443077427493,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "095eb9c241b7afaab7c0da41ae1501740683e6a98e0e89a7724be2c952b28130",
+            "rms": 0.18946327690840056,
+            "peak": 0.9384251968503937,
+            "dc": -0.002494443077427493,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "16f495de9faccac41ddff0396b49d5fb846a5326a5cd90ca86f2dfe3e0190a81",
+            "rms": 0.1163456935533657,
+            "peak": 0.6553618311882019,
+            "dc": -0.0017638559752623524,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/games/speedball-2-title.mod",
+        "tuneSha256": "aa65e64931fc2007680dba5c5675887d47a80a810163ec40e47bfba35a2c33ac",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.15850537149999946,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "0cba73a5737417b38e13f6982e79e85ee446eba743d8815e74bfce280a4b4af7",
+            "rms": 0.1443872920795473,
+            "peak": 0.9212598425196851,
+            "dc": -0.0009811358113928962,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "8739ccd306daf7be11a47a5a3bd78a5b5eab15002dc21ebbab4881a6061d3235",
+            "rms": 0.13940769939479683,
+            "peak": 0.8890157480314961,
+            "dc": -0.0009811358113928962,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "93ef1ba894cfdf8437d846ab6f86307ea348b72e75db32914feb1255135669ef",
+            "rms": 0.08789678318001284,
+            "peak": 0.6167221665382385,
+            "dc": -0.0006695781649302765,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/games/gods.mod",
+        "tuneSha256": "840dfcd7eb65feaf7a40c0c65aafc3ce87361a552f5564b9530f0c8bdf096920",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1465332730000009,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "7e4d42a666173366c849be8a5030ad123c1cfd9422ff3de9ba7426e9d93eb256",
+            "rms": 0.08124195878333056,
+            "peak": 0.6941437007874015,
+            "dc": -0.0008532818971968519,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "a34400a386b369186cfb5d7a1d22b48e58880d6281a194c5b63cd52241fbbc93",
+            "rms": 0.0784241221689102,
+            "peak": 0.6663348917322834,
+            "dc": -0.0008532818971968519,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "81b66499914c3a3aa2ff7f31db68640955481172ef7c52215322f186fb51f8cc",
+            "rms": 0.05090443666765863,
+            "peak": 0.4276639521121979,
+            "dc": -0.0005454172569730487,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/games/pinball-dreams-beatbox.mod",
+        "tuneSha256": "f0a352eafcc96e13fa86d782e57657e2742ebb7da4174b88cc6397d9b59e59cc",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.15606843399999706,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "3c3977d02cfb8f864a6e22aa0c6bc7d95a661612a1bf5a427b2b6e1155735d69",
+            "rms": 0.34200948517943824,
+            "peak": 1.0078740157480315,
+            "dc": 0.008954925937601856,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "66a055e6f658428e827fe88beccb46eddedbd85bba2e183a53c3907c4983c91f",
+            "rms": 0.3304352615242996,
+            "peak": 1.0078740157480315,
+            "dc": 0.008954925937601856,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "3b278d19287b48066f511007b49463bcd9936379f994cf8ea71add9f9453f63e",
+            "rms": 0.2218005946334779,
+            "peak": 0.7240514755249023,
+            "dc": 0.006184960773495677,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/games/pinball-fantasies-party-land.mod",
+        "tuneSha256": "a0877e4372abe64b70d9e361bf257ea5a84c948771f0eace3433d5f6399060b5",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14392733450000014,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "d27df83f4224743fa5a73e240fa57a489ab8652603d6775c4ba539da32b434ac",
+            "rms": 0.37524530723973665,
+            "peak": 1.5118110236220472,
+            "dc": -0.04688689176304176,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "f53fe99a80e591b7911e354c1aba3d67bf9976b8a474d9416df1391679144f09",
+            "rms": 0.36337433107055894,
+            "peak": 1.4828740157480316,
+            "dc": -0.046886891763041755,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "ef935a50ed4579ede3acb185a9741b6a4628bf1d5b55b575458768006464bd41",
+            "rms": 0.2426787108675046,
+            "peak": 1.0186123847961426,
+            "dc": -0.03277911819895338,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/games/project-x-bladswede.mod",
+        "tuneSha256": "a3b22ca23b8c672235fa40a431b2f74e4f2cb5e27fe5e2572dff14bdef520c4a",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14706557650000104,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "537caf6b3989975c6a85a7adccb0b5472143afd32b9fb8209f525e4cbd4b8b90",
+            "rms": 0.03460594346122708,
+            "peak": 0.28346456692913385,
+            "dc": 0.0003217940042650499,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "ada03de9d20914e08b0e17c044e59a3da0b1ead98ec4fe799e88956c373af729",
+            "rms": 0.033416693133581,
+            "peak": 0.2735433070866142,
+            "dc": 0.0003217940042650499,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "25e7c11430bb0db486817efa263f5613614e364be92d2407922965fd4fdf3cc9",
+            "rms": 0.018544651747571146,
+            "peak": 0.16531968116760254,
+            "dc": 0.00022556532140720635,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/games/superfrog-title.mod",
+        "tuneSha256": "4d51f8c975a1dfd95d158b4b7fc8f04444a890a815e3b1f450eeff4ebf71b766",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1486099099999992,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "6d84c980c84acf5b52dad618a4ff6e9bd4765cfdc8bcc19ccfd43cfb678834c9",
+            "rms": 0.1402296003032652,
+            "peak": 0.8336614173228346,
+            "dc": 0.00990936823967621,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "54faabb21782eda23334ed5889c8aa92d5e20e66e244925e54868c0616d10ae9",
+            "rms": 0.1356721130620799,
+            "peak": 0.8067568897637795,
+            "dc": 0.00990936823967621,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "af77b7ca884413d474fbeb536ce82abceb3ed81971d6ab28e2636b7ebd5ac4d9",
+            "rms": 0.081916879832744,
+            "peak": 0.4999324381351471,
+            "dc": 0.006901628776058367,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/games/lemmings.mod",
+        "tuneSha256": "f02628cfffe6f6e4f7f94dd8c47130d50e7a56d1d72581ca1915c02a250e8bce",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14938760249999905,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "586a60399bc65dd9bb75f860a41bf9fda66d3cb7eca83423bf056a4cc6a66bf4",
+            "rms": 0.3984285999575791,
+            "peak": 1.0078740157480315,
+            "dc": -0.04328269562007961,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "baa5417f957c87bbc14b07ccfd0030abf2f31623747c8cb28cfb1ed23980b411",
+            "rms": 0.38472204349380545,
+            "peak": 1.0037401574803149,
+            "dc": -0.04328269562007961,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "6b54dd236a1032343e37d1433244f0e7647ff8ef194dc5100fed823ed2027559",
+            "rms": 0.26136874253870085,
+            "peak": 0.7091421484947205,
+            "dc": -0.030233781880803758,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/games/another-world-intro.mod",
+        "tuneSha256": "dd64a50b8b1e91dcde0e0e4f628c68c97a8cbe2758cb62c408d8dfbaa0ce5a5d",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14842460199999913,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "2a5d25f8d9aa3ffa4ca260d61f21099c4405b5bbccc940fe8129b0da100f2821",
+            "rms": 0.07048699773891805,
+            "peak": 0.36220472440944884,
+            "dc": -0.0001680456446849537,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "a233e25e40af715a52282c03187c582d437d169d7c227a7eb643bac2fd317e1d",
+            "rms": 0.06808223586427867,
+            "peak": 0.3495275590551181,
+            "dc": -0.0001680456446849537,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "b1dea8fd0c988433752550c76ec4ac7eef4d2aecc43be495de4d924a3ed84269",
+            "rms": 0.04758833593243216,
+            "peak": 0.2441367357969284,
+            "dc": -0.00012430660720282903,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/games/dune-wormsign.mod",
+        "tuneSha256": "e234f0affa57193ed6a909c76a7f6f80e0d3ed188d4b57ca7a6d42e308dc91cf",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.144105338500005,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "e2896c57dbebc2d95f1fd3ca97f955e65d7bd2970c24322f5924d68c346b9ef9",
+            "rms": 0.012575210084506912,
+            "peak": 0.07012795275590551,
+            "dc": -0.0065069104292286885,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "10077d6bc93c2d3b43cb4d1a2651860b93287d2b38bedb7237ac3e06b9a13ac2",
+            "rms": 0.012143056783152653,
+            "peak": 0.06767347440944882,
+            "dc": -0.0065069104292286885,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "79f0cdfd4a48ca3517e1c6b4ede9f291d87dda9414cf78ae3aa1e922f0bc29fd",
+            "rms": 0.008437744074764294,
+            "peak": 0.04731013625860214,
+            "dc": -0.004552380615515654,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/games/shadow-of-the-beast-title.mod",
+        "tuneSha256": "ea9a9a6b5fe38a40fc60ea01b9a928330b9d05aed9d23a85596bde76c52ace66",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1425746074999988,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "25bc503a075c1d6cbc14213229f5020bd7b3f466e8f715488400088484ad43e4",
+            "rms": 0.4054746505629185,
+            "peak": 1.5207923228346458,
+            "dc": 0.0005813151682456029,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "843f2d7cb8502dc8e5aad75e97964234a79b6f71773aaa8dcea6abb9ab39b27c",
+            "rms": 0.3924168474241049,
+            "peak": 1.4758323080708662,
+            "dc": 0.0005813151682456021,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "9eb454ad48c5c05aa2af066bd6c888f47b60f8e5618718351c6f416ebc206582",
+            "rms": 0.27189625857820937,
+            "peak": 1.032220482826233,
+            "dc": 0.0004124830761192218,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/demoscene/red-sector-theme.mod",
+        "tuneSha256": "2e30a2ca0706e838e441c2a7b42fe2fbad5dca5796659891c6aca742ebc472b6",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14807044550000137,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "e878beffdae7211a76dc0b5ae502b784247dad2c2ed3d4bfb7c7468aec7f2dac",
+            "rms": 0.3540123353612788,
+            "peak": 1.9767470472440944,
+            "dc": -0.00039920820902024536,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "063804474d840bd1eb6bdac14516e41bd7e777e50da23baf4f4621b0ec7640bb",
+            "rms": 0.34184932931876294,
+            "peak": 1.91224593996063,
+            "dc": -0.0003992082090202443,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "3dae72f977dd2e6c76374e70e58229457367c91d2f19a1b365b8bc6e0329a3be",
+            "rms": 0.2299630361561169,
+            "peak": 1.288774847984314,
+            "dc": -0.0002774282086804143,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/demoscene/trans-atlantic.mod",
+        "tuneSha256": "1452ef44239d0e39b463ab36093370d5562f2625a5dc291412a96048a545c946",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1479897159999964,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "860764cfb640ed2e2a80fa577e5e9c9ce56cbaf3334fd68f3fe493b7c1ce4dd4",
+            "rms": 0.3737887088369826,
+            "peak": 1.6220472440944882,
+            "dc": 0.10648779409012595,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "ae759bf518d46d762b3e32a7227a40605c23c745af5826da27da7cb3d08de6ad",
+            "rms": 0.36222464676471455,
+            "peak": 1.5698831200787402,
+            "dc": 0.10648779409012595,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "e3afedfc85d766678ece52042aa6c9a47ee006def0c98d87014623ec326e4f5d",
+            "rms": 0.24426524764171198,
+            "peak": 1.0766098499298096,
+            "dc": 0.07456291659937771,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/demoscene/cream-of-the-earth.mod",
+        "tuneSha256": "2f24986dc737e4c704f78b4e0a32fe8e2ebffd29e9add1e15f4231ec97cc6572",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.15127133499999765,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "49f28495284fc61b11ad5d86f483333cec8fb10964c64cf4e03fa031dd1ec206",
+            "rms": 0.14268075051003543,
+            "peak": 0.8818897637795275,
+            "dc": -0.00006217736271735073,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "f7b82b91d6440b65db1e700778394e42df9306eb2510eefb4440e3c2026390e9",
+            "rms": 0.13766942650873057,
+            "peak": 0.8794094488188976,
+            "dc": -0.00006217736271735006,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "a27f38bb7b8772c4bc3d1fe7afe9c447a5b29f4263d7d2f3d1bf8f14918773c6",
+            "rms": 0.09208050916966522,
+            "peak": 0.6216177940368652,
+            "dc": -0.00004564134232088779,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/demoscene/occ-san-geen.mod",
+        "tuneSha256": "1b205665b4220ffb95ccae30bd8cff42483a32e172b5416131ba7c1de9aa6aaf",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1741447349999944,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "634aa16967a980e1592fe93bcdf5b052d2b2aa9666918e45f6cdd04145234894",
+            "rms": 0.187933321044174,
+            "peak": 0.7716535433070866,
+            "dc": -0.01143165600393829,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "c5f1b2426f1b2c70285e7cc8f8b726778fb9ddf73ecc2a1c202b1ec6f7fa1c2c",
+            "rms": 0.18105408999635894,
+            "peak": 0.7429921259842519,
+            "dc": -0.01143165600393829,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "4134230a7f77c702700eb2a29d01c1e665d777bff5ba917a6b38fee5015dd26a",
+            "rms": 0.12166053678137809,
+            "peak": 0.5053654313087463,
+            "dc": -0.00803137983035253,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/demoscene/hysteria.mod",
+        "tuneSha256": "8122b73e518f0eaea0aebde30b22d50f35c8972fe19fa6d967d0b04eb3c4d345",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.15483200399999622,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "90fdaa4e249cfc2e4bb59eaf3f0edcc1881041a7676ad1b846c9fb188788d3ec",
+            "rms": 0.3027917683754266,
+            "peak": 1.5118110236220472,
+            "dc": -0.021194348753279826,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "206c3093caf4e9fd873a0b18d5826a5782323f4dc267dfde8034ec6565cf5095",
+            "rms": 0.29249026434019265,
+            "peak": 1.4448425196850394,
+            "dc": -0.021194348753279826,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "21ad78a0f18d37f45072379840ebdcfe7b416ccb217caa6392b85c226b572491",
+            "rms": 0.19792852589243812,
+            "peak": 0.9831340312957764,
+            "dc": -0.014835013217458103,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/demoscene/phantazia.mod",
+        "tuneSha256": "6c293d0e70393c6ee8f1ab5297819108d54e7aaaf3285391e669ecd380c23314",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1430200909999985,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "2ede86fe150003aa4d18fe3947e151f27f6a6b8f650064cdbd4844db14226efa",
+            "rms": 0.2395938371315844,
+            "peak": 1.590551181102362,
+            "dc": -0.013382534237358093,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "dd52b2f0b62ec8d5c56e13b54e19cb20b64ae3cb0e23d0e6a9864f514c563566",
+            "rms": 0.23103092989771415,
+            "peak": 1.5349507874015746,
+            "dc": -0.013382534237358093,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "1b3bac745f249036b7faae852d3ef2d4f5e91d0d9c868225b3a7b787f254e779",
+            "rms": 0.1579490275348511,
+            "peak": 1.0743294954299927,
+            "dc": -0.009367986923260005,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/demoscene/guardian-dragon.mod",
+        "tuneSha256": "812b4f023dc900201b9487d8b53da2809aa1682cb456a89fcb26d7a66c9e1b1d",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14534726550000052,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "967f2498a16f8fa9fed827ec5a94f011bd8760ad984f37ed5fa7d96f8480250b",
+            "rms": 0.2892443634849993,
+            "peak": 1.763779527559055,
+            "dc": 0.0016310419998768948,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "f4728210da47fd267d2dd63c38cb0f8f8fe649fe905ac3252459c7c00d04ffa4",
+            "rms": 0.27928388910181834,
+            "peak": 1.7027362204724408,
+            "dc": 0.0016310419998768948,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "17e9abb0d4dc50c4cf1bd332dff29f9ead675b48c676e0a876447112ce221cc3",
+            "rms": 0.11403325964897358,
+            "peak": 0.7337219715118408,
+            "dc": 0.0011378629564956538,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/demoscene/macrocosm.mod",
+        "tuneSha256": "f5107492e2e61b927349fa0b02a30537c598a30bb4fcbefd9393dfa866f93006",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14827848749999975,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "7e0794b0bfc37ae88899a7d0a6bb24421ec2da3547fd7975737308cef486fb8c",
+            "rms": 0.08052091508481717,
+            "peak": 1.125,
+            "dc": -0.0008737993215326361,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "22b25e207654fe6bc03d7fa5dd33ea264a9da976a5d1a0962cdfd06c4820cade",
+            "rms": 0.07767410965968598,
+            "peak": 1.085625,
+            "dc": -0.0008737993215326362,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "b5f0b712c6afecb2a839bf4e4c4567091e3bffc54cd886e6b149289077173fb7",
+            "rms": 0.04891611168634519,
+            "peak": 0.5040398836135864,
+            "dc": -0.0006153882961136266,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/demoscene/sanctuary.mod",
+        "tuneSha256": "30613fd7000ada991246b436740c6e3914e388dfd43f299712f6a0eb368d0086",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.15556069849999768,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "f5a86cc2a0355122f8b0da4debaae899a3825fa1d9b59bc2c63008f211424660",
+            "rms": 0.4698596324078004,
+            "peak": 2,
+            "dc": -0.020801365649605667,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "a203981c86a1ee6d78a81e8ad693115192c93a857fb83c8754b3ddbe24db7094",
+            "rms": 0.45484100909740777,
+            "peak": 1.9525984251968502,
+            "dc": -0.020801365649605667,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "254c332d6b22df4138890ae42f414854848eaec630b0c1e018a842290d6ae2b6",
+            "rms": 0.30811975848979156,
+            "peak": 1.1508023738861084,
+            "dc": -0.014458891294986778,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/demoscene/acid-injection.mod",
+        "tuneSha256": "778c1cf778aafe0184bf6964f736ad581bc2cfaffd2c7629c4567131a925c21f",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14318575099999725,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "68df0614fe57d10b089a423c1c9fa624ca4673a91cca383f66564c33b0e81729",
+            "rms": 0.19462128808457796,
+            "peak": 1.0078740157480315,
+            "dc": -0.05426367700132655,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "07198285b77c6792248efdc4d79b5c20401e6c854b98b730bce1d8a99da85ce1",
+            "rms": 0.18793303145957022,
+            "peak": 0.9725984251968504,
+            "dc": -0.05426367700132655,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "c31a8203f0886c189898ee0d96dd5f41f50fcc38ab018497817a301350a76ff3",
+            "rms": 0.11218613207806583,
+            "peak": 0.6910194754600525,
+            "dc": -0.03797210505755876,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/demoscene/carillon.mod",
+        "tuneSha256": "1c05c865847a80b1bce88d4611e3fb48ea741107c012df3e558e0b7b24918a0f",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14264668150000215,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "0a96b96e1c8f88d17724ee53767cacb762e6b06c2c01ced357768e9c1cfb753c",
+            "rms": 0.09751276383466966,
+            "peak": 0.7212106299212598,
+            "dc": 0.00004955125543388944,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "65d0002a8ef392e5cf54432aeed0800e798ddc4d18c14ade7d18cdfe6d34683f",
+            "rms": 0.09404358272802099,
+            "peak": 0.6976476377952756,
+            "dc": 0.00004955125543388949,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "3cf136db86b444682c73e1ad9846b961122eabdc083d33eb7ae2722963f2f194",
+            "rms": 0.06217558571197878,
+            "peak": 0.41442224383354187,
+            "dc": 0.00004090690895083678,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "classics/demoscene/obvious-disaster.mod",
+        "tuneSha256": "cdc2f7e9fd3e1539f31a6e0c2f76b7dd1097717693f40228cf46ba76979bfc38",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14339878150000004,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "638a087f484082fa4b4cb1bee3f65c289230674c1f28462f7caf2e46452ba360",
+            "rms": 0.35947265267901796,
+            "peak": 1.734375,
+            "dc": 0.023801120227401856,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "23afc64f0eea0ed9e836c0bd9b9264bc8d405b7de679e856bf1634843470fe0f",
+            "rms": 0.34809425791236165,
+            "peak": 1.6893977608267716,
+            "dc": 0.023801120227401856,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "ec5319e8414176a7bca7c0d5355d1213a40507eabefd7dbbcc52ff279c091302",
+            "rms": 0.24187794747682703,
+            "peak": 1.1877542734146118,
+            "dc": 0.01658885925403723,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      }
+    ]
+  },
+  "performance": {
+    "scope": "Offline production worklet with three diagnostic hash taps; includes measurement overhead.",
+    "realTimeBudget": 1,
+    "withinOfflineRealTimeBudget": true,
+    "note": "This is not a browser underrun or device-specific performance proof."
+  },
+  "passed": true
+}

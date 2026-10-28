@@ -1,0 +1,452 @@
+{
+  "format": "chiptunes-fantasy-amiga-phase4-modxm-corpus-v1",
+  "scope": "Every MOD/XM entry in tracks/amiga/playlist.js through the production Exact Worklet; no master processing.",
+  "referenceStatus": "Self-generated regression anchors only; no hardware or UADE truth claim.",
+  "seconds": 1,
+  "sampleRate": 48000,
+  "blockSize": 128,
+  "workletSha256": "3c5097caa01dc6d21418500b360d00216d1983836456af2cf3cda2a07098236f",
+  "trackCount": 10,
+  "finite": true,
+  "tracks": [
+    {
+      "path": "ELYSIUM.MOD",
+      "tuneSha256": "73eaff8065dbc987045499b1bcf6d179a3043419a43306483caa96c93dfd4c37",
+      "type": "MOD",
+      "channels": 4,
+      "linearFrequency": false,
+      "patternRows": {
+        "64": 23
+      },
+      "effects": {
+        "0E": 1,
+        "0C": 801,
+        "0F": 1,
+        "0A": 1207,
+        "01": 4,
+        "0B": 1
+      },
+      "nonFiniteSamples": 0,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "51caaa365bc71237222ef0ca588250840725128d77e14d1543280bbd7e5e277d",
+          "rms": 0.2468284469639252,
+          "peak": 1.2066929133858268,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "9b9a585e30d1d1aae6f9b7eef7cf3a08b3931ef49681deec7c52283ee5ad1870",
+          "rms": 0.2390017218425135,
+          "peak": 1.1654244586614173,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "5238a83e264c948fb28009bf493a243eb8a51f17c2c4a76b7c6382b9e2c1c9b7",
+          "rms": 0.16176236822964463,
+          "peak": 0.7721102833747864,
+          "nonFiniteSamples": 0
+        }
+      ]
+    },
+    {
+      "path": "space_debris.xm",
+      "tuneSha256": "7f8131135cf77247e4cace9a60ddac8bdc0b26c7c08ae701b944fbd17b40c0b8",
+      "type": "XM",
+      "channels": 32,
+      "linearFrequency": true,
+      "patternRows": {
+        "32": 2,
+        "64": 2,
+        "128": 56
+      },
+      "effects": {
+        "10": 257,
+        "09": 4489,
+        "1B": 5072,
+        "08": 6577,
+        "0F": 73,
+        "01": 1394,
+        "02": 2427,
+        "03": 1270
+      },
+      "nonFiniteSamples": 0,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "78e35614664956ed7b1f49651f1c6ebac1e247f033270f31a6a18c2b79aa1235",
+          "rms": 0.004387528110013883,
+          "peak": 0.03353762593492472,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "716ad047588c67053ee697b665be629218cc9f0218794234977127290df068c4",
+          "rms": 0.004382931239708118,
+          "peak": 0.03352845549033314,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "36aa78265a844ebc154d04b672c51b1dba8a7b5d35999152031c2e07b4d391e2",
+          "rms": 0.0030319148515724503,
+          "peak": 0.023523515090346336,
+          "nonFiniteSamples": 0
+        }
+      ]
+    },
+    {
+      "path": "GSLINGER.MOD",
+      "tuneSha256": "c229a506d1bae69c0681462bf85d5e0e02cbbfcff9efec064481d3b09b699728",
+      "type": "MOD",
+      "channels": 4,
+      "linearFrequency": false,
+      "patternRows": {
+        "64": 41
+      },
+      "effects": {
+        "0A": 239,
+        "0F": 562,
+        "0C": 735,
+        "0E": 364,
+        "0D": 17,
+        "01": 35,
+        "03": 310,
+        "04": 527,
+        "06": 562,
+        "09": 104,
+        "05": 40,
+        "02": 15,
+        "00": 1,
+        "07": 546
+      },
+      "nonFiniteSamples": 0,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "76ed5c9c326ba62322d464a22d3fcf7b76c7352c6d33badc36ccea7a33325e97",
+          "rms": 0,
+          "peak": 0,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "76ed5c9c326ba62322d464a22d3fcf7b76c7352c6d33badc36ccea7a33325e97",
+          "rms": 0,
+          "peak": 0,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "351a8054b23144894668c6a51d5dbba82f56523ef43cc45b6f4d7060a969c31a",
+          "rms": 0,
+          "peak": 0,
+          "nonFiniteSamples": 0
+        }
+      ]
+    },
+    {
+      "path": "agony_intro.mod",
+      "tuneSha256": "27f85e06236e14a44b330b65fe28d7a95f3377dea84dc4a09a2d78a8f8f26da7",
+      "type": "MOD",
+      "channels": 4,
+      "linearFrequency": false,
+      "patternRows": {
+        "64": 17
+      },
+      "effects": {
+        "0C": 364,
+        "0F": 1,
+        "0E": 1
+      },
+      "nonFiniteSamples": 0,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "324fe4c209b4988270dcc9f9d05e9f4cb61e82feae4830e7ad342e0134e10e26",
+          "rms": 0.12046910508997384,
+          "peak": 0.7678395669291338,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "723af5b8758d527bb78dd4e7e70575f301e5f639339a4f394adcd4113383d3e5",
+          "rms": 0.11653689150431609,
+          "peak": 0.7450387549212598,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "836c1c7c71d92546c7dacd0b9a178645ab4e80f920047e3b6f4757d1c4f423c1",
+          "rms": 0.075422644497397,
+          "peak": 0.39718303084373474,
+          "nonFiniteSamples": 0
+        }
+      ]
+    },
+    {
+      "path": "turrican_2_title.xm",
+      "tuneSha256": "f5fb4bd8914aeecc7b14c8b2cd6a66adde2330731dd6757d3bc555b0c766c628",
+      "type": "XM",
+      "channels": 16,
+      "linearFrequency": false,
+      "patternRows": {
+        "64": 73
+      },
+      "effects": {
+        "0C": 96,
+        "0D": 12,
+        "0A": 3076,
+        "06": 402,
+        "03": 258,
+        "04": 6,
+        "0E": 1,
+        "01": 14,
+        "02": 70
+      },
+      "nonFiniteSamples": 0,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "923e1c970ae47223d1019831ec896d723eb306a86e5bf3f523834690dec1b461",
+          "rms": 0.03418141855260765,
+          "peak": 0.2055272502701868,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "63e1cbc9e8e4b5bd96372e399ab91cdfc5aec2892b1e88954f33deb2e3e4cc45",
+          "rms": 0.03418138304441275,
+          "peak": 0.20547105141269106,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "ca7c84d0f2ab17def87a5d3993117d41210a274fbbd8c4f75abbbece3554e9c2",
+          "rms": 0.018530269347644086,
+          "peak": 0.14539138972759247,
+          "nonFiniteSamples": 0
+        }
+      ]
+    },
+    {
+      "path": "blood_money_title.mod",
+      "tuneSha256": "9a74135c7fbf1b56ae3a8a7442f9a0edb143f1dafdfa7f099fd821121706213a",
+      "type": "MOD",
+      "channels": 4,
+      "linearFrequency": false,
+      "patternRows": {
+        "64": 15
+      },
+      "effects": {
+        "0F": 8,
+        "0C": 266
+      },
+      "nonFiniteSamples": 0,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "6b9f7172c34819853b2f2d1cbfa782230d5b9840f93740eabe5345313fc6784c",
+          "rms": 0.20727124465181232,
+          "peak": 1,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "e1d3fb664f0e8886f8b57a4970ee819a8e3324b797afe34715a2fd1ff78b0208",
+          "rms": 0.20010635685498077,
+          "peak": 0.9760925196850393,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "c03a67d45eabe0e37a4c06d23e66646d6104a46000d4c7082bc4199c5dbbea09",
+          "rms": 0.12902021060931168,
+          "peak": 0.6934013366699219,
+          "nonFiniteSamples": 0
+        }
+      ]
+    },
+    {
+      "path": "moongazr.mod",
+      "tuneSha256": "66587ad6e327dc9527f27e74b548938a709950f1794d91af3c9ece866d5da978",
+      "type": "MOD",
+      "channels": 4,
+      "linearFrequency": false,
+      "patternRows": {
+        "64": 37
+      },
+      "effects": {
+        "0F": 22,
+        "0C": 1181,
+        "0A": 207,
+        "01": 23,
+        "03": 190,
+        "04": 63,
+        "00": 7,
+        "0D": 2,
+        "02": 5
+      },
+      "nonFiniteSamples": 0,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "5c51e4c896f094dca269d4c348d6beed66319dad0b932db286502b93534c8f50",
+          "rms": 0.21541092629137878,
+          "peak": 1.436392716535433,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "3955a6b0dd39f5401d486f13b2c115fb391020615ddf040d70aa299128ab381a",
+          "rms": 0.20801617980824655,
+          "peak": 1.3860672982283464,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "387db689d01d251c6676aee78ef1a5360c8b4d4c56702b4112a60dbf7913e027",
+          "rms": 0.14285000586351285,
+          "peak": 0.7813665866851807,
+          "nonFiniteSamples": 0
+        }
+      ]
+    },
+    {
+      "path": "immortal.mod",
+      "tuneSha256": "b880b7f82e99839940564d6b3605e64c31b0fab7d1a9b90dd295ed77a9d45bf3",
+      "type": "MOD",
+      "channels": 4,
+      "linearFrequency": false,
+      "patternRows": {
+        "64": 37
+      },
+      "effects": {
+        "0F": 61,
+        "0C": 1153,
+        "0A": 1510,
+        "03": 163,
+        "0E": 2,
+        "0D": 3,
+        "04": 4,
+        "02": 28,
+        "01": 3,
+        "00": 1
+      },
+      "nonFiniteSamples": 0,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "cfcd4f39dd09df77ce7ef28dcc241306f0e34fd91962688580f5fb547dbe2ff6",
+          "rms": 0.14640590401187495,
+          "peak": 1.0244832677165354,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "9a170623108dff8c4457bae9e0c596113b4e06d203d5196b3d4e192fc1e1ab2f",
+          "rms": 0.1415141465878931,
+          "peak": 0.9956711368110236,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "fb42d2f5e1fdb7ad7124cc4a44a94f6128447fef6930e029c51793121f8b7747",
+          "rms": 0.09183036161000303,
+          "peak": 0.516187846660614,
+          "nonFiniteSamples": 0
+        }
+      ]
+    },
+    {
+      "path": "lotus2-title.mod",
+      "tuneSha256": "b141bffe12488a515a601aa5092185f8dfc0361758b2675e1ea54d2aeca7172a",
+      "type": "MOD",
+      "channels": 4,
+      "linearFrequency": false,
+      "patternRows": {
+        "64": 15
+      },
+      "effects": {
+        "0F": 1,
+        "0C": 511,
+        "00": 1,
+        "03": 24,
+        "04": 165,
+        "01": 1,
+        "0A": 1
+      },
+      "nonFiniteSamples": 0,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "0247302f5bc13a595dd19fc532b0686e31650d630183600535f828f0935a3046",
+          "rms": 0.11892295823336345,
+          "peak": 1.0078740157480315,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "4b3d59b21f2b0d4465ba707dc69190d9eb2f5dc483c7d23ae0ab4dc4c7947c93",
+          "rms": 0.11483611207639702,
+          "peak": 0.9725984251968504,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "9e9a9ff48e0044bca534a6d1d7b25b0453958a6456676bac04274ef2dd1624f6",
+          "rms": 0.020970921020460956,
+          "peak": 0.2977914810180664,
+          "nonFiniteSamples": 0
+        }
+      ]
+    },
+    {
+      "path": "DEADLOCK.XM",
+      "tuneSha256": "f4e6e08e4a8d34aba80d7d1f98163088aef9635fcc72203248381b6e7fa20440",
+      "type": "XM",
+      "channels": 24,
+      "linearFrequency": true,
+      "patternRows": {
+        "64": 59
+      },
+      "effects": {
+        "0F": 28,
+        "08": 1472,
+        "03": 405,
+        "02": 505,
+        "0A": 10623,
+        "04": 2778,
+        "09": 213,
+        "0D": 5,
+        "01": 18
+      },
+      "nonFiniteSamples": 0,
+      "taps": [
+        {
+          "id": "paula",
+          "sha256": "f3def80a0b99faf6cdded617418e715dbe04d141aeb87e244432be17127381e0",
+          "rms": 0.051305806457482214,
+          "peak": 0.3130344773444078,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "zoh",
+          "sha256": "ff4a0b71fd2335242c05c7ba16e1cc996395de6a1b61403c320f5b31849d88bb",
+          "rms": 0.051305753160202805,
+          "peak": 0.31294888197950893,
+          "nonFiniteSamples": 0
+        },
+        {
+          "id": "a500",
+          "sha256": "64fb3329038f48c5e9e238bde392706c3b9cf9e07ed44bcc8c8a646e6a605699",
+          "rms": 0.03351076001469237,
+          "peak": 0.20183497667312622,
+          "nonFiniteSamples": 0
+        }
+      ]
+    }
+  ]
+}

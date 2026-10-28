@@ -76,6 +76,27 @@ test('YM5 and YM6 expose timing, loop and interleaving metadata', () => {
     assert.deepEqual([...sequential.frames[1].slice(0, 2)], [20, 21]);
 });
 
+test('only YM5 normalizes the R3 Digidrum-start bits for the shared effect decoder', () => {
+    const source = new Array(16).fill(0);
+    source[1] = 0x31; // YM5 Timer-Synth field: must not become a Digidrum.
+    source[3] = 0x31; // YM5 Digidrum start on voice C.
+    source[8] = 1 << 5;
+    source[15] = 40;
+
+    const ym5 = parseYM(makeExtended({ signature: 'YM5!', frames: [source] }));
+    assert.equal(ym5.frames[0][1], 0x31);
+    assert.equal(ym5.frames[0][3], 0x71);
+
+    const ym6 = parseYM(makeExtended({ signature: 'YM6!', frames: [source] }));
+    assert.equal(ym6.frames[0][1], 0x31);
+    assert.equal(ym6.frames[0][3], 0x31, 'YM6 SID-Voice descriptors remain untouched');
+
+    const withoutDigidrum = parseYM(makeExtended({
+        signature: 'YM5!', frames: [{ ...source, 3: 0x01 }]
+    }));
+    assert.equal(withoutDigidrum.frames[0][3], 0x01);
+});
+
 test('unsigned, signed and already-4-bit Digidrum attributes control sample decoding', () => {
     const unsigned = parseYM(makeExtended({ samples: [[0, 128, 255]] }));
     assert.deepEqual([...unsigned.digidrums[0]], [-1, 0, 127 / 128]);

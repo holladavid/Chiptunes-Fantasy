@@ -3,11 +3,12 @@
 // KEIN Teil der Laufzeit: vereinfachtes Paula-Modell (ZOH + Boxfilter), Mono-Mix.
 //
 //   node tools/coso-render.mjs --in track.hipc --song 0 --seconds 60 --out out.wav
-//        [--tickhz 50] [--clock 3546895] [--loopconv full|mod] [--rate 44100] [--trace trace.txt]
+//        [--tickhz HZ] [--clock 3546895] [--loopconv full|mod] [--rate 44100] [--trace trace.txt]
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { parseCoso } from '../js/parsers/hipc-parser.js';
 import { CosoReplayer, REG } from '../js/worklets/lib/coso-replayer.js';
+import { COSO_TICK_HZ } from '../js/worklets/lib/amiga-timing.js';
 
 const args = {};
 for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
@@ -15,7 +16,7 @@ for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^
 const inFile = args.in;
 const song = +(args.song ?? 0);
 const seconds = +(args.seconds ?? 30);
-const tickHz = +(args.tickhz ?? 50);
+const tickHz = +(args.tickhz ?? COSO_TICK_HZ);
 const rate = +(args.rate ?? 44100);
 const loopConv = args.loopconv ?? 'full';
 const outFile = args.out ?? 'out.wav';

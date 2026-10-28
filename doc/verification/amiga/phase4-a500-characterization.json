@@ -1,0 +1,106 @@
+{
+  "format": "chiptunes-fantasy-amiga-phase4-a500-characterization-v1",
+  "workletSha256": "3c5097caa01dc6d21418500b360d00216d1983836456af2cf3cda2a07098236f",
+  "referenceStatus": "Self-measured linear model characterization only; no hardware or UADE truth claim.",
+  "model": {
+    "staticRc": {
+      "cutoffHz": 4421,
+      "topology": "one-pole exponential RC approximation"
+    },
+    "led": {
+      "cutoffHz": 3090,
+      "q": 0.707,
+      "topology": "RBJ biquad low-pass approximation",
+      "continuousWhileBypassed": true
+    },
+    "crosstalk": 0.035,
+    "firTaps": 255,
+    "outputGain": 0.7,
+    "removedUncalibratedNonlinearities": [
+      "LF347OpAmpStage tanh slew limiter",
+      "final tanh saturation"
+    ]
+  },
+  "filters": [
+    {
+      "sampleRate": 44100,
+      "rc": {
+        "dcMagnitude": 1,
+        "cutoffMagnitude": 0.7186973116967312,
+        "cutoffDb": -2.86907959256753,
+        "tenKhzMagnitude": 0.4398972119293588,
+        "tenKhzDb": -7.132975811498512
+      },
+      "led": {
+        "dcMagnitude": 1.0000000000000004,
+        "cutoffMagnitude": 0.707,
+        "cutoffDb": -3.0116117240620124,
+        "tenKhzMagnitude": 0.06696453621271825,
+        "tenKhzDb": -23.48310269365776
+      }
+    },
+    {
+      "sampleRate": 48000,
+      "rc": {
+        "dcMagnitude": 1,
+        "cutoffMagnitude": 0.7169036565428072,
+        "cutoffDb": -2.890784090080529,
+        "tenKhzMagnitude": 0.4341772609079559,
+        "tenKhzDb": -7.246658510344858
+      },
+      "led": {
+        "dcMagnitude": 1,
+        "cutoffMagnitude": 0.7069999999999997,
+        "cutoffDb": -3.011611724062015,
+        "tenKhzMagnitude": 0.07122230089860748,
+        "tenKhzDb": -22.94768000345508
+      }
+    },
+    {
+      "sampleRate": 96000,
+      "rc": {
+        "dcMagnitude": 1,
+        "cutoffMagnitude": 0.7095692450711173,
+        "cutoffDb": -2.980104328728438,
+        "tenKhzMagnitude": 0.4116242126150655,
+        "tenKhzDb": -7.709981740590537
+      },
+      "led": {
+        "dcMagnitude": 0.9999999999999988,
+        "cutoffMagnitude": 0.7070000000000012,
+        "cutoffDb": -3.0116117240619973,
+        "tenKhzMagnitude": 0.088989980297956,
+        "tenKhzDb": -21.01317778761285
+      }
+    }
+  ],
+  "ledBypass": {
+    "frames": 8192,
+    "comparedEnabledFrames": 6144,
+    "disabledRange": [
+      2048,
+      4096
+    ],
+    "maximumAbsoluteError": 0,
+    "bitIdenticalToContinuousLed": true
+  },
+  "superposition": {
+    "seconds": 0.05,
+    "sampleRate": 48000,
+    "pcmStorage": "Float32",
+    "tolerance": 0.000001,
+    "taps": {
+      "paula": {
+        "maximumAbsoluteError": 1.1175870895385742e-8
+      },
+      "zoh": {
+        "maximumAbsoluteError": 1.1175870895385742e-8
+      },
+      "a500": {
+        "maximumAbsoluteError": 7.450580596923828e-9
+      }
+    },
+    "passed": true
+  },
+  "passed": true
+}

@@ -1,0 +1,204 @@
+{
+  "format": "chiptunes-fantasy-c64-curation-browser-v1",
+  "referenceStatus": "Real headless Chromium production UI and playback; no physical-device or underrun-proof claim.",
+  "browser": "151.0.7922.108",
+  "chromiumPath": "/usr/bin/chromium",
+  "playMilliseconds": 1400,
+  "appSha256": "4c40dcf0fa44d0d74a65aa7f15bf4a447f1af188dd6c7149120948f69f2700a0",
+  "playlistSha256": "3a3844f4947986baa11f0ac3e8b1f22b0743f8e38eb021eb572902faea0d199b",
+  "museumSha256": "9af70e73a7bed936b08baa8f104e0d4e1fad17e28716319f925a17ba900505fa",
+  "songlengthsSha256": "abb27651eadb2c0b149a7985f18031ea4b7e2add7e9ecf82c407e8eae07a4fcd",
+  "runs": [
+    {
+      "device": "desktop",
+      "rootTracks": 26,
+      "rootFolders": [
+        "[DIR] classics/"
+      ],
+      "classicGroups": [
+        "[DIR] games/",
+        "[DIR] demoscene/"
+      ],
+      "gameTracks": 20,
+      "demoTracks": 4,
+      "screenshot": "doc/verification/c64/curation-desktop.png",
+      "layout": {
+        "viewportWidth": 1280,
+        "documentWidth": 1280,
+        "museumVisible": true
+      },
+      "tracks": [
+        {
+          "path": "classics/games/ocean-loader-2.sid",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "MOS 6581 (1MHz True Analog) .............. CPU:[####]",
+          "activeTrack": "29. LOAD SID: ocean-loader-2.sid",
+          "museum": "[ MUSEUM: MARTIN GALWAY — OCEAN LOADER 2 ]",
+          "binaryAnalysis": "\n                        \n                    [ADDR] 0xA000\n                    [SONG] 1/1\n                    [INIT] 0xA000\n                    [SIZE] 3 KB\n                    [PLAY] 0xA04E\n                    [FILT] ANALOG\n                \n                    ",
+          "subsong": "[SUB 1/1]",
+          "timeTotal": "04:13",
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.06552053987979889,
+            "rms": 0.02876470940427979,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "passed": true
+        },
+        {
+          "path": "classics/demoscene/comaland-100-end.sid",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "MOS 6581 (1MHz True Analog) .............. CPU:[####]",
+          "activeTrack": "50. LOAD SID: comaland-100-end.sid",
+          "museum": "[ MUSEUM: MAGNAR HARESTAD — COMALAND 100% / END ]",
+          "binaryAnalysis": "\n                        \n                    [ADDR] 0x0800\n                    [SONG] 1/1\n                    [INIT] 0x13A0\n                    [SIZE] 50 KB\n                    [PLAY] 0x0000\n                    [FILT] ANALOG\n                \n                    ",
+          "subsong": "[SUB 1/1]",
+          "timeTotal": "06:02",
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.3153567910194397,
+            "rms": 0.07242684938158657,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "passed": true
+        },
+        {
+          "path": "Commando.sid",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "MOS 6581 (1MHz True Analog) .............. CPU:[####]",
+          "activeTrack": "1. LOAD SID: Commando.sid",
+          "museum": "[ MUSEUM: ROB HUBBARD — COMMANDO ]",
+          "binaryAnalysis": "\n                        \n                    [ADDR] 0x5000\n                    [SONG] 1/19\n                    [INIT] 0x5FB2\n                    [SIZE] 4 KB\n                    [PLAY] 0x5012\n                    [FILT] ANALOG\n                \n                    ",
+          "subsong": "[SUB 1/19]",
+          "timeTotal": "03:55",
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.4032655656337738,
+            "rms": 0.13532066856738895,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "passed": true
+        }
+      ],
+      "errors": [],
+      "passed": true
+    },
+    {
+      "device": "mobile",
+      "rootTracks": 26,
+      "rootFolders": [
+        "[DIR] classics/"
+      ],
+      "classicGroups": [
+        "[DIR] games/",
+        "[DIR] demoscene/"
+      ],
+      "gameTracks": 20,
+      "demoTracks": 4,
+      "screenshot": "doc/verification/c64/curation-mobile.png",
+      "layout": {
+        "viewportWidth": 390,
+        "documentWidth": 390,
+        "museumVisible": true
+      },
+      "tracks": [
+        {
+          "path": "classics/games/ocean-loader-2.sid",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "MOS 6581 (1MHz True Analog) .............. CPU:[####]",
+          "activeTrack": "29. LOAD SID: ocean-loader-2.sid",
+          "museum": "[ MUSEUM: MARTIN GALWAY — OCEAN LOADER 2 ]",
+          "binaryAnalysis": "\n                        \n                    [ADDR] 0xA000\n                    [SONG] 1/1\n                    [INIT] 0xA000\n                    [SIZE] 3 KB\n                    [PLAY] 0xA04E\n                    [FILT] ANALOG\n                \n                    ",
+          "subsong": "[SUB 1/1]",
+          "timeTotal": "04:13",
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.12204430997371674,
+            "rms": 0.0521541684845605,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "passed": true
+        },
+        {
+          "path": "classics/demoscene/comaland-100-end.sid",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "MOS 6581 (1MHz True Analog) .............. CPU:[####]",
+          "activeTrack": "50. LOAD SID: comaland-100-end.sid",
+          "museum": "[ MUSEUM: MAGNAR HARESTAD — COMALAND 100% / END ]",
+          "binaryAnalysis": "\n                        \n                    [ADDR] 0x0800\n                    [SONG] 1/1\n                    [INIT] 0x13A0\n                    [SIZE] 50 KB\n                    [PLAY] 0x0000\n                    [FILT] ANALOG\n                \n                    ",
+          "subsong": "[SUB 1/1]",
+          "timeTotal": "06:02",
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.18622137606143951,
+            "rms": 0.043141848141665225,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "passed": true
+        },
+        {
+          "path": "Commando.sid",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "MOS 6581 (1MHz True Analog) .............. CPU:[####]",
+          "activeTrack": "1. LOAD SID: Commando.sid",
+          "museum": "[ MUSEUM: ROB HUBBARD — COMMANDO ]",
+          "binaryAnalysis": "\n                        \n                    [ADDR] 0x5000\n                    [SONG] 1/19\n                    [INIT] 0x5FB2\n                    [SIZE] 4 KB\n                    [PLAY] 0x5012\n                    [FILT] ANALOG\n                \n                    ",
+          "subsong": "[SUB 1/19]",
+          "timeTotal": "03:55",
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.39430874586105347,
+            "rms": 0.08856099886831902,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "passed": true
+        }
+      ],
+      "errors": [],
+      "passed": true
+    }
+  ],
+  "passed": true
+}

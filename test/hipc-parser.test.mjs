@@ -5,10 +5,9 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
+import { readFileSync } from 'node:fs';
 
+import { createAmigaFixtureResolver } from './helpers/amiga-fixtures.mjs';
 import { buildCoso } from './helpers/coso-builder.mjs';
 import {
     parseCoso, loadHipcFile, CosoFormatError,
@@ -16,15 +15,13 @@ import {
 } from '../js/parsers/hipc-parser.js';
 import { CosoVirtualMachine } from '../js/worklets/lib/coso-vm.js';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const fixtures = process.env.HIPC_FIXTURES || path.join(here, '..', 'tracks', 'amiga');
-const fx = (n) => path.join(fixtures, n);
-const has = (n) => existsSync(fx(n));
-const load = (n) => new Uint8Array(readFileSync(fx(n)));
-
 const L1 = 'Wings_Of_Death-Level_1.hipc';
 const L2 = 'Wings_Of_Death-Level_2.hipc';
 const TITLE = 'Wings_Of_Death-Title.hip';
+const { fx, has } = createAmigaFixtureResolver([
+    L1, L2, TITLE, 'amberstar/Gwens_Lament.hipc', 'amberstar/hipc.samp'
+]);
+const load = (n) => new Uint8Array(readFileSync(fx(n)));
 
 test('Amberstar: gemeinsame externe Samplebank wird beim Laden eingebunden', async () => {
     const originalFetch = globalThis.fetch;

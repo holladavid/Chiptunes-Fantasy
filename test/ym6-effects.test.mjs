@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
+import { parseYM } from '../js/parsers/ym-parser.js';
 import { YM2149Core } from '../js/worklets/lib/ym2149-core.js';
 import {
     decodeYM6Effect,
@@ -62,6 +64,33 @@ test('YM6 decodes both effect slots without an R14/R15 Digidrum fallback', () =>
     effects.applyFrame(extendedDataOnly, [[-1], [1]]);
     assert.equal(effects.slots[0].active, false);
     assert.equal(effects.slots[1].active, false);
+});
+
+test('real Punish YM5 frame 2307 starts sample 0 as a Digidrum on voice C', () => {
+    const path = new URL('../tracks/atari/punish-your-machine/PYM_Best_Part_of_Creation.YM', import.meta.url);
+    const track = parseYM(readFileSync(path));
+    const punishFrame = track.frames[2307];
+
+    assert.equal(punishFrame[3] & 0x3F, 0x31, 'raw YM5 R3 voice/low-nibble payload');
+    assert.equal(punishFrame[3], 0x71, 'YM5-only normalization adds the YM6 Digidrum type');
+    const decoded = decodeYM6Effect(punishFrame, 1);
+    assert.deepEqual(decoded, {
+        type: YM6_EFFECT.DIGIDRUM,
+        voice: 3,
+        timerPredivisor: 1,
+        timerCount: 40,
+        parameter: 0,
+        active: true
+    });
+
+    const effects = new YM6Effects();
+    effects.applyFrame(punishFrame, track.digidrums);
+    assert.equal(effects.digidrumStartMask, 0b10);
+    assert.equal(effects.slots[1].active, true);
+    assert.equal(effects.slots[1].voice, 3);
+    assert.equal(effects.slots[1].sample, track.digidrums[0]);
+    effects.clockCycle(new YM2149Core());
+    assert.equal(effects.slots[1].samplePosition, 1);
 });
 
 test('MFP rates use the encoded predivisor and timer count', () => {

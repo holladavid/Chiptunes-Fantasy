@@ -13,12 +13,22 @@
 // =========================================================
 
 import { M68000 } from './m68k.js';
+import {
+    COSO_TICK_HZ, HIP_RASTER_LINE_CLOCKS, HIP_VHPOS_READS_PER_LINE
+} from './amiga-timing.js';
 
 export const HIP_BASE = 0x20000;                  // Ladeadresse der Datei im emulierten Speicher
 const STRUCT_SIZE = 0x52;                         // Größe einer Stimmen-Struktur im Zustandsbereich des Players
 const DIVISION_OFFSET_FIELD = 58;                 // Wort in der Stimmen-Struktur: Offset in der Division-Tabelle, Rücksetzen auf 0 = Loop
 const MAX_INSTR_PER_TICK = 400000;
 const NUM_VOICES = 4;
+const MAX_SCHEDULED_WRITES = 1024;
+const EVENT_LC = 0;
+const EVENT_LEN = 1;
+const EVENT_PER = 2;
+const EVENT_VOL = 3;
+const EVENT_START = 4;
+const EVENT_STOP = 5;
 
 const be16 = (b, o) => (b[o] << 8) | b[o + 1];
 const s16 = (b, o) => (((b[o] << 8) | b[o + 1]) << 16) >> 16;
@@ -60,8 +70,9 @@ export class HipVirtualMachine {
         this.initAddr = this.base + track.initOffset;
         this.playAddr = this.base + track.playOffset;
         this.subsong = (track.selectedSong | 0) + 1;                      // der Player zählt Subsongs ab 1 (0 = Stopp)
-        this.tickHz = options.tickHz || 50;
+        this.tickHz = options.tickHz || COSO_TICK_HZ;
         this.traceCallback = traceCallback;
+        this.rasterTiming = options.rasterTiming === true;
 
         // Schattenregister der vier Audiokanäle
         this.lc = new Int32Array(NUM_VOICES);
@@ -85,6 +96,18 @@ export class HipVirtualMachine {
         this.songTicks = (track.song && track.song.ticks) || track.length || 0;
         this.legacyVoices = [{}, {}, {}, {}];
 
+        // Vorallokierte, chronologische Registerwarteschlange. Sie wird nur im
+        // Produktions-/Audio Renderer mit rasterTiming verwendet; die synchrone
+        // Registerprüfung und das stille Vorspulen bleiben davon unberührt.
+        this.scheduleDelay = new Float64Array(MAX_SCHEDULED_WRITES);
+        this.scheduleChannel = new Uint8Array(MAX_SCHEDULED_WRITES);
+        this.scheduleType = new Uint8Array(MAX_SCHEDULED_WRITES);
+        this.scheduleValue = new Int32Array(MAX_SCHEDULED_WRITES);
+        this.scheduleCount = 0;
+        this.scheduleIndex = 0;
+        this.scheduleClock = 0;
+        this.rasterReads = 0;
+
         this.cpu.onCustomWrite = (a, s, v) => this.customWrite(a, s, v);
         this.cpu.onCustomRead = (a, s) => this.customRead(a, s);
         this.cpu.onWatch = (size, val) => { if (size === 1 && val === 0) this.wrapped = true; };
@@ -97,8 +120,64 @@ export class HipVirtualMachine {
         }
     }
 
+    resetSchedule() {
+        this.scheduleCount = 0;
+        this.scheduleIndex = 0;
+        this.scheduleClock = 0;
+        this.rasterReads = 0;
+    }
+
+    scheduledDelay() {
+        return Math.floor(this.rasterReads / HIP_VHPOS_READS_PER_LINE) * HIP_RASTER_LINE_CLOCKS;
+    }
+
+    applyChannelEvent(channel, type, value) {
+        const ch = this.channels[channel];
+        switch (type) {
+            case EVENT_LC: ch.hwWriteLC(value); break;
+            case EVENT_LEN: ch.hwWriteLEN(value); break;
+            case EVENT_PER: ch.writeAUDxPER(value); break;
+            case EVENT_VOL: ch.writeAUDxVOL(value); break;
+            case EVENT_START: ch.hwStartDMA(); break;
+            case EVENT_STOP: ch.hwStopDMA(); break;
+        }
+    }
+
+    writeChannelEvent(channel, type, value) {
+        if (!this.rasterTiming) {
+            this.applyChannelEvent(channel, type, value);
+            return;
+        }
+        if (this.scheduleCount >= MAX_SCHEDULED_WRITES) {
+            throw new Error('HipVirtualMachine: Registerwarteschlange überschreitet 1024 Einträge');
+        }
+        const index = this.scheduleCount++;
+        this.scheduleDelay[index] = this.scheduledDelay();
+        this.scheduleChannel[index] = channel;
+        this.scheduleType[index] = type;
+        this.scheduleValue[index] = value;
+    }
+
+    /** Paula-Takte seit dem aktuellen Replay-Tick; keine Allokation im Audiokern. */
+    advance(clockTicks) {
+        if (!this.rasterTiming) return;
+        this.scheduleClock += clockTicks;
+        while (this.scheduleIndex < this.scheduleCount &&
+               this.scheduleDelay[this.scheduleIndex] <= this.scheduleClock) {
+            const index = this.scheduleIndex++;
+            this.applyChannelEvent(this.scheduleChannel[index], this.scheduleType[index], this.scheduleValue[index]);
+        }
+    }
+
+    flushScheduled() {
+        if (!this.rasterTiming) return;
+        this.scheduleClock = Number.POSITIVE_INFINITY;
+        this.advance(0);
+    }
+
     // ------------------------------------------------------------------ Zustand
     hardReset() {
+        this.resetSchedule();
         const cpu = this.cpu;
         cpu.mem.fill(0);
         cpu.mem.set(this.image, this.base);
@@ -148,11 +227,11 @@ export class HipVirtualMachine {
         if (a >= 0xDFF0A0 && a < 0xDFF0E0) {
             const c = (a - 0xDFF0A0) >> 4;
             switch (a & 0xF) {
-                case 0: this.lc[c] = ((v & 0x1F) << 16) | (this.lc[c] & 0xFFFF); if (ch) ch[c].hwWriteLC(this.lc[c]); break;
-                case 2: this.lc[c] = (this.lc[c] & 0x1F0000) | (v & 0xFFFE); if (ch) ch[c].hwWriteLC(this.lc[c]); break;
-                case 4: this.len[c] = v; if (ch) ch[c].hwWriteLEN(v); break;
-                case 6: this.per[c] = v; if (ch) ch[c].writeAUDxPER(v); break;
-                case 8: { const vol = (v & 0x7F) > 64 ? 64 : (v & 0x7F); this.vol[c] = vol; if (ch) ch[c].writeAUDxVOL(vol); break; }
+                case 0: this.lc[c] = ((v & 0x1F) << 16) | (this.lc[c] & 0xFFFF); if (ch) this.writeChannelEvent(c, EVENT_LC, this.lc[c]); break;
+                case 2: this.lc[c] = (this.lc[c] & 0x1F0000) | (v & 0xFFFE); if (ch) this.writeChannelEvent(c, EVENT_LC, this.lc[c]); break;
+                case 4: this.len[c] = v; if (ch) this.writeChannelEvent(c, EVENT_LEN, v); break;
+                case 6: this.per[c] = v; if (ch) this.writeChannelEvent(c, EVENT_PER, v); break;
+                case 8: { const vol = (v & 0x7F) > 64 ? 64 : (v & 0x7F); this.vol[c] = vol; if (ch) this.writeChannelEvent(c, EVENT_VOL, vol); break; }
                 default: break;                                              // AUDxDAT: ungenutzt
             }
             return;
@@ -163,7 +242,7 @@ export class HipVirtualMachine {
                 const on = ((this.dmacon & 0x200) !== 0 && (this.dmacon & (1 << c)) !== 0) ? 1 : 0;
                 if (on !== this.en[c]) {
                     this.en[c] = on;
-                    if (ch) { if (on) ch[c].hwStartDMA(); else ch[c].hwStopDMA(); }
+                    if (ch) this.writeChannelEvent(c, on ? EVENT_START : EVENT_STOP, 0);
                 }
             }
         }
@@ -171,7 +250,11 @@ export class HipVirtualMachine {
     }
 
     readWord(a) {
-        if (a === 0xDFF006 || a === 0xDFF004) { this.vh = (this.vh + 0x100) & 0xFFFF; return this.vh; }   // Rasterzeile läuft weiter
+        if (a === 0xDFF006 || a === 0xDFF004) {
+            if (this.rasterTiming) this.rasterReads++;
+            this.vh = (this.vh + 0x100) & 0xFFFF;
+            return this.vh;
+        }
         if (a === 0xDFF01E) return 0xFFFF;                                                                 // INTREQR: Warteschleifen enden
         if (a === 0xDFF002) return this.dmacon;
         return 0;
@@ -208,11 +291,19 @@ export class HipVirtualMachine {
         if (this.failed) return;
         if (typeof channels[0].hwStartDMA !== 'function') throw new Error('HipVirtualMachine: Kanäle ohne Hardware-DMA-API (patches/paula-hw-dma.patch fehlt).');
         this.channels = channels;
+        // Falls ein Headless-Aufrufer advance() nicht verwendet, werden alte
+        // Ereignisse spätestens vor dem nächsten Tick in ihrer Reihenfolge
+        // ausgeführt. Der Audiokern ruft advance() dagegen pro Oversample auf.
+        this.flushScheduled();
+        this.resetSchedule();
         if (this.needResync) { this.syncChannels(channels); this.needResync = false; }
         this.muted = false;
-        try { this.runPlay(); }
-        catch (e) {
+        try {
+            this.runPlay();
+            this.advance(0); // alle Schreibzugriffe am Tickanfang sofort anwenden
+        } catch (e) {
             this.failed = true;
+            this.resetSchedule();
             for (let c = 0; c < NUM_VOICES; c++) { channels[c].writeAUDxVOL(0); }
             if (this.traceCallback) this.traceCallback(`[HIP] Player-Fehler: ${e.message}`);
         }
