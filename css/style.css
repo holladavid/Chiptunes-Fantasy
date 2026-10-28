@@ -161,16 +161,17 @@ body, html {
    4. HAUPT-LAYOUT (ZONEN & HARDWARE CHASSIS)
    ========================================= */
 #demo-container {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-rows: minmax(180px, 1.05fr) auto minmax(320px, 1fr) clamp(64px, 8dvh, 104px);
     height: 100vh;
     height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
 }
 
 #visual-zone {
-    /* GFX UPGRADE: Der Analyzer skaliert auf großen Monitoren jetzt wuchtig mit! */
-    height: clamp(200px, 35vh, 450px);
     position: relative;
+    min-height: 0;
     background-color: #000;
     border-bottom: 4px solid var(--chassis-dark);
     box-shadow: 0 5px 15px rgba(0,0,0,0.8);
@@ -193,18 +194,19 @@ body, html {
 
 /* --- DAS HARDWARE CHASSIS --- */
 #ui-zone {
-    height: 47vh;
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(280px, 35%) minmax(0, 1fr);
+    min-height: 0;
+    overflow: hidden;
     background-color: var(--fg-color);
-    padding: 20px;
-    gap: 20px;
-    /* GFX FIX: Inset-Schatten gelöscht, um doppelte Kanten zu verhindern */
+    padding: 16px;
+    gap: 16px;
 }
 
 #scroller-zone {
     position: relative;
-    height: 12vh; /* Von 10vh auf 12vh vergrößert für mehr Prominenz */
-    background-color: #020202; /* Minimal aufgehellt, damit der Schatten greift */
+    min-height: 0;
+    background-color: #020202;
     border-top: 4px solid var(--chassis-dark);
 }
 
@@ -235,11 +237,12 @@ body, html {
    5. PLAYER PANEL (LINKS)
    ========================================= */
 #player-panel {
-    flex: 0 0 35%;
     display: flex;
     flex-direction: column;
-    color: var(--panel-text); 
-    padding: 10px; 
+    min-width: 0;
+    min-height: 0;
+    color: var(--panel-text);
+    padding: 10px;
 }
 
 /* =========================================
@@ -360,6 +363,7 @@ body.theme-amiga .tab-btn.active {
 #tracklist {
     list-style: none;
     flex-grow: 1;
+    min-height: 0;
     overflow-y: auto;
     font-size: var(--font-size-base); 
     line-height: 1.6;
@@ -567,11 +571,13 @@ input[type="range"]::-moz-range-thumb {
    6. MUSEUM PANEL (RECHTS - CARD BASED TERMINAL)
    ========================================= */
 #museum-panel {
-    flex: 1;
-    background-color: transparent; 
+    min-width: 0;
+    min-height: 0;
+    background-color: transparent;
     padding: 10px;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .museum-header h2 {
@@ -583,6 +589,7 @@ input[type="range"]::-moz-range-thumb {
 
 .museum-content {
     flex-grow: 1;
+    min-height: 0;
     font-size: var(--font-size-base);
     line-height: 1.6;
     overflow-y: auto;
@@ -970,8 +977,14 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     body, html { overflow: visible !important; height: auto; min-height: 100dvh; }
 
     #hud-body { max-height: 35vh; overflow-y: auto; overflow-x: hidden; }
-    #demo-container { height: auto; min-height: 100vh; }
-    #visual-zone { height: 45vh; }
+    #demo-container {
+        display: flex;
+        flex-direction: column;
+        height: auto;
+        min-height: 100dvh;
+        overflow: visible;
+    }
+    #visual-zone { height: clamp(200px, 32dvh, 300px); min-height: 180px; }
     
     /* NEU: Maximale Touch-Größe & Treffsicherheit für die Playlist-Buttons */
     body.theme-amiga #tracklist li,
@@ -993,7 +1006,7 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     /* Das Scroller-Zone Upgrade für den sicheren iOS-Rand */
     #scroller-zone { height: auto; min-height: 10vh; padding-bottom: env(safe-area-inset-bottom); box-sizing: border-box; }
 
-    #ui-zone { flex-direction: column; height: auto; padding: 10px; }
+    #ui-zone { display: flex; flex-direction: column; height: auto; overflow: visible; padding: 10px; }
     #player-panel, #museum-panel { flex: none; width: 100%; }
     .museum-content { overflow-y: visible !important; }
 
@@ -1376,7 +1389,7 @@ body.theme-atari .silicon-chip-label {
 }
 
 .silicon-chassis:has(.paula-visualization) {
-    height: clamp(360px, 48vh, 440px);
+    height: clamp(220px, 28dvh, 340px);
 }
 
 .paula-visualization {
@@ -1386,7 +1399,7 @@ body.theme-atari .silicon-chip-label {
 }
 
 .silicon-chassis:has(.ym-visualization) {
-    height: clamp(280px, 32vw, 500px);
+    height: clamp(220px, 28dvh, 360px);
 }
 
 .silicon-chassis:has(.ym-visualization) .silicon-die-wrapper {
@@ -1826,4 +1839,598 @@ body.eco-mode #scroller-zone {
 /* Blendet den Chip aus, wodurch das flex-grow Terminal den Platz übernimmt */
 body.archive-expanded #living-silicon-container {
     display: none !important;
+}
+
+/* =========================================
+   17. PHASE 1: RESPONSIVE COMMAND DECK & PLAYBACK STATES
+   ========================================= */
+:root {
+    --status-error: #ff7373;
+    --focus-ring: #ffffff;
+    --state-transition: 160ms ease-out;
+}
+
+.timeline-control,
+.volume-control,
+.controls {
+    min-width: 0;
+}
+
+button,
+select,
+summary,
+[role="button"] {
+    touch-action: manipulation;
+}
+
+button:disabled,
+select:disabled,
+input:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+.controls button:disabled:hover {
+    background: var(--bg-color);
+    color: var(--panel-text);
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+summary:focus-visible,
+[role="button"]:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 3px;
+}
+
+#boot-screen:focus-visible {
+    outline-offset: -8px;
+}
+
+#tracklist li {
+    position: relative;
+    transition: background-color var(--state-transition), color var(--state-transition), box-shadow var(--state-transition);
+}
+
+#tracklist li.selected-track {
+    color: var(--highlight-color);
+    box-shadow: inset 0 0 0 1px var(--panel-text);
+}
+
+#tracklist li.selected-track::before {
+    opacity: 1;
+}
+
+#tracklist li.selected-track[data-playback-state="loading"] {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+#tracklist li.selected-track[data-playback-state="loading"]::before {
+    content: "> ";
+    animation: c64-blink 0.65s steps(2, start) infinite;
+}
+
+#tracklist li.selected-track[data-playback-state="paused"] {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--highlight-color);
+}
+
+#tracklist li.selected-track[data-playback-state="paused"]::before {
+    content: "|| ";
+    animation: none;
+}
+
+#tracklist li.selected-track[data-playback-state="error"] {
+    color: var(--status-error);
+    box-shadow: inset 0 0 0 1px var(--status-error);
+}
+
+#tracklist li.selected-track[data-playback-state="error"]::before {
+    content: "! ";
+    animation: none;
+}
+
+/* --- Persistent Now Playing / Hardware Status --- */
+.now-playing {
+    position: absolute;
+    left: 24px;
+    bottom: 20px;
+    z-index: 14;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    width: min(620px, calc(100% - 48px));
+    max-width: calc(100% - 170px);
+    padding: 12px 14px;
+    color: var(--highlight-color);
+    background: rgba(4, 4, 10, 0.9);
+    border: 1px solid var(--chassis-light);
+    border-left: 3px solid var(--bus-active-color);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), inset 0 0 18px rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(6px);
+    pointer-events: none;
+}
+
+.now-playing-rail {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    padding-right: 12px;
+    border-right: 1px solid var(--chassis-light);
+    color: var(--bus-active-color);
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.now-playing-led {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 9px;
+    background: currentColor;
+    border: 1px solid var(--highlight-color);
+    box-shadow: 0 0 9px currentColor;
+}
+
+.now-playing-copy {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+}
+
+#now-playing-system,
+#now-playing-detail {
+    overflow: hidden;
+    color: var(--panel-text);
+    font-size: 10px;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#now-playing-title {
+    overflow: hidden;
+    color: var(--highlight-color);
+    font-size: clamp(11px, 0.75vw, 15px);
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.now-playing[data-state="idle"] {
+    border-left-color: var(--panel-text);
+    opacity: 0.88;
+}
+
+.now-playing[data-state="idle"] .now-playing-rail {
+    color: var(--panel-text);
+}
+
+.now-playing[data-state="loading"] .now-playing-led {
+    animation: status-pulse 0.8s steps(2, start) infinite;
+}
+
+.now-playing[data-state="playing"] .now-playing-led {
+    animation: status-pulse 1.6s ease-in-out infinite;
+}
+
+.now-playing[data-state="paused"] {
+    border-left-color: var(--panel-text);
+}
+
+.now-playing[data-state="paused"] .now-playing-rail {
+    color: var(--panel-text);
+}
+
+.now-playing[data-state="paused"] .now-playing-led {
+    box-shadow: none;
+}
+
+.now-playing[data-state="error"] {
+    border-color: var(--status-error);
+}
+
+.now-playing[data-state="error"] .now-playing-rail,
+.now-playing[data-state="error"] #now-playing-detail {
+    color: var(--status-error);
+}
+
+.load-error-card {
+    border-color: var(--status-error);
+}
+
+.load-error-card p {
+    overflow-wrap: anywhere;
+}
+
+@keyframes status-pulse {
+    50% { opacity: 0.35; }
+}
+
+#visual-zone:fullscreen .now-playing,
+#visual-zone:-webkit-full-screen .now-playing,
+#visual-zone.pseudo-fullscreen .now-playing {
+    bottom: 82px;
+    max-width: min(620px, calc(100% - 48px));
+}
+
+/* The windowed fullscreen control must remain reachable after inactivity. */
+#visual-zone.user-inactive:not(.pseudo-fullscreen):not(:fullscreen) #fs-ui-bar {
+    opacity: 0.8;
+    pointer-events: auto;
+}
+
+/* --- Intermediate desktops: transport never forces horizontal overflow --- */
+@media (min-width: 801px) and (max-width: 1200px) {
+    #ui-zone {
+        grid-template-columns: minmax(250px, 38%) minmax(0, 1fr);
+        padding: 12px;
+        gap: 12px;
+    }
+
+    #playback-bar {
+        gap: 12px;
+        padding: 12px;
+    }
+
+    #playback-bar .controls {
+        flex: 0 0 350px;
+    }
+
+    #playback-bar .volume-control {
+        flex: 0 1 170px;
+    }
+}
+
+/* --- Widescreen / high-resolution command deck --- */
+@media (min-width: 1800px) and (min-height: 900px) {
+    body.theme-c64 { --font-size-base: clamp(11px, 0.65vw, 15px); }
+    body.theme-amiga { --font-size-base: clamp(20px, 1vw, 26px); }
+    body.theme-atari { --font-size-base: clamp(20px, 0.9vw, 24px); }
+
+    #demo-container {
+        grid-template-rows: minmax(260px, 1.15fr) auto minmax(360px, 1fr) clamp(80px, 8dvh, 120px);
+    }
+
+    #ui-zone {
+        grid-template-columns: minmax(340px, 28%) minmax(0, 1fr);
+        padding: 24px;
+        gap: 24px;
+    }
+
+    #playback-bar {
+        padding: 16px 24px;
+        gap: 28px;
+    }
+
+    #playback-bar .controls {
+        flex-basis: 500px;
+    }
+
+    body.theme-c64 .controls button {
+        font-size: clamp(11px, 0.55vw, 14px) !important;
+    }
+
+    .now-playing {
+        left: 32px;
+        bottom: 24px;
+    }
+
+    .brand-main { font-size: 34px; }
+}
+
+/* --- Low-height desktop and laptop displays --- */
+@media (min-width: 1001px) and (max-height: 760px) {
+    body, html { overflow: auto; }
+
+    #demo-container {
+        grid-template-rows: minmax(140px, 0.65fr) auto minmax(240px, 1.35fr) 56px;
+        min-height: 600px;
+    }
+
+    #ui-zone {
+        padding: 12px;
+        gap: 12px;
+    }
+
+    .silicon-chassis,
+    .silicon-chassis.sid-chassis,
+    .silicon-chassis:has(.paula-visualization),
+    .silicon-chassis:has(.ym-visualization) {
+        height: 190px;
+    }
+
+    .now-playing {
+        bottom: 12px;
+        padding: 8px 10px;
+    }
+}
+
+/* --- Mobile portrait and narrow screens --- */
+@media (max-width: 800px) {
+    #playback-bar {
+        position: relative !important;
+        padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+    }
+
+    .controls button,
+    .tab-btn,
+    .core-control select,
+    #btn-toggle-archive,
+    #btn-hud-info,
+    #btn-hud-crossfeed,
+    #btn-hud-toggle,
+    #btn-eco-off,
+    .fs-controls button,
+    #btn-fullscreen {
+        min-height: 44px;
+    }
+
+    .tab-btn { padding: 10px 4px; }
+    .core-control select { padding-top: 8px; padding-bottom: 8px; }
+
+    input[type="range"] {
+        height: 44px;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+    }
+
+    input[type="range"]::-webkit-slider-runnable-track {
+        height: 8px;
+        background: var(--screen-bg);
+        border-top: 2px solid var(--chassis-dark);
+        border-bottom: 1px solid var(--chassis-light);
+        box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.9);
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+        margin-top: -13px;
+    }
+
+    input[type="range"]::-moz-range-track {
+        height: 8px;
+        background: var(--screen-bg);
+        border-top: 2px solid var(--chassis-dark);
+        border-bottom: 1px solid var(--chassis-light);
+        box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.9);
+    }
+
+    #tracklist {
+        max-height: 320px;
+    }
+
+    #tracklist li {
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+        overflow: visible;
+        overflow-wrap: anywhere;
+        text-overflow: clip;
+        white-space: normal;
+    }
+
+    body.theme-c64 #tracklist li {
+        font-size: 12px !important;
+        line-height: 1.5;
+    }
+
+    body.theme-amiga #tracklist li,
+    body.theme-atari #tracklist li {
+        font-size: 20px !important;
+        line-height: 1.25;
+    }
+
+    .controls button,
+    body.theme-c64 #playback-bar .controls button,
+    body.theme-amiga #playback-bar .controls button,
+    body.theme-atari #playback-bar .controls button {
+        font-size: 12px !important;
+        letter-spacing: 0 !important;
+    }
+
+    .now-playing {
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        width: auto;
+        max-width: none;
+        gap: 9px;
+        padding: 10px;
+    }
+
+    .now-playing-rail {
+        gap: 6px;
+        padding-right: 9px;
+        font-size: 12px;
+    }
+
+    #now-playing-system,
+    #now-playing-detail {
+        font-size: 12px;
+    }
+
+    #now-playing-title {
+        font-size: 14px;
+    }
+
+    #visual-zone:fullscreen .now-playing,
+    #visual-zone:-webkit-full-screen .now-playing,
+    #visual-zone.pseudo-fullscreen .now-playing {
+        bottom: 76px;
+        max-width: none;
+    }
+}
+
+@media (max-width: 480px) {
+    #playback-bar .controls {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #playback-bar #btn-prev,
+    #playback-bar #btn-next,
+    #playback-bar #btn-eco,
+    #playback-bar #btn-play {
+        flex: none !important;
+    }
+
+    .now-playing {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 5px;
+    }
+
+    .now-playing-rail {
+        min-height: 0;
+        padding-right: 0;
+        border-right: 0;
+        font-size: 12px;
+    }
+
+    #now-playing-detail { display: none; }
+    #now-playing-system { font-size: 12px; }
+    #now-playing-title { font-size: 13px; }
+}
+
+/* --- Mobile landscape: compact two-column workbench, vertical page flow --- */
+@media (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) and (orientation: landscape) {
+    body, html {
+        height: auto;
+        min-height: 100dvh;
+        overflow: auto !important;
+    }
+
+    #demo-container {
+        display: flex;
+        flex-direction: column;
+        height: auto;
+        min-height: 100dvh;
+        overflow: visible;
+    }
+
+    #visual-zone {
+        height: 180px;
+        min-height: 160px;
+    }
+
+    #playback-bar {
+        position: relative !important;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 160px;
+        align-items: center !important;
+        gap: 8px 12px !important;
+        padding: 8px 12px !important;
+    }
+
+    #playback-bar .controls {
+        display: flex !important;
+        grid-column: 1 / -1;
+        width: 100% !important;
+        margin: 0 !important;
+    }
+
+    #playback-bar .controls button {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        min-height: 44px;
+        font-size: 12px !important;
+    }
+
+    #playback-bar .timeline-control {
+        grid-column: 1;
+        width: 100% !important;
+        margin: 0 !important;
+    }
+
+    #playback-bar .volume-control {
+        grid-column: 2;
+        width: 100% !important;
+        margin: 0 !important;
+    }
+
+    input[type="range"] {
+        height: 44px;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+    }
+
+    input[type="range"]::-webkit-slider-runnable-track {
+        height: 8px;
+        background: var(--screen-bg);
+        border-top: 2px solid var(--chassis-dark);
+        border-bottom: 1px solid var(--chassis-light);
+    }
+
+    input[type="range"]::-webkit-slider-thumb { margin-top: -13px; }
+
+    input[type="range"]::-moz-range-track {
+        height: 8px;
+        background: var(--screen-bg);
+        border-top: 2px solid var(--chassis-dark);
+        border-bottom: 1px solid var(--chassis-light);
+    }
+
+    .tab-btn,
+    .core-control select,
+    #btn-fullscreen,
+    #btn-hud-info,
+    #btn-hud-crossfeed,
+    #btn-hud-toggle,
+    .fs-controls button {
+        min-height: 44px;
+    }
+
+    #ui-zone {
+        display: grid;
+        grid-template-columns: minmax(250px, 42%) minmax(0, 1fr);
+        height: auto;
+        overflow: visible;
+        padding: 12px;
+        gap: 12px;
+    }
+
+    #player-panel,
+    #museum-panel {
+        width: auto;
+        overflow: visible;
+    }
+
+    #tracklist { max-height: 280px; }
+
+    .silicon-chassis,
+    .silicon-chassis.sid-chassis,
+    .silicon-chassis:has(.paula-visualization),
+    .silicon-chassis:has(.ym-visualization) {
+        height: 230px;
+    }
+
+    .silicon-chassis:has(.paula-visualization) .paula-visualization,
+    .silicon-chassis:has(.ym-visualization) .silicon-die-wrapper svg.ym-visualization {
+        width: 100%;
+        min-width: 0;
+        height: 100%;
+    }
+
+    .now-playing {
+        right: auto;
+        bottom: 12px;
+        width: min(520px, calc(100% - 150px));
+        max-width: calc(100% - 150px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }

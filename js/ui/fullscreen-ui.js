@@ -27,14 +27,27 @@ export class FullscreenUI {
     }
 
     updatePlayState(isPlaying) {
-        if (this.btnPlay) {
-            this.btnPlay.innerText = isPlaying ? '[ HALT BUS ]' : '[ INJECT ROM ]';
-        }
-        
-        // Aktualisiere auch den Haupt-Button in der Playback-Bar
+        this.updatePlaybackState(isPlaying ? 'playing' : 'idle');
+    }
+
+    updatePlaybackState(state) {
+        const labels = {
+            idle: '[ INJECT ROM ]',
+            loading: '[ DECODING ]',
+            playing: '[ HALT BUS ]',
+            paused: '[ RESUME BUS ]',
+            error: '[ RETRY ROM ]'
+        };
+        const label = labels[state] || labels.idle;
+        const isLoading = state === 'loading';
         const mainPlayBtn = document.getElementById('btn-play');
-        if (mainPlayBtn) {
-            mainPlayBtn.innerText = isPlaying ? '[ HALT BUS ]' : '[ INJECT ROM ]';
+
+        for (const button of [this.btnPlay, mainPlayBtn]) {
+            if (!button) continue;
+            button.innerText = label;
+            button.disabled = isLoading;
+            button.setAttribute('aria-busy', String(isLoading));
+            button.dataset.state = state;
         }
     }
 }

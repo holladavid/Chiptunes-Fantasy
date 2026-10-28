@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Chiptunes Fantasy</title>
     <link rel="stylesheet" href="css/style.css">
     
@@ -23,7 +23,7 @@
 </head>
 <body class="theme-c64"> 
 
-    <div id="boot-screen">
+    <div id="boot-screen" role="button" tabindex="0" aria-label="Chiptunes Fantasy starten">
         <div class="boot-box">
             <p class="boot-header">**** CHIPTUNES FANTASY V1.5.4 ****</p>
             <p class="boot-subheader">64K RAM SYSTEM  38911 BASIC BYTES FREE</p>
@@ -45,10 +45,23 @@
             <canvas id="demo-canvas"></canvas>
                         
             <!-- Das animierte Chiptunes Fantasy Logo -->
-            <div id="brand-logo">
+            <div id="brand-logo" role="button" tabindex="0" aria-label="Scene-DJ Demo-Modus umschalten" aria-pressed="false">
                 <div class="brand-main">CHIPTUNES</div>
                 <div class="brand-sub">FANTASY</div>
             </div>
+
+            <!-- Persistenter, eindeutiger Wiedergabe- und Ladestatus -->
+            <section id="now-playing" class="now-playing" data-state="idle" role="status" aria-live="polite" aria-atomic="true">
+                <div class="now-playing-rail">
+                    <span class="now-playing-led" aria-hidden="true"></span>
+                    <span id="playback-status">STANDBY</span>
+                </div>
+                <div class="now-playing-copy">
+                    <span id="now-playing-system">C64 · MOS 6581 R3 EXACT</span>
+                    <strong id="now-playing-title">AWAITING INJECTION</strong>
+                    <span id="now-playing-detail">SELECT A TRACK FROM THE ARCHIVE</span>
+                </div>
+            </section>
 
             <!-- Das nerdige Hardware-HUD -->
             <div id="chip-hud" class="collapsed">
@@ -86,12 +99,12 @@
                     <!-- Standardwert in echte Demoscene-Terminologie geändert -->
                     <div class="fs-track-info" id="fs-track-info">[ AWAITING INJECTION ]</div>
                     <div class="fs-controls">
-                        <button id="fs-btn-prev">|&lt;</button>
-                        <button id="fs-btn-play">[ INJECT ROM ]</button>
-                        <button id="fs-btn-next">&gt;|</button>
+                        <button id="fs-btn-prev" type="button" aria-label="Vorheriger Track oder Subsong">|&lt;</button>
+                        <button id="fs-btn-play" type="button" aria-label="Wiedergabe starten oder pausieren">[ INJECT ROM ]</button>
+                        <button id="fs-btn-next" type="button" aria-label="Nächster Track oder Subsong">&gt;|</button>
                     </div>
                 </div>
-                <button id="btn-fullscreen" title="Toggle Fullscreen">[ ⛶ ]</button>
+                <button id="btn-fullscreen" type="button" title="Toggle Fullscreen" aria-label="Vollbild umschalten">[ ⛶ ]</button>
             </div>
             
             <div class="scanlines"></div> <!-- CRT Monitor Effekt -->            
@@ -102,23 +115,23 @@
         <div id="playback-bar">
             <div class="controls">
                 <!-- Hardware Demoscene Terminology -->
-                <button id="btn-prev" title="Previous Track">&lt; MEM</button>
-                <button id="btn-play" title="Play/Pause">INJECT ROM</button>
-                <button id="btn-next" title="Next Track">BUS &gt;</button>
-                <button id="btn-eco" title="Pure Audio Mode">HALT GFX</button>
+                <button id="btn-prev" type="button" title="Previous Track" aria-label="Vorheriger Track oder Subsong">&lt; MEM</button>
+                <button id="btn-play" type="button" title="Play/Pause" aria-label="Wiedergabe starten oder pausieren">INJECT ROM</button>
+                <button id="btn-next" type="button" title="Next Track" aria-label="Nächster Track oder Subsong">BUS &gt;</button>
+                <button id="btn-eco" type="button" title="Pure Audio Mode" aria-label="Pure-Audio-Modus umschalten">HALT GFX</button>
             </div>
             
             <div class="timeline-control">
                 <!-- NEU: Das retro-designte Subsong-Display -->
                 <span id="subsong-display" class="hidden"></span>
                 <span id="time-current">00:00</span>
-                <input type="range" id="progress-slider" min="0" max="100" value="0" disabled>
+                <input type="range" id="progress-slider" min="0" max="100" value="0" aria-label="Wiedergabeposition" disabled>
                 <span id="time-total">00:00</span>
             </div>
 
             <div class="volume-control">
-                <label>VOL</label>
-                <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5">
+                <label for="volume-slider">VOL</label>
+                <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5" aria-label="Master-Lautstärke">
             </div>
         </div>
 
@@ -127,15 +140,15 @@
             
             <!-- Linke Spalte: Player & Tracklist -->
             <div id="player-panel">
-                <div class="system-tabs">
-                    <button class="tab-btn active" data-theme="theme-c64">C64</button>
-                    <button class="tab-btn" data-theme="theme-amiga">AMIGA</button>
-                    <button class="tab-btn" data-theme="theme-atari">ATARI ST</button>
+                <div class="system-tabs" aria-label="Emuliertes System">
+                    <button class="tab-btn active" type="button" data-theme="theme-c64" aria-pressed="true">C64</button>
+                    <button class="tab-btn" type="button" data-theme="theme-amiga" aria-pressed="false">AMIGA</button>
+                    <button class="tab-btn" type="button" data-theme="theme-atari" aria-pressed="false">ATARI ST</button>
                 </div>
                 
                 <div class="core-control">
-                    <label>CORE:</label>
-                    <select id="core-selector"></select>
+                    <label for="core-selector">CORE:</label>
+                    <select id="core-selector" aria-label="Emulations-Core"></select>
                 </div>
                 
                 <!-- Umweltsensor-Bucht (Sensor Bay) -->
@@ -143,7 +156,7 @@
                 <div class="sensor-bay terminal-card" id="sensor-bay-container">
                     <div class="terminal-card-header">&gt; ENV DIAGNOSTICS</div>
                          <div class="core-control" id="temp-control-container" style="margin-bottom: 12px; font-size: calc(var(--font-size-base) * 0.8);">
-                        <label>TEMP:</label>
+                        <label for="temp-slider">TEMP:</label>
                         <input type="range" id="temp-slider" min="15" max="75" value="55" style="flex-grow: 1;">
                         <span id="temp-display" style="width: 50px; text-align: right;">55°C</span>
                     </div>
@@ -154,7 +167,7 @@
                     </div>
                 </div>
                 
-                <ul id="tracklist"></ul>
+                <ul id="tracklist" aria-label="Musikbibliothek"></ul>
             </div> <!-- Ende player-panel -->
 
             <!-- Rechte Spalte: Museum / Info -->

@@ -34,7 +34,9 @@ let sidRegisterWriteRate = 0;
 let activeSystem = 'c64'; // Standard-System auf 'c64' korrigiert (passend zum Boot-Screen)
 let trackData = [];    
 let isPlaying = false; 
-let currentTrackIndex = 0;
+let currentTrackIndex = -1;
+let playbackState = 'idle';
+let currentTrackTitle = '';
 let tracklistDirectory = '';
 let currentScrollerText = "+++ INITIALIZING DEMO ENGINE... +++";
 let lastKnownFrame = 0; 
@@ -71,6 +73,66 @@ const mediaSession = new MediaSessionController({
     onSeekForward: offset => seekBySeconds(offset),
     onSeekTo: seconds => seekToSeconds(seconds)
 });
+
+const playbackStatusLabels = {
+    idle: 'STANDBY',
+    loading: 'DECODING',
+    playing: 'BUS ACTIVE',
+    paused: 'BUS HALTED',
+    error: 'FAULT'
+};
+
+function getActiveCoreName() {
+    const select = document.getElementById('core-selector');
+    const cores = workletRegistry[activeSystem];
+    const core = cores?.[Number(select?.value) || 0];
+    return core?.name || livingSiliconChipNames[activeSystem];
+}
+
+function updateNowPlayingSystem() {
+    const systemNames = { c64: 'C64', amiga: 'AMIGA', atari: 'ATARI ST' };
+    const element = document.getElementById('now-playing-system');
+    if (element) element.textContent = `${systemNames[activeSystem]} · ${getActiveCoreName()}`;
+}
+
+function syncTracklistPlaybackState() {
+    document.querySelectorAll('#tracklist li[data-track-index]').forEach(item => {
+        const isCurrent = Number(item.dataset.trackIndex) === currentTrackIndex;
+        item.classList.toggle('selected-track', isCurrent);
+        item.classList.toggle('active-track', isCurrent && playbackState === 'playing');
+        item.dataset.playbackState = isCurrent ? playbackState : '';
+        if (isCurrent) item.setAttribute('aria-current', 'true');
+        else item.removeAttribute('aria-current');
+    });
+}
+
+function setPlaybackState(nextState, detail = '') {
+    playbackState = nextState;
+    const nowPlaying = document.getElementById('now-playing');
+    const status = document.getElementById('playback-status');
+    const title = document.getElementById('now-playing-title');
+    const detailElement = document.getElementById('now-playing-detail');
+    const defaultDetails = {
+        idle: 'SELECT A TRACK FROM THE ARCHIVE',
+        loading: 'FETCHING + PARSING BINARY DATA',
+        playing: getActiveCoreName(),
+        paused: 'POSITION PRESERVED · BUS STANDBY',
+        error: 'ROM INJECTION FAILED'
+    };
+
+    document.body.dataset.playbackState = nextState;
+    if (nowPlaying) {
+        nowPlaying.dataset.state = nextState;
+        nowPlaying.setAttribute('aria-busy', String(nextState === 'loading'));
+    }
+    if (status) status.textContent = playbackStatusLabels[nextState] || playbackStatusLabels.idle;
+    if (title) title.textContent = currentTrackTitle || 'AWAITING INJECTION';
+    if (detailElement) detailElement.textContent = detail || defaultDetails[nextState] || defaultDetails.idle;
+
+    updateNowPlayingSystem();
+    syncTracklistPlaybackState();
+    if (fsUI) fsUI.updatePlaybackState(nextState);
+}
 
 // Cursor-Hiding Inaktivitäts-Timer
 let mouseIdleTimer = null;
@@ -110,7 +172,15 @@ function initApp() {
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            setTheme(e.target.getAttribute('data-theme'));
+            setTheme(e.currentTarget.getAttribute('data-theme'));
+        });
+    });
+
+    document.querySelectorAll('[role="button"][tabindex="0"]').forEach(control => {
+        control.addEventListener('keydown', event => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            control.click();
         });
     });
 
@@ -473,6 +543,8 @@ function changeC64Subsong(subsongId) {
         if (fsUI) {
             fsUI.updateTrack(`${meta.name.toUpperCase()} [SUB ${subsongId}/${meta.songs}]`);
         }
+        currentTrackTitle = meta.name || currentTrackTitle;
+        setPlaybackState('playing', `SUB ${subsongId}/${meta.songs} · ${getActiveCoreName()}`);
         syncMediaSessionTrack(trackRegistry[activeSystem][currentTrackIndex]);
     }    
 
@@ -514,7 +586,7 @@ function startPlayback() {
         }
     }
 
-    if (fsUI) fsUI.updatePlayState(true);
+    setPlaybackState('playing');
     mediaSession.setPlaybackState('playing');
     mediaSession.updatePosition(framesToSeconds(trackData.length, trackData), framesToSeconds(lastKnownFrame, trackData), true);
 }
@@ -532,7 +604,7 @@ function resumePlayback() {
     else if (activeSystem === 'c64' && sidNode) sidNode.port.postMessage({ type: 'RESUME_TRACK' });
     else if (ymNode) ymNode.port.postMessage({ type: 'RESUME_TRACK' });
 
-    if (fsUI) fsUI.updatePlayState(true);
+    setPlaybackState('playing');
     mediaSession.setPlaybackState('playing');
     mediaSession.updatePosition(framesToSeconds(trackData.length, trackData), framesToSeconds(lastKnownFrame, trackData), true);
 }
@@ -552,7 +624,7 @@ function stopPlayback() {
     // =========================================================
     // FIX: Allokationsfreies Zurücksetzen der Volume-Spuren bei Pause
     // =========================================================
-    if (fsUI) fsUI.updatePlayState(false);
+    setPlaybackState('paused');
     channelVolumes.fill(0);
     sidRegisterWriteRate = 0;
     mediaSession.setPlaybackState(trackData.length > 0 ? 'paused' : 'none');
@@ -591,8 +663,9 @@ async function setTheme(themeName, isBootSequence = false) {
     
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach(tab => {
-        tab.classList.remove('active');
-        if (tab.getAttribute('data-theme') === themeName) tab.classList.add('active');
+        const isActive = tab.getAttribute('data-theme') === themeName;
+        tab.classList.toggle('active', isActive);
+        tab.setAttribute('aria-pressed', String(isActive));
     });
 
     activeSystem = newSystem;
@@ -645,7 +718,8 @@ async function setTheme(themeName, isBootSequence = false) {
     // GHOST-TRACK WIPES (RAM Löschen)
     // ---------------------------------------------------------
     trackData = [];
-    currentTrackIndex = 0;
+    currentTrackIndex = -1;
+    currentTrackTitle = '';
     currentChipRegs = null;
     lastKnownFrame = 0;
     previousFrame = 0;
@@ -654,10 +728,7 @@ async function setTheme(themeName, isBootSequence = false) {
     
     resetHUD();
     
-    if (fsUI) {
-        fsUI.updateTrack("[ AWAITING INJECTION ]");
-        fsUI.updatePlayState(false);
-    }
+    if (fsUI) fsUI.updateTrack("[ AWAITING INJECTION ]");
     
     document.getElementById('progress-slider').value = 0;
     document.getElementById('progress-slider').disabled = true;
@@ -672,6 +743,7 @@ async function setTheme(themeName, isBootSequence = false) {
     
     renderCoreSelector(activeSystem);
     updateLivingSiliconTitle();
+    setPlaybackState('idle');
     
     if (typeof siliconVisualizer !== 'undefined' && siliconVisualizer) {
         siliconVisualizer.setSystem(activeSystem);
@@ -737,17 +809,27 @@ function renderCoreSelector(system) {
 
 function renderTracklist(system) {
     const listElement = document.getElementById('tracklist');
-    listElement.innerHTML = ''; 
+    listElement.innerHTML = '';
     const songs = trackRegistry[system];
     if (!songs) return;
 
     const supportsFolderNavigation = system === 'amiga' || system === 'atari' || system === 'c64';
+    const bindActivation = (item, handler) => {
+        item.tabIndex = 0;
+        item.setAttribute('role', 'button');
+        item.addEventListener('click', handler);
+        item.addEventListener('keydown', event => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            handler();
+        });
+    };
 
     if (supportsFolderNavigation && tracklistDirectory) {
         const upItem = document.createElement('li');
         upItem.classList.add('tracklist-navigation');
         upItem.textContent = '[UP] ..';
-        upItem.addEventListener('click', () => {
+        bindActivation(upItem, () => {
             const separatorIndex = tracklistDirectory.lastIndexOf('/');
             tracklistDirectory = separatorIndex === -1 ? '' : tracklistDirectory.slice(0, separatorIndex);
             renderTracklist(system);
@@ -764,7 +846,7 @@ function renderTracklist(system) {
         if (entry.type === 'folder') {
             li.classList.add('tracklist-folder');
             li.textContent = `[DIR] ${entry.name}/`;
-            li.addEventListener('click', () => {
+            bindActivation(li, () => {
                 tracklistDirectory = entry.path;
                 renderTracklist(system);
             });
@@ -772,11 +854,12 @@ function renderTracklist(system) {
             li.textContent = system === 'amiga'
                 ? entry.song.path.split('/').pop().replace(/\.[^.]+$/, '').replaceAll('_', ' ')
                 : (entry.song.listTitle || entry.song.title);
-            if (entry.index === currentTrackIndex) li.classList.add('active-track');
-            li.addEventListener('click', () => selectAndPlayTrack(entry.index, system));
+            li.dataset.trackIndex = entry.index;
+            bindActivation(li, () => selectAndPlayTrack(entry.index, system));
         }
         listElement.appendChild(li);
     });
+    syncTracklistPlaybackState();
 }
 
 async function selectAndPlayTrack(index, system) {
@@ -806,21 +889,23 @@ async function selectAndPlayTrack(index, system) {
     mediaSession.setSeekable(false);
     currentTrackIndex = index;
     const selectedSong = songs[index];
-    
+    currentTrackTitle = selectedSong.title;
+
     lastKnownFrame = 0;
-    previousFrame = 0; 
-    
+    previousFrame = 0;
+
     resetHUD();
 
-    document.getElementById('progress-slider').disabled = false;
-    renderTracklist(system); 
+    document.getElementById('progress-slider').disabled = true;
+    setPlaybackState('loading', selectedSong.path ? `READING ${selectedSong.path}` : 'PREPARING SYNTHETIC TRACK DATA');
+    renderTracklist(system);
 
     if (selectedSong.loadAsync) {
         const isAmigaSystem = (system === 'amiga');
         const isC64System = (system === 'c64');
 
-        // --- NEU: Progress-Slider für C64 Tracks aus Sicherheitsgründen sperren ---
-        document.getElementById('progress-slider').disabled = isC64System;
+        // Der Slider bleibt während des kompletten Ladevorgangs gesperrt.
+        document.getElementById('progress-slider').disabled = true;
         
         currentScrollerText = isAmigaSystem 
             ? "+++ DOWNLOADING AND PARSING BINARY AMIGA MODULE... +++"
@@ -885,6 +970,9 @@ async function selectAndPlayTrack(index, system) {
             }
 
             let meta = parsedFile.metadata;
+            currentTrackTitle = meta?.name || selectedSong.title;
+            document.getElementById('progress-slider').disabled = !canSeekActiveTrack();
+            setPlaybackState('loading', 'DECODING COMPLETE · ROUTING AUDIO BUS');
             let gridHTML = "";
 
             if (isAmigaSystem) {
@@ -962,8 +1050,28 @@ async function selectAndPlayTrack(index, system) {
             startPlayback();
             
         } catch (err) {
-            alert("FEHLER BEIM LADEN: " + err.message);
-            currentScrollerText = "+++ ERROR LOADING FILE +++";
+            if (myToken !== playRequestToken) return;
+            console.error('[TRACK LOAD]', err);
+            trackData = [];
+            isPlaying = false;
+            document.getElementById('progress-slider').disabled = true;
+            mediaSession.clear();
+            setPlaybackState('error', err.message || 'UNKNOWN BINARY FORMAT ERROR');
+            currentScrollerText = "+++ ERROR LOADING FILE +++ BUS HALTED +++ RETRY OR SELECT ANOTHER TRACK +++";
+
+            const info = document.getElementById('info-text');
+            info.innerHTML = '';
+            const card = document.createElement('div');
+            card.className = 'terminal-card load-error-card';
+            const header = document.createElement('div');
+            header.className = 'terminal-card-header';
+            header.textContent = '> ROM INJECTION FAULT';
+            const message = document.createElement('p');
+            message.textContent = err.message || 'Unknown binary format error.';
+            const hint = document.createElement('p');
+            hint.textContent = 'Retry with [ RETRY ROM ] or select another track from the archive.';
+            card.append(header, message, hint);
+            info.appendChild(card);
         }
     } else {
         const systemText = (typeof systemDescriptions !== 'undefined' && systemDescriptions[system]) 
@@ -987,10 +1095,11 @@ async function selectAndPlayTrack(index, system) {
         `;
         currentScrollerText = "+++ NOW PLAYING: " + selectedSong.title + " +++";
         trackData = selectedSong.generator();
+        document.getElementById('progress-slider').disabled = !canSeekActiveTrack();
         syncMediaSessionTrack(selectedSong);
         startPlayback();
     }
-    if (fsUI) fsUI.updateTrack(selectedSong.title);
+    if (fsUI) fsUI.updateTrack(currentTrackTitle || selectedSong.title);
 
 }
 
@@ -1095,9 +1204,13 @@ async function disableEcoMode() {
 }
 
 function requestPlay() {
-    if (isPlaying || !getAudioContext()) return;
+    if (isPlaying || playbackState === 'loading' || !getAudioContext()) return;
     resumeAudioContext().catch(e => console.log(e));
     if (trackData.length === 0) {
+        if (playbackState === 'error' && currentTrackIndex >= 0) {
+            selectAndPlayTrack(currentTrackIndex, activeSystem);
+            return;
+        }
         const visibleEntries = getTracklistEntries(trackRegistry[activeSystem], tracklistDirectory);
         const firstVisibleTrack = visibleEntries.find(entry => entry.type === 'track');
         if (firstVisibleTrack) selectAndPlayTrack(firstVisibleTrack.index, activeSystem);
@@ -1118,6 +1231,12 @@ function requestPlayPause() {
 function requestNextTrack() {
     if (!getAudioContext()) return;
     resumeAudioContext().catch(e => console.log(e));
+    if (currentTrackIndex < 0) {
+        const visibleTracks = getTracklistEntries(trackRegistry[activeSystem], tracklistDirectory)
+            .filter(entry => entry.type === 'track');
+        if (visibleTracks.length > 0) selectAndPlayTrack(visibleTracks[0].index, activeSystem);
+        return;
+    }
     if (activeSystem === 'c64' && trackData && trackData.isSidFile) {
         const totalSongs = trackData.metadata.songs || 1;
         if (currentSubsongIndex < totalSongs) {
@@ -1131,6 +1250,13 @@ function requestNextTrack() {
 function requestPreviousTrack() {
     if (!getAudioContext()) return;
     resumeAudioContext().catch(e => console.log(e));
+    if (currentTrackIndex < 0) {
+        const visibleTracks = getTracklistEntries(trackRegistry[activeSystem], tracklistDirectory)
+            .filter(entry => entry.type === 'track');
+        const lastVisibleTrack = visibleTracks[visibleTracks.length - 1];
+        if (lastVisibleTrack) selectAndPlayTrack(lastVisibleTrack.index, activeSystem);
+        return;
+    }
     if (activeSystem === 'c64' && trackData && trackData.isSidFile) {
         if (currentSubsongIndex > 1) {
             changeC64Subsong(currentSubsongIndex - 1);
@@ -1183,9 +1309,12 @@ document.getElementById('core-selector').addEventListener('change', async (e) =>
     const coreIndex = e.target.value;
     const coreConfig = workletRegistry[activeSystem][coreIndex];
     updateLivingSiliconTitle();
+    updateNowPlayingSystem();
+    setPlaybackState(trackData.length > 0 ? 'loading' : 'idle', 'RE-WIRING DSP PIPELINE');
     document.getElementById('hud-content') ? document.getElementById('hud-content').innerText = "RE-WIRING DSP..." : null;
     await loadEmuCore(activeSystem, coreConfig, handleWorkletMessage);
-    startPlayback(); 
+    if (trackData.length > 0) startPlayback();
+    else setPlaybackState('idle');
 });
 
 document.getElementById('temp-slider').addEventListener('input', (e) => {
