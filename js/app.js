@@ -741,7 +741,7 @@ function renderTracklist(system) {
     const songs = trackRegistry[system];
     if (!songs) return;
 
-    const supportsFolderNavigation = system === 'amiga' || system === 'atari';
+    const supportsFolderNavigation = system === 'amiga' || system === 'atari' || system === 'c64';
 
     if (supportsFolderNavigation && tracklistDirectory) {
         const upItem = document.createElement('li');
