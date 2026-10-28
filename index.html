@@ -188,8 +188,12 @@
             <div id="museum-panel">
                 <div class="museum-toolbar living-silicon-toolbar">
                     <span class="museum-toolbar-title" id="living-silicon-title">&gt; LIVING SILICON · MOS 6581 SID</span>
+                    <span class="silicon-toolbar-status" role="status" aria-live="polite">
+                        <span class="silicon-status-led" aria-hidden="true"></span>
+                        <span id="silicon-playback-status" data-state="idle">STANDBY</span>
+                    </span>
                     <button id="btn-toggle-archive" type="button" title="Living Silicon ein- oder ausblenden"
-                        aria-controls="living-silicon-container" aria-expanded="true">[ COLLAPSE ]</button>
+                        aria-controls="living-silicon-container" aria-expanded="true">[ HIDE CHIP ]</button>
                 </div>
                 <div id="living-silicon-container" style="margin-bottom: 15px;"></div>
                 

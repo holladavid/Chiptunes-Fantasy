@@ -132,6 +132,7 @@ function setPlaybackState(nextState, detail = '') {
 
     updateNowPlayingSystem();
     syncTracklistPlaybackState();
+    if (siliconVisualizer) siliconVisualizer.setPlaybackState(nextState);
     if (fsUI) fsUI.updatePlaybackState(nextState);
 }
 
@@ -243,7 +244,7 @@ function initApp() {
         if (btnToggleArchive) {
             btnToggleArchive.addEventListener('click', () => {
                 const isExpanded = document.body.classList.toggle('archive-expanded');
-                btnToggleArchive.textContent = isExpanded ? '[ EXPAND ]' : '[ COLLAPSE ]';
+                btnToggleArchive.textContent = isExpanded ? '[ SHOW CHIP ]' : '[ HIDE CHIP ]';
                 btnToggleArchive.setAttribute('aria-expanded', String(!isExpanded));
             });
         }
@@ -677,7 +678,7 @@ async function setTheme(themeName, isBootSequence = false) {
     document.body.classList.remove('archive-expanded');
     const btnToggleArchive = document.getElementById('btn-toggle-archive');
     if (btnToggleArchive) {
-        btnToggleArchive.textContent = '[ COLLAPSE ]';
+        btnToggleArchive.textContent = '[ HIDE CHIP ]';
         btnToggleArchive.setAttribute('aria-expanded', 'true');
     }
     updateLivingSiliconTitle();
