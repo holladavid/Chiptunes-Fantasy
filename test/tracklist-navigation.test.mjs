@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { getTracklistEntries, trackRegistry } from '../tracks/index.js';
+import { getTracklistEntries, searchTracks, trackRegistry } from '../tracks/index.js';
 
 test('Amiga tracklist shows game folders and navigates their tracks', () => {
     const rootEntries = getTracklistEntries(trackRegistry.amiga);
@@ -17,7 +17,9 @@ test('Amiga tracklist shows game folders and navigates their tracks', () => {
         ['dragonflight', 'amberstar', 'wings-of-death']
     );
     assert.ok(rootEntries.slice(0, 3).every(entry => entry.type === 'folder'));
-    assert.ok(rootEntries.slice(3).every(entry => entry.type === 'track'));
+    const rootFolderCount = rootEntries.filter(entry => entry.type === 'folder').length;
+    assert.equal(rootFolderCount, 4);
+    assert.ok(rootEntries.slice(rootFolderCount).every(entry => entry.type === 'track'));
     assert.equal(rootEntries.some(entry => entry.song?.path?.startsWith('amberstar/')), false);
     assert.equal(rootEntries.filter(entry => entry.type === 'track').length, 10);
 
@@ -30,13 +32,15 @@ test('Amiga tracklist shows game folders and navigates their tracks', () => {
     assert.equal(dragonflightEntries.length, 7);
     assert.ok(dragonflightEntries.every(entry => entry.type === 'track'));
     assert.equal(dragonflightEntries[0].song.path, 'dragonflight/dragonflight_titletune.HIPC');
-    assert.match(dragonflightEntries[0].song.composerInfo, /COMPOSER SPOTLIGHT/);
+    assert.match(dragonflightEntries[0].song.composerInfo, /Jochen Hippel/);
+    assert.match(dragonflightEntries[0].song.composerInfo, /COSO-\/HIPC/);
 
     const wingsEntries = getTracklistEntries(trackRegistry.amiga, wingsFolder.path);
     assert.equal(wingsEntries.length, 9);
     assert.ok(wingsEntries.every(entry => entry.type === 'track'));
     assert.equal(wingsEntries[0].song.path, 'wings-of-death/Wings_Of_Death-Title.hip');
-    assert.match(wingsEntries[0].song.composerInfo, /COMPOSER SPOTLIGHT/);
+    assert.match(wingsEntries[0].song.composerInfo, /Jochen Hippel/);
+    assert.match(wingsEntries[0].song.composerInfo, /HIP mit originalem 68000-Replaycode/);
 });
 
 test('Atari tracklist separates games, demos and five curated root tracks', () => {
@@ -131,4 +135,34 @@ test('Logical Atari folders do not change physical production baseline sources',
         assert.ok(song, logicalPath);
         assert.equal(song.sourcePath, sourcePath);
     }
+});
+
+
+test('Archive search finds nested tracks with normalized title and path terms', () => {
+    const wingsTracks = searchTracks(trackRegistry.atari, 'wings of death');
+    assert.equal(wingsTracks.length, 10);
+    assert.ok(wingsTracks.every(entry => entry.song.path.startsWith('wings-of-death/') || entry.song.path.startsWith('spiele/wings-of-death/')));
+
+    const gwensLament = searchTracks(trackRegistry.amiga, 'Gwens Lament');
+    assert.ok(gwensLament.length >= 1);
+    assert.equal(gwensLament[0].song.path, 'amberstar/Gwens_Lament.hipc');
+
+    assert.deepEqual(searchTracks(trackRegistry.c64, ''), []);
+    assert.deepEqual(searchTracks(trackRegistry.c64, 'definitely-not-a-track'), []);
+});
+
+test('Archive search includes curated composer metadata and preserves registry indices', () => {
+    const results = searchTracks(trackRegistry.atari, 'Jochen Hippel');
+    assert.ok(results.length > 0);
+    assert.ok(results.every(entry => entry.song.composerInfo.includes('Jochen Hippel')));
+    assert.ok(results.every(entry => trackRegistry.atari[entry.index] === entry.song));
+
+    const xenonResults = searchTracks(trackRegistry.atari, 'xenon');
+    const directXenonResults = xenonResults.filter(entry => entry.song.path.includes('xenon'));
+    assert.equal(directXenonResults.length, 4);
+    assert.deepEqual(
+        xenonResults.slice(0, directXenonResults.length).map(entry => entry.song.path),
+        directXenonResults.map(entry => entry.song.path)
+    );
+    assert.ok(xenonResults.slice(directXenonResults.length).every(entry => !entry.song.path.includes('xenon')));
 });

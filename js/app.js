@@ -3,7 +3,7 @@
 //                  CHIPTUNES FANTASY - MAIN APP CONTROLLER
 // =========================================================================
 import { FullscreenUI } from './ui/fullscreen-ui.js';
-import { getTracklistEntries, trackRegistry } from '../tracks/index.js';
+import { getTracklistEntries, searchTracks, trackRegistry } from '../tracks/index.js';
 import { systemDescriptions } from './content/museum.js'; 
 import { chipCheatSheets } from './content/cheatsheets.js'; 
 import { workletRegistry } from './worklets/registry.js';
@@ -38,6 +38,7 @@ let currentTrackIndex = -1;
 let playbackState = 'idle';
 let currentTrackTitle = '';
 let tracklistDirectory = '';
+let trackSearchQuery = '';
 let currentScrollerText = "+++ INITIALIZING DEMO ENGINE... +++";
 let lastKnownFrame = 0; 
 let previousFrame = 0;       
@@ -670,6 +671,9 @@ async function setTheme(themeName, isBootSequence = false) {
 
     activeSystem = newSystem;
     tracklistDirectory = '';
+    trackSearchQuery = '';
+    const trackSearchInput = document.getElementById('track-search');
+    if (trackSearchInput) trackSearchInput.value = '';
     document.body.classList.remove('archive-expanded');
     const btnToggleArchive = document.getElementById('btn-toggle-archive');
     if (btnToggleArchive) {
@@ -684,7 +688,7 @@ async function setTheme(themeName, isBootSequence = false) {
         else tempContainer.classList.add('hidden');
     }
 
-    renderTracklist(activeSystem);
+    renderTracklist(activeSystem, { scrollToTop: true });
 
     document.getElementById('info-text').innerHTML = `
         <div class="terminal-card">
@@ -807,12 +811,75 @@ function renderCoreSelector(system) {
     });
 }
 
-function renderTracklist(system) {
+function getTrackDisplayName(system, song) {
+    return system === 'amiga'
+        ? song.path.split('/').pop().replace(/\.[^.]+$/, '').replaceAll('_', ' ')
+        : (song.listTitle || song.title);
+}
+
+function getVisibleTrackEntries() {
+    const songs = trackRegistry[activeSystem];
+    if (trackSearchQuery.trim()) return searchTracks(songs, trackSearchQuery);
+    return getTracklistEntries(songs, tracklistDirectory)
+        .filter(entry => entry.type === 'track')
+        .map(entry => ({ song: entry.song, index: entry.index }));
+}
+
+function navigateTracklist(directory, focusList = false) {
+    tracklistDirectory = directory;
+    trackSearchQuery = '';
+    const input = document.getElementById('track-search');
+    if (input) input.value = '';
+    renderTracklist(activeSystem, { scrollToTop: true, focusList });
+}
+
+function renderTracklistBreadcrumb(system, isSearching) {
+    const breadcrumb = document.getElementById('tracklist-breadcrumb');
+    if (!breadcrumb) return;
+    breadcrumb.innerHTML = '';
+
+    const systemLabels = { c64: 'C64', amiga: 'AMIGA', atari: 'ATARI ST' };
+    const rootButton = document.createElement('button');
+    rootButton.type = 'button';
+    rootButton.className = 'breadcrumb-button';
+    rootButton.textContent = `${systemLabels[system]}:/`;
+    rootButton.setAttribute('aria-label', `${systemLabels[system]} Bibliothekswurzel`);
+    if (!tracklistDirectory && !isSearching) rootButton.setAttribute('aria-current', 'location');
+    rootButton.addEventListener('click', () => navigateTracklist('', true));
+    breadcrumb.appendChild(rootButton);
+
+    if (isSearching) {
+        const scope = document.createElement('span');
+        scope.className = 'breadcrumb-current';
+        scope.textContent = 'SEARCH / ALL PATHS';
+        breadcrumb.appendChild(scope);
+        return;
+    }
+
+    let directory = '';
+    for (const segment of tracklistDirectory.split('/').filter(Boolean)) {
+        directory = directory ? `${directory}/${segment}` : segment;
+        const targetDirectory = directory;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'breadcrumb-button';
+        button.textContent = `${segment}/`;
+        button.setAttribute('aria-label', `Ordner ${segment}`);
+        if (targetDirectory === tracklistDirectory) button.setAttribute('aria-current', 'location');
+        button.addEventListener('click', () => navigateTracklist(targetDirectory, true));
+        breadcrumb.appendChild(button);
+    }
+}
+
+function renderTracklist(system, options = {}) {
+    const { scrollToTop = false, revealSelected = false, focusList = false } = options;
     const listElement = document.getElementById('tracklist');
+    const previousScrollTop = listElement.scrollTop;
     listElement.innerHTML = '';
     const songs = trackRegistry[system];
     if (!songs) return;
 
+    const isSearching = trackSearchQuery.trim().length > 0;
     const supportsFolderNavigation = system === 'amiga' || system === 'atari' || system === 'c64';
     const bindActivation = (item, handler) => {
         item.tabIndex = 0;
@@ -825,41 +892,81 @@ function renderTracklist(system) {
         });
     };
 
-    if (supportsFolderNavigation && tracklistDirectory) {
+    if (supportsFolderNavigation && tracklistDirectory && !isSearching) {
         const upItem = document.createElement('li');
         upItem.classList.add('tracklist-navigation');
         upItem.textContent = '[UP] ..';
         bindActivation(upItem, () => {
             const separatorIndex = tracklistDirectory.lastIndexOf('/');
-            tracklistDirectory = separatorIndex === -1 ? '' : tracklistDirectory.slice(0, separatorIndex);
-            renderTracklist(system);
+            navigateTracklist(separatorIndex === -1 ? '' : tracklistDirectory.slice(0, separatorIndex), true);
         });
         listElement.appendChild(upItem);
     }
 
-    const entries = supportsFolderNavigation
-        ? getTracklistEntries(songs, tracklistDirectory)
-        : songs.map((song, index) => ({ type: 'track', index, song }));
+    const entries = isSearching
+        ? searchTracks(songs, trackSearchQuery).map(entry => ({ ...entry, type: 'track', searchResult: true }))
+        : supportsFolderNavigation
+            ? getTracklistEntries(songs, tracklistDirectory)
+            : songs.map((song, index) => ({ type: 'track', index, song }));
 
     entries.forEach(entry => {
         const li = document.createElement('li');
         if (entry.type === 'folder') {
             li.classList.add('tracklist-folder');
             li.textContent = `[DIR] ${entry.name}/`;
-            bindActivation(li, () => {
-                tracklistDirectory = entry.path;
-                renderTracklist(system);
-            });
+            li.title = `Ordner ${entry.name}`;
+            bindActivation(li, () => navigateTracklist(entry.path, true));
         } else {
-            li.textContent = system === 'amiga'
-                ? entry.song.path.split('/').pop().replace(/\.[^.]+$/, '').replaceAll('_', ' ')
-                : (entry.song.listTitle || entry.song.title);
+            if (entry.searchResult) {
+                li.classList.add('tracklist-search-result');
+                const title = document.createElement('span');
+                title.className = 'track-result-title';
+                title.textContent = getTrackDisplayName(system, entry.song);
+                const path = document.createElement('span');
+                path.className = 'track-result-path';
+                path.textContent = entry.song.path;
+                li.append(title, path);
+            } else {
+                li.textContent = getTrackDisplayName(system, entry.song);
+            }
+            li.title = `${entry.song.title} · ${entry.song.path}`;
             li.dataset.trackIndex = entry.index;
             bindActivation(li, () => selectAndPlayTrack(entry.index, system));
         }
         listElement.appendChild(li);
     });
+
+    if (isSearching && entries.length === 0) {
+        const emptyItem = document.createElement('li');
+        emptyItem.className = 'tracklist-empty';
+        emptyItem.textContent = 'NO MATCHING TRACKS · CLEAR SEARCH TO RETURN';
+        listElement.appendChild(emptyItem);
+    }
+
+    const count = document.getElementById('tracklist-count');
+    if (count) {
+        count.textContent = isSearching
+            ? `${entries.length} / ${songs.length} TRACKS`
+            : `${entries.length} ITEMS`;
+    }
+    const clearButton = document.getElementById('btn-clear-track-search');
+    if (clearButton) clearButton.hidden = !isSearching;
+    renderTracklistBreadcrumb(system, isSearching);
     syncTracklistPlaybackState();
+
+    if (scrollToTop) listElement.scrollTop = 0;
+    else listElement.scrollTop = previousScrollTop;
+
+    if (revealSelected) {
+        const selected = listElement.querySelector('.selected-track');
+        if (selected) {
+            const listRect = listElement.getBoundingClientRect();
+            const selectedRect = selected.getBoundingClientRect();
+            if (selectedRect.top < listRect.top) listElement.scrollTop -= listRect.top - selectedRect.top;
+            else if (selectedRect.bottom > listRect.bottom) listElement.scrollTop += selectedRect.bottom - listRect.bottom;
+        }
+    }
+    if (focusList) listElement.querySelector('[role="button"]')?.focus({ preventScroll: true });
 }
 
 async function selectAndPlayTrack(index, system) {
@@ -890,6 +997,9 @@ async function selectAndPlayTrack(index, system) {
     currentTrackIndex = index;
     const selectedSong = songs[index];
     currentTrackTitle = selectedSong.title;
+    const selectedPath = selectedSong.path || '';
+    const directorySeparator = selectedPath.lastIndexOf('/');
+    tracklistDirectory = directorySeparator === -1 ? '' : selectedPath.slice(0, directorySeparator);
 
     lastKnownFrame = 0;
     previousFrame = 0;
@@ -898,7 +1008,7 @@ async function selectAndPlayTrack(index, system) {
 
     document.getElementById('progress-slider').disabled = true;
     setPlaybackState('loading', selectedSong.path ? `READING ${selectedSong.path}` : 'PREPARING SYNTHETIC TRACK DATA');
-    renderTracklist(system);
+    renderTracklist(system, { revealSelected: true });
 
     if (selectedSong.loadAsync) {
         const isAmigaSystem = (system === 'amiga');
@@ -1211,8 +1321,7 @@ function requestPlay() {
             selectAndPlayTrack(currentTrackIndex, activeSystem);
             return;
         }
-        const visibleEntries = getTracklistEntries(trackRegistry[activeSystem], tracklistDirectory);
-        const firstVisibleTrack = visibleEntries.find(entry => entry.type === 'track');
+        const [firstVisibleTrack] = getVisibleTrackEntries();
         if (firstVisibleTrack) selectAndPlayTrack(firstVisibleTrack.index, activeSystem);
     } else {
         resumePlayback();
@@ -1231,12 +1340,6 @@ function requestPlayPause() {
 function requestNextTrack() {
     if (!getAudioContext()) return;
     resumeAudioContext().catch(e => console.log(e));
-    if (currentTrackIndex < 0) {
-        const visibleTracks = getTracklistEntries(trackRegistry[activeSystem], tracklistDirectory)
-            .filter(entry => entry.type === 'track');
-        if (visibleTracks.length > 0) selectAndPlayTrack(visibleTracks[0].index, activeSystem);
-        return;
-    }
     if (activeSystem === 'c64' && trackData && trackData.isSidFile) {
         const totalSongs = trackData.metadata.songs || 1;
         if (currentSubsongIndex < totalSongs) {
@@ -1244,33 +1347,72 @@ function requestNextTrack() {
             return;
         }
     }
-    selectAndPlayTrack((currentTrackIndex + 1) % trackRegistry[activeSystem].length, activeSystem);
+    const visibleTracks = getVisibleTrackEntries();
+    if (visibleTracks.length === 0) return;
+    const currentPosition = visibleTracks.findIndex(entry => entry.index === currentTrackIndex);
+    const nextPosition = currentPosition === -1 ? 0 : (currentPosition + 1) % visibleTracks.length;
+    selectAndPlayTrack(visibleTracks[nextPosition].index, activeSystem);
 }
 
 function requestPreviousTrack() {
     if (!getAudioContext()) return;
     resumeAudioContext().catch(e => console.log(e));
-    if (currentTrackIndex < 0) {
-        const visibleTracks = getTracklistEntries(trackRegistry[activeSystem], tracklistDirectory)
-            .filter(entry => entry.type === 'track');
-        const lastVisibleTrack = visibleTracks[visibleTracks.length - 1];
-        if (lastVisibleTrack) selectAndPlayTrack(lastVisibleTrack.index, activeSystem);
-        return;
-    }
     if (activeSystem === 'c64' && trackData && trackData.isSidFile) {
         if (currentSubsongIndex > 1) {
             changeC64Subsong(currentSubsongIndex - 1);
             return;
         }
     }
-    let prevIdx = currentTrackIndex - 1;
-    if (prevIdx < 0) prevIdx = trackRegistry[activeSystem].length - 1;
-    selectAndPlayTrack(prevIdx, activeSystem);
+    const visibleTracks = getVisibleTrackEntries();
+    if (visibleTracks.length === 0) return;
+    const currentPosition = visibleTracks.findIndex(entry => entry.index === currentTrackIndex);
+    const previousPosition = currentPosition === -1
+        ? visibleTracks.length - 1
+        : (currentPosition - 1 + visibleTracks.length) % visibleTracks.length;
+    selectAndPlayTrack(visibleTracks[previousPosition].index, activeSystem);
 }
 
 document.getElementById('btn-play').addEventListener('click', requestPlayPause);
 document.getElementById('btn-next').addEventListener('click', requestNextTrack);
 document.getElementById('btn-prev').addEventListener('click', requestPreviousTrack);
+
+const trackSearchInput = document.getElementById('track-search');
+const clearTrackSearchButton = document.getElementById('btn-clear-track-search');
+
+trackSearchInput.addEventListener('input', event => {
+    trackSearchQuery = event.target.value;
+    renderTracklist(activeSystem, { scrollToTop: true });
+});
+
+clearTrackSearchButton.addEventListener('click', () => {
+    trackSearchQuery = '';
+    trackSearchInput.value = '';
+    renderTracklist(activeSystem, { scrollToTop: true, revealSelected: true });
+    trackSearchInput.focus();
+});
+
+trackSearchInput.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        if (trackSearchQuery) clearTrackSearchButton.click();
+        else trackSearchInput.blur();
+    } else if (event.key === 'ArrowDown') {
+        const firstResult = document.querySelector('#tracklist li[role="button"]');
+        if (firstResult) {
+            event.preventDefault();
+            firstResult.focus();
+        }
+    }
+});
+
+document.addEventListener('keydown', event => {
+    if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+    if (!document.getElementById('boot-screen').classList.contains('hidden')) return;
+    event.preventDefault();
+    trackSearchInput.focus();
+});
 
 document.getElementById('volume-slider').addEventListener('input', (e) => {
     const masterGain = getMasterGain();
