@@ -52,16 +52,31 @@ test('Archive-only numbering no longer invents Amberstar or level titles', () =>
     const amber = bySource('amberstar/AMBER01.YM');
     assert.equal(amber.listTitle, 'Musik #20');
     assert.match(amber.composerInfo, /Amberstar #20/);
+    assert.match(amber.composerInfo, /Amberstar<\/em> \(1992\)/);
     assert.equal(amber.title, 'Amberstar – Musik #20');
     assert.doesNotMatch(amber.title, /Twinlake|Taverne|Titelthema/);
 
     const wings = bySource('wings-of-death/WINGLEV1.YM');
     assert.equal(wings.listTitle, 'Musikdump 01');
+    assert.match(wings.composerInfo, /Wings of Death<\/em> \(1990\)/);
     assert.doesNotMatch(wings.composerInfo, /Over the Trees/);
 
     const lethal = bySource('LethalXcess2.YM');
     assert.equal(lethal.listTitle, 'Musik 2');
+    assert.match(lethal.composerInfo, /Lethal Xcess<\/em> \(1991\)/);
     assert.doesNotMatch(lethal.composerInfo, /Ruins of Methallycha|Dynamic-Staging|Nachhall-Verhalten der Hardware/);
+});
+
+test('Turrican cards distinguish the original composition from the ST arrangement', () => {
+    const turrican = bySource('turrican1_world_1_1.YM');
+    assert.match(turrican.composerInfo, /erschien 1990/);
+    assert.match(turrican.composerInfo, /Chris Hülsbeck<\/strong> komponierte das Original/);
+    assert.match(turrican.composerInfo, /Jochen Hippel<\/strong>, der die YM2149-Umsetzung/);
+    assert.doesNotMatch(turrican.composerInfo, /Fred Gray/);
+
+    const turrican2 = bySource('Turrican2_TheDesertRocks.YM');
+    assert.match(turrican2.composerInfo, /1991 erschienenen ST-Fassung/);
+    assert.match(turrican2.composerInfo, /The Desert Rocks/);
 });
 
 test('The 13 new highlights are present and retain their verified credits', () => {

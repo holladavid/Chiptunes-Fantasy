@@ -70,7 +70,7 @@ export function buildNowPlayingModel({
         subsong: pending ? '—' : formatSubsong(system, metadata, currentSubsong),
         format: displayValue(metadata?.type || selectedSong?.format, fallback),
         hardware: pending ? fallback : formatHardware(system, metadata || {}),
-        next: nextTrack?.title || '—',
+        next: nextTrack?.listTitle || nextTrack?.title || '—',
         channelLabels: CHANNEL_LABELS[system] || []
     };
 }

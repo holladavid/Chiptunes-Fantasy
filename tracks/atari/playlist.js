@@ -54,31 +54,31 @@ addRootTrack(
 
 addGameTrack(
     'dragonflight', 'dragonflight/Dragonflight_Title.YM', 'Dragonflight – Titel',
-    'Jochen Hippel wird im Autorenfeld ausdrücklich als Mad Max geführt. Der eingebettete Name bezeichnet diese Fassung eindeutig als Titelmusik zu Thalions Fantasy-Rollenspiel.',
+    'Thalions Fantasy-Rollenspiel <em>Dragonflight</em> erschien 1990 für Amiga und Atari ST. <strong>Jochen Hippel</strong> wird im Autorenfeld ausdrücklich als Mad Max geführt; der eingebettete Name bezeichnet diese Fassung eindeutig als Titelmusik.',
     'YM6!, 21.250 Frames beziehungsweise 425 Sekunden bei 50 Hz. Konvertiert von Jochen Knaus.',
     'Titel'
 );
 addGameTrack(
     'dragonflight', 'dragonflight/Dragonflight_City_1.YM', 'Dragonflight – Stadt 1',
-    'Eine der drei im Archiv ausgewiesenen Stadt-Fassungen. Jochen Hippel ist als Autor eingetragen; die Nummer dient der Unterscheidung der Dumps und benennt keinen konkreten Spielort.',
+    'Eine der drei im Archiv ausgewiesenen Stadt-Fassungen aus Thalions <em>Dragonflight</em> (1990). Jochen Hippel ist als Autor eingetragen; die Nummer dient der Unterscheidung der Dumps und benennt keinen konkreten Spielort.',
     'Der Container nennt <em>Dragonflight: City</em>. YM6!, 9.200 Frames, konvertiert von Leonard.',
     'Stadt 1'
 );
 addGameTrack(
     'dragonflight', 'dragonflight/Dragonflight_City_2.YM', 'Dragonflight – Stadt 2',
-    'Die zweite Stadt-Fassung der Dragonflight-Auswahl. Wie bei den übrigen Dumps bleibt die Zuordnung zu einem bestimmten Ort bewusst offen.',
+    'Die zweite Stadt-Fassung aus Thalions <em>Dragonflight</em> (1990) mit Musik von Jochen Hippel. Wie bei den übrigen Dumps bleibt die Zuordnung zu einem bestimmten Ort bewusst offen.',
     'Eingebetteter Name: <em>Dragonflight: City #2</em>; Autor Jochen Hippel. YM6!, 12.300 Frames.',
     'Stadt 2'
 );
 addGameTrack(
     'dragonflight', 'dragonflight/Dragonflight_City_3.YM', 'Dragonflight – Stadt 3',
-    'Die dritte Stadt-Fassung ergänzt die beiden längeren Stadt-Dumps um eine kürzere Variante aus demselben Spielkontext.',
+    'Die dritte Stadt-Fassung ergänzt die beiden längeren Stadt-Dumps aus Thalions <em>Dragonflight</em> (1990) um eine kürzere Variante; auch hier ist Jochen Hippel als Komponist belegt.',
     'Eingebetteter Name: <em>Dragonflight: City #3</em>; Autor Jochen Hippel. YM6!, 7.150 Frames.',
     'Stadt 3'
 );
 addGameTrack(
     'dragonflight', 'dragonflight/Dragonflight_unspec.YM', 'Dragonflight – Szene nicht bezeichnet',
-    'Jochen Hippel ist als Autor belegt, die konkrete Verwendung im Spiel jedoch nicht. Der Titel wird deshalb nicht nachträglich als Stadt-, Lade- oder Endmusik etikettiert.',
+    'Für Thalions <em>Dragonflight</em> (1990) ist Jochen Hippel als Autor belegt, die konkrete Verwendung dieser Sequenz im Spiel jedoch nicht. Der Titel wird deshalb nicht nachträglich als Stadt-, Lade- oder Endmusik etikettiert.',
     'Der eingebettete Name lautet lediglich <em>Dragonflight: ?</em>. YM6!, 4.600 Frames, konvertiert von Leonard.',
     'Szene unbekannt'
 );
@@ -88,7 +88,7 @@ for (let fileNumber = 1; fileNumber <= 20; fileNumber += 1) {
     const filename = `AMBER${String(fileNumber).padStart(2, '0')}.YM`;
     addGameTrack(
         'amberstar', `amberstar/${filename}`, `Amberstar – Musik #${archiveNumber}`,
-        'Ein Musikdump aus Jochen Hippels Arbeit an Thalions Rollenspiel <em>Amberstar</em>. Die Archivnummer erhält die Reihenfolge des Containers; sie wird nicht mit einem erfundenen Orts- oder Szenentitel gleichgesetzt.',
+        'Ein Musikdump aus <strong>Jochen Hippels</strong> Arbeit an Thalions Rollenspiel <em>Amberstar</em> (1992). Die Archivnummer erhält die Reihenfolge des Containers; sie wird nicht mit einem erfundenen Orts- oder Szenentitel gleichgesetzt.',
         `Eingebetteter Name: <em>Amberstar #${archiveNumber}</em>; Autor Mad Max. Die Datei ${filename} wurde mit SainT erzeugt. Eine konkrete Zuordnung wie Twinlake, Taverne oder Titelthema ist aus den YM-Metadaten nicht ableitbar.`,
         `Musik #${archiveNumber}`
     );
@@ -98,14 +98,14 @@ const wingDigidrums = [4, 2, 2, 3, 3, 2, 3, 4, 3];
 for (let level = 1; level <= 9; level += 1) {
     addGameTrack(
         'wings-of-death', `wings-of-death/WINGLEV${level}.YM`, `Wings of Death – Musikdump ${String(level).padStart(2, '0')}`,
-        'Jochen Hippels Musik zu <em>Wings of Death</em> liegt hier in der Reihenfolge der vorhandenen Dateien vor. Die Nummer bezeichnet den Dump und wird nicht unbelegt als Levelname ausgegeben.',
+        '<strong>Jochen Hippels</strong> Musik zu Thalions Shoot ’em up <em>Wings of Death</em> (1990) liegt hier in der Reihenfolge der vorhandenen Dateien vor. Die Nummer bezeichnet den Dump und wird nicht unbelegt als Levelname ausgegeben.',
         `Alle neun Dateien tragen intern nur den generischen Namen <em>Wing of Death Level</em>. Dieser YM6!-Container enthält ${wingDigidrums[level - 1]} Digidrum-Blöcke; eine konkrete Levelbezeichnung fehlt.`,
         `Musikdump ${String(level).padStart(2, '0')}`
     );
 }
 addGameTrack(
     'wings-of-death', 'wings-of-death/WINGLOAD.YM', 'Wings of Death – Loader',
-    'Der Loader ist die einzige Datei dieser Gruppe, deren Verwendung im eingebetteten Namen ausdrücklich genannt wird. Jochen Hippel ist als Autor eingetragen.',
+    'Der Loader ist die einzige Datei dieser Gruppe, deren Verwendung im eingebetteten Namen ausdrücklich genannt wird. <strong>Jochen Hippel</strong> ist als Autor der Musik zu Thalions <em>Wings of Death</em> (1990) eingetragen.',
     'YM6!, 1.550 Frames beziehungsweise 31 Sekunden, mit fünf eingebetteten Digidrum-Blöcken. Konvertiert von Leonard.',
     'Loader'
 );
@@ -113,7 +113,7 @@ addGameTrack(
 for (let musicNumber = 1; musicNumber <= 7; musicNumber += 1) {
     addGameTrack(
         'lethal-xcess', `LethalXcess${musicNumber}.YM`, `Lethal Xcess – Musik ${musicNumber}`,
-        'Ein Musikdump aus <em>Lethal Xcess</em> mit Jochen Hippel beziehungsweise Mad Max im Autorenfeld. Die Sammlung nutzt die vorhandene Musiknummer statt nicht verifizierter Level- oder Credits-Titel.',
+        'Ein Musikdump aus dem Shoot ’em up <em>Lethal Xcess</em> (1991) mit <strong>Jochen Hippel</strong> beziehungsweise Mad Max im Autorenfeld. Die Sammlung nutzt die vorhandene Musiknummer statt nicht verifizierter Level- oder Credits-Titel.',
         `Eingebetteter Name: <em>Lethal XCess Music ${musicNumber}</em>. YM5! mit vier Digidrum-Blöcken. Die Datei belegt weder einen konkreten Levelnamen noch ein Stereo-Panning oder Nachhall-Verhalten.`,
         `Musik ${musicNumber}`
     );
@@ -121,13 +121,13 @@ for (let musicNumber = 1; musicNumber <= 7; musicNumber += 1) {
 
 addGameTrack(
     'turrican', 'turrican1_world_1_1.YM', 'Turrican – World 1-1',
-    'Der Dateiname ordnet den Dump World 1-1 zu. Das Autorenfeld nennt Jochen Hippel und in Klammern Chris Hülsbeck; diese gemeinsame Nennung wird unverändert dokumentiert.',
+    'Die ST-Fassung von Factor 5s <em>Turrican</em> erschien 1990. <strong>Chris Hülsbeck</strong> komponierte das Original; die ST-Credits nennen ihn gemeinsam mit <strong>Jochen Hippel</strong>, der die YM2149-Umsetzung verantwortete. Der Dateiname ordnet den Dump World 1-1 zu.',
     'Eingebetteter Titel: <em>Turrican</em>. YM5!, 6.480 Frames, drei Digidrum-Blöcke; Konvertierung durch Oedipus.',
     'World 1-1'
 );
 addGameTrack(
     'turrican', 'Turrican2_TheDesertRocks.YM', 'Turrican 2 – The Desert Rocks',
-    'Der eingebettete Titel identifiziert <em>The Desert Rocks</em>. Auch hier nennt das Autorenfeld Jochen Hippel und in Klammern Chris Hülsbeck.',
+    'Der eingebettete Titel identifiziert <em>The Desert Rocks</em> aus der 1991 erschienenen ST-Fassung von <em>Turrican II</em>. <strong>Chris Hülsbeck</strong> ist der Originalkomponist; <strong>Jochen Hippel</strong> wird für die ST-Bearbeitung mitgeführt.',
     'YM6!, 10.080 Frames, zehn Digidrum-Blöcke. Die Zahl beschreibt den Inhalt des Containers und ist keine Behauptung über zusätzliche Hardwarekanäle.',
     'The Desert Rocks'
 );

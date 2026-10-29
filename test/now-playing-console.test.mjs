@@ -34,6 +34,20 @@ test('fullscreen console maps complete C64 metadata and the next track', () => {
     assert.deepEqual(model.channelLabels, ['SID 1', 'SID 2', 'SID 3']);
 });
 
+test('fullscreen console prefers the curated title for the next track', () => {
+    const model = buildNowPlayingModel({
+        system: 'amiga',
+        metadata: { type: 'ProTracker' },
+        selectedSong: { title: '1. LOAD PROTRACKER: ELYSIUM.MOD', listTitle: 'Elysium' },
+        trackIndex: 0,
+        tracks: [
+            { title: '1. LOAD PROTRACKER: ELYSIUM.MOD', listTitle: 'Elysium' },
+            { title: '2. LOAD FASTTRACKER: space_debris.xm', listTitle: 'Space Debris' }
+        ]
+    });
+    assert.equal(model.next, 'Space Debris');
+});
+
 test('fullscreen console does not reuse stale metadata while a new track loads', () => {
     const model = buildNowPlayingModel({
         system: 'c64',

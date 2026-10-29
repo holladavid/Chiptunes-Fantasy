@@ -40,9 +40,9 @@ const browser = await chromium.launch({
 });
 
 const cases = [
-    { system: 'c64', query: 'comaland-100-end.sid', composer: 'MAGNAR HARESTAD', release: '2015 CENSOR DESIGN/OXYRON', format: 'RSID v2', channels: 3 },
-    { system: 'amiga', query: 'ELYSIUM.MOD', composer: 'UNKNOWN SCENER', release: 'NOT IN FILE', format: 'ProTracker', channels: 4 },
-    { system: 'atari', query: 'thalion_loader.YM', composer: 'Jochen Hippel', release: 'NOT IN FILE', format: 'YM5!', channels: 3 }
+    { system: 'c64', query: 'comaland-100-end.sid', title: 'Comaland 100% – End', next: 'Commando', composer: 'MAGNAR HARESTAD', release: '2015 CENSOR DESIGN/OXYRON', format: 'RSID v2', channels: 3 },
+    { system: 'amiga', query: 'ELYSIUM.MOD', title: 'Elysium', next: 'Space Debris', composer: 'UNKNOWN SCENER', release: 'NOT IN FILE', format: 'ProTracker', channels: 4 },
+    { system: 'atari', query: 'thalion_loader.YM', title: 'Thalion – Intro', next: 'Bionic Commando', composer: 'Jochen Hippel', release: 'NOT IN FILE', format: 'YM5!', channels: 3 }
 ];
 const devices = [
     { name: 'desktop', viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false },
@@ -73,8 +73,14 @@ try {
                 await page.goto(origin);
                 await page.click('#boot-screen');
                 await page.locator('#tracklist li[data-track-index]').first().waitFor({ timeout: 30000 });
-                if (testCase.system !== 'c64') await page.click(`.tab-btn[data-theme="theme-${testCase.system}"]`);
+                if (testCase.system !== 'c64') {
+                    await page.click(`.tab-btn[data-theme="theme-${testCase.system}"]`);
+                    await page.waitForFunction(() => !document.body.classList.contains('system-transitioning'));
+                    await page.locator('#tracklist li[data-track-index]').first().waitFor({ timeout: 30000 });
+                }
                 await page.fill('#track-search', testCase.query);
+                await page.locator('#tracklist .track-result-title').first().waitFor({ timeout: 30000 });
+                result.searchResultTitle = await page.locator('#tracklist .track-result-title').first().textContent();
                 await page.locator('#tracklist li[data-track-index]').first().click();
                 await page.waitForFunction(() => document.body.dataset.playbackState === 'playing', null, { timeout: 30000 });
                 await page.click('#btn-fullscreen');
@@ -126,12 +132,13 @@ try {
                 check(result, state.release === testCase.release, 'release is accurate or explicitly unavailable');
                 check(result, state.format.includes(testCase.format), 'file format is shown');
                 check(result, /^\d{2}:\d{2} \/ \d{2}:\d{2}$/.test(state.time), 'elapsed and total time are shown');
-                check(result, state.next && state.next !== '—', 'next track is shown');
+                check(result, state.next === testCase.next, 'next track uses its curated song title');
                 check(result, state.core.includes(testCase.system === 'c64' ? 'MOS 6581' : testCase.system === 'amiga' ? 'Paula' : 'YM2149'), 'active core is shown');
                 check(result, state.channelCount === testCase.channels, 'only real platform channels are shown');
                 check(result, state.activeChannels > 0, 'live channel activity is nonzero');
                 check(result, state.liveRegion === 'polite' && !state.overlayLiveRegion, 'only discrete status changes are announced');
                 check(result, state.compactTrack.length > 0, 'compact fullscreen track text remains populated');
+                check(result, result.searchResultTitle === testCase.title, 'search results use the curated song title');
                 check(result, state.rms > 1e-5, 'production audio remains audible');
                 check(result, state.overlayRect.left >= 0 && state.overlayRect.right <= state.viewport.width + 1 &&
                     state.overlayRect.top >= 0 && state.overlayRect.bottom <= state.controlsTop + 1,

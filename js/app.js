@@ -944,10 +944,8 @@ function renderCoreSelector(system) {
     });
 }
 
-function getTrackDisplayName(system, song) {
-    return system === 'amiga'
-        ? song.path.split('/').pop().replace(/\.[^.]+$/, '').replaceAll('_', ' ')
-        : (song.listTitle || song.title);
+function getTrackDisplayName(song) {
+    return song.listTitle || song.title;
 }
 
 function getVisibleTrackEntries() {
@@ -1054,13 +1052,13 @@ function renderTracklist(system, options = {}) {
                 li.classList.add('tracklist-search-result');
                 const title = document.createElement('span');
                 title.className = 'track-result-title';
-                title.textContent = getTrackDisplayName(system, entry.song);
+                title.textContent = getTrackDisplayName(entry.song);
                 const path = document.createElement('span');
                 path.className = 'track-result-path';
                 path.textContent = entry.song.path;
                 li.append(title, path);
             } else {
-                li.textContent = getTrackDisplayName(system, entry.song);
+                li.textContent = getTrackDisplayName(entry.song);
             }
             li.title = `${entry.song.title} · ${entry.song.path}`;
             li.dataset.trackIndex = entry.index;

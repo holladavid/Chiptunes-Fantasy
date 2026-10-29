@@ -41,37 +41,37 @@ export const amigaMuseumMetadata = {
     `,
     "dragonflight/dragonflight_surface.HIPC": `
         <h3>[ MUSEUM: DRAGONFLIGHT — SURFACE ]</h3>
-        <p><strong>Historie:</strong> Die Surface-Datei gehört zur Musik für die Oberwelt von <strong>Dragonflight</strong>. Wie die übrigen HIPC-Dateien stammt sie aus Jochen Hippels Thalion-Kontext, nicht aus einem generischen ProTracker-Modul.</p>
+        <p><strong>Historie:</strong> Die Surface-Datei gehört zu <strong>Jochen Hippels</strong> Musik für die Oberwelt von Thalions <strong>Dragonflight</strong> (Amiga, 1990). Wie die übrigen HIPC-Dateien nutzt sie Hippels eigenes Musiksystem, nicht ein generisches ProTracker-Modul.</p>
         <p><strong>Datei &amp; Replay:</strong> Lokaler COSO-/HIPC-Befund: <strong>16 Instrumente, 19 Timbres, 64 Monopatterns, 158 Divisions und 4 Songs</strong>. Die Datei referenziert 32 Samples mit zusammen 7.546 PCM-Bytes. Die Wiedergabe erfolgt über Hippels COSO-Interpreter mit PAL-CIA-Timing; Instrumente, Timbres und Songs sind getrennte Ebenen des Formats.</p>
         <p class="museum-sources"><strong>Quellen:</strong> <a href="https://amiga.abime.net/412" target="_blank" rel="noopener noreferrer">Hall of Light: Dragonflight</a></p>
     `,
     "dragonflight/dragonflight_town.HIPC": `
         <h3>[ MUSEUM: DRAGONFLIGHT — TOWN ]</h3>
-        <p><strong>Historie:</strong> Town ist die Städte-Musik aus <strong>Dragonflight</strong> (Thalion, 1990). Der Dateiname liefert die Szenenzuordnung; weitergehende Handlungsbehauptungen wären ohne Spielbeleg Spekulation.</p>
+        <p><strong>Historie:</strong> Town ist <strong>Jochen Hippels</strong> Städte-Musik aus <strong>Dragonflight</strong> (Thalion, 1990). Der Dateiname liefert die Szenenzuordnung; weitergehende Handlungsbehauptungen wären ohne Spielbeleg Spekulation.</p>
         <p><strong>Datei &amp; Replay:</strong> Lokaler COSO-/HIPC-Befund: <strong>13 Instrumente, 20 Timbres, 40 Monopatterns, 116 Divisions und 3 Songs</strong>. Die Datei referenziert 28 Samples mit zusammen 724 PCM-Bytes. Die Wiedergabe erfolgt über Hippels COSO-Interpreter mit PAL-CIA-Timing; Instrumente, Timbres und Songs sind getrennte Ebenen des Formats.</p>
         <p class="museum-sources"><strong>Quellen:</strong> <a href="https://amiga.abime.net/412" target="_blank" rel="noopener noreferrer">Hall of Light: Dragonflight</a></p>
     `,
     "dragonflight/dragonflight_dungeon.HIPC": `
         <h3>[ MUSEUM: DRAGONFLIGHT — DUNGEON ]</h3>
-        <p><strong>Historie:</strong> Dungeon ist die für die unterirdischen Bereiche archivierte Musik aus <strong>Dragonflight</strong>. Mit sieben Songs in einer Datei zeigt sie besonders deutlich, dass HIPC mehrere aufrufbare Sequenzen bündeln kann.</p>
+        <p><strong>Historie:</strong> Dungeon ist <strong>Jochen Hippels</strong> für die unterirdischen Bereiche archivierte Musik aus Thalions <strong>Dragonflight</strong> (Amiga, 1990). Mit sieben Songs in einer Datei zeigt sie besonders deutlich, dass HIPC mehrere aufrufbare Sequenzen bündeln kann.</p>
         <p><strong>Datei &amp; Replay:</strong> Lokaler COSO-/HIPC-Befund: <strong>21 Instrumente, 27 Timbres, 133 Monopatterns, 238 Divisions und 7 Songs</strong>. Die Datei referenziert 29 Samples mit zusammen 992 PCM-Bytes. Die Wiedergabe erfolgt über Hippels COSO-Interpreter mit PAL-CIA-Timing; Instrumente, Timbres und Songs sind getrennte Ebenen des Formats.</p>
         <p class="museum-sources"><strong>Quellen:</strong> <a href="https://amiga.abime.net/412" target="_blank" rel="noopener noreferrer">Hall of Light: Dragonflight</a></p>
     `,
     "dragonflight/dragonflight_endsequence.HIPC": `
         <h3>[ MUSEUM: DRAGONFLIGHT — ENDSEQUENCE ]</h3>
-        <p><strong>Historie:</strong> Die Endsequence-Datei enthält Musik für den Abschluss von <strong>Dragonflight</strong>. Sie bleibt als eigener Bestandteil der siebenteiligen lokalen Suite erhalten.</p>
+        <p><strong>Historie:</strong> Die Endsequence-Datei enthält <strong>Jochen Hippels</strong> Musik für den Abschluss von Thalions <strong>Dragonflight</strong> (Amiga, 1990). Sie bleibt als eigener Bestandteil der siebenteiligen lokalen Suite erhalten.</p>
         <p><strong>Datei &amp; Replay:</strong> Lokaler COSO-/HIPC-Befund: <strong>12 Instrumente, 20 Timbres, 75 Monopatterns, 156 Divisions und 3 Songs</strong>. Die Datei referenziert 29 Samples mit zusammen 992 PCM-Bytes. Die Wiedergabe erfolgt über Hippels COSO-Interpreter mit PAL-CIA-Timing; Instrumente, Timbres und Songs sind getrennte Ebenen des Formats.</p>
         <p class="museum-sources"><strong>Quellen:</strong> <a href="https://amiga.abime.net/412" target="_blank" rel="noopener noreferrer">Hall of Light: Dragonflight</a></p>
     `,
     "dragonflight/dragonflight_ani.HIPC": `
         <h3>[ MUSEUM: DRAGONFLIGHT — ANI ]</h3>
-        <p><strong>Historie:</strong> Ani ist die der Animations- beziehungsweise Intro-Sequenz zugeordnete Musikdatei aus <strong>Dragonflight</strong>. Die archivierte Bezeichnung wird hier bewusst nicht zu einer genaueren Filmszenenbeschreibung ausgeschmückt.</p>
+        <p><strong>Historie:</strong> Ani ist <strong>Jochen Hippels</strong> der Animations- beziehungsweise Intro-Sequenz zugeordnete Musikdatei aus Thalions <strong>Dragonflight</strong> (Amiga, 1990). Die archivierte Bezeichnung wird hier bewusst nicht zu einer genaueren Filmszenenbeschreibung ausgeschmückt.</p>
         <p><strong>Datei &amp; Replay:</strong> Lokaler COSO-/HIPC-Befund: <strong>8 Instrumente, 9 Timbres, 27 Monopatterns, 45 Divisions und 2 Songs</strong>. Die Datei referenziert 29 Samples mit zusammen 850 PCM-Bytes. Die Wiedergabe erfolgt über Hippels COSO-Interpreter mit PAL-CIA-Timing; Instrumente, Timbres und Songs sind getrennte Ebenen des Formats.</p>
         <p class="museum-sources"><strong>Quellen:</strong> <a href="https://amiga.abime.net/412" target="_blank" rel="noopener noreferrer">Hall of Light: Dragonflight</a></p>
     `,
     "dragonflight/dragonflight_always.HIPC": `
         <h3>[ MUSEUM: DRAGONFLIGHT — ALWAYS ]</h3>
-        <p><strong>Historie:</strong> Always ergänzt die <strong>Dragonflight</strong>-Suite um fünf Songs. Der Titel ist als Dateiname dokumentiert; eine bestimmte narrative Funktion lässt sich daraus allein nicht sicher ableiten.</p>
+        <p><strong>Historie:</strong> Always ergänzt <strong>Jochen Hippels</strong> Suite zu Thalions <strong>Dragonflight</strong> (Amiga, 1990) um fünf Songs. Der Titel ist als Dateiname dokumentiert; eine bestimmte narrative Funktion lässt sich daraus allein nicht sicher ableiten.</p>
         <p><strong>Datei &amp; Replay:</strong> Lokaler COSO-/HIPC-Befund: <strong>12 Instrumente, 16 Timbres, 101 Monopatterns, 136 Divisions und 5 Songs</strong>. Die Datei referenziert 44 Samples mit zusammen 4.078 PCM-Bytes. Die Wiedergabe erfolgt über Hippels COSO-Interpreter mit PAL-CIA-Timing; Instrumente, Timbres und Songs sind getrennte Ebenen des Formats.</p>
         <p class="museum-sources"><strong>Quellen:</strong> <a href="https://amiga.abime.net/412" target="_blank" rel="noopener noreferrer">Hall of Light: Dragonflight</a></p>
     `,

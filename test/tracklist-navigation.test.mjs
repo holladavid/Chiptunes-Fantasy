@@ -34,6 +34,8 @@ test('Amiga tracklist shows game folders and navigates their tracks', () => {
     assert.equal(dragonflightEntries[0].song.path, 'dragonflight/dragonflight_titletune.HIPC');
     assert.match(dragonflightEntries[0].song.composerInfo, /Jochen Hippel/);
     assert.match(dragonflightEntries[0].song.composerInfo, /COSO-\/HIPC/);
+    assert.ok(dragonflightEntries.every(entry => /1990/.test(entry.song.composerInfo)));
+    assert.ok(dragonflightEntries.every(entry => /Jochen Hippel/.test(entry.song.composerInfo)));
 
     const wingsEntries = getTracklistEntries(trackRegistry.amiga, wingsFolder.path);
     assert.equal(wingsEntries.length, 9);
@@ -138,6 +140,22 @@ test('Logical Atari folders do not change physical production baseline sources',
 });
 
 
+test('All systems expose curated song titles instead of loader or filename labels', () => {
+    for (const [system, songs] of Object.entries(trackRegistry)) {
+        for (const song of songs) {
+            assert.ok(song.listTitle, `${system}: ${song.path}`);
+            assert.doesNotMatch(song.listTitle, /LOAD (?:SID|PROTRACKER|FASTTRACKER|HIPPEL|WHITTAKER)/i, song.path);
+        }
+    }
+
+    assert.equal(trackRegistry.c64.find(song => song.path === 'Compilation_II.sid').listTitle, 'Compilation III');
+    assert.equal(trackRegistry.amiga.find(song => song.path === 'GSLINGER.MOD').listTitle, 'Guitar Slinger');
+    assert.equal(
+        trackRegistry.amiga.find(song => song.path === 'wings-of-death/Wings_Of_Death-Level_1.hipc').listTitle,
+        'Level 1 – Over the Trees'
+    );
+});
+
 test('Archive search finds nested tracks with normalized title and path terms', () => {
     const wingsTracks = searchTracks(trackRegistry.atari, 'wings of death');
     assert.equal(wingsTracks.length, 10);
@@ -146,6 +164,13 @@ test('Archive search finds nested tracks with normalized title and path terms', 
     const gwensLament = searchTracks(trackRegistry.amiga, 'Gwens Lament');
     assert.ok(gwensLament.length >= 1);
     assert.equal(gwensLament[0].song.path, 'amberstar/Gwens_Lament.hipc');
+    assert.equal(gwensLament[0].song.listTitle, 'Gwen’s Lament');
+
+    const compilation = searchTracks(trackRegistry.c64, 'Compilation III');
+    assert.equal(compilation[0].song.path, 'Compilation_II.sid');
+    assert.equal(compilation[0].song.listTitle, 'Compilation III');
+    const guitarSlinger = searchTracks(trackRegistry.amiga, 'Guitar Slinger');
+    assert.equal(guitarSlinger[0].song.path, 'GSLINGER.MOD');
 
     assert.deepEqual(searchTracks(trackRegistry.c64, ''), []);
     assert.deepEqual(searchTracks(trackRegistry.c64, 'definitely-not-a-track'), []);

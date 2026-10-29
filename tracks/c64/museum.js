@@ -153,8 +153,9 @@ export const c64MuseumMetadata = {
     ),
     "Compilation_II.sid": museum(
         'CHRIS HÜLSBECK — COMPILATION III',
-        `Der historische Dateiname lautet <code>Compilation_II.sid</code>, der eingebettete Titel ist jedoch eindeutig <strong>Compilation III</strong>. <strong>Chris Hülsbeck</strong> datiert die vier Stücke auf August und September 1988. <em>The Deep</em> wurde später als Subsong 3 von <em>Turrican</em> verwendet; <em>Dreamlights</em> wird mit dem Arbeitstitel Hurrican in Verbindung gebracht.`,
-        `Lokaler Header: <strong>PSID v2, vier Subsongs, Start 3</strong> – der Start liegt auf <em>Dreamlights</em>. Der bestehende Pfad bleibt unverändert, während Überschrift und Text nun den tatsächlichen SID-Header korrekt wiedergeben.`
+        `Der historische Dateiname lautet <code>Compilation_II.sid</code>, der eingebettete Titel ist jedoch eindeutig <strong>Compilation III</strong>. <strong>Chris Hülsbeck</strong> datiert die vier Stücke auf August und September 1988; die Sammlung erschien 1989 bei A.U.D.I.O.S.-Entertainment. <em>The Deep</em> wurde später als Subsong 3 von <em>Turrican</em> verwendet; <em>Dreamlights</em> wird mit dem Arbeitstitel Hurrican in Verbindung gebracht.`,
+        `Lokaler Header: <strong>PSID v2, vier Subsongs, Start 3</strong> – der Start liegt auf <em>Dreamlights</em>. Die STIL-Reihenfolge lautet <em>Moodolo</em>, <em>Try It Hard</em>, <em>Dreamlights</em> und <em>The Deep</em>. Der bestehende Pfad bleibt unverändert, während Liste und Museum den tatsächlichen SID-Header wiedergeben.`,
+        { label: 'CSDb SID: Compilation III', url: 'https://csdb.dk/sid/?id=13988' }
     ),
 
     "classics/games/glider-rider.sid": museum(
@@ -261,10 +262,11 @@ export const c64MuseumMetadata = {
     ),
 
     "classics/demoscene/radio-napalm.sid": museum(
-        'PVCF — RADIO NAPALM',
-        `<strong>Radio Napalm</strong> ist <strong>PVCFs</strong> Musik zur Reflex-Trackmo, die 1995 den C64-Demowettbewerb der X’95 gewann. PVCF beschreibt die Arbeit mit DMC und dessen 16 Instrumenten-Slots; die dadurch stufigen Filterbewegungen im ersten Teil waren für ihn ein deutlicher Kompromiss. Das Stück entstand für den neuen 8580, später wurde eine angepasste 6581-Fassung veröffentlicht.`,
-        `Lokaler Header: <strong>PSID v2, ein Subsong</strong>, offizielle Länge <strong>4:28,098</strong>. Der Eintrag dokumentiert gezielt die Abhängigkeit des Klangs von Player, Instrumentenlimit und SID-Modell, ohne eine der beiden historischen Hardwarefassungen zur einzig „richtigen“ zu erklären.`,
-        csdb(11665, 'Radio Napalm')
+        'FANTA — COMA LIGHT 13 / TUNE 1',
+        `<strong>Coma Light 13</strong> gewann am 28. Oktober 2012 den C64-Demowettbewerb der X2012. Der erste Musikbeitrag stammt von <strong>Alexander Rotzsch (Fanta)</strong>. STIL identifiziert das kurze Stück als Bezug auf Danes ersten <em>Edge-of-Disgrace</em>-Subsong – eine direkte musikalische Verbindung zwischen zwei herausragenden C64-Demos.`,
+        `Lokaler Header: <strong>PSID v2, ein Subsong</strong>, Titel <em>Coma Light 13 (tune 1)</em>, offizielle Länge <strong>0:38</strong>. Der historische Dateiname <code>radio-napalm.sid</code> ist hier irreführend; Liste und Museum folgen dem tatsächlich gespeicherten SID. Die Kürze ist Teil der dokumentierten Funktion und kein Hinweis auf eine unvollständige Datei.`,
+        { label: 'Oxyron: Coma Light 13', url: 'https://www.oxyron.de/html/demos.html' },
+        csdb(112378, 'Coma Light 13')
     ),
     "classics/demoscene/edge-of-disgrace.sid": museum(
         'DANE — EDGE OF DISGRACE',
@@ -273,10 +275,11 @@ export const c64MuseumMetadata = {
         csdb(72550, 'Edge of Disgrace')
     ),
     "classics/demoscene/coma-light-13.sid": museum(
-        'FANTA — COMA LIGHT 13 / TUNE 1',
-        `<strong>Coma Light 13</strong> gewann am 28. Oktober 2012 den C64-Demowettbewerb der X2012. Der erste Musikbeitrag stammt von <strong>Alexander Rotzsch (Fanta)</strong>. STIL identifiziert das kurze Stück als Bezug auf Danes ersten <em>Edge-of-Disgrace</em>-Subsong – eine direkte musikalische Verbindung zwischen zwei herausragenden C64-Demos.`,
-        `Lokaler Header: <strong>PSID v2, ein Subsong</strong>, offizielle Länge <strong>0:38</strong>. Die Kürze ist hier Teil der dokumentierten Funktion und kein Hinweis auf eine unvollständige Datei. Die Playlist ordnet sie als eigenständiges Demo-Musikdokument ein.`,
-        { label: 'Oxyron: Coma Light 13', url: 'https://www.oxyron.de/html/demos.html' }
+        'PVCF — RADIO NAPALM',
+        `<strong>Radio Napalm</strong> ist <strong>Kai Walters (PVCF)</strong> Musik zur Reflex-Trackmo, die 1995 den C64-Demowettbewerb der X’95 gewann; der SID-Header datiert das Stück auf 1994. PVCF beschreibt die Arbeit mit DMC und dessen 16 Instrumenten-Slots; die dadurch stufigen Filterbewegungen im ersten Teil waren für ihn ein deutlicher Kompromiss. Das Stück entstand für den neuen 8580, später wurde eine angepasste 6581-Fassung veröffentlicht.`,
+        `Lokaler Header: <strong>PSID v2, ein Subsong</strong>, Titel <em>Radio Napalm</em>, offizielle Länge <strong>4:28,098</strong>. Der historische Dateiname <code>coma-light-13.sid</code> ist hier irreführend; Liste und Museum folgen dem tatsächlich gespeicherten SID. Der Eintrag dokumentiert die Abhängigkeit des Klangs von Player, Instrumentenlimit und SID-Modell, ohne eine der beiden Hardwarefassungen zur einzig „richtigen“ zu erklären.`,
+        csdb(11665, 'Radio Napalm'),
+        { label: 'CSDb SID: Radio Napalm', url: 'https://csdb.dk/sid/?id=23582' }
     ),
     "classics/demoscene/comaland-100-end.sid": museum(
         'MAGNAR HARESTAD — COMALAND 100% / END',

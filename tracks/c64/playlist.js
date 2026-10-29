@@ -63,6 +63,62 @@ const classicSidFiles = [
 
 export const c64TrackPaths = [...legacySidFiles, ...classicSidFiles];
 
+// Kuratierte Titel für die Auswahlliste. Der historische Dateipfad bleibt
+// erhalten, auch wenn er – wie bei Compilation III und zwei Demo-SIDs – vom
+// tatsächlichen Inhalt der Datei abweicht.
+const c64ListTitles = [
+    'Commando',
+    'Crazy Comets',
+    'Sanxion',
+    'Lightforce',
+    'Wizball',
+    'Comic Bakery',
+    'Arkanoid',
+    'The Great Giana Sisters',
+    'Bionic Commando',
+    'The Last Ninja',
+    'Last Ninja 2',
+    'Turbo OutRun',
+    'Cybernoid II',
+    'Supremacy',
+    'RoboCop 3',
+    'Myth',
+    'Monty on the Run',
+    'Delta',
+    'To Be on Top',
+    'Rambo: First Blood Part II',
+    'Mega Apocalypse',
+    'Miami Vice',
+    'Way of the Tiger',
+    'Platoon',
+    'Compilation I',
+    'Compilation III',
+    'Glider Rider',
+    'Lazy Jones',
+    'Ocean Loader 2',
+    'Ocean Loader 3',
+    'Ocean Loader 4',
+    'Parallax',
+    'Agent X II',
+    'L.E.D. Storm',
+    'Ghouls ’n’ Ghosts',
+    'Hawkeye',
+    'Eliminator',
+    'Katakis',
+    'Turrican',
+    'Armalyte',
+    'Citadel',
+    'Creatures 2',
+    'Mayhem in Monsterland',
+    'Flimbo’s Quest',
+    'Last Ninja 3',
+    'Ghosts ’n Goblins',
+    'Coma Light 13 – Tune 1',
+    'Edge of Disgrace',
+    'Radio Napalm',
+    'Comaland 100% – End'
+];
+
 export const c64Playlist = c64TrackPaths.map((path, index) => {
     const metaInfo = c64MuseumMetadata[path];
 
@@ -74,6 +130,7 @@ export const c64Playlist = c64TrackPaths.map((path, index) => {
     return {
         path,
         title: `${index + 1}. LOAD SID: ${filename}`,
+        listTitle: c64ListTitles[index],
         composerInfo: metaInfo,
         generator: function() { return []; },
         loadAsync: async function() {

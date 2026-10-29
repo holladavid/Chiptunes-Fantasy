@@ -119,7 +119,7 @@ try {
         await page.selectOption('#core-selector', String(configuration.core));
         await page.waitForFunction(() => document.querySelectorAll('#tracklist li').length > 0);
         await page.locator('#track-search').fill('Wings_Of_Death-Level_1');
-        await page.locator('#tracklist li[data-track-index]', { hasText: 'Wings Of Death-Level 1' }).click();
+        await page.locator('#tracklist li[data-track-index]', { hasText: 'Level 1 – Over the Trees' }).click();
 
         await waitForSubsong(page, 1, '03:35');
         await page.waitForTimeout(600);
