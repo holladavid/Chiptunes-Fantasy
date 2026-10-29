@@ -1931,13 +1931,13 @@ summary:focus-visible,
     animation: none;
 }
 
-/* --- Persistent Now Playing / Hardware Status --- */
+/* --- Persistent Now Playing / Hardware Status (Fullscreen OSD) --- */
 .now-playing {
+    display: none;
     position: absolute;
     left: 24px;
     bottom: 20px;
     z-index: 14;
-    display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
     gap: 12px;
@@ -1950,6 +1950,23 @@ summary:focus-visible,
     border-left: 3px solid var(--bus-active-color);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), inset 0 0 18px rgba(0, 0, 0, 0.55);
     backdrop-filter: blur(6px);
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.4s ease;
+}
+
+#visual-zone:fullscreen .now-playing,
+#visual-zone:-webkit-full-screen .now-playing,
+#visual-zone.pseudo-fullscreen .now-playing {
+    display: grid;
+    bottom: 82px;
+    max-width: min(620px, calc(100% - 48px));
+}
+
+#visual-zone.user-inactive:fullscreen .now-playing,
+#visual-zone.user-inactive:-webkit-full-screen .now-playing,
+#visual-zone.user-inactive.pseudo-fullscreen .now-playing {
+    opacity: 0;
     pointer-events: none;
 }
 
@@ -2049,13 +2066,6 @@ summary:focus-visible,
 
 @keyframes status-pulse {
     50% { opacity: 0.35; }
-}
-
-#visual-zone:fullscreen .now-playing,
-#visual-zone:-webkit-full-screen .now-playing,
-#visual-zone.pseudo-fullscreen .now-playing {
-    bottom: 82px;
-    max-width: min(620px, calc(100% - 48px));
 }
 
 /* The windowed fullscreen control must remain reachable after inactivity. */
