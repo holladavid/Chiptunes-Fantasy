@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.5.6)
+# 💾 CHIPTUNES FANTASY (v1.5.5)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -16,9 +16,9 @@ Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with rut
 
 ---
 
-## 🚀 v1.5.6 Hotfix Highlights
+## 🚀 v1.5.5 Hotfix Highlights
 
-Version 1.5.6 is a focused iPhone layout and fullscreen hotfix. It keeps the visualization and song library prioritized on small screens without changing SID, Paula, YM, parser, replay, audio-engine, or Scene-DJ/DSE behavior. The **209-track library** and all v1.5.5 features are carried forward unchanged.
+Version 1.5.5 is a focused iPhone layout and fullscreen hotfix. It keeps the visualization and song library prioritized on small screens without changing SID, Paula, YM, parser, replay, audio-engine, or Scene-DJ/DSE behavior. The **209-track library** and all v1.5.5 features are carried forward unchanged.
 
 ### Windowed stage and iPhone safe areas
 
