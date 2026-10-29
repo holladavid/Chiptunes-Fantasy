@@ -3,6 +3,7 @@
 //                  CHIPTUNES FANTASY - MAIN APP CONTROLLER
 // =========================================================================
 import { FullscreenUI } from './ui/fullscreen-ui.js';
+import { buildNowPlayingModel, NowPlayingConsole } from './ui/now-playing-console.js';
 import { getTracklistEntries, searchTracks, trackRegistry } from '../tracks/index.js';
 import { systemDescriptions } from './content/museum.js'; 
 import { chipCheatSheets } from './content/cheatsheets.js'; 
@@ -27,6 +28,7 @@ import { MediaSessionController } from './audio/media-session.js';
 import { formatFrameTime, framesToSeconds, getPlayerRate, isStoredLoopTransition, secondsToFrames } from './audio/playback-timing.js';
 
 let fsUI = null;
+let nowPlayingConsole = null;
 let siliconVisualizer = null; // Living Silicon Instanz
 let currentOscValue = 0;
 let currentChipRegs = null;
@@ -35,6 +37,7 @@ let activeSystem = 'c64'; // Standard-System auf 'c64' korrigiert (passend zum B
 let trackData = [];    
 let isPlaying = false; 
 let currentTrackIndex = -1;
+let loadedTrackIndex = -1;
 let playbackState = 'idle';
 let currentTrackTitle = '';
 let tracklistDirectory = '';
@@ -93,7 +96,39 @@ function getActiveCoreName() {
 function updateNowPlayingSystem() {
     const systemNames = { c64: 'C64', amiga: 'AMIGA', atari: 'ATARI ST' };
     const element = document.getElementById('now-playing-system');
-    if (element) element.textContent = `${systemNames[activeSystem]} · ${getActiveCoreName()}`;
+    const label = `${systemNames[activeSystem]} · ${getActiveCoreName()}`;
+    if (element) {
+        element.textContent = label;
+        element.title = label;
+    }
+}
+
+function updateNowPlayingLive(force = false) {
+    if (!nowPlayingConsole) return;
+    const totalFrames = trackData.length || 0;
+    nowPlayingConsole.updateLive({
+        currentTime: totalFrames > 0 ? formatTime(lastKnownFrame) : '00:00',
+        totalTime: totalFrames > 0 ? formatTime(totalFrames) : '00:00',
+        progress: totalFrames > 0 ? lastKnownFrame / totalFrames : 0,
+        levels: channelVolumes,
+        playing: isPlaying
+    }, force);
+}
+
+function syncNowPlayingConsole() {
+    if (!nowPlayingConsole) return;
+    const tracks = trackRegistry[activeSystem] || [];
+    const selectedSong = tracks[currentTrackIndex] || null;
+    const metadata = loadedTrackIndex === currentTrackIndex ? trackData.metadata || null : null;
+    nowPlayingConsole.updateTrack(buildNowPlayingModel({
+        system: activeSystem,
+        metadata,
+        selectedSong,
+        trackIndex: currentTrackIndex,
+        tracks,
+        currentSubsong: currentSubsongIndex
+    }));
+    updateNowPlayingLive(true);
 }
 
 function syncTracklistPlaybackState() {
@@ -173,6 +208,7 @@ function setPlaybackState(nextState, detail = '') {
     if (detailElement) detailElement.textContent = detail || defaultDetails[nextState] || defaultDetails.idle;
 
     updateNowPlayingSystem();
+    syncNowPlayingConsole();
     syncTracklistPlaybackState();
     syncEcoPlaybackUI();
     syncStageModeUI();
@@ -211,6 +247,8 @@ function resetMouseIdleTimer() {
 
 
 function initApp() {
+    nowPlayingConsole = new NowPlayingConsole();
+    syncNowPlayingConsole();
     syncEcoPlaybackUI();
     syncStageModeUI();
 
@@ -304,6 +342,8 @@ function initApp() {
                 visualZone.addEventListener('mousemove', resetMouseIdleTimer);
                 visualZone.addEventListener('mousedown', resetMouseIdleTimer);
                 visualZone.addEventListener('touchstart', resetMouseIdleTimer);
+                visualZone.addEventListener('keydown', resetMouseIdleTimer);
+                visualZone.addEventListener('focusin', resetMouseIdleTimer);
             }
 
             // =========================================================
@@ -347,6 +387,7 @@ function formatTime(frames) {
 }
 
 function updateTimelineUI() {
+    updateNowPlayingLive();
     if (!isPlaying || trackData.length === 0) return;
     if (!isUserDragging) {
         document.getElementById('time-current').innerText = formatTime(lastKnownFrame);
@@ -388,6 +429,7 @@ function seekToFrame(targetFrame) {
     lastKnownFrame = clampedFrame;
     previousFrame = clampedFrame;
     node.port.postMessage({ type: 'SEEK_TRACK', frame: clampedFrame });
+    updateNowPlayingLive(true);
     mediaSession.updatePosition(framesToSeconds(trackData.length, trackData), framesToSeconds(clampedFrame, trackData), true);
     return true;
 }
@@ -784,6 +826,7 @@ async function setTheme(themeName, isBootSequence = false) {
     // ---------------------------------------------------------
     trackData = [];
     currentTrackIndex = -1;
+    loadedTrackIndex = -1;
     currentTrackTitle = '';
     currentChipRegs = null;
     lastKnownFrame = 0;
@@ -1056,6 +1099,7 @@ async function selectAndPlayTrack(index, system) {
     stopPlayback();
     mediaSession.setSeekable(false);
     currentTrackIndex = index;
+    loadedTrackIndex = -1;
     const selectedSong = songs[index];
     currentTrackTitle = selectedSong.title;
     const selectedPath = selectedSong.path || '';
@@ -1140,6 +1184,7 @@ async function selectAndPlayTrack(index, system) {
                 }
             }
 
+            loadedTrackIndex = index;
             let meta = parsedFile.metadata;
             currentTrackTitle = meta?.name || selectedSong.title;
             document.getElementById('progress-slider').disabled = !canSeekActiveTrack();
@@ -1224,6 +1269,7 @@ async function selectAndPlayTrack(index, system) {
             if (myToken !== playRequestToken) return;
             console.error('[TRACK LOAD]', err);
             trackData = [];
+            loadedTrackIndex = -1;
             isPlaying = false;
             document.getElementById('progress-slider').disabled = true;
             mediaSession.clear();
@@ -1266,6 +1312,7 @@ async function selectAndPlayTrack(index, system) {
         `;
         currentScrollerText = "+++ NOW PLAYING: " + selectedSong.title + " +++";
         trackData = selectedSong.generator();
+        loadedTrackIndex = index;
         document.getElementById('progress-slider').disabled = !canSeekActiveTrack();
         syncMediaSessionTrack(selectedSong);
         startPlayback();
