@@ -545,6 +545,13 @@ function handleWorkletMessage(e) {
                             return; 
                         }
                     }
+                    if (isLoadedHipcTrack()) {
+                        const totalSongs = trackData.metadata.songs || 1;
+                        if (currentSubsongIndex < totalSongs) {
+                            changeHipcSubsong(currentSubsongIndex + 1);
+                            return;
+                        }
+                    }
 
                     let nextIdx = (currentTrackIndex + 1) % trackRegistry[activeSystem].length;
                     selectAndPlayTrack(nextIdx, activeSystem);
@@ -589,6 +596,24 @@ function handleWorkletMessage(e) {
     }
 }
 
+function isHipcTrack(track = trackData) {
+    return Boolean(track && (track.type === 'HIPC' || track.type === 'COSO'));
+}
+
+function isLoadedHipcTrack() {
+    return activeSystem === 'amiga' && loadedTrackIndex === currentTrackIndex && isHipcTrack();
+}
+
+function syncSubsongDisplay() {
+    const display = document.getElementById('subsong-display');
+    if (!display) return;
+    const totalSongs = Number(trackData?.metadata?.songs) || 0;
+    const isSid = activeSystem === 'c64' && trackData?.isSidFile;
+    const visible = totalSongs > 0 && (isSid || (isLoadedHipcTrack() && totalSongs > 1));
+    display.classList.toggle('hidden', !visible);
+    display.innerText = visible ? `[SUB ${currentSubsongIndex}/${totalSongs}]` : '';
+}
+
 function syncMediaSessionTrack(selectedSong) {
     if (!selectedSong || trackData.length === 0) return;
 
@@ -596,7 +621,7 @@ function syncMediaSessionTrack(selectedSong) {
     let title = metadata?.name || selectedSong.title;
     const artist = metadata?.author || '';
 
-    if (activeSystem === 'c64' && trackData.isSidFile) {
+    if ((activeSystem === 'c64' && trackData.isSidFile) || isLoadedHipcTrack()) {
         const totalSongs = metadata?.songs || 1;
         title += ` [SUB ${currentSubsongIndex}/${totalSongs}]`;
     }
@@ -628,10 +653,7 @@ function changeC64Subsong(subsongId) {
         document.getElementById('time-total').innerText = formatTime(trackData.length);
         document.getElementById('progress-slider').value = 0;
 
-        const subsongDisplay = document.getElementById('subsong-display');
-        if (subsongDisplay) {
-            subsongDisplay.innerText = `[SUB ${subsongId}/${trackData.metadata.songs}]`;
-        }
+        syncSubsongDisplay();
 
         let meta = trackData.metadata;
         currentScrollerText = `+++ BOOM! SWITCHED TO SUBSONG ${subsongId} OF ${meta.songs} +++ NOW PLAYING: ${meta.name.toUpperCase()} (TRACK ${subsongId}) BY ${meta.author.toUpperCase()} +++ `;
@@ -644,6 +666,16 @@ function changeC64Subsong(subsongId) {
         syncMediaSessionTrack(trackRegistry[activeSystem][currentTrackIndex]);
     }    
 
+}
+
+function changeHipcSubsong(subsongId) {
+    if (!isLoadedHipcTrack()) return;
+    const totalSongs = trackData.metadata?.songs || 1;
+    if (subsongId < 1 || subsongId > totalSongs || subsongId === currentSubsongIndex) return;
+
+    // HIPC songs have independent division ranges, speed and length. Reuse the
+    // normal loading path so both Paula cores construct a fresh VM for the song.
+    selectAndPlayTrack(currentTrackIndex, activeSystem, { song: subsongId - 1 });
 }
 
 function startPlayback() {
@@ -829,6 +861,7 @@ async function setTheme(themeName, isBootSequence = false) {
     loadedTrackIndex = -1;
     currentTrackTitle = '';
     currentChipRegs = null;
+    currentSubsongIndex = 1;
     lastKnownFrame = 0;
     previousFrame = 0;
     mediaSession.clear();
@@ -843,11 +876,7 @@ async function setTheme(themeName, isBootSequence = false) {
     document.getElementById('time-current').innerText = "00:00";
     document.getElementById('time-total').innerText = "00:00";
     
-    const subsongDisplay = document.getElementById('subsong-display');
-    if (subsongDisplay) {
-        subsongDisplay.classList.add('hidden');
-        subsongDisplay.innerText = "";
-    }
+    syncSubsongDisplay();
     
     renderCoreSelector(activeSystem);
     updateLivingSiliconTitle();
@@ -1073,7 +1102,7 @@ function renderTracklist(system, options = {}) {
     if (focusList) listElement.querySelector('[role="button"]')?.focus({ preventScroll: true });
 }
 
-async function selectAndPlayTrack(index, system) {
+async function selectAndPlayTrack(index, system, options = {}) {
     lastTrackChangeTime = performance.now();
 
     // =========================================================
@@ -1127,7 +1156,7 @@ async function selectAndPlayTrack(index, system) {
             : (isC64System ? "+++ DOWNLOADING AND PARSING BINARY C64 PSID FILE... +++" : "+++ DOWNLOADING AND PARSING BINARY YM FILE... +++");
         
         try {
-            let parsedFile = await selectedSong.loadAsync();
+            let parsedFile = await selectedSong.loadAsync(options);
             
             if (myToken !== playRequestToken) {
                 console.warn("[SYSTEM] Veralteter Async-Ladevorgang durch User-Interaktion abgebrochen.");
@@ -1144,18 +1173,8 @@ async function selectAndPlayTrack(index, system) {
                 let songLengthSeconds = sldbLengths[currentSubsongIndex - 1] || sldbLengths[0] || 180;
                 trackData.length = songLengthSeconds * 50; 
                 
-                const subsongDisplay = document.getElementById('subsong-display');
-                if (subsongDisplay) {
-                    subsongDisplay.innerText = `[SUB ${currentSubsongIndex}/${parsedFile.metadata.songs}]`;
-                    subsongDisplay.classList.remove('hidden');
-                }
+                syncSubsongDisplay();
             } else {
-                const subsongDisplay = document.getElementById('subsong-display');
-                if (subsongDisplay) {
-                    subsongDisplay.classList.add('hidden');
-                    subsongDisplay.innerText = "";
-                }
-
                 if (parsedFile.isSequenced) {
                     trackData = parsedFile; 
                 } else {
@@ -1179,12 +1198,18 @@ async function selectAndPlayTrack(index, system) {
                             });
                         }
                     }
+                    currentSubsongIndex = isHipcTrack(parsedFile)
+                        ? (parsedFile.selectedSong || 0) + 1
+                        : 1;
                 } else {
+                    currentSubsongIndex = 1;
                     trackData.isYmFile = true;
                 }
             }
 
             loadedTrackIndex = index;
+            if (isLoadedHipcTrack()) trackData.metadata.currentSubsong = currentSubsongIndex;
+            syncSubsongDisplay();
             let meta = parsedFile.metadata;
             currentTrackTitle = meta?.name || selectedSong.title;
             document.getElementById('progress-slider').disabled = !canSeekActiveTrack();
@@ -1270,6 +1295,8 @@ async function selectAndPlayTrack(index, system) {
             console.error('[TRACK LOAD]', err);
             trackData = [];
             loadedTrackIndex = -1;
+            currentSubsongIndex = 1;
+            syncSubsongDisplay();
             isPlaying = false;
             document.getElementById('progress-slider').disabled = true;
             mediaSession.clear();
@@ -1317,7 +1344,13 @@ async function selectAndPlayTrack(index, system) {
         syncMediaSessionTrack(selectedSong);
         startPlayback();
     }
-    if (fsUI) fsUI.updateTrack(currentTrackTitle || selectedSong.title);
+    if (fsUI) {
+        const totalSongs = trackData?.metadata?.songs || 1;
+        const title = isLoadedHipcTrack() && totalSongs > 1
+            ? `${currentTrackTitle} [SUB ${currentSubsongIndex}/${totalSongs}]`
+            : (currentTrackTitle || selectedSong.title);
+        fsUI.updateTrack(title);
+    }
 
 }
 
@@ -1511,6 +1544,13 @@ function requestNextTrack() {
             return;
         }
     }
+    if (isLoadedHipcTrack()) {
+        const totalSongs = trackData.metadata.songs || 1;
+        if (currentSubsongIndex < totalSongs) {
+            changeHipcSubsong(currentSubsongIndex + 1);
+            return;
+        }
+    }
     const visibleTracks = getVisibleTrackEntries();
     if (visibleTracks.length === 0) return;
     const currentPosition = visibleTracks.findIndex(entry => entry.index === currentTrackIndex);
@@ -1526,6 +1566,10 @@ function requestPreviousTrack() {
             changeC64Subsong(currentSubsongIndex - 1);
             return;
         }
+    }
+    if (isLoadedHipcTrack() && currentSubsongIndex > 1) {
+        changeHipcSubsong(currentSubsongIndex - 1);
+        return;
     }
     const visibleTracks = getVisibleTrackEntries();
     if (visibleTracks.length === 0) return;

@@ -71,6 +71,27 @@ test('fullscreen console exposes four Paula DMA channels and module details', ()
     assert.equal(model.next, 'CURRENT TRACK', 'the archive wraps to its first track');
 });
 
+test('fullscreen console exposes the selected HIPC subsong', () => {
+    const model = buildNowPlayingModel({
+        system: 'amiga',
+        metadata: {
+            author: 'JOCHEN HIPPEL (MAD MAX)',
+            type: 'Hippel-COSO',
+            songs: 4,
+            patternCount: 94,
+            instrumentCount: 10
+        },
+        selectedSong: tracks[0],
+        trackIndex: 0,
+        tracks,
+        currentSubsong: 3
+    });
+
+    assert.equal(model.subsong, '03 / 04');
+    assert.equal(model.format, 'Hippel-COSO');
+    assert.deepEqual(model.channelLabels, ['DMA 1', 'DMA 2', 'DMA 3', 'DMA 4']);
+});
+
 test('fullscreen console exposes three YM voices and real clock metadata', () => {
     const model = buildNowPlayingModel({
         system: 'atari',

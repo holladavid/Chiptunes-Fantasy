@@ -13,7 +13,7 @@ function displayValue(value, fallback = 'NOT IN FILE') {
 }
 
 function formatSubsong(system, metadata, currentSubsong) {
-    if (system !== 'c64' || !metadata?.songs) return '—';
+    if ((system !== 'c64' && system !== 'amiga') || !metadata?.songs) return '—';
     const current = Math.max(1, Number(currentSubsong) || 1);
     const total = Math.max(current, Number(metadata.songs) || 1);
     return `${String(current).padStart(2, '0')} / ${String(total).padStart(2, '0')}`;

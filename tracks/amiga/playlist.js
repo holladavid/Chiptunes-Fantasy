@@ -112,15 +112,17 @@ export const amigaPlaylist = myModFiles.map((filename, index) => {
         title: `${index + 1}. LOAD ${label}: ${displayFilename}`,
         composerInfo: metaInfo,
         generator: function() { return []; },
-        loadAsync: async function() {
+        loadAsync: async function(options = {}) {
             if (isHip) {
+                const songOptions = Number.isInteger(options.song) ? { song: options.song } : {};
                 if (filename.startsWith('amberstar/')) {
                     return await loadHipcFile(`tracks/amiga/${filename}`, {
+                        ...songOptions,
                         sampleBankUrl: 'tracks/amiga/amberstar/hipc.samp',
                         replayerOptions: { envSpec: true }
                     });
                 }
-                return await loadHipcFile(`tracks/amiga/${filename}`);
+                return await loadHipcFile(`tracks/amiga/${filename}`, songOptions);
             } else if (isDw) {
                 return await loadDwFile(`tracks/amiga/${filename}`);
             } else if (isXm) {
