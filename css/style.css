@@ -195,7 +195,7 @@ body, html {
 /* --- DAS HARDWARE CHASSIS --- */
 #ui-zone {
     display: grid;
-    grid-template-columns: minmax(280px, 35%) minmax(0, 1fr);
+    grid-template-columns: minmax(320px, 35%) minmax(0, 1fr);
     min-height: 0;
     overflow: hidden;
     background-color: var(--fg-color);
@@ -363,7 +363,7 @@ body.theme-amiga .tab-btn.active {
 #tracklist {
     list-style: none;
     flex-grow: 1;
-    min-height: 0;
+    min-height: 180px;
     overflow-y: auto;
     font-size: var(--font-size-base); 
     line-height: 1.6;
@@ -1114,6 +1114,7 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     }
        
     #tracklist {
+        min-height: 240px;
         max-height: 250px; 
     }
     
@@ -2077,7 +2078,7 @@ summary:focus-visible,
 /* --- Intermediate desktops: transport never forces horizontal overflow --- */
 @media (min-width: 801px) and (max-width: 1200px) {
     #ui-zone {
-        grid-template-columns: minmax(250px, 38%) minmax(0, 1fr);
+        grid-template-columns: minmax(300px, 38%) minmax(0, 1fr);
         padding: 12px;
         gap: 12px;
     }
@@ -2211,7 +2212,8 @@ summary:focus-visible,
     }
 
     #tracklist {
-        max-height: 320px;
+        min-height: 250px;
+        max-height: 380px;
     }
 
     #tracklist li {
@@ -2397,7 +2399,7 @@ summary:focus-visible,
 
     #ui-zone {
         display: grid;
-        grid-template-columns: minmax(250px, 42%) minmax(0, 1fr);
+        grid-template-columns: minmax(300px, 44%) minmax(0, 1fr);
         height: auto;
         overflow: visible;
         padding: 12px;
@@ -2410,7 +2412,10 @@ summary:focus-visible,
         overflow: visible;
     }
 
-    #tracklist { max-height: 280px; }
+    #tracklist {
+        min-height: 240px;
+        max-height: 320px;
+    }
 
     .silicon-chassis,
     .silicon-chassis.sid-chassis,
