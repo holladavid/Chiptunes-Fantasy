@@ -1,0 +1,254 @@
+{
+  "format": "chiptunes-fantasy-amiga-giana-browser-v1",
+  "referenceStatus": "Real headless Chromium production UI and playback; no physical-device or underrun-proof claim.",
+  "browser": "151.0.7922.108",
+  "chromiumPath": "/usr/bin/chromium",
+  "playMilliseconds": 1600,
+  "appSha256": "7b20383920b7fb1def4c5fe593beb7c1213bf7b290d109662fb970920294bedc",
+  "playlistSha256": "1f2537357f0a422b84a6866d66355fe3c0e5c36429a170e6fbcebe16215da07f",
+  "museumSha256": "d6a039b29a14316ee18a22598935857a5a4df7e10fb811a7533021eb1b67e0c2",
+  "provenanceSha256": "e17ff03bf47fa4ae282af3e1e42e0570544724983394ec9df5295eeef7147c15",
+  "runs": [
+    {
+      "device": "desktop",
+      "rootTracks": 10,
+      "rootFolders": [
+        "[DIR] dragonflight/",
+        "[DIR] amberstar/",
+        "[DIR] wings-of-death/",
+        "[DIR] classics/",
+        "[DIR] giana-sisters/"
+      ],
+      "gianaTracks": 4,
+      "titles": [
+        "Title Screen",
+        "Get Ready!",
+        "In-Game 1 – Ground",
+        "In-Game 2 – Cave"
+      ],
+      "screenshot": "doc/verification/amiga/giana-desktop.png",
+      "layout": {
+        "viewportWidth": 1280,
+        "documentWidth": 1280,
+        "museumVisible": true
+      },
+      "tracks": [
+        {
+          "path": "giana-sisters/title-screen.mod",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+          "activeTrack": "Title Screen",
+          "museum": "[ MUSEUM: THE GREAT GIANA SISTERS — TITLE SCREEN ]",
+          "creditsPresent": true,
+          "conversionDisclosed": true,
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.10759090632200241,
+            "rms": 0.04814190815440437,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "passed": true
+        },
+        {
+          "path": "giana-sisters/get-ready.mod",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+          "activeTrack": "Get Ready!",
+          "museum": "[ MUSEUM: THE GREAT GIANA SISTERS — GET READY! ]",
+          "creditsPresent": true,
+          "conversionDisclosed": true,
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.19151055812835693,
+            "rms": 0.07011683902512052,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "passed": true
+        },
+        {
+          "path": "giana-sisters/ingame-1-ground.mod",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+          "activeTrack": "In-Game 1 – Ground",
+          "museum": "[ MUSEUM: THE GREAT GIANA SISTERS — IN-GAME 1 / GROUND ]",
+          "creditsPresent": true,
+          "conversionDisclosed": true,
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.5716144442558289,
+            "rms": 0.28083267256102806,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "passed": true
+        },
+        {
+          "path": "giana-sisters/ingame-2-cave.mod",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+          "activeTrack": "In-Game 2 – Cave",
+          "museum": "[ MUSEUM: THE GREAT GIANA SISTERS — IN-GAME 2 / CAVE ]",
+          "creditsPresent": true,
+          "conversionDisclosed": true,
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.46874892711639404,
+            "rms": 0.17176101497869786,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "passed": true
+        }
+      ],
+      "errors": [],
+      "passed": true
+    },
+    {
+      "device": "mobile",
+      "rootTracks": 10,
+      "rootFolders": [
+        "[DIR] dragonflight/",
+        "[DIR] amberstar/",
+        "[DIR] wings-of-death/",
+        "[DIR] classics/",
+        "[DIR] giana-sisters/"
+      ],
+      "gianaTracks": 4,
+      "titles": [
+        "Title Screen",
+        "Get Ready!",
+        "In-Game 1 – Ground",
+        "In-Game 2 – Cave"
+      ],
+      "screenshot": "doc/verification/amiga/giana-mobile.png",
+      "layout": {
+        "viewportWidth": 390,
+        "documentWidth": 390,
+        "museumVisible": true
+      },
+      "tracks": [
+        {
+          "path": "giana-sisters/title-screen.mod",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+          "activeTrack": "Title Screen",
+          "museum": "[ MUSEUM: THE GREAT GIANA SISTERS — TITLE SCREEN ]",
+          "creditsPresent": true,
+          "conversionDisclosed": true,
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.1583358347415924,
+            "rms": 0.061087202758438604,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "passed": true
+        },
+        {
+          "path": "giana-sisters/get-ready.mod",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+          "activeTrack": "Get Ready!",
+          "museum": "[ MUSEUM: THE GREAT GIANA SISTERS — GET READY! ]",
+          "creditsPresent": true,
+          "conversionDisclosed": true,
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.4362810254096985,
+            "rms": 0.09320627521139117,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "passed": true
+        },
+        {
+          "path": "giana-sisters/ingame-1-ground.mod",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+          "activeTrack": "In-Game 1 – Ground",
+          "museum": "[ MUSEUM: THE GREAT GIANA SISTERS — IN-GAME 1 / GROUND ]",
+          "creditsPresent": true,
+          "conversionDisclosed": true,
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.43662452697753906,
+            "rms": 0.21217742034029946,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "passed": true
+        },
+        {
+          "path": "giana-sisters/ingame-2-cave.mod",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+          "activeTrack": "In-Game 2 – Cave",
+          "museum": "[ MUSEUM: THE GREAT GIANA SISTERS — IN-GAME 2 / CAVE ]",
+          "creditsPresent": true,
+          "conversionDisclosed": true,
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.6582237482070923,
+            "rms": 0.20329089181376594,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "passed": true
+        }
+      ],
+      "errors": [],
+      "passed": true
+    }
+  ],
+  "passed": true
+}

@@ -8,17 +8,19 @@ test('Amiga tracklist shows game folders and navigates their tracks', () => {
     const amberstarFolder = rootEntries.find(entry => entry.type === 'folder' && entry.name === 'amberstar');
     const dragonflightFolder = rootEntries.find(entry => entry.type === 'folder' && entry.name === 'dragonflight');
     const wingsFolder = rootEntries.find(entry => entry.type === 'folder' && entry.name === 'wings-of-death');
+    const gianaFolder = rootEntries.find(entry => entry.type === 'folder' && entry.name === 'giana-sisters');
 
     assert.ok(amberstarFolder);
     assert.ok(dragonflightFolder);
     assert.ok(wingsFolder);
+    assert.ok(gianaFolder);
     assert.deepEqual(
         rootEntries.slice(0, 3).map(entry => entry.name),
         ['dragonflight', 'amberstar', 'wings-of-death']
     );
     assert.ok(rootEntries.slice(0, 3).every(entry => entry.type === 'folder'));
     const rootFolderCount = rootEntries.filter(entry => entry.type === 'folder').length;
-    assert.equal(rootFolderCount, 4);
+    assert.equal(rootFolderCount, 5);
     assert.ok(rootEntries.slice(rootFolderCount).every(entry => entry.type === 'track'));
     assert.equal(rootEntries.some(entry => entry.song?.path?.startsWith('amberstar/')), false);
     assert.equal(rootEntries.filter(entry => entry.type === 'track').length, 10);
@@ -43,6 +45,14 @@ test('Amiga tracklist shows game folders and navigates their tracks', () => {
     assert.equal(wingsEntries[0].song.path, 'wings-of-death/Wings_Of_Death-Title.hip');
     assert.match(wingsEntries[0].song.composerInfo, /Jochen Hippel/);
     assert.match(wingsEntries[0].song.composerInfo, /HIP mit originalem 68000-Replaycode/);
+
+    const gianaEntries = getTracklistEntries(trackRegistry.amiga, gianaFolder.path);
+    assert.deepEqual(gianaEntries.map(entry => entry.song.listTitle), [
+        'Title Screen', 'Get Ready!', 'In-Game 1 – Ground', 'In-Game 2 – Cave'
+    ]);
+    assert.ok(gianaEntries.every(entry => entry.type === 'track'));
+    assert.ok(gianaEntries.every(entry => entry.song.path.startsWith('giana-sisters/')));
+    assert.ok(gianaEntries.every(entry => /Thomas Lopatic/.test(entry.song.composerInfo)));
 });
 
 test('Atari tracklist separates games, demos and five curated root tracks', () => {
@@ -171,6 +181,9 @@ test('Archive search finds nested tracks with normalized title and path terms', 
     assert.equal(compilation[0].song.listTitle, 'Compilation III');
     const guitarSlinger = searchTracks(trackRegistry.amiga, 'Guitar Slinger');
     assert.equal(guitarSlinger[0].song.path, 'GSLINGER.MOD');
+    const giana = searchTracks(trackRegistry.amiga, 'Giana Sisters');
+    assert.equal(giana.length, 4);
+    assert.ok(giana.every(entry => entry.song.path.startsWith('giana-sisters/')));
 
     assert.deepEqual(searchTracks(trackRegistry.c64, ''), []);
     assert.deepEqual(searchTracks(trackRegistry.c64, 'definitely-not-a-track'), []);

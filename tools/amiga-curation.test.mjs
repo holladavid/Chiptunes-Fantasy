@@ -28,19 +28,20 @@ const expectedLegacyPrefix = [
     'blood_money_title.mod', 'moongazr.mod', 'immortal.mod', 'lotus2-title.mod', 'DEADLOCK.XM'
 ];
 
-test('Kuration: 45 Bestandspfade bleiben unverändert und 24 eindeutige Klassiker ergänzen sie', () => {
-    assert.equal(amigaPlaylist.length, 69);
-    assert.equal(new Set(amigaPlaylist.map(entry => entry.path)).size, 69);
+test('Kuration: 45 Bestandspfade bleiben unverändert und 28 eindeutige Module ergänzen sie', () => {
+    assert.equal(amigaPlaylist.length, 73);
+    assert.equal(new Set(amigaPlaylist.map(entry => entry.path)).size, 73);
     assert.deepEqual(amigaPlaylist.slice(0, 45).map(entry => entry.path), expectedLegacyPrefix);
     const additions = amigaPlaylist.slice(45).map(entry => entry.path);
     assert.equal(additions.filter(filename => filename.startsWith('classics/games/')).length, 12);
     assert.equal(additions.filter(filename => filename.startsWith('classics/demoscene/')).length, 12);
+    assert.equal(additions.filter(filename => filename.startsWith('giana-sisters/')).length, 4);
     assert.ok(additions.every(filename => filename.endsWith('.mod')));
     assert.ok(!amigaPlaylist.some(entry => entry.path === 'beast1.title.dw'));
 });
 
 test('Kuration: jeder Titel besitzt einen spezifischen, strukturierten Museumstext', () => {
-    assert.equal(Object.keys(amigaMuseumMetadata).length, 69);
+    assert.equal(Object.keys(amigaMuseumMetadata).length, 73);
     assert.deepEqual(Object.keys(amigaMuseumMetadata).sort(), amigaPlaylist.map(entry => entry.path).sort());
     for (const entry of amigaPlaylist) {
         const text = amigaMuseumMetadata[entry.path];
@@ -56,10 +57,10 @@ test('Kuration: jeder Titel besitzt einen spezifischen, strukturierten Museumste
     }
 });
 
-test('Kuration: Provenienz stimmt mit allen 24 ausgelieferten Dateibytes überein', () => {
+test('Kuration: Provenienz stimmt mit allen 28 ausgelieferten Dateibytes überein', () => {
     const provenance = json('tracks/amiga/classics/provenance.json');
     assert.equal(provenance.schema, 'chiptunes-fantasy-amiga-classics-provenance-v1');
-    assert.equal(provenance.tracks.length, 24);
+    assert.equal(provenance.tracks.length, 28);
     assert.match(provenance.rightsNotice, /does not imply public domain/i);
     const additions = new Set(amigaPlaylist.slice(45).map(entry => `tracks/amiga/${entry.path}`));
     assert.deepEqual(new Set(provenance.tracks.map(track => track.path)), additions);
@@ -78,13 +79,26 @@ test('Kuration: Provenienz stimmt mit allen 24 ausgelieferten Dateibytes überei
     assert.match(excluded.reason, /No speculative parser change/);
 });
 
-test('Kuration: separate 69-Titel-Abnahme ist bestanden und Phase 5 bleibt historisch unverändert', () => {
+test('Kuration: vier Giana-Amiga-Konvertierungen sind kuratiert und vom BSS-Original unterschieden', () => {
+    const giana = amigaPlaylist.filter(entry => entry.path.startsWith('giana-sisters/'));
+    assert.deepEqual(giana.map(entry => entry.listTitle), [
+        'Title Screen', 'Get Ready!', 'In-Game 1 – Ground', 'In-Game 2 – Cave'
+    ]);
+    assert.ok(giana.every(entry => entry.composerInfo.includes('Thomas Lopatic')));
+    assert.ok(giana.every(entry => entry.composerInfo.includes('Chris Hülsbeck')));
+    assert.ok(giana.every(entry => /ProTracker-Konvertierung/.test(entry.composerInfo)));
+    assert.ok(giana.every(entry => /1988/.test(entry.composerInfo)));
+    const provenance = json('tracks/amiga/classics/provenance.json');
+    assert.match(provenance.method.gianaConversion, /not original Beathoven Synthesizer replay files/);
+});
+
+test('Kuration: separate 73-Titel-Abnahme ist bestanden und Phase 5 bleibt historisch unverändert', () => {
     const result = json('doc/verification/amiga/curation-library-corpus.json');
     assert.equal(result.format, 'chiptunes-fantasy-amiga-curation-library-v1');
     assert.equal(result.passed, true);
-    assert.equal(result.corpus.trackCount, 69);
-    assert.equal(result.corpus.tracks.length, 69);
-    assert.deepEqual(result.corpus.formatCounts, { HIPC: 35, MOD: 31, XM: 3 });
+    assert.equal(result.corpus.trackCount, 73);
+    assert.equal(result.corpus.tracks.length, 73);
+    assert.deepEqual(result.corpus.formatCounts, { HIPC: 35, MOD: 35, XM: 3 });
     assert.ok(result.corpus.tracks.every(track => track.passed && track.finite && track.audible &&
         track.deterministic && track.blockIndependent && track.restartIdentical));
     assert.deepEqual(result.corpus.silentA500Tracks, []);
@@ -98,4 +112,21 @@ test('Kuration: separate 69-Titel-Abnahme ist bestanden und Phase 5 bleibt histo
     assert.equal(phase5.corpus.trackCount, 45);
     assert.deepEqual(phase5.corpus.formatCounts, { HIPC: 35, MOD: 7, XM: 3 });
     assert.equal(result.workletSha256, phase5.workletSha256);
+});
+
+test('Kuration: alle vier Giana-Stücke bestehen die echte Desktop- und Mobile-Browserabnahme', () => {
+    const result = json('doc/verification/amiga/giana-browser.json');
+    assert.equal(result.format, 'chiptunes-fantasy-amiga-giana-browser-v1');
+    assert.equal(result.passed, true);
+    assert.equal(result.playlistSha256, sha256(source('tracks/amiga/playlist.js')));
+    assert.equal(result.museumSha256, sha256(source('tracks/amiga/museum.js')));
+    assert.equal(result.provenanceSha256, sha256(source('tracks/amiga/classics/provenance.json')));
+    assert.deepEqual(result.runs.map(run => run.device), ['desktop', 'mobile']);
+    for (const run of result.runs) {
+        assert.equal(run.gianaTracks, 4);
+        assert.equal(run.tracks.length, 4);
+        assert.deepEqual(run.errors, []);
+        assert.ok(run.tracks.every(track => track.passed && track.audible && track.finiteOutput &&
+            track.contextRunning && track.creditsPresent && track.conversionDisclosed && track.safeSourceLinks));
+    }
 });

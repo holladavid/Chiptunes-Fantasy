@@ -90,6 +90,12 @@ const myModFiles = [
     "classics/demoscene/acid-injection.mod",
     "classics/demoscene/carillon.mod",
     "classics/demoscene/obvious-disaster.mod",
+
+    // --- NEU: THE GREAT GIANA SISTERS (AMIGA) ---
+    "giana-sisters/title-screen.mod",
+    "giana-sisters/get-ready.mod",
+    "giana-sisters/ingame-1-ground.mod",
+    "giana-sisters/ingame-2-cave.mod",
 ];
 
 // Echte Stück- beziehungsweise dokumentierte Szenentitel für die Auswahlliste.
@@ -164,7 +170,11 @@ const amigaListTitles = [
     'Sanctuary',
     'Acid Injection',
     'Carillon',
-    'Obvious Disaster'
+    'Obvious Disaster',
+    'Title Screen',
+    'Get Ready!',
+    'In-Game 1 – Ground',
+    'In-Game 2 – Cave'
 ];
 
 export const amigaPlaylist = myModFiles.map((filename, index) => {
