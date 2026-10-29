@@ -1110,7 +1110,16 @@ export class CPU6502 {
             case 0x4C: this.pc = this.abs(); cycles = 3; break; 
             case 0x6C: { let ptr = this.abs(); let low = this.read(ptr); let high = this.read((ptr & 0xFF00) | ((ptr + 1) & 0x00FF)); this.pc = low | (high << 8); cycles = 5; } break; 
             case 0x60: { let low = this.pop(); let high = this.pop(); this.pc = (low | (high << 8)) + 1; cycles = 6; } break; 
-            case 0x40: { this.p = (this.pop() & 0xEF) | 0x20; let low = this.pop(); let high = this.pop(); this.pc = low | (high << 8); cycles = 6; } break; 
+            case 0x40: {
+                // RTI performs a dummy read at PC. On a real C64, JMP $DD0C
+                // therefore reads $DD0D during RTI and acknowledges CIA2 NMIs.
+                this.read(this.pc);
+                this.p = (this.pop() & 0xEF) | 0x20;
+                let low = this.pop();
+                let high = this.pop();
+                this.pc = low | (high << 8);
+                cycles = 6;
+            } break;
 
             case 0xD0: cycles = this.branch((this.p & 2) === 0); break; 
             case 0xF0: cycles = this.branch((this.p & 2) !== 0); break; 

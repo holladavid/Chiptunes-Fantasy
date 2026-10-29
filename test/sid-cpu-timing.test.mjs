@@ -157,6 +157,36 @@ test('CIA2 NMI line is latched until ICR read and can be retriggered afterwards'
     assert.equal(cpu.nmiPending, true);
 });
 
+test('RTI dummy read at $DD0D acknowledges and rearms CIA2 NMIs', () => {
+    const { cpu } = createCpu([0x4C, 0x0C, 0xDD]);
+    cpu.ram[0xDD0C] = 0x40; // RTI in RAM underneath the CIA2 registers
+    cpu.cia2Icr = 0x01;
+    cpu.writeHardware(0xDD0D, 0x81);
+    cpu.clockHardware(1);
+    assert.equal(cpu.nmiLineState, true);
+    cpu.nmiPending = false;
+
+    cpu.sp = 0xF9;
+    cpu.ram[0x01FA] = 0x20;
+    cpu.ram[0x01FB] = 0x00;
+    cpu.ram[0x01FC] = 0x20;
+    const state = { remaining: 0 };
+
+    clockScheduler(cpu, state); // JMP $DD0C, cycle 1
+    while (state.remaining > 0) clockScheduler(cpu, state);
+    assert.equal(cpu.pc, 0xDD0C);
+
+    clockScheduler(cpu, state); // RTI cycle 1: opcode fetch and dummy read at $DD0C/$DD0D
+    assert.equal(cpu.pc, 0x2000, 'the emulator updates the architectural PC with the instruction');
+    assert.equal(cpu.hasPendingIcrRead, true, 'RTI must dummy-read the byte at its pre-RTI PC');
+    assert.equal(cpu.nmiLineState, true, 'ICR acknowledge completes on the final read cycle');
+    while (state.remaining > 0) clockScheduler(cpu, state);
+
+    assert.equal(cpu.pc, 0x2000);
+    assert.equal(cpu.cia2Icr, 0);
+    assert.equal(cpu.nmiLineState, false);
+});
+
 test('CLI delays IRQ recognition by one following instruction', () => {
     const { cpu } = createCpu([0x58, 0xEA, 0xEA]);
     setIrqVector(cpu, 0x2000);
