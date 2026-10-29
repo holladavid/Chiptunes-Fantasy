@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.5.5)
+# 💾 CHIPTUNES FANTASY (v1.5.6)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -16,7 +16,38 @@ Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with rut
 
 ---
 
-## 🚀 v1.5.5 Release Highlights
+## 🚀 v1.5.6 Hotfix Highlights
+
+Version 1.5.6 is a focused iPhone layout and fullscreen hotfix. It keeps the visualization and song library prioritized on small screens without changing SID, Paula, YM, parser, replay, audio-engine, or Scene-DJ/DSE behavior. The **209-track library** and all v1.5.5 features are carried forward unchanged.
+
+### Windowed stage and iPhone safe areas
+
+- The **Now Playing / BUS ACTIVE** card now fades out after the existing three-second inactivity period in windowed mode instead of permanently covering the visualization. Interaction brings it back.
+- The windowed visualization starts below the iPhone's top safe-area inset, keeping the **Chiptunes Fantasy logo** and **Lab Mode** reachable. Fullscreen overlays also respect device cutouts.
+
+### Unobstructed fullscreen
+
+- After three seconds without interaction, the complete fullscreen interface now hides, including the **EXIT** button, playback controls, stage status, Now Playing card, collapsed hardware HUD, and logo.
+- Touching or moving within the stage wakes the controls again, so leaving fullscreen remains straightforward after the interface reappears.
+
+### Compact mobile transport and computer selection
+
+- All four transport buttons share one row; the progress and volume controls share a second row.
+- Computer tabs and the core selector use tighter mobile spacing.
+- At the tested **393 × 659 px** viewport, the playback bar's measured height falls from **255 px to 95 px**, returning substantial space to song selection while preserving every control.
+
+### Hotfix validation and scope
+
+- Windowed and iOS-style pseudo-fullscreen behavior was exercised in an emulated **iPhone 15 / 393 × 659 px Chromium viewport**, including inactivity hiding, touch wake-up, fullscreen exit, and Lab Mode access.
+- A simulated **47 px top safe-area inset** placed the visualization at `y=47` and the Lab Mode control at `y=66`.
+- **320 × 568 px** checks found no horizontal page overflow across the C64, Amiga, and Atari control layouts.
+- These are headless viewport checks, not a physical-iPhone certification. The full test suite was not rerun for this CSS-only runtime change; the known limitations documented for v1.5.5 remain outside this hotfix's scope.
+
+Copy-ready GitHub texts are included for the [v1.5.6 pull request](doc/releases/v1.5.6-PR-Text.md) and [v1.5.6 release](doc/releases/v1.5.6-Release-Text.md).
+
+---
+
+## 🚀 v1.5.5 Feature Highlights
 
 Version 1.5.5 adds four carefully documented Amiga conversions from *The Great Giana Sisters* and turns the bottom scroller into an adaptive, song-aware information strip. It carries forward the v1.5.4 Amiga Exact refinement program, curated libraries, and targeted C64/Atari corrections without changing the audio engines in this release.
 

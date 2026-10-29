@@ -2054,6 +2054,7 @@ summary:focus-visible,
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), inset 0 0 18px rgba(0, 0, 0, 0.55);
     backdrop-filter: blur(6px);
     pointer-events: none;
+    transition: opacity 0.18s ease-out, transform 0.18s ease-out;
 }
 
 .now-playing-rail {
@@ -2282,9 +2283,7 @@ body.theme-atari .now-playing-next-row > span:first-child {
     display: none;
 }
 
-#visual-zone.user-inactive:fullscreen .now-playing,
-#visual-zone.user-inactive:-webkit-full-screen .now-playing,
-#visual-zone.user-inactive.pseudo-fullscreen .now-playing {
+#visual-zone.user-inactive .now-playing {
     opacity: 0;
     transform: translateY(8px);
 }
@@ -3506,27 +3505,12 @@ body:has(#visual-zone.pseudo-fullscreen) {
     max-width: min(34vw, 420px);
 }
 
-/* Keep an explicit exit target visible even when the visual bus auto-hides. */
-#visual-zone.user-inactive:fullscreen #fs-ui-bar,
-#visual-zone.user-inactive:-webkit-full-screen #fs-ui-bar,
-#visual-zone.user-inactive.pseudo-fullscreen #fs-ui-bar {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-#visual-zone.user-inactive:fullscreen #stage-mode-status,
-#visual-zone.user-inactive:fullscreen #fs-playback-controls,
-#visual-zone.user-inactive:-webkit-full-screen #stage-mode-status,
-#visual-zone.user-inactive:-webkit-full-screen #fs-playback-controls,
-#visual-zone.user-inactive.pseudo-fullscreen #stage-mode-status,
-#visual-zone.user-inactive.pseudo-fullscreen #fs-playback-controls {
+/* Fullscreen becomes completely unobstructed after inactivity. */
+#visual-zone.user-inactive:fullscreen #brand-logo,
+#visual-zone.user-inactive:-webkit-full-screen #brand-logo,
+#visual-zone.user-inactive.pseudo-fullscreen #brand-logo {
     opacity: 0;
     pointer-events: none;
-}
-
-#visual-zone.user-inactive #btn-fullscreen {
-    opacity: 1;
-    pointer-events: auto;
 }
 
 #btn-hud-info:focus-visible,
@@ -3786,5 +3770,140 @@ body:has(#visual-zone.pseudo-fullscreen) {
     .now-playing-next-row {
         gap: 8px;
         padding-top: 6px;
+    }
+}
+
+
+/* =========================================
+   21. IPHONE STAGE & COMPACT MOBILE TRANSPORT
+   ========================================= */
+@media (max-width: 800px) {
+    #visual-zone {
+        --stage-safe-top: env(safe-area-inset-top, 0px);
+        --stage-safe-right: env(safe-area-inset-right, 0px);
+        --stage-safe-left: env(safe-area-inset-left, 0px);
+    }
+
+    /* Keep the complete windowed stage below the sensor housing. */
+    #demo-container {
+        padding-left: env(safe-area-inset-left, 0px);
+        padding-right: env(safe-area-inset-right, 0px);
+    }
+
+    #demo-container > #visual-zone:not(.pseudo-fullscreen):not(:fullscreen):not(:-webkit-full-screen) {
+        margin-top: var(--stage-safe-top);
+    }
+
+    /* One transport row, with timeline and volume sharing the second row. */
+    #playback-bar {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) minmax(88px, 0.32fr);
+        align-items: center !important;
+        gap: 6px 10px !important;
+        padding: 8px 10px !important;
+    }
+
+    #playback-bar .controls {
+        display: flex !important;
+        grid-column: 1 / -1;
+        gap: 4px !important;
+        margin: 0 !important;
+    }
+
+    #playback-bar .controls button {
+        min-height: 40px;
+        padding: 6px 0 !important;
+        font-size: clamp(6px, 2.05vw, 8px) !important;
+    }
+
+    #playback-bar #btn-prev,
+    #playback-bar #btn-next,
+    #playback-bar #btn-eco {
+        flex: 1 1 0 !important;
+    }
+
+    #playback-bar #btn-play {
+        flex: 1.6 1 0 !important;
+    }
+
+    body.theme-c64 #playback-bar .controls button {
+        font-size: clamp(6px, 2.05vw, 8px) !important;
+    }
+
+    body.theme-amiga #playback-bar .controls button,
+    body.theme-atari #playback-bar .controls button {
+        padding: 4px 0 !important;
+        font-size: clamp(11px, 3.6vw, 15px) !important;
+    }
+
+    #playback-bar .timeline-control {
+        grid-column: 1;
+        min-width: 0;
+        gap: 6px;
+        margin: 0 !important;
+    }
+
+    #playback-bar .volume-control {
+        grid-column: 2;
+        min-width: 0;
+        gap: 5px;
+        margin: 0 !important;
+    }
+
+    #playback-bar input[type="range"] {
+        width: 100%;
+        min-width: 0;
+        height: 32px;
+    }
+
+    #playback-bar input[type="range"]::-webkit-slider-thumb {
+        width: 16px;
+        height: 24px;
+        margin-top: -8px;
+    }
+
+    #playback-bar input[type="range"]::-moz-range-thumb {
+        width: 16px;
+        height: 24px;
+    }
+
+    #subsong-display {
+        margin-right: 0;
+        letter-spacing: 0;
+    }
+
+    .system-tabs {
+        gap: 6px;
+        margin-bottom: 10px;
+    }
+
+    .system-tabs .tab-btn {
+        min-height: 36px;
+        padding: 6px 2px;
+    }
+
+    .core-control {
+        margin-bottom: 8px;
+    }
+
+    .core-control select {
+        min-height: 36px;
+        padding: 6px 30px 6px 8px;
+        background-position: right 7px center;
+    }
+
+    /* Native and iOS pseudo fullscreen respect every device cutout. */
+    #visual-zone:fullscreen #brand-logo,
+    #visual-zone:-webkit-full-screen #brand-logo,
+    #visual-zone.pseudo-fullscreen #brand-logo {
+        top: calc(18px + var(--stage-safe-top));
+        left: calc(18px + var(--stage-safe-left));
+    }
+
+    #visual-zone:fullscreen #chip-hud,
+    #visual-zone:-webkit-full-screen #chip-hud,
+    #visual-zone.pseudo-fullscreen #chip-hud {
+        top: calc(10px + var(--stage-safe-top));
+        right: calc(10px + var(--stage-safe-right));
     }
 }
