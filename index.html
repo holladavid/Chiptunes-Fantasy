@@ -68,10 +68,13 @@
                 <div class="hud-header">
                     <div class="hud-controls-stack">
                         <div class="hud-btn-row">
-                            <button id="btn-hud-info" class="hidden" title="Toggle Cheat Sheet">[?]</button>
-                            <button id="btn-hud-toggle" title="Toggle Lab Mode">[ LAB MODE: OFF ]</button>
+                            <button id="btn-hud-info" type="button" class="hidden" title="Cheat Sheet ein- oder ausblenden"
+                                aria-label="Cheat Sheet ein- oder ausblenden" aria-controls="hud-legend" aria-expanded="false">[?]</button>
+                            <button id="btn-hud-toggle" type="button" title="Lab Mode [L]" aria-keyshortcuts="L"
+                                aria-controls="hud-body" aria-expanded="false">[ LAB MODE: OFF ]</button>
                         </div>
-                        <button id="btn-hud-crossfeed" title="Toggle Stereo Blend / Binaural Crossfeed">[ STEREO BLEND: ON ]</button>
+                        <button id="btn-hud-crossfeed" type="button" title="Stereo Blend / Binaural Crossfeed umschalten"
+                            aria-pressed="true">[ STEREO BLEND: ON ]</button>
                     </div>
                 </div>
                 
@@ -82,29 +85,44 @@
             </div>
 
             <!-- PURE AUDIO OVERLAY -->
-            <div id="eco-overlay" class="hidden">
+            <div id="eco-overlay" class="hidden" role="dialog" aria-modal="false"
+                aria-labelledby="eco-title" aria-describedby="eco-description">
                 <div class="eco-box">
-                    <h2 class="blink">[ PURE AUDIO MODE ]</h2>
-                    <p>Visual processing suspended to conserve power.</p>
-                    <p>DSP Cores running at maximum priority.</p>
-                    <!-- BUGFIX: Tag am Ende korrekt auf </p> geändert -->
-                    <p style="color: var(--text-color); margin-top: 15px; font-weight: bold;">>>> SCREEN SLEEP DISABLED <<<</p>
-                    <button id="btn-eco-off">WAKE UP</button>
+                    <span class="eco-kicker">VISUAL BUS SUSPENDED</span>
+                    <h2 id="eco-title" class="blink">[ PURE AUDIO MODE ]</h2>
+                    <div class="eco-now-playing">
+                        <span id="eco-playback-state" data-state="idle">STANDBY</span>
+                        <strong id="eco-track-title">AWAITING INJECTION</strong>
+                    </div>
+                    <p id="eco-description">Visual processing suspended to conserve power. DSP Cores running at maximum priority.</p>
+                    <p class="eco-wake-lock">>>> SCREEN SLEEP DISABLED <<<</p>
+                    <button id="btn-eco-off" type="button" aria-label="Pure Audio beenden"
+                        aria-keyshortcuts="M Escape">[ WAKE UP ]</button>
+                    <span class="eco-shortcut">M / ESC TO RETURN</span>
                 </div>
             </div>
 
             <!-- FULLSCREEN UI BAR -->
             <div id="fs-ui-bar">
+                <span id="stage-mode-status" data-mode="windowed" role="status" aria-live="polite">
+                    <span class="stage-mode-led" aria-hidden="true"></span>
+                    <span id="stage-mode-label">WINDOWED</span>
+                </span>
                 <div id="fs-playback-controls">
-                    <!-- Standardwert in echte Demoscene-Terminologie geändert -->
-                    <div class="fs-track-info" id="fs-track-info">[ AWAITING INJECTION ]</div>
+                    <div class="fs-track-copy">
+                        <span id="fs-playback-status" data-state="idle">STANDBY</span>
+                        <div class="fs-track-info" id="fs-track-info" aria-live="polite" aria-atomic="true">[ AWAITING INJECTION ]</div>
+                    </div>
                     <div class="fs-controls">
                         <button id="fs-btn-prev" type="button" aria-label="Vorheriger Track oder Subsong">|&lt;</button>
                         <button id="fs-btn-play" type="button" aria-label="Wiedergabe starten oder pausieren">[ INJECT ROM ]</button>
                         <button id="fs-btn-next" type="button" aria-label="Nächster Track oder Subsong">&gt;|</button>
+                        <button id="fs-btn-eco" type="button" aria-label="Pure-Audio-Modus umschalten"
+                            aria-controls="eco-overlay" aria-pressed="false" aria-keyshortcuts="M">[ HALT GFX ]</button>
                     </div>
                 </div>
-                <button id="btn-fullscreen" type="button" title="Toggle Fullscreen" aria-label="Vollbild umschalten">[ ⛶ ]</button>
+                <button id="btn-fullscreen" type="button" title="Fullscreen [F]" aria-label="Vollbild aktivieren"
+                    aria-controls="visual-zone" aria-pressed="false" aria-keyshortcuts="F">[ ⛶ ]</button>
             </div>
             
             <div class="scanlines"></div> <!-- CRT Monitor Effekt -->            
@@ -118,7 +136,8 @@
                 <button id="btn-prev" type="button" title="Previous Track" aria-label="Vorheriger Track oder Subsong">&lt; MEM</button>
                 <button id="btn-play" type="button" title="Play/Pause" aria-label="Wiedergabe starten oder pausieren">INJECT ROM</button>
                 <button id="btn-next" type="button" title="Next Track" aria-label="Nächster Track oder Subsong">BUS &gt;</button>
-                <button id="btn-eco" type="button" title="Pure Audio Mode" aria-label="Pure-Audio-Modus umschalten">HALT GFX</button>
+                <button id="btn-eco" type="button" title="Pure Audio [M]" aria-label="Pure-Audio-Modus umschalten"
+                    aria-controls="eco-overlay" aria-pressed="false" aria-keyshortcuts="M">HALT GFX</button>
             </div>
             
             <div class="timeline-control">

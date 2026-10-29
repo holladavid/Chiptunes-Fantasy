@@ -107,6 +107,48 @@ function syncTracklistPlaybackState() {
     });
 }
 
+function isVisualFullscreen() {
+    const visualZone = document.getElementById('visual-zone');
+    return !!(document.fullscreenElement || document.webkitFullscreenElement || visualZone?.classList.contains('pseudo-fullscreen'));
+}
+
+function syncStageModeUI() {
+    const fullscreen = isVisualFullscreen();
+    const mode = isEcoMode ? 'pure-audio' : (fullscreen ? 'fullscreen' : 'windowed');
+    const labels = { windowed: 'WINDOWED', fullscreen: 'FULLSCREEN', 'pure-audio': 'PURE AUDIO' };
+    document.body.dataset.stageMode = mode;
+
+    const status = document.getElementById('stage-mode-status');
+    if (status) status.dataset.mode = mode;
+    const statusLabel = document.getElementById('stage-mode-label');
+    if (statusLabel) statusLabel.textContent = labels[mode];
+
+    const fullscreenButton = document.getElementById('btn-fullscreen');
+    if (fullscreenButton) {
+        fullscreenButton.textContent = fullscreen ? '[ EXIT ]' : '[ ⛶ ]';
+        fullscreenButton.setAttribute('aria-pressed', String(fullscreen));
+        fullscreenButton.setAttribute('aria-label', fullscreen ? 'Vollbild beenden' : 'Vollbild aktivieren');
+    }
+
+    for (const button of [document.getElementById('btn-eco'), document.getElementById('fs-btn-eco')]) {
+        if (!button) continue;
+        button.textContent = button.id.startsWith('fs-')
+            ? (isEcoMode ? '[ RESUME GFX ]' : '[ HALT GFX ]')
+            : (isEcoMode ? 'RESUME GFX' : 'HALT GFX');
+        button.setAttribute('aria-pressed', String(isEcoMode));
+    }
+}
+
+function syncEcoPlaybackUI() {
+    const state = document.getElementById('eco-playback-state');
+    if (state) {
+        state.dataset.state = playbackState;
+        state.textContent = playbackStatusLabels[playbackState] || playbackStatusLabels.idle;
+    }
+    const title = document.getElementById('eco-track-title');
+    if (title) title.textContent = currentTrackTitle || 'AWAITING INJECTION';
+}
+
 function setPlaybackState(nextState, detail = '') {
     playbackState = nextState;
     const nowPlaying = document.getElementById('now-playing');
@@ -132,8 +174,13 @@ function setPlaybackState(nextState, detail = '') {
 
     updateNowPlayingSystem();
     syncTracklistPlaybackState();
+    syncEcoPlaybackUI();
+    syncStageModeUI();
     if (siliconVisualizer) siliconVisualizer.setPlaybackState(nextState);
-    if (fsUI) fsUI.updatePlaybackState(nextState);
+    if (fsUI) {
+        fsUI.updateTrack(currentTrackTitle || '[ AWAITING INJECTION ]');
+        fsUI.updatePlaybackState(nextState);
+    }
 }
 
 // Cursor-Hiding Inaktivitäts-Timer
@@ -164,6 +211,9 @@ function resetMouseIdleTimer() {
 
 
 function initApp() {
+    syncEcoPlaybackUI();
+    syncStageModeUI();
+
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('sw.js')
@@ -270,8 +320,9 @@ function initApp() {
             fsUI = new FullscreenUI({
                 onTogglePlay: () => document.getElementById('btn-play').click(),
                 onPrev: () => document.getElementById('btn-prev').click(),
-                onNext: () => document.getElementById('btn-next').click()
-            });   
+                onNext: () => document.getElementById('btn-next').click(),
+                onToggleEco: () => document.getElementById('btn-eco').click()
+            });
         });
 
         // INTERAKTIVER STEREO BLEND BUTTON
@@ -281,8 +332,9 @@ function initApp() {
             btnCrossfeed.addEventListener('click', (e) => {
                 crossfeedOn = !crossfeedOn;
                 setMasterCrossfeed(crossfeedOn);
-                e.target.innerText = crossfeedOn ? '[ STEREO BLEND: ON ]' : '[ STEREO BLEND: OFF ]';
-                e.target.style.opacity = crossfeedOn ? '1.0' : '0.5';
+                e.currentTarget.innerText = crossfeedOn ? '[ STEREO BLEND: ON ]' : '[ STEREO BLEND: OFF ]';
+                e.currentTarget.style.opacity = crossfeedOn ? '1.0' : '0.5';
+                e.currentTarget.setAttribute('aria-pressed', String(crossfeedOn));
             });
         }
 }
@@ -661,7 +713,9 @@ async function setTheme(themeName, isBootSequence = false) {
     // BEVOR die Hardware wieder mit Strom versorgt wird.
     // =========================================================
     
-    document.body.className = themeName + (doAnimate ? ' system-transitioning' : '');
+    document.body.classList.remove('theme-c64', 'theme-amiga', 'theme-atari');
+    document.body.classList.add(themeName);
+    if (doAnimate) document.body.classList.add('system-transitioning');
     
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach(tab => {
@@ -714,10 +768,16 @@ async function setTheme(themeName, isBootSequence = false) {
     if (hudMain) hudMain.classList.add('collapsed');     
     
     const hudToggleBtn = document.getElementById('btn-hud-toggle');
-    if (hudToggleBtn) hudToggleBtn.innerText = '[ LAB MODE: OFF ]';
+    if (hudToggleBtn) {
+        hudToggleBtn.innerText = '[ LAB MODE: OFF ]';
+        hudToggleBtn.setAttribute('aria-expanded', 'false');
+    }
     
     const infoBtn = document.getElementById('btn-hud-info');
-    if (infoBtn) infoBtn.classList.add('hidden');
+    if (infoBtn) {
+        infoBtn.classList.add('hidden');
+        infoBtn.setAttribute('aria-expanded', 'false');
+    }
 
     // ---------------------------------------------------------
     // GHOST-TRACK WIPES (RAM Löschen)
@@ -1214,30 +1274,57 @@ async function selectAndPlayTrack(index, system) {
 
 }
 
-function enterPseudoFullscreen(visualZone) {
-    visualZone.classList.add('pseudo-fullscreen');
-    document.getElementById('btn-fullscreen').innerText = '[ EXIT ]';
-    document.body.style.overflow = 'hidden'; 
-    document.body.appendChild(visualZone);
+let fullscreenReturnFocus = null;
+let wasNativeFullscreen = false;
+let ecoReturnFocus = null;
+let wakeLock = null;
+
+function focusControl(element) {
+    if (!element?.isConnected || element.getClientRects().length === 0) return false;
+    element.focus({ preventScroll: true });
+    return document.activeElement === element;
+}
+
+function restoreFocus(primary, fallback) {
+    if (!focusControl(primary)) focusControl(fallback);
+    requestAnimationFrame(() => {
+        const active = document.activeElement;
+        if (!active?.isConnected || active === document.body || active === document.documentElement) {
+            focusControl(fallback);
+        }
+    });
+}
+
+function enterPseudoFullscreen(zone) {
+    if (!zone || zone.classList.contains('pseudo-fullscreen')) return;
+    zone.classList.add('pseudo-fullscreen');
+    document.body.style.overflow = 'hidden';
+    document.body.appendChild(zone);
+    syncStageModeUI();
+    resetMouseIdleTimer();
+    focusControl(document.getElementById('btn-fullscreen'));
     setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
 }
 
-function exitPseudoFullscreen(visualZone) {
-    visualZone.classList.remove('pseudo-fullscreen');
-    document.getElementById('btn-fullscreen').innerText = '[ ⛶ ]';
-    document.body.style.overflow = ''; 
+function exitPseudoFullscreen(zone) {
+    if (!zone?.classList.contains('pseudo-fullscreen')) return;
+    zone.classList.remove('pseudo-fullscreen');
+    document.body.style.overflow = '';
     const demoContainer = document.getElementById('demo-container');
     const playbackBar = document.getElementById('playback-bar');
-    if (demoContainer && playbackBar) {
-        demoContainer.insertBefore(visualZone, playbackBar);
-    }
+    if (demoContainer && playbackBar) demoContainer.insertBefore(zone, playbackBar);
+    syncStageModeUI();
+    resetMouseIdleTimer();
+    restoreFocus(fullscreenReturnFocus, document.getElementById('btn-fullscreen'));
+    fullscreenReturnFocus = null;
     setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
 }
 
 function toggleFullscreen() {
-    const visualZone = document.getElementById('visual-zone');
-    if (visualZone.classList.contains('pseudo-fullscreen')) {
-        exitPseudoFullscreen(visualZone);
+    const zone = document.getElementById('visual-zone');
+    if (!zone) return;
+    if (zone.classList.contains('pseudo-fullscreen')) {
+        exitPseudoFullscreen(zone);
         return;
     }
 
@@ -1247,71 +1334,100 @@ function toggleFullscreen() {
         return;
     }
 
+    fullscreenReturnFocus = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : document.getElementById('btn-fullscreen');
+
     try {
-        if (visualZone.requestFullscreen) {
-            let promise = visualZone.requestFullscreen();
+        if (zone.requestFullscreen) {
+            const promise = zone.requestFullscreen();
             if (promise && typeof promise.catch === 'function') {
                 promise.catch((err) => {
-                    console.log("Native fullscreen rejected, triggering iOS Fallback.", err);
-                    enterPseudoFullscreen(visualZone);
+                    console.log('Native fullscreen rejected, triggering iOS fallback.', err);
+                    enterPseudoFullscreen(zone);
                 });
             }
-        } else if (visualZone.webkitRequestFullscreen) {
-            visualZone.webkitRequestFullscreen();
+        } else if (zone.webkitRequestFullscreen) {
+            zone.webkitRequestFullscreen();
             setTimeout(() => {
-                if (!document.webkitFullscreenElement && !visualZone.classList.contains('pseudo-fullscreen')) {
-                    enterPseudoFullscreen(visualZone);
+                if (!document.webkitFullscreenElement && !zone.classList.contains('pseudo-fullscreen')) {
+                    enterPseudoFullscreen(zone);
                 }
             }, 200);
         } else {
-            enterPseudoFullscreen(visualZone);
+            enterPseudoFullscreen(zone);
         }
     } catch (err) {
-        enterPseudoFullscreen(visualZone);
+        enterPseudoFullscreen(zone);
     }
 }
 
 function handleFullscreenChange() {
-    const btn = document.getElementById('btn-fullscreen');
     const isNativeFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    if (isNativeFS) {
-        btn.innerText = '[ EXIT ]';
-    } else {
-        const visualZone = document.getElementById('visual-zone');
-        if (visualZone && !visualZone.classList.contains('pseudo-fullscreen')) {
-            btn.innerText = '[ ⛶ ]';
-        }
+    syncStageModeUI();
+    resetMouseIdleTimer();
+    if (isNativeFS && !wasNativeFullscreen) {
+        focusControl(document.getElementById('btn-fullscreen'));
+    } else if (!isNativeFS && wasNativeFullscreen) {
+        if (!focusControl(fullscreenReturnFocus)) focusControl(document.getElementById('btn-fullscreen'));
+        fullscreenReturnFocus = null;
     }
+    wasNativeFullscreen = isNativeFS;
     window.dispatchEvent(new Event('resize'));
 }
 
-let wakeLock = null;
-
 async function enableEcoMode() {
-    // noSleepVideo.play() gelöscht!
+    if (isEcoMode) return;
+    ecoReturnFocus = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : document.getElementById('btn-eco');
     isEcoMode = true;
     document.getElementById('eco-overlay').classList.remove('hidden');
-    document.body.classList.add('eco-mode'); 
+    document.body.classList.add('eco-mode');
+    syncEcoPlaybackUI();
+    syncStageModeUI();
+    resetMouseIdleTimer();
+    if (!isVisualFullscreen()) {
+        document.getElementById('visual-zone')?.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'auto' });
+    }
+    focusControl(document.getElementById('btn-eco-off'));
+
     try {
         if ('wakeLock' in navigator) {
             wakeLock = await navigator.wakeLock.request('screen');
+            if (!isEcoMode) {
+                await wakeLock.release();
+                wakeLock = null;
+                return;
+            }
             console.log('[SYSTEM] Wake Lock aktiv. Bildschirm bleibt an.');
         }
     } catch (err) {
-        console.warn(`Wake Lock API blockiert. Fallback läuft.`);
+        wakeLock = null;
+        console.warn('Wake Lock API blockiert. Pure Audio bleibt aktiv.');
     }
 }
 
 async function disableEcoMode() {
+    if (!isEcoMode) return;
     isEcoMode = false;
     document.getElementById('eco-overlay').classList.add('hidden');
-    document.body.classList.remove('eco-mode'); 
-    if (wakeLock !== null) {
-        await wakeLock.release();
-        wakeLock = null;
-    }
-    // noSleepVideo.pause() gelöscht!
+    document.body.classList.remove('eco-mode');
+    syncStageModeUI();
+    resetMouseIdleTimer();
     window.dispatchEvent(new Event('resize'));
+    restoreFocus(ecoReturnFocus, document.getElementById('btn-eco'));
+    ecoReturnFocus = null;
+
+    const activeWakeLock = wakeLock;
+    wakeLock = null;
+    if (activeWakeLock) {
+        try {
+            await activeWakeLock.release();
+        } catch (err) {
+            console.warn('Wake Lock wurde bereits freigegeben.');
+        }
+    }
 }
 
 function requestPlay() {
@@ -1415,35 +1531,60 @@ document.addEventListener('keydown', event => {
     trackSearchInput.focus();
 });
 
+document.addEventListener('keydown', event => {
+    if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+    if (!document.getElementById('boot-screen').classList.contains('hidden')) return;
+
+    const key = event.key.toLowerCase();
+    if (key === 'escape' && isEcoMode) {
+        event.preventDefault();
+        disableEcoMode();
+        return;
+    }
+    if (key === 'escape' && visualZone?.classList.contains('pseudo-fullscreen')) {
+        event.preventDefault();
+        exitPseudoFullscreen(visualZone);
+        return;
+    }
+    if (!['f', 'm', 'l'].includes(key)) return;
+
+    event.preventDefault();
+    resetMouseIdleTimer();
+    if (key === 'f') toggleFullscreen();
+    else if (key === 'm') document.getElementById('btn-eco').click();
+    else document.getElementById('btn-hud-toggle').click();
+});
+
 document.getElementById('volume-slider').addEventListener('input', (e) => {
     const masterGain = getMasterGain();
     if (masterGain) masterGain.gain.value = e.target.value;
 });
 
-document.getElementById('btn-hud-info').addEventListener('click', () => {
+document.getElementById('btn-hud-info').addEventListener('click', (event) => {
     const legend = document.getElementById('hud-legend');
-    legend.innerHTML = chipCheatSheets[activeSystem]; 
-    legend.classList.toggle('hidden');
+    legend.innerHTML = chipCheatSheets[activeSystem];
+    const isHidden = legend.classList.toggle('hidden');
+    event.currentTarget.setAttribute('aria-expanded', String(!isHidden));
 });
 
-document.getElementById('btn-hud-toggle').addEventListener('click', (e) => {
-    const hud = document.getElementById('chip-hud'); 
+document.getElementById('btn-hud-toggle').addEventListener('click', (event) => {
+    const hud = document.getElementById('chip-hud');
     const body = document.getElementById('hud-body');
-    const infoBtn = document.getElementById('btn-hud-info'); 
-    const isHidden = body.classList.contains('hidden');
-    
-    if (isHidden) {
-        body.classList.remove('hidden');
-        infoBtn.classList.remove('hidden'); 
-        hud.classList.remove('collapsed'); 
-        e.target.innerText = '[ LAB MODE: ON ]'; // NEU
-    } else {
-        body.classList.add('hidden');
-        infoBtn.classList.add('hidden'); 
-        hud.classList.add('collapsed'); 
-        e.target.innerText = '[ LAB MODE: OFF ]'; // NEU
-        const legend = document.getElementById('hud-legend');
-        if (legend) legend.classList.add('hidden');
+    const infoBtn = document.getElementById('btn-hud-info');
+    const legend = document.getElementById('hud-legend');
+    const willExpand = body.classList.contains('hidden');
+
+    body.classList.toggle('hidden', !willExpand);
+    infoBtn.classList.toggle('hidden', !willExpand);
+    hud.classList.toggle('collapsed', !willExpand);
+    event.currentTarget.innerText = willExpand ? '[ LAB MODE: ON ]' : '[ LAB MODE: OFF ]';
+    event.currentTarget.setAttribute('aria-expanded', String(willExpand));
+
+    if (!willExpand) {
+        legend.classList.add('hidden');
+        infoBtn.setAttribute('aria-expanded', 'false');
     }
 });
 

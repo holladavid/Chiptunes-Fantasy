@@ -3028,3 +3028,326 @@ summary:focus-visible,
         height: 352px;
     }
 }
+
+
+/* =========================================
+   20. PHASE 4: DEMOSCENE STAGE CONTROL
+   ========================================= */
+html:has(#visual-zone.pseudo-fullscreen),
+body:has(#visual-zone.pseudo-fullscreen) {
+    overflow: hidden !important;
+}
+
+#stage-mode-status {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 7px;
+    min-height: 32px;
+    padding: 6px 9px;
+    color: var(--highlight-color);
+    background: rgba(0, 0, 0, 0.82);
+    border: 1px solid var(--chassis-light);
+    font-family: var(--font-main);
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 0.7px;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.stage-mode-led {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 7px;
+    background: currentColor;
+    box-shadow: 0 0 7px currentColor;
+}
+
+#stage-mode-status[data-mode="pure-audio"] {
+    color: var(--bus-active-color);
+}
+
+#stage-mode-status[data-mode="windowed"] {
+    color: var(--text-color);
+}
+
+#fs-ui-bar {
+    flex-wrap: wrap;
+    opacity: 0.82;
+}
+
+.fs-controls button,
+#btn-fullscreen {
+    min-height: 44px;
+}
+
+#fs-ui-bar:focus-within {
+    opacity: 1;
+}
+
+#fs-playback-controls,
+.fs-track-copy {
+    min-width: 0;
+}
+
+.fs-track-copy {
+    display: grid;
+    gap: 5px;
+    text-align: right;
+}
+
+#fs-playback-status {
+    color: var(--text-color);
+    font-family: var(--font-main);
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 0.8px;
+    line-height: 1.2;
+}
+
+#fs-playback-status[data-state="playing"] {
+    color: var(--bus-active-color);
+}
+
+#fs-playback-status[data-state="loading"] {
+    color: var(--highlight-color);
+}
+
+#fs-playback-status[data-state="error"] {
+    color: var(--status-error);
+}
+
+#visual-zone:fullscreen #fs-ui-bar,
+#visual-zone:-webkit-full-screen #fs-ui-bar,
+#visual-zone.pseudo-fullscreen #fs-ui-bar {
+    left: calc(15px + env(safe-area-inset-left));
+    right: calc(15px + env(safe-area-inset-right));
+    bottom: calc(15px + env(safe-area-inset-bottom));
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+#visual-zone:fullscreen #stage-mode-status,
+#visual-zone:-webkit-full-screen #stage-mode-status,
+#visual-zone.pseudo-fullscreen #stage-mode-status {
+    margin-right: auto;
+}
+
+#visual-zone:fullscreen .fs-track-info,
+#visual-zone:-webkit-full-screen .fs-track-info,
+#visual-zone.pseudo-fullscreen .fs-track-info {
+    display: block;
+    max-width: min(34vw, 420px);
+}
+
+/* Keep an explicit exit target visible even when the visual bus auto-hides. */
+#visual-zone.user-inactive:fullscreen #fs-ui-bar,
+#visual-zone.user-inactive:-webkit-full-screen #fs-ui-bar,
+#visual-zone.user-inactive.pseudo-fullscreen #fs-ui-bar {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#visual-zone.user-inactive:fullscreen #stage-mode-status,
+#visual-zone.user-inactive:fullscreen #fs-playback-controls,
+#visual-zone.user-inactive:-webkit-full-screen #stage-mode-status,
+#visual-zone.user-inactive:-webkit-full-screen #fs-playback-controls,
+#visual-zone.user-inactive.pseudo-fullscreen #stage-mode-status,
+#visual-zone.user-inactive.pseudo-fullscreen #fs-playback-controls {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#visual-zone.user-inactive #btn-fullscreen {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#btn-hud-info:focus-visible,
+#btn-hud-crossfeed:focus-visible,
+#btn-hud-toggle:focus-visible,
+#btn-eco-off:focus-visible,
+.fs-controls button:focus-visible,
+#btn-fullscreen:focus-visible {
+    outline: 2px solid var(--highlight-color);
+    outline-offset: 3px;
+}
+
+.eco-box {
+    box-sizing: border-box;
+    width: min(560px, calc(100% - 32px));
+    max-height: calc(100% - 32px);
+    padding: clamp(18px, 4vw, 34px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.eco-kicker,
+.eco-shortcut {
+    color: var(--text-color);
+    font-family: var(--font-main);
+    font-size: 10px;
+    letter-spacing: 1.2px;
+    line-height: 1.4;
+}
+
+.eco-box h2 {
+    margin: 0;
+    font-size: clamp(15px, 3vw, 24px);
+    line-height: 1.5;
+}
+
+.eco-now-playing {
+    display: grid;
+    width: 100%;
+    gap: 9px;
+    padding: 14px;
+    color: var(--highlight-color);
+    background: rgba(0, 0, 0, 0.42);
+    border-top: 1px solid var(--chassis-light);
+    border-bottom: 1px solid var(--chassis-dark);
+}
+
+#eco-playback-state {
+    justify-self: center;
+    color: var(--text-color);
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+#eco-playback-state[data-state="playing"] {
+    color: var(--bus-active-color);
+}
+
+#eco-playback-state[data-state="loading"] {
+    color: var(--highlight-color);
+}
+
+#eco-playback-state[data-state="error"] {
+    color: var(--status-error);
+}
+
+#eco-track-title {
+    overflow-wrap: anywhere;
+    font-size: clamp(13px, 2.5vw, 18px);
+    line-height: 1.5;
+}
+
+.eco-box p {
+    max-width: 48ch;
+    margin: 0;
+    line-height: 1.6;
+}
+
+.eco-box .eco-wake-lock {
+    color: var(--highlight-color);
+}
+
+#btn-eco-off {
+    flex: 0 0 auto;
+    min-width: 150px;
+    min-height: 44px;
+    margin-top: 8px;
+}
+
+@media (max-width: 800px), (max-height: 600px) {
+    body.eco-mode #visual-zone {
+        height: 100dvh;
+        min-height: 100dvh;
+    }
+
+    #btn-eco-off {
+        min-height: 44px;
+    }
+
+    .eco-box {
+        gap: 8px;
+        padding: 14px;
+    }
+
+    #eco-overlay {
+        padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+        box-sizing: border-box;
+    }
+
+    .eco-box {
+        width: 100%;
+        max-height: 100%;
+    }
+
+    #visual-zone:fullscreen #fs-ui-bar,
+    #visual-zone:-webkit-full-screen #fs-ui-bar,
+    #visual-zone.pseudo-fullscreen #fs-ui-bar {
+        left: calc(10px + env(safe-area-inset-left));
+        right: calc(10px + env(safe-area-inset-right));
+        bottom: calc(10px + env(safe-area-inset-bottom));
+        align-items: center;
+        gap: 8px;
+    }
+
+    #visual-zone:fullscreen #fs-playback-controls,
+    #visual-zone:-webkit-full-screen #fs-playback-controls,
+    #visual-zone.pseudo-fullscreen #fs-playback-controls {
+        flex: 1 1 100%;
+        order: 3;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    #visual-zone:fullscreen .fs-track-copy,
+    #visual-zone:-webkit-full-screen .fs-track-copy,
+    #visual-zone.pseudo-fullscreen .fs-track-copy {
+        flex: 1 1 150px;
+        text-align: left;
+    }
+
+    #visual-zone:fullscreen .fs-track-info,
+    #visual-zone:-webkit-full-screen .fs-track-info,
+    #visual-zone.pseudo-fullscreen .fs-track-info {
+        max-width: 100%;
+        text-align: left;
+    }
+
+    #visual-zone:fullscreen .fs-controls,
+    #visual-zone:-webkit-full-screen .fs-controls,
+    #visual-zone.pseudo-fullscreen .fs-controls {
+        flex: 0 1 auto;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    #stage-mode-status {
+        min-height: 44px;
+        font-size: 10px;
+    }
+
+    #visual-zone:fullscreen .now-playing,
+    #visual-zone:-webkit-full-screen .now-playing,
+    #visual-zone.pseudo-fullscreen .now-playing {
+        bottom: calc(154px + env(safe-area-inset-bottom));
+    }
+}
+
+@media (max-width: 480px) {
+    #visual-zone:fullscreen .now-playing,
+    #visual-zone:-webkit-full-screen .now-playing,
+    #visual-zone.pseudo-fullscreen .now-playing {
+        bottom: calc(242px + env(safe-area-inset-bottom));
+    }
+
+    .eco-box {
+        gap: 10px;
+        padding: 16px;
+    }
+
+    .eco-box p {
+        font-size: 12px;
+    }
+
+    .eco-now-playing {
+        padding: 10px;
+    }
+}
