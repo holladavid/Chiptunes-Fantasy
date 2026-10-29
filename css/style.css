@@ -17,7 +17,7 @@
     
     --font-main: 'Press Start 2P', monospace;
     /* GFX UPGRADE: Fluid Typography wächst dynamisch mit der Bildschirmbreite mit */
-    --font-size-base: clamp(9px, 0.8vw, 12px);
+    --font-size-base: clamp(11px, 0.8vw, 14px);
 }
 
 body.theme-amiga {
@@ -199,7 +199,7 @@ body, html {
     min-height: 0;
     overflow: hidden;
     background-color: var(--fg-color);
-    padding: 16px;
+    padding: 8px 16px 16px;
     gap: 16px;
 }
 
@@ -242,7 +242,7 @@ body, html {
     min-width: 0;
     min-height: 0;
     color: var(--panel-text);
-    padding: 10px;
+    padding: 4px 10px 10px;
 }
 
 /* =========================================
@@ -385,9 +385,7 @@ body.theme-amiga .tab-btn.active {
     line-height: 1.3;
     cursor: pointer;
     border-bottom: 1px dashed rgba(255, 255, 255, 0.1); 
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
 }
 
 /* GFX UPGRADE: Native Accordion Pfeile überschreiben (Retro Style) */
@@ -581,7 +579,7 @@ input[type="range"]::-moz-range-thumb {
     min-width: 0;
     min-height: 0;
     background-color: transparent;
-    padding: 10px;
+    padding: 4px 10px 10px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1017,8 +1015,6 @@ body.theme-atari #btn-hud-toggle {
         letter-spacing: 0px !important; /* Kein negatives Spacing nötig bei der schmalen Schrift */
     }
 
-    #hud-body { max-height: 35vh; overflow-y: auto; overflow-x: hidden; }
-    
     /* Das Scroller-Zone Upgrade für den sicheren iOS-Rand */
     #scroller-zone { height: auto; min-height: 10vh; padding-bottom: env(safe-area-inset-bottom); box-sizing: border-box; }
 
@@ -1026,25 +1022,7 @@ body.theme-atari #btn-hud-toggle {
     #player-panel, #museum-panel { flex: none; width: 100%; }
     .museum-content { overflow-y: visible !important; }
 
-#playback-bar {
-        position: -webkit-sticky; 
-        position: sticky; 
-        top: 0; 
-        z-index: 100; 
-        display: flex !important;
-        flex-direction: column !important; /* Schaltet auf vertikale Spalte um, um Zeilen-Wrapping zu umgehen */
-        align-items: stretch !important;    /* Zwingt alle Kind-Reihen auf exakt 100% Breite */
-        padding: 12px 10px !important;     /* Taktiler, kompakter Rahmenabstand */
-        box-shadow: 0 5px 15px rgba(0,0,0,0.8); 
-        width: 100% !important;
-        box-sizing: border-box !important;
-    }
-    
     #playback-bar {
-        position: -webkit-sticky; 
-        position: sticky; 
-        top: 0; 
-        z-index: 100; 
         display: flex !important;
         flex-direction: column !important; /* Stack rows vertically */
         justify-content: flex-start !important; /* Vernichtet den space-between Verteilungs-Bug! */
@@ -1073,7 +1051,7 @@ body.theme-atari #btn-hud-toggle {
 
     #playback-bar .controls button { 
         padding: 8px 0 !important; 
-        font-size: clamp(8px, 2.2vw, 10px) !important; 
+        font-size: clamp(11px, 2.2vw, 12px) !important;
         white-space: nowrap;
         letter-spacing: -0.5px;
         min-width: 0 !important; 
@@ -1117,7 +1095,7 @@ body.theme-atari #btn-hud-toggle {
     GFX UPGRADE: Fullscreen Play-Controls auf Mobile drosseln
     ========================================= */
     body.theme-c64 #fs-playback-controls .fs-controls button {
-        font-size: 10px !important; /* Exakter Match zum Vollbild-Button für ein symmetrisches Raster */
+        font-size: 11px !important;
         padding: 8px 14px !important; /* Großzügiges, treffsicheres Touch-Target */
         white-space: nowrap;
     }
@@ -1129,16 +1107,6 @@ body.theme-atari #btn-hud-toggle {
         white-space: nowrap;
     }
        
-    #tracklist {
-        min-height: 240px;
-        max-height: 250px; 
-    }
-    
-    #tracklist li {
-        padding: 10px 12px;
-        margin-bottom: 2px;
-    }
-    
     /* Logo auf Handys weiter verkleinern und aus der extremen Ecke rücken */
     #brand-logo {
         top: 18px;  /* Von 10px auf 18px erhöht */
@@ -2095,7 +2063,7 @@ summary:focus-visible,
 @media (min-width: 801px) and (max-width: 1200px) {
     #ui-zone {
         grid-template-columns: minmax(300px, 38%) minmax(0, 1fr);
-        padding: 12px;
+        padding: 6px 12px 12px;
         gap: 12px;
     }
 
@@ -2125,7 +2093,7 @@ summary:focus-visible,
 
     #ui-zone {
         grid-template-columns: minmax(340px, 28%) minmax(0, 1fr);
-        padding: 24px;
+        padding: 12px 24px 24px;
         gap: 24px;
     }
 
@@ -2151,7 +2119,7 @@ summary:focus-visible,
 }
 
 /* --- Low-height desktop and laptop displays --- */
-@media (min-width: 1001px) and (max-height: 760px) {
+@media (min-width: 801px) and (max-height: 760px) {
     body, html { overflow: auto; }
 
     #demo-container {
@@ -2160,7 +2128,7 @@ summary:focus-visible,
     }
 
     #ui-zone {
-        padding: 12px;
+        padding: 6px 12px 12px;
         gap: 12px;
     }
 
@@ -2180,7 +2148,6 @@ summary:focus-visible,
 /* --- Mobile portrait and narrow screens --- */
 @media (max-width: 800px) {
     #playback-bar {
-        position: relative !important;
         padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important;
     }
 
@@ -2229,7 +2196,7 @@ summary:focus-visible,
 
     #tracklist {
         min-height: 250px;
-        max-height: 380px;
+        max-height: min(45dvh, 360px);
     }
 
     #tracklist li {
@@ -2421,7 +2388,7 @@ summary:focus-visible,
         grid-template-columns: minmax(300px, 44%) minmax(0, 1fr);
         height: auto;
         overflow: visible;
-        padding: 12px;
+        padding: 6px 12px 12px;
         gap: 12px;
     }
 
@@ -2650,14 +2617,12 @@ body.theme-atari #tracklist-count {
 .track-result-path {
     display: block;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
 }
 
 .track-result-path {
     color: var(--panel-text);
-    font-size: 0.72em;
+    font-size: max(10px, 0.72em);
     opacity: 0.78;
 }
 
