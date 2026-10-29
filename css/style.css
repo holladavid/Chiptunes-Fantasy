@@ -34,7 +34,7 @@ body.theme-amiga {
     --bus-active-color: #ff8800; /* Amiga Warmes Bernstein / Orange */
     
     --font-main: 'VT323', monospace;
-    --font-size-base: clamp(18px, 1.3vw, 22px);
+    --font-size-base: clamp(19px, 1.4vw, 24px);
 }
 
 body.theme-atari {
@@ -471,6 +471,13 @@ body.theme-c64 .controls button {
     font-size: clamp(10.5px, 0.85vw, 12px) !important; /* Stabiles, scharfes C64-Schriftbild auf allen Monitoren */
 }
 
+/* Scaler für Amiga & Atari VT323 (schmalere Schrift profitiert von sauberer Höhe) */
+body.theme-amiga .controls button,
+body.theme-atari .controls button {
+    font-size: clamp(18px, 1.3vw, 22px) !important;
+    letter-spacing: 0.5px;
+}
+
 /* Verhindert zuverlässig den Zeilenumbruch durch überproportionale Flex-Gewichtung */
 #btn-play {
     flex: 2.1 !important; 
@@ -791,6 +798,15 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     white-space: nowrap;
     transition: all 0.1s;
     text-align: center;
+}
+
+body.theme-amiga #btn-hud-info,
+body.theme-amiga #btn-hud-crossfeed,
+body.theme-amiga #btn-hud-toggle,
+body.theme-atari #btn-hud-info,
+body.theme-atari #btn-hud-crossfeed,
+body.theme-atari #btn-hud-toggle {
+    font-size: clamp(15px, 1.1vw, 18px);
 }
 
 #btn-hud-info:active, #btn-hud-crossfeed:active, #btn-hud-toggle:active {
@@ -2237,11 +2253,9 @@ summary:focus-visible,
         line-height: 1.25;
     }
 
-    .controls button,
-    body.theme-c64 #playback-bar .controls button,
     body.theme-amiga #playback-bar .controls button,
     body.theme-atari #playback-bar .controls button {
-        font-size: 12px !important;
+        font-size: 15px !important;
         letter-spacing: 0 !important;
     }
 
@@ -2350,6 +2364,11 @@ summary:focus-visible,
         min-width: 0 !important;
         min-height: 44px;
         font-size: 12px !important;
+    }
+
+    body.theme-amiga #playback-bar .controls button,
+    body.theme-atari #playback-bar .controls button {
+        font-size: 15px !important;
     }
 
     #playback-bar .timeline-control {
@@ -2520,6 +2539,13 @@ summary:focus-visible,
     gap: 2px;
     font-size: clamp(9px, 0.55vw, 11px);
     line-height: 1.3;
+}
+
+body.theme-amiga #tracklist-breadcrumb,
+body.theme-amiga #tracklist-count,
+body.theme-atari #tracklist-breadcrumb,
+body.theme-atari #tracklist-count {
+    font-size: clamp(14px, 0.9vw, 17px);
 }
 
 .breadcrumb-button {
