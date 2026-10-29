@@ -25,7 +25,7 @@
 
     <div id="boot-screen" role="button" tabindex="0" aria-label="Chiptunes Fantasy starten">
         <div class="boot-box">
-            <p class="boot-header">**** CHIPTUNES FANTASY V1.5.4 ****</p>
+            <p class="boot-header">**** CHIPTUNES FANTASY V1.5.5 ****</p>
             <p class="boot-subheader">64K RAM SYSTEM  38911 BASIC BYTES FREE</p>
             <div class="boot-logs">
                 <p>EMU CORES LOADED: OK</p>
@@ -285,9 +285,19 @@
 
         </div> <!-- Ende ui-zone -->
 
-        <!-- ZONE 4: Scroller -->
-        <div id="scroller-zone">
-            <canvas id="scroller-canvas"></canvas>
+        <!-- ZONE 4: Adaptiver Song-Scroller -->
+        <div id="scroller-zone" data-scroller-mode="track" data-paused="false">
+            <div class="scroller-toolbar" role="group" aria-label="Lauftext-Kanal und Wiedergabe">
+                <span class="scroller-identity" aria-hidden="true"><i></i> ADAPTIVE LINER</span>
+                <div class="scroller-actions">
+                    <button type="button" data-scroller-mode="track" aria-pressed="true" title="Songtitel und Komponist">TRACK</button>
+                    <button type="button" data-scroller-mode="tech" aria-pressed="false" title="Format- und Hardwaredetails">TECH</button>
+                    <button type="button" data-scroller-mode="story" aria-pressed="false" title="Hintergrund aus dem Museum">STORY</button>
+                    <button type="button" id="scroller-toggle" aria-pressed="false" aria-label="Lauftext anhalten" title="Lauftext anhalten">HOLD</button>
+                </div>
+            </div>
+            <canvas id="scroller-canvas" role="img" aria-label="Lauftext wird initialisiert"></canvas>
+            <span id="scroller-accessible-text" class="sr-only" aria-live="polite"></span>
         </div>
 
     </div> <!-- Ende demo-container -->

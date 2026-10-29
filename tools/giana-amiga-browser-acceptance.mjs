@@ -72,6 +72,13 @@ const runs = [];
 
 async function readPlayback(page, representative) {
     await page.locator('#info-text h3', { hasText: representative.museum }).waitFor({ state: 'attached', timeout: 30000 });
+    await page.waitForFunction(expected => {
+        const text = document.getElementById('scroller-canvas')?.getAttribute('aria-label') || '';
+        return text.includes(`NOW PLAYING / ${expected}`);
+    }, representative.text, { timeout: 30000 }).catch(async error => {
+        const actual = await page.locator('#scroller-canvas').getAttribute('aria-label');
+        throw new Error(`Scroller passt nicht zu ${representative.text}: ${actual}`, { cause: error });
+    });
     await page.waitForTimeout(playMilliseconds);
     return page.evaluate(async expected => {
         const { getAudioContext, getAnalyserNode } = await import('/js/audio/audio-controller.js');
@@ -92,6 +99,7 @@ async function readPlayback(page, representative) {
             sampleRate: getAudioContext().sampleRate,
             core: document.getElementById('core-selector').selectedOptions[0].textContent,
             activeTrack: document.querySelector('#tracklist .active-track')?.textContent || null,
+            scrollerText: document.getElementById('scroller-canvas')?.getAttribute('aria-label') || '',
             museum: document.querySelector('#info-text h3')?.textContent || null,
             creditsPresent: museumText.includes('Thomas Lopatic') && museumText.includes('Chris Hülsbeck'),
             conversionDisclosed: museumText.includes('ProTracker-Konvertierung'),
@@ -109,10 +117,76 @@ function validatePlayback(result, representative) {
     result.contextRunning = result.contextState === 'running';
     result.museumMatches = result.museum?.includes(representative.museum) || false;
     result.activeTrackMatches = result.activeTrack?.includes(representative.text) || false;
+    result.scrollerMatches = result.scrollerText.includes(`NOW PLAYING / ${representative.text}`);
     result.passed = result.finiteOutput && result.audible && result.masterPeakWithinCeiling &&
-        result.contextRunning && result.museumMatches && result.activeTrackMatches && result.safeSourceLinks &&
+        result.contextRunning && result.museumMatches && result.activeTrackMatches && result.scrollerMatches && result.safeSourceLinks &&
         result.creditsPresent && result.conversionDisclosed && result.core.includes('Paula');
     return result;
+}
+
+async function verifyScrollerChannels(page, deviceName) {
+    await page.click('[data-scroller-mode="tech"]');
+    await page.waitForFunction(() =>
+        document.getElementById('scroller-zone')?.dataset.scrollerMode === 'tech' &&
+        document.getElementById('scroller-canvas')?.getAttribute('aria-label').includes('23 PATTERNS')
+    );
+    const techText = await page.locator('#scroller-canvas').getAttribute('aria-label');
+
+    await page.click('[data-scroller-mode="story"]');
+    await page.waitForFunction(() =>
+        document.getElementById('scroller-zone')?.dataset.scrollerMode === 'story' &&
+        document.getElementById('scroller-canvas')?.getAttribute('aria-label').includes('1988')
+    );
+    const storyText = await page.locator('#scroller-canvas').getAttribute('aria-label');
+
+    await page.click('[data-scroller-mode="track"]');
+    await page.waitForFunction(() =>
+        document.getElementById('scroller-canvas')?.getAttribute('aria-label').includes('NOW PLAYING / Title Screen')
+    );
+
+    let hoverHold = null;
+    if (deviceName === 'desktop') {
+        await page.hover('#scroller-canvas');
+        hoverHold = await page.locator('#scroller-zone').getAttribute('data-paused') === 'true';
+        await page.hover('.brand-main');
+    }
+
+    await page.click('#scroller-toggle');
+    await page.waitForFunction(() => document.getElementById('scroller-zone')?.dataset.paused === 'true');
+    const pausedStart = await page.locator('#scroller-canvas').evaluate(canvas => canvas.toDataURL());
+    await page.waitForTimeout(220);
+    const pausedEnd = await page.locator('#scroller-canvas').evaluate(canvas => canvas.toDataURL());
+    const stableWhileHeld = pausedStart === pausedEnd;
+
+    await page.click('#scroller-toggle');
+    await page.waitForFunction(() => document.getElementById('scroller-zone')?.dataset.paused === 'false');
+    const runningStart = await page.locator('#scroller-canvas').evaluate(canvas => canvas.toDataURL());
+    await page.waitForTimeout(220);
+    const runningEnd = await page.locator('#scroller-canvas').evaluate(canvas => canvas.toDataURL());
+    const advancesWhenRunning = runningStart !== runningEnd;
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.waitForFunction(() => document.getElementById('scroller-zone')?.dataset.paused === 'true');
+    const reducedMotionHold = await page.locator('#scroller-toggle').textContent() === 'RUN';
+    await page.click('#scroller-toggle');
+    await page.waitForFunction(() => document.getElementById('scroller-zone')?.dataset.paused === 'false');
+    const explicitMotionOptIn = true;
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+
+    const controls = await page.locator('.scroller-actions button').evaluateAll(buttons => buttons.map(button => ({
+        mode: button.dataset.scrollerMode || 'hold',
+        pressed: button.getAttribute('aria-pressed'),
+        width: button.getBoundingClientRect().width,
+        height: button.getBoundingClientRect().height
+    })));
+    const touchTargetsPass = deviceName !== 'mobile' || controls.every(control => control.width >= 44 && control.height >= 44);
+    const passed = techText.includes('ProTracker 4-Channel') && storyText.includes('Thomas Lopatic') &&
+        stableWhileHeld && advancesWhenRunning && reducedMotionHold && explicitMotionOptIn &&
+        touchTargetsPass && hoverHold !== false;
+    return {
+        techText, storyText, hoverHold, stableWhileHeld, advancesWhenRunning,
+        reducedMotionHold, explicitMotionOptIn, touchTargetsPass, controls, passed
+    };
 }
 
 try {
@@ -123,8 +197,8 @@ try {
         });
         const page = await context.newPage();
         const errors = [];
-        page.on('pageerror', error => errors.push(`pageerror: ${error}`));
-        page.on('console', message => { if (message.type() === 'error') errors.push(`console: ${message.text()}`); });
+        page.on('pageerror', error => { const entry = `pageerror: ${error}`; errors.push(entry); console.error(entry); });
+        page.on('console', message => { if (message.type() === 'error') { const entry = `console: ${message.text()}`; errors.push(entry); console.error(entry); } });
         page.on('requestfailed', request => errors.push(`requestfailed: ${request.url()} ${request.failure()?.errorText}`));
         page.on('response', response => { if (response.status() >= 400) errors.push(`HTTP ${response.status()}: ${response.url()}`); });
         page.on('dialog', dialog => { errors.push(`dialog: ${dialog.message()}`); dialog.dismiss().catch(() => {}); });
@@ -133,7 +207,11 @@ try {
         await page.click('#boot-screen');
         await page.click('.tab-btn[data-theme="theme-amiga"]');
         await page.waitForFunction(() => !document.body.classList.contains('system-transitioning'));
-        await page.locator('#tracklist .tracklist-folder', { hasText: 'giana-sisters' }).waitFor({ timeout: 30000 });
+        // Let the 600 ms power-flicker release its pointer-event shield before clicking.
+        await page.waitForTimeout(650);
+        const gianaFolder = page.locator('#tracklist .tracklist-folder', { hasText: 'giana-sisters' });
+        await gianaFolder.waitFor({ timeout: 30000 });
+        await gianaFolder.scrollIntoViewIfNeeded();
         const rootTracks = await page.locator('#tracklist li:not(.tracklist-folder):not(.tracklist-navigation)').count();
         const rootFolders = await page.locator('#tracklist .tracklist-folder').allTextContents();
         if (rootTracks !== 10 || rootFolders.length !== 5 || !rootFolders.some(name => name.includes('giana-sisters'))) {
@@ -149,12 +227,14 @@ try {
         }
 
         const tracks = [];
+        let scroller = null;
         for (const [index, representative] of representatives.entries()) {
             await trackItems.nth(index).click();
             const result = validatePlayback(await readPlayback(page, representative), representative);
             tracks.push(result);
             console.log(`UI ${device.name} ${representative.path}: ${result.passed ? 'PASS' : 'FAIL'} RMS=${result.output.rms}`);
             if (index === 0) {
+                scroller = await verifyScrollerChannels(page, device.name);
                 const screenshot = `doc/verification/amiga/giana-${device.name}.png`;
                 await page.evaluate(() => {
                     const panel = document.getElementById('info-text');
@@ -166,15 +246,30 @@ try {
         }
 
         const screenshot = `doc/verification/amiga/giana-${device.name}.png`;
-        const layout = await page.evaluate(() => ({
-            viewportWidth: window.innerWidth,
-            documentWidth: document.documentElement.scrollWidth,
-            museumVisible: Boolean(document.getElementById('info-text')?.offsetParent)
-        }));
+        const layout = await page.evaluate(() => {
+            const zone = document.getElementById('scroller-zone');
+            const canvas = document.getElementById('scroller-canvas');
+            const zoneBounds = zone.getBoundingClientRect();
+            const canvasBounds = canvas.getBoundingClientRect();
+            return {
+                viewportWidth: window.innerWidth,
+                documentWidth: document.documentElement.scrollWidth,
+                museumVisible: Boolean(document.getElementById('info-text')?.offsetParent),
+                scroller: {
+                    zoneHeight: zoneBounds.height,
+                    canvasCssHeight: canvasBounds.height,
+                    canvasBitmapWidth: canvas.width,
+                    canvasBitmapHeight: canvas.height,
+                    canvasBottom: canvasBounds.bottom,
+                    documentHeight: document.documentElement.scrollHeight
+                }
+            };
+        });
         runs.push({
-            device: device.name, rootTracks, rootFolders, gianaTracks, titles, screenshot, layout, tracks, errors,
-            passed: tracks.every(track => track.passed) && errors.length === 0 && layout.museumVisible &&
-                layout.documentWidth <= layout.viewportWidth
+            device: device.name, rootTracks, rootFolders, gianaTracks, titles, screenshot, layout, tracks, scroller, errors,
+            passed: tracks.every(track => track.passed) && scroller?.passed && errors.length === 0 && layout.museumVisible &&
+                layout.documentWidth <= layout.viewportWidth && layout.scroller.zoneHeight <= 140 &&
+                layout.scroller.canvasCssHeight >= 32 && layout.scroller.canvasCssHeight <= 80
         });
         await context.close();
     }

@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.5.4)
+# 💾 CHIPTUNES FANTASY (v1.5.5)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -16,9 +16,21 @@ Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with rut
 
 ---
 
-## 🚀 v1.5.4 Release Highlights
+## 🚀 v1.5.5 Release Highlights
 
-Version 1.5.4 combines the six-stage Amiga Exact refinement program with a substantially expanded, researched music disk and targeted C64/Atari corrections. The curated library now contains **209 directly playable tracks**: **73 Amiga**, **50 C64**, and **86 Atari ST** titles. The **52 new classics** comprise 28 Amiga modules and 24 C64 SIDs; existing entries remain in the playlists.
+Version 1.5.5 adds four carefully documented Amiga conversions from *The Great Giana Sisters* and turns the bottom scroller into an adaptive, song-aware information strip. It carries forward the v1.5.4 Amiga Exact refinement program, curated libraries, and targeted C64/Atari corrections without changing the audio engines in this release.
+
+The curated library now contains **209 directly playable tracks**: **73 Amiga**, **50 C64**, and **86 Atari ST** titles. Compared with v1.5.4, the four Giana conversions expand the Amiga selection from 69 to 73 tracks; all previous playlist paths remain intact.
+
+### New: The Great Giana Sisters on Amiga
+
+A dedicated `giana-sisters` folder contains **Title Screen**, **Get Ready!**, **In-Game 1 – Ground**, and **In-Game 2 – Cave**. Every entry has a researched museum card, local binary facts, safe source links, and hash-bound provenance. The documentation distinguishes Chris Hülsbeck's underlying compositions, Thomas Lopatic's 1988 Amiga music and Beathoven Synthesizer replay, and the later four-channel ProTracker conversions supplied here. The original BSS modules are not presented as ProTracker files, and no unverified conversion author is credited.
+
+Only these four verified, browser-compatible conversions are included. **Options** and **High Scores** remain outside the release because no suitable verified conversions were selected; C64 SIDs, Atari YM files, BRSTMs, and prerecorded audio were not used as substitutes.
+
+### New: Adaptive song scroller
+
+The bottom scroller now derives **TRACK**, **TECH**, and **STORY** channels from the selected song's curated title, binary metadata, core, subsong, and museum research. Its lower-amplitude sine motion is time-based and seamlessly wrapped. Hover and **HOLD/RUN** provide pause control, native buttons expose the channels to keyboard and touch users, and reduced-motion preferences are respected. The mobile strip has a bounded 108px height plus the device safe area; playback and emulation code are unchanged.
 
 ### Amiga Exact — measurement, replay, output, and production acceptance
 Phases 0–5 establish reproducible evidence before changing behavior, then correct the production `paula-exact` path subsystem by subsystem:
@@ -44,14 +56,14 @@ C64 environmental readouts no longer average the fourth telemetry slot—the SID
 Atari YM5 frames now receive a version-specific normalization for Digidrum start bits in R3; global YM6 decoding is unchanged. A regression test uses a real *Punish Your Machine* frame and proves that normalized R3 value `0x31` starts sample 0 as a Digidrum on voice C. The sample audit covers 20 sample-based tracks: eight affected YM5 files were repaired by the normalization, eleven YM6 files remain correctly decoded, and *Turrican 1* contains sample blocks but no Digidrum start commands.
 
 ### Validation and known limitations
-- **Full suite:** 364 tests — 356 passed, 7 skipped, 1 known pre-existing failure.
-- **Amiga library:** 73/73 tracks passed audible, finite, deterministic, block-size-independent, and restart-identical offline acceptance; no silent A500 title was found. All four Giana conversions also passed real desktop- and mobile-viewport Chromium playback, museum-card, credit, source-link, and overflow checks.
+- **Full suite:** 367 tests — 359 passed, 7 skipped, 1 known pre-existing failure.
+- **Amiga library:** 73/73 tracks passed audible, finite, deterministic, block-size-independent, and restart-identical offline acceptance; no silent A500 title was found. All four Giana conversions also passed real desktop- and mobile-viewport Chromium playback, adaptive-scroller channel and pause checks, reduced-motion behavior, museum cards, credits, source links, and bounded-layout checks.
 - **C64 library:** 50/50 tracks passed the equivalent four-render offline acceptance. Representative PSID and RSID playback, folders, museum cards, and source links were also exercised in desktop and mobile-viewport Chromium.
 - **Atari:** The real YM5 Punish-frame regression and sample audit cover the corrected behavior without changing YM6 semantics.
 
 The remaining full-suite failure is `SID synthetic corpus matches the reviewed Phase 3 raw/trace/WAV hashes`; its `noise-adsr` baseline was not overwritten. Details and hashes are retained in the [C64 curation report](doc/verification/c64/curation-report.md). Offline timing ratios are not device underrun guarantees, headless mobile viewports are not physical-device tests, and self-generated hashes are regression anchors—not hardware truth references. C64/SID random-access seeking remains unavailable.
 
-Copy-ready GitHub texts are included for the [v1.5.4 pull request](doc/releases/v1.5.4-PR-Text.md) and [v1.5.4 release](doc/releases/v1.5.4-Release-Text.md).
+Copy-ready GitHub texts are included for the [v1.5.5 pull request](doc/releases/v1.5.5-PR-Text.md) and [v1.5.5 release](doc/releases/v1.5.5-Release-Text.md). Earlier release documents remain unchanged as historical records.
 
 ---
 

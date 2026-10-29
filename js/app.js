@@ -313,7 +313,18 @@ function initApp() {
             })
         });
 
-        initScroller(() => currentScrollerText, () => isEcoMode); 
+        initScroller(() => currentScrollerText, () => isEcoMode, () => {
+            const selectedSong = trackRegistry[activeSystem]?.[currentTrackIndex] || null;
+            const loaded = loadedTrackIndex === currentTrackIndex && trackData.length > 0;
+            return {
+                system: activeSystem,
+                song: selectedSong,
+                metadata: loaded ? trackData.metadata || null : null,
+                currentSubsong: currentSubsongIndex,
+                core: getActiveCoreName(),
+                loaded
+            };
+        });
         
         // INTERAKTIVE SKEUOMORPHIC LED KOPPLUNG (AMIGA)
         document.getElementById('chip-hud').addEventListener('click', (e) => {
