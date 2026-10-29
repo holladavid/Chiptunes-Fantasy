@@ -59,6 +59,7 @@ export async function loadSidFile(url) {
     let metadata = {
         name: title.toUpperCase(),
         author: author.toUpperCase(),
+        released: released.toUpperCase(),
         comment: `${released.toUpperCase()} • GENUINE BINARY PARSED C64 CODE`,
         type: `${magic} v${version} (6502 Emulator)`,
         songs: songs,

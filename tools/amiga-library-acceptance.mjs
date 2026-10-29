@@ -1,4 +1,4 @@
-// Separate acceptance for the curated 69-track Amiga library.
+// Separate acceptance for the curated 73-track Amiga library.
 //   node tools/amiga-library-acceptance.mjs --seconds 2 \
 //     --report doc/verification/amiga/curation-library-corpus.json
 // Regression measurements only; no hardware/UADE truth or browser-dropout claim.
@@ -99,7 +99,7 @@ const report = {
         note: 'This is not a browser underrun or device-specific performance proof.'
     }
 };
-report.passed = tracks.length === 69 && tracks.every(track => track.passed) &&
+report.passed = tracks.length === 73 && tracks.every(track => track.passed) &&
     report.performance.withinOfflineRealTimeBudget;
 
 const filename = path.resolve(AMIGA_HARNESS_ROOT, args.get('report') || 'doc/verification/amiga/curation-library-corpus.json');

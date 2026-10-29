@@ -71,6 +71,8 @@ test('Kuration: jeder Titel besitzt einen eigenen strukturierten Museumstext mit
     for (const entry of c64Playlist) {
         const museumText = c64MuseumMetadata[entry.path];
         assert.equal(entry.composerInfo, museumText);
+        assert.ok(entry.listTitle, entry.path);
+        assert.doesNotMatch(entry.listTitle, /LOAD SID|\.sid$/i);
         assert.match(museumText, /<h3>\[ MUSEUM: .+ \]<\/h3>/);
         assert.match(museumText, /<strong>Historie:<\/strong>/);
         assert.match(museumText, /<strong>SID &amp; Replay:<\/strong>/);
@@ -82,6 +84,25 @@ test('Kuration: jeder Titel besitzt einen eigenen strukturierten Museumstext mit
             assert.match(match[1], /rel="noopener noreferrer"/);
         }
     }
+});
+
+test('Kuration: sichtbare Titel und Museumstexte folgen den tatsächlichen SID-Headern', () => {
+    const byPath = path => c64Playlist.find(entry => entry.path === path);
+    const expectations = [
+        ['Compilation_II.sid', 'Compilation III', 'Compilation III'],
+        ['To_be_on_Top.sid', 'To Be on Top', 'To be on Top'],
+        ['classics/demoscene/radio-napalm.sid', 'Coma Light 13 – Tune 1', 'Coma Light 13 (tune 1)'],
+        ['classics/demoscene/coma-light-13.sid', 'Radio Napalm', 'Radio Napalm']
+    ];
+
+    for (const [path, listTitle, embeddedTitle] of expectations) {
+        const entry = byPath(path);
+        assert.equal(entry.listTitle, listTitle, path);
+        assert.equal(header(`tracks/c64/${path}`).title, embeddedTitle, path);
+        assert.ok(entry.composerInfo.includes(embeddedTitle), path);
+    }
+    assert.match(byPath('Compilation_II.sid').composerInfo, /1989 bei A\.U\.D\.I\.O\.S/);
+    assert.match(byPath('To_be_on_Top.sid').composerInfo, /erschien 1987/);
 });
 
 test('Kuration: Provenienz und SID-Header stimmen mit allen 24 neuen Dateibytes überein', () => {

@@ -1,13 +1,14 @@
 {
   "schema": "chiptunes-fantasy-amiga-classics-provenance-v1",
   "release": "v1.5.4",
-  "curationDate": "2026-10-28",
-  "scope": "24 newly added modules; the 45 pre-existing playlist paths are unchanged.",
+  "curationDate": "2026-10-30",
+  "scope": "24 classic additions plus four Giana Sisters conversions; the 45 pre-existing playlist paths are unchanged.",
   "rightsNotice": "Public availability in a tracker archive does not imply public domain, a redistribution license, or permission for commercial use. Rights remain with their respective holders.",
   "method": {
     "download": "Direct HTTPS retrieval of the documented original filename.",
     "integrity": "SHA-256 and byte count calculated from the delivered local bytes.",
-    "technicalFacts": "Parsed from the delivered files; patternCount is the allocated parser count, not merely the highest referenced order."
+    "technicalFacts": "Parsed from the delivered files; patternCount is the allocated parser count, not merely the highest referenced order.",
+    "gianaConversion": "The four Giana MODs are later ProTracker conversions, not original Beathoven Synthesizer replay files. Their embedded titles are empty and no conversion author is encoded; the archive author directory is not presented as a conversion credit."
   },
   "tracks": [
     {
@@ -417,6 +418,74 @@
       "patterns": 50,
       "usedSamples": 26,
       "sampleDataBytes": 160228
+    },
+    {
+      "path": "tracks/amiga/giana-sisters/title-screen.mod",
+      "category": "games",
+      "sourceArchive": "Modland ProTracker archive",
+      "authorDirectory": "Chris Huelsbeck",
+      "originalFilename": "giana1.mod",
+      "sourceUrl": "https://modland.com/pub/modules/Protracker/Chris%20Huelsbeck/giana1.mod",
+      "bytes": 89558,
+      "sha256": "418a9cb2ab98300d4ffff9942f472ed22d2e72e8fcc7723fb6d177e289c6bfce",
+      "format": "Four-channel MOD conversion from Beathoven Synthesizer music",
+      "magic": "M.K.",
+      "embeddedTitle": "",
+      "orders": 25,
+      "patterns": 23,
+      "usedSamples": 8,
+      "sampleDataBytes": 64922
+    },
+    {
+      "path": "tracks/amiga/giana-sisters/get-ready.mod",
+      "category": "games",
+      "sourceArchive": "Modland ProTracker archive",
+      "authorDirectory": "Chris Huelsbeck",
+      "originalFilename": "giana4.mod",
+      "sourceUrl": "https://modland.com/pub/modules/Protracker/Chris%20Huelsbeck/giana4.mod",
+      "bytes": 67030,
+      "sha256": "c3497530de47086e208fc50bc71bde09bb5840ef6c31b15985075cd9ed4ec1fb",
+      "format": "Four-channel MOD conversion from Beathoven Synthesizer music",
+      "magic": "M.K.",
+      "embeddedTitle": "",
+      "orders": 1,
+      "patterns": 1,
+      "usedSamples": 8,
+      "sampleDataBytes": 64922
+    },
+    {
+      "path": "tracks/amiga/giana-sisters/ingame-1-ground.mod",
+      "category": "games",
+      "sourceArchive": "Modland ProTracker archive",
+      "authorDirectory": "Chris Huelsbeck",
+      "originalFilename": "giana3.mod",
+      "sourceUrl": "https://modland.com/pub/modules/Protracker/Chris%20Huelsbeck/giana3.mod",
+      "bytes": 78294,
+      "sha256": "2894060a390bf6e8d0fc9af78c8e1a8adcc099d7c4d65999d3010ee4c442607e",
+      "format": "Four-channel MOD conversion from Beathoven Synthesizer music",
+      "magic": "M.K.",
+      "embeddedTitle": "",
+      "orders": 12,
+      "patterns": 12,
+      "usedSamples": 8,
+      "sampleDataBytes": 64922
+    },
+    {
+      "path": "tracks/amiga/giana-sisters/ingame-2-cave.mod",
+      "category": "games",
+      "sourceArchive": "Modland ProTracker archive",
+      "authorDirectory": "Chris Huelsbeck",
+      "originalFilename": "giana2.mod",
+      "sourceUrl": "https://modland.com/pub/modules/Protracker/Chris%20Huelsbeck/giana2.mod",
+      "bytes": 79318,
+      "sha256": "7b30a47be6905b1fd8be3fd98d3b8bcb67e87b86243778433b23d5946ab6bdf2",
+      "format": "Four-channel MOD conversion from Beathoven Synthesizer music",
+      "magic": "M.K.",
+      "embeddedTitle": "",
+      "orders": 17,
+      "patterns": 13,
+      "usedSamples": 8,
+      "sampleDataBytes": 64922
     }
   ],
   "excludedExistingFiles": [

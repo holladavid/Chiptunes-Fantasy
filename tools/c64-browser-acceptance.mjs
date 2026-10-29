@@ -62,9 +62,9 @@ const devices = [
     { name: 'mobile', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }
 ];
 const representatives = [
-    { path: 'classics/games/ocean-loader-2.sid', text: 'ocean-loader-2.sid', museum: 'OCEAN LOADER 2', format: 'PSID v2' },
-    { path: 'classics/demoscene/comaland-100-end.sid', text: 'comaland-100-end.sid', museum: 'COMALAND 100%', format: 'RSID v2' },
-    { path: 'Commando.sid', text: 'Commando.sid', museum: 'ROB HUBBARD — COMMANDO', format: 'PSID v2' }
+    { path: 'classics/games/ocean-loader-2.sid', text: 'Ocean Loader 2', museum: 'OCEAN LOADER 2', format: 'PSID v2' },
+    { path: 'classics/demoscene/comaland-100-end.sid', text: 'Comaland 100% – End', museum: 'COMALAND 100%', format: 'RSID v2' },
+    { path: 'Commando.sid', text: 'Commando', museum: 'ROB HUBBARD — COMMANDO', format: 'PSID v2' }
 ];
 const runs = [];
 
@@ -160,8 +160,14 @@ try {
 
         await page.locator('#tracklist .tracklist-navigation').click();
         await page.locator('#tracklist .tracklist-folder', { hasText: 'demoscene' }).click();
-        const demoTracks = await page.locator('#tracklist li:not(.tracklist-folder):not(.tracklist-navigation)').count();
+        const demoTrackItems = page.locator('#tracklist li:not(.tracklist-folder):not(.tracklist-navigation)');
+        const demoTracks = await demoTrackItems.count();
         if (demoTracks !== 4) throw new Error(`${device.name}: ${demoTracks} statt vier Demoklassiker`);
+        const demoTitles = await demoTrackItems.allTextContents();
+        const expectedDemoTitles = ['Coma Light 13 – Tune 1', 'Edge of Disgrace', 'Radio Napalm', 'Comaland 100% – End'];
+        if (JSON.stringify(demoTitles) !== JSON.stringify(expectedDemoTitles)) {
+            throw new Error(`${device.name}: falsche Demo-Titel ${JSON.stringify(demoTitles)}`);
+        }
         await page.locator('#tracklist li', { hasText: representatives[1].text }).click();
         const comaland = validatePlayback(await readPlayback(page, representatives[1]), representatives[1]);
         tracks.push(comaland);
@@ -169,7 +175,7 @@ try {
 
         await page.locator('#tracklist .tracklist-navigation').click();
         await page.locator('#tracklist .tracklist-navigation').click();
-        await page.locator('#tracklist li').filter({ hasText: /^1\. LOAD SID: Commando\.sid$/ }).click();
+        await page.locator('#tracklist li').filter({ hasText: /^Commando$/ }).click();
         const commando = validatePlayback(await readPlayback(page, representatives[2]), representatives[2]);
         tracks.push(commando);
         console.log(`UI ${device.name} ${representatives[2].path}: ${commando.passed ? 'PASS' : 'FAIL'} RMS=${commando.output.rms}`);

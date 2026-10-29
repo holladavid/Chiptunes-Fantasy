@@ -79,7 +79,8 @@ export function initVisuals(stateGetters, callbacks) {
             
             // NEU: Klassenzuweisung für den systemgetreuen Glow
             logo.classList.toggle('demo-mode-active', showGimmick);
-            
+            logo.setAttribute('aria-pressed', String(showGimmick));
+
             logo.style.filter = 'brightness(2.0)';
             setTimeout(() => logo.style.filter = '', 100);
         });
@@ -88,7 +89,7 @@ export function initVisuals(stateGetters, callbacks) {
     function resizeCanvas() {
         const clientWidth = canvas.clientWidth;
         const clientHeight = canvas.clientHeight;
-        const maxResolutionWidth = 1280;
+        const maxResolutionWidth = 1920;
         let scale = 1.0;
         
         if (clientWidth > maxResolutionWidth) {

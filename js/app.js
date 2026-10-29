@@ -3,7 +3,8 @@
 //                  CHIPTUNES FANTASY - MAIN APP CONTROLLER
 // =========================================================================
 import { FullscreenUI } from './ui/fullscreen-ui.js';
-import { getTracklistEntries, trackRegistry } from '../tracks/index.js';
+import { buildNowPlayingModel, NowPlayingConsole } from './ui/now-playing-console.js';
+import { getTracklistEntries, searchTracks, trackRegistry } from '../tracks/index.js';
 import { systemDescriptions } from './content/museum.js'; 
 import { chipCheatSheets } from './content/cheatsheets.js'; 
 import { workletRegistry } from './worklets/registry.js';
@@ -27,6 +28,7 @@ import { MediaSessionController } from './audio/media-session.js';
 import { formatFrameTime, framesToSeconds, getPlayerRate, isStoredLoopTransition, secondsToFrames } from './audio/playback-timing.js';
 
 let fsUI = null;
+let nowPlayingConsole = null;
 let siliconVisualizer = null; // Living Silicon Instanz
 let currentOscValue = 0;
 let currentChipRegs = null;
@@ -34,8 +36,12 @@ let sidRegisterWriteRate = 0;
 let activeSystem = 'c64'; // Standard-System auf 'c64' korrigiert (passend zum Boot-Screen)
 let trackData = [];    
 let isPlaying = false; 
-let currentTrackIndex = 0;
+let currentTrackIndex = -1;
+let loadedTrackIndex = -1;
+let playbackState = 'idle';
+let currentTrackTitle = '';
 let tracklistDirectory = '';
+let trackSearchQuery = '';
 let currentScrollerText = "+++ INITIALIZING DEMO ENGINE... +++";
 let lastKnownFrame = 0; 
 let previousFrame = 0;       
@@ -72,6 +78,147 @@ const mediaSession = new MediaSessionController({
     onSeekTo: seconds => seekToSeconds(seconds)
 });
 
+const playbackStatusLabels = {
+    idle: 'STANDBY',
+    loading: 'DECODING',
+    playing: 'BUS ACTIVE',
+    paused: 'BUS HALTED',
+    error: 'FAULT'
+};
+
+function getActiveCoreName() {
+    const select = document.getElementById('core-selector');
+    const cores = workletRegistry[activeSystem];
+    const core = cores?.[Number(select?.value) || 0];
+    return core?.name || livingSiliconChipNames[activeSystem];
+}
+
+function updateNowPlayingSystem() {
+    const systemNames = { c64: 'C64', amiga: 'AMIGA', atari: 'ATARI ST' };
+    const element = document.getElementById('now-playing-system');
+    const label = `${systemNames[activeSystem]} · ${getActiveCoreName()}`;
+    if (element) {
+        element.textContent = label;
+        element.title = label;
+    }
+}
+
+function updateNowPlayingLive(force = false) {
+    if (!nowPlayingConsole) return;
+    const totalFrames = trackData.length || 0;
+    nowPlayingConsole.updateLive({
+        currentTime: totalFrames > 0 ? formatTime(lastKnownFrame) : '00:00',
+        totalTime: totalFrames > 0 ? formatTime(totalFrames) : '00:00',
+        progress: totalFrames > 0 ? lastKnownFrame / totalFrames : 0,
+        levels: channelVolumes,
+        playing: isPlaying
+    }, force);
+}
+
+function syncNowPlayingConsole() {
+    if (!nowPlayingConsole) return;
+    const tracks = trackRegistry[activeSystem] || [];
+    const selectedSong = tracks[currentTrackIndex] || null;
+    const metadata = loadedTrackIndex === currentTrackIndex ? trackData.metadata || null : null;
+    nowPlayingConsole.updateTrack(buildNowPlayingModel({
+        system: activeSystem,
+        metadata,
+        selectedSong,
+        trackIndex: currentTrackIndex,
+        tracks,
+        currentSubsong: currentSubsongIndex
+    }));
+    updateNowPlayingLive(true);
+}
+
+function syncTracklistPlaybackState() {
+    document.querySelectorAll('#tracklist li[data-track-index]').forEach(item => {
+        const isCurrent = Number(item.dataset.trackIndex) === currentTrackIndex;
+        item.classList.toggle('selected-track', isCurrent);
+        item.classList.toggle('active-track', isCurrent && playbackState === 'playing');
+        item.dataset.playbackState = isCurrent ? playbackState : '';
+        if (isCurrent) item.setAttribute('aria-current', 'true');
+        else item.removeAttribute('aria-current');
+    });
+}
+
+function isVisualFullscreen() {
+    const visualZone = document.getElementById('visual-zone');
+    return !!(document.fullscreenElement || document.webkitFullscreenElement || visualZone?.classList.contains('pseudo-fullscreen'));
+}
+
+function syncStageModeUI() {
+    const fullscreen = isVisualFullscreen();
+    const mode = isEcoMode ? 'pure-audio' : (fullscreen ? 'fullscreen' : 'windowed');
+    const labels = { windowed: 'WINDOWED', fullscreen: 'FULLSCREEN', 'pure-audio': 'PURE AUDIO' };
+    document.body.dataset.stageMode = mode;
+
+    const status = document.getElementById('stage-mode-status');
+    if (status) status.dataset.mode = mode;
+    const statusLabel = document.getElementById('stage-mode-label');
+    if (statusLabel) statusLabel.textContent = labels[mode];
+
+    const fullscreenButton = document.getElementById('btn-fullscreen');
+    if (fullscreenButton) {
+        fullscreenButton.textContent = fullscreen ? '[ EXIT ]' : '[ ⛶ ]';
+        fullscreenButton.setAttribute('aria-pressed', String(fullscreen));
+        fullscreenButton.setAttribute('aria-label', fullscreen ? 'Vollbild beenden' : 'Vollbild aktivieren');
+    }
+
+    for (const button of [document.getElementById('btn-eco'), document.getElementById('fs-btn-eco')]) {
+        if (!button) continue;
+        button.textContent = button.id.startsWith('fs-')
+            ? (isEcoMode ? '[ RESUME GFX ]' : '[ HALT GFX ]')
+            : (isEcoMode ? 'RESUME GFX' : 'HALT GFX');
+        button.setAttribute('aria-pressed', String(isEcoMode));
+    }
+}
+
+function syncEcoPlaybackUI() {
+    const state = document.getElementById('eco-playback-state');
+    if (state) {
+        state.dataset.state = playbackState;
+        state.textContent = playbackStatusLabels[playbackState] || playbackStatusLabels.idle;
+    }
+    const title = document.getElementById('eco-track-title');
+    if (title) title.textContent = currentTrackTitle || 'AWAITING INJECTION';
+}
+
+function setPlaybackState(nextState, detail = '') {
+    playbackState = nextState;
+    const nowPlaying = document.getElementById('now-playing');
+    const status = document.getElementById('playback-status');
+    const title = document.getElementById('now-playing-title');
+    const detailElement = document.getElementById('now-playing-detail');
+    const defaultDetails = {
+        idle: 'SELECT A TRACK FROM THE ARCHIVE',
+        loading: 'FETCHING + PARSING BINARY DATA',
+        playing: getActiveCoreName(),
+        paused: 'POSITION PRESERVED · BUS STANDBY',
+        error: 'ROM INJECTION FAILED'
+    };
+
+    document.body.dataset.playbackState = nextState;
+    if (nowPlaying) {
+        nowPlaying.dataset.state = nextState;
+        nowPlaying.setAttribute('aria-busy', String(nextState === 'loading'));
+    }
+    if (status) status.textContent = playbackStatusLabels[nextState] || playbackStatusLabels.idle;
+    if (title) title.textContent = currentTrackTitle || 'AWAITING INJECTION';
+    if (detailElement) detailElement.textContent = detail || defaultDetails[nextState] || defaultDetails.idle;
+
+    updateNowPlayingSystem();
+    syncNowPlayingConsole();
+    syncTracklistPlaybackState();
+    syncEcoPlaybackUI();
+    syncStageModeUI();
+    if (siliconVisualizer) siliconVisualizer.setPlaybackState(nextState);
+    if (fsUI) {
+        fsUI.updateTrack(currentTrackTitle || '[ AWAITING INJECTION ]');
+        fsUI.updatePlaybackState(nextState);
+    }
+}
+
 // Cursor-Hiding Inaktivitäts-Timer
 let mouseIdleTimer = null;
 const visualZone = document.getElementById('visual-zone');
@@ -100,6 +247,11 @@ function resetMouseIdleTimer() {
 
 
 function initApp() {
+    nowPlayingConsole = new NowPlayingConsole();
+    syncNowPlayingConsole();
+    syncEcoPlaybackUI();
+    syncStageModeUI();
+
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('sw.js')
@@ -110,7 +262,15 @@ function initApp() {
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            setTheme(e.target.getAttribute('data-theme'));
+            setTheme(e.currentTarget.getAttribute('data-theme'));
+        });
+    });
+
+    document.querySelectorAll('[role="button"][tabindex="0"]').forEach(control => {
+        control.addEventListener('keydown', event => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            control.click();
         });
     });
 
@@ -153,7 +313,18 @@ function initApp() {
             })
         });
 
-        initScroller(() => currentScrollerText, () => isEcoMode); 
+        initScroller(() => currentScrollerText, () => isEcoMode, () => {
+            const selectedSong = trackRegistry[activeSystem]?.[currentTrackIndex] || null;
+            const loaded = loadedTrackIndex === currentTrackIndex && trackData.length > 0;
+            return {
+                system: activeSystem,
+                song: selectedSong,
+                metadata: loaded ? trackData.metadata || null : null,
+                currentSubsong: currentSubsongIndex,
+                core: getActiveCoreName(),
+                loaded
+            };
+        });
         
         // INTERAKTIVE SKEUOMORPHIC LED KOPPLUNG (AMIGA)
         document.getElementById('chip-hud').addEventListener('click', (e) => {
@@ -172,7 +343,7 @@ function initApp() {
         if (btnToggleArchive) {
             btnToggleArchive.addEventListener('click', () => {
                 const isExpanded = document.body.classList.toggle('archive-expanded');
-                btnToggleArchive.textContent = isExpanded ? '[ EXPAND ]' : '[ COLLAPSE ]';
+                btnToggleArchive.textContent = isExpanded ? '[ SHOW CHIP ]' : '[ HIDE CHIP ]';
                 btnToggleArchive.setAttribute('aria-expanded', String(!isExpanded));
             });
         }
@@ -182,6 +353,8 @@ function initApp() {
                 visualZone.addEventListener('mousemove', resetMouseIdleTimer);
                 visualZone.addEventListener('mousedown', resetMouseIdleTimer);
                 visualZone.addEventListener('touchstart', resetMouseIdleTimer);
+                visualZone.addEventListener('keydown', resetMouseIdleTimer);
+                visualZone.addEventListener('focusin', resetMouseIdleTimer);
             }
 
             // =========================================================
@@ -198,8 +371,9 @@ function initApp() {
             fsUI = new FullscreenUI({
                 onTogglePlay: () => document.getElementById('btn-play').click(),
                 onPrev: () => document.getElementById('btn-prev').click(),
-                onNext: () => document.getElementById('btn-next').click()
-            });   
+                onNext: () => document.getElementById('btn-next').click(),
+                onToggleEco: () => document.getElementById('btn-eco').click()
+            });
         });
 
         // INTERAKTIVER STEREO BLEND BUTTON
@@ -209,8 +383,9 @@ function initApp() {
             btnCrossfeed.addEventListener('click', (e) => {
                 crossfeedOn = !crossfeedOn;
                 setMasterCrossfeed(crossfeedOn);
-                e.target.innerText = crossfeedOn ? '[ STEREO BLEND: ON ]' : '[ STEREO BLEND: OFF ]';
-                e.target.style.opacity = crossfeedOn ? '1.0' : '0.5';
+                e.currentTarget.innerText = crossfeedOn ? '[ STEREO BLEND: ON ]' : '[ STEREO BLEND: OFF ]';
+                e.currentTarget.style.opacity = crossfeedOn ? '1.0' : '0.5';
+                e.currentTarget.setAttribute('aria-pressed', String(crossfeedOn));
             });
         }
 }
@@ -223,6 +398,7 @@ function formatTime(frames) {
 }
 
 function updateTimelineUI() {
+    updateNowPlayingLive();
     if (!isPlaying || trackData.length === 0) return;
     if (!isUserDragging) {
         document.getElementById('time-current').innerText = formatTime(lastKnownFrame);
@@ -264,6 +440,7 @@ function seekToFrame(targetFrame) {
     lastKnownFrame = clampedFrame;
     previousFrame = clampedFrame;
     node.port.postMessage({ type: 'SEEK_TRACK', frame: clampedFrame });
+    updateNowPlayingLive(true);
     mediaSession.updatePosition(framesToSeconds(trackData.length, trackData), framesToSeconds(clampedFrame, trackData), true);
     return true;
 }
@@ -379,6 +556,13 @@ function handleWorkletMessage(e) {
                             return; 
                         }
                     }
+                    if (isLoadedHipcTrack()) {
+                        const totalSongs = trackData.metadata.songs || 1;
+                        if (currentSubsongIndex < totalSongs) {
+                            changeHipcSubsong(currentSubsongIndex + 1);
+                            return;
+                        }
+                    }
 
                     let nextIdx = (currentTrackIndex + 1) % trackRegistry[activeSystem].length;
                     selectAndPlayTrack(nextIdx, activeSystem);
@@ -423,6 +607,24 @@ function handleWorkletMessage(e) {
     }
 }
 
+function isHipcTrack(track = trackData) {
+    return Boolean(track && (track.type === 'HIPC' || track.type === 'COSO'));
+}
+
+function isLoadedHipcTrack() {
+    return activeSystem === 'amiga' && loadedTrackIndex === currentTrackIndex && isHipcTrack();
+}
+
+function syncSubsongDisplay() {
+    const display = document.getElementById('subsong-display');
+    if (!display) return;
+    const totalSongs = Number(trackData?.metadata?.songs) || 0;
+    const isSid = activeSystem === 'c64' && trackData?.isSidFile;
+    const visible = totalSongs > 0 && (isSid || (isLoadedHipcTrack() && totalSongs > 1));
+    display.classList.toggle('hidden', !visible);
+    display.innerText = visible ? `[SUB ${currentSubsongIndex}/${totalSongs}]` : '';
+}
+
 function syncMediaSessionTrack(selectedSong) {
     if (!selectedSong || trackData.length === 0) return;
 
@@ -430,7 +632,7 @@ function syncMediaSessionTrack(selectedSong) {
     let title = metadata?.name || selectedSong.title;
     const artist = metadata?.author || '';
 
-    if (activeSystem === 'c64' && trackData.isSidFile) {
+    if ((activeSystem === 'c64' && trackData.isSidFile) || isLoadedHipcTrack()) {
         const totalSongs = metadata?.songs || 1;
         title += ` [SUB ${currentSubsongIndex}/${totalSongs}]`;
     }
@@ -462,10 +664,7 @@ function changeC64Subsong(subsongId) {
         document.getElementById('time-total').innerText = formatTime(trackData.length);
         document.getElementById('progress-slider').value = 0;
 
-        const subsongDisplay = document.getElementById('subsong-display');
-        if (subsongDisplay) {
-            subsongDisplay.innerText = `[SUB ${subsongId}/${trackData.metadata.songs}]`;
-        }
+        syncSubsongDisplay();
 
         let meta = trackData.metadata;
         currentScrollerText = `+++ BOOM! SWITCHED TO SUBSONG ${subsongId} OF ${meta.songs} +++ NOW PLAYING: ${meta.name.toUpperCase()} (TRACK ${subsongId}) BY ${meta.author.toUpperCase()} +++ `;
@@ -473,9 +672,21 @@ function changeC64Subsong(subsongId) {
         if (fsUI) {
             fsUI.updateTrack(`${meta.name.toUpperCase()} [SUB ${subsongId}/${meta.songs}]`);
         }
+        currentTrackTitle = meta.name || currentTrackTitle;
+        setPlaybackState('playing', `SUB ${subsongId}/${meta.songs} · ${getActiveCoreName()}`);
         syncMediaSessionTrack(trackRegistry[activeSystem][currentTrackIndex]);
     }    
 
+}
+
+function changeHipcSubsong(subsongId) {
+    if (!isLoadedHipcTrack()) return;
+    const totalSongs = trackData.metadata?.songs || 1;
+    if (subsongId < 1 || subsongId > totalSongs || subsongId === currentSubsongIndex) return;
+
+    // HIPC songs have independent division ranges, speed and length. Reuse the
+    // normal loading path so both Paula cores construct a fresh VM for the song.
+    selectAndPlayTrack(currentTrackIndex, activeSystem, { song: subsongId - 1 });
 }
 
 function startPlayback() {
@@ -514,7 +725,7 @@ function startPlayback() {
         }
     }
 
-    if (fsUI) fsUI.updatePlayState(true);
+    setPlaybackState('playing');
     mediaSession.setPlaybackState('playing');
     mediaSession.updatePosition(framesToSeconds(trackData.length, trackData), framesToSeconds(lastKnownFrame, trackData), true);
 }
@@ -532,7 +743,7 @@ function resumePlayback() {
     else if (activeSystem === 'c64' && sidNode) sidNode.port.postMessage({ type: 'RESUME_TRACK' });
     else if (ymNode) ymNode.port.postMessage({ type: 'RESUME_TRACK' });
 
-    if (fsUI) fsUI.updatePlayState(true);
+    setPlaybackState('playing');
     mediaSession.setPlaybackState('playing');
     mediaSession.updatePosition(framesToSeconds(trackData.length, trackData), framesToSeconds(lastKnownFrame, trackData), true);
 }
@@ -552,7 +763,7 @@ function stopPlayback() {
     // =========================================================
     // FIX: Allokationsfreies Zurücksetzen der Volume-Spuren bei Pause
     // =========================================================
-    if (fsUI) fsUI.updatePlayState(false);
+    setPlaybackState('paused');
     channelVolumes.fill(0);
     sidRegisterWriteRate = 0;
     mediaSession.setPlaybackState(trackData.length > 0 ? 'paused' : 'none');
@@ -587,20 +798,26 @@ async function setTheme(themeName, isBootSequence = false) {
     // BEVOR die Hardware wieder mit Strom versorgt wird.
     // =========================================================
     
-    document.body.className = themeName + (doAnimate ? ' system-transitioning' : '');
+    document.body.classList.remove('theme-c64', 'theme-amiga', 'theme-atari');
+    document.body.classList.add(themeName);
+    if (doAnimate) document.body.classList.add('system-transitioning');
     
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach(tab => {
-        tab.classList.remove('active');
-        if (tab.getAttribute('data-theme') === themeName) tab.classList.add('active');
+        const isActive = tab.getAttribute('data-theme') === themeName;
+        tab.classList.toggle('active', isActive);
+        tab.setAttribute('aria-pressed', String(isActive));
     });
 
     activeSystem = newSystem;
     tracklistDirectory = '';
+    trackSearchQuery = '';
+    const trackSearchInput = document.getElementById('track-search');
+    if (trackSearchInput) trackSearchInput.value = '';
     document.body.classList.remove('archive-expanded');
     const btnToggleArchive = document.getElementById('btn-toggle-archive');
     if (btnToggleArchive) {
-        btnToggleArchive.textContent = '[ COLLAPSE ]';
+        btnToggleArchive.textContent = '[ HIDE CHIP ]';
         btnToggleArchive.setAttribute('aria-expanded', 'true');
     }
     updateLivingSiliconTitle();
@@ -611,7 +828,7 @@ async function setTheme(themeName, isBootSequence = false) {
         else tempContainer.classList.add('hidden');
     }
 
-    renderTracklist(activeSystem);
+    renderTracklist(activeSystem, { scrollToTop: true });
 
     document.getElementById('info-text').innerHTML = `
         <div class="terminal-card">
@@ -636,17 +853,26 @@ async function setTheme(themeName, isBootSequence = false) {
     if (hudMain) hudMain.classList.add('collapsed');     
     
     const hudToggleBtn = document.getElementById('btn-hud-toggle');
-    if (hudToggleBtn) hudToggleBtn.innerText = '[ LAB MODE: OFF ]';
+    if (hudToggleBtn) {
+        hudToggleBtn.innerText = '[ LAB MODE: OFF ]';
+        hudToggleBtn.setAttribute('aria-expanded', 'false');
+    }
     
     const infoBtn = document.getElementById('btn-hud-info');
-    if (infoBtn) infoBtn.classList.add('hidden');
+    if (infoBtn) {
+        infoBtn.classList.add('hidden');
+        infoBtn.setAttribute('aria-expanded', 'false');
+    }
 
     // ---------------------------------------------------------
     // GHOST-TRACK WIPES (RAM Löschen)
     // ---------------------------------------------------------
     trackData = [];
-    currentTrackIndex = 0;
+    currentTrackIndex = -1;
+    loadedTrackIndex = -1;
+    currentTrackTitle = '';
     currentChipRegs = null;
+    currentSubsongIndex = 1;
     lastKnownFrame = 0;
     previousFrame = 0;
     mediaSession.clear();
@@ -654,24 +880,18 @@ async function setTheme(themeName, isBootSequence = false) {
     
     resetHUD();
     
-    if (fsUI) {
-        fsUI.updateTrack("[ AWAITING INJECTION ]");
-        fsUI.updatePlayState(false);
-    }
+    if (fsUI) fsUI.updateTrack("[ AWAITING INJECTION ]");
     
     document.getElementById('progress-slider').value = 0;
     document.getElementById('progress-slider').disabled = true;
     document.getElementById('time-current').innerText = "00:00";
     document.getElementById('time-total').innerText = "00:00";
     
-    const subsongDisplay = document.getElementById('subsong-display');
-    if (subsongDisplay) {
-        subsongDisplay.classList.add('hidden');
-        subsongDisplay.innerText = "";
-    }
+    syncSubsongDisplay();
     
     renderCoreSelector(activeSystem);
     updateLivingSiliconTitle();
+    setPlaybackState('idle');
     
     if (typeof siliconVisualizer !== 'undefined' && siliconVisualizer) {
         siliconVisualizer.setSystem(activeSystem);
@@ -735,51 +955,163 @@ function renderCoreSelector(system) {
     });
 }
 
-function renderTracklist(system) {
+function getTrackDisplayName(song) {
+    return song.listTitle || song.title;
+}
+
+function getVisibleTrackEntries() {
+    const songs = trackRegistry[activeSystem];
+    if (trackSearchQuery.trim()) return searchTracks(songs, trackSearchQuery);
+    return getTracklistEntries(songs, tracklistDirectory)
+        .filter(entry => entry.type === 'track')
+        .map(entry => ({ song: entry.song, index: entry.index }));
+}
+
+function navigateTracklist(directory, focusList = false) {
+    tracklistDirectory = directory;
+    trackSearchQuery = '';
+    const input = document.getElementById('track-search');
+    if (input) input.value = '';
+    renderTracklist(activeSystem, { scrollToTop: true, focusList });
+}
+
+function renderTracklistBreadcrumb(system, isSearching) {
+    const breadcrumb = document.getElementById('tracklist-breadcrumb');
+    if (!breadcrumb) return;
+    breadcrumb.innerHTML = '';
+
+    const systemLabels = { c64: 'C64', amiga: 'AMIGA', atari: 'ATARI ST' };
+    const rootButton = document.createElement('button');
+    rootButton.type = 'button';
+    rootButton.className = 'breadcrumb-button';
+    rootButton.textContent = `${systemLabels[system]}:/`;
+    rootButton.setAttribute('aria-label', `${systemLabels[system]} Bibliothekswurzel`);
+    if (!tracklistDirectory && !isSearching) rootButton.setAttribute('aria-current', 'location');
+    rootButton.addEventListener('click', () => navigateTracklist('', true));
+    breadcrumb.appendChild(rootButton);
+
+    if (isSearching) {
+        const scope = document.createElement('span');
+        scope.className = 'breadcrumb-current';
+        scope.textContent = 'SEARCH / ALL PATHS';
+        breadcrumb.appendChild(scope);
+        return;
+    }
+
+    let directory = '';
+    for (const segment of tracklistDirectory.split('/').filter(Boolean)) {
+        directory = directory ? `${directory}/${segment}` : segment;
+        const targetDirectory = directory;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'breadcrumb-button';
+        button.textContent = `${segment}/`;
+        button.setAttribute('aria-label', `Ordner ${segment}`);
+        if (targetDirectory === tracklistDirectory) button.setAttribute('aria-current', 'location');
+        button.addEventListener('click', () => navigateTracklist(targetDirectory, true));
+        breadcrumb.appendChild(button);
+    }
+}
+
+function renderTracklist(system, options = {}) {
+    const { scrollToTop = false, revealSelected = false, focusList = false } = options;
     const listElement = document.getElementById('tracklist');
-    listElement.innerHTML = ''; 
+    const previousScrollTop = listElement.scrollTop;
+    listElement.innerHTML = '';
     const songs = trackRegistry[system];
     if (!songs) return;
 
+    const isSearching = trackSearchQuery.trim().length > 0;
     const supportsFolderNavigation = system === 'amiga' || system === 'atari' || system === 'c64';
+    const bindActivation = (item, handler) => {
+        item.tabIndex = 0;
+        item.setAttribute('role', 'button');
+        item.addEventListener('click', handler);
+        item.addEventListener('keydown', event => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            handler();
+        });
+    };
 
-    if (supportsFolderNavigation && tracklistDirectory) {
+    if (supportsFolderNavigation && tracklistDirectory && !isSearching) {
         const upItem = document.createElement('li');
         upItem.classList.add('tracklist-navigation');
         upItem.textContent = '[UP] ..';
-        upItem.addEventListener('click', () => {
+        bindActivation(upItem, () => {
             const separatorIndex = tracklistDirectory.lastIndexOf('/');
-            tracklistDirectory = separatorIndex === -1 ? '' : tracklistDirectory.slice(0, separatorIndex);
-            renderTracklist(system);
+            navigateTracklist(separatorIndex === -1 ? '' : tracklistDirectory.slice(0, separatorIndex), true);
         });
         listElement.appendChild(upItem);
     }
 
-    const entries = supportsFolderNavigation
-        ? getTracklistEntries(songs, tracklistDirectory)
-        : songs.map((song, index) => ({ type: 'track', index, song }));
+    const entries = isSearching
+        ? searchTracks(songs, trackSearchQuery).map(entry => ({ ...entry, type: 'track', searchResult: true }))
+        : supportsFolderNavigation
+            ? getTracklistEntries(songs, tracklistDirectory)
+            : songs.map((song, index) => ({ type: 'track', index, song }));
 
     entries.forEach(entry => {
         const li = document.createElement('li');
         if (entry.type === 'folder') {
             li.classList.add('tracklist-folder');
             li.textContent = `[DIR] ${entry.name}/`;
-            li.addEventListener('click', () => {
-                tracklistDirectory = entry.path;
-                renderTracklist(system);
-            });
+            li.title = `Ordner ${entry.name}`;
+            bindActivation(li, () => navigateTracklist(entry.path, true));
         } else {
-            li.textContent = system === 'amiga'
-                ? entry.song.path.split('/').pop().replace(/\.[^.]+$/, '').replaceAll('_', ' ')
-                : (entry.song.listTitle || entry.song.title);
-            if (entry.index === currentTrackIndex) li.classList.add('active-track');
-            li.addEventListener('click', () => selectAndPlayTrack(entry.index, system));
+            if (entry.searchResult) {
+                li.classList.add('tracklist-search-result');
+                const title = document.createElement('span');
+                title.className = 'track-result-title';
+                title.textContent = getTrackDisplayName(entry.song);
+                const path = document.createElement('span');
+                path.className = 'track-result-path';
+                path.textContent = entry.song.path;
+                li.append(title, path);
+            } else {
+                li.textContent = getTrackDisplayName(entry.song);
+            }
+            li.title = `${entry.song.title} · ${entry.song.path}`;
+            li.dataset.trackIndex = entry.index;
+            bindActivation(li, () => selectAndPlayTrack(entry.index, system));
         }
         listElement.appendChild(li);
     });
+
+    if (isSearching && entries.length === 0) {
+        const emptyItem = document.createElement('li');
+        emptyItem.className = 'tracklist-empty';
+        emptyItem.textContent = 'NO MATCHING TRACKS · CLEAR SEARCH TO RETURN';
+        listElement.appendChild(emptyItem);
+    }
+
+    const count = document.getElementById('tracklist-count');
+    if (count) {
+        count.textContent = isSearching
+            ? `${entries.length} / ${songs.length} TRACKS`
+            : `${entries.length} ITEMS`;
+    }
+    const clearButton = document.getElementById('btn-clear-track-search');
+    if (clearButton) clearButton.hidden = !isSearching;
+    renderTracklistBreadcrumb(system, isSearching);
+    syncTracklistPlaybackState();
+
+    if (scrollToTop) listElement.scrollTop = 0;
+    else listElement.scrollTop = previousScrollTop;
+
+    if (revealSelected) {
+        const selected = listElement.querySelector('.selected-track');
+        if (selected) {
+            const listRect = listElement.getBoundingClientRect();
+            const selectedRect = selected.getBoundingClientRect();
+            if (selectedRect.top < listRect.top) listElement.scrollTop -= listRect.top - selectedRect.top;
+            else if (selectedRect.bottom > listRect.bottom) listElement.scrollTop += selectedRect.bottom - listRect.bottom;
+        }
+    }
+    if (focusList) listElement.querySelector('[role="button"]')?.focus({ preventScroll: true });
 }
 
-async function selectAndPlayTrack(index, system) {
+async function selectAndPlayTrack(index, system, options = {}) {
     lastTrackChangeTime = performance.now();
 
     // =========================================================
@@ -805,29 +1137,35 @@ async function selectAndPlayTrack(index, system) {
     stopPlayback();
     mediaSession.setSeekable(false);
     currentTrackIndex = index;
+    loadedTrackIndex = -1;
     const selectedSong = songs[index];
-    
+    currentTrackTitle = selectedSong.title;
+    const selectedPath = selectedSong.path || '';
+    const directorySeparator = selectedPath.lastIndexOf('/');
+    tracklistDirectory = directorySeparator === -1 ? '' : selectedPath.slice(0, directorySeparator);
+
     lastKnownFrame = 0;
-    previousFrame = 0; 
-    
+    previousFrame = 0;
+
     resetHUD();
 
-    document.getElementById('progress-slider').disabled = false;
-    renderTracklist(system); 
+    document.getElementById('progress-slider').disabled = true;
+    setPlaybackState('loading', selectedSong.path ? `READING ${selectedSong.path}` : 'PREPARING SYNTHETIC TRACK DATA');
+    renderTracklist(system, { revealSelected: true });
 
     if (selectedSong.loadAsync) {
         const isAmigaSystem = (system === 'amiga');
         const isC64System = (system === 'c64');
 
-        // --- NEU: Progress-Slider für C64 Tracks aus Sicherheitsgründen sperren ---
-        document.getElementById('progress-slider').disabled = isC64System;
+        // Der Slider bleibt während des kompletten Ladevorgangs gesperrt.
+        document.getElementById('progress-slider').disabled = true;
         
         currentScrollerText = isAmigaSystem 
             ? "+++ DOWNLOADING AND PARSING BINARY AMIGA MODULE... +++"
             : (isC64System ? "+++ DOWNLOADING AND PARSING BINARY C64 PSID FILE... +++" : "+++ DOWNLOADING AND PARSING BINARY YM FILE... +++");
         
         try {
-            let parsedFile = await selectedSong.loadAsync();
+            let parsedFile = await selectedSong.loadAsync(options);
             
             if (myToken !== playRequestToken) {
                 console.warn("[SYSTEM] Veralteter Async-Ladevorgang durch User-Interaktion abgebrochen.");
@@ -844,18 +1182,8 @@ async function selectAndPlayTrack(index, system) {
                 let songLengthSeconds = sldbLengths[currentSubsongIndex - 1] || sldbLengths[0] || 180;
                 trackData.length = songLengthSeconds * 50; 
                 
-                const subsongDisplay = document.getElementById('subsong-display');
-                if (subsongDisplay) {
-                    subsongDisplay.innerText = `[SUB ${currentSubsongIndex}/${parsedFile.metadata.songs}]`;
-                    subsongDisplay.classList.remove('hidden');
-                }
+                syncSubsongDisplay();
             } else {
-                const subsongDisplay = document.getElementById('subsong-display');
-                if (subsongDisplay) {
-                    subsongDisplay.classList.add('hidden');
-                    subsongDisplay.innerText = "";
-                }
-
                 if (parsedFile.isSequenced) {
                     trackData = parsedFile; 
                 } else {
@@ -879,12 +1207,22 @@ async function selectAndPlayTrack(index, system) {
                             });
                         }
                     }
+                    currentSubsongIndex = isHipcTrack(parsedFile)
+                        ? (parsedFile.selectedSong || 0) + 1
+                        : 1;
                 } else {
+                    currentSubsongIndex = 1;
                     trackData.isYmFile = true;
                 }
             }
 
+            loadedTrackIndex = index;
+            if (isLoadedHipcTrack()) trackData.metadata.currentSubsong = currentSubsongIndex;
+            syncSubsongDisplay();
             let meta = parsedFile.metadata;
+            currentTrackTitle = meta?.name || selectedSong.title;
+            document.getElementById('progress-slider').disabled = !canSeekActiveTrack();
+            setPlaybackState('loading', 'DECODING COMPLETE · ROUTING AUDIO BUS');
             let gridHTML = "";
 
             if (isAmigaSystem) {
@@ -962,8 +1300,31 @@ async function selectAndPlayTrack(index, system) {
             startPlayback();
             
         } catch (err) {
-            alert("FEHLER BEIM LADEN: " + err.message);
-            currentScrollerText = "+++ ERROR LOADING FILE +++";
+            if (myToken !== playRequestToken) return;
+            console.error('[TRACK LOAD]', err);
+            trackData = [];
+            loadedTrackIndex = -1;
+            currentSubsongIndex = 1;
+            syncSubsongDisplay();
+            isPlaying = false;
+            document.getElementById('progress-slider').disabled = true;
+            mediaSession.clear();
+            setPlaybackState('error', err.message || 'UNKNOWN BINARY FORMAT ERROR');
+            currentScrollerText = "+++ ERROR LOADING FILE +++ BUS HALTED +++ RETRY OR SELECT ANOTHER TRACK +++";
+
+            const info = document.getElementById('info-text');
+            info.innerHTML = '';
+            const card = document.createElement('div');
+            card.className = 'terminal-card load-error-card';
+            const header = document.createElement('div');
+            header.className = 'terminal-card-header';
+            header.textContent = '> ROM INJECTION FAULT';
+            const message = document.createElement('p');
+            message.textContent = err.message || 'Unknown binary format error.';
+            const hint = document.createElement('p');
+            hint.textContent = 'Retry with [ RETRY ROM ] or select another track from the archive.';
+            card.append(header, message, hint);
+            info.appendChild(card);
         }
     } else {
         const systemText = (typeof systemDescriptions !== 'undefined' && systemDescriptions[system]) 
@@ -987,37 +1348,72 @@ async function selectAndPlayTrack(index, system) {
         `;
         currentScrollerText = "+++ NOW PLAYING: " + selectedSong.title + " +++";
         trackData = selectedSong.generator();
+        loadedTrackIndex = index;
+        document.getElementById('progress-slider').disabled = !canSeekActiveTrack();
         syncMediaSessionTrack(selectedSong);
         startPlayback();
     }
-    if (fsUI) fsUI.updateTrack(selectedSong.title);
+    if (fsUI) {
+        const totalSongs = trackData?.metadata?.songs || 1;
+        const title = isLoadedHipcTrack() && totalSongs > 1
+            ? `${currentTrackTitle} [SUB ${currentSubsongIndex}/${totalSongs}]`
+            : (currentTrackTitle || selectedSong.title);
+        fsUI.updateTrack(title);
+    }
 
 }
 
-function enterPseudoFullscreen(visualZone) {
-    visualZone.classList.add('pseudo-fullscreen');
-    document.getElementById('btn-fullscreen').innerText = '[ EXIT ]';
-    document.body.style.overflow = 'hidden'; 
-    document.body.appendChild(visualZone);
+let fullscreenReturnFocus = null;
+let wasNativeFullscreen = false;
+let ecoReturnFocus = null;
+let wakeLock = null;
+
+function focusControl(element) {
+    if (!element?.isConnected || element.getClientRects().length === 0) return false;
+    element.focus({ preventScroll: true });
+    return document.activeElement === element;
+}
+
+function restoreFocus(primary, fallback) {
+    if (!focusControl(primary)) focusControl(fallback);
+    requestAnimationFrame(() => {
+        const active = document.activeElement;
+        if (!active?.isConnected || active === document.body || active === document.documentElement) {
+            focusControl(fallback);
+        }
+    });
+}
+
+function enterPseudoFullscreen(zone) {
+    if (!zone || zone.classList.contains('pseudo-fullscreen')) return;
+    zone.classList.add('pseudo-fullscreen');
+    document.body.style.overflow = 'hidden';
+    document.body.appendChild(zone);
+    syncStageModeUI();
+    resetMouseIdleTimer();
+    focusControl(document.getElementById('btn-fullscreen'));
     setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
 }
 
-function exitPseudoFullscreen(visualZone) {
-    visualZone.classList.remove('pseudo-fullscreen');
-    document.getElementById('btn-fullscreen').innerText = '[ ⛶ ]';
-    document.body.style.overflow = ''; 
+function exitPseudoFullscreen(zone) {
+    if (!zone?.classList.contains('pseudo-fullscreen')) return;
+    zone.classList.remove('pseudo-fullscreen');
+    document.body.style.overflow = '';
     const demoContainer = document.getElementById('demo-container');
     const playbackBar = document.getElementById('playback-bar');
-    if (demoContainer && playbackBar) {
-        demoContainer.insertBefore(visualZone, playbackBar);
-    }
+    if (demoContainer && playbackBar) demoContainer.insertBefore(zone, playbackBar);
+    syncStageModeUI();
+    resetMouseIdleTimer();
+    restoreFocus(fullscreenReturnFocus, document.getElementById('btn-fullscreen'));
+    fullscreenReturnFocus = null;
     setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
 }
 
 function toggleFullscreen() {
-    const visualZone = document.getElementById('visual-zone');
-    if (visualZone.classList.contains('pseudo-fullscreen')) {
-        exitPseudoFullscreen(visualZone);
+    const zone = document.getElementById('visual-zone');
+    if (!zone) return;
+    if (zone.classList.contains('pseudo-fullscreen')) {
+        exitPseudoFullscreen(zone);
         return;
     }
 
@@ -1027,79 +1423,111 @@ function toggleFullscreen() {
         return;
     }
 
+    fullscreenReturnFocus = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : document.getElementById('btn-fullscreen');
+
     try {
-        if (visualZone.requestFullscreen) {
-            let promise = visualZone.requestFullscreen();
+        if (zone.requestFullscreen) {
+            const promise = zone.requestFullscreen();
             if (promise && typeof promise.catch === 'function') {
                 promise.catch((err) => {
-                    console.log("Native fullscreen rejected, triggering iOS Fallback.", err);
-                    enterPseudoFullscreen(visualZone);
+                    console.log('Native fullscreen rejected, triggering iOS fallback.', err);
+                    enterPseudoFullscreen(zone);
                 });
             }
-        } else if (visualZone.webkitRequestFullscreen) {
-            visualZone.webkitRequestFullscreen();
+        } else if (zone.webkitRequestFullscreen) {
+            zone.webkitRequestFullscreen();
             setTimeout(() => {
-                if (!document.webkitFullscreenElement && !visualZone.classList.contains('pseudo-fullscreen')) {
-                    enterPseudoFullscreen(visualZone);
+                if (!document.webkitFullscreenElement && !zone.classList.contains('pseudo-fullscreen')) {
+                    enterPseudoFullscreen(zone);
                 }
             }, 200);
         } else {
-            enterPseudoFullscreen(visualZone);
+            enterPseudoFullscreen(zone);
         }
     } catch (err) {
-        enterPseudoFullscreen(visualZone);
+        enterPseudoFullscreen(zone);
     }
 }
 
 function handleFullscreenChange() {
-    const btn = document.getElementById('btn-fullscreen');
     const isNativeFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    if (isNativeFS) {
-        btn.innerText = '[ EXIT ]';
-    } else {
-        const visualZone = document.getElementById('visual-zone');
-        if (visualZone && !visualZone.classList.contains('pseudo-fullscreen')) {
-            btn.innerText = '[ ⛶ ]';
-        }
+    syncStageModeUI();
+    resetMouseIdleTimer();
+    if (isNativeFS && !wasNativeFullscreen) {
+        focusControl(document.getElementById('btn-fullscreen'));
+    } else if (!isNativeFS && wasNativeFullscreen) {
+        if (!focusControl(fullscreenReturnFocus)) focusControl(document.getElementById('btn-fullscreen'));
+        fullscreenReturnFocus = null;
     }
+    wasNativeFullscreen = isNativeFS;
     window.dispatchEvent(new Event('resize'));
 }
 
-let wakeLock = null;
-
 async function enableEcoMode() {
-    // noSleepVideo.play() gelöscht!
+    if (isEcoMode) return;
+    ecoReturnFocus = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : document.getElementById('btn-eco');
     isEcoMode = true;
     document.getElementById('eco-overlay').classList.remove('hidden');
-    document.body.classList.add('eco-mode'); 
+    document.body.classList.add('eco-mode');
+    syncEcoPlaybackUI();
+    syncStageModeUI();
+    resetMouseIdleTimer();
+    if (!isVisualFullscreen()) {
+        document.getElementById('visual-zone')?.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'auto' });
+    }
+    focusControl(document.getElementById('btn-eco-off'));
+
     try {
         if ('wakeLock' in navigator) {
             wakeLock = await navigator.wakeLock.request('screen');
+            if (!isEcoMode) {
+                await wakeLock.release();
+                wakeLock = null;
+                return;
+            }
             console.log('[SYSTEM] Wake Lock aktiv. Bildschirm bleibt an.');
         }
     } catch (err) {
-        console.warn(`Wake Lock API blockiert. Fallback läuft.`);
+        wakeLock = null;
+        console.warn('Wake Lock API blockiert. Pure Audio bleibt aktiv.');
     }
 }
 
 async function disableEcoMode() {
+    if (!isEcoMode) return;
     isEcoMode = false;
     document.getElementById('eco-overlay').classList.add('hidden');
-    document.body.classList.remove('eco-mode'); 
-    if (wakeLock !== null) {
-        await wakeLock.release();
-        wakeLock = null;
-    }
-    // noSleepVideo.pause() gelöscht!
+    document.body.classList.remove('eco-mode');
+    syncStageModeUI();
+    resetMouseIdleTimer();
     window.dispatchEvent(new Event('resize'));
+    restoreFocus(ecoReturnFocus, document.getElementById('btn-eco'));
+    ecoReturnFocus = null;
+
+    const activeWakeLock = wakeLock;
+    wakeLock = null;
+    if (activeWakeLock) {
+        try {
+            await activeWakeLock.release();
+        } catch (err) {
+            console.warn('Wake Lock wurde bereits freigegeben.');
+        }
+    }
 }
 
 function requestPlay() {
-    if (isPlaying || !getAudioContext()) return;
+    if (isPlaying || playbackState === 'loading' || !getAudioContext()) return;
     resumeAudioContext().catch(e => console.log(e));
     if (trackData.length === 0) {
-        const visibleEntries = getTracklistEntries(trackRegistry[activeSystem], tracklistDirectory);
-        const firstVisibleTrack = visibleEntries.find(entry => entry.type === 'track');
+        if (playbackState === 'error' && currentTrackIndex >= 0) {
+            selectAndPlayTrack(currentTrackIndex, activeSystem);
+            return;
+        }
+        const [firstVisibleTrack] = getVisibleTrackEntries();
         if (firstVisibleTrack) selectAndPlayTrack(firstVisibleTrack.index, activeSystem);
     } else {
         resumePlayback();
@@ -1125,7 +1553,18 @@ function requestNextTrack() {
             return;
         }
     }
-    selectAndPlayTrack((currentTrackIndex + 1) % trackRegistry[activeSystem].length, activeSystem);
+    if (isLoadedHipcTrack()) {
+        const totalSongs = trackData.metadata.songs || 1;
+        if (currentSubsongIndex < totalSongs) {
+            changeHipcSubsong(currentSubsongIndex + 1);
+            return;
+        }
+    }
+    const visibleTracks = getVisibleTrackEntries();
+    if (visibleTracks.length === 0) return;
+    const currentPosition = visibleTracks.findIndex(entry => entry.index === currentTrackIndex);
+    const nextPosition = currentPosition === -1 ? 0 : (currentPosition + 1) % visibleTracks.length;
+    selectAndPlayTrack(visibleTracks[nextPosition].index, activeSystem);
 }
 
 function requestPreviousTrack() {
@@ -1137,44 +1576,115 @@ function requestPreviousTrack() {
             return;
         }
     }
-    let prevIdx = currentTrackIndex - 1;
-    if (prevIdx < 0) prevIdx = trackRegistry[activeSystem].length - 1;
-    selectAndPlayTrack(prevIdx, activeSystem);
+    if (isLoadedHipcTrack() && currentSubsongIndex > 1) {
+        changeHipcSubsong(currentSubsongIndex - 1);
+        return;
+    }
+    const visibleTracks = getVisibleTrackEntries();
+    if (visibleTracks.length === 0) return;
+    const currentPosition = visibleTracks.findIndex(entry => entry.index === currentTrackIndex);
+    const previousPosition = currentPosition === -1
+        ? visibleTracks.length - 1
+        : (currentPosition - 1 + visibleTracks.length) % visibleTracks.length;
+    selectAndPlayTrack(visibleTracks[previousPosition].index, activeSystem);
 }
 
 document.getElementById('btn-play').addEventListener('click', requestPlayPause);
 document.getElementById('btn-next').addEventListener('click', requestNextTrack);
 document.getElementById('btn-prev').addEventListener('click', requestPreviousTrack);
 
+const trackSearchInput = document.getElementById('track-search');
+const clearTrackSearchButton = document.getElementById('btn-clear-track-search');
+
+trackSearchInput.addEventListener('input', event => {
+    trackSearchQuery = event.target.value;
+    renderTracklist(activeSystem, { scrollToTop: true });
+});
+
+clearTrackSearchButton.addEventListener('click', () => {
+    trackSearchQuery = '';
+    trackSearchInput.value = '';
+    renderTracklist(activeSystem, { scrollToTop: true, revealSelected: true });
+    trackSearchInput.focus();
+});
+
+trackSearchInput.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        if (trackSearchQuery) clearTrackSearchButton.click();
+        else trackSearchInput.blur();
+    } else if (event.key === 'ArrowDown') {
+        const firstResult = document.querySelector('#tracklist li[role="button"]');
+        if (firstResult) {
+            event.preventDefault();
+            firstResult.focus();
+        }
+    }
+});
+
+document.addEventListener('keydown', event => {
+    if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+    if (!document.getElementById('boot-screen').classList.contains('hidden')) return;
+    event.preventDefault();
+    trackSearchInput.focus();
+});
+
+document.addEventListener('keydown', event => {
+    if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+    if (!document.getElementById('boot-screen').classList.contains('hidden')) return;
+
+    const key = event.key.toLowerCase();
+    if (key === 'escape' && isEcoMode) {
+        event.preventDefault();
+        disableEcoMode();
+        return;
+    }
+    if (key === 'escape' && visualZone?.classList.contains('pseudo-fullscreen')) {
+        event.preventDefault();
+        exitPseudoFullscreen(visualZone);
+        return;
+    }
+    if (!['f', 'm', 'l'].includes(key)) return;
+
+    event.preventDefault();
+    resetMouseIdleTimer();
+    if (key === 'f') toggleFullscreen();
+    else if (key === 'm') document.getElementById('btn-eco').click();
+    else document.getElementById('btn-hud-toggle').click();
+});
+
 document.getElementById('volume-slider').addEventListener('input', (e) => {
     const masterGain = getMasterGain();
     if (masterGain) masterGain.gain.value = e.target.value;
 });
 
-document.getElementById('btn-hud-info').addEventListener('click', () => {
+document.getElementById('btn-hud-info').addEventListener('click', (event) => {
     const legend = document.getElementById('hud-legend');
-    legend.innerHTML = chipCheatSheets[activeSystem]; 
-    legend.classList.toggle('hidden');
+    legend.innerHTML = chipCheatSheets[activeSystem];
+    const isHidden = legend.classList.toggle('hidden');
+    event.currentTarget.setAttribute('aria-expanded', String(!isHidden));
 });
 
-document.getElementById('btn-hud-toggle').addEventListener('click', (e) => {
-    const hud = document.getElementById('chip-hud'); 
+document.getElementById('btn-hud-toggle').addEventListener('click', (event) => {
+    const hud = document.getElementById('chip-hud');
     const body = document.getElementById('hud-body');
-    const infoBtn = document.getElementById('btn-hud-info'); 
-    const isHidden = body.classList.contains('hidden');
-    
-    if (isHidden) {
-        body.classList.remove('hidden');
-        infoBtn.classList.remove('hidden'); 
-        hud.classList.remove('collapsed'); 
-        e.target.innerText = '[ LAB MODE: ON ]'; // NEU
-    } else {
-        body.classList.add('hidden');
-        infoBtn.classList.add('hidden'); 
-        hud.classList.add('collapsed'); 
-        e.target.innerText = '[ LAB MODE: OFF ]'; // NEU
-        const legend = document.getElementById('hud-legend');
-        if (legend) legend.classList.add('hidden');
+    const infoBtn = document.getElementById('btn-hud-info');
+    const legend = document.getElementById('hud-legend');
+    const willExpand = body.classList.contains('hidden');
+
+    body.classList.toggle('hidden', !willExpand);
+    infoBtn.classList.toggle('hidden', !willExpand);
+    hud.classList.toggle('collapsed', !willExpand);
+    event.currentTarget.innerText = willExpand ? '[ LAB MODE: ON ]' : '[ LAB MODE: OFF ]';
+    event.currentTarget.setAttribute('aria-expanded', String(willExpand));
+
+    if (!willExpand) {
+        legend.classList.add('hidden');
+        infoBtn.setAttribute('aria-expanded', 'false');
     }
 });
 
@@ -1183,9 +1693,12 @@ document.getElementById('core-selector').addEventListener('change', async (e) =>
     const coreIndex = e.target.value;
     const coreConfig = workletRegistry[activeSystem][coreIndex];
     updateLivingSiliconTitle();
+    updateNowPlayingSystem();
+    setPlaybackState(trackData.length > 0 ? 'loading' : 'idle', 'RE-WIRING DSP PIPELINE');
     document.getElementById('hud-content') ? document.getElementById('hud-content').innerText = "RE-WIRING DSP..." : null;
     await loadEmuCore(activeSystem, coreConfig, handleWorkletMessage);
-    startPlayback(); 
+    if (trackData.length > 0) startPlayback();
+    else setPlaybackState('idle');
 });
 
 document.getElementById('temp-slider').addEventListener('input', (e) => {

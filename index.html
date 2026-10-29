@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Chiptunes Fantasy</title>
     <link rel="stylesheet" href="css/style.css">
     
@@ -23,9 +23,9 @@
 </head>
 <body class="theme-c64"> 
 
-    <div id="boot-screen">
+    <div id="boot-screen" role="button" tabindex="0" aria-label="Chiptunes Fantasy starten">
         <div class="boot-box">
-            <p class="boot-header">**** CHIPTUNES FANTASY V1.5.4 ****</p>
+            <p class="boot-header">**** CHIPTUNES FANTASY V1.5.5 ****</p>
             <p class="boot-subheader">64K RAM SYSTEM  38911 BASIC BYTES FREE</p>
             <div class="boot-logs">
                 <p>EMU CORES LOADED: OK</p>
@@ -45,20 +45,94 @@
             <canvas id="demo-canvas"></canvas>
                         
             <!-- Das animierte Chiptunes Fantasy Logo -->
-            <div id="brand-logo">
+            <div id="brand-logo" role="button" tabindex="0" aria-label="Scene-DJ Demo-Modus umschalten" aria-pressed="false">
                 <div class="brand-main">CHIPTUNES</div>
                 <div class="brand-sub">FANTASY</div>
             </div>
+
+            <!-- Persistenter, eindeutiger Wiedergabe- und Ladestatus -->
+            <section id="now-playing" class="now-playing" data-state="idle" data-system="c64"
+                aria-label="Erweiterte Wiedergabeinformationen">
+                <div class="now-playing-rail" role="status" aria-live="polite" aria-atomic="true">
+                    <span class="now-playing-led" aria-hidden="true"></span>
+                    <span id="playback-status">STANDBY</span>
+                </div>
+                <div class="now-playing-copy">
+                    <span id="now-playing-system">C64 · MOS 6581 R3 EXACT</span>
+                    <strong id="now-playing-title">AWAITING INJECTION</strong>
+                    <span id="now-playing-detail">SELECT A TRACK FROM THE ARCHIVE</span>
+                </div>
+                <div class="now-playing-expanded">
+                    <dl class="now-playing-metadata">
+                        <div class="now-playing-meta-composer">
+                            <dt>COMPOSER</dt>
+                            <dd id="now-playing-composer">—</dd>
+                        </div>
+                        <div>
+                            <dt>RELEASE</dt>
+                            <dd id="now-playing-release">—</dd>
+                        </div>
+                        <div>
+                            <dt>SUBSONG</dt>
+                            <dd id="now-playing-subsong">—</dd>
+                        </div>
+                        <div class="now-playing-meta-format">
+                            <dt>FORMAT</dt>
+                            <dd id="now-playing-format">—</dd>
+                        </div>
+                        <div>
+                            <dt>TIME</dt>
+                            <dd id="now-playing-time">00:00 / 00:00</dd>
+                        </div>
+                        <div class="now-playing-meta-hardware">
+                            <dt>HARDWARE</dt>
+                            <dd id="now-playing-hardware">—</dd>
+                        </div>
+                    </dl>
+                    <div class="now-playing-channels" role="group" aria-label="Live-Kanalaktivität">
+                        <div class="now-playing-channel" data-channel-index="0" role="meter"
+                            aria-label="SID 1 live activity" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                            <span class="now-playing-channel-label">SID 1</span>
+                            <span class="now-playing-channel-track" aria-hidden="true"><span class="now-playing-channel-fill"></span></span>
+                        </div>
+                        <div class="now-playing-channel" data-channel-index="1" role="meter"
+                            aria-label="SID 2 live activity" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                            <span class="now-playing-channel-label">SID 2</span>
+                            <span class="now-playing-channel-track" aria-hidden="true"><span class="now-playing-channel-fill"></span></span>
+                        </div>
+                        <div class="now-playing-channel" data-channel-index="2" role="meter"
+                            aria-label="SID 3 live activity" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                            <span class="now-playing-channel-label">SID 3</span>
+                            <span class="now-playing-channel-track" aria-hidden="true"><span class="now-playing-channel-fill"></span></span>
+                        </div>
+                        <div class="now-playing-channel" data-channel-index="3" role="meter"
+                            aria-label="DMA 4 live activity" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
+                            <span class="now-playing-channel-label">DMA 4</span>
+                            <span class="now-playing-channel-track" aria-hidden="true"><span class="now-playing-channel-fill"></span></span>
+                        </div>
+                    </div>
+                    <div class="now-playing-next-row">
+                        <span>NEXT TRACK</span>
+                        <span id="now-playing-next">—</span>
+                    </div>
+                    <div class="now-playing-progress" aria-hidden="true">
+                        <span id="now-playing-progress-fill"></span>
+                    </div>
+                </div>
+            </section>
 
             <!-- Das nerdige Hardware-HUD -->
             <div id="chip-hud" class="collapsed">
                 <div class="hud-header">
                     <div class="hud-controls-stack">
                         <div class="hud-btn-row">
-                            <button id="btn-hud-info" class="hidden" title="Toggle Cheat Sheet">[?]</button>
-                            <button id="btn-hud-toggle" title="Toggle Lab Mode">[ LAB MODE: OFF ]</button>
+                            <button id="btn-hud-info" type="button" class="hidden" title="Cheat Sheet ein- oder ausblenden"
+                                aria-label="Cheat Sheet ein- oder ausblenden" aria-controls="hud-legend" aria-expanded="false">[?]</button>
+                            <button id="btn-hud-toggle" type="button" title="Lab Mode [L]" aria-keyshortcuts="L"
+                                aria-controls="hud-body" aria-expanded="false">[ LAB MODE: OFF ]</button>
                         </div>
-                        <button id="btn-hud-crossfeed" title="Toggle Stereo Blend / Binaural Crossfeed">[ STEREO BLEND: ON ]</button>
+                        <button id="btn-hud-crossfeed" type="button" title="Stereo Blend / Binaural Crossfeed umschalten"
+                            aria-pressed="true">[ STEREO BLEND: ON ]</button>
                     </div>
                 </div>
                 
@@ -69,29 +143,44 @@
             </div>
 
             <!-- PURE AUDIO OVERLAY -->
-            <div id="eco-overlay" class="hidden">
+            <div id="eco-overlay" class="hidden" role="dialog" aria-modal="false"
+                aria-labelledby="eco-title" aria-describedby="eco-description">
                 <div class="eco-box">
-                    <h2 class="blink">[ PURE AUDIO MODE ]</h2>
-                    <p>Visual processing suspended to conserve power.</p>
-                    <p>DSP Cores running at maximum priority.</p>
-                    <!-- BUGFIX: Tag am Ende korrekt auf </p> geändert -->
-                    <p style="color: var(--text-color); margin-top: 15px; font-weight: bold;">>>> SCREEN SLEEP DISABLED <<<</p>
-                    <button id="btn-eco-off">WAKE UP</button>
+                    <span class="eco-kicker">VISUAL BUS SUSPENDED</span>
+                    <h2 id="eco-title" class="blink">[ PURE AUDIO MODE ]</h2>
+                    <div class="eco-now-playing">
+                        <span id="eco-playback-state" data-state="idle">STANDBY</span>
+                        <strong id="eco-track-title">AWAITING INJECTION</strong>
+                    </div>
+                    <p id="eco-description">Visual processing suspended to conserve power. DSP Cores running at maximum priority.</p>
+                    <p class="eco-wake-lock">>>> SCREEN SLEEP DISABLED <<<</p>
+                    <button id="btn-eco-off" type="button" aria-label="Pure Audio beenden"
+                        aria-keyshortcuts="M Escape">[ WAKE UP ]</button>
+                    <span class="eco-shortcut">M / ESC TO RETURN</span>
                 </div>
             </div>
 
             <!-- FULLSCREEN UI BAR -->
             <div id="fs-ui-bar">
+                <span id="stage-mode-status" data-mode="windowed" role="status" aria-live="polite">
+                    <span class="stage-mode-led" aria-hidden="true"></span>
+                    <span id="stage-mode-label">WINDOWED</span>
+                </span>
                 <div id="fs-playback-controls">
-                    <!-- Standardwert in echte Demoscene-Terminologie geändert -->
-                    <div class="fs-track-info" id="fs-track-info">[ AWAITING INJECTION ]</div>
+                    <div class="fs-track-copy">
+                        <span id="fs-playback-status" data-state="idle">STANDBY</span>
+                        <div class="fs-track-info" id="fs-track-info" aria-live="polite" aria-atomic="true">[ AWAITING INJECTION ]</div>
+                    </div>
                     <div class="fs-controls">
-                        <button id="fs-btn-prev">|&lt;</button>
-                        <button id="fs-btn-play">[ INJECT ROM ]</button>
-                        <button id="fs-btn-next">&gt;|</button>
+                        <button id="fs-btn-prev" type="button" aria-label="Vorheriger Track oder Subsong">|&lt;</button>
+                        <button id="fs-btn-play" type="button" aria-label="Wiedergabe starten oder pausieren">[ INJECT ROM ]</button>
+                        <button id="fs-btn-next" type="button" aria-label="Nächster Track oder Subsong">&gt;|</button>
+                        <button id="fs-btn-eco" type="button" aria-label="Pure-Audio-Modus umschalten"
+                            aria-controls="eco-overlay" aria-pressed="false" aria-keyshortcuts="M">[ HALT GFX ]</button>
                     </div>
                 </div>
-                <button id="btn-fullscreen" title="Toggle Fullscreen">[ ⛶ ]</button>
+                <button id="btn-fullscreen" type="button" title="Fullscreen [F]" aria-label="Vollbild aktivieren"
+                    aria-controls="visual-zone" aria-pressed="false" aria-keyshortcuts="F">[ ⛶ ]</button>
             </div>
             
             <div class="scanlines"></div> <!-- CRT Monitor Effekt -->            
@@ -102,23 +191,24 @@
         <div id="playback-bar">
             <div class="controls">
                 <!-- Hardware Demoscene Terminology -->
-                <button id="btn-prev" title="Previous Track">&lt; MEM</button>
-                <button id="btn-play" title="Play/Pause">INJECT ROM</button>
-                <button id="btn-next" title="Next Track">BUS &gt;</button>
-                <button id="btn-eco" title="Pure Audio Mode">HALT GFX</button>
+                <button id="btn-prev" type="button" title="Previous Track" aria-label="Vorheriger Track oder Subsong">&lt; MEM</button>
+                <button id="btn-play" type="button" title="Play/Pause" aria-label="Wiedergabe starten oder pausieren">INJECT ROM</button>
+                <button id="btn-next" type="button" title="Next Track" aria-label="Nächster Track oder Subsong">BUS &gt;</button>
+                <button id="btn-eco" type="button" title="Pure Audio [M]" aria-label="Pure-Audio-Modus umschalten"
+                    aria-controls="eco-overlay" aria-pressed="false" aria-keyshortcuts="M">HALT GFX</button>
             </div>
             
             <div class="timeline-control">
                 <!-- NEU: Das retro-designte Subsong-Display -->
                 <span id="subsong-display" class="hidden"></span>
                 <span id="time-current">00:00</span>
-                <input type="range" id="progress-slider" min="0" max="100" value="0" disabled>
+                <input type="range" id="progress-slider" min="0" max="100" value="0" aria-label="Wiedergabeposition" disabled>
                 <span id="time-total">00:00</span>
             </div>
 
             <div class="volume-control">
-                <label>VOL</label>
-                <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5">
+                <label for="volume-slider">VOL</label>
+                <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5" aria-label="Master-Lautstärke">
             </div>
         </div>
 
@@ -127,42 +217,60 @@
             
             <!-- Linke Spalte: Player & Tracklist -->
             <div id="player-panel">
-                <div class="system-tabs">
-                    <button class="tab-btn active" data-theme="theme-c64">C64</button>
-                    <button class="tab-btn" data-theme="theme-amiga">AMIGA</button>
-                    <button class="tab-btn" data-theme="theme-atari">ATARI ST</button>
+                <div class="system-tabs" aria-label="Emuliertes System">
+                    <button class="tab-btn active" type="button" data-theme="theme-c64" aria-pressed="true">C64</button>
+                    <button class="tab-btn" type="button" data-theme="theme-amiga" aria-pressed="false">AMIGA</button>
+                    <button class="tab-btn" type="button" data-theme="theme-atari" aria-pressed="false">ATARI ST</button>
                 </div>
                 
                 <div class="core-control">
-                    <label>CORE:</label>
-                    <select id="core-selector"></select>
+                    <label for="core-selector">CORE:</label>
+                    <select id="core-selector" aria-label="Emulations-Core"></select>
                 </div>
                 
-                <!-- Umweltsensor-Bucht (Sensor Bay) -->
-                <!-- Inline-Sicherheitsabstand entfernt, um Platz zu sparen -->
-                <div class="sensor-bay terminal-card" id="sensor-bay-container">
-                    <div class="terminal-card-header">&gt; ENV DIAGNOSTICS</div>
-                         <div class="core-control" id="temp-control-container" style="margin-bottom: 12px; font-size: calc(var(--font-size-base) * 0.8);">
-                        <label>TEMP:</label>
-                        <input type="range" id="temp-slider" min="15" max="75" value="55" style="flex-grow: 1;">
-                        <span id="temp-display" style="width: 50px; text-align: right;">55°C</span>
+                <!-- Einklappbare Diagnostik gibt der Bibliothek auf kleinen Displays Raum. -->
+                <details class="sensor-bay terminal-card" id="sensor-bay-container">
+                    <summary class="terminal-card-header">&gt; ENV DIAGNOSTICS</summary>
+                    <div class="sensor-bay-content">
+                        <div class="core-control" id="temp-control-container">
+                            <label for="temp-slider">TEMP:</label>
+                            <input type="range" id="temp-slider" min="15" max="75" value="55" aria-label="Simulierte Chiptemperatur">
+                            <span id="temp-display">55°C</span>
+                        </div>
+                        <div class="terminal-grid" id="sensor-grid-values">
+                            <span class="lbl">[VOLT]</span><span class="val" id="sensor-volt">5.02V</span>
+                            <span class="lbl">[NOIS]</span><span class="val" id="sensor-noise">-74.0dB</span>
+                            <span class="lbl">[BIAS]</span><span class="val" id="sensor-bias">0.82</span>
+                        </div>
                     </div>
-                    <div class="terminal-grid" id="sensor-grid-values">
-                        <span class="lbl">[VOLT]</span><span class="val" id="sensor-volt">5.02V</span>
-                        <span class="lbl">[NOIS]</span><span class="val" id="sensor-noise">-74.0dB</span>
-                        <span class="lbl">[BIAS]</span><span class="val" id="sensor-bias">0.82</span>
+                </details>
+
+                <section id="library-controls" aria-label="Bibliothek durchsuchen und navigieren">
+                    <div class="library-status-row">
+                        <nav id="tracklist-breadcrumb" aria-label="Aktueller Bibliothekspfad"></nav>
+                        <span id="tracklist-count" role="status" aria-live="polite"></span>
                     </div>
-                </div>
+                    <div class="library-search-row">
+                        <label for="track-search">FIND:</label>
+                        <input id="track-search" type="search" inputmode="search" autocomplete="off" spellcheck="false"
+                            placeholder="TRACK, PATH, COMPOSER" aria-label="Musikbibliothek durchsuchen" aria-controls="tracklist">
+                        <button id="btn-clear-track-search" type="button" aria-label="Suche löschen" title="Suche löschen" hidden>[ X ]</button>
+                    </div>
+                </section>
                 
-                <ul id="tracklist"></ul>
+                <ul id="tracklist" aria-label="Musikbibliothek"></ul>
             </div> <!-- Ende player-panel -->
 
             <!-- Rechte Spalte: Museum / Info -->
             <div id="museum-panel">
                 <div class="museum-toolbar living-silicon-toolbar">
                     <span class="museum-toolbar-title" id="living-silicon-title">&gt; LIVING SILICON · MOS 6581 SID</span>
+                    <span class="silicon-toolbar-status" role="status" aria-live="polite">
+                        <span class="silicon-status-led" aria-hidden="true"></span>
+                        <span id="silicon-playback-status" data-state="idle">STANDBY</span>
+                    </span>
                     <button id="btn-toggle-archive" type="button" title="Living Silicon ein- oder ausblenden"
-                        aria-controls="living-silicon-container" aria-expanded="true">[ COLLAPSE ]</button>
+                        aria-controls="living-silicon-container" aria-expanded="true">[ HIDE CHIP ]</button>
                 </div>
                 <div id="living-silicon-container" style="margin-bottom: 15px;"></div>
                 
@@ -177,9 +285,19 @@
 
         </div> <!-- Ende ui-zone -->
 
-        <!-- ZONE 4: Scroller -->
-        <div id="scroller-zone">
-            <canvas id="scroller-canvas"></canvas>
+        <!-- ZONE 4: Adaptiver Song-Scroller -->
+        <div id="scroller-zone" data-scroller-mode="track" data-paused="false">
+            <div class="scroller-toolbar" role="group" aria-label="Lauftext-Kanal und Wiedergabe">
+                <span class="scroller-identity" aria-hidden="true"><i></i> ADAPTIVE LINER</span>
+                <div class="scroller-actions">
+                    <button type="button" data-scroller-mode="track" aria-pressed="true" title="Songtitel und Komponist">TRACK</button>
+                    <button type="button" data-scroller-mode="tech" aria-pressed="false" title="Format- und Hardwaredetails">TECH</button>
+                    <button type="button" data-scroller-mode="story" aria-pressed="false" title="Hintergrund aus dem Museum">STORY</button>
+                    <button type="button" id="scroller-toggle" aria-pressed="false" aria-label="Lauftext anhalten" title="Lauftext anhalten">HOLD</button>
+                </div>
+            </div>
+            <canvas id="scroller-canvas" role="img" aria-label="Lauftext wird initialisiert"></canvas>
+            <span id="scroller-accessible-text" class="sr-only" aria-live="polite"></span>
         </div>
 
     </div> <!-- Ende demo-container -->

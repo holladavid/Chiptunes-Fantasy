@@ -2,9 +2,9 @@
   "format": "chiptunes-fantasy-amiga-curation-library-v1",
   "referenceStatus": "Self-generated curation regression anchors; no hardware/UADE truth or browser-dropout claim.",
   "workletSha256": "44e1a470617a36b7a4f8ab8e5def97bd67028b82152fb31c47325f7f46c6a364",
-  "playlistSha256": "f44174b555a01717432fc78868586c1bfbfb9d8aa7b8a5a407a56970c524f350",
-  "museumSha256": "e1f4420ba98917facb8688dc7bd4cab39f2b0cc6428509467e4c6439d6d11605",
-  "provenanceSha256": "5e3ef253ba7e78195e2fe83578315cc276f540df4301c0a13c2a26353da2e559",
+  "playlistSha256": "1f2537357f0a422b84a6866d66355fe3c0e5c36429a170e6fbcebe16215da07f",
+  "museumSha256": "d6a039b29a14316ee18a22598935857a5a4df7e10fb811a7533021eb1b67e0c2",
+  "provenanceSha256": "e17ff03bf47fa4ae282af3e1e42e0570544724983394ec9df5295eeef7147c15",
   "corpus": {
     "seconds": 2,
     "sampleRate": 48000,
@@ -22,10 +22,10 @@
       "a500RmsExclusive": 0.00001,
       "a500PeakExclusive": 0.0001
     },
-    "trackCount": 69,
+    "trackCount": 73,
     "formatCounts": {
       "HIPC": 35,
-      "MOD": 31,
+      "MOD": 35,
       "XM": 3
     },
     "finite": true,
@@ -36,7 +36,7 @@
     "maximumA500Peak": 1.288774847984314,
     "minimumA500Rms": 0.002947709976047353,
     "silentA500Tracks": [],
-    "maximumOfflineRealTimeRatio": 0.22868163150000004,
+    "maximumOfflineRealTimeRatio": 0.235484581,
     "tracks": [
       {
         "path": "ELYSIUM.MOD",
@@ -48,7 +48,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.22868163150000004,
+        "offlineRealTimeRatio": 0.235484581,
         "taps": [
           {
             "id": "paula",
@@ -87,7 +87,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.2244532234999999,
+        "offlineRealTimeRatio": 0.21411634400000001,
         "taps": [
           {
             "id": "paula",
@@ -126,7 +126,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14275888999999983,
+        "offlineRealTimeRatio": 0.14678367149999985,
         "taps": [
           {
             "id": "paula",
@@ -165,7 +165,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.15069959600000038,
+        "offlineRealTimeRatio": 0.15314930249999997,
         "taps": [
           {
             "id": "paula",
@@ -204,7 +204,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.16199515249999968,
+        "offlineRealTimeRatio": 0.15095684500000014,
         "taps": [
           {
             "id": "paula",
@@ -243,7 +243,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.18168230500000027,
+        "offlineRealTimeRatio": 0.19579694899999958,
         "taps": [
           {
             "id": "paula",
@@ -282,7 +282,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1446611429999998,
+        "offlineRealTimeRatio": 0.14890646749999997,
         "taps": [
           {
             "id": "paula",
@@ -321,7 +321,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1496720779999996,
+        "offlineRealTimeRatio": 0.1484872519999999,
         "taps": [
           {
             "id": "paula",
@@ -360,7 +360,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14991100199999982,
+        "offlineRealTimeRatio": 0.1519286200000006,
         "taps": [
           {
             "id": "paula",
@@ -399,7 +399,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1423958315,
+        "offlineRealTimeRatio": 0.1484584484999996,
         "taps": [
           {
             "id": "paula",
@@ -438,7 +438,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14387927500000022,
+        "offlineRealTimeRatio": 0.15286809900000026,
         "taps": [
           {
             "id": "paula",
@@ -477,7 +477,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.16828419699999994,
+        "offlineRealTimeRatio": 0.14942141600000014,
         "taps": [
           {
             "id": "paula",
@@ -516,7 +516,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.15485845700000028,
+        "offlineRealTimeRatio": 0.15162061499999982,
         "taps": [
           {
             "id": "paula",
@@ -555,7 +555,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14495704149999983,
+        "offlineRealTimeRatio": 0.14769869949999884,
         "taps": [
           {
             "id": "paula",
@@ -594,7 +594,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1443464780000013,
+        "offlineRealTimeRatio": 0.14820493499999976,
         "taps": [
           {
             "id": "paula",
@@ -633,7 +633,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14431050499999948,
+        "offlineRealTimeRatio": 0.1450095354999994,
         "taps": [
           {
             "id": "paula",
@@ -672,7 +672,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14439411350000045,
+        "offlineRealTimeRatio": 0.14378951300000153,
         "taps": [
           {
             "id": "paula",
@@ -711,7 +711,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14661376349999955,
+        "offlineRealTimeRatio": 0.14440767799999957,
         "taps": [
           {
             "id": "paula",
@@ -750,7 +750,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1444334029999991,
+        "offlineRealTimeRatio": 0.14529724799999894,
         "taps": [
           {
             "id": "paula",
@@ -789,7 +789,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14575392849999844,
+        "offlineRealTimeRatio": 0.14853575649999948,
         "taps": [
           {
             "id": "paula",
@@ -828,7 +828,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.15434838100000162,
+        "offlineRealTimeRatio": 0.1468653364999991,
         "taps": [
           {
             "id": "paula",
@@ -867,7 +867,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1431767135000009,
+        "offlineRealTimeRatio": 0.1444186179999997,
         "taps": [
           {
             "id": "paula",
@@ -906,7 +906,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1436001565000006,
+        "offlineRealTimeRatio": 0.14931892700000027,
         "taps": [
           {
             "id": "paula",
@@ -945,7 +945,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1411415879999986,
+        "offlineRealTimeRatio": 0.15104923300000156,
         "taps": [
           {
             "id": "paula",
@@ -984,7 +984,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.15418482900000163,
+        "offlineRealTimeRatio": 0.14632435900000018,
         "taps": [
           {
             "id": "paula",
@@ -1023,7 +1023,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14635827499999868,
+        "offlineRealTimeRatio": 0.14337081100000068,
         "taps": [
           {
             "id": "paula",
@@ -1062,7 +1062,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1444078195000002,
+        "offlineRealTimeRatio": 0.14488454450000063,
         "taps": [
           {
             "id": "paula",
@@ -1101,7 +1101,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14147023849999824,
+        "offlineRealTimeRatio": 0.14601098249999994,
         "taps": [
           {
             "id": "paula",
@@ -1140,7 +1140,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14620950950000042,
+        "offlineRealTimeRatio": 0.14747633499999938,
         "taps": [
           {
             "id": "paula",
@@ -1179,7 +1179,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1573767985000013,
+        "offlineRealTimeRatio": 0.1438297679999996,
         "taps": [
           {
             "id": "paula",
@@ -1218,7 +1218,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14223045749999802,
+        "offlineRealTimeRatio": 0.15258188200000222,
         "taps": [
           {
             "id": "paula",
@@ -1257,7 +1257,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.19532524199999898,
+        "offlineRealTimeRatio": 0.2004547545000023,
         "taps": [
           {
             "id": "paula",
@@ -1296,7 +1296,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1457370785000021,
+        "offlineRealTimeRatio": 0.14683878299999925,
         "taps": [
           {
             "id": "paula",
@@ -1335,7 +1335,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14487706600000091,
+        "offlineRealTimeRatio": 0.17813048700000217,
         "taps": [
           {
             "id": "paula",
@@ -1374,7 +1374,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14274265100000047,
+        "offlineRealTimeRatio": 0.1516115720000016,
         "taps": [
           {
             "id": "paula",
@@ -1413,7 +1413,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.17595451700000195,
+        "offlineRealTimeRatio": 0.18472030050000104,
         "taps": [
           {
             "id": "paula",
@@ -1452,7 +1452,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1491265409999978,
+        "offlineRealTimeRatio": 0.1567603315000015,
         "taps": [
           {
             "id": "paula",
@@ -1491,7 +1491,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.15544544349999706,
+        "offlineRealTimeRatio": 0.1478404604999996,
         "taps": [
           {
             "id": "paula",
@@ -1530,7 +1530,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14254075300000113,
+        "offlineRealTimeRatio": 0.15017507449999903,
         "taps": [
           {
             "id": "paula",
@@ -1569,7 +1569,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14730574850000266,
+        "offlineRealTimeRatio": 0.1465519725000013,
         "taps": [
           {
             "id": "paula",
@@ -1608,7 +1608,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1476781735000004,
+        "offlineRealTimeRatio": 0.14508679100000155,
         "taps": [
           {
             "id": "paula",
@@ -1647,7 +1647,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14595669149999957,
+        "offlineRealTimeRatio": 0.145807077999998,
         "taps": [
           {
             "id": "paula",
@@ -1686,7 +1686,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1550536549999997,
+        "offlineRealTimeRatio": 0.15375424949999797,
         "taps": [
           {
             "id": "paula",
@@ -1725,7 +1725,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14920000150000123,
+        "offlineRealTimeRatio": 0.1552299314999982,
         "taps": [
           {
             "id": "paula",
@@ -1764,7 +1764,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1964671469999994,
+        "offlineRealTimeRatio": 0.19867383249999693,
         "taps": [
           {
             "id": "paula",
@@ -1803,7 +1803,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1522706070000022,
+        "offlineRealTimeRatio": 0.14425340100000175,
         "taps": [
           {
             "id": "paula",
@@ -1842,7 +1842,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14755262899999796,
+        "offlineRealTimeRatio": 0.1543345455000017,
         "taps": [
           {
             "id": "paula",
@@ -1881,7 +1881,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.15850537149999946,
+        "offlineRealTimeRatio": 0.1487632259999991,
         "taps": [
           {
             "id": "paula",
@@ -1920,7 +1920,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1465332730000009,
+        "offlineRealTimeRatio": 0.16025395449999996,
         "taps": [
           {
             "id": "paula",
@@ -1959,7 +1959,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.15606843399999706,
+        "offlineRealTimeRatio": 0.15598616650000258,
         "taps": [
           {
             "id": "paula",
@@ -1998,7 +1998,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14392733450000014,
+        "offlineRealTimeRatio": 0.15097466850000274,
         "taps": [
           {
             "id": "paula",
@@ -2037,7 +2037,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14706557650000104,
+        "offlineRealTimeRatio": 0.1507872764999993,
         "taps": [
           {
             "id": "paula",
@@ -2076,7 +2076,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1486099099999992,
+        "offlineRealTimeRatio": 0.14570786200000294,
         "taps": [
           {
             "id": "paula",
@@ -2115,7 +2115,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14938760249999905,
+        "offlineRealTimeRatio": 0.14828958199999762,
         "taps": [
           {
             "id": "paula",
@@ -2154,7 +2154,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14842460199999913,
+        "offlineRealTimeRatio": 0.19180687649999892,
         "taps": [
           {
             "id": "paula",
@@ -2193,7 +2193,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.144105338500005,
+        "offlineRealTimeRatio": 0.139612423999999,
         "taps": [
           {
             "id": "paula",
@@ -2232,7 +2232,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1425746074999988,
+        "offlineRealTimeRatio": 0.14489251449999574,
         "taps": [
           {
             "id": "paula",
@@ -2271,7 +2271,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14807044550000137,
+        "offlineRealTimeRatio": 0.1430493465000036,
         "taps": [
           {
             "id": "paula",
@@ -2310,7 +2310,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1479897159999964,
+        "offlineRealTimeRatio": 0.15064497349999875,
         "taps": [
           {
             "id": "paula",
@@ -2349,7 +2349,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.15127133499999765,
+        "offlineRealTimeRatio": 0.15432116349999705,
         "taps": [
           {
             "id": "paula",
@@ -2388,7 +2388,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1741447349999944,
+        "offlineRealTimeRatio": 0.148229101500001,
         "taps": [
           {
             "id": "paula",
@@ -2427,7 +2427,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.15483200399999622,
+        "offlineRealTimeRatio": 0.14994386849999863,
         "taps": [
           {
             "id": "paula",
@@ -2466,7 +2466,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.1430200909999985,
+        "offlineRealTimeRatio": 0.15062631350000447,
         "taps": [
           {
             "id": "paula",
@@ -2505,7 +2505,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14534726550000052,
+        "offlineRealTimeRatio": 0.14326508599999943,
         "taps": [
           {
             "id": "paula",
@@ -2544,7 +2544,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14827848749999975,
+        "offlineRealTimeRatio": 0.14496101199999975,
         "taps": [
           {
             "id": "paula",
@@ -2583,7 +2583,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.15556069849999768,
+        "offlineRealTimeRatio": 0.14412741750000715,
         "taps": [
           {
             "id": "paula",
@@ -2622,7 +2622,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14318575099999725,
+        "offlineRealTimeRatio": 0.17302932750000036,
         "taps": [
           {
             "id": "paula",
@@ -2661,7 +2661,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14264668150000215,
+        "offlineRealTimeRatio": 0.14937713999999688,
         "taps": [
           {
             "id": "paula",
@@ -2700,7 +2700,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "offlineRealTimeRatio": 0.14339878150000004,
+        "offlineRealTimeRatio": 0.14351075950000086,
         "taps": [
           {
             "id": "paula",
@@ -2724,6 +2724,162 @@
             "rms": 0.24187794747682703,
             "peak": 1.1877542734146118,
             "dc": 0.01658885925403723,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "giana-sisters/title-screen.mod",
+        "tuneSha256": "418a9cb2ab98300d4ffff9942f472ed22d2e72e8fcc7723fb6d177e289c6bfce",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.15120973749999395,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "2155e1c77d4efb3f9e01d82ccb849b863e0ebc5708cf699230a32a52e0d74d19",
+            "rms": 0.1167008079856578,
+            "peak": 1,
+            "dc": 0.002121729412729421,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "e0a56f0364831a200d6cec5cc0d012ae9ebabab0e3d7cd5a15c9a0a2e739d517",
+            "rms": 0.11284973860894178,
+            "peak": 0.9647244094488189,
+            "dc": 0.0021217294127294215,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "f9bf71c94a336e971b84378870c7a6ec1a73d4ace9ccd46a4c83f0801975141d",
+            "rms": 0.07582504266756403,
+            "peak": 0.6727910041809082,
+            "dc": 0.00151481002257549,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "giana-sisters/get-ready.mod",
+        "tuneSha256": "c3497530de47086e208fc50bc71bde09bb5840ef6c31b15985075cd9ed4ec1fb",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1473278949999949,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "c88e4eea21896bb6c39b6003baad88d092586df61e3a953b1f3c53e8bdbed9ff",
+            "rms": 0.20707768104382154,
+            "peak": 1.188976377952756,
+            "dc": 0.005350068820743248,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "12f3ce053fb3766e01d258d9296a4390719a2f5539bc798cb6078075f6f375e3",
+            "rms": 0.19988438479219992,
+            "peak": 1.148871186023622,
+            "dc": 0.005350068820743248,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "fdbccfa9603a4c6fc65bba3dec9ac1238d5528e22d94c1b175e19b96fab95f60",
+            "rms": 0.1263707479202649,
+            "peak": 0.7958859205245972,
+            "dc": 0.003840069992102888,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "giana-sisters/ingame-1-ground.mod",
+        "tuneSha256": "2894060a390bf6e8d0fc9af78c8e1a8adcc099d7c4d65999d3010ee4c442607e",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.1449114849999969,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "db51828ae2382f06069b5e5812a0de63496adca317aecd30666a372f75c7c1a2",
+            "rms": 0.3485578758857001,
+            "peak": 1,
+            "dc": 0.0007277210465880481,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "b3d3697f532407c7f9f197394d90742fa506d86883071a3ee7cb00e8e37402ec",
+            "rms": 0.3365410098300499,
+            "peak": 0.9884251968503937,
+            "dc": 0.0007277210465880521,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "3120285abae090ce991a462b5ad25ec444f23e627b9c88f6b9a65b743b3edbad",
+            "rms": 0.2324352321958122,
+            "peak": 0.7021174430847168,
+            "dc": 0.00045024534053236977,
+            "nonFiniteSamples": 0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "path": "giana-sisters/ingame-2-cave.mod",
+        "tuneSha256": "7b30a47be6905b1fd8be3fd98d3b8bcb67e87b86243778433b23d5946ab6bdf2",
+        "type": "MOD",
+        "channels": 4,
+        "deterministic": true,
+        "blockIndependent": true,
+        "restartIdentical": true,
+        "finite": true,
+        "audible": true,
+        "offlineRealTimeRatio": 0.14343515150000166,
+        "taps": [
+          {
+            "id": "paula",
+            "sha256": "c97b7425a57cdd9bc0f58990e5c169db41ca00c6d4144f41d8236f23524cc0ba",
+            "rms": 0.30887137406972703,
+            "peak": 1.3307086614173227,
+            "dc": 0.009869197014434892,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "zoh",
+            "sha256": "1bc27c5e96deb49dd90ed505ae561451a09021cf8b6857efb2381e2a91a82e26",
+            "rms": 0.29684907092147256,
+            "peak": 1.2866141732283463,
+            "dc": 0.009869197014434892,
+            "nonFiniteSamples": 0
+          },
+          {
+            "id": "a500",
+            "sha256": "31bdf3f636125e5f4dd87460be9c12da6ba25d84453bee2b431ae654f3de8480",
+            "rms": 0.20097288115808923,
+            "peak": 0.8465641140937805,
+            "dc": 0.0069640679997439794,
             "nonFiniteSamples": 0
           }
         ],

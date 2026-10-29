@@ -41,37 +41,37 @@ export const amigaMuseumMetadata = {
     `,
     "dragonflight/dragonflight_surface.HIPC": `
         <h3>[ MUSEUM: DRAGONFLIGHT — SURFACE ]</h3>
-        <p><strong>Historie:</strong> Die Surface-Datei gehört zur Musik für die Oberwelt von <strong>Dragonflight</strong>. Wie die übrigen HIPC-Dateien stammt sie aus Jochen Hippels Thalion-Kontext, nicht aus einem generischen ProTracker-Modul.</p>
+        <p><strong>Historie:</strong> Die Surface-Datei gehört zu <strong>Jochen Hippels</strong> Musik für die Oberwelt von Thalions <strong>Dragonflight</strong> (Amiga, 1990). Wie die übrigen HIPC-Dateien nutzt sie Hippels eigenes Musiksystem, nicht ein generisches ProTracker-Modul.</p>
         <p><strong>Datei &amp; Replay:</strong> Lokaler COSO-/HIPC-Befund: <strong>16 Instrumente, 19 Timbres, 64 Monopatterns, 158 Divisions und 4 Songs</strong>. Die Datei referenziert 32 Samples mit zusammen 7.546 PCM-Bytes. Die Wiedergabe erfolgt über Hippels COSO-Interpreter mit PAL-CIA-Timing; Instrumente, Timbres und Songs sind getrennte Ebenen des Formats.</p>
         <p class="museum-sources"><strong>Quellen:</strong> <a href="https://amiga.abime.net/412" target="_blank" rel="noopener noreferrer">Hall of Light: Dragonflight</a></p>
     `,
     "dragonflight/dragonflight_town.HIPC": `
         <h3>[ MUSEUM: DRAGONFLIGHT — TOWN ]</h3>
-        <p><strong>Historie:</strong> Town ist die Städte-Musik aus <strong>Dragonflight</strong> (Thalion, 1990). Der Dateiname liefert die Szenenzuordnung; weitergehende Handlungsbehauptungen wären ohne Spielbeleg Spekulation.</p>
+        <p><strong>Historie:</strong> Town ist <strong>Jochen Hippels</strong> Städte-Musik aus <strong>Dragonflight</strong> (Thalion, 1990). Der Dateiname liefert die Szenenzuordnung; weitergehende Handlungsbehauptungen wären ohne Spielbeleg Spekulation.</p>
         <p><strong>Datei &amp; Replay:</strong> Lokaler COSO-/HIPC-Befund: <strong>13 Instrumente, 20 Timbres, 40 Monopatterns, 116 Divisions und 3 Songs</strong>. Die Datei referenziert 28 Samples mit zusammen 724 PCM-Bytes. Die Wiedergabe erfolgt über Hippels COSO-Interpreter mit PAL-CIA-Timing; Instrumente, Timbres und Songs sind getrennte Ebenen des Formats.</p>
         <p class="museum-sources"><strong>Quellen:</strong> <a href="https://amiga.abime.net/412" target="_blank" rel="noopener noreferrer">Hall of Light: Dragonflight</a></p>
     `,
     "dragonflight/dragonflight_dungeon.HIPC": `
         <h3>[ MUSEUM: DRAGONFLIGHT — DUNGEON ]</h3>
-        <p><strong>Historie:</strong> Dungeon ist die für die unterirdischen Bereiche archivierte Musik aus <strong>Dragonflight</strong>. Mit sieben Songs in einer Datei zeigt sie besonders deutlich, dass HIPC mehrere aufrufbare Sequenzen bündeln kann.</p>
+        <p><strong>Historie:</strong> Dungeon ist <strong>Jochen Hippels</strong> für die unterirdischen Bereiche archivierte Musik aus Thalions <strong>Dragonflight</strong> (Amiga, 1990). Mit sieben Songs in einer Datei zeigt sie besonders deutlich, dass HIPC mehrere aufrufbare Sequenzen bündeln kann.</p>
         <p><strong>Datei &amp; Replay:</strong> Lokaler COSO-/HIPC-Befund: <strong>21 Instrumente, 27 Timbres, 133 Monopatterns, 238 Divisions und 7 Songs</strong>. Die Datei referenziert 29 Samples mit zusammen 992 PCM-Bytes. Die Wiedergabe erfolgt über Hippels COSO-Interpreter mit PAL-CIA-Timing; Instrumente, Timbres und Songs sind getrennte Ebenen des Formats.</p>
         <p class="museum-sources"><strong>Quellen:</strong> <a href="https://amiga.abime.net/412" target="_blank" rel="noopener noreferrer">Hall of Light: Dragonflight</a></p>
     `,
     "dragonflight/dragonflight_endsequence.HIPC": `
         <h3>[ MUSEUM: DRAGONFLIGHT — ENDSEQUENCE ]</h3>
-        <p><strong>Historie:</strong> Die Endsequence-Datei enthält Musik für den Abschluss von <strong>Dragonflight</strong>. Sie bleibt als eigener Bestandteil der siebenteiligen lokalen Suite erhalten.</p>
+        <p><strong>Historie:</strong> Die Endsequence-Datei enthält <strong>Jochen Hippels</strong> Musik für den Abschluss von Thalions <strong>Dragonflight</strong> (Amiga, 1990). Sie bleibt als eigener Bestandteil der siebenteiligen lokalen Suite erhalten.</p>
         <p><strong>Datei &amp; Replay:</strong> Lokaler COSO-/HIPC-Befund: <strong>12 Instrumente, 20 Timbres, 75 Monopatterns, 156 Divisions und 3 Songs</strong>. Die Datei referenziert 29 Samples mit zusammen 992 PCM-Bytes. Die Wiedergabe erfolgt über Hippels COSO-Interpreter mit PAL-CIA-Timing; Instrumente, Timbres und Songs sind getrennte Ebenen des Formats.</p>
         <p class="museum-sources"><strong>Quellen:</strong> <a href="https://amiga.abime.net/412" target="_blank" rel="noopener noreferrer">Hall of Light: Dragonflight</a></p>
     `,
     "dragonflight/dragonflight_ani.HIPC": `
         <h3>[ MUSEUM: DRAGONFLIGHT — ANI ]</h3>
-        <p><strong>Historie:</strong> Ani ist die der Animations- beziehungsweise Intro-Sequenz zugeordnete Musikdatei aus <strong>Dragonflight</strong>. Die archivierte Bezeichnung wird hier bewusst nicht zu einer genaueren Filmszenenbeschreibung ausgeschmückt.</p>
+        <p><strong>Historie:</strong> Ani ist <strong>Jochen Hippels</strong> der Animations- beziehungsweise Intro-Sequenz zugeordnete Musikdatei aus Thalions <strong>Dragonflight</strong> (Amiga, 1990). Die archivierte Bezeichnung wird hier bewusst nicht zu einer genaueren Filmszenenbeschreibung ausgeschmückt.</p>
         <p><strong>Datei &amp; Replay:</strong> Lokaler COSO-/HIPC-Befund: <strong>8 Instrumente, 9 Timbres, 27 Monopatterns, 45 Divisions und 2 Songs</strong>. Die Datei referenziert 29 Samples mit zusammen 850 PCM-Bytes. Die Wiedergabe erfolgt über Hippels COSO-Interpreter mit PAL-CIA-Timing; Instrumente, Timbres und Songs sind getrennte Ebenen des Formats.</p>
         <p class="museum-sources"><strong>Quellen:</strong> <a href="https://amiga.abime.net/412" target="_blank" rel="noopener noreferrer">Hall of Light: Dragonflight</a></p>
     `,
     "dragonflight/dragonflight_always.HIPC": `
         <h3>[ MUSEUM: DRAGONFLIGHT — ALWAYS ]</h3>
-        <p><strong>Historie:</strong> Always ergänzt die <strong>Dragonflight</strong>-Suite um fünf Songs. Der Titel ist als Dateiname dokumentiert; eine bestimmte narrative Funktion lässt sich daraus allein nicht sicher ableiten.</p>
+        <p><strong>Historie:</strong> Always ergänzt <strong>Jochen Hippels</strong> Suite zu Thalions <strong>Dragonflight</strong> (Amiga, 1990) um fünf Songs. Der Titel ist als Dateiname dokumentiert; eine bestimmte narrative Funktion lässt sich daraus allein nicht sicher ableiten.</p>
         <p><strong>Datei &amp; Replay:</strong> Lokaler COSO-/HIPC-Befund: <strong>12 Instrumente, 16 Timbres, 101 Monopatterns, 136 Divisions und 5 Songs</strong>. Die Datei referenziert 44 Samples mit zusammen 4.078 PCM-Bytes. Die Wiedergabe erfolgt über Hippels COSO-Interpreter mit PAL-CIA-Timing; Instrumente, Timbres und Songs sind getrennte Ebenen des Formats.</p>
         <p class="museum-sources"><strong>Quellen:</strong> <a href="https://amiga.abime.net/412" target="_blank" rel="noopener noreferrer">Hall of Light: Dragonflight</a></p>
     `,
@@ -416,5 +416,29 @@ export const amigaMuseumMetadata = {
         <p><strong>Historie:</strong> Janeway unterscheidet bei <strong>Obvious Disaster</strong> von Tip / Phenomena eine <strong>Party Version von Dezember 1990</strong> und eine <strong>Final-Fassung von 1991</strong>. Der Originaldateiname <code>obvious disaster.final.mod</code> identifiziert die lokale Datei mit der letztgenannten Linie.</p>
         <p><strong>Datei &amp; Replay:</strong> Lokaler Dateibefund: Vierkanal-MOD, Magic <code>M.K.</code>, <strong>53 Orders, 50 Patterns und 26 genutzte Samples</strong>; 212.512 Bytes, davon 160.228 Sampledaten. Die Datei wurde laut Modulnotiz mit <strong>ProWizard aus NoisePacker v2</strong> konvertiert. 53 Orders und 50 Patterns beschreiben die vorliegende Final-MOD-Konversion. Die Wiedergabe nutzt den MOD-Parser und den linearen Paula-Exact-/A500-Pfad.</p>
         <p class="museum-sources"><strong>Quellen:</strong> <a href="https://janeway.exotica.org.uk/release.php?id=7129" target="_blank" rel="noopener noreferrer">Janeway/ExoticA: Obvious Disaster final</a> · <a href="https://janeway.exotica.org.uk/release.php?id=326" target="_blank" rel="noopener noreferrer">Janeway/ExoticA: Obvious Disaster party version</a></p>
+    `,
+    "giana-sisters/title-screen.mod": `
+        <h3>[ MUSEUM: THE GREAT GIANA SISTERS — TITLE SCREEN ]</h3>
+        <p><strong>Historie:</strong> Die Amiga-Fassung von <strong>The Great Giana Sisters</strong> erschien <strong>1988</strong> bei Rainbow Arts / Time Warp. ExoticA nennt <strong>Thomas Lopatic</strong> für ihre Musik; die zugrunde liegenden Giana-Themen stammen von <strong>Chris Hülsbeck</strong>. Lopatic verwendete auf dem Amiga seinen eigenen <strong>Beathoven Synthesizer</strong> und damit weder SID noch TFMX.</p>
+        <p><strong>Datei &amp; Replay:</strong> Die lokale Datei ist eine spätere <strong>Vierkanal-ProTracker-Konvertierung</strong>, nicht das originale BSS-Modul: <strong>25 Orders, 23 Patterns und 8 genutzte Samples</strong>, 89.558 Bytes. Alle vier Giana-MODs enthalten dieselbe 64.922 Bytes große Samplebank und bleiben dadurch einzeln abspielbar. Der vorhandene MOD-Parser und Paula-Exact-/A500-Pfad übernehmen die Wiedergabe.</p>
+        <p class="museum-sources"><strong>Quellen:</strong> <a href="https://www.exotica.org.uk/wiki/The_Great_Giana_Sisters" target="_blank" rel="noopener noreferrer">ExoticA: The Great Giana Sisters</a> · <a href="https://www.amigaparadise.com/card.php?id=1092" target="_blank" rel="noopener noreferrer">Amiga Paradise: Amiga-Version und Stückliste</a> · <a href="https://eab.abime.net/showthread.php?t=80428" target="_blank" rel="noopener noreferrer">English Amiga Board: ProTracker-Konvertierungen</a></p>
+    `,
+    "giana-sisters/get-ready.mod": `
+        <h3>[ MUSEUM: THE GREAT GIANA SISTERS — GET READY! ]</h3>
+        <p><strong>Historie:</strong> Der kurze <strong>Get-Ready-Jingle</strong> gehört zur Amiga-Fassung von <strong>The Great Giana Sisters</strong> (1988). <strong>Thomas Lopatic</strong> realisierte deren Musik mit dem Beathoven Synthesizer; kompositorisch steht er in der Giana-Klangwelt von <strong>Chris Hülsbeck</strong>. Die Stückliste der Amiga-Aufnahmen führt ihn als eigenen, nur wenige Sekunden langen Eintrag.</p>
+        <p><strong>Datei &amp; Replay:</strong> Lokaler Befund der ProTracker-Konvertierung: <strong>1 Order, 1 Pattern und 8 genutzte Samples</strong>, 67.030 Bytes. Der Jingle ist also tatsächlich nur ein Pattern lang; die vergleichsweise große Datei entsteht durch die mitgelieferte 64.922-Byte-Samplebank. Wiedergabe über MOD-Parser und Paula Exact/A500, nicht über einen vorgegebenen Audio-Loop.</p>
+        <p class="museum-sources"><strong>Quellen:</strong> <a href="https://www.exotica.org.uk/wiki/The_Great_Giana_Sisters" target="_blank" rel="noopener noreferrer">ExoticA: The Great Giana Sisters</a> · <a href="https://www.amigaparadise.com/card.php?id=1092" target="_blank" rel="noopener noreferrer">Amiga Paradise: Get Ready</a> · <a href="https://eab.abime.net/showthread.php?t=80428" target="_blank" rel="noopener noreferrer">English Amiga Board: ProTracker-Konvertierungen</a></p>
+    `,
+    "giana-sisters/ingame-1-ground.mod": `
+        <h3>[ MUSEUM: THE GREAT GIANA SISTERS — IN-GAME 1 / GROUND ]</h3>
+        <p><strong>Historie:</strong> Das erste Ingame-Stück begleitet die oberirdischen Level der Amiga-Fassung von <strong>The Great Giana Sisters</strong> (1988). Die Amiga-Musik wird <strong>Thomas Lopatic</strong> zugeschrieben und überträgt <strong>Chris Hülsbecks</strong> bekanntes Giana-Thema in Lopatics Beathoven-Klangwelt mit gesampleten Instrumenten auf vier Paula-Stimmen.</p>
+        <p><strong>Datei &amp; Replay:</strong> Lokaler Befund der ProTracker-Konvertierung: <strong>12 Orders, 12 Patterns und 8 genutzte Samples</strong>, 78.294 Bytes, davon 64.922 Sampledaten. Sie ist eine eigenständige Trackerdatei und keine SID-, YM- oder MP3-Aufnahme. Der MOD-Parser und der Paula-Exact-/A500-Pfad spielen Pattern, Effekte und Samples direkt.</p>
+        <p class="museum-sources"><strong>Quellen:</strong> <a href="https://www.exotica.org.uk/wiki/The_Great_Giana_Sisters" target="_blank" rel="noopener noreferrer">ExoticA: The Great Giana Sisters</a> · <a href="https://www.amigaparadise.com/card.php?id=1092" target="_blank" rel="noopener noreferrer">Amiga Paradise: Ground BGM</a> · <a href="https://eab.abime.net/showthread.php?t=80428" target="_blank" rel="noopener noreferrer">English Amiga Board: ProTracker-Konvertierungen</a></p>
+    `,
+    "giana-sisters/ingame-2-cave.mod": `
+        <h3>[ MUSEUM: THE GREAT GIANA SISTERS — IN-GAME 2 / CAVE ]</h3>
+        <p><strong>Historie:</strong> Das zweite Ingame-Stück ist in den Amiga-Aufnahmen als <strong>Cave BGM</strong> dokumentiert. Wie der Rest der 1988er Amiga-Fassung verbindet es <strong>Chris Hülsbecks</strong> Giana-Kompositionen mit <strong>Thomas Lopatics</strong> eigener Beathoven-Replay- und Instrumentenwelt. Es ist nicht mit den separat archivierten Atari-ST-YM-Dateien gleichzusetzen.</p>
+        <p><strong>Datei &amp; Replay:</strong> Lokaler Befund der ProTracker-Konvertierung: <strong>17 Orders, 13 Patterns und 8 genutzte Samples</strong>, 79.318 Bytes. Die Orderliste kehrt am Ende zu vier bereits gespielten Patterns zurück; 13 Patterns sind deshalb kein Ladefehler. Die Wiedergabe erfolgt über den MOD-Parser und den linearen Paula-Exact-/A500-Pfad.</p>
+        <p class="museum-sources"><strong>Quellen:</strong> <a href="https://www.exotica.org.uk/wiki/The_Great_Giana_Sisters" target="_blank" rel="noopener noreferrer">ExoticA: The Great Giana Sisters</a> · <a href="https://www.amigaparadise.com/card.php?id=1092" target="_blank" rel="noopener noreferrer">Amiga Paradise: Cave BGM</a> · <a href="https://eab.abime.net/showthread.php?t=80428" target="_blank" rel="noopener noreferrer">English Amiga Board: ProTracker-Konvertierungen</a></p>
     `,
 };

@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.5.4)
+# 💾 CHIPTUNES FANTASY (v1.5.5)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -16,9 +16,21 @@ Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with rut
 
 ---
 
-## 🚀 v1.5.4 Release Highlights
+## 🚀 v1.5.5 Release Highlights
 
-Version 1.5.4 combines the six-stage Amiga Exact refinement program with a substantially expanded, researched music disk and targeted C64/Atari corrections. The curated library now contains **205 directly playable tracks**: **69 Amiga**, **50 C64**, and **86 Atari ST** titles. The **48 new classics** comprise 24 Amiga modules and 24 C64 SIDs; existing entries remain in the playlists.
+Version 1.5.5 adds four carefully documented Amiga conversions from *The Great Giana Sisters* and turns the bottom scroller into an adaptive, song-aware information strip. It carries forward the v1.5.4 Amiga Exact refinement program, curated libraries, and targeted C64/Atari corrections without changing the audio engines in this release.
+
+The curated library now contains **209 directly playable tracks**: **73 Amiga**, **50 C64**, and **86 Atari ST** titles. Compared with v1.5.4, the four Giana conversions expand the Amiga selection from 69 to 73 tracks; all previous playlist paths remain intact.
+
+### New: The Great Giana Sisters on Amiga
+
+A dedicated `giana-sisters` folder contains **Title Screen**, **Get Ready!**, **In-Game 1 – Ground**, and **In-Game 2 – Cave**. Every entry has a researched museum card, local binary facts, safe source links, and hash-bound provenance. The documentation distinguishes Chris Hülsbeck's underlying compositions, Thomas Lopatic's 1988 Amiga music and Beathoven Synthesizer replay, and the later four-channel ProTracker conversions supplied here. The original BSS modules are not presented as ProTracker files, and no unverified conversion author is credited.
+
+Only these four verified, browser-compatible conversions are included. **Options** and **High Scores** remain outside the release because no suitable verified conversions were selected; C64 SIDs, Atari YM files, BRSTMs, and prerecorded audio were not used as substitutes.
+
+### New: Adaptive song scroller
+
+The bottom scroller now derives **TRACK**, **TECH**, and **STORY** channels from the selected song's curated title, binary metadata, core, subsong, and museum research. Its lower-amplitude sine motion is time-based and seamlessly wrapped. Hover and **HOLD/RUN** provide pause control, native buttons expose the channels to keyboard and touch users, and reduced-motion preferences are respected. The mobile strip has a bounded 108px height plus the device safe area; playback and emulation code are unchanged.
 
 ### Amiga Exact — measurement, replay, output, and production acceptance
 Phases 0–5 establish reproducible evidence before changing behavior, then correct the production `paula-exact` path subsystem by subsystem:
@@ -31,8 +43,8 @@ Phases 0–5 establish reproducible evidence before changing behavior, then corr
 
 The [Phase 5 production report](doc/verification/amiga/phase5-report.md) and the earlier phase reports retain their historical evidence instead of rewriting old baselines as new behavior landed.
 
-### Curated Amiga and C64 libraries — 48 new classics
-The **69-track Amiga library** contains 35 HIPC-family, 31 MOD, and 3 XM entries. Its 24 additions are split between 12 game and 12 demo-scene modules, with nested folders, individual museum research, local binary facts, and hash-bound provenance. Selection and editorial decisions are documented in [Amiga track sources](doc/museum/amiga-track-sources.md).
+### Curated Amiga and C64 libraries — 52 new additions
+The **73-track Amiga library** contains 35 HIPC-family, 35 MOD, and 3 XM entries. Its 28 additions comprise 12 game classics, 12 demo-scene modules, and four Giana Sisters conversions, with nested folders, individual museum research, local binary facts, and hash-bound provenance. The Giana cards distinguish Thomas Lopatic's Beathoven Synthesizer Amiga music from the later ProTracker files. Selection and editorial decisions are documented in [Amiga track sources](doc/museum/amiga-track-sources.md).
 
 The **50-track C64 library** retains all 26 existing paths and adds 24 HVSC #85 files: 20 game soundtracks and four demo-scene works. Every entry has an individual museum card and official sub-song lengths. Folder navigation is now enabled in the production C64 interface. The 43 direct MD5 mappings, seven path-based legacy mappings, source decisions, and the documented 23-subsong Rambo variant are covered in [C64 track sources](doc/museum/c64-track-sources.md).
 
@@ -44,14 +56,14 @@ C64 environmental readouts no longer average the fourth telemetry slot—the SID
 Atari YM5 frames now receive a version-specific normalization for Digidrum start bits in R3; global YM6 decoding is unchanged. A regression test uses a real *Punish Your Machine* frame and proves that normalized R3 value `0x31` starts sample 0 as a Digidrum on voice C. The sample audit covers 20 sample-based tracks: eight affected YM5 files were repaired by the normalization, eleven YM6 files remain correctly decoded, and *Turrican 1* contains sample blocks but no Digidrum start commands.
 
 ### Validation and known limitations
-- **Full suite:** 361 tests — 353 passed, 7 skipped, 1 known pre-existing failure.
-- **Amiga library:** 69/69 tracks passed audible, finite, deterministic, block-size-independent, and restart-identical offline acceptance; no silent A500 title was found.
+- **Full suite:** 367 tests — 359 passed, 7 skipped, 1 known pre-existing failure.
+- **Amiga library:** 73/73 tracks passed audible, finite, deterministic, block-size-independent, and restart-identical offline acceptance; no silent A500 title was found. All four Giana conversions also passed real desktop- and mobile-viewport Chromium playback, adaptive-scroller channel and pause checks, reduced-motion behavior, museum cards, credits, source links, and bounded-layout checks.
 - **C64 library:** 50/50 tracks passed the equivalent four-render offline acceptance. Representative PSID and RSID playback, folders, museum cards, and source links were also exercised in desktop and mobile-viewport Chromium.
 - **Atari:** The real YM5 Punish-frame regression and sample audit cover the corrected behavior without changing YM6 semantics.
 
 The remaining full-suite failure is `SID synthetic corpus matches the reviewed Phase 3 raw/trace/WAV hashes`; its `noise-adsr` baseline was not overwritten. Details and hashes are retained in the [C64 curation report](doc/verification/c64/curation-report.md). Offline timing ratios are not device underrun guarantees, headless mobile viewports are not physical-device tests, and self-generated hashes are regression anchors—not hardware truth references. C64/SID random-access seeking remains unavailable.
 
-Copy-ready GitHub texts are included for the [v1.5.4 pull request](doc/releases/v1.5.4-PR-Text.md) and [v1.5.4 release](doc/releases/v1.5.4-Release-Text.md).
+Copy-ready GitHub texts are included for the [v1.5.5 pull request](doc/releases/v1.5.5-PR-Text.md) and [v1.5.5 release](doc/releases/v1.5.5-Release-Text.md). Earlier release documents remain unchanged as historical records.
 
 ---
 
@@ -83,7 +95,7 @@ Our PAL-clock SID engine combines a documented digital core with independently m
 *   **SID 6581/8580 "Chiptunes Fantasy Studio" Core:** Audiophile dual-channel engine featuring CSG 8580 linear R-2R DACs, 20kHz Studio Airband ZDF VCF, Constant-Power StereoSID dynamic voice staging, and a 48Hz digidrum sub-harmonic transient exciter. Phase 5 adds measured sample-rate-independent **16Hz stereo output coupling** (−0.448dB at 48Hz), with deterministic 20-second worklet comparisons archived for *Commando* and *Arkanoid*. The Exact renders remained byte-identical; external-model STFT agreement is diagnostic evidence, not real-hardware proof. See `doc/specs/emulation/c64/sid-fantasy-studio.md`.
 
 ### 2. MOS Technology Paula 8364 / AHI (Amiga 500 & A1200)
-*   **Curated 69-Track Library:** Preserves all 45 existing entries and adds 24 game/demo classics, with nested folders, researched museum texts, and hash-bound Modland provenance. The complete 35-HIPC/31-MOD/3-XM selection passes deterministic offline acceptance; see [Amiga track sources](doc/museum/amiga-track-sources.md).
+*   **Curated 73-Track Library:** Preserves all 45 existing entries and adds 24 game/demo classics plus four Giana Sisters conversions, with nested folders, researched museum texts, and hash-bound Modland provenance. The complete 35-HIPC/35-MOD/3-XM selection passes deterministic offline acceptance; see [Amiga track sources](doc/museum/amiga-track-sources.md).
 *   **Native Jochen Hippel COSO / HIPC and HIP68K Replay:** Bit-accurate binary parsing and deterministic replay use the PAL CIA timer period 14188 (approximately 49.99852Hz rather than an assumed exact 50Hz). HIP68K executes the original 68000 player with raster-timed DMA starts and loop latches. Two-layer Timbre/Instrument execution, song-duration calculation and deterministic seeking remain covered by the fixture and production corpus.
 *   **Hardware Agnus/Paula Latch-on-Wrap DMA (`paula-exact` & `paula-fantasy`):** Models true Amiga shared Chip-RAM and `AUDxLC`/`AUDxLEN` register latching (where pointer/length writes take effect only on the next loop wrap while `hwStartDMA()` triggers the initial pass).
 *   **MOD/XM Tracker Playback:** The Exact path covers tick-based arpeggio, portamento, tone-portamento, vibrato, tremolo, volume slides, combined effects, effect memory, sample offset, linear XM frequencies and panning, global volume, variable pattern lengths, and the existing 16/24/32-channel mix attenuation.

@@ -90,6 +90,91 @@ const myModFiles = [
     "classics/demoscene/acid-injection.mod",
     "classics/demoscene/carillon.mod",
     "classics/demoscene/obvious-disaster.mod",
+
+    // --- NEU: THE GREAT GIANA SISTERS (AMIGA) ---
+    "giana-sisters/title-screen.mod",
+    "giana-sisters/get-ready.mod",
+    "giana-sisters/ingame-1-ground.mod",
+    "giana-sisters/ingame-2-cave.mod",
+];
+
+// Echte Stück- beziehungsweise dokumentierte Szenentitel für die Auswahlliste.
+// In Unterordnern reicht der lokale Titel; Spiel- und Demozuordnung steht in
+// Breadcrumb, Tooltip und Museumskarte.
+const amigaListTitles = [
+    'Elysium',
+    'Space Debris',
+    'Guitar Slinger',
+    'Agony – Intro',
+    'Turrican II – Title',
+    'Title',
+    'Surface',
+    'Town',
+    'Dungeon',
+    'End Sequence',
+    'Animation',
+    'Always',
+    'City Walk',
+    'Dreamcave',
+    'Erik’s Revenge',
+    'Fanfares',
+    'Flying High',
+    'Funkey Dungeon',
+    'Gwen’s Lament',
+    'Hasta La Vista',
+    'High Seas',
+    'Horse Song',
+    'Irish Spring',
+    'Lullaby',
+    'Lurking Horror',
+    'Minor Quarrels',
+    'Misty Orc Hop',
+    'Mystic Moments',
+    'Ode to Schnism',
+    'Travellers Tune',
+    'Ingame',
+    'Title',
+    'Level 1 – Over the Trees',
+    'Level 2 – Inside the Cave',
+    'Level 3 – Desert Rocks',
+    'Level 4 – Mechanical Castle',
+    'Level 5 – Bio-Hazard / Organic',
+    'Level 6 – Glacier / Ice',
+    'Level 7 – Volcanic / Fire',
+    'End',
+    'Blood Money – Title',
+    'Moongazr',
+    'Towards Immortality',
+    'Lotus II – Title',
+    'Dead Lock',
+    'Cannon Fodder',
+    'The Chaos Engine – K8',
+    'Speedball 2 – Title',
+    'Gods',
+    'Pinball Dreams – Beat Box',
+    'Pinball Fantasies – Party Land',
+    'Project-X – Bladswede Remix',
+    'Superfrog – Title',
+    'Lemmings',
+    'Another World – Intro',
+    'Dune – Wormsign',
+    'Shadow of the Beast – Title',
+    'Red Sector Theme',
+    'Trans Atlantic',
+    'Cream of the Earth',
+    'Occ-San-Geen',
+    'Hysteria',
+    'Phantazia.2',
+    'Guardian Dragon',
+    'Macrocosm',
+    'Sanctuary',
+    'Acid Injection',
+    'Carillon',
+    'Obvious Disaster',
+    'Title Screen',
+    'Get Ready!',
+    'In-Game 1 – Ground',
+    'In-Game 2 – Cave'
 ];
 
 export const amigaPlaylist = myModFiles.map((filename, index) => {
@@ -110,17 +195,20 @@ export const amigaPlaylist = myModFiles.map((filename, index) => {
     return {
         path: filename,
         title: `${index + 1}. LOAD ${label}: ${displayFilename}`,
+        listTitle: amigaListTitles[index],
         composerInfo: metaInfo,
         generator: function() { return []; },
-        loadAsync: async function() {
+        loadAsync: async function(options = {}) {
             if (isHip) {
+                const songOptions = Number.isInteger(options.song) ? { song: options.song } : {};
                 if (filename.startsWith('amberstar/')) {
                     return await loadHipcFile(`tracks/amiga/${filename}`, {
+                        ...songOptions,
                         sampleBankUrl: 'tracks/amiga/amberstar/hipc.samp',
                         replayerOptions: { envSpec: true }
                     });
                 }
-                return await loadHipcFile(`tracks/amiga/${filename}`);
+                return await loadHipcFile(`tracks/amiga/${filename}`, songOptions);
             } else if (isDw) {
                 return await loadDwFile(`tracks/amiga/${filename}`);
             } else if (isXm) {

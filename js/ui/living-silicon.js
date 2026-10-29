@@ -14,6 +14,7 @@ export class LivingSilicon {
         this.container = document.getElementById(containerId);
         this.activeSystem = null;
         this.activeChip = null;
+        this.playbackState = 'idle';
     }
 
     setSystem(system) {
@@ -34,10 +35,29 @@ export class LivingSilicon {
         }
     }
 
+    setPlaybackState(state = 'idle') {
+        this.playbackState = state;
+        const labels = {
+            idle: 'STANDBY',
+            loading: 'DECODING',
+            playing: 'LIVE BUS',
+            paused: 'BUS HALTED',
+            error: 'FAULT'
+        };
+        this.container.dataset.playbackState = state;
+        const status = document.getElementById('silicon-playback-status');
+        if (status) {
+            status.dataset.state = state;
+            status.textContent = labels[state] || labels.idle;
+        }
+    }
+
     update(channelVolumes, currentRegs, t, sidRegisterWriteRate = 0) {
-        if (this.activeChip) {
+        if (!this.activeChip) return;
+        if (this.playbackState === 'playing') {
             // Delegation an das gekapselte Chip-Objekt
             this.activeChip.update(channelVolumes, currentRegs, t, sidRegisterWriteRate);
         }
+        this.activeChip.syncReadout();
     }
 }

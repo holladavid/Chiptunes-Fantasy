@@ -2,7 +2,7 @@
 
 ## Geltungsbereich
 
-Die Amiga-Playlist von Chiptunes Fantasy v1.5.4 umfasst **69 Titel**: alle 45 bisherigen Einträge mit unveränderten Pfaden sowie 24 neue Klassiker aus dem öffentlichen Modland-ProTracker-Archiv. Die Neuzugänge verteilen sich auf zwölf Spielmusik- und zwölf Demoscene-Dateien.
+Die Amiga-Playlist von Chiptunes Fantasy v1.5.4 umfasst **73 Titel**: alle 45 bisherigen Einträge mit unveränderten Pfaden, 24 Spiel- und Demoscene-Klassiker sowie vier Konvertierungen aus The Great Giana Sisters. Alle 28 Neuzugänge stammen aus dem öffentlichen Modland-ProTracker-Archiv.
 
 Historische Angaben, lokale Dateibefunde und kuratorische Einordnung werden getrennt behandelt. Orders, Patterns, Spuren, Samples und Bytegrößen beschreiben immer die tatsächlich mitgelieferte lokale Datei. Eine MOD- oder XM-Konversion wird nicht mit dem ursprünglichen Replayformat des Spiels oder der Demo gleichgesetzt.
 
@@ -38,6 +38,16 @@ Alle URLs verwenden den ursprünglichen Dateinamen im Autorenverzeichnis. Die lo
 | `classics/demoscene/acid-injection.mod` | `acid injection.mod` | 113.646 | `778c1cf778aafe0184bf6964f736ad581bc2cfaffd2c7629c4567131a925c21f` | [Modland](https://modland.com/pub/modules/Protracker/Nuke/acid%20injection.mod) |
 | `classics/demoscene/carillon.mod` | `carillon.mod` | 27.708 | `1c05c865847a80b1bce88d4611e3fb48ea741107c012df3e558e0b7b24918a0f` | [Modland](https://modland.com/pub/modules/Protracker/Dizzy/carillon.mod) |
 | `classics/demoscene/obvious-disaster.mod` | `obvious disaster.final.mod` | 212.512 | `cdc2f7e9fd3e1539f31a6e0c2f76b7dd1097717693f40228cf46ba76979bfc38` | [Modland](https://modland.com/pub/modules/Protracker/Tip/obvious%20disaster.final.mod) |
+| `giana-sisters/title-screen.mod` | `giana1.mod` | 89.558 | `418a9cb2ab98300d4ffff9942f472ed22d2e72e8fcc7723fb6d177e289c6bfce` | [Modland](https://modland.com/pub/modules/Protracker/Chris%20Huelsbeck/giana1.mod) |
+| `giana-sisters/get-ready.mod` | `giana4.mod` | 67.030 | `c3497530de47086e208fc50bc71bde09bb5840ef6c31b15985075cd9ed4ec1fb` | [Modland](https://modland.com/pub/modules/Protracker/Chris%20Huelsbeck/giana4.mod) |
+| `giana-sisters/ingame-1-ground.mod` | `giana3.mod` | 78.294 | `2894060a390bf6e8d0fc9af78c8e1a8adcc099d7c4d65999d3010ee4c442607e` | [Modland](https://modland.com/pub/modules/Protracker/Chris%20Huelsbeck/giana3.mod) |
+| `giana-sisters/ingame-2-cave.mod` | `giana2.mod` | 79.318 | `7b30a47be6905b1fd8be3fd98d3b8bcb67e87b86243778433b23d5946ab6bdf2` | [Modland](https://modland.com/pub/modules/Protracker/Chris%20Huelsbeck/giana2.mod) |
+
+## Giana Sisters: Originalformat und Konvertierungsumfang
+
+ExoticA und Amiga Paradise nennen für die 1988er Amiga-Fassung **Thomas Lopatic** und das Originalformat **Beathoven Synthesizer**. Die zugrunde liegenden Giana-Kompositionen von **Chris Hülsbeck** und Lopatics Amiga-Umsetzung werden in den Museumstexten getrennt benannt. Die vier ausgelieferten Dateien sind spätere ProTracker-Konvertierungen; ihr Vorhandensein im Modland-Autorenverzeichnis „Chris Huelsbeck“ ist kein Beleg für einen Konvertierungsautor. Die MODs selbst enthalten weder eingebettete Titel noch einen solchen Credit.
+
+Die Original-Rips [Title BSS](https://ftp.modland.com/pub/modules/Beathoven%20Synthesizer/Thomas%20Lopatic/the%20great%20giana%20sisters%20title.bss) und [Ingame BSS](https://ftp.modland.com/pub/modules/Beathoven%20Synthesizer/Thomas%20Lopatic/the%20great%20giana%20sisters%20ingame.bss) dokumentieren das Ausgangsformat. Ihre Header enthalten ein Titelstück beziehungsweise fünf Ingame-Songs. Der vorhandene Browser-Player emuliert dieses BSS-Format nicht; deshalb werden nur die vier geprüften MOD-Konvertierungen aufgenommen. **Options** und **High Scores** bleiben ausgespart, statt durch Aufnahmen, BRSTMs, C64-SIDs oder Atari-YM-Dateien ersetzt zu werden. Der [English-Amiga-Board-Thread](https://eab.abime.net/showthread.php?t=80428) dokumentiert den zeitlichen Kontext solcher ProTracker-Konvertierungen; [Amiga Paradise](https://www.amigaparadise.com/card.php?id=1092) liefert die unabhängige Stückliste mit Title Screen, Options, Get Ready, Ground BGM, Cave BGM und High Scores.
 
 ## Redaktionelle Korrekturen am Bestand
 
@@ -140,4 +150,4 @@ Die Links liefern den historischen beziehungsweise katalogischen Kontext. Techni
 - **XM-Spuren:** Kanalzahl der konkreten Konversion; sie beweist keine entsprechende Kanalzahl des historischen Amiga-Originals.
 - **COSO/HIPC:** Instrumente, Timbres, Monopatterns, Divisions und Songs sind getrennte Strukturen. HIP/68000-Dateien enthalten dagegen ausführbaren Replaycode.
 
-Die neue Bibliotheksabnahme ist bewusst getrennt von den historischen Phase-5-Berichten. Sie prüft die 69-Titel-Auswahl, ohne deren frühere 45-Titel-Gates oder Provenienz rückwirkend umzuschreiben.
+Die neue Bibliotheksabnahme ist bewusst getrennt von den historischen Phase-5-Berichten. Sie prüft die 73-Titel-Auswahl, ohne deren frühere 45-Titel-Gates oder Provenienz rückwirkend umzuschreiben.

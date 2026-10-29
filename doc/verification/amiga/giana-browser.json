@@ -1,0 +1,360 @@
+{
+  "format": "chiptunes-fantasy-amiga-giana-browser-v1",
+  "referenceStatus": "Real headless Chromium production UI and playback; no physical-device or underrun-proof claim.",
+  "browser": "151.0.7922.108",
+  "chromiumPath": "/usr/bin/chromium",
+  "playMilliseconds": 1600,
+  "appSha256": "61e4f3ab4613b0241ec3c58653b4dd349e2b27eca73cbac15a822df3108014b3",
+  "playlistSha256": "1f2537357f0a422b84a6866d66355fe3c0e5c36429a170e6fbcebe16215da07f",
+  "museumSha256": "d6a039b29a14316ee18a22598935857a5a4df7e10fb811a7533021eb1b67e0c2",
+  "provenanceSha256": "e17ff03bf47fa4ae282af3e1e42e0570544724983394ec9df5295eeef7147c15",
+  "runs": [
+    {
+      "device": "desktop",
+      "rootTracks": 10,
+      "rootFolders": [
+        "[DIR] dragonflight/",
+        "[DIR] amberstar/",
+        "[DIR] wings-of-death/",
+        "[DIR] classics/",
+        "[DIR] giana-sisters/"
+      ],
+      "gianaTracks": 4,
+      "titles": [
+        "Title Screen",
+        "Get Ready!",
+        "In-Game 1 – Ground",
+        "In-Game 2 – Cave"
+      ],
+      "screenshot": "doc/verification/amiga/giana-desktop.png",
+      "layout": {
+        "viewportWidth": 1280,
+        "documentWidth": 1280,
+        "museumVisible": true,
+        "scroller": {
+          "zoneHeight": 72,
+          "canvasCssHeight": 41,
+          "canvasBitmapWidth": 1280,
+          "canvasBitmapHeight": 41,
+          "canvasBottom": 900,
+          "documentHeight": 900
+        }
+      },
+      "tracks": [
+        {
+          "path": "giana-sisters/title-screen.mod",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+          "activeTrack": "Title Screen",
+          "scrollerText": "NOW PLAYING / Title Screen · AMIGA / MOS 8364 PAULA    +++    AT LAST, THE ULTIMATE HTML5 MUSIC DISK IS COMPLETE +++ CODE & DSP MAGIK RUNNING AT A SOLID 50 HZ VBLANK +++ DEEP CHIP EMULATION VIA AUDIOWORKLETS +++ NO MP3, NO BULLSHIT, JUST PURE MATHEMATICS +++ GREETS FLY OUT TO ALL THE PIXEL PUSHERS, CYCLE CRUNCHERS AND WAVEFORM WIZARDS OUT THERE +++ TO EVERYONE WHO STILL KEEPS THE SPIRIT OF THE 8-BIT AND 16-BIT ERA ALIVE +++ TO THE TRUE LOVERS OF DEMOSCENE ART AND CHIPTUNE MAGIC +++ LET THE ANALOG FILTERS BURN +++ WRAP AROUND",
+          "museum": "[ MUSEUM: THE GREAT GIANA SISTERS — TITLE SCREEN ]",
+          "creditsPresent": true,
+          "conversionDisclosed": true,
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.17106899619102478,
+            "rms": 0.05768596365913509,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "scrollerMatches": true,
+          "passed": true
+        },
+        {
+          "path": "giana-sisters/get-ready.mod",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+          "activeTrack": "Get Ready!",
+          "scrollerText": "NOW PLAYING / Get Ready! · AMIGA / MOS 8364 PAULA    +++    AT LAST, THE ULTIMATE HTML5 MUSIC DISK IS COMPLETE +++ CODE & DSP MAGIK RUNNING AT A SOLID 50 HZ VBLANK +++ DEEP CHIP EMULATION VIA AUDIOWORKLETS +++ NO MP3, NO BULLSHIT, JUST PURE MATHEMATICS +++ GREETS FLY OUT TO ALL THE PIXEL PUSHERS, CYCLE CRUNCHERS AND WAVEFORM WIZARDS OUT THERE +++ TO EVERYONE WHO STILL KEEPS THE SPIRIT OF THE 8-BIT AND 16-BIT ERA ALIVE +++ TO THE TRUE LOVERS OF DEMOSCENE ART AND CHIPTUNE MAGIC +++ LET THE ANALOG FILTERS BURN +++ WRAP AROUND",
+          "museum": "[ MUSEUM: THE GREAT GIANA SISTERS — GET READY! ]",
+          "creditsPresent": true,
+          "conversionDisclosed": true,
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.20934991538524628,
+            "rms": 0.07467831094542106,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "scrollerMatches": true,
+          "passed": true
+        },
+        {
+          "path": "giana-sisters/ingame-1-ground.mod",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+          "activeTrack": "In-Game 1 – Ground",
+          "scrollerText": "NOW PLAYING / In-Game 1 – Ground · AMIGA / MOS 8364 PAULA    +++    AT LAST, THE ULTIMATE HTML5 MUSIC DISK IS COMPLETE +++ CODE & DSP MAGIK RUNNING AT A SOLID 50 HZ VBLANK +++ DEEP CHIP EMULATION VIA AUDIOWORKLETS +++ NO MP3, NO BULLSHIT, JUST PURE MATHEMATICS +++ GREETS FLY OUT TO ALL THE PIXEL PUSHERS, CYCLE CRUNCHERS AND WAVEFORM WIZARDS OUT THERE +++ TO EVERYONE WHO STILL KEEPS THE SPIRIT OF THE 8-BIT AND 16-BIT ERA ALIVE +++ TO THE TRUE LOVERS OF DEMOSCENE ART AND CHIPTUNE MAGIC +++ LET THE ANALOG FILTERS BURN +++ WRAP AROUND",
+          "museum": "[ MUSEUM: THE GREAT GIANA SISTERS — IN-GAME 1 / GROUND ]",
+          "creditsPresent": true,
+          "conversionDisclosed": true,
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.5597628355026245,
+            "rms": 0.32523167396940106,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "scrollerMatches": true,
+          "passed": true
+        },
+        {
+          "path": "giana-sisters/ingame-2-cave.mod",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+          "activeTrack": "In-Game 2 – Cave",
+          "scrollerText": "NOW PLAYING / In-Game 2 – Cave · AMIGA / MOS 8364 PAULA    +++    AT LAST, THE ULTIMATE HTML5 MUSIC DISK IS COMPLETE +++ CODE & DSP MAGIK RUNNING AT A SOLID 50 HZ VBLANK +++ DEEP CHIP EMULATION VIA AUDIOWORKLETS +++ NO MP3, NO BULLSHIT, JUST PURE MATHEMATICS +++ GREETS FLY OUT TO ALL THE PIXEL PUSHERS, CYCLE CRUNCHERS AND WAVEFORM WIZARDS OUT THERE +++ TO EVERYONE WHO STILL KEEPS THE SPIRIT OF THE 8-BIT AND 16-BIT ERA ALIVE +++ TO THE TRUE LOVERS OF DEMOSCENE ART AND CHIPTUNE MAGIC +++ LET THE ANALOG FILTERS BURN +++ WRAP AROUND",
+          "museum": "[ MUSEUM: THE GREAT GIANA SISTERS — IN-GAME 2 / CAVE ]",
+          "creditsPresent": true,
+          "conversionDisclosed": true,
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.5223929286003113,
+            "rms": 0.1806581014429441,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "scrollerMatches": true,
+          "passed": true
+        }
+      ],
+      "scroller": {
+        "techText": "PAULA TECH / ProTracker 4-Channel · 4 DMA VOICES · 23 PATTERNS · 8 SAMPLES · 87 KB · Paula 8364 (Exact / A500)",
+        "storyText": "FROM THE MUSEUM / Die Amiga-Fassung von The Great Giana Sisters erschien 1988 bei Rainbow Arts / Time Warp.  ExoticA nennt Thomas Lopatic für ihre Musik; die zugrunde liegenden Giana-Themen stammen von Chris Hülsbeck .",
+        "hoverHold": true,
+        "stableWhileHeld": true,
+        "advancesWhenRunning": true,
+        "reducedMotionHold": true,
+        "explicitMotionOptIn": true,
+        "touchTargetsPass": true,
+        "controls": [
+          {
+            "mode": "track",
+            "pressed": "true",
+            "width": 47.5,
+            "height": 29
+          },
+          {
+            "mode": "tech",
+            "pressed": "false",
+            "width": 44,
+            "height": 29
+          },
+          {
+            "mode": "story",
+            "pressed": "false",
+            "width": 47.5,
+            "height": 29
+          },
+          {
+            "mode": "hold",
+            "pressed": "false",
+            "width": 44,
+            "height": 29
+          }
+        ],
+        "passed": true
+      },
+      "errors": [],
+      "passed": true
+    },
+    {
+      "device": "mobile",
+      "rootTracks": 10,
+      "rootFolders": [
+        "[DIR] dragonflight/",
+        "[DIR] amberstar/",
+        "[DIR] wings-of-death/",
+        "[DIR] classics/",
+        "[DIR] giana-sisters/"
+      ],
+      "gianaTracks": 4,
+      "titles": [
+        "Title Screen",
+        "Get Ready!",
+        "In-Game 1 – Ground",
+        "In-Game 2 – Cave"
+      ],
+      "screenshot": "doc/verification/amiga/giana-mobile.png",
+      "layout": {
+        "viewportWidth": 390,
+        "documentWidth": 390,
+        "museumVisible": true,
+        "scroller": {
+          "zoneHeight": 108,
+          "canvasCssHeight": 64,
+          "canvasBitmapWidth": 390,
+          "canvasBitmapHeight": 64,
+          "canvasBottom": 6543.3125,
+          "documentHeight": 7125
+        }
+      },
+      "tracks": [
+        {
+          "path": "giana-sisters/title-screen.mod",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+          "activeTrack": "Title Screen",
+          "scrollerText": "NOW PLAYING / Title Screen · AMIGA / MOS 8364 PAULA    +++    AT LAST, THE ULTIMATE HTML5 MUSIC DISK IS COMPLETE +++ CODE & DSP MAGIK RUNNING AT A SOLID 50 HZ VBLANK +++ DEEP CHIP EMULATION VIA AUDIOWORKLETS +++ NO MP3, NO BULLSHIT, JUST PURE MATHEMATICS +++ GREETS FLY OUT TO ALL THE PIXEL PUSHERS, CYCLE CRUNCHERS AND WAVEFORM WIZARDS OUT THERE +++ TO EVERYONE WHO STILL KEEPS THE SPIRIT OF THE 8-BIT AND 16-BIT ERA ALIVE +++ TO THE TRUE LOVERS OF DEMOSCENE ART AND CHIPTUNE MAGIC +++ LET THE ANALOG FILTERS BURN +++ WRAP AROUND",
+          "museum": "[ MUSEUM: THE GREAT GIANA SISTERS — TITLE SCREEN ]",
+          "creditsPresent": true,
+          "conversionDisclosed": true,
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.133236825466156,
+            "rms": 0.05721527569077704,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "scrollerMatches": true,
+          "passed": true
+        },
+        {
+          "path": "giana-sisters/get-ready.mod",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+          "activeTrack": "Get Ready!",
+          "scrollerText": "NOW PLAYING / Get Ready! · AMIGA / MOS 8364 PAULA    +++    AT LAST, THE ULTIMATE HTML5 MUSIC DISK IS COMPLETE +++ CODE & DSP MAGIK RUNNING AT A SOLID 50 HZ VBLANK +++ DEEP CHIP EMULATION VIA AUDIOWORKLETS +++ NO MP3, NO BULLSHIT, JUST PURE MATHEMATICS +++ GREETS FLY OUT TO ALL THE PIXEL PUSHERS, CYCLE CRUNCHERS AND WAVEFORM WIZARDS OUT THERE +++ TO EVERYONE WHO STILL KEEPS THE SPIRIT OF THE 8-BIT AND 16-BIT ERA ALIVE +++ TO THE TRUE LOVERS OF DEMOSCENE ART AND CHIPTUNE MAGIC +++ LET THE ANALOG FILTERS BURN +++ WRAP AROUND",
+          "museum": "[ MUSEUM: THE GREAT GIANA SISTERS — GET READY! ]",
+          "creditsPresent": true,
+          "conversionDisclosed": true,
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.4362810254096985,
+            "rms": 0.10625971430066626,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "scrollerMatches": true,
+          "passed": true
+        },
+        {
+          "path": "giana-sisters/ingame-1-ground.mod",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+          "activeTrack": "In-Game 1 – Ground",
+          "scrollerText": "NOW PLAYING / In-Game 1 – Ground · AMIGA / MOS 8364 PAULA    +++    AT LAST, THE ULTIMATE HTML5 MUSIC DISK IS COMPLETE +++ CODE & DSP MAGIK RUNNING AT A SOLID 50 HZ VBLANK +++ DEEP CHIP EMULATION VIA AUDIOWORKLETS +++ NO MP3, NO BULLSHIT, JUST PURE MATHEMATICS +++ GREETS FLY OUT TO ALL THE PIXEL PUSHERS, CYCLE CRUNCHERS AND WAVEFORM WIZARDS OUT THERE +++ TO EVERYONE WHO STILL KEEPS THE SPIRIT OF THE 8-BIT AND 16-BIT ERA ALIVE +++ TO THE TRUE LOVERS OF DEMOSCENE ART AND CHIPTUNE MAGIC +++ LET THE ANALOG FILTERS BURN +++ WRAP AROUND",
+          "museum": "[ MUSEUM: THE GREAT GIANA SISTERS — IN-GAME 1 / GROUND ]",
+          "creditsPresent": true,
+          "conversionDisclosed": true,
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.43662452697753906,
+            "rms": 0.21217742034029946,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "scrollerMatches": true,
+          "passed": true
+        },
+        {
+          "path": "giana-sisters/ingame-2-cave.mod",
+          "contextState": "running",
+          "sampleRate": 44100,
+          "core": "Paula 8364 (Exact / A500) ................. CPU:[####]",
+          "activeTrack": "In-Game 2 – Cave",
+          "scrollerText": "NOW PLAYING / In-Game 2 – Cave · AMIGA / MOS 8364 PAULA    +++    AT LAST, THE ULTIMATE HTML5 MUSIC DISK IS COMPLETE +++ CODE & DSP MAGIK RUNNING AT A SOLID 50 HZ VBLANK +++ DEEP CHIP EMULATION VIA AUDIOWORKLETS +++ NO MP3, NO BULLSHIT, JUST PURE MATHEMATICS +++ GREETS FLY OUT TO ALL THE PIXEL PUSHERS, CYCLE CRUNCHERS AND WAVEFORM WIZARDS OUT THERE +++ TO EVERYONE WHO STILL KEEPS THE SPIRIT OF THE 8-BIT AND 16-BIT ERA ALIVE +++ TO THE TRUE LOVERS OF DEMOSCENE ART AND CHIPTUNE MAGIC +++ LET THE ANALOG FILTERS BURN +++ WRAP AROUND",
+          "museum": "[ MUSEUM: THE GREAT GIANA SISTERS — IN-GAME 2 / CAVE ]",
+          "creditsPresent": true,
+          "conversionDisclosed": true,
+          "safeSourceLinks": true,
+          "output": {
+            "peak": 0.3810258209705353,
+            "rms": 0.1531658798086427,
+            "nonFinite": 0
+          },
+          "finiteOutput": true,
+          "audible": true,
+          "masterPeakWithinCeiling": true,
+          "contextRunning": true,
+          "museumMatches": true,
+          "activeTrackMatches": true,
+          "scrollerMatches": true,
+          "passed": true
+        }
+      ],
+      "scroller": {
+        "techText": "PAULA TECH / ProTracker 4-Channel · 4 DMA VOICES · 23 PATTERNS · 8 SAMPLES · 87 KB · Paula 8364 (Exact / A500)",
+        "storyText": "FROM THE MUSEUM / Die Amiga-Fassung von The Great Giana Sisters erschien 1988 bei Rainbow Arts / Time Warp.  ExoticA nennt Thomas Lopatic für ihre Musik; die zugrunde liegenden Giana-Themen stammen von Chris Hülsbeck .",
+        "hoverHold": null,
+        "stableWhileHeld": true,
+        "advancesWhenRunning": true,
+        "reducedMotionHold": true,
+        "explicitMotionOptIn": true,
+        "touchTargetsPass": true,
+        "controls": [
+          {
+            "mode": "track",
+            "pressed": "true",
+            "width": 47.515625,
+            "height": 44
+          },
+          {
+            "mode": "tech",
+            "pressed": "false",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "mode": "story",
+            "pressed": "false",
+            "width": 47.515625,
+            "height": 44
+          },
+          {
+            "mode": "hold",
+            "pressed": "false",
+            "width": 44,
+            "height": 44
+          }
+        ],
+        "passed": true
+      },
+      "errors": [],
+      "passed": true
+    }
+  ],
+  "passed": true
+}
