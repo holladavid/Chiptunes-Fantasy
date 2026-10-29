@@ -89,7 +89,7 @@ export function initVisuals(stateGetters, callbacks) {
     function resizeCanvas() {
         const clientWidth = canvas.clientWidth;
         const clientHeight = canvas.clientHeight;
-        const maxResolutionWidth = 1280;
+        const maxResolutionWidth = 1920;
         let scale = 1.0;
         
         if (clientWidth > maxResolutionWidth) {
