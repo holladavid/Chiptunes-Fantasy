@@ -2349,10 +2349,12 @@ body.theme-atari .now-playing-next-row > span:first-child {
     bottom: 82px;
 }
 
-/* The windowed fullscreen control must remain reachable after inactivity. */
-#visual-zone.user-inactive:not(.pseudo-fullscreen):not(:fullscreen) #fs-ui-bar {
-    opacity: 0.8;
-    pointer-events: auto;
+/* Windowed and fullscreen stages both clear every transient overlay. */
+#visual-zone.user-inactive #brand-logo,
+#visual-zone.user-inactive #chip-hud,
+#visual-zone.user-inactive .now-playing {
+    opacity: 0;
+    pointer-events: none;
 }
 
 /* --- Intermediate desktops: transport never forces horizontal overflow --- */
@@ -3905,5 +3907,22 @@ body:has(#visual-zone.pseudo-fullscreen) {
     #visual-zone.pseudo-fullscreen #chip-hud {
         top: calc(10px + var(--stage-safe-top));
         right: calc(10px + var(--stage-safe-right));
+    }
+}
+
+/* =========================================
+   22. MOBILE STICKY TRACK TRANSPORT
+   ========================================= */
+@media (max-width: 800px), (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) and (orientation: landscape) {
+    /* Sticky must follow the document scroll, not a landscape body scroller. */
+    body, html {
+        overflow: visible !important;
+    }
+
+    /* Keep previous/play/next reachable while museum and silicon content scroll. */
+    #playback-bar {
+        position: sticky !important;
+        top: env(safe-area-inset-top, 0px);
+        z-index: 40;
     }
 }
