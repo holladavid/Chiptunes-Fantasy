@@ -50,20 +50,6 @@ export function initVisuals(stateGetters, callbacks) {
         dss.resize(canvas.width, canvas.height); // Skalierung für neue DSEs wiederherstellen
     });
 
-    // =========================================================
-    // AUTO-REGISTER ALL DEMO-SCENE-ELEMENTS WITH METADATA CONTRACT
-    // =========================================================
-    dseRegistry.forEach(entry => {
-        try {
-            const effectInstance = new entry.Class();
-            // Dem Renderer seine konsolidierten Metadaten anhängen
-            effectInstance.metadata = entry.metadata; 
-            dss.registerDSE(effectInstance);
-        } catch (err) {
-            console.error(`[SCENE-DJ] Failed to register DSE: ${entry.Class.name}`, err);
-        }
-    });
-
     // Core UI (Vom DJ unabhängig)
     const fft = new FftAnalyzer();
     const osc = new Oscilloscope(canvas.width, canvas.height);

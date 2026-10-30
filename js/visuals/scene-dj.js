@@ -35,9 +35,9 @@ export class SceneDJ {
 
     forceSystemChange(newSystem) {
         this.monitor.info.system = newSystem;
-        this.setlist.forceSystemChange(this.stage, this.monitor.info);
+        this.monitor.reset();
         this.tension.reset();
-        this.monitor.dynamics.beatEnvelope[0] = 0.0;
+        this.setlist.forceSystemChange(this.stage, this.monitor.info);
     }
 
     resize(width, height) {
@@ -63,10 +63,10 @@ export class SceneDJ {
 
         // Unidirectional State Sync (Neues Lied gewählt)
         if (this.monitor.info.sessionId !== sessionId) {
+            this.monitor.reset();
             this.tension.reset();
             this.monitor.info.sessionId = sessionId;
-            this.monitor.dynamics.beatEnvelope[0] = 0.0;
-            
+
             if (this.setlist.triggerPresenter && trackMetadata) {
                 this.setlist.triggerPresenter(this.stage, this.monitor.info, trackMetadata);
             }
@@ -74,15 +74,21 @@ export class SceneDJ {
 
         this.monitor.info.isPlaying = isPlaying;
 
-        // 1. Audio-Analyse
-        this.monitor.update(channelVolumes, dt);
+        // 1. Audio-Analyse inklusive echter Soundchip-Register
+        this.monitor.update(channelVolumes, dt, chipRegs);
 
-        // 2. Makro-Zustand berechnen (NEU: chipRegs an den Director übergeben!)
+        // 2. Makro-Zustand berechnen
         let didWakeUp = this.tension.update(this.monitor.dynamics, this.monitor.info, this.stage, dt, chipRegs);
 
-        // 3. Setlist / Swaps würfeln
+        // 3. Setlist / Swaps auf musikalischen Ereignissen buendeln
         if (isPlaying) {
-            this.setlist.manageSwaps(this.stage, this.monitor.info, this.tension.macroState, dt);
+            this.setlist.manageSwaps(
+                this.stage,
+                this.monitor.info,
+                this.tension.macroState,
+                dt,
+                this.monitor.dynamics.beatStarted
+            );
             if (didWakeUp) this.setlist.fillEmptyLayers(this.stage, this.monitor.info, 'starting');
         }
 

@@ -22,6 +22,10 @@ export class TrackDynamics {
         this.channelSmooth = new Float32Array(4);
         this.rawEnergyState = 'playing';
         this.beatCooldown = 0.0;
+        // Einmaliges Ereignis fuer Swap-Scheduling und Diagnose; das Envelope
+        // bleibt davon unabhaengig und klingt weiterhin weich ab.
+        this.beatStarted = false;
+        this.beatCount = 0;
     }
 }
 
@@ -30,10 +34,27 @@ export class TrackMonitor {
         this.info = new TrackInfo();
         this.dynamics = new TrackDynamics();
         // Hardware-State-Speicher für Rising-Edge Detection
-        this.lastRegs = new Uint8Array(32); 
+        this.lastRegs = new Uint8Array(32);
+        this.hasRegisterSnapshot = false;
+    }
+
+    reset() {
+        // Ein Track- oder Systemwechsel darf weder alte Registerflanken noch
+        // die Energie/Beat-Huelse des vorherigen Songs in den neuen tragen.
+        this.lastRegs.fill(0);
+        this.hasRegisterSnapshot = false;
+        this.dynamics.channelSmooth.fill(0);
+        this.dynamics.masterEnergy[0] = 0.0;
+        this.dynamics.transientPulse[0] = 0.0;
+        this.dynamics.beatEnvelope[0] = 0.0;
+        this.dynamics.beatCooldown = 0.0;
+        this.dynamics.beatStarted = false;
+        this.dynamics.beatCount = 0;
+        this.dynamics.rawEnergyState = 'playing';
     }
 
     update(channelVolumes, dt, chipRegs) {
+        this.dynamics.beatStarted = false;
         let totalEnergy = 0.0;
         let analogMaxPulse = 0.0;
         let numActiveChannels = (this.info.system === 'c64' || this.info.system === 'atari') ? 3 : 4;
@@ -54,12 +75,27 @@ export class TrackMonitor {
 
         this.dynamics.masterEnergy[0] = totalEnergy / numActiveChannels;
 
+        if (!this.info.isPlaying) {
+            this.hasRegisterSnapshot = false;
+            this.dynamics.transientPulse[0] = 0.0;
+            this.dynamics.beatEnvelope[0] = 0.0;
+            this.dynamics.beatCooldown = 0.0;
+            this.dynamics.rawEnergyState = 'playing';
+            return;
+        }
+
         // =========================================================
         // 2. HARDWARE TRIGGER DETECTION (Demoscene Precision)
         // =========================================================
         let isHardwareBeat = false;
 
-        if (chipRegs && this.info.isPlaying) {
+        if (chipRegs) {
+            // Der erste Snapshot ist eine Basislinie, kein Gate-/Volume-Event.
+            // Sonst erzeugt der Wechsel vom Idle-Registerarray einen Phantom-Beat.
+            if (!this.hasRegisterSnapshot) {
+                for (let i = 0; i < 32; i++) this.lastRegs[i] = chipRegs[i];
+                this.hasRegisterSnapshot = true;
+            } else {
             if (this.info.system === 'c64') {
                 // --- C64 SID: THE REAL KICK & SNARE CATCHER ---
                 for (let v = 0; v < 3; v++) {
@@ -150,8 +186,11 @@ export class TrackMonitor {
                 }
             }
             
-            // Register-Zustand für den nächsten Frame sichern
-            for(let i=0; i<32; i++) this.lastRegs[i] = chipRegs[i];
+                // Register-Zustand für den nächsten Frame sichern
+                for (let i = 0; i < 32; i++) this.lastRegs[i] = chipRegs[i];
+            }
+        } else {
+            this.hasRegisterSnapshot = false;
         }
 
         // 3. Fallback: Strenger analoger Schmit-Trigger
@@ -162,35 +201,33 @@ export class TrackMonitor {
         let pulseThresh = this.info.system === 'c64' ? 0.48 : (this.info.system === 'atari' ? 0.30 : 0.34);
         let isAnalogBeat = (analogMaxPulse > pulseThresh);
 
-        // Signal in die Pipeline schreiben
-        if (isHardwareBeat || isAnalogBeat) {
-            this.dynamics.transientPulse[0] = 1.0; 
+        // 4. Gemeinsame Beat-Annahme fuer Hardware- und Analogtrigger.
+        // Beide Quellen durchlaufen denselben Cooldown, damit ein Frame nicht
+        // mehrere unterschiedlich starke DSE-Impulse ausloesen kann.
+        this.dynamics.beatCooldown = Math.max(0.0, this.dynamics.beatCooldown - dt);
+        const beatRequested = isHardwareBeat || isAnalogBeat;
+        const beatAccepted = beatRequested && this.dynamics.beatCooldown <= 0.0;
+
+        if (beatAccepted) {
+            this.dynamics.transientPulse[0] = 1.0;
+            this.dynamics.beatEnvelope[0] = 1.0;
+            this.dynamics.beatStarted = true;
+            this.dynamics.beatCount++;
+            this.dynamics.beatCooldown = 0.15;
         } else {
             this.dynamics.transientPulse[0] = analogMaxPulse;
-        }
-
-        // 4. Macro State Logic (Tension States)
-        const energy = this.dynamics.masterEnergy[0];
-        let buildupThresh = 0.40, overdriveThresh = 0.58;
-        
-        if (this.info.system === 'c64') { buildupThresh = 0.35; overdriveThresh = 0.60; } 
-        else if (this.info.system === 'atari') { buildupThresh = 0.24; overdriveThresh = 0.48; }
-
-        let isOverdrive = (energy > overdriveThresh && this.dynamics.transientPulse[0] > pulseThresh * 0.8);
-        let isBuildup = (energy > buildupThresh);
-        this.dynamics.rawEnergyState = isOverdrive ? 'climax' : (isBuildup ? 'buildup' : 'playing');
-        
-        // 5. Perfect Micro-Dynamics (Beat Envelope)
-        this.dynamics.beatCooldown -= dt;
-        
-        if (this.info.isPlaying && (isHardwareBeat || (isAnalogBeat && this.dynamics.beatCooldown <= 0.0))) {
-            this.dynamics.beatEnvelope[0] = 1.0; // Sofortiger Einschlag!
-            this.dynamics.beatCooldown = 0.15; // Cooldown verhindert Maschinengewehr-Zittern
-        } else {
-            // Musikalisches Abklingen der Flanke (Exponential Decay)
             this.dynamics.beatEnvelope[0] *= Math.exp(-dt * 15.0);
         }
-        
-        if (!this.info.isPlaying) this.dynamics.beatEnvelope[0] = 0.0;
+
+        // 5. Macro State Logic (Tension States)
+        const energy = this.dynamics.masterEnergy[0];
+        let buildupThresh = 0.40, overdriveThresh = 0.58;
+
+        if (this.info.system === 'c64') { buildupThresh = 0.35; overdriveThresh = 0.60; }
+        else if (this.info.system === 'atari') { buildupThresh = 0.24; overdriveThresh = 0.48; }
+
+        const isOverdrive = (energy > overdriveThresh && this.dynamics.transientPulse[0] > pulseThresh * 0.8);
+        const isBuildup = (energy > buildupThresh);
+        this.dynamics.rawEnergyState = isOverdrive ? 'climax' : (isBuildup ? 'buildup' : 'playing');
     }
 }
