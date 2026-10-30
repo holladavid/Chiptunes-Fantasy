@@ -7,7 +7,7 @@
 // subtle sky band breathing and beat-reactive water cone reflections.
 // =========================================================
 
-import { C64_PALETTE, rgbToHex } from '../../utils/hardware-constraints.js';
+import { C64_PALETTE, rgbToHex, applyOrderedDitherFade } from '../../utils/hardware-constraints.js';
 
 export class C64RetroSunset {
     constructor() {
@@ -74,7 +74,7 @@ export class C64RetroSunset {
         let activeWaveSpeed = this.smoothedWaveSpeed + (metrics.beat[0] * 8.0);
         this.waterT += dt * activeWaveSpeed;
 
-        ctx.globalAlpha = globalAlpha;
+        ctx.globalAlpha = 1.0;
         
         const horizon = Math.floor(height * 0.55); 
         const minDim = Math.min(width, height); 
@@ -192,6 +192,7 @@ export class C64RetroSunset {
             }
         }
 
+        applyOrderedDitherFade(ctx, width, height, globalAlpha);
         ctx.globalAlpha = 1.0;
     }
 }

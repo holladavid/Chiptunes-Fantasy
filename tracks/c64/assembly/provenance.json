@@ -1,0 +1,271 @@
+{
+  "schema": "chiptunes-fantasy-c64-assembly-provenance-v1",
+  "curationDate": "2026-10-30",
+  "scope": "Assembly Oldskool/Mixed Demo overall winners on Commodore 64, researched for 2006–2025 inclusive. Four qualifying productions and title tracks were found.",
+  "curationRule": "A year is included only when the overall oldskool/mixed demo winner is independently identified as a C64 production and its corresponding SID title music is available. Non-C64 winners are not substituted with C64 entries from lower placements.",
+  "rightsNotice": "Public availability in HVSC or a scene archive does not imply public domain, a redistribution license, or permission for commercial use. Rights remain with their respective holders.",
+  "hvscSource": {
+    "name": "High Voltage SID Collection #85",
+    "releaseDate": "2026-06-28",
+    "archiveUrl": "https://hvsc.brona.dk/HVSC/HVSC_85-all-of-them.7z",
+    "archiveSha256": "f770339229446df1b8e037938fb70f3f4c953cb4a6eeef7ce357f05ca2c73225",
+    "metadata": "DOCUMENTS/STIL.txt and DOCUMENTS/Songlengths.md5"
+  },
+  "coverage": [
+    {
+      "year": 2006,
+      "overallWinner": "Dead Ringer",
+      "platform": "Windows 64K",
+      "includedTrack": null,
+      "reason": "Excluded: overall winner was not a Commodore 64 production."
+    },
+    {
+      "year": 2007,
+      "overallWinner": "High Hopes",
+      "platform": "NES/Famicom",
+      "includedTrack": null,
+      "reason": "Excluded: overall winner was not a Commodore 64 production."
+    },
+    {
+      "year": 2008,
+      "overallWinner": "Renaissance",
+      "platform": "MS-DOS",
+      "includedTrack": null,
+      "reason": "Excluded: overall winner was not a Commodore 64 production."
+    },
+    {
+      "year": 2009,
+      "overallWinner": "3.5 Inches Is Enough",
+      "platform": "Windows/Linux/macOS",
+      "includedTrack": null,
+      "reason": "Excluded: overall winner was not a Commodore 64 production."
+    },
+    {
+      "year": 2010,
+      "overallWinner": "Grind",
+      "platform": "Amiga OCS/ECS",
+      "includedTrack": null,
+      "reason": "Excluded: overall winner was not a Commodore 64 production."
+    },
+    {
+      "year": 2011,
+      "overallWinner": "Chaotic",
+      "platform": "Amiga AGA",
+      "includedTrack": null,
+      "reason": "Excluded: overall winner was not a Commodore 64 production."
+    },
+    {
+      "year": 2012,
+      "overallWinner": "Conservative Megademo",
+      "platform": "Commodore 64",
+      "includedTrack": "assembly/playhorse.sid",
+      "reason": "Included: verified C64 overall winner and corresponding title SID."
+    },
+    {
+      "year": 2013,
+      "overallWinner": "Norwegian Pillow",
+      "platform": "Amiga OCS/ECS",
+      "includedTrack": null,
+      "reason": "Excluded: overall winner was not a Commodore 64 production."
+    },
+    {
+      "year": 2014,
+      "overallWinner": "Sliced & Diced",
+      "platform": "Amiga OCS/ECS",
+      "includedTrack": null,
+      "reason": "Excluded: overall winner was not a Commodore 64 production."
+    },
+    {
+      "year": 2015,
+      "overallWinner": "Carbon Based",
+      "platform": "Amiga AGA",
+      "includedTrack": null,
+      "reason": "Excluded: overall winner was not a Commodore 64 production."
+    },
+    {
+      "year": 2016,
+      "overallWinner": "Malf*cktion",
+      "platform": "MS-DOS/GUS",
+      "includedTrack": null,
+      "reason": "Excluded: overall winner was not a Commodore 64 production."
+    },
+    {
+      "year": 2017,
+      "overallWinner": "My Summer Demo",
+      "platform": "MS-DOS/Windows",
+      "includedTrack": null,
+      "reason": "Excluded: overall winner was not a Commodore 64 production."
+    },
+    {
+      "year": 2018,
+      "overallWinner": "Shattered Minds",
+      "platform": "MS-DOS",
+      "includedTrack": null,
+      "reason": "Excluded: overall winner was not a Commodore 64 production."
+    },
+    {
+      "year": 2019,
+      "overallWinner": "PYO PYO",
+      "platform": "MS-DOS",
+      "includedTrack": null,
+      "reason": "Excluded: overall winner was not a Commodore 64 production."
+    },
+    {
+      "year": 2020,
+      "overallWinner": "Fantomas",
+      "platform": "Commodore 64",
+      "includedTrack": "assembly/nine-nights-from-the-black-moon.sid",
+      "reason": "Included: verified C64 overall winner and corresponding title SID."
+    },
+    {
+      "year": 2021,
+      "overallWinner": null,
+      "platform": null,
+      "includedTrack": null,
+      "reason": "No oldskool demo winner in the consulted 2021 results."
+    },
+    {
+      "year": 2022,
+      "overallWinner": "Porridgy",
+      "platform": "MS-DOS",
+      "includedTrack": null,
+      "reason": "Excluded: overall winner was not a Commodore 64 production."
+    },
+    {
+      "year": 2023,
+      "overallWinner": "The Scroll of Antonius",
+      "platform": "Commodore 64",
+      "includedTrack": "assembly/scroll-of-antonius.sid",
+      "reason": "Included: verified C64 overall winner and corresponding title SID."
+    },
+    {
+      "year": 2024,
+      "overallWinner": "Transcend the Game",
+      "platform": "Commodore 64",
+      "includedTrack": "assembly/transcend-the-game.sid",
+      "reason": "Included: verified C64 overall winner and corresponding title SID."
+    },
+    {
+      "year": 2025,
+      "overallWinner": "Demoded",
+      "platform": "MS-DOS/GUS",
+      "includedTrack": null,
+      "reason": "Excluded: overall winner was not a Commodore 64 production."
+    }
+  ],
+  "tracks": [
+    {
+      "year": 2012,
+      "path": "tracks/c64/assembly/playhorse.sid",
+      "csdbReleaseUrl": "https://csdb.dk/release/?id=110508",
+      "pouetUrl": "https://www.pouet.net/prod.php?which=59598",
+      "bytes": 5021,
+      "md5": "ed9d265e4b4ce418ba466d1c4f8bbc29",
+      "sha256": "1c4eb2e4687955f80d2b550fc241df2fa01d0bce10efb69925ba8df04df28acd",
+      "format": "PSID v2",
+      "embeddedTitle": "Playhorse",
+      "embeddedAuthor": "Paavo Pessi (Ilmarque)",
+      "embeddedReleased": "2012 Pers' Wastaiset Produktiot",
+      "songs": 2,
+      "startSong": 1,
+      "speed": "0x00000000",
+      "compatibilityFlags": "0x0014",
+      "loadAddress": "0x0000",
+      "initAddress": "0x3ff0",
+      "playAddress": "0x4003",
+      "sourceArchive": "High Voltage SID Collection #85",
+      "originalFilename": "Playhorse.sid",
+      "hvscPath": "MUSICIANS/I/Ilmarque/Playhorse.sid",
+      "sourceUrl": "https://hvsc.csdb.dk/MUSICIANS/I/Ilmarque/Playhorse.sid",
+      "bytePreservation": "Unmodified HVSC SID bytes; only the local filename changed.",
+      "songlengthsSeconds": [
+        118,
+        153
+      ]
+    },
+    {
+      "year": 2020,
+      "path": "tracks/c64/assembly/nine-nights-from-the-black-moon.sid",
+      "csdbReleaseUrl": "https://csdb.dk/release/?id=196684",
+      "pouetUrl": "https://www.pouet.net/prod.php?which=87174",
+      "bytes": 5186,
+      "md5": "b9addd59ae1657c52dd41b26620ed96d",
+      "sha256": "e2ce440dab6b618f686b751a9e10599b5cb88cf345d11ff869a29a179ceead3a",
+      "format": "PSID v2",
+      "embeddedTitle": "Nine Nights from the Black Moon",
+      "embeddedAuthor": "Jani Joeli (Jojeli)",
+      "embeddedReleased": "2020 Siesta",
+      "songs": 1,
+      "startSong": 1,
+      "speed": "0x00000000",
+      "compatibilityFlags": "0x0024",
+      "loadAddress": "0x0000",
+      "initAddress": "0x1000",
+      "playAddress": "0x1003",
+      "sourceArchive": "High Voltage SID Collection #85",
+      "originalFilename": "Nine_Nights_from_the_Black_Moon.sid",
+      "hvscPath": "MUSICIANS/J/Joeli_Jani/Nine_Nights_from_the_Black_Moon.sid",
+      "sourceUrl": "https://hvsc.csdb.dk/MUSICIANS/J/Joeli_Jani/Nine_Nights_from_the_Black_Moon.sid",
+      "bytePreservation": "Unmodified HVSC SID bytes; only the local filename changed.",
+      "songlengthsSeconds": [
+        278.985
+      ]
+    },
+    {
+      "year": 2023,
+      "path": "tracks/c64/assembly/scroll-of-antonius.sid",
+      "csdbReleaseUrl": "https://csdb.dk/release/?id=234200",
+      "pouetUrl": "https://www.pouet.net/prod.php?which=94781",
+      "bytes": 4111,
+      "md5": "bf5a7995ea424e43190ca406b41edd3f",
+      "sha256": "5b1389477374bcf2b9286497bd14f577dc127082f4f10007ba3625dea778dd38",
+      "format": "PSID v2",
+      "embeddedTitle": "The Scroll of Antonius",
+      "embeddedAuthor": "Figge Wasberger (Fegolhuzz)",
+      "embeddedReleased": "2023 FairLight",
+      "songs": 1,
+      "startSong": 1,
+      "speed": "0x00000000",
+      "compatibilityFlags": "0x0024",
+      "loadAddress": "0x0000",
+      "initAddress": "0x1000",
+      "playAddress": "0x1003",
+      "sourceArchive": "High Voltage SID Collection #85",
+      "originalFilename": "Scroll_of_Antonius.sid",
+      "hvscPath": "MUSICIANS/F/Fegolhuzz/Scroll_of_Antonius.sid",
+      "sourceUrl": "https://hvsc.csdb.dk/MUSICIANS/F/Fegolhuzz/Scroll_of_Antonius.sid",
+      "bytePreservation": "Unmodified HVSC SID bytes; only the local filename changed.",
+      "songlengthsSeconds": [
+        184.94
+      ]
+    },
+    {
+      "year": 2024,
+      "path": "tracks/c64/assembly/transcend-the-game.sid",
+      "csdbReleaseUrl": "https://csdb.dk/release/?id=244634",
+      "pouetUrl": "https://www.pouet.net/prod.php?which=97441",
+      "bytes": 1916,
+      "md5": "f36033767ec5b219f4999fc940e439e8",
+      "sha256": "2ec01ebfecc297b0ed838f8cb475ab67df310aa3ca3c438d21074600062e93ab",
+      "format": "PSID v2",
+      "embeddedTitle": "Transcend the Game",
+      "embeddedAuthor": "Ville Heikkilä (Viznut)",
+      "embeddedReleased": "2024 Pers' Wastaiset Produktiot",
+      "songs": 1,
+      "startSong": 1,
+      "speed": "0x00000000",
+      "compatibilityFlags": "0x0014",
+      "loadAddress": "0x0400",
+      "initAddress": "0x0400",
+      "playAddress": "0x0403",
+      "sourceArchive": null,
+      "sourceRelease": "Original C64 PRG distributed on the verified CSDb release page",
+      "sourceUrl": "https://csdb.dk/getinternalfile.php/259422/pwp-transcend.prg",
+      "sourcePrgBytes": 19668,
+      "sourcePrgSha256": "b7937b934b479e5d1d2f380f6af6cfdb7e236c02c57d10e407c6af5c6ac98a14",
+      "ripMethod": "Exomizer-packed PRG was executed through decrunch in a 6502 analysis harness. The unpacked original music player starts at $0400 with play at $0403. Bytes $0400–$0AFF, including the pattern and instrument data referenced through $09xx/$0Axx pointers, were preserved in a new PSID v2 container; no demo emulation is used for playback.",
+      "validation": "15,000 consecutive play calls completed with 224,443 SID register writes and 4–17 writes per frame. Musical register writes beyond volume and ADSR initialization occurred in 14,993 frames. No exact full-state loop was asserted.",
+      "songlengthsSeconds": null
+    }
+  ]
+}

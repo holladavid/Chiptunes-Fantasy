@@ -5,7 +5,7 @@
 // chunky block rendering, and fluid Beat-reactive Color-Cycling.
 // =========================================================
 
-import { C64_PALETTE, rgbToHex } from '../../utils/hardware-constraints.js';
+import { C64_PALETTE, rgbToHex, applyOrderedDitherFade } from '../../utils/hardware-constraints.js';
 
 export class ChunkyPlasma {
     constructor() {
@@ -59,7 +59,7 @@ export class ChunkyPlasma {
         // Statt hart zu flackern, schiebt der Beat die Farbpalette flüssig nach vorne
         this.colorCyclePhase += (cycleSpeed + metrics.beat[0] * cycleSpeed * 2.0) * dt;
 
-        ctx.globalAlpha = globalAlpha;
+        ctx.globalAlpha = 1.0;
 
         const cols = Math.ceil(width / this.blockSize);
         const rows = Math.ceil(height / this.blockSize);
@@ -107,6 +107,7 @@ export class ChunkyPlasma {
             }
         }
         
+        applyOrderedDitherFade(ctx, width, height, globalAlpha);
         ctx.globalAlpha = 1.0;
     }
 }

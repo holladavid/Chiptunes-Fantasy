@@ -8,7 +8,7 @@
 // 100% Anti-Aliasing free (Zero Subpixel-Bleeding).
 // =========================================================
 
-import { quantizeAtari9Bit, rgbToHex } from '../../utils/hardware-constraints.js';
+import { quantizeAtari9Bit, rgbToHex, applyOrderedDitherFade } from '../../utils/hardware-constraints.js';
 
 // Atari ST Neon Cyberpunk Palette (Strictly 9-Bit Quantized)
 const PAL = [
@@ -106,7 +106,8 @@ export class YmSiliconBg {
         else if (state === 'buildup') { speedMult = 1.5; } 
         else if (state === 'climax') { speedMult = 2.5; }
 
-        this.internalT += dt * speedMult;
+        // Der YM-Bus erhält einen kurzen beatgesteuerten Lauftakt-Impuls.
+        this.internalT += dt * speedMult * (1.0 + beat * 0.35);
         const time = this.internalT;
 
         const ctx = this.ctx;
@@ -224,9 +225,10 @@ export class YmSiliconBg {
         // Wir entfernen das imageSmoothingEnabled=true am Ende des Loops,
         // um den glättungsfreien Vektor-Staat des Blitters zu erhalten!
         // =========================================================
-        mainCtx.globalAlpha = globalAlpha;
+        mainCtx.globalAlpha = 1.0;
         mainCtx.imageSmoothingEnabled = false; 
         mainCtx.drawImage(this.offscreen, 0, 0, width, height);
+        applyOrderedDitherFade(mainCtx, width, height, globalAlpha);
         mainCtx.globalAlpha = 1.0;
     }
 }

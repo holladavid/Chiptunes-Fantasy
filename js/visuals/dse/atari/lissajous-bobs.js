@@ -5,7 +5,7 @@
 // rendered directly on top of the redrawn 16-bit background.
 // =========================================================
 
-import { quantizeAtari9Bit, rgbToHex } from '../../utils/hardware-constraints.js';
+import { quantizeAtari9Bit, rgbToHex, fillAliasedCircle } from '../../utils/hardware-constraints.js';
 
 export class AtariBobs {
     constructor() {
@@ -91,6 +91,7 @@ export class AtariBobs {
     // Zeichnet das knallharte Zwiebel-Bob-Sprite mit konzentrischen Ringen
     rebuildBobSprite() {
         const bCtx = this.bobCanvas.getContext('2d');
+        bCtx.imageSmoothingEnabled = false;
         bCtx.clearRect(0, 0, this.bobSize, this.bobSize);
         const cx = this.bobSize / 2;
         const cy = this.bobSize / 2;
@@ -98,16 +99,13 @@ export class AtariBobs {
         const activePalette = this.palettes[this.states[this.stateIndex].palette];
         const radii = [8, 6, 4, 2];
 
-        // Harte onion layers zeichnen
+        // Harte Onion-Layer als ganzzahlige Software-Kreise.
         for (let i = 0; i < 4; i++) {
-            bCtx.fillStyle = activePalette[i];
-            bCtx.beginPath();
-            bCtx.arc(cx, cy, radii[i], 0, Math.PI * 2);
-            bCtx.fill();
+            fillAliasedCircle(bCtx, cx, cy, radii[i], activePalette[i]);
         }
 
-        // Glanzpunkt (Specular highlight dot)
-        bCtx.fillStyle = '#ffffff';
+        // Glanzpunkt aus derselben 9-Bit-Palette, kein unquantisiertes Weiß.
+        bCtx.fillStyle = activePalette[3];
         bCtx.fillRect(cx - 2, cy - 2, 1, 1);
     }
 
@@ -164,10 +162,11 @@ export class AtariBobs {
 
         const phaseStep = (Math.PI * 2) / this.numBobs;
 
-        // --- COORDINATE TRANSFORMATION & RENDER ---
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate(this.angleZ);
+        // CPU-Rotation der Spritepositionen: Das Canvas selbst bleibt
+        // untransformiert, dadurch entstehen keine rotierten Zwischenpixel.
+        const cosZ = Math.cos(this.angleZ);
+        const sinZ = Math.sin(this.angleZ);
+        ctx.imageSmoothingEnabled = false;
 
         for (let i = 0; i < this.numBobs; i++) {
             // LUT-basierter Phasen-Warp
@@ -197,15 +196,17 @@ export class AtariBobs {
             if (activeMirror === 2) y = -Math.abs(y);       // Mirror Y
             if (activeMirror === 3) { x = -Math.abs(x); y = -Math.abs(y); } // Mirror XY
 
-            // Direkt auf das Haupt-Canvas blitten (Maskiertes Software-Sprite)
+            const rotatedX = x * cosZ - y * sinZ;
+            const rotatedY = x * sinZ + y * cosZ;
+
+            // Ganzzahliges Blitzen ohne Canvas-Transformation.
             ctx.drawImage(
-                this.bobCanvas, 
-                Math.floor(x - this.bobSize / 2), 
-                Math.floor(y - this.bobSize / 2), 
-                this.bobSize, 
+                this.bobCanvas,
+                Math.floor(cx + rotatedX - this.bobSize / 2),
+                Math.floor(cy + rotatedY - this.bobSize / 2),
+                this.bobSize,
                 this.bobSize
             );
         }
-        ctx.restore();
     }
 }

@@ -6,12 +6,17 @@
 // Upgraded with Diagnostic Testing constraints (disabled & exclusive)
 // =========================================================
 
+const SWAP_BEATLESS_TIMEOUT = 2.0;
+
 export class SetlistManager {
     constructor() {
         this.registeredDSEs = [];
+        this.pendingSwaps = new Map();
     }
 
     registerDSE(dse) {
+        if (this.registeredDSEs.includes(dse)) return;
+
         dse.state = 'idle';
         dse.stateTime = 0.0;
         dse._markedForRemoval = false;
@@ -111,6 +116,8 @@ export class SetlistManager {
     }
 
     forceSystemChange(stageManager, info) {
+        this.pendingSwaps.clear();
+
         for (let i = stageManager.activeDSEs.length - 1; i >= 0; i--) {
             let dse = stageManager.activeDSEs[i];
             if (dse.metadata.lifecycle === 'permanent' && dse.metadata.systems.includes('all')) continue; 
@@ -128,77 +135,84 @@ export class SetlistManager {
         this.fillEmptyLayers(stageManager, info, 'idle');
     }
 
-    manageSwaps(stageManager, info, macroState, dt) {
+    manageSwaps(stageManager, info, macroState, dt, beatStarted = false) {
         // --- PRÜFUNG AUF EXKLUSIVES TEST-ELEMENT ---
-        const hasExclusive = this.registeredDSEs.some(d => 
-            d.metadata.isExclusive && 
-            !d.metadata.isDisabled && 
+        const hasExclusive = this.registeredDSEs.some(d =>
+            d.metadata.isExclusive &&
+            !d.metadata.isDisabled &&
             (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
         );
+        const swappableStates = ['playing', 'buildup', 'climax', 'afterglow'];
+        const canSwap = dse => dse.metadata.lifecycle === 'managed' && swappableStates.includes(dse.state);
+
+        // Entfernte oder bereits ausblendende DSEs duerfen keine Warteschleife
+        // mit alten Wechselwuenschen hinterlassen.
+        for (let [dse] of this.pendingSwaps) {
+            if (!stageManager.activeDSEs.includes(dse) || dse._markedForRemoval || !canSwap(dse)) {
+                this.pendingSwaps.delete(dse);
+            }
+        }
 
         for (let dse of stageManager.activeDSEs) {
             if (dse._markedForRemoval) continue;
-            
+
             // --- EXKLUSIVES TESTING-FADE-OUT ---
-            // Sobald ein exklusiver Test aktiv wird, blenden wir alle anderen aktiven,
-            // nicht-exklusiven managed Elemente sofort weich aus.
             if (hasExclusive && dse.metadata.lifecycle === 'managed' && !dse.metadata.isExclusive) {
                 dse._markedForRemoval = true;
+                this.pendingSwaps.delete(dse);
                 continue;
             }
-            
-            if (dse.metadata.lifecycle === 'managed' && (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax')) {
-                if (dse.stateTime >= dse.metadata.duration) {
-                    let overTime = dse.stateTime - dse.metadata.duration;
-                    let swapChance = overTime * 0.1 * dt; 
 
-                    if (Math.random() < swapChance) {
-                        
-                        let otherVisibleCount = stageManager.activeDSEs.filter(d => 
-                            d !== dse && 
-                            !d._markedForRemoval && 
-                            d.metadata.lifecycle === 'managed' && 
-                            !d.metadata.isVoid
-                        ).length;
+            // Die Dauer ist weiterhin das frueheste Wechseldatum. Der tatsaechliche
+            // Crossfade startet aber erst auf einem Beat (oder nach der Fallback-Frist).
+            if (canSwap(dse) && dse.stateTime >= dse.metadata.duration && !this.pendingSwaps.has(dse)) {
+                this.pendingSwaps.set(dse, { wait: 0.0 });
+            }
+        }
 
-                        let candidates = this.registeredDSEs.filter(alt => {
-                            // 1. Diagnose-Ausschluss (Hart genullt)
-                            if (alt.metadata.isDisabled) return false;
+        for (let [dse, pending] of this.pendingSwaps) {
+            pending.wait += dt;
+            if (!beatStarted && pending.wait < SWAP_BEATLESS_TIMEOUT) continue;
 
-                            // 2. Exklusives Testing-Gate
-                            if (hasExclusive && alt.metadata.lifecycle === 'managed' && !alt.metadata.isExclusive) {
-                                return false;
-                            }
+            let otherVisibleCount = stageManager.activeDSEs.filter(d =>
+                d !== dse &&
+                !d._markedForRemoval &&
+                d.metadata.lifecycle === 'managed' &&
+                !d.metadata.isVoid
+            ).length;
 
-                            if (alt._markedForRemoval) return false;
-                            if (alt.state !== 'idle' && alt !== dse) return false;
-                            if (alt.metadata.layer !== dse.metadata.layer) return false;
-                            if (alt.metadata.lifecycle !== 'managed') return false;
-                            if (!alt.metadata.systems.includes(info.system) && !alt.metadata.systems.includes('all')) return false;
-                            if (alt.metadata.isVoid && otherVisibleCount === 0) return false;
+            let candidates = this.registeredDSEs.filter(alt => {
+                if (alt.metadata.isDisabled) return false;
+                if (hasExclusive && alt.metadata.lifecycle === 'managed' && !alt.metadata.isExclusive) return false;
+                if (alt._markedForRemoval) return false;
+                if (alt.state !== 'idle' && alt !== dse) return false;
+                if (alt.metadata.layer !== dse.metadata.layer) return false;
+                if (alt.metadata.lifecycle !== 'managed') return false;
+                if (!alt.metadata.systems.includes(info.system) && !alt.metadata.systems.includes('all')) return false;
+                if (alt.metadata.isVoid && otherVisibleCount === 0) return false;
+                return true;
+            });
 
-                            return true;
-                        });
-                        
-                        if (candidates.length > 0) {
-                            let chosen = this.selectWeightedDSE(candidates);
-                            
-                            if (chosen === dse) {
-                                dse.stateTime = 0.0;
-                                this.applyFatigue(dse);
-                            } else {
-                                dse._markedForRemoval = true;
-                                this.applyFatigue(chosen);
-                                
-                                chosen.state = 'starting';
-                                chosen.stateTime = 0.0;
-                                chosen._markedForRemoval = false;
-                                stageManager.activeDSEs.push(chosen);
-                                stageManager.sortZOrder();
-                            }
-                        }
-                    }
-                }
+            if (candidates.length === 0) {
+                pending.wait = 0.0;
+                continue;
+            }
+
+            let chosen = this.selectWeightedDSE(candidates);
+            this.pendingSwaps.delete(dse);
+
+            if (chosen === dse) {
+                dse.stateTime = 0.0;
+                this.applyFatigue(dse);
+            } else {
+                dse._markedForRemoval = true;
+                this.applyFatigue(chosen);
+
+                chosen.state = 'starting';
+                chosen.stateTime = 0.0;
+                chosen._markedForRemoval = false;
+                stageManager.activeDSEs.push(chosen);
+                stageManager.sortZOrder();
             }
         }
     }

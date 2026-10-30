@@ -5,7 +5,7 @@
 // Strict 9-Bit Shifter Colors, no Anti-Aliasing/Glow hacks.
 // =========================================================
 
-import { quantizeAtari9Bit, rgbToHex, drawAliasedLine } from '../../utils/hardware-constraints.js';
+import { quantizeAtari9Bit, rgbToHex, drawAliasedLine, applyOrderedDitherFade } from '../../utils/hardware-constraints.js';
 
 export class WireframeMorph {
     constructor() {
@@ -75,7 +75,7 @@ export class WireframeMorph {
 
 // === js/visuals/dse/atari/wireframe-morph.js (Auszug) ===
         
-        ctx.globalAlpha = globalAlpha;
+        ctx.globalAlpha = 1.0;
 
         const cx = width / 2;
         const cy = height / 2;
@@ -154,6 +154,7 @@ export class WireframeMorph {
             drawAliasedLine(ctx, p1.x, p1.y, p2.x, p2.y, hexColor);
         }
 
+        applyOrderedDitherFade(ctx, width, height, globalAlpha);
         ctx.globalAlpha = 1.0;
     }
 }

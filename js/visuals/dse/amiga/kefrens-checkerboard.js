@@ -7,7 +7,7 @@
 // Horizon aligned with RetroSunset via a 1-pixel projection shift.
 // =========================================================
 
-import { quantizeAmiga12Bit, rgbToHex } from '../../utils/hardware-constraints.js';
+import { quantizeAmiga12Bit, rgbToHex, applyOrderedDitherFade } from '../../utils/hardware-constraints.js';
 
 export class KefrensCheckerboard {
     constructor() {
@@ -32,7 +32,8 @@ export class KefrensCheckerboard {
         let globalAlpha = 1.0;
         let targetSpeed = 1.0;
         let targetSway = 0.0;
-        let beatBump = 0.0;
+        // Dezente Kamera-Antwort auf jeden Beat; der Climax verstaerkt sie.
+        let beatBump = metrics.beat[0] * 6.0;
 
         if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
@@ -51,7 +52,7 @@ export class KefrensCheckerboard {
         this.smoothedSway += (targetSway - this.smoothedSway) * Math.min(1.0, dt * 3.0);
         this.internalT += dt * this.smoothedSpeed;
 
-        ctx.globalAlpha = globalAlpha;
+        ctx.globalAlpha = 1.0;
 
         const horizon = Math.floor(height * 0.55);
         const scanH = 1; 
@@ -118,6 +119,7 @@ export class KefrensCheckerboard {
             }
         }
         
+        applyOrderedDitherFade(ctx, width, height, globalAlpha);
         ctx.globalAlpha = 1.0;
     }
 }

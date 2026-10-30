@@ -1,10 +1,12 @@
 // === js/visuals/dj/stage-manager.js ===
 const TRANSITION_TIME = 1.5;
+const PAL_FRAME_RATE = 50;
 const Z_ORDER = { 'background': 0, 'floor': 1, 'foreground': 2, 'overlay': 3 };
 
 export class StageManager {
     constructor() {
         this.activeDSEs = [];
+        this.frameCaches = new WeakMap();
     }
 
     sortZOrder() {
@@ -99,9 +101,44 @@ export class StageManager {
         metricsWrapper.rawEnergyState = dynamics.rawEnergyState;
         metricsWrapper.system = info.system;
 
+        const palTick = Math.floor(t * PAL_FRAME_RATE + 1e-7);
         for (let i = 0; i < this.activeDSEs.length; i++) {
             let dse = this.activeDSEs[i];
-            dse.render(ctx, width, height, t, dse.state, dse.stateTime, metricsWrapper);
+            let cache = this.frameCaches.get(dse);
+            if (!cache) {
+                const canvas = document.createElement('canvas');
+                cache = {
+                    canvas,
+                    ctx: canvas.getContext('2d'),
+                    tick: null,
+                    state: null,
+                    system: null
+                };
+                this.frameCaches.set(dse, cache);
+            }
+
+            if (cache.canvas.width !== width || cache.canvas.height !== height) {
+                cache.canvas.width = width;
+                cache.canvas.height = height;
+                cache.tick = null;
+            }
+
+            // Nur die DSE-Bildberechnung wird auf PAL 50 Hz begrenzt. DJ-Logik,
+            // Beat-Analyse und Zustandswechsel behalten ihre volle Zeitaufloesung.
+            if (cache.tick !== palTick || cache.state !== dse.state || cache.system !== info.system) {
+                cache.ctx.clearRect(0, 0, width, height);
+                cache.ctx.globalAlpha = 1.0;
+                cache.ctx.imageSmoothingEnabled = false;
+                dse.render(cache.ctx, width, height, t, dse.state, dse.stateTime, metricsWrapper);
+                cache.tick = palTick;
+                cache.state = dse.state;
+                cache.system = info.system;
+            }
+
+            // Transparenter Layer-Cache: Die Z-Order und die vom Scene DJ
+            // erlaubte Mischung mehrerer DSEs bleiben unveraendert erhalten.
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(cache.canvas, 0, 0);
         }
     }
 }

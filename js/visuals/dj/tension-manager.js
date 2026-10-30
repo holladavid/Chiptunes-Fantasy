@@ -20,6 +20,7 @@ export class TensionManager {
         
         // Demo-Director Metriken (Zero Allocation Speicher)
         this.lastRegs = new Uint8Array(32);
+        this.hasRegisterSnapshot = false;
         this.freshness = 0.0;
         this.lastEnergy = 0.0;
         this.afterglowTimer = 0.0;
@@ -36,6 +37,7 @@ export class TensionManager {
         this.lastEnergy = 0.0;
         this.afterglowTimer = 0.0;
         this.lastRegs.fill(0);
+        this.hasRegisterSnapshot = false;
     }
 
     update(dynamics, info, stageManager, dt, chipRegs) {
@@ -53,6 +55,11 @@ export class TensionManager {
         // Analyse der Silizium-Register auf signifikante Ereignisse
         // =========================================================
         if (chipRegs && info.isPlaying) {
+            if (!this.hasRegisterSnapshot) {
+                // Erster Live-Snapshot: nur Basislinie, keine kuenstliche Novelty.
+                for (let i = 0; i < 32; i++) this.lastRegs[i] = chipRegs[i];
+                this.hasRegisterSnapshot = true;
+            } else {
             if (info.system === 'c64') {
                 // SID Events
                 for (let v = 0; v < 3; v++) {
@@ -90,6 +97,9 @@ export class TensionManager {
             for(let i = 0; i < 32; i++) {
                 this.lastRegs[i] = chipRegs[i];
             }
+            }
+        } else {
+            this.hasRegisterSnapshot = false;
         }
 
         // Systemspezifischer Abbau (Amiga sachte beschleunigt auf 0.65)
@@ -172,16 +182,18 @@ export class TensionManager {
                         this.climaxTimer = 0.0;
                         this.currentClimaxHoldTime = stageManager.getMaxClimaxHoldTime();
                         targetState = 'climax';
-                    } else if (this.tension > TENSION_MAX * 0.65) {
-                        if (this.macroState === 'playing' && this.energyStateTimer > MIN_BUILDUP_TIME) {
-                            targetState = 'buildup';
-                        }
-                    } else {
-                        if (this.macroState === 'buildup' && this.energyStateTimer > MIN_BUILDUP_TIME) {
-                            targetState = 'playing';
-                        } else if (this.macroState !== 'buildup') {
-                            targetState = 'playing'; 
-                        }
+                    } else if (this.macroState === 'playing' &&
+                               this.tension > TENSION_MAX * 0.65 &&
+                               this.energyStateTimer > MIN_BUILDUP_TIME) {
+                        targetState = 'buildup';
+                    } else if (this.macroState === 'buildup' &&
+                               this.tension < TENSION_MAX * 0.45 &&
+                               this.energyStateTimer > MIN_BUILDUP_TIME) {
+                        // Hysterese: Erst unter 45% zurueck zu playing, damit
+                        // ein Pegel um die 65%-Grenze nicht flattert.
+                        targetState = 'playing';
+                    } else if (this.macroState !== 'playing' && this.macroState !== 'buildup') {
+                        targetState = 'playing';
                     }
                 } else {
                     // Song ist leise -> Tension baut sich sachte ab, aber wir bleiben aktiv im 'playing'-Zustand!

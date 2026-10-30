@@ -52,6 +52,51 @@ export const SYSTEM_RESOLUTIONS = {
     'amiga': 256   
 };
 
+// Ein-/Ausblendungen bleiben als ordered Dither vollstaendig in der
+// Systempalette. CanvasPatterns vermeiden zehntausende Einzelpixel-Aufrufe.
+const ORDERED_FADE_MATRIX = [
+     0,  8,  2, 10,
+    12,  4, 14,  6,
+     3, 11,  1,  9,
+    15,  7, 13,  5
+];
+const ORDERED_FADE_PATTERNS = new WeakMap();
+
+export function applyOrderedDitherFade(ctx, width, height, visibility) {
+    const alpha = Number.isFinite(visibility) ? visibility : 1;
+    const level = Math.max(0, Math.min(16, Math.round(alpha * 16)));
+    ctx.globalAlpha = 1.0;
+
+    if (level === 16) return;
+    if (level === 0) {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, width, height);
+        return;
+    }
+
+    let patterns = ORDERED_FADE_PATTERNS.get(ctx);
+    if (!patterns) {
+        patterns = new Array(17);
+        ORDERED_FADE_PATTERNS.set(ctx, patterns);
+    }
+    if (!patterns[level]) {
+        const patternCanvas = document.createElement('canvas');
+        patternCanvas.width = 4;
+        patternCanvas.height = 4;
+        const patternCtx = patternCanvas.getContext('2d');
+        patternCtx.fillStyle = '#000000';
+        for (let i = 0; i < ORDERED_FADE_MATRIX.length; i++) {
+            if (ORDERED_FADE_MATRIX[i] >= level) {
+                patternCtx.fillRect(i & 3, i >> 2, 1, 1);
+            }
+        }
+        patterns[level] = ctx.createPattern(patternCanvas, 'repeat');
+    }
+
+    ctx.fillStyle = patterns[level];
+    ctx.fillRect(0, 0, width, height);
+}
+
 export function fillAliasedCircle(ctx, xc, yc, r, color) {
     ctx.fillStyle = color;
     xc = Math.floor(xc);
@@ -106,15 +151,95 @@ export function drawAliasedLine(ctx, x0, y0, x1, y1, color) {
     x0 = Math.floor(x0); y0 = Math.floor(y0);
     x1 = Math.floor(x1); y1 = Math.floor(y1);
 
-    let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-    let dy = Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    const dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    const dy = Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
     let err = (dx > dy ? dx : -dy) / 2;
 
+    // Exakt dieselbe Bresenham-Punktfolge, aber zusammenhaengende Pixel
+    // werden als horizontale oder vertikale Spanne ausgegeben.
+    if (dx >= dy) {
+        let runStartX = x0;
+        while (true) {
+            const oldX = x0, oldY = y0;
+            if (x0 === x1 && y0 === y1) {
+                ctx.fillRect(Math.min(runStartX, x0), y0, Math.abs(x0 - runStartX) + 1, 1);
+                break;
+            }
+            const e2 = err;
+            if (e2 > -dx) { err -= dy; x0 += sx; }
+            if (e2 < dy) { err += dx; y0 += sy; }
+            if (y0 !== oldY) {
+                ctx.fillRect(Math.min(runStartX, oldX), oldY, Math.abs(oldX - runStartX) + 1, 1);
+                runStartX = x0;
+            }
+        }
+        return;
+    }
+
+    let runStartY = y0;
     while (true) {
-        ctx.fillRect(x0, y0, 1, 1);
-        if (x0 === x1 && y0 === y1) break;
-        let e2 = err;
+        const oldX = x0, oldY = y0;
+        if (x0 === x1 && y0 === y1) {
+            ctx.fillRect(x0, Math.min(runStartY, y0), 1, Math.abs(y0 - runStartY) + 1);
+            break;
+        }
+        const e2 = err;
         if (e2 > -dx) { err -= dy; x0 += sx; }
         if (e2 < dy) { err += dx; y0 += sy; }
+        if (x0 !== oldX) {
+            ctx.fillRect(oldX, Math.min(runStartY, oldY), 1, Math.abs(oldY - runStartY) + 1);
+            runStartY = y0;
+        }
+    }
+}
+
+/**
+ * Ganzzahliger Scanline-Rasterizer fuer kleine DSE-Polygone.
+ * Er ersetzt Canvas-fill(), dessen Kanten sonst Browser-AA und damit
+ * unerwuenschte Zwischenfarben erzeugen. Im Dither-Modus bleibt jedes
+ * zweite Pixel transparent, wie bei einem klassischen Glenz-Effekt.
+ */
+export function fillAliasedPolygon(ctx, points, color, transparentDither = false) {
+    if (!points || points.length < 3) return;
+
+    let minY = points[0].y;
+    let maxY = points[0].y;
+    for (let i = 1; i < points.length; i++) {
+        minY = Math.min(minY, points[i].y);
+        maxY = Math.max(maxY, points[i].y);
+    }
+
+    minY = Math.ceil(minY);
+    maxY = Math.floor(maxY);
+    const intersections = [];
+    ctx.fillStyle = color;
+
+    for (let y = minY; y <= maxY; y++) {
+        intersections.length = 0;
+        for (let i = 0; i < points.length; i++) {
+            const p0 = points[i];
+            const p1 = points[(i + 1) % points.length];
+            if (p0.y === p1.y) continue;
+
+            const crossesScanline = (p0.y <= y && p1.y > y) || (p1.y <= y && p0.y > y);
+            if (crossesScanline) {
+                intersections.push(p0.x + ((y - p0.y) / (p1.y - p0.y)) * (p1.x - p0.x));
+            }
+        }
+
+        intersections.sort((a, b) => a - b);
+        for (let i = 0; i + 1 < intersections.length; i += 2) {
+            const startX = Math.ceil(intersections[i]);
+            const endX = Math.floor(intersections[i + 1]);
+            if (endX < startX) continue;
+
+            if (transparentDither) {
+                for (let x = startX; x <= endX; x++) {
+                    if (((x + y) & 1) === 0) ctx.fillRect(x, y, 1, 1);
+                }
+            } else {
+                ctx.fillRect(startX, y, endX - startX + 1, 1);
+            }
+        }
     }
 }

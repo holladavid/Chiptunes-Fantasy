@@ -8,7 +8,7 @@
 // Optimized with Dynamic Frustum recycling and cubic horizon Z-clustering.
 // =========================================================
 
-import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit, drawAliasedLine } from '../../utils/hardware-constraints.js';
+import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit, drawAliasedLine, applyOrderedDitherFade } from '../../utils/hardware-constraints.js';
 
 export class Starfield {
     constructor() {
@@ -64,8 +64,10 @@ export class Starfield {
         } else if (state === 'climax') {
             targetWarp = 5.5; 
             beatWarp = 7.0; 
-            spinSpeed = 1.8; 
-            globalAlpha = 0.85 + (metrics.beat[0] * 0.15); 
+            spinSpeed = 1.8;
+            // Kein Alpha-Puls: Beat-Warp und Geschwindigkeit liefern die
+            // Climax-Dynamik, ohne ausserhalb der Systempalette zu mischen.
+            globalAlpha = 1.0;
         }
         
         this.smoothedWarp += (targetWarp - this.smoothedWarp) * 0.1;
@@ -74,13 +76,14 @@ export class Starfield {
         let activeWarp = this.smoothedWarp + (metrics.beat[0] * beatWarp);
         this.internalT += dt * this.smoothedSpeed;
 
-        ctx.globalAlpha = globalAlpha;
+        ctx.globalAlpha = 1.0;
 
         // Routing an die hochspezifischen, hardware-konformen Renderer
         if (metrics.system === 'c64') this.drawC64(ctx, width, height, activeWarp, metrics);
         else if (metrics.system === 'amiga') this.drawAmiga(ctx, width, height, activeWarp, metrics);
         else this.drawAtari(ctx, width, height, activeWarp, metrics, dt, state);
 
+        applyOrderedDitherFade(ctx, width, height, globalAlpha);
         ctx.globalAlpha = 1.0;
     }
 

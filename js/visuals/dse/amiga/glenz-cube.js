@@ -5,7 +5,7 @@
 // 1024-step mechanical rotation LUT, and beat-reactive vertex explosion.
 // =========================================================
 
-import { quantizeAmiga12Bit, rgbToHex, drawAliasedLine } from '../../utils/hardware-constraints.js';
+import { quantizeAmiga12Bit, rgbToHex, drawAliasedLine, fillAliasedPolygon, applyOrderedDitherFade } from '../../utils/hardware-constraints.js';
 
 export class AmigaCube {
     constructor() {
@@ -77,8 +77,7 @@ export class AmigaCube {
             [255, 68, 119]   // 5: Pink
         ];
 
-        // --- 3. TRANSPARENT CHECKERBOARD PATTERNS (The Ultimate Hack) ---
-        // Wir erzeugen pro Gesicht zwei Muster: Ein helles (Front) und ein dunkles (Back)
+        // --- 3. TRANSPARENT CHECKERBOARD PATTERNS ---
         this.frontPatterns = baseColors.map(c => this.createTransparentDitherPattern(c[0], c[1], c[2]));
         this.backPatterns = baseColors.map(c => this.createTransparentDitherPattern(c[0] * 0.4, c[1] * 0.4, c[2] * 0.4));
 
@@ -88,21 +87,15 @@ export class AmigaCube {
         this.initialized = true;
     }
 
-    // Erzeugt ein echtes OCS-Dither-Pattern (Wechselseitig transparent!)
     createTransparentDitherPattern(r, g, b) {
         const pCanvas = document.createElement('canvas');
         pCanvas.width = 2;
         pCanvas.height = 2;
         const pCtx = pCanvas.getContext('2d');
-
-        // Transparent clearen
         pCtx.clearRect(0, 0, 2, 2);
-
-        // 50% Pixel-Schachbrett zeichnen
         pCtx.fillStyle = rgbToHex(...quantizeAmiga12Bit(r, g, b));
         pCtx.fillRect(0, 0, 1, 1);
         pCtx.fillRect(1, 1, 1, 1);
-
         return pCtx.createPattern(pCanvas, 'repeat');
     }
 
@@ -163,7 +156,7 @@ export class AmigaCube {
         this.rotY = (this.rotY + Math.floor(dt * 220 * this.smoothedSpeed * tensionSpeedMult)) & 1023;
         this.rotZ = (this.rotZ + Math.floor(dt * 110 * this.smoothedSpeed * tensionSpeedMult)) & 1023;
 
-        ctx.globalAlpha = globalAlpha;
+        ctx.globalAlpha = 1.0;
 
         const cx = Math.floor(width / 2); 
         const cy = Math.floor(height / 2);
@@ -250,19 +243,18 @@ export class AmigaCube {
             let face = this.facesToDraw[i]; 
             let idxs = face.idxs;
             
-            // Pixelgenaue Füll-Pfade vorbereiten
-            ctx.beginPath(); 
-            ctx.moveTo(this.projected[idxs[0]].x, this.projected[idxs[0]].y); 
-            ctx.lineTo(this.projected[idxs[1]].x, this.projected[idxs[1]].y); 
-            ctx.lineTo(this.projected[idxs[2]].x, this.projected[idxs[2]].y); 
-            ctx.lineTo(this.projected[idxs[3]].x, this.projected[idxs[3]].y); 
-            ctx.closePath();
-
-            // 100% Alpha-freies OCS-Dithering
-            ctx.fillStyle = face.isBackface 
-                ? this.backPatterns[face.colorIdx]  // Dunkles Schachbrett für Rückseite
-                : this.frontPatterns[face.colorIdx]; // Helles Schachbrett für Vorderseite
-            ctx.fill();
+            // Software-Scanlines verhindern Browser-AA an den Polygonkanten.
+            const quad = [
+                this.projected[idxs[0]], this.projected[idxs[1]],
+                this.projected[idxs[2]], this.projected[idxs[3]]
+            ];
+            // Ganze ganzzahlige Scanline-Streifen mit opaque Dither-Muster:
+            // keine Polygon-AA und nur ein Draw-Call pro sichtbarer Zeile.
+            fillAliasedPolygon(
+                ctx,
+                quad,
+                face.isBackface ? this.backPatterns[face.colorIdx] : this.frontPatterns[face.colorIdx]
+            );
 
             // --- 1-PIXEL COOPER WIREFRAME OUTLINES ---
             // Flackert unruhig im Takt des Beats für echten Röhren-Klang-Charakter
@@ -280,6 +272,7 @@ export class AmigaCube {
             drawAliasedLine(ctx, p3.x, p3.y, p0.x, p0.y, lineColor);
         }
 
+        applyOrderedDitherFade(ctx, width, height, globalAlpha);
         ctx.globalAlpha = 1.0;
     }
 }

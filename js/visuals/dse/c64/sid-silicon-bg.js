@@ -7,7 +7,7 @@
 // and VIC-II comb-resonance rasters. Completely asymmetric and organic.
 // =========================================================
 
-import { C64_PALETTE, rgbToHex, drawAliasedLine } from '../../utils/hardware-constraints.js';
+import { C64_PALETTE, rgbToHex, drawAliasedLine, applyOrderedDitherFade } from '../../utils/hardware-constraints.js';
 
 const PAL = C64_PALETTE.map(c => rgbToHex(c[0], c[1], c[2]));
 
@@ -319,7 +319,9 @@ export class SidSiliconBg {
         else if (state === 'buildup') { speedMult = 1.5; } 
         else if (state === 'climax') { speedMult = 2.5; }
 
-        this.internalT += dt * speedMult;
+        // Beatgetriebener Bus-Takt: kurzer Bewegungsimpuls im vorhandenen
+        // Raster, zusaetzlich zu den registergetriebenen Signalen.
+        this.internalT += dt * speedMult * (1.0 + metrics.beat[0] * 0.35);
         const time = this.internalT;
 
         const ctx = this.ctx;
@@ -461,9 +463,10 @@ export class SidSiliconBg {
         // Wir entfernen den fehlerhaften imageSmoothingEnabled=true Aufruf am Ende,
         // um den RetroCtx nicht aus Versehen aufzuweichen!
         // =========================================================
-        mainCtx.globalAlpha = globalAlpha;
+        mainCtx.globalAlpha = 1.0;
         mainCtx.imageSmoothingEnabled = false; 
         mainCtx.drawImage(this.offscreen, 0, 0, width, height);
+        applyOrderedDitherFade(mainCtx, width, height, globalAlpha);
         mainCtx.globalAlpha = 1.0;
     }
 }

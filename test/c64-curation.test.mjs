@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { SID_SLDB } from '../js/content/songlengths.js';
 import { c64Playlist, c64TrackPaths } from '../tracks/c64/playlist.js';
 import { c64MuseumMetadata } from '../tracks/c64/museum.js';
-import { getTracklistEntries, trackRegistry } from '../tracks/index.js';
+import { getTracklistEntries, searchTracks, trackRegistry } from '../tracks/index.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const source = relative => readFileSync(path.join(root, relative));
@@ -52,22 +52,23 @@ function header(relative) {
 
 const hex = (value, width) => `0x${value.toString(16).padStart(width, '0')}`;
 
-test('Kuration: 26 Bestandspfade bleiben erhalten und 24 eindeutige Klassiker ergänzen sie', () => {
-    assert.equal(c64Playlist.length, 50);
-    assert.equal(c64TrackPaths.length, 50);
-    assert.equal(new Set(c64TrackPaths).size, 50);
+test('Kuration: 26 Bestandspfade, 24 Klassiker und vier Assembly-Sieger bleiben eindeutig', () => {
+    assert.equal(c64Playlist.length, 54);
+    assert.equal(c64TrackPaths.length, 54);
+    assert.equal(new Set(c64TrackPaths).size, 54);
     assert.deepEqual(c64TrackPaths.slice(0, 26), expectedLegacyPrefix);
     assert.deepEqual(c64Playlist.map(entry => entry.path), c64TrackPaths);
     const additions = c64TrackPaths.slice(26);
     assert.equal(additions.filter(filename => filename.startsWith('classics/games/')).length, 20);
     assert.equal(additions.filter(filename => filename.startsWith('classics/demoscene/')).length, 4);
+    assert.equal(additions.filter(filename => filename.startsWith('assembly/')).length, 4);
     assert.ok(additions.every(filename => filename.endsWith('.sid')));
 });
 
 test('Kuration: jeder Titel besitzt einen eigenen strukturierten Museumstext mit sicheren Quellenlinks', () => {
-    assert.equal(Object.keys(c64MuseumMetadata).length, 50);
+    assert.equal(Object.keys(c64MuseumMetadata).length, 54);
     assert.deepEqual(Object.keys(c64MuseumMetadata).sort(), [...c64TrackPaths].sort());
-    assert.equal(new Set(Object.values(c64MuseumMetadata)).size, 50);
+    assert.equal(new Set(Object.values(c64MuseumMetadata)).size, 54);
     for (const entry of c64Playlist) {
         const museumText = c64MuseumMetadata[entry.path];
         assert.equal(entry.composerInfo, museumText);
@@ -114,7 +115,7 @@ test('Kuration: Provenienz und SID-Header stimmen mit allen 24 neuen Dateibytes 
     assert.equal(provenance.source.archiveBytes, 84827547);
     assert.equal(provenance.source.archiveSha256,
         'f770339229446df1b8e037938fb70f3f4c953cb4a6eeef7ce357f05ca2c73225');
-    const additions = new Set(c64TrackPaths.slice(26).map(filename => `tracks/c64/${filename}`));
+    const additions = new Set(c64TrackPaths.slice(26, 50).map(filename => `tracks/c64/${filename}`));
     assert.deepEqual(new Set(provenance.tracks.map(track => track.path)), additions);
 
     for (const track of provenance.tracks) {
@@ -140,8 +141,8 @@ test('Kuration: Provenienz und SID-Header stimmen mit allen 24 neuen Dateibytes 
     }
 });
 
-test('Kuration: alle 50 Songlength-Listen entsprechen exakt den lokalen Subsong-Headern', () => {
-    assert.equal(Object.keys(SID_SLDB).length, 50);
+test('Kuration: 53 HVSC-Songlength-Listen passen; der neue 2024-Rip nutzt bewusst den Fallback', () => {
+    assert.equal(Object.keys(SID_SLDB).length, 53);
     for (const filename of c64TrackPaths) {
         const sid = header(`tracks/c64/${filename}`);
         assert.ok(['PSID', 'RSID'].includes(sid.magic), filename);
@@ -149,15 +150,20 @@ test('Kuration: alle 50 Songlength-Listen entsprechen exakt den lokalen Subsong-
         assert.ok(sid.startSong >= 1 && sid.startSong <= sid.songs, filename);
         const key = normalizedKey(filename);
         const lengths = SID_SLDB[key]?.lengths;
+        if (filename === 'assembly/transcend-the-game.sid') {
+            assert.equal(lengths, undefined);
+            continue;
+        }
         assert.ok(lengths, `${filename}: fehlender normalisierter Schlüssel ${key}`);
         assert.equal(lengths.length, sid.songs, filename);
         assert.ok(lengths.every(length => Number.isFinite(length) && length > 0), filename);
         assert.equal(lengths[sid.startSong - 1], SID_SLDB[key].lengths[sid.startSong - 1]);
     }
     assert.equal(SID_SLDB.rambofirstbloodpartii.lengths.length, 23);
+    assert.deepEqual(SID_SLDB.playhorse.lengths, [118, 153]);
 });
 
-test('Kuration: Tracklist-Navigation erhält 26 Wurzeltitel und die beiden verschachtelten Klassikergruppen', () => {
+test('Kuration: Tracklist-Navigation erhält Klassikergruppen und den Assembly-Ordner', () => {
     const rootEntries = getTracklistEntries(trackRegistry.c64);
     assert.equal(rootEntries.filter(entry => entry.type === 'track').length, 26);
     const classics = rootEntries.find(entry => entry.type === 'folder' && entry.name === 'classics');
@@ -172,18 +178,64 @@ test('Kuration: Tracklist-Navigation erhält 26 Wurzeltitel und die beiden versc
         assert.ok(tracks.every(entry => entry.song.path.startsWith(`${group.path}/`)));
         assert.ok(tracks.every(entry => entry.song.composerInfo.includes('[ MUSEUM:')));
     }
+
+    const assembly = rootEntries.find(entry => entry.type === 'folder' && entry.name === 'assembly');
+    assert.ok(assembly);
+    const winners = getTracklistEntries(trackRegistry.c64, assembly.path);
+    assert.equal(winners.length, 4);
+    assert.deepEqual(winners.map(entry => entry.song.listTitle), [
+        'Assembly 2012 · Conservative Megademo – Playhorse',
+        'Assembly 2020 · Fantomas – Nine Nights from the Black Moon',
+        'Assembly 2023 · The Scroll of Antonius',
+        'Assembly 2024 · Transcend the Game'
+    ]);
 });
 
-test('Kuration: separate 50-Titel-Audioabnahme ist bestanden und an die ausgelieferten Quellen gebunden', () => {
+test('Assembly: 20-Jahres-Abdeckung, Provenienz und Suche sind an die gelieferten Bytes gebunden', () => {
+    const provenance = json('tracks/c64/assembly/provenance.json');
+    assert.equal(provenance.schema, 'chiptunes-fantasy-c64-assembly-provenance-v1');
+    assert.equal(provenance.coverage.length, 20);
+    assert.equal(provenance.tracks.length, 4);
+    assert.deepEqual(provenance.coverage.filter(year => year.includedTrack).map(year => year.year),
+        [2012, 2020, 2023, 2024]);
+    assert.equal(provenance.coverage.find(year => year.year === 2007).platform, 'NES/Famicom');
+    assert.equal(provenance.coverage.find(year => year.year === 2025).platform, 'MS-DOS/GUS');
+    assert.equal(searchTracks(trackRegistry.c64, 'Assembly').length, 4);
+    assert.equal(searchTracks(trackRegistry.c64, 'schwarzen Mond')[0].song.path,
+        'assembly/nine-nights-from-the-black-moon.sid');
+
+    for (const track of provenance.tracks) {
+        const sid = header(track.path);
+        assert.equal(digest('sha256', sid.bytes), track.sha256, track.path);
+        assert.equal(digest('md5', sid.bytes), track.md5, track.path);
+        assert.equal(sid.title, track.embeddedTitle, track.path);
+        assert.equal(sid.author, track.embeddedAuthor, track.path);
+        assert.equal(sid.songs, track.songs, track.path);
+        assert.match(track.csdbReleaseUrl, /^https:\/\/csdb\.dk\/release\/\?id=\d+$/);
+        if (track.year === 2024) {
+            assert.equal(track.sourceArchive, null);
+            assert.equal(track.songlengthsSeconds, null);
+            assert.match(track.ripMethod, /\$0400–\$0AFF/);
+            assert.equal(sid.initAddress, 0x0400);
+            assert.equal(sid.playAddress, 0x0403);
+        } else {
+            assert.equal(track.sourceArchive, 'High Voltage SID Collection #85');
+            assert.equal(track.songlengthsSeconds.length, sid.songs);
+        }
+    }
+});
+
+test('Kuration: separate 54-Titel-Audioabnahme ist bestanden und an die ausgelieferten Quellen gebunden', () => {
     const result = json('doc/verification/c64/curation-library-corpus.json');
     assert.equal(result.format, 'chiptunes-fantasy-c64-curation-library-v1');
     assert.equal(result.passed, true);
     assert.equal(result.engine, 'exact');
     assert.equal(result.processor, 'sid-exact-processor');
-    assert.equal(result.corpus.trackCount, 50);
-    assert.equal(result.corpus.tracks.length, 50);
+    assert.equal(result.corpus.trackCount, 54);
+    assert.equal(result.corpus.tracks.length, 54);
     assert.deepEqual(result.corpus.tracks.map(track => track.path), c64TrackPaths);
-    assert.equal(Object.values(result.corpus.formatCounts).reduce((sum, count) => sum + count, 0), 50);
+    assert.equal(Object.values(result.corpus.formatCounts).reduce((sum, count) => sum + count, 0), 54);
+    assert.equal(result.corpus.formatCounts['PSID v2'], 47);
     assert.equal(result.corpus.formatCounts['RSID v2'], 7);
     assert.ok(result.corpus.tracks.some(track => track.path === 'classics/demoscene/comaland-100-end.sid' &&
         track.format === 'RSID v2' && track.audible));
@@ -195,5 +247,6 @@ test('Kuration: separate 50-Titel-Audioabnahme ist bestanden und an die ausgelie
     assert.equal(result.playlistSha256, digest('sha256', source('tracks/c64/playlist.js')));
     assert.equal(result.museumSha256, digest('sha256', source('tracks/c64/museum.js')));
     assert.equal(result.provenanceSha256, digest('sha256', source('tracks/c64/classics/provenance.json')));
+    assert.equal(result.assemblyProvenanceSha256, digest('sha256', source('tracks/c64/assembly/provenance.json')));
     assert.equal(result.songlengthsSha256, digest('sha256', source('js/content/songlengths.js')));
 });

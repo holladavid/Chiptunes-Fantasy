@@ -5,7 +5,7 @@
 // specular face-override, and dynamic edge-detection bouncing.
 // =========================================================
 
-import { quantizeAmiga12Bit, rgbToHex, drawAliasedLine } from '../../utils/hardware-constraints.js';
+import { quantizeAmiga12Bit, rgbToHex, drawAliasedLine, fillAliasedPolygon } from '../../utils/hardware-constraints.js';
 
 export class AmigaBoingBall {
     constructor() {
@@ -75,16 +75,7 @@ export class AmigaBoingBall {
     ensureInitialized() {
         if (this.initialized) return;
 
-        // Dither Pattern für den OCS-Schatten (1-Bit Schachbrett statt Alpha!)
-        const sCanvas = document.createElement('canvas');
-        sCanvas.width = 2; 
-        sCanvas.height = 2;
-        const sCtx = sCanvas.getContext('2d');
-        sCtx.fillStyle = rgbToHex(...quantizeAmiga12Bit(0, 0, 0));
-        sCtx.fillRect(0, 0, 1, 1);
-        sCtx.fillRect(1, 1, 1, 1);
-        
-        this.shadowPattern = sCtx.createPattern(sCanvas, 'repeat');
+        this.shadowColor = rgbToHex(...quantizeAmiga12Bit(0, 0, 0));
         this.reflColor = rgbToHex(...quantizeAmiga12Bit(170, 0, 0));
 
         this.initialized = true;
@@ -158,7 +149,9 @@ export class AmigaBoingBall {
         const bounceY = parabolicArc * (height * 0.28);
 
         // Rotation
-        let targetRotSpeed = 1.8 * this.smoothedSpeed;
+        // Der Beat versetzt dem Gitterball einen kurzen Drehimpuls, ohne die
+        // etablierte Sprungbahn oder Aufprallphysik zu veraendern.
+        let targetRotSpeed = 1.8 * this.smoothedSpeed * (1.0 + metrics.beat[0] * 0.35);
         this.currentRotSpeed += (targetRotSpeed - this.currentRotSpeed) * dt * 2.0;
         this.currentRotY += isMovingRight ? (dt * this.currentRotSpeed) : -(dt * this.currentRotSpeed);
 
@@ -222,16 +215,16 @@ export class AmigaBoingBall {
             ctx.fillRect(shadowX - ballRadiusOnScreen * 0.8, shadowY + 2, ballRadiusOnScreen * 1.6, 6);
         }
 
-        // Dithered 1-Bit Shadow (Skaliert mit der Flughöhe)
-        let shadowW = ballRadiusOnScreen * 1.2 * (1.0 - (bounceY / height));
-        let shadowH = ballRadiusOnScreen * 0.3 * (1.0 - (bounceY / height));
-        
-        ctx.save();
-        ctx.fillStyle = this.shadowPattern;
-        ctx.beginPath();
-        ctx.ellipse(shadowX, shadowY, shadowW, shadowH, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
+        // Ganzzahlige Ellipsen-Scanlines mit 1-Bit-Dither statt Canvas-AA.
+        const shadowW = Math.max(1, Math.floor(ballRadiusOnScreen * 1.2 * (1.0 - (bounceY / height))));
+        const shadowH = Math.max(1, Math.floor(ballRadiusOnScreen * 0.3 * (1.0 - (bounceY / height))));
+        ctx.fillStyle = this.shadowColor;
+        for (let dy = -shadowH; dy <= shadowH; dy++) {
+            const dx = Math.floor(shadowW * Math.sqrt(Math.max(0, 1 - (dy * dy) / (shadowH * shadowH))));
+            for (let x = -dx; x <= dx; x++) {
+                if (((x + dy) & 1) === 0) ctx.fillRect(shadowX + x, shadowY + dy, 1, 1);
+            }
+        }
 
         // =========================================================
         // 5. LIGHTING & FAKE SPECULAR HIGHLIGHT
@@ -304,15 +297,11 @@ export class AmigaBoingBall {
             let face = visibleFaces[i];
             let idxs = face.idxs;
 
-            ctx.beginPath();
-            ctx.moveTo(this.projected[idxs[0]].x, this.projected[idxs[0]].y);
-            ctx.lineTo(this.projected[idxs[1]].x, this.projected[idxs[1]].y);
-            ctx.lineTo(this.projected[idxs[2]].x, this.projected[idxs[2]].y);
-            ctx.lineTo(this.projected[idxs[3]].x, this.projected[idxs[3]].y);
-            ctx.closePath();
-            
-            ctx.fillStyle = face.hex;
-            ctx.fill();
+            const quad = [
+                this.projected[idxs[0]], this.projected[idxs[1]],
+                this.projected[idxs[2]], this.projected[idxs[3]]
+            ];
+            fillAliasedPolygon(ctx, quad, face.hex);
 
             // 1-Pixel Black Outline an der Schattenseite
             if (face.dot < -0.3) {

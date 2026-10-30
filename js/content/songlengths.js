@@ -102,5 +102,10 @@ export const SID_SLDB = {
     // coma-light-13.sid — HVSC #85 MD5 match
     "comalight13": { lengths: [268.098] },
     // comaland-100-end.sid — HVSC #85 MD5 match
-    "comaland100end": { lengths: [362.201] }
+    "comaland100end": { lengths: [362.201] },
+    // Assembly winners — HVSC #85 MD5 matches; Subsong 1 is the faster demo cut.
+    "playhorse": { lengths: [118, 153] },
+    "ninenightsfromtheblackmoon": { lengths: [278.985] },
+    "scrollofantonius": { lengths: [184.94] }
+    // transcend-the-game.sid is a documented new rip, not an HVSC #85 entry.
 };
