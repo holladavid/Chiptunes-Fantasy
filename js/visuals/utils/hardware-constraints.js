@@ -118,3 +118,54 @@ export function drawAliasedLine(ctx, x0, y0, x1, y1, color) {
         if (e2 < dy) { err += dx; y0 += sy; }
     }
 }
+
+/**
+ * Ganzzahliger Scanline-Rasterizer fuer kleine DSE-Polygone.
+ * Er ersetzt Canvas-fill(), dessen Kanten sonst Browser-AA und damit
+ * unerwuenschte Zwischenfarben erzeugen. Im Dither-Modus bleibt jedes
+ * zweite Pixel transparent, wie bei einem klassischen Glenz-Effekt.
+ */
+export function fillAliasedPolygon(ctx, points, color, transparentDither = false) {
+    if (!points || points.length < 3) return;
+
+    let minY = points[0].y;
+    let maxY = points[0].y;
+    for (let i = 1; i < points.length; i++) {
+        minY = Math.min(minY, points[i].y);
+        maxY = Math.max(maxY, points[i].y);
+    }
+
+    minY = Math.ceil(minY);
+    maxY = Math.floor(maxY);
+    const intersections = [];
+    ctx.fillStyle = color;
+
+    for (let y = minY; y <= maxY; y++) {
+        intersections.length = 0;
+        for (let i = 0; i < points.length; i++) {
+            const p0 = points[i];
+            const p1 = points[(i + 1) % points.length];
+            if (p0.y === p1.y) continue;
+
+            const crossesScanline = (p0.y <= y && p1.y > y) || (p1.y <= y && p0.y > y);
+            if (crossesScanline) {
+                intersections.push(p0.x + ((y - p0.y) / (p1.y - p0.y)) * (p1.x - p0.x));
+            }
+        }
+
+        intersections.sort((a, b) => a - b);
+        for (let i = 0; i + 1 < intersections.length; i += 2) {
+            const startX = Math.ceil(intersections[i]);
+            const endX = Math.floor(intersections[i + 1]);
+            if (endX < startX) continue;
+
+            if (transparentDither) {
+                for (let x = startX; x <= endX; x++) {
+                    if (((x + y) & 1) === 0) ctx.fillRect(x, y, 1, 1);
+                }
+            } else {
+                ctx.fillRect(startX, y, endX - startX + 1, 1);
+            }
+        }
+    }
+}

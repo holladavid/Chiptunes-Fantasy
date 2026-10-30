@@ -253,19 +253,16 @@ export class AmigaRetroSunset {
         // --- LAYER 2: THE SINGLE BIG TWINKLING STAR (20s Cycle, no instant flashes) ---
         let blinkPhase = (t * 0.3) % (Math.PI * 2);
         if (blinkPhase < 0.8) {
-            let starAlpha = Math.sin((blinkPhase / 0.8) * Math.PI);
-            ctx.save();
-            ctx.globalAlpha = starAlpha * globalAlpha;
-            
-            let sxStar = Math.floor(width * 0.8);
-            let syStar = Math.floor(horizon * 0.2);
-            
-            ctx.fillStyle = this.cSunCore;
+            const starBrightness = Math.sin((blinkPhase / 0.8) * Math.PI);
+            const sxStar = Math.floor(width * 0.8);
+            const syStar = Math.floor(horizon * 0.2);
+
+            // Diskrete OCS-Helligkeitsstufen statt Alpha-Zwischenfarben.
+            ctx.fillStyle = starBrightness > 0.66 ? this.cSunCore :
+                (starBrightness > 0.33 ? this.cSunYellow : this.cSunOrange);
             ctx.fillRect(sxStar, syStar, 2, 2);
-            ctx.fillStyle = this.cSunYellow;
             ctx.fillRect(sxStar - 2, syStar, 6, 2);
             ctx.fillRect(sxStar, syStar - 2, 2, 6);
-            ctx.restore();
         }
 
         // --- LAYER 3: LENSFLARE SPRITE ---

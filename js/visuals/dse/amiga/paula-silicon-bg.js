@@ -378,7 +378,8 @@ export class PaulaSiliconBg {
         mainCtx.globalAlpha = globalAlpha;
         mainCtx.imageSmoothingEnabled = false; 
         mainCtx.drawImage(this.offscreen, 0, 0, width, height);
-        mainCtx.imageSmoothingEnabled = true; 
+        // Der naechste DSE erbt bewusst harte Pixel, niemals Browser-AA.
+        mainCtx.imageSmoothingEnabled = false;
         mainCtx.globalAlpha = 1.0;
     }
 }

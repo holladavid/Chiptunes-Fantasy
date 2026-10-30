@@ -64,8 +64,10 @@ export class Starfield {
         } else if (state === 'climax') {
             targetWarp = 5.5; 
             beatWarp = 7.0; 
-            spinSpeed = 1.8; 
-            globalAlpha = 0.85 + (metrics.beat[0] * 0.15); 
+            spinSpeed = 1.8;
+            // Kein Alpha-Puls: Beat-Warp und Geschwindigkeit liefern die
+            // Climax-Dynamik, ohne ausserhalb der Systempalette zu mischen.
+            globalAlpha = 1.0;
         }
         
         this.smoothedWarp += (targetWarp - this.smoothedWarp) * 0.1;

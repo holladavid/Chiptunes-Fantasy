@@ -455,13 +455,14 @@ export class AtariRetroSunset {
 
         ctx.fillStyle = this.cTorii;
         let bWidth = Math.floor(minDim * 0.6);
-        ctx.fillRect(cx - bWidth/2, toriiTop, bWidth, Math.floor(minDim * 0.04));
+        const beamX = Math.floor(cx - bWidth / 2);
+        ctx.fillRect(beamX, toriiTop, bWidth, Math.floor(minDim * 0.04));
         ctx.fillStyle = this.cToriiHigh;
-        ctx.fillRect(cx - bWidth/2, toriiTop, bWidth, 1);
+        ctx.fillRect(beamX, toriiTop, bWidth, 1);
 
         let bWidth2 = Math.floor(minDim * 0.5);
         ctx.fillStyle = this.cTorii;
-        ctx.fillRect(cx - bWidth2/2, toriiTop + Math.floor(minDim * 0.06), bWidth2, Math.floor(minDim * 0.02));
+        ctx.fillRect(Math.floor(cx - bWidth2 / 2), toriiTop + Math.floor(minDim * 0.06), bWidth2, Math.floor(minDim * 0.02));
         ctx.fillRect(cx - 2, toriiTop, 4, Math.floor(minDim * 0.06));
 
         // =========================================================
