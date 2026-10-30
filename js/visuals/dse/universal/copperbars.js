@@ -154,7 +154,10 @@ export class Copperbars {
         this.internalT += dt * this.smoothedSpeed;
 
         const baseSpeed = 0.55; 
-        const phaseStep = (Math.PI * 2) / numBars; 
+        const phaseStep = (Math.PI * 2) / numBars;
+        // Ein kurzer Copperlisten-Versatz macht den Beat auch im Playing-State
+        // sichtbar. Ganze Rasterzeilen, keine Farb- oder Alpha-Modulation.
+        const beatNudge = Math.round(metrics.beat[0] * 3.0);
 
         // Aspect-ratio-sichere Schwingungsamplitude
         const amplitude = (height * 0.24) * this.smoothedAmplitude;
@@ -171,6 +174,7 @@ export class Copperbars {
 
             let yCenter = (height / 2);
             yCenter += sineVal * amplitude;
+            yCenter += (c & 1) === 0 ? beatNudge : -beatNudge;
             
             // Beat-Glitched Twist im Climax
             if (state === 'climax') {

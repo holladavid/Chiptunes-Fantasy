@@ -32,7 +32,8 @@ export class KefrensCheckerboard {
         let globalAlpha = 1.0;
         let targetSpeed = 1.0;
         let targetSway = 0.0;
-        let beatBump = 0.0;
+        // Dezente Kamera-Antwort auf jeden Beat; der Climax verstaerkt sie.
+        let beatBump = metrics.beat[0] * 6.0;
 
         if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);

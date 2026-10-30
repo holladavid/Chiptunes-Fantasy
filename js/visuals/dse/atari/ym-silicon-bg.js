@@ -106,7 +106,8 @@ export class YmSiliconBg {
         else if (state === 'buildup') { speedMult = 1.5; } 
         else if (state === 'climax') { speedMult = 2.5; }
 
-        this.internalT += dt * speedMult;
+        // Der YM-Bus erhält einen kurzen beatgesteuerten Lauftakt-Impuls.
+        this.internalT += dt * speedMult * (1.0 + beat * 0.35);
         const time = this.internalT;
 
         const ctx = this.ctx;

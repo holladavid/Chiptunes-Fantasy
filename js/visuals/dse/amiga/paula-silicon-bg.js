@@ -270,7 +270,9 @@ export class PaulaSiliconBg {
         else if (state === 'buildup') { speedMult = 1.8; } 
         else if (state === 'climax') { speedMult = 3.0; }
 
-        this.internalT += dt * speedMult;
+        // Paula reagiert mit einem kurzen Taktimpuls auf den Beat; die
+        // vorhandenen Register- und Spannungsanzeigen bleiben unveraendert.
+        this.internalT += dt * speedMult * (1.0 + beat * 0.35);
         const time = this.internalT;
 
         const ctx = this.ctx;

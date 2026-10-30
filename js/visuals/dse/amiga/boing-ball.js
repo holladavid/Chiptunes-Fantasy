@@ -149,7 +149,9 @@ export class AmigaBoingBall {
         const bounceY = parabolicArc * (height * 0.28);
 
         // Rotation
-        let targetRotSpeed = 1.8 * this.smoothedSpeed;
+        // Der Beat versetzt dem Gitterball einen kurzen Drehimpuls, ohne die
+        // etablierte Sprungbahn oder Aufprallphysik zu veraendern.
+        let targetRotSpeed = 1.8 * this.smoothedSpeed * (1.0 + metrics.beat[0] * 0.35);
         this.currentRotSpeed += (targetRotSpeed - this.currentRotSpeed) * dt * 2.0;
         this.currentRotY += isMovingRight ? (dt * this.currentRotSpeed) : -(dt * this.currentRotSpeed);
 

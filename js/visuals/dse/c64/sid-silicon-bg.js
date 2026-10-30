@@ -319,7 +319,9 @@ export class SidSiliconBg {
         else if (state === 'buildup') { speedMult = 1.5; } 
         else if (state === 'climax') { speedMult = 2.5; }
 
-        this.internalT += dt * speedMult;
+        // Beatgetriebener Bus-Takt: kurzer Bewegungsimpuls im vorhandenen
+        // Raster, zusaetzlich zu den registergetriebenen Signalen.
+        this.internalT += dt * speedMult * (1.0 + metrics.beat[0] * 0.35);
         const time = this.internalT;
 
         const ctx = this.ctx;
