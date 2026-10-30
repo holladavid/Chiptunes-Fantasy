@@ -163,26 +163,20 @@ export class PaulaSiliconBg {
         
         if (gridH <= 0 || offW <= 0) return;
 
+        // Native 32-Bit-Writes fuellen dieselben RGBA-Bytes wie zuvor, vermeiden
+        // aber Millionen einzelner Byte-Zuweisungen beim Kaltstart eines Formats.
+        const packRgba = (c) => new Uint32Array(Uint8Array.of(c.r, c.g, c.b, c.a).buffer)[0];
+        const bgWord = packRgba(hexToRgba(this.floorColor));
+        const lnWord = packRgba(hexToRgba(rgbToHex(...quantizeAmiga12Bit(0, 140, 255))));
+
         for (let f = 0; f < 16; f++) {
             let gCanvas = this.gridCanvases[f];
             gCanvas.width = offW; gCanvas.height = gridH;
             let gCtx = gCanvas.getContext('2d');
             
             let imgData = gCtx.createImageData(offW, gridH);
-            let data = imgData.data;
-            let bg = hexToRgba(this.floorColor);
-            let ln = hexToRgba(rgbToHex(...quantizeAmiga12Bit(0, 140, 255)));
-
-            // High-Speed Background Fill
-            for (let i = 0; i < data.length; i += 4) {
-                data[i] = bg.r; data[i+1] = bg.g; data[i+2] = bg.b; data[i+3] = bg.a;
-            }
-
-            const setPixel = (x, y) => {
-                if (x < 0 || x >= offW || y < 0 || y >= gridH) return;
-                let idx = (y * offW + x) * 4;
-                data[idx] = ln.r; data[idx+1] = ln.g; data[idx+2] = ln.b; data[idx+3] = ln.a;
-            };
+            let pixels = new Uint32Array(imgData.data.buffer);
+            pixels.fill(bgWord);
 
             const drawBresenham = (x0, y0, x1, y1) => {
                 x0 = Math.floor(x0); y0 = Math.floor(y0);
@@ -190,8 +184,42 @@ export class PaulaSiliconBg {
                 let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
                 let dy = Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
                 let err = (dx > dy ? dx : -dy) / 2;
-                while (true) {
-                    setPixel(x0, y0);
+                const majorSteps = Math.max(dx, dy);
+                if (majorSteps === 0) {
+                    if (x0 >= 0 && x0 < offW && y0 >= 0 && y0 < gridH) pixels[y0 * offW + x0] = lnWord;
+                    return;
+                }
+
+                // Auf der Major-Axis exakt bis zum sichtbaren Intervall springen.
+                // Fehlerakkumulator und Minor-Axis werden dabei um dieselbe
+                // Schrittanzahl weitergerechnet; die sichtbare Punktfolge bleibt
+                // gegenueber dem vollstaendigen Bresenham-Lauf unveraendert.
+                const xMajor = dx > dy;
+                const majorStart = xMajor ? x0 : y0;
+                const majorStep = xMajor ? sx : sy;
+                const majorMax = xMajor ? offW - 1 : gridH - 1;
+                const boundA = (0 - majorStart) / majorStep;
+                const boundB = (majorMax - majorStart) / majorStep;
+                const skip = Math.max(0, Math.ceil(Math.min(boundA, boundB)));
+                const stop = Math.min(majorSteps, Math.floor(Math.max(boundA, boundB)));
+                if (stop < skip || skip > majorSteps) return;
+
+                if (skip > 0) {
+                    if (xMajor) {
+                        const minorSteps = Math.max(0, Math.ceil((skip * dy - err) / dx));
+                        x0 += skip * sx;
+                        y0 += minorSteps * sy;
+                        err += minorSteps * dx - skip * dy;
+                    } else {
+                        const minorSteps = Math.max(0, Math.ceil((skip * dx + err) / dy));
+                        y0 += skip * sy;
+                        x0 += minorSteps * sx;
+                        err += skip * dx - minorSteps * dy;
+                    }
+                }
+
+                for (let step = skip; step <= stop; step++) {
+                    if (x0 >= 0 && x0 < offW && y0 >= 0 && y0 < gridH) pixels[y0 * offW + x0] = lnWord;
                     if (x0 === x1 && y0 === y1) break;
                     let e2 = err;
                     if (e2 > -dx) { err -= dy; x0 += sx; }
@@ -205,8 +233,8 @@ export class PaulaSiliconBg {
                 if (pZ < 2.5) continue;
                 let py = Math.floor((camY * fov) / pZ);
                 if (py > gridH) continue;
-                // Turboschnelle Horizontal-Linie direkt im RAM
-                for (let px = 0; px < offW; px++) setPixel(px, py);
+                // Ganze Scanline als native 32-Bit-Spanne statt Einzelpixeln.
+                if (py >= 0 && py < gridH) pixels.fill(lnWord, py * offW, (py + 1) * offW);
             }
 
             const xRange = Math.max(400, offW * 1.5);
