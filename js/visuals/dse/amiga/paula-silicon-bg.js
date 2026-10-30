@@ -6,7 +6,7 @@
 // without browser API bottlenecks. 
 // =========================================================
 
-import { quantizeAmiga12Bit, rgbToHex } from '../../../visuals/utils/hardware-constraints.js';
+import { quantizeAmiga12Bit, rgbToHex, applyOrderedDitherFade } from '../../../visuals/utils/hardware-constraints.js';
 
 // Die Raster sind nach ihrer Erstellung unveraenderlich. Ein kleiner LRU-Cache
 // vermeidet den wiederholten Aufbau bei DSE-Wechseln und Mobilrotationen.
@@ -400,11 +400,12 @@ export class PaulaSiliconBg {
             ctx.fillRect(gx + 4, gy + 2, 8, 2);
         }
 
-        mainCtx.globalAlpha = globalAlpha;
+        mainCtx.globalAlpha = 1.0;
         mainCtx.imageSmoothingEnabled = false; 
         mainCtx.drawImage(this.offscreen, 0, 0, width, height);
         // Der naechste DSE erbt bewusst harte Pixel, niemals Browser-AA.
         mainCtx.imageSmoothingEnabled = false;
+        applyOrderedDitherFade(mainCtx, width, height, globalAlpha);
         mainCtx.globalAlpha = 1.0;
     }
 }

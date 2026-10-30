@@ -6,7 +6,7 @@
 // narrow water-shimmer ripples, and a 20s twinkling big star.
 // =========================================================
 
-import { quantizeAmiga12Bit, rgbToHex, fillAliasedCircle, drawAliasedLine } from '../../utils/hardware-constraints.js';
+import { quantizeAmiga12Bit, rgbToHex, fillAliasedCircle, drawAliasedLine, applyOrderedDitherFade } from '../../utils/hardware-constraints.js';
 
 export class AmigaRetroSunset {
     constructor() {
@@ -237,7 +237,7 @@ export class AmigaRetroSunset {
             this.rebuildWaterCache(width, height);
         }
 
-        ctx.globalAlpha = globalAlpha;
+        ctx.globalAlpha = 1.0;
         const horizon = Math.floor(height * 0.55); 
         const minDim = Math.min(width, height);
 
@@ -501,6 +501,7 @@ export class AmigaRetroSunset {
             }
         }
 
+        applyOrderedDitherFade(ctx, width, height, globalAlpha);
         ctx.globalAlpha = 1.0;
     }
 }

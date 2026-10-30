@@ -52,6 +52,51 @@ export const SYSTEM_RESOLUTIONS = {
     'amiga': 256   
 };
 
+// Ein-/Ausblendungen bleiben als ordered Dither vollstaendig in der
+// Systempalette. CanvasPatterns vermeiden zehntausende Einzelpixel-Aufrufe.
+const ORDERED_FADE_MATRIX = [
+     0,  8,  2, 10,
+    12,  4, 14,  6,
+     3, 11,  1,  9,
+    15,  7, 13,  5
+];
+const ORDERED_FADE_PATTERNS = new WeakMap();
+
+export function applyOrderedDitherFade(ctx, width, height, visibility) {
+    const alpha = Number.isFinite(visibility) ? visibility : 1;
+    const level = Math.max(0, Math.min(16, Math.round(alpha * 16)));
+    ctx.globalAlpha = 1.0;
+
+    if (level === 16) return;
+    if (level === 0) {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, width, height);
+        return;
+    }
+
+    let patterns = ORDERED_FADE_PATTERNS.get(ctx);
+    if (!patterns) {
+        patterns = new Array(17);
+        ORDERED_FADE_PATTERNS.set(ctx, patterns);
+    }
+    if (!patterns[level]) {
+        const patternCanvas = document.createElement('canvas');
+        patternCanvas.width = 4;
+        patternCanvas.height = 4;
+        const patternCtx = patternCanvas.getContext('2d');
+        patternCtx.fillStyle = '#000000';
+        for (let i = 0; i < ORDERED_FADE_MATRIX.length; i++) {
+            if (ORDERED_FADE_MATRIX[i] >= level) {
+                patternCtx.fillRect(i & 3, i >> 2, 1, 1);
+            }
+        }
+        patterns[level] = ctx.createPattern(patternCanvas, 'repeat');
+    }
+
+    ctx.fillStyle = patterns[level];
+    ctx.fillRect(0, 0, width, height);
+}
+
 export function fillAliasedCircle(ctx, xc, yc, r, color) {
     ctx.fillStyle = color;
     xc = Math.floor(xc);

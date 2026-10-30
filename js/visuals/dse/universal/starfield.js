@@ -8,7 +8,7 @@
 // Optimized with Dynamic Frustum recycling and cubic horizon Z-clustering.
 // =========================================================
 
-import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit, drawAliasedLine } from '../../utils/hardware-constraints.js';
+import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit, drawAliasedLine, applyOrderedDitherFade } from '../../utils/hardware-constraints.js';
 
 export class Starfield {
     constructor() {
@@ -76,13 +76,14 @@ export class Starfield {
         let activeWarp = this.smoothedWarp + (metrics.beat[0] * beatWarp);
         this.internalT += dt * this.smoothedSpeed;
 
-        ctx.globalAlpha = globalAlpha;
+        ctx.globalAlpha = 1.0;
 
         // Routing an die hochspezifischen, hardware-konformen Renderer
         if (metrics.system === 'c64') this.drawC64(ctx, width, height, activeWarp, metrics);
         else if (metrics.system === 'amiga') this.drawAmiga(ctx, width, height, activeWarp, metrics);
         else this.drawAtari(ctx, width, height, activeWarp, metrics, dt, state);
 
+        applyOrderedDitherFade(ctx, width, height, globalAlpha);
         ctx.globalAlpha = 1.0;
     }
 

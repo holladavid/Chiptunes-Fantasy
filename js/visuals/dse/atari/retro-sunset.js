@@ -1,5 +1,5 @@
 // === js/visuals/dse/atari/retro-sunset.js ===
-import { quantizeAtari9Bit, rgbToHex, fillAliasedCircle, drawAliasedLine } from '../../utils/hardware-constraints.js';
+import { quantizeAtari9Bit, rgbToHex, fillAliasedCircle, drawAliasedLine, applyOrderedDitherFade } from '../../utils/hardware-constraints.js';
 
 export class AtariRetroSunset {
     constructor() {
@@ -207,7 +207,7 @@ export class AtariRetroSunset {
         this.waterT += dt * speedMult;
 
         const beat = metrics.beat[0];
-        ctx.globalAlpha = globalAlpha;
+        ctx.globalAlpha = 1.0;
         
         const horizon = Math.floor(height * 0.55); 
         const minDim = Math.min(width, height);
@@ -544,6 +544,7 @@ export class AtariRetroSunset {
             ctx.drawImage(this.getLeafSprite(leaf.r, leaf.col), lx - leaf.r, ly - leaf.r);
         }
 
+        applyOrderedDitherFade(ctx, width, height, globalAlpha);
         ctx.globalAlpha = 1.0;
     }
 }

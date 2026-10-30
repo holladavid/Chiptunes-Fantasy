@@ -5,7 +5,7 @@
 // 1024-step mechanical rotation LUT, and beat-reactive vertex explosion.
 // =========================================================
 
-import { quantizeAmiga12Bit, rgbToHex, drawAliasedLine, fillAliasedPolygon } from '../../utils/hardware-constraints.js';
+import { quantizeAmiga12Bit, rgbToHex, drawAliasedLine, fillAliasedPolygon, applyOrderedDitherFade } from '../../utils/hardware-constraints.js';
 
 export class AmigaCube {
     constructor() {
@@ -156,7 +156,7 @@ export class AmigaCube {
         this.rotY = (this.rotY + Math.floor(dt * 220 * this.smoothedSpeed * tensionSpeedMult)) & 1023;
         this.rotZ = (this.rotZ + Math.floor(dt * 110 * this.smoothedSpeed * tensionSpeedMult)) & 1023;
 
-        ctx.globalAlpha = globalAlpha;
+        ctx.globalAlpha = 1.0;
 
         const cx = Math.floor(width / 2); 
         const cy = Math.floor(height / 2);
@@ -272,6 +272,7 @@ export class AmigaCube {
             drawAliasedLine(ctx, p3.x, p3.y, p0.x, p0.y, lineColor);
         }
 
+        applyOrderedDitherFade(ctx, width, height, globalAlpha);
         ctx.globalAlpha = 1.0;
     }
 }

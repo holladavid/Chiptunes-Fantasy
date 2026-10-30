@@ -7,7 +7,7 @@
 // Horizon aligned with RetroSunset via a 1-pixel projection shift.
 // =========================================================
 
-import { quantizeAmiga12Bit, rgbToHex } from '../../utils/hardware-constraints.js';
+import { quantizeAmiga12Bit, rgbToHex, applyOrderedDitherFade } from '../../utils/hardware-constraints.js';
 
 export class KefrensCheckerboard {
     constructor() {
@@ -51,7 +51,7 @@ export class KefrensCheckerboard {
         this.smoothedSway += (targetSway - this.smoothedSway) * Math.min(1.0, dt * 3.0);
         this.internalT += dt * this.smoothedSpeed;
 
-        ctx.globalAlpha = globalAlpha;
+        ctx.globalAlpha = 1.0;
 
         const horizon = Math.floor(height * 0.55);
         const scanH = 1; 
@@ -118,6 +118,7 @@ export class KefrensCheckerboard {
             }
         }
         
+        applyOrderedDitherFade(ctx, width, height, globalAlpha);
         ctx.globalAlpha = 1.0;
     }
 }

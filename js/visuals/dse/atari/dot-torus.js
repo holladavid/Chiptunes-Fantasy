@@ -5,7 +5,7 @@
 // Strictly unsorted pixel chaos with mechanical Shifter Palette Cycling.
 // =========================================================
 
-import { quantizeAtari9Bit, rgbToHex } from '../../utils/hardware-constraints.js';
+import { quantizeAtari9Bit, rgbToHex, applyOrderedDitherFade } from '../../utils/hardware-constraints.js';
 
 export class AtariDotTorus {
     constructor() {
@@ -207,7 +207,7 @@ export class AtariDotTorus {
         // =========================================================
         // 7. RENDER (No sorting! Pure raw pixel chaos)
         // =========================================================
-        ctx.globalAlpha = globalAlpha;
+        ctx.globalAlpha = 1.0;
 
         for (let i = 0; i < this.numDots; i++) {
             let p = this.projected[i];
@@ -220,6 +220,7 @@ export class AtariDotTorus {
             ctx.fillRect(p.x, p.y, 2, 2);
         }
 
+        applyOrderedDitherFade(ctx, width, height, globalAlpha);
         ctx.globalAlpha = 1.0;
     }
 }
