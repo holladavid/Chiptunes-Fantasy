@@ -8,6 +8,11 @@
 
 import { quantizeAmiga12Bit, rgbToHex } from '../../../visuals/utils/hardware-constraints.js';
 
+// Die Raster sind nach ihrer Erstellung unveraenderlich. Ein kleiner LRU-Cache
+// vermeidet den wiederholten Aufbau bei DSE-Wechseln und Mobilrotationen.
+const PAULA_RASTER_CACHE = new Map();
+const PAULA_RASTER_CACHE_LIMIT = 4;
+
 export class PaulaSiliconBg {
     constructor() {
         this.name = 'Paula 8364 Microverse';
@@ -95,7 +100,18 @@ export class PaulaSiliconBg {
     // Garantiert 100% Aliasing bei maximaler Geschwindigkeit.
     // =========================================================
     rebuildResizedCanvases(offW, offH, horizon) {
-        
+        const cacheKey = `${offW}x${offH}:${horizon}`;
+        const cached = PAULA_RASTER_CACHE.get(cacheKey);
+        if (cached) {
+            // LRU-Reihenfolge aktualisieren, ohne neue Pixeldaten zu erzeugen.
+            PAULA_RASTER_CACHE.delete(cacheKey);
+            PAULA_RASTER_CACHE.set(cacheKey, cached);
+            this.moireCanvas = cached.moireCanvas;
+            this.climaxMoireCanvas = cached.climaxMoireCanvas;
+            this.gridCanvases = cached.gridCanvases;
+            return;
+        }
+
         // Helper: Hex String (#RRGGBB) zu RGBA Bytes parsen
         const hexToRgba = (hex) => ({
             r: parseInt(hex.slice(1, 3), 16),
@@ -206,6 +222,15 @@ export class PaulaSiliconBg {
             }
 
             gCtx.putImageData(imgData, 0, 0); // BAM! Im Bruchteil einer Millisekunde aufs Canvas!
+        }
+
+        PAULA_RASTER_CACHE.set(cacheKey, {
+            moireCanvas: this.moireCanvas,
+            climaxMoireCanvas: this.climaxMoireCanvas,
+            gridCanvases: this.gridCanvases
+        });
+        if (PAULA_RASTER_CACHE.size > PAULA_RASTER_CACHE_LIMIT) {
+            PAULA_RASTER_CACHE.delete(PAULA_RASTER_CACHE.keys().next().value);
         }
     }
 

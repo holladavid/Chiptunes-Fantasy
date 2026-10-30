@@ -106,16 +106,45 @@ export function drawAliasedLine(ctx, x0, y0, x1, y1, color) {
     x0 = Math.floor(x0); y0 = Math.floor(y0);
     x1 = Math.floor(x1); y1 = Math.floor(y1);
 
-    let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-    let dy = Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    const dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    const dy = Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
     let err = (dx > dy ? dx : -dy) / 2;
 
+    // Exakt dieselbe Bresenham-Punktfolge, aber zusammenhaengende Pixel
+    // werden als horizontale oder vertikale Spanne ausgegeben.
+    if (dx >= dy) {
+        let runStartX = x0;
+        while (true) {
+            const oldX = x0, oldY = y0;
+            if (x0 === x1 && y0 === y1) {
+                ctx.fillRect(Math.min(runStartX, x0), y0, Math.abs(x0 - runStartX) + 1, 1);
+                break;
+            }
+            const e2 = err;
+            if (e2 > -dx) { err -= dy; x0 += sx; }
+            if (e2 < dy) { err += dx; y0 += sy; }
+            if (y0 !== oldY) {
+                ctx.fillRect(Math.min(runStartX, oldX), oldY, Math.abs(oldX - runStartX) + 1, 1);
+                runStartX = x0;
+            }
+        }
+        return;
+    }
+
+    let runStartY = y0;
     while (true) {
-        ctx.fillRect(x0, y0, 1, 1);
-        if (x0 === x1 && y0 === y1) break;
-        let e2 = err;
+        const oldX = x0, oldY = y0;
+        if (x0 === x1 && y0 === y1) {
+            ctx.fillRect(x0, Math.min(runStartY, y0), 1, Math.abs(y0 - runStartY) + 1);
+            break;
+        }
+        const e2 = err;
         if (e2 > -dx) { err -= dy; x0 += sx; }
         if (e2 < dy) { err += dx; y0 += sy; }
+        if (x0 !== oldX) {
+            ctx.fillRect(oldX, Math.min(runStartY, oldY), 1, Math.abs(oldY - runStartY) + 1);
+            runStartY = y0;
+        }
     }
 }
 

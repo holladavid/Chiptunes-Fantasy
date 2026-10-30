@@ -12,6 +12,8 @@ export class AtariRetroSunset {
         this.leafClusters = [];
         this.treeLeaves = [];
         this.shrines = [];
+        this.ditherPatterns = new Map();
+        this.leafSprites = new Map();
         
         this.initialized = false;
         this.ensureInitialized();
@@ -108,28 +110,41 @@ export class AtariRetroSunset {
 
     resize(width, height) {}
 
-    drawDitherRect(ctx, x, y, w, h, col1, col2) {
-        x = Math.floor(x); y = Math.floor(y); w = Math.floor(w); h = Math.floor(h);
-        for (let dy = 0; dy < h; dy++) {
-            for (let dx = 0; dx < w; dx++) {
-                ctx.fillStyle = ((dx + dy) % 2 === 0) ? col1 : col2;
-                ctx.fillRect(x + dx, y + dy, 1, 1);
-            }
-        }
+    getDitherPattern(ctx, col1, col2) {
+        const key = `${col1}:${col2}`;
+        if (this.ditherPatterns.has(key)) return this.ditherPatterns.get(key);
+
+        const patternCanvas = document.createElement('canvas');
+        patternCanvas.width = 2;
+        patternCanvas.height = 2;
+        const patternCtx = patternCanvas.getContext('2d');
+        patternCtx.fillStyle = col1;
+        patternCtx.fillRect(0, 0, 1, 1);
+        patternCtx.fillRect(1, 1, 1, 1);
+        patternCtx.fillStyle = col2;
+        patternCtx.fillRect(1, 0, 1, 1);
+        patternCtx.fillRect(0, 1, 1, 1);
+
+        const pattern = ctx.createPattern(patternCanvas, 'repeat');
+        this.ditherPatterns.set(key, pattern);
+        return pattern;
     }
 
-    // Zeichnet einen pixelgenauen, 50%-Schachbrett-ditherten Kreis ohne AA
+    drawDitherRect(ctx, x, y, w, h, col1, col2) {
+        x = Math.floor(x); y = Math.floor(y); w = Math.floor(w); h = Math.floor(h);
+        ctx.fillStyle = this.getDitherPattern(ctx, col1, col2);
+        ctx.fillRect(x, y, w, h);
+    }
+
+    // Dieselben Pixel wie die Einzelpunkt-Rasterung, aber eine Spanne pro Zeile.
     fillDitheredCircle(ctx, xc, yc, r, col1, col2) {
         xc = Math.floor(xc); yc = Math.floor(yc); r = Math.floor(r);
+        ctx.fillStyle = this.getDitherPattern(ctx, col1, col2);
         for (let y = -r; y <= r; y++) {
-            let dx = Math.round(Math.sqrt(r * r - y * y));
-            let drawY = yc + y;
-            let startX = xc - dx;
-            let endX = xc + dx;
-            for (let x = startX; x <= endX; x++) {
-                ctx.fillStyle = ((x + drawY) % 2 === 0) ? col1 : col2;
-                ctx.fillRect(x, drawY, 1, 1);
-            }
+            const dx = Math.round(Math.sqrt(r * r - y * y));
+            const drawY = yc + y;
+            const startX = xc - dx;
+            ctx.fillRect(startX, drawY, dx * 2 + 1, 1);
         }
     }
 
@@ -139,6 +154,20 @@ export class AtariRetroSunset {
             ctx.fillStyle = (y % 2 === 0) ? col1 : col2;
             ctx.fillRect(0, y, width, 1);
         }
+    }
+
+    getLeafSprite(radius, color) {
+        const key = `${radius}:${color}`;
+        if (this.leafSprites.has(key)) return this.leafSprites.get(key);
+
+        const sprite = document.createElement('canvas');
+        sprite.width = radius * 2 + 1;
+        sprite.height = radius * 2 + 1;
+        const spriteCtx = sprite.getContext('2d');
+        spriteCtx.imageSmoothingEnabled = false;
+        fillAliasedCircle(spriteCtx, radius, radius, radius, color);
+        this.leafSprites.set(key, sprite);
+        return sprite;
     }
 
     // Zeichnet eine organische Wolke AUSSCHLIESSLICH aus 7 dithernden Kreisen
@@ -510,7 +539,9 @@ export class AtariRetroSunset {
             let lx = Math.floor(crownBaseX + leaf.dx * minDim + rustleX);
             let ly = Math.floor(trunkTopY + leaf.dy * minDim + rustleY);
             
-            fillAliasedCircle(ctx, lx, ly, leaf.r, leaf.col);
+            // Die zwoelf moeglichen Blatt-Sprites werden einmal gerastert und
+            // anschliessend wie klassische Hardware-Bobs ganzzahlig geblittet.
+            ctx.drawImage(this.getLeafSprite(leaf.r, leaf.col), lx - leaf.r, ly - leaf.r);
         }
 
         ctx.globalAlpha = 1.0;
