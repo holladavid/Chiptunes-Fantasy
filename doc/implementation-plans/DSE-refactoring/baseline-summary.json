@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-10-29T20:21:30.826Z",
+  "seed": 1592594996,
+  "counts": {
+    "combinations": 20,
+    "stills": 120,
+    "motionClips": 40,
+    "motionFramesPerClip": 36,
+    "rotationRuns": 20,
+    "diagnostics": 40
+  },
+  "results": {
+    "dseRuntimeErrors": 0,
+    "deterministicDiagnosticsPassed": 40,
+    "rotationRunsSameInstanceWithoutErrors": 20,
+    "staticMotionClips": 0,
+    "identicalConsecutiveFrames": 0,
+    "directBeatPixelResponseDiagnostics": 24,
+    "directBeatPixelResponseCombinations": 12,
+    "paletteViolationCombinations": 8,
+    "maximumUniqueColors": 564,
+    "maximumFrameMs": 106.5
+  },
+  "notes": [
+    "No DSE, Scene DJ, or audio runtime source was modified.",
+    "One unrelated harness favicon 404 was recorded in runnerErrors.",
+    "Headless Chromium timings are comparative baseline data, not historical-hardware or physical-iPhone measurements.",
+    "Music activity switching and beat-response improvements are deferred to Step 2."
+  ]
+}
