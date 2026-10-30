@@ -7,8 +7,8 @@ const HVSC_SOURCE = {
     url: 'https://www.hvsc.c64.org/downloads'
 };
 
-function museum(title, history, replay, ...sources) {
-    const links = [HVSC_SOURCE, ...sources]
+function renderMuseum(title, history, replay, sources) {
+    const links = sources
         .map(source => `<a href="${source.url}" target="_blank" rel="noopener noreferrer">${source.label}</a>`)
         .join(' · ');
     return `
@@ -17,6 +17,15 @@ function museum(title, history, replay, ...sources) {
         <p><strong>SID &amp; Replay:</strong> ${replay}</p>
         <p class="museum-sources"><strong>Quellen:</strong> ${links}</p>
     `;
+}
+
+function museum(title, history, replay, ...sources) {
+    return renderMuseum(title, history, replay, [HVSC_SOURCE, ...sources]);
+}
+
+// Für dokumentierte Rips außerhalb der HVSC wird kein HVSC-Herkunftslink vorgetäuscht.
+function museumCustom(title, history, replay, ...sources) {
+    return renderMuseum(title, history, replay, sources);
 }
 
 const csdb = (id, label) => ({ label: `CSDb: ${label}`, url: `https://csdb.dk/release/?id=${id}` });
@@ -287,5 +296,34 @@ export const c64MuseumMetadata = {
         `Lokaler Header: <strong>RSID v2, ein Subsong</strong>, offizielle Länge <strong>6:02,201</strong>. Der RSID-Container und die dokumentierten Sprachsamples machen den Endpart zu einem eigenständigen technischen und historischen Museumsstück.`,
         { label: 'Demozoo: Comaland 100%', url: 'https://demozoo.org/productions/140070/' },
         csdb(139278, 'Comaland 100%')
+    ),
+
+    "assembly/playhorse.sid": museum(
+        'ASSEMBLY 2012 — CONSERVATIVE MEGADEMO / PLAYHORSE',
+        `<strong>Conservative Megademo</strong> von Pers' Wastaiset Produktiot gewann die Mixed Demo Competition der Assembly Summer 2012. <strong>Viznut</strong> schrieb den Code, <strong>ccr, parkitus und Viznut</strong> steuerten Grafik bei. Die Musik <strong>Playhorse</strong> komponierte <strong>Paavo Pessi (Ilmarque)</strong>. Der Eintrag bezieht sich auf den Gesamtsieger dieser plattformübergreifenden Kategorie, nicht auf einen separaten C64-Nebenwettbewerb.`,
+        `Lokaler Header: <strong>PSID v2, zwei Subsongs, Start 1, PAL/6581</strong>. Subsong 1 ist die schnellere Fassung aus der Demo und dauert <strong>1:58</strong>; Subsong 2 bewahrt das langsamere Original mit <strong>2:33</strong>. Init und Load liegen bei <code>$3FF0</code>, der Replay bei <code>$4003</code>. Die unveränderte Datei stammt aus HVSC #85.`,
+        csdb(110508, 'Conservative Megademo'),
+        { label: 'CSDb SID: Playhorse', url: 'https://csdb.dk/sid/?id=47820' }
+    ),
+    "assembly/nine-nights-from-the-black-moon.sid": museum(
+        'ASSEMBLY 2020 — FANTOMAS / NINE NIGHTS FROM THE BLACK MOON',
+        `<strong>Fantomas</strong> von Siesta gewann die Mixed Demo Competition der Assembly Online 2020. <strong>Adder</strong> programmierte und linkte die Demo, <strong>Aomeba</strong> erstellte die Grafik, <strong>Jani Joeli (Jojeli)</strong> komponierte die Musik; alle drei werden auch für das Design geführt. Aomeba datiert den Anlass auf einen Sommerabend 2020 auf Jojelis Veranda, als Adder per Nachricht eine neue Demo und Assembly als Wettbewerb vorschlug. Der Titel verweist auf finnische Volksüberlieferung: Birkenzweige für einen Saunabesen sollten neun Nächte nach dem schwarzen Mond gepflückt werden, damit ihre Blätter nicht leicht abfielen.`,
+        `Lokaler Header: <strong>PSID v2, ein Subsong, PAL/8580</strong>. Die offizielle HVSC-Länge von <strong>Nine Nights from the Black Moon</strong> beträgt <strong>4:38,985</strong>. Load und Init liegen bei <code>$1000</code>, der Replay bei <code>$1003</code>; die HVSC-Datei wird unverändert wiedergegeben.`,
+        csdb(196684, 'Fantomas'),
+        { label: 'CSDb SID: Nine Nights from the Black Moon', url: 'https://csdb.dk/sid/?id=58136' }
+    ),
+    "assembly/scroll-of-antonius.sid": museum(
+        'ASSEMBLY 2023 — THE SCROLL OF ANTONIUS',
+        `<strong>The Scroll of Antonius</strong> von Fairlight gewann die Mixed Demo Competition der Assembly Summer 2023. <strong>Trident</strong> schrieb den Code, <strong>Soya</strong> die Grafik und <strong>Figge Wasberger (Fegolhuzz)</strong> die Musik; <strong>tNG</strong> steuerte Charset und Directory Art bei. Trident erklärt den Anlass als verspäteten Gruß an Padua: Die Gruppe war in <em>Hues</em> ausgelassen worden und auch in <em>Looking for Atlantis</em> letztlich nicht mehr vertreten. Die Demo erzählt daraus eine fiktive Geschichte um eine Schriftrolle aus dem 13. Jahrhundert und eine Flüssigkeit voller Demoscener-Energie.`,
+        `Lokaler Header: <strong>PSID v2, ein Subsong, PAL/8580</strong>. Der gleichnamige Titeltrack dauert laut HVSC <strong>3:04,940</strong>. Load und Init liegen bei <code>$1000</code>, der Replay bei <code>$1003</code>. Die Datei ist der unveränderte HVSC-Rip, den CSDb ausdrücklich dieser Demo zuordnet.`,
+        csdb(234200, 'The Scroll of Antonius'),
+        { label: 'CSDb SID: The Scroll of Antonius', url: 'https://csdb.dk/sid/?id=62736' }
+    ),
+    "assembly/transcend-the-game.sid": museumCustom(
+        'ASSEMBLY 2024 — TRANSCEND THE GAME',
+        `<strong>Transcend the Game</strong> von Pers' Wastaiset Produktiot gewann die Mixed Demo Competition der Assembly Summer 2024. Die C64-One-File-Demo ist eine konzentrierte Autorenarbeit: <strong>Viznut</strong> wird bei CSDb und Pouët ausdrücklich für Code, Grafik und Musik geführt. Pouët klassifiziert die Produktion als 32K-Demo. Damit ist 2024 der jüngste belegte C64-Gesamtsieger im untersuchten Assembly-Zeitraum 2006–2025.`,
+        `Für diesen Titel liegt in HVSC #85 noch kein eigenständiger Eintrag vor. Der lokale <strong>PSID-v2-Rip</strong> wurde deshalb direkt aus dem unveränderten Originalrelease rekonstruiert: Load und Init bei <code>$0400</code>, Play bei <code>$0403</code>, ein Subsong, PAL/6581-Header. Der originale 6510-Replay und sämtliche referenzierten Musikdaten von <code>$0400–$0AFF</code> bleiben erhalten; 15.000 Play-Aufrufe wurden mit laufender, musikalisch aktiver SID-Registerausgabe validiert.`,
+        csdb(244634, 'Transcend the Game'),
+        { label: 'Pouët: Transcend the Game', url: 'https://www.pouet.net/prod.php?which=97441' }
     )
 };

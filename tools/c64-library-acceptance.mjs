@@ -1,4 +1,4 @@
-// Separate acceptance for the curated 50-track C64 library.
+// Separate acceptance for the curated 54-track C64 library.
 //   node tools/c64-library-acceptance.mjs --seconds 3 \
 //     --report doc/verification/c64/curation-library-corpus.json
 // Production-worklet regression measurements; no hardware-reference or browser-dropout claim.
@@ -49,7 +49,9 @@ function parseSid(relative, filename) {
     }
     if (initAddress === 0) initAddress = loadAddress;
     const key = filename.split('/').pop().toLowerCase().replace('.sid', '').replace(/[\s_-]/g, '');
-    const lengths = SID_SLDB[key]?.lengths;
+    // The documented 2024 rip has no HVSC #85 length yet; mirror the parser's fallback.
+    const lengths = SID_SLDB[key]?.lengths ||
+        (filename === 'assembly/transcend-the-game.sid' ? [180] : undefined);
     if (!lengths || lengths.length !== songs) throw new Error(`${relative}: invalid curated song lengths`);
     const selectedLength = lengths[startSong > 0 ? startSong - 1 : 0];
     return {
@@ -198,6 +200,7 @@ const report = {
     playlistSha256: sourceHash('tracks/c64/playlist.js'),
     museumSha256: sourceHash('tracks/c64/museum.js'),
     provenanceSha256: sourceHash('tracks/c64/classics/provenance.json'),
+    assemblyProvenanceSha256: sourceHash('tracks/c64/assembly/provenance.json'),
     songlengthsSha256: sourceHash('js/content/songlengths.js'),
     corpus: {
         seconds,
@@ -228,7 +231,7 @@ const report = {
         note: 'This is not a browser underrun or device-specific performance proof.'
     }
 };
-report.passed = tracks.length === 50 && tracks.every(track => track.passed) &&
+report.passed = tracks.length === c64Playlist.length && tracks.every(track => track.passed) &&
     report.performance.withinOfflineRealTimeBudget;
 
 const filename = path.resolve(root, args.get('report') || 'doc/verification/c64/curation-library-corpus.json');

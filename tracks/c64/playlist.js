@@ -1,6 +1,6 @@
 // === tracks/c64/playlist.js ===
 // C64 Jukebox Playlist Registry
-// 26 preserved legacy paths + 24 researched HVSC #85 classics.
+// 26 preserved legacy paths + 24 researched HVSC #85 classics + 4 Assembly winners.
 
 import { loadSidFile } from '../../js/parsers/sid-parser.js';
 import { c64MuseumMetadata } from './museum.js';
@@ -61,7 +61,17 @@ const classicSidFiles = [
     "classics/demoscene/comaland-100-end.sid"
 ];
 
-export const c64TrackPaths = [...legacySidFiles, ...classicSidFiles];
+// Gesamtsieger der Assembly Oldskool-/Mixed-Demo-Competition auf dem C64.
+// Nicht jede jährliche Siegerproduktion war eine C64-Produktion; die Lücken
+// 2006–2011, 2013–2019, 2021, 2022 und 2025 sind deshalb beabsichtigt.
+const assemblySidFiles = [
+    "assembly/playhorse.sid",
+    "assembly/nine-nights-from-the-black-moon.sid",
+    "assembly/scroll-of-antonius.sid",
+    "assembly/transcend-the-game.sid"
+];
+
+export const c64TrackPaths = [...legacySidFiles, ...classicSidFiles, ...assemblySidFiles];
 
 // Kuratierte Titel für die Auswahlliste. Der historische Dateipfad bleibt
 // erhalten, auch wenn er – wie bei Compilation III und zwei Demo-SIDs – vom
@@ -116,7 +126,11 @@ const c64ListTitles = [
     'Coma Light 13 – Tune 1',
     'Edge of Disgrace',
     'Radio Napalm',
-    'Comaland 100% – End'
+    'Comaland 100% – End',
+    'Assembly 2012 · Conservative Megademo – Playhorse',
+    'Assembly 2020 · Fantomas – Nine Nights from the Black Moon',
+    'Assembly 2023 · The Scroll of Antonius',
+    'Assembly 2024 · Transcend the Game'
 ];
 
 export const c64Playlist = c64TrackPaths.map((path, index) => {
