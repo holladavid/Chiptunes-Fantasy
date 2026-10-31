@@ -102,15 +102,32 @@ export class PaulaSiliconBg {
     rebuildResizedCanvases(offW, offH, horizon) {
         const cacheKey = `${offW}x${offH}:${horizon}`;
         const cached = PAULA_RASTER_CACHE.get(cacheKey);
+        const copyRasterCanvas = (source) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = source.width;
+            canvas.height = source.height;
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(source, 0, 0);
+            return canvas;
+        };
         if (cached) {
-            // LRU-Reihenfolge aktualisieren, ohne neue Pixeldaten zu erzeugen.
+            // LRU-Reihenfolge aktualisieren, ohne die Raster neu zu berechnen.
+            // Jede Instanz erhaelt eigene Canvas: Ein spaeterer Resize darf die
+            // unveraenderlichen Cache-Snapshots und andere Formate nicht verformen.
             PAULA_RASTER_CACHE.delete(cacheKey);
             PAULA_RASTER_CACHE.set(cacheKey, cached);
-            this.moireCanvas = cached.moireCanvas;
-            this.climaxMoireCanvas = cached.climaxMoireCanvas;
-            this.gridCanvases = cached.gridCanvases;
+            this.moireCanvas = copyRasterCanvas(cached.moireCanvas);
+            this.climaxMoireCanvas = copyRasterCanvas(cached.climaxMoireCanvas);
+            this.gridCanvases = cached.gridCanvases.map(copyRasterCanvas);
             return;
         }
+
+        // Auch beim Cache-Miss von bisherigen Canvas-Referenzen loesen. Diese
+        // koennen bereits als Snapshot eines anderen Formats im Cache liegen.
+        this.moireCanvas = document.createElement('canvas');
+        this.climaxMoireCanvas = document.createElement('canvas');
+        this.gridCanvases = Array.from({ length: 16 }, () => document.createElement('canvas'));
 
         // Helper: Hex String (#RRGGBB) zu RGBA Bytes parsen
         const hexToRgba = (hex) => ({

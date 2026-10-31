@@ -109,11 +109,14 @@ export class C64RetroSunset {
         // =========================================================
         // 3. DIE SONNE (Inner-Edge Dithering, keine Corona)
         // =========================================================
-        let sunR = Math.floor(minDim * 0.16); 
-        // Sonne taucht tief in den Horizont ein
-        let sy = Math.floor(horizon + 12); 
-        const blockSize = 4; 
-        const blockR = Math.floor(sunR / blockSize);
+        const sunR = Math.floor(minDim * 0.16);
+        const blockSize = 4;
+        const blockR = Math.max(1, Math.floor(sunR / blockSize));
+        // Die Versenkung folgt dem gerasterten Radius. Ein fester Versatz
+        // wuerde auf schmalen Portrait-Puffern saemtliche Sonnenzeilen
+        // auf oder unter den Horizont schieben.
+        const rasterSunR = blockR * blockSize;
+        const sy = Math.floor(horizon + rasterSunR * 0.375);
         
         for (let by = -blockR; by <= 0; by++) {
             let drawY = sy + by * blockSize;
