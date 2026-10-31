@@ -47,25 +47,61 @@ export class Starfield {
         this.palettePhase = 0;
         this.lastBeatCount = 0;
 
-        // Ein 23-Bit-LFSR ersetzt Math.random() beim Frustum-Recycling.
-        this.recycleState = 0x5eed1234 & 0x7fffff;
+        // Xorshift32 ersetzt Math.random() beim Frustum-Recycling. Im Gegensatz
+        // zum vorherigen Bit-LFSR korrelieren aufeinanderfolgende XYZ-Werte nicht.
+        this.recycleState = 0x5eed1234 >>> 0;
         this.projectedX = 0;
         this.projectedY = 0;
+        this.rangeX = 2000;
+        this.rangeY = 2000;
     }
 
     resize(width, height) {}
 
-    nextRandom() {
-        const feedback = (this.recycleState ^ (this.recycleState >> 5)) & 1;
-        this.recycleState = (this.recycleState >>> 1) | (feedback << 22);
-        return this.recycleState / 0x800000;
+    updateProjectionRanges(system, width, height) {
+        const fov = Math.min(250, Math.min(width, height) * 1.25);
+        let rangeX;
+        let rangeY;
+        if (system === 'atari') {
+            // Atari rotiert und cullt kreisförmig; der Spawn-Quader muss daher
+            // die gesamte Bilddiagonale statt nur Breite und Höhe abdecken.
+            const diag = Math.sqrt(width * width + height * height) / 2;
+            rangeX = rangeY = diag * 2000 / fov;
+        } else {
+            // Bei kleinem FOV reicht ein festes 4x-Rechteck nicht bis zu den
+            // Rändern. Die Range folgt deshalb der tatsächlichen Projektion.
+            rangeX = width * 1000 / fov;
+            rangeY = height * 1000 / fov;
+        }
+
+        const scaleX = rangeX / this.rangeX;
+        const scaleY = rangeY / this.rangeY;
+        if (scaleX !== 1 || scaleY !== 1) {
+            // Bestehende Sterne behalten ihre Tiefe und werden nur auf das neue
+            // Sichtfeld verteilt. Dadurch bleibt eine Mobildrehung nahtlos.
+            for (const star of this.stars) {
+                star.x *= scaleX;
+                star.y *= scaleY;
+            }
+        }
+        this.rangeX = rangeX;
+        this.rangeY = rangeY;
     }
 
-    recycleStar(star, rangeX, rangeY) {
+    nextRandom() {
+        let value = this.recycleState;
+        value ^= value << 13;
+        value ^= value >>> 17;
+        value ^= value << 5;
+        this.recycleState = value >>> 0;
+        return this.recycleState / 0x100000000;
+    }
+
+    recycleStar(star) {
         const randZ = this.nextRandom();
         star.z = 1000 - randZ * randZ * 900;
-        star.x = (this.nextRandom() - 0.5) * rangeX;
-        star.y = (this.nextRandom() - 0.5) * rangeY;
+        star.x = (this.nextRandom() - 0.5) * this.rangeX;
+        star.y = (this.nextRandom() - 0.5) * this.rangeY;
     }
 
     project(x, y, z, cx, cy, fov, twist) {
@@ -158,6 +194,7 @@ export class Starfield {
 
         const activeWarp = Math.max(0, this.smoothedWarp + beat * beatWarp);
         this.internalT += dt * this.smoothedSpin;
+        this.updateProjectionRanges(metrics.system, width, height);
         ctx.globalAlpha = 1.0;
 
         if (metrics.system === 'c64') {
@@ -206,7 +243,7 @@ export class Starfield {
             px += wobble;
 
             if (star.z <= 6 || px < -5 || px > w + 5 || py < -5 || py > h + 5) {
-                this.recycleStar(star, w * 4.0, h * 4.0);
+                this.recycleStar(star);
                 continue;
             }
 
@@ -279,7 +316,7 @@ export class Starfield {
             const py = this.projectedY;
 
             if (star.z <= 6 || px < -5 || px > w + 5 || py < -5 || py > h + 5) {
-                this.recycleStar(star, w * 4.0, h * 4.0);
+                this.recycleStar(star);
                 continue;
             }
 
@@ -340,7 +377,6 @@ export class Starfield {
 
         const diag = Math.sqrt(w * w + h * h) / 2;
         const cullDistSq = (diag + 5) * (diag + 5);
-        const spawnRange = diag * 8.0;
 
         for (let i = 0; i < N; i++) {
             const star = this.stars[i];
@@ -352,7 +388,7 @@ export class Starfield {
             const distFromCenterSq = (px - cx) * (px - cx) + (py - cy) * (py - cy);
 
             if (star.z <= 6 || distFromCenterSq > cullDistSq) {
-                this.recycleStar(star, spawnRange, spawnRange);
+                this.recycleStar(star);
                 continue;
             }
 

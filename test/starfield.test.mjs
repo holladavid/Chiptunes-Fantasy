@@ -36,6 +36,19 @@ function createContext() {
     };
 }
 
+function createCoverageContext() {
+    return {
+        globalAlpha: 1,
+        fillStyle: '#000000',
+        points: [],
+        fillRect(x, y, width, height) {
+            if (width <= 2 && height <= 2 && this.fillStyle !== '#000000') {
+                this.points.push([x, y]);
+            }
+        }
+    };
+}
+
 function createMetrics(system, overrides = {}) {
     const regs = new Uint8Array(32);
     regs[8] = regs[9] = regs[10] = 12;
@@ -108,10 +121,53 @@ test('Starfield recycling is deterministic and uses no randomness while renderin
             }
 
             assert.equal(firstCtx.hash, secondCtx.hash, `${system} render sequences must match`);
-            assert.equal(first.recycleState, second.recycleState, `${system} LFSR states must match`);
+            assert.equal(first.recycleState, second.recycleState, `${system} PRNG states must match`);
             assert.ok(firstCtx.operations > 1000, `${system} must actually render and recycle stars`);
         }
     } finally {
         Math.random = originalRandom;
+    }
+});
+
+test('Starfield covers widescreen and redistributes immediately after mobile rotation', () => {
+    function renderCoverage(starfield, ctx, system, width, height, firstFrame, frames) {
+        let grid = null;
+        for (let frame = firstFrame; frame < firstFrame + frames; frame++) {
+            ctx.points.length = 0;
+            starfield.render(ctx, width, height, 1 + frame / 50, 'playing',
+                3 + frame / 50, createMetrics(system));
+        }
+
+        grid = Array(12).fill(0);
+        for (const [x, y] of ctx.points) {
+            if (x < 0 || y < 0 || x >= width || y >= height) continue;
+            const column = Math.min(3, Math.floor(x / width * 4));
+            const row = Math.min(2, Math.floor(y / height * 3));
+            grid[row * 4 + column]++;
+        }
+        return grid;
+    }
+
+    for (const system of ['c64', 'amiga', 'atari']) {
+        const height = system === 'amiga' ? 256 : 200;
+        const portraitWidth = Math.floor(height * 390 / 844);
+        const landscapeWidth = Math.floor(height * 844 / 390);
+        const rotating = createSeededStarfield();
+        const rotatingCtx = createCoverageContext();
+
+        renderCoverage(rotating, rotatingCtx, system, portraitWidth, height, 0, 40);
+        const rotatedGrid = renderCoverage(
+            rotating, rotatingCtx, system, landscapeWidth, height, 40, 4
+        );
+        assert.ok(rotatedGrid.every(count => count > 0),
+            `${system} must fill every screen region after portrait-to-landscape rotation`);
+
+        const widescreen = createSeededStarfield();
+        const widescreenCtx = createCoverageContext();
+        const widescreenGrid = renderCoverage(
+            widescreen, widescreenCtx, system, height * 3, height, 0, 40
+        );
+        assert.ok(widescreenGrid.every(count => count > 0),
+            `${system} must fill every screen region on a 3:1 desktop viewport`);
     }
 });
