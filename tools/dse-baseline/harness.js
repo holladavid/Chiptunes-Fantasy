@@ -33,7 +33,7 @@ export function inventory() {
     const combinations = [];
     for (const entry of dseRegistry) {
         const meta = entry.metadata;
-        if (meta.lifecycle !== 'managed' || meta.isDisabled || meta.isVoid) continue;
+        if (!['managed', 'oneshot'].includes(meta.lifecycle) || meta.isDisabled || meta.isVoid) continue;
         for (const system of SYSTEMS) {
             if (!meta.systems.includes('all') && !meta.systems.includes(system)) continue;
             combinations.push({
@@ -219,6 +219,16 @@ function createDSE(dseName, seed) {
     const entry = dseRegistry.find(item => item.Class.name === dseName);
     if (!entry) throw new Error(`Unbekanntes DSE: ${dseName}`);
     const dse = new entry.Class();
+    if (typeof dse.setTrackInfo === 'function') {
+        dse.setTrackInfo({
+            name: 'Commando',
+            author: 'Rob Hubbard',
+            type: 'PSID',
+            currentSubsong: 1,
+            startSong: 1,
+            songs: 19
+        });
+    }
     return { dse, id: instanceId(dse), metadata: entry.metadata };
 }
 
