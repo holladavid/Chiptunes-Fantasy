@@ -90,22 +90,24 @@ function buildReport(results) {
         'Dieser Bericht dokumentiert den unveränderten Ausgangszustand. Er ist keine historische Freigabe der einzelnen Effekte. Renderzeiten stammen aus headless Chromium und dienen ausschließlich dem Vergleich innerhalb dieser Baseline.', '',
         '## Prüfumfang', '',
         `- ${results.inventory.length} verwaltete DSE-/System-Kombinationen`,
-        `- ${results.stills.length} Einzelbilder: playing, buildup und climax in Mobile Hoch- und Querformat`,
+        `- ${results.stills.length} Einzelbilder: playing, buildup, climax und afterglow in Mobile Hoch- und Querformat`,
         `- ${results.motions.length} kurze Bewegungssequenzen mit 18 fps`,
         `- ${results.rotations.length} Rotationsläufe Hoch → Quer → Hoch mit derselben DSE-Instanz`,
+        `- ${results.transitions.length} Zustandssequenzen von starting bis stopping mit derselben DSE-Instanz`,
         `- ${results.diagnostics.length} Determinismus- und Beat-an/Beat-aus-Diagnosen`,
         `- Zufalls-Seed: 0x${results.metadata.seed.toString(16)}`,
         `- Synthetische Musikmetriken; keine Verbesserung der Aktivitätsumschaltung oder Beat-Reaktion`, '',
         '## Kombinationsübersicht', '',
-        '| DSE / System | Renderfehler | max. Farben | Palette-Verstöße | p95 max. (ms) | Bewegung Ø | Deterministisch | Beat-Reaktion | Rotation |',
-        '|---|---:|---:|---:|---:|---:|---|---|---|'
+        '| DSE / System | Renderfehler | max. Farben | Palette-Verstöße | p95 max. (ms) | Bewegung Ø | Deterministisch | Beat-Reaktion | Rotation | Übergänge |',
+        '|---|---:|---:|---:|---:|---:|---|---|---|---|'
     ];
     for (const combo of results.inventory) {
         const stills = results.stills.filter(item => item.dse === combo.dse && item.system === combo.system);
         const motions = results.motions.filter(item => item.dse === combo.dse && item.system === combo.system);
         const diagnostics = results.diagnostics.filter(item => item.dse === combo.dse && item.system === combo.system);
         const rotations = results.rotations.filter(item => item.dse === combo.dse && item.system === combo.system);
-        const related = [...stills, ...motions, ...rotations, ...diagnostics];
+        const transitions = results.transitions.filter(item => item.dse === combo.dse && item.system === combo.system);
+        const related = [...stills, ...motions, ...rotations, ...transitions, ...diagnostics];
         const errors = related.flatMap(item => item.errors || []);
         const maxColors = Math.max(0, ...stills.map(item => item.color.uniqueColors));
         const maxViolations = Math.max(0, ...stills.map(item => item.color.paletteViolationColors));
@@ -114,9 +116,10 @@ function buildReport(results) {
         const deterministic = diagnostics.length > 0 && diagnostics.every(item => item.determinism.pass);
         const beatChanges = diagnostics.filter(item => item.beatResponse.changed).length;
         const rotationOk = rotations.length === 1 && rotations[0].sameInstance && rotations[0].errors.length === 0;
-        lines.push(`| ${combo.dse} / ${combo.system} | ${errors.length} | ${maxColors} | ${maxViolations} | ${round(maxP95, 2)} | ${round(meanMotion * 100, 2)} % | ${deterministic ? 'ja' : 'nein'} | ${beatChanges}/${diagnostics.length} Ausrichtungen | ${rotationOk ? 'ohne Fehler' : 'prüfen'} |`);
+        const transitionsOk = transitions.length === 2 && transitions.every(item => item.sameInstance && item.errors.length === 0);
+        lines.push(`| ${combo.dse} / ${combo.system} | ${errors.length} | ${maxColors} | ${maxViolations} | ${round(maxP95, 2)} | ${round(meanMotion * 100, 2)} % | ${deterministic ? 'ja' : 'nein'} | ${beatChanges}/${diagnostics.length} Ausrichtungen | ${rotationOk ? 'ohne Fehler' : 'prüfen'} | ${transitionsOk ? 'ohne Fehler' : 'prüfen'} |`);
     }
-    const allErrors = [...results.stills, ...results.motions, ...results.rotations, ...results.diagnostics]
+    const allErrors = [...results.stills, ...results.motions, ...results.rotations, ...results.transitions, ...results.diagnostics]
         .flatMap(item => (item.errors || []).map(error => ({ dse: item.dse, system: item.system, message: errorSignature(error) })));
     const uniqueErrors = [...new Map(allErrors.map(item => [`${item.dse}|${item.system}|${item.message}`, item])).values()];
     lines.push('', '## Festgestellte Renderfehler', '');
@@ -127,10 +130,12 @@ function buildReport(results) {
         '- **Farbanzahl und Palette** allein beweisen keine historische Machbarkeit. Rechenaufwand, Speicher, Rasterzeit und gleichzeitig darstellbare Farben werden in den Folgeschritten bewertet.',
         '- **Beat-Reaktion** bedeutet hier nur, dass sich bei sonst identischem Lauf zwischen Beat 0 und Beat 1 Pixel unterscheiden. Die Qualität der musikalischen Steuerung wird ausdrücklich erst in Schritt 2 verbessert.',
         '- **Rotation ohne Fehler** bestätigt Instanzkontinuität und fehlerfreie Ausgabe. Die visuelle Kontrolle der drei gespeicherten Phasen bleibt Teil des Akzeptanznachweises.',
+        '- **Übergänge ohne Fehler** durchlaufen starting, playing, buildup, climax, afterglow und stopping ohne Instanzwechsel. Die gespeicherten Phasen werden ebenfalls visuell kontrolliert.',
         '', '## Dateien', '',
         '- `screenshots/`: Einzelbilder aller Zustände und Ausrichtungen',
         '- `motion/`: kurze Bewegungsclips',
         '- `rotation/`: vor, während und nach der Live-Rotation',
+        '- `transitions/`: alle sechs Makrozustände in beiden Ausrichtungen',
         '- `contacts/`: Übersichtstafeln zur visuellen Kontrolle',
         '- `baseline-results.json`: vollständige Messwerte einschließlich Frame-Profilen',
         '- `tools/`: reproduzierbarer Capture-Runner und Browser-Harness', '');
@@ -156,14 +161,14 @@ async function main() {
     });
     const results = {
         metadata: {
-            schema: 1,
+            schema: 2,
             generatedAt: new Date().toISOString(),
             seed: SEED,
             fps: 18,
             viewports: { portrait: { width: 390, height: 844 }, landscape: { width: 844, height: 390 } },
             source: 'unmodified managed DSE implementations; isolated render dispatch equivalent to StageManager.renderAll'
         },
-        inventory: [], stills: [], motions: [], rotations: [], diagnostics: [], runnerErrors
+        inventory: [], stills: [], motions: [], rotations: [], transitions: [], diagnostics: [], runnerErrors
     };
     const checkpoint = async () => {
         await writeFile(join(OUTPUT, 'baseline-results.json'), JSON.stringify(results, null, 2));
@@ -179,7 +184,7 @@ async function main() {
         await checkpoint();
 
         for (const combo of results.inventory) {
-            for (const state of ['playing', 'buildup', 'climax']) {
+            for (const state of ['playing', 'buildup', 'climax', 'afterglow']) {
                 for (const orientation of ['portrait', 'landscape']) {
                     const request = { dse: combo.dse, system: combo.system, state, orientation, seed: SEED };
                     const captured = await page.evaluate(req => window.DSEBaseline.runStill(req), request);
@@ -215,6 +220,23 @@ async function main() {
             results.rotations.push(cleanRotation(captured, files));
             await checkpoint();
             console.log(`Rotation: ${combo.id}`);
+        }
+
+        for (const combo of results.inventory) {
+            for (const orientation of ['portrait', 'landscape']) {
+                const captured = await page.evaluate(req => window.DSEBaseline.runTransition(req), {
+                    dse: combo.dse, system: combo.system, orientation, seed: SEED
+                });
+                const files = [];
+                for (const phase of captured.phases) {
+                    const file = `transitions/${combo.id}__${orientation}__${phase.state}.png`;
+                    await savePng(phase.png, join(OUTPUT, file));
+                    files.push(file);
+                }
+                results.transitions.push(cleanRotation(captured, files));
+                await checkpoint();
+            }
+            console.log(`Übergänge: ${combo.id}`);
         }
 
         if (!SKIP_MOTION) {

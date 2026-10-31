@@ -5,21 +5,23 @@
 // C64: VIC-II 1x1 pixels, 72 stars, 8-line Rasterwobble, Voice 1/2 register sync.
 // Amiga: OCS 180 stars, discrete Copper-nebula bands, Parallax Voice volume triggers.
 // Atari: Shifter 120 stars, pure CPU Math, YM2149 Vol register rotation speed.
-// Optimized with Dynamic Frustum recycling and cubic horizon Z-clustering.
+// Beat-switched warp/vortex patterns, aliased trails and deterministic recycling.
 // =========================================================
 
 import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit, drawAliasedLine, applyOrderedDitherFade } from '../../utils/hardware-constraints.js';
+
+const TWO_PI = Math.PI * 2;
 
 export class Starfield {
     constructor() {
         this.name = 'Universal 3D Starfield';
         this.computerType = ['all'];
         this.placementType = 'background';
-        
+
         // 256-Byte Sinus-Tabelle für mechatronische Raster-Interrupts
         this.sinLUT = new Float32Array(256);
         for (let i = 0; i < 256; i++) {
-            this.sinLUT[i] = Math.sin((i / 256) * Math.PI * 2);
+            this.sinLUT[i] = Math.sin((i / 256) * TWO_PI);
         }
 
         this.numStars = 180; // Maximaler Pool für Amiga
@@ -27,61 +29,181 @@ export class Starfield {
             x: (Math.random() - 0.5) * 2000,
             y: (Math.random() - 0.5) * 2000,
             z: Math.random() * 990 + 10,
-            type: i % 3, // Layer/Parallax (0, 1, 2)
+            type: i % 3,
             age: Math.random()
         }));
 
         this.smoothedWarp = 2.0;
-        this.angleZ = 0.0; 
+        this.smoothedSpin = 0.15;
+        this.atariSpeed = 0.05;
+        this.angleZ = 0.0;
         this.internalT = 0;
-        this.smoothedSpeed = 1.0;
         this.lastT = 0;
+
+        // Makrozustände setzen stateTime nicht bei jedem Wechsel zurück.
+        this.lastState = 'idle';
+        this.stateAge = 0;
+        this.pattern = 0;
+        this.palettePhase = 0;
+        this.lastBeatCount = 0;
+
+        // Xorshift32 ersetzt Math.random() beim Frustum-Recycling. Im Gegensatz
+        // zum vorherigen Bit-LFSR korrelieren aufeinanderfolgende XYZ-Werte nicht.
+        this.recycleState = 0x5eed1234 >>> 0;
+        this.projectedX = 0;
+        this.projectedY = 0;
+        this.rangeX = 2000;
+        this.rangeY = 2000;
     }
 
     resize(width, height) {}
 
-    render(ctx, width, height, t, state, stateTime, metrics) {
-        if (state === 'idle') { this.lastT = t; return; }
+    updateProjectionRanges(system, width, height) {
+        const fov = Math.min(250, Math.min(width, height) * 1.25);
+        let rangeX;
+        let rangeY;
+        if (system === 'atari') {
+            // Atari rotiert und cullt kreisförmig; der Spawn-Quader muss daher
+            // die gesamte Bilddiagonale statt nur Breite und Höhe abdecken.
+            const diag = Math.sqrt(width * width + height * height) / 2;
+            rangeX = rangeY = diag * 2000 / fov;
+        } else {
+            // Bei kleinem FOV reicht ein festes 4x-Rechteck nicht bis zu den
+            // Rändern. Die Range folgt deshalb der tatsächlichen Projektion.
+            rangeX = width * 1000 / fov;
+            rangeY = height * 1000 / fov;
+        }
 
-        let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
+        const scaleX = rangeX / this.rangeX;
+        const scaleY = rangeY / this.rangeY;
+        if (scaleX !== 1 || scaleY !== 1) {
+            // Bestehende Sterne behalten ihre Tiefe und werden nur auf das neue
+            // Sichtfeld verteilt. Dadurch bleibt eine Mobildrehung nahtlos.
+            for (const star of this.stars) {
+                star.x *= scaleX;
+                star.y *= scaleY;
+            }
+        }
+        this.rangeX = rangeX;
+        this.rangeY = rangeY;
+    }
+
+    nextRandom() {
+        let value = this.recycleState;
+        value ^= value << 13;
+        value ^= value >>> 17;
+        value ^= value << 5;
+        this.recycleState = value >>> 0;
+        return this.recycleState / 0x100000000;
+    }
+
+    recycleStar(star) {
+        const randZ = this.nextRandom();
+        star.z = 1000 - randZ * randZ * 900;
+        star.x = (this.nextRandom() - 0.5) * this.rangeX;
+        star.y = (this.nextRandom() - 0.5) * this.rangeY;
+    }
+
+    project(x, y, z, cx, cy, fov, twist) {
+        let angle = 0;
+        if (this.pattern === 1) {
+            angle = (this.internalT * 0.8 + (1000 - z) * 0.002) * twist;
+        } else if (this.pattern === 2) {
+            const index = (Math.floor(this.internalT * 24) + Math.floor(z * 0.05)) & 255;
+            angle = this.sinLUT[index] * 0.45 * twist;
+        }
+        const angleIndex = Math.floor(angle * 256 / TWO_PI) & 255;
+        const sin = this.sinLUT[angleIndex];
+        const cos = this.sinLUT[(angleIndex + 64) & 255];
+        const rx = x * cos - y * sin;
+        const ry = x * sin + y * cos;
+        this.projectedX = Math.floor(cx + (rx / z) * fov);
+        this.projectedY = Math.floor(cy + (ry / z) * fov);
+    }
+
+    render(ctx, width, height, t, state, stateTime, metrics) {
+        if (width <= 0 || height <= 0 || !isFinite(width / height)) {
+            this.lastT = t;
+            return;
+        }
+        if (state === 'idle') {
+            this.lastT = t;
+            this.lastState = state;
+            return;
+        }
+
+        const dt = this.lastT === 0 ? 0.02 : Math.max(0, Math.min(0.1, t - this.lastT));
         this.lastT = t;
+        if (this.lastState !== state) {
+            this.lastState = state;
+            this.stateAge = 0;
+        } else {
+            this.stateAge += dt;
+        }
+
+        // Nur das exakte Ereignis schaltet Muster und Farbphase. Die Hülle
+        // darf weiterhin jeden Frame für Warp und Helligkeit ausgewertet werden.
+        if (metrics.beatStarted) {
+            const count = Number.isFinite(metrics.beatCount)
+                ? metrics.beatCount
+                : this.lastBeatCount + 1;
+            this.lastBeatCount = count;
+            this.palettePhase = count & 3;
+            if (count > 0 && count % 4 === 0) {
+                this.pattern = (this.pattern + 1) % 3;
+            }
+        }
+
+        const beat = metrics.beat?.[0] || 0;
+        const fallbackTension = state === 'afterglow' ? Math.max(0, 1 - this.stateAge / 5) : 0.5;
+        const tension = Math.max(0, Math.min(1,
+            Number.isFinite(metrics.tensionPct) ? metrics.tensionPct : fallbackTension));
 
         let globalAlpha = 1.0;
-        let targetWarp = 2.0; 
-        let beatWarp = 0.0;
-        let spinSpeed = 0.15; 
+        let targetWarp = 1.65;
+        let beatWarp = 0.3;
+        let spinSpeed = 0.12;
+        let trail = 0;
 
         if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
             targetWarp *= globalAlpha;
         } else if (state === 'stopping') {
-            globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
+            globalAlpha = Math.max(0.0, 1.0 - stateTime / 1.5);
             targetWarp *= globalAlpha;
         } else if (state === 'buildup') {
-            targetWarp = 3.2;              
-            beatWarp = 0.5;
-            spinSpeed = 0.6;
+            targetWarp = 3.1;
+            beatWarp = 1.2;
+            spinSpeed = 0.55;
+            trail = 2.5;
         } else if (state === 'climax') {
-            targetWarp = 5.5; 
-            beatWarp = 7.0; 
-            spinSpeed = 1.8;
-            // Kein Alpha-Puls: Beat-Warp und Geschwindigkeit liefern die
-            // Climax-Dynamik, ohne ausserhalb der Systempalette zu mischen.
-            globalAlpha = 1.0;
+            targetWarp = 5.5;
+            beatWarp = 6.0;
+            spinSpeed = 1.65;
+            trail = 7.0;
+        } else if (state === 'afterglow') {
+            targetWarp = 0.65 + tension * 1.25;
+            beatWarp = tension * 0.25;
+            spinSpeed = 0.06 + tension * 0.18;
         }
-        
-        this.smoothedWarp += (targetWarp - this.smoothedWarp) * 0.1;
-        this.smoothedSpeed += (spinSpeed - this.smoothedSpeed) * Math.min(1.0, dt * 5.0);
-        
-        let activeWarp = this.smoothedWarp + (metrics.beat[0] * beatWarp);
-        this.internalT += dt * this.smoothedSpeed;
 
+        const warpBlend = 1 - Math.exp(-dt * 6);
+        const spinBlend = 1 - Math.exp(-dt * 5);
+        this.smoothedWarp += (targetWarp - this.smoothedWarp) * warpBlend;
+        this.smoothedSpin += (spinSpeed - this.smoothedSpin) * spinBlend;
+
+        const activeWarp = Math.max(0, this.smoothedWarp + beat * beatWarp);
+        this.internalT += dt * this.smoothedSpin;
+        this.updateProjectionRanges(metrics.system, width, height);
         ctx.globalAlpha = 1.0;
 
-        // Routing an die hochspezifischen, hardware-konformen Renderer
-        if (metrics.system === 'c64') this.drawC64(ctx, width, height, activeWarp, metrics);
-        else if (metrics.system === 'amiga') this.drawAmiga(ctx, width, height, activeWarp, metrics);
-        else this.drawAtari(ctx, width, height, activeWarp, metrics, dt, state);
+        if (metrics.system === 'c64') {
+            this.drawC64(ctx, width, height, activeWarp, metrics, state, tension, trail);
+        } else if (metrics.system === 'amiga') {
+            this.drawAmiga(ctx, width, height, activeWarp, metrics, state, tension, trail, beat);
+        } else {
+            this.drawAtari(ctx, width, height, activeWarp, metrics, dt, state, tension, trail);
+        }
 
         applyOrderedDitherFade(ctx, width, height, globalAlpha);
         ctx.globalAlpha = 1.0;
@@ -90,58 +212,61 @@ export class Starfield {
     // =========================================================
     // RENDERER 1: COMMODORE 64 (VIC-II)
     // =========================================================
-    drawC64(ctx, w, h, activeWarp, metrics) {
-        const cx = Math.floor(w / 2); 
-        const cy = Math.floor(h / 2); 
-        const fov = 250; 
-        const N = 72; // Strikt 72 Sterne für den C64
-
-        // SID Register Trigger: Voice 1 Gate-On -> Warp-Boost!
-        let v1Gate = metrics.regs ? (metrics.regs[4] & 1) : 0;
-        let warp = activeWarp * (1.0 + v1Gate * 1.5);
+    drawC64(ctx, w, h, activeWarp, metrics, state, tension, trail) {
+        const cx = Math.floor(w / 2);
+        const cy = Math.floor(h / 2);
+        const fov = Math.min(250, Math.min(w, h) * 1.25);
+        const N = 72;
+        const v1Gate = metrics.regs ? (metrics.regs[4] & 1) : 0;
+        const warp = activeWarp * (1.0 + v1Gate * 1.5);
 
         let waveAmp = 2.0;
-        if (metrics.rawEnergyState === 'buildup') waveAmp = 5.0;
-        else if (metrics.rawEnergyState === 'climax') waveAmp = 9.0;
-        
-        // Voice 2 Gate-On -> Wobble invertieren!
-        let v2Gate = metrics.regs ? (metrics.regs[11] & 1) : 0;
-        let wobbleAmp = (waveAmp + (metrics.beat[0] * 12.0)) * (v2Gate ? -1.5 : 1.0);
+        if (state === 'buildup') waveAmp = 5.0;
+        else if (state === 'climax') waveAmp = 9.0;
+        else if (state === 'afterglow') waveAmp = 1.0 + tension * 3.0;
+
+        const v2Gate = metrics.regs ? (metrics.regs[11] & 1) : 0;
+        const wobbleAmp = (waveAmp + metrics.beat[0] * 12.0) * (v2Gate ? -1.5 : 1.0);
+        const twist = state === 'climax' ? 1.15 : state === 'buildup' ? 0.75 : 0.16;
 
         for (let i = 0; i < N; i++) {
-            let star = this.stars[i];
+            const star = this.stars[i];
             star.z -= warp;
+            this.project(star.x, star.y, star.z, cx, cy, fov, twist);
+            let px = this.projectedX;
+            const py = this.projectedY;
 
-            let px = Math.floor(cx + (star.x / star.z) * fov);
-            let py = Math.floor(cy + (star.y / star.z) * fov);
-
-            // Raster-Wobble in 8-Rasterzeilen-Schritten (VIC-II Interrupt Stil)
-            let row = py >> 3; 
-            let wobble = Math.floor(this.sinLUT[(row + Math.floor(this.internalT * 15)) & 255] * wobbleAmp);
+            const rowStep = this.pattern === 2 ? 4 : 8;
+            const row = Math.floor(py / rowStep);
+            const phase = Math.floor(this.internalT * (this.pattern === 0 ? 15 : 24));
+            const wobble = Math.floor(this.sinLUT[(row + phase) & 255] * wobbleAmp);
             px += wobble;
 
-            // Frustum Recycling (Cubic Z-Cluster: 70% spawnen weit hinten!)
             if (star.z <= 6 || px < -5 || px > w + 5 || py < -5 || py > h + 5) {
-                let randZ = Math.pow(Math.random(), 2.0); // Cluster am Horizont
-                star.z = 1000 - (randZ * 900);
-                star.x = (Math.random() - 0.5) * (w * 4.0);
-                star.y = (Math.random() - 0.5) * (h * 4.0);
-                continue; 
+                this.recycleStar(star);
+                continue;
             }
 
-            // Sterngeburt (Fade-In over 100px)
-            let birthFactor = 1.0;
-            if (star.z > 900) birthFactor = (1000 - star.z) / 100;
+            const birthFactor = star.z > 900 ? (1000 - star.z) / 100 : 1.0;
+            const zLimit = star.z / birthFactor;
+            let colIdx = 11;
+            if (zLimit < 250) colIdx = 1;
+            else if (zLimit < 500) colIdx = 15;
+            else if (zLimit < 750) colIdx = 12;
 
-            // Monochrom-Graue VIC-II Palette
-            let colIdx = 11; // Dark Grey (VIC Index 11)
-            let zLimit = star.z / birthFactor;
-            if (zLimit < 250) colIdx = 1;        // White (VIC Index 1)
-            else if (zLimit < 500) colIdx = 15;  // Light Grey (VIC Index 15)
-            else if (zLimit < 750) colIdx = 12;  // Grey (VIC Index 12)
+            if (state === 'afterglow') {
+                colIdx = zLimit < 250 && tension > 0.25 ? 3 : zLimit < 600 ? 12 : 11;
+            } else if (state === 'climax' && zLimit < 500 && ((i + this.palettePhase) & 3) === 0) {
+                colIdx = this.pattern === 1 ? 3 : this.pattern === 2 ? 13 : 1;
+            }
 
-            ctx.fillStyle = rgbToHex(...C64_PALETTE[colIdx]);
-            // Strikt 1x1 Pixel auf dem C64!
+            const color = rgbToHex(...C64_PALETTE[colIdx]);
+            if (trail > 0 && star.z < 600) {
+                const tailZ = Math.min(1000, star.z + warp * trail);
+                this.project(star.x, star.y, tailZ, cx, cy, fov, twist);
+                drawAliasedLine(ctx, this.projectedX + wobble, this.projectedY, px, py, color);
+            }
+            ctx.fillStyle = color;
             ctx.fillRect(px, py, 1, 1);
         }
     }
@@ -149,146 +274,148 @@ export class Starfield {
     // =========================================================
     // RENDERER 2: AMIGA 500 (OCS)
     // =========================================================
-    drawAmiga(ctx, w, h, activeWarp, metrics) {
-        const cx = Math.floor(w / 2); 
-        const cy = Math.floor(h / 2); 
-        const fov = 250; 
-        const N = 180; // Volle 180 Sterne auf dem Amiga
+    drawAmiga(ctx, w, h, activeWarp, metrics, state, tension, trail, beat) {
+        const cx = Math.floor(w / 2);
+        const cy = Math.floor(h / 2);
+        const fov = Math.min(250, Math.min(w, h) * 1.25);
+        const N = 180;
 
-        // Background Copper-Nebula aus echten, diskreten Farbbändern!
-        const copperY = Math.floor(cy + Math.sin(this.internalT * 1.5) * (h * 0.22));
-        const copperH = Math.floor(h * 0.18);
+        const copperIndex = Math.floor(this.internalT * 40) & 255;
+        let copperY = Math.floor(cy + this.sinLUT[copperIndex] * h * 0.22);
+        if (this.pattern === 2 && state !== 'afterglow') {
+            copperY = Math.floor(cy + ((this.palettePhase & 1) ? -1 : 1) * h * 0.18);
+        }
+        const copperH = Math.floor(h * (state === 'climax' ? 0.22 : state === 'afterglow' ? 0.12 : 0.18));
         const bandCount = 12;
-        const bandHeight = Math.ceil(copperH / bandCount);
-        const beatIntensity = metrics.beat[0];
+        const bandHeight = Math.max(1, Math.ceil(copperH / bandCount));
+        const nebulaBeat = state === 'afterglow' ? 0 : beat;
 
-        // Diskreter Farbstreifen-Verlauf (OCS Look)
         for (let b = 0; b < bandCount; b++) {
-            let pct = Math.abs(b - bandCount/2) / (bandCount/2); 
-            let r = Math.floor(20 * beatIntensity * (1.0 - pct));
-            let g = Math.floor(10 * (1.0 - pct));
-            let bVal = Math.floor((50 + beatIntensity * 70) * (1.0 - pct));
+            const pct = Math.abs(b - bandCount / 2) / (bandCount / 2);
+            const band = 1.0 - pct;
+            let r = (20 + (this.pattern === 2 ? 45 : 0)) * nebulaBeat * band;
+            let g = (10 + (this.pattern === 1 ? 30 : 0)) * band;
+            let bVal = (50 + nebulaBeat * 70) * band;
+            if (state === 'afterglow') {
+                r = 0;
+                g = 22 * tension * band;
+                bVal = 72 * tension * band;
+            }
             ctx.fillStyle = rgbToHex(...quantizeAmiga12Bit(r, g, bVal));
-            ctx.fillRect(0, Math.floor(copperY - copperH/2 + b * bandHeight), w, bandHeight);
+            ctx.fillRect(0, Math.floor(copperY - copperH / 2 + b * bandHeight), w, bandHeight);
         }
 
+        const twist = state === 'climax' ? 1.2 : state === 'buildup' ? 0.8 : state === 'afterglow' ? tension * 0.2 : 0.18;
         for (let i = 0; i < N; i++) {
-            let star = this.stars[i];
-            
-            // Paula Register Trigger: Jede Parallax-Ebene beschleunigt mit ihrem eigenen Spuren-Volumen!
-            let volMod = metrics.smooth[star.type] || 0.0;
-            let speed = activeWarp * (1.0 + star.type * 0.45 + volMod * 3.5);
-            
+            const star = this.stars[i];
+            const volMod = metrics.smooth[star.type] || 0.0;
+            const speed = activeWarp * (1.0 + star.type * 0.45 + volMod * 3.5);
             star.z -= speed;
+            this.project(star.x, star.y, star.z, cx, cy, fov, twist);
+            const px = this.projectedX;
+            const py = this.projectedY;
 
-            let px = Math.floor(cx + (star.x / star.z) * fov);
-            let py = Math.floor(cy + (star.y / star.z) * fov);
-
-            // Frustum Recycling (Cubic Z-Cluster)
             if (star.z <= 6 || px < -5 || px > w + 5 || py < -5 || py > h + 5) {
-                let randZ = Math.pow(Math.random(), 2.0);
-                star.z = 1000 - (randZ * 900);
-                star.x = (Math.random() - 0.5) * (w * 4.0);
-                star.y = (Math.random() - 0.5) * (h * 4.0);
-                continue; 
+                this.recycleStar(star);
+                continue;
             }
 
-            // Sterngeburt (Fade-In)
-            let birthFactor = 1.0;
-            if (star.z > 900) birthFactor = (1000 - star.z) / 100;
+            const birthFactor = star.z > 900 ? (1000 - star.z) / 100 : 1.0;
+            let brightness = Math.max(0.0, 1.0 - star.z / 1000) * birthFactor;
+            if (state === 'afterglow') brightness *= 0.3 + tension * 0.7;
+            else if (state === 'climax') brightness = Math.min(1, brightness * (1 + beat * 0.25));
 
-            let brightness = Math.max(0.0, 1.0 - (star.z / 1000)) * birthFactor;
             let starColor;
-
-            // Klassische, weiße bis cyanblaue Sterne
-            if (star.type === 0) {
-                starColor = rgbToHex(...quantizeAmiga12Bit(100 * brightness, 150 * brightness, 255 * brightness)); // Light Blue
+            if (state === 'afterglow') {
+                starColor = rgbToHex(...quantizeAmiga12Bit(0, 190 * brightness, 255 * brightness));
+            } else if (star.type === 0) {
+                starColor = rgbToHex(...quantizeAmiga12Bit(100 * brightness, 150 * brightness, 255 * brightness));
             } else if (star.type === 1) {
-                starColor = rgbToHex(...quantizeAmiga12Bit(100 * brightness, 220 * brightness, 255 * brightness)); // Cyan
+                starColor = rgbToHex(...quantizeAmiga12Bit(100 * brightness, 220 * brightness, 255 * brightness));
             } else {
-                starColor = rgbToHex(...quantizeAmiga12Bit(255 * brightness, 255 * brightness, 255 * brightness)); // Pure White
+                starColor = rgbToHex(...quantizeAmiga12Bit(255 * brightness, 255 * brightness, 255 * brightness));
             }
 
+            if (trail > 0 && star.z < 600 && brightness > 0.08) {
+                const tailZ = Math.min(1000, star.z + speed * trail);
+                this.project(star.x, star.y, tailZ, cx, cy, fov, twist);
+                drawAliasedLine(ctx, this.projectedX, this.projectedY, px, py, starColor);
+            }
             const size = Math.max(1, Math.floor(1.0 + brightness * 1.5));
             ctx.fillStyle = starColor;
-            ctx.fillRect(Math.floor(px - size/2), Math.floor(py - size/2), size, size);
+            ctx.fillRect(Math.floor(px - size / 2), Math.floor(py - size / 2), size, size);
         }
     }
 
     // =========================================================
     // RENDERER 3: ATARI ST (SHIFTER)
     // =========================================================
-    drawAtari(ctx, w, h, activeWarp, metrics, dt, state) {
-        const cx = Math.floor(w / 2); 
-        const cy = Math.floor(h / 2); 
-        const fov = 250; 
-        const N = 120; // Strikt 120 Sterne für den Atari ST
+    drawAtari(ctx, w, h, activeWarp, metrics, dt, state, tension, trail) {
+        const cx = Math.floor(w / 2);
+        const cy = Math.floor(h / 2);
+        const fov = Math.min(250, Math.min(w, h) * 1.25);
+        const N = 120;
 
-        // Atari ST Volume Register Trigger: Acceleration gesteuert von YM2149 R8, R9, R10!
-        let volA = metrics.regs ? (metrics.regs[8] & 15) : 0;
-        let volB = metrics.regs ? (metrics.regs[9] & 15) : 0;
-        let volC = metrics.regs ? (metrics.regs[10] & 15) : 0;
-        let totalVol = (volA + volB + volC) / 45.0; // 0.0 to 1.0
+        const volA = metrics.regs ? (metrics.regs[8] & 15) : 0;
+        const volB = metrics.regs ? (metrics.regs[9] & 15) : 0;
+        const volC = metrics.regs ? (metrics.regs[10] & 15) : 0;
+        const totalVol = (volA + volB + volC) / 45.0;
 
-        // Atari ST Trick: Rotation beschleunigt bei lauten Parts, bremst sachte bei Ruhe (68000er Trägheit)
         let targetRot = 0.05 + totalVol * 0.8;
-        this.smoothedSpeed += (targetRot - this.smoothedSpeed) * 0.12;
-        
-        let spinSpeed = this.smoothedSpeed * (state === 'climax' ? 2.5 : 1.0);
-        this.angleZ += dt * spinSpeed;
+        if (state === 'afterglow') targetRot *= 0.25 + tension * 0.75;
+        this.atariSpeed += (targetRot - this.atariSpeed) * Math.min(1, dt * 6);
 
-        const cosR = Math.cos(this.angleZ);
-        const sinR = Math.sin(this.angleZ);
+        const stateSpin = state === 'climax' ? 2.5 : state === 'buildup' ? 1.6 : 1.0;
+        const direction = this.pattern === 1 ? -1 : 1;
+        this.angleZ += dt * this.atariSpeed * stateSpin * direction;
+        const displayAngle = this.pattern === 2
+            ? Math.floor(this.angleZ * 16 / TWO_PI) * TWO_PI / 16
+            : this.angleZ;
+        const angleIndex = Math.floor(displayAngle * 256 / TWO_PI) & 255;
+        const sinR = this.sinLUT[angleIndex];
+        const cosR = this.sinLUT[(angleIndex + 64) & 255];
 
         const diag = Math.sqrt(w * w + h * h) / 2;
-        const cullDistSq = (diag + 5) * (diag + 5); 
-        const spawnRange = diag * 8.0; 
+        const cullDistSq = (diag + 5) * (diag + 5);
 
         for (let i = 0; i < N; i++) {
-            let star = this.stars[i];
+            const star = this.stars[i];
             star.z -= activeWarp;
+            const rxRot = star.x * cosR - star.y * sinR;
+            const ryRot = star.x * sinR + star.y * cosR;
+            const px = Math.floor(cx + (rxRot / star.z) * fov);
+            const py = Math.floor(cy + (ryRot / star.z) * fov);
+            const distFromCenterSq = (px - cx) * (px - cx) + (py - cy) * (py - cy);
 
-            const rx = star.x;
-            const ry = star.y;
-
-            // Pure, CPU-basierte ST-Mathematik (Z-Rotation)
-            const rxRot = rx * cosR - ry * sinR;
-            const ryRot = rx * sinR + ry * cosR;
-
-            let px = Math.floor(cx + (rxRot / star.z) * fov);
-            let py = Math.floor(cy + (ryRot / star.z) * fov);
-
-            let distFromCenterSq = (px - cx) * (px - cx) + (py - cy) * (py - cy);
-
-            // Frustum Recycling (Cubic Z-Cluster)
             if (star.z <= 6 || distFromCenterSq > cullDistSq) {
-                let randZ = Math.pow(Math.random(), 2.0);
-                star.z = 1000 - (randZ * 900);
-                star.x = (Math.random() - 0.5) * spawnRange;
-                star.y = (Math.random() - 0.5) * spawnRange;
-                continue; 
+                this.recycleStar(star);
+                continue;
             }
 
-            // Sterngeburt
-            let birthFactor = 1.0;
-            if (star.z > 900) birthFactor = (1000 - star.z) / 100;
-
-            let brightness = Math.max(0.0, 1.0 - (star.z / 1000)) * birthFactor;
+            const birthFactor = star.z > 900 ? (1000 - star.z) / 100 : 1.0;
+            const brightness = Math.max(0.0, 1.0 - star.z / 1000) * birthFactor;
+            const zLimit = star.z / birthFactor;
             let starColor;
-
-            // Strikt quantisierte 9-Bit Shifter-Farben
-            let zLimit = star.z / birthFactor;
-            if (zLimit < 250) {
-                starColor = rgbToHex(...quantizeAtari9Bit(255, 255, 255)); // White (777)
+            if (state === 'afterglow') {
+                const cool = brightness * (0.3 + tension * 0.7);
+                starColor = rgbToHex(...quantizeAtari9Bit(0, 180 * cool, 255 * cool));
+            } else if (zLimit < 250) {
+                starColor = rgbToHex(...quantizeAtari9Bit(255, 255, 255));
             } else if (zLimit < 500) {
-                starColor = rgbToHex(...quantizeAtari9Bit(0, 255, 255));   // Cyan (077)
+                starColor = rgbToHex(...quantizeAtari9Bit(0, 255, 255));
             } else if (zLimit < 750) {
-                starColor = rgbToHex(...quantizeAtari9Bit(136, 136, 136)); // Grey (444)
+                starColor = rgbToHex(...quantizeAtari9Bit(136, 136, 136));
             } else {
-                starColor = rgbToHex(...quantizeAtari9Bit(0, 0, 136));     // Dark Blue (004)
+                starColor = rgbToHex(...quantizeAtari9Bit(0, 0, 136));
             }
 
-            const size = star.z < 300 ? 2 : 1;
+            if (trail > 0 && star.z < 600) {
+                const tailZ = Math.min(1000, star.z + activeWarp * trail);
+                const tailX = Math.floor(cx + (rxRot / tailZ) * fov);
+                const tailY = Math.floor(cy + (ryRot / tailZ) * fov);
+                drawAliasedLine(ctx, tailX, tailY, px, py, starColor);
+            }
+            const size = star.z < 300 && state !== 'afterglow' ? 2 : 1;
             ctx.fillStyle = starColor;
             ctx.fillRect(px, py, size, size);
         }

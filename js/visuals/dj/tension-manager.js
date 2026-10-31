@@ -7,7 +7,15 @@
 // =========================================================
 
 const MIN_BUILDUP_TIME = 0.5;
+const BUILDUP_THRESHOLD = 0.55;
+const BUILDUP_HOLD_TIME = 3.5;
+const FULL_BOARD_BUILDUP_HOLD_TIME = 1.5;
+const FULL_BOARD_SPEED_BOOST = 1.3;
 export const TENSION_MAX = 20.0;
+
+function clamp01(value) {
+    return Math.max(0.0, Math.min(1.0, value));
+}
 
 export class TensionManager {
     constructor() {
@@ -167,30 +175,50 @@ export class TensionManager {
                 // Visual Intensity Multiplikator: Ohne Freshness (Novelty) verhungert der Pegelaufbau
                 let visualIntensity = power * (0.3 + this.freshness * 0.7);
 
-                // Extrem feinfühlige Akkumulations-Geschwindigkeiten
-                let accumulationSpeed = 0.8;
-                if (info.system === 'c64') accumulationSpeed = 0.45;
-                else if (info.system === 'amiga') accumulationSpeed = 0.35; // Wunderbar geschmeidiger Amiga-Aufbau
+                // Full Board bedeutet: Der schwaechste echte Kanal ist laut und die
+                // Beat-Huelle ist aktiv. Nur dann beschleunigen Aufbau und Staffelung.
+                const channelCount = info.system === 'amiga' ? 4 : 3;
+                let weakestChannel = 1.0;
+                for (let i = 0; i < channelCount; i++) {
+                    weakestChannel = Math.min(weakestChannel, clamp01(dynamics.channelSmooth[i] || 0.0));
+                }
+                const channelDrive = clamp01((weakestChannel - 0.35) / 0.45);
+                const loudnessDrive = clamp01((energy - 0.55) / 0.30);
+                const beatDrive = clamp01(dynamics.beatEnvelope[0] || 0.0);
+                const fullBoardDrive = channelDrive * loudnessDrive * (0.35 + beatDrive * 0.65);
+
+                // Moderate Passagen sammeln langsamer; volle Kanal- und Beat-Energie
+                // darf den Overdrive weiterhin deutlich schneller erreichen.
+                let accumulationSpeed = 0.65;
+                if (info.system === 'c64') accumulationSpeed = 0.40;
+                else if (info.system === 'amiga') accumulationSpeed = 0.30;
+                accumulationSpeed *= 1.0 + fullBoardDrive * FULL_BOARD_SPEED_BOOST;
 
                 // Tor-Sperre für den eigentlichen Tension-Anstieg
                 if (energy > 0.25) {
-                    this.tension += visualIntensity * accumulationSpeed * dt * 4.0; 
-                    
-                    if (this.tension >= TENSION_MAX) {
+                    this.tension = Math.min(TENSION_MAX,
+                        this.tension + visualIntensity * accumulationSpeed * dt * 4.0);
+
+                    const buildupHoldTime = BUILDUP_HOLD_TIME -
+                        fullBoardDrive * (BUILDUP_HOLD_TIME - FULL_BOARD_BUILDUP_HOLD_TIME);
+                    const buildupComplete = this.macroState === 'buildup' &&
+                        this.energyStateTimer >= buildupHoldTime;
+
+                    if (this.tension >= TENSION_MAX && buildupComplete) {
                         this.tension = TENSION_MAX;
                         this.isClimaxLocked = true;
                         this.climaxTimer = 0.0;
                         this.currentClimaxHoldTime = stageManager.getMaxClimaxHoldTime();
                         targetState = 'climax';
                     } else if (this.macroState === 'playing' &&
-                               this.tension > TENSION_MAX * 0.65 &&
+                               this.tension > TENSION_MAX * BUILDUP_THRESHOLD &&
                                this.energyStateTimer > MIN_BUILDUP_TIME) {
                         targetState = 'buildup';
                     } else if (this.macroState === 'buildup' &&
                                this.tension < TENSION_MAX * 0.45 &&
                                this.energyStateTimer > MIN_BUILDUP_TIME) {
                         // Hysterese: Erst unter 45% zurueck zu playing, damit
-                        // ein Pegel um die 65%-Grenze nicht flattert.
+                        // ein Pegel um die 55%-Grenze nicht flattert.
                         targetState = 'playing';
                     } else if (this.macroState !== 'playing' && this.macroState !== 'buildup') {
                         targetState = 'playing';

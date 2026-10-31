@@ -34,6 +34,14 @@ export class Copperbars {
         this.smoothedSpeed = 1.0;
         this.smoothedAmplitude = 0.85;
 
+        // Beat-Zaehler und lokale Zustandszeit ergaenzen die fortlaufende DJ-Zeit.
+        this.lastState = 'idle';
+        this.stateAge = 0;
+        this.pattern = 0;
+        this.palettePhase = 0;
+        this.lastBeatCount = 0;
+        this.beatDirection = 1;
+
         this.initialized = false;
         this.ensureInitialized();
     }
@@ -87,31 +95,31 @@ export class Copperbars {
     }
 
     // Zeichnet eine rastergetreue, palettenbasierte Copperbar (Absolut Opak / Keine CPU-Garbages!)
-    drawPalettedBar(ctx, w, yCenter, shadingTable, smoothVol, scanlineHeight) {
-        let maxIdx = shadingTable.length - 1;
-        
-        // Dynamische Highlight-Modulation: 
-        // Wenn die Musik leise ist, begrenzen wir den Index, sodass der weiße Kern schrumpft/verschwindet.
-        let volumeScale = 0.5 + smoothVol * 0.5; 
-        let activeMax = Math.floor(maxIdx * volumeScale);
+    drawPalettedBar(ctx, w, yCenter, shadingTable, smoothVol, scanlineHeight,
+        intensity = 1, corePunch = 0, rasterWobble = 0) {
+        const maxIdx = shadingTable.length - 1;
 
-        let halfHeight = maxIdx; // Ecken-Anzahl auf jeder Seite des Zentrums
+        // Lautstaerke und Afterglow begrenzen ausschliesslich den Palettenindex.
+        // Dadurch verschwindet der helle Kern ohne Alpha-Mischung.
+        const volumeScale = Math.max(0, Math.min(1, (0.5 + smoothVol * 0.5) * intensity));
+        const activeMax = Math.floor(maxIdx * volumeScale);
+        const halfHeight = maxIdx;
 
         for (let dy = -halfHeight; dy <= halfHeight; dy++) {
-            let dist = Math.abs(dy);
-            
-            // Ermittelt den Abstand vom Zentrum (0 ist Kante, maxIdx is Mitte)
-            let lookup = maxIdx - dist;
-            
-            // Skaliert die Farbe dynamisch nach dem Lautstärke-Pegel
+            const lookup = maxIdx - Math.abs(dy);
             let activeIdx = Math.floor(lookup * volumeScale);
             if (activeIdx > activeMax) activeIdx = activeMax;
             if (activeIdx < 0) activeIdx = 0;
 
             ctx.fillStyle = shadingTable[activeIdx];
-            
-            let drawY = Math.floor(yCenter + dy * scanlineHeight);
-            ctx.fillRect(0, drawY, w, scanlineHeight);
+            let drawX = 0;
+            if (rasterWobble > 0) {
+                const wobbleIdx = (Math.floor(this.internalT * 80) + dy * 6) & 255;
+                drawX = Math.round(this.sinLUT[wobbleIdx] * rasterWobble);
+            }
+            const punch = dy === 0 ? corePunch : 0;
+            const drawY = Math.floor(yCenter + dy * scanlineHeight) - punch;
+            ctx.fillRect(drawX, drawY, w, scanlineHeight + punch * 2);
         }
     }
 
@@ -119,88 +127,139 @@ export class Copperbars {
 
     render(ctx, width, height, t, state, stateTime, metrics) {
         this.ensureInitialized();
+        if (width <= 0 || height <= 0 || !isFinite(width / height)) {
+            this.lastT = t;
+            return;
+        }
+        if (state === 'idle') {
+            this.lastT = t;
+            this.lastState = state;
+            return;
+        }
 
-        if (state === 'idle') { this.lastT = t; return; }
-        let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
+        const dt = this.lastT === 0 ? 0.02 : Math.max(0, Math.min(0.1, t - this.lastT));
         this.lastT = t;
+        if (this.lastState !== state) {
+            this.lastState = state;
+            this.stateAge = 0;
+        } else {
+            this.stateAge += dt;
+        }
+
+        // Formation und Copperliste wechseln nur auf einem echten Beat-Event.
+        // Die abklingende Huelle bleibt fuer Nudge und Kernverdickung zustaendig.
+        if (metrics.beatStarted) {
+            const count = Number.isFinite(metrics.beatCount)
+                ? metrics.beatCount
+                : this.lastBeatCount + 1;
+            this.lastBeatCount = count;
+            this.beatDirection = (count & 1) ? 1 : -1;
+            if (count > 0 && count % 4 === 0) {
+                this.pattern = (this.pattern + 1) % 3;
+                this.palettePhase = (this.palettePhase + 1) % 4;
+            }
+        }
 
         const system = metrics.system;
-        const numBars = system === 'amiga' ? 4 : 3; // Festgenagelt auf 3/4 pro HW-Kanal!
-        
-        let scanlineHeight = 1; // Unbestechlich scharfe 1-Pixel Rasterlines!
+        const numBars = system === 'amiga' ? 4 : 3;
+        const scanlineHeight = 1;
+        const beat = metrics.beat?.[0] || 0;
+        const fallbackTension = state === 'afterglow' ? Math.max(0, 1 - this.stateAge / 5) : 0.5;
+        const tension = Math.max(0, Math.min(1,
+            Number.isFinite(metrics.tensionPct) ? metrics.tensionPct : fallbackTension));
 
         let globalAlpha = 1.0;
-        let targetSpeed = 1.0;
-        let targetAmplitude = 0.85; 
+        let targetSpeed = 0.85;
+        let targetAmplitude = 0.82;
 
         if (state === 'starting') {
             globalAlpha = Math.min(1.0, stateTime / 1.5);
-            targetAmplitude = globalAlpha * 0.85; // Mechanischer Einblend-Kollaps
+            targetAmplitude = globalAlpha * 0.82;
         } else if (state === 'stopping') {
-            globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5));
-            targetAmplitude = globalAlpha * 0.85; // Mechanischer Ausblend-Kollaps
+            globalAlpha = Math.max(0.0, 1.0 - stateTime / 1.5);
+            targetAmplitude = globalAlpha * 0.82;
         } else if (state === 'buildup') {
-            targetSpeed = 1.2; targetAmplitude = 0.95;            
+            targetSpeed = 1.25;
+            targetAmplitude = 0.95;
         } else if (state === 'climax') {
-            targetSpeed = 1.8; targetAmplitude = 1.1;           
+            targetSpeed = 1.75;
+            targetAmplitude = 1.08;
+        } else if (state === 'afterglow') {
+            targetSpeed = 0.18 + tension * 0.45;
+            targetAmplitude = 0.35 + tension * 0.4;
         }
 
-        // Schnelle Deaktivierung während des Ausblend-Kollapses
         if (globalAlpha <= 0.05) return;
 
-        this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * Math.min(1.0, dt * 5.0);
-        this.smoothedAmplitude += (targetAmplitude - this.smoothedAmplitude) * Math.min(1.0, dt * 5.0);
-
+        const smoothing = Math.min(1.0, dt * 5.0);
+        this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * smoothing;
+        this.smoothedAmplitude += (targetAmplitude - this.smoothedAmplitude) * smoothing;
         this.internalT += dt * this.smoothedSpeed;
 
-        const baseSpeed = 0.55; 
+        const baseSpeed = 0.65;
         const phaseStep = (Math.PI * 2) / numBars;
-        // Ein kurzer Copperlisten-Versatz macht den Beat auch im Playing-State
-        // sichtbar. Ganze Rasterzeilen, keine Farb- oder Alpha-Modulation.
-        const beatNudge = Math.round(metrics.beat[0] * 3.0);
-
-        // Aspect-ratio-sichere Schwingungsamplitude
-        const amplitude = (height * 0.24) * this.smoothedAmplitude;
+        const beatNudge = Math.round(beat * (state === 'climax' ? 4 : 2));
+        const amplitude = height * 0.24 * this.smoothedAmplitude;
 
         for (let c = 0; c < numBars; c++) {
-            const smoothVol = metrics.smooth[c]; 
-            const angle = (this.internalT * baseSpeed) + (c * phaseStep);
-            
-            // --- 256-ENTRY SINE LUT LOOKUP ---
-            // Gibt der Schwingung das leicht ruckelige, mechatronische Lauf-Gefühl
-            let lutIdx = Math.floor((angle / (Math.PI * 2)) * 256) % 256;
-            if (lutIdx < 0) lutIdx += 256;
-            let sineVal = this.sinLUT[lutIdx];
-
-            let yCenter = (height / 2);
-            yCenter += sineVal * amplitude;
-            yCenter += (c & 1) === 0 ? beatNudge : -beatNudge;
-            
-            // Beat-Glitched Twist im Climax
-            if (state === 'climax') {
-                let twistAngle = this.internalT * 6.0 + c * 2.0;
-                let twistLutIdx = Math.floor((twistAngle / (Math.PI * 2)) * 256) % 256;
-                if (twistLutIdx < 0) twistLutIdx += 256;
-                yCenter += this.sinLUT[twistLutIdx] * (8.0 * metrics.beat[0]);
-            }
-            
-            let bar = this.barsToDraw[c];
-            bar.y = yCenter; 
-            bar.vol = smoothVol; 
-            
-            // Z-Sortierung im LUT nachschlagen
-            let cosAngle = angle + Math.PI * 0.5;
-            let cosLutIdx = Math.floor((cosAngle / (Math.PI * 2)) * 256) % 256;
-            if (cosLutIdx < 0) cosLutIdx += 256;
-            bar.z = this.sinLUT[cosLutIdx]; 
-
-            // Palette zuweisen
-            if (system === 'c64') {
-                bar.pal = this.c64Palettes[c % 3];
-            } else if (system === 'amiga') {
-                bar.pal = this.amigaPalettes[c % 4];
+            const smoothVol = metrics.smooth[c] || 0;
+            let angle;
+            if (this.pattern === 1) {
+                // Gespiegelte Paare: klassische Accordion-/Mirror-Copperbars.
+                angle = this.internalT * baseSpeed + (c & 1) * Math.PI + Math.floor(c / 2) * Math.PI * 0.5;
+            } else if (this.pattern === 2) {
+                // Eng versetzte Kaskade mit einer zweiten Interferenzwelle.
+                angle = this.internalT * baseSpeed * 1.35 + c * 0.68;
             } else {
-                bar.pal = this.atariPalettes[c % 3];
+                angle = this.internalT * baseSpeed + c * phaseStep;
+            }
+
+            const lutIdx = Math.floor(angle * 256 / (Math.PI * 2)) & 255;
+            let sineVal = this.sinLUT[lutIdx];
+            if (this.pattern === 2 && (state === 'buildup' || state === 'climax')) {
+                const interferenceIdx = (Math.floor(this.internalT * 110) + c * 47) & 255;
+                sineVal = sineVal * 0.72 + this.sinLUT[interferenceIdx] * 0.28;
+            }
+
+            let yCenter = height / 2 + sineVal * amplitude;
+            yCenter += (c & 1) === 0 ? beatNudge : -beatNudge;
+
+            if (state === 'climax') {
+                const twistIdx = (Math.floor(this.internalT * 96) + c * 32) & 255;
+                yCenter += this.sinLUT[twistIdx] * beat * (this.pattern === 0 ? 8 : 4);
+                if (this.pattern === 2) yCenter += this.beatDirection * 3;
+            }
+            if (this.pattern === 2 && state !== 'afterglow') {
+                const rasterStep = system === 'amiga' ? 1 : 2;
+                yCenter = Math.round(yCenter / rasterStep) * rasterStep;
+            }
+
+            const bar = this.barsToDraw[c];
+            bar.y = yCenter;
+            bar.vol = smoothVol;
+            bar.z = this.sinLUT[(lutIdx + 64) & 255];
+            bar.intensity = state === 'afterglow' ? 0.25 + tension * 0.75 : 1;
+            bar.punch = state === 'climax' ? Math.round(beat * 2) : state === 'buildup' ? Math.round(beat) : 0;
+            bar.wobble = 0;
+            if (system === 'c64' && state === 'climax') {
+                bar.wobble = this.pattern === 1 ? 3 : this.pattern === 2 ? 5 : 0;
+            } else if (system === 'c64' && state === 'buildup' && this.pattern === 2) {
+                bar.wobble = 1;
+            } else if (system === 'amiga' && state === 'climax' && this.pattern === 2) {
+                bar.wobble = 2;
+            }
+
+            if (state === 'afterglow') {
+                // Alle Kanaele kuehlen in dieselbe blaue Copperliste ab.
+                bar.pal = system === 'c64' ? this.c64Palettes[0]
+                    : system === 'amiga' ? this.amigaPalettes[0]
+                    : this.atariPalettes[0];
+            } else if (system === 'c64') {
+                bar.pal = this.c64Palettes[(c + this.palettePhase) % 3];
+            } else if (system === 'amiga') {
+                bar.pal = this.amigaPalettes[(c + this.palettePhase) % 4];
+            } else {
+                bar.pal = this.atariPalettes[(c + this.palettePhase) % 3];
             }
         }
 
@@ -209,23 +268,19 @@ export class Copperbars {
         for (let i = 0; i < numBars - 1; i++) {
             for (let j = 0; j < numBars - i - 1; j++) {
                 if (this.sortedBars[j].z > this.sortedBars[j + 1].z) {
-                    let temp = this.sortedBars[j]; 
-                    this.sortedBars[j] = this.sortedBars[j + 1]; 
+                    const temp = this.sortedBars[j];
+                    this.sortedBars[j] = this.sortedBars[j + 1];
                     this.sortedBars[j + 1] = temp;
                 }
             }
         }
 
-        // Zeichnen der sortierten, hardware-getreuen Rasterbars
         for (let i = 0; i < numBars; i++) {
-            let bar = this.sortedBars[i];
-            
-            // --- 100% HARDWARE-GETREUES RASTER-GATE ---
-            // Ist ein Soundkanal stumm, wird die zugehörige Bar einfach hart abgeschaltet (nicht gezeichnet).
-            // Das spart massig CPU/GPU-Zyklen und ist zu 100% geschichtstreu!
-            if (bar.vol < 0.04) continue; 
-            
-            this.drawPalettedBar(ctx, width, bar.y, bar.pal, bar.vol, scanlineHeight);
+            const bar = this.sortedBars[i];
+            // Stille Kanaele bleiben ein hartes, historisches Raster-Gate.
+            if (bar.vol < 0.04) continue;
+            this.drawPalettedBar(ctx, width, bar.y, bar.pal, bar.vol, scanlineHeight,
+                bar.intensity, bar.punch, bar.wobble);
         }
     }
 }
