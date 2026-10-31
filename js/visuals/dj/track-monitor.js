@@ -60,7 +60,9 @@ export class TrackMonitor {
         let numActiveChannels = (this.info.system === 'c64' || this.info.system === 'atari') ? 3 : 4;
 
         // 1. Analog Energy Tracking (Für die generelle Makro-Spannung / Tension)
-        for (let i = 0; i < 4; i++) {
+        // Nur physische Kanaele einrechnen: Der vierte C64-Speicherplatz enthaelt
+        // die SID-Schreibrate, keinen Audiopegel, und darf keine Phantomenergie liefern.
+        for (let i = 0; i < numActiveChannels; i++) {
             let rawVol = channelVolumes[i] || 0.0;
             let smooth = this.dynamics.channelSmooth;
 
