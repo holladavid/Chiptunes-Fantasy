@@ -1701,16 +1701,6 @@ document.getElementById('core-selector').addEventListener('change', async (e) =>
     else setPlaybackState('idle');
 });
 
-document.getElementById('temp-slider').addEventListener('input', (e) => {
-    const tempVal = parseInt(e.target.value);
-    document.getElementById('temp-display').innerText = `${tempVal}°C`;
-    
-    const sidNode = getSidNode();
-    if (sidNode) {
-        sidNode.port.postMessage({ type: 'SET_TEMPERATURE', value: tempVal });
-    }
-});
-
 document.getElementById('btn-eco').addEventListener('click', async () => {
     await resumeAudioContext();
     if (isEcoMode) {

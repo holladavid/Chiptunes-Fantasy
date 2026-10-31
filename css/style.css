@@ -2349,8 +2349,7 @@ body.theme-atari .now-playing-next-row > span:first-child {
     bottom: 82px;
 }
 
-/* Windowed and fullscreen stages both clear every transient overlay. */
-#visual-zone.user-inactive #brand-logo,
+/* Transient controls clear after inactivity; the brand logo always remains visible. */
 #visual-zone.user-inactive #chip-hud,
 #visual-zone.user-inactive .now-playing {
     opacity: 0;
@@ -2804,43 +2803,6 @@ body.theme-atari .now-playing-next-row > span:first-child {
 /* =========================================
    18. PHASE 2: SEARCHABLE HARDWARE ARCHIVE
    ========================================= */
-#sensor-bay-container {
-    flex: none;
-    margin-bottom: 12px;
-    padding: 8px 10px;
-}
-
-#sensor-bay-container > summary {
-    cursor: pointer;
-    list-style: none;
-}
-
-#sensor-bay-container:not([open]) > summary {
-    margin-bottom: 0;
-    padding-bottom: 0;
-    border-bottom: 0;
-}
-
-.sensor-bay-content {
-    padding-top: 10px;
-}
-
-#temp-control-container {
-    margin-bottom: 12px;
-    font-size: calc(var(--font-size-base) * 0.8);
-}
-
-#temp-control-container input {
-    flex-grow: 1;
-    min-width: 0;
-}
-
-#temp-display {
-    width: 50px;
-    flex: 0 0 50px;
-    text-align: right;
-}
-
 #library-controls {
     flex: none;
     margin-bottom: 10px;
@@ -3011,16 +2973,10 @@ body.theme-atari .now-playing-next-row > span:first-child {
 }
 
 @media (max-width: 800px) {
-    #sensor-bay-container > summary,
     .breadcrumb-button,
     #track-search,
     #btn-clear-track-search {
         min-height: 44px;
-    }
-
-    #sensor-bay-container > summary {
-        display: flex;
-        align-items: center;
     }
 
     #library-controls { padding: 8px; }
@@ -3050,7 +3006,6 @@ body.theme-atari .now-playing-next-row > span:first-child {
 }
 
 @media (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) and (orientation: landscape) {
-    #sensor-bay-container > summary,
     .breadcrumb-button,
     #track-search,
     #btn-clear-track-search {
@@ -3507,14 +3462,6 @@ body:has(#visual-zone.pseudo-fullscreen) {
     max-width: min(34vw, 420px);
 }
 
-/* Fullscreen becomes completely unobstructed after inactivity. */
-#visual-zone.user-inactive:fullscreen #brand-logo,
-#visual-zone.user-inactive:-webkit-full-screen #brand-logo,
-#visual-zone.user-inactive.pseudo-fullscreen #brand-logo {
-    opacity: 0;
-    pointer-events: none;
-}
-
 #btn-hud-info:focus-visible,
 #btn-hud-crossfeed:focus-visible,
 #btn-hud-toggle:focus-visible,
@@ -3924,5 +3871,129 @@ body:has(#visual-zone.pseudo-fullscreen) {
         position: sticky !important;
         top: env(safe-area-inset-top, 0px);
         z-index: 40;
+    }
+}
+
+/* =========================================
+   23. MOBILE STAGE CLARITY
+   ========================================= */
+@media (max-width: 800px),
+       (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) and (orientation: landscape) {
+    /* The detailed Now Playing label is a desktop-only stage overlay. */
+    .now-playing {
+        display: none;
+    }
+
+    /* Keep the logo independent from every transient-overlay fade. */
+    #visual-zone.user-inactive #brand-logo,
+    #visual-zone.user-inactive:fullscreen #brand-logo,
+    #visual-zone.user-inactive:-webkit-full-screen #brand-logo,
+    #visual-zone.user-inactive.pseudo-fullscreen #brand-logo {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    /* Two calm rows: stage/exit above, transport below. */
+    #visual-zone:fullscreen #fs-ui-bar,
+    #visual-zone:-webkit-full-screen #fs-ui-bar,
+    #visual-zone.pseudo-fullscreen #fs-ui-bar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 8px;
+    }
+
+    #visual-zone:fullscreen #stage-mode-status,
+    #visual-zone:-webkit-full-screen #stage-mode-status,
+    #visual-zone.pseudo-fullscreen #stage-mode-status {
+        grid-column: 1;
+        grid-row: 1;
+        justify-self: start;
+        margin-right: 0;
+    }
+
+    #visual-zone:fullscreen #btn-fullscreen,
+    #visual-zone:-webkit-full-screen #btn-fullscreen,
+    #visual-zone.pseudo-fullscreen #btn-fullscreen {
+        grid-column: 2;
+        grid-row: 1;
+        justify-self: end;
+    }
+
+    #visual-zone:fullscreen #fs-playback-controls,
+    #visual-zone:-webkit-full-screen #fs-playback-controls,
+    #visual-zone.pseudo-fullscreen #fs-playback-controls {
+        display: grid;
+        grid-column: 1 / -1;
+        grid-row: 2;
+        width: 100%;
+        min-width: 0;
+    }
+
+    #visual-zone:fullscreen .fs-track-copy,
+    #visual-zone:-webkit-full-screen .fs-track-copy,
+    #visual-zone.pseudo-fullscreen .fs-track-copy {
+        display: none;
+    }
+
+    #visual-zone:fullscreen .fs-controls,
+    #visual-zone:-webkit-full-screen .fs-controls,
+    #visual-zone.pseudo-fullscreen .fs-controls {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr) minmax(0, 1fr);
+        gap: 6px;
+        width: 100%;
+        min-width: 0;
+    }
+
+    #visual-zone:fullscreen .fs-controls button,
+    #visual-zone:-webkit-full-screen .fs-controls button,
+    #visual-zone.pseudo-fullscreen .fs-controls button {
+        width: 100%;
+        min-width: 0;
+        min-height: 44px;
+        padding: 6px 4px !important;
+        white-space: nowrap;
+    }
+
+    #visual-zone:fullscreen #fs-btn-eco,
+    #visual-zone:-webkit-full-screen #fs-btn-eco,
+    #visual-zone.pseudo-fullscreen #fs-btn-eco {
+        grid-column: 1 / -1;
+    }
+
+    body.theme-c64 #visual-zone:fullscreen #fs-playback-controls .fs-controls button,
+    body.theme-c64 #visual-zone:-webkit-full-screen #fs-playback-controls .fs-controls button,
+    body.theme-c64 #visual-zone.pseudo-fullscreen #fs-playback-controls .fs-controls button {
+        font-size: clamp(7px, 2.4vw, 10px) !important;
+        letter-spacing: 0;
+    }
+
+    body.theme-amiga #visual-zone:fullscreen #fs-playback-controls .fs-controls button,
+    body.theme-amiga #visual-zone:-webkit-full-screen #fs-playback-controls .fs-controls button,
+    body.theme-amiga #visual-zone.pseudo-fullscreen #fs-playback-controls .fs-controls button,
+    body.theme-atari #visual-zone:fullscreen #fs-playback-controls .fs-controls button,
+    body.theme-atari #visual-zone:-webkit-full-screen #fs-playback-controls .fs-controls button,
+    body.theme-atari #visual-zone.pseudo-fullscreen #fs-playback-controls .fs-controls button {
+        font-size: clamp(10px, 3vw, 14px) !important;
+        letter-spacing: 0;
+    }
+}
+
+@media (max-width: 480px) and (orientation: portrait) {
+    /* Stack narrow portrait stages instead of letting logo, HUD and exit overlap. */
+    #demo-container > #visual-zone:not(.pseudo-fullscreen):not(:fullscreen):not(:-webkit-full-screen) {
+        height: clamp(240px, 38dvh, 300px);
+        min-height: 240px;
+    }
+
+    #visual-zone #chip-hud {
+        top: 62px;
+    }
+
+    #visual-zone:fullscreen #chip-hud,
+    #visual-zone:-webkit-full-screen #chip-hud,
+    #visual-zone.pseudo-fullscreen #chip-hud {
+        top: calc(62px + var(--stage-safe-top));
     }
 }

@@ -32,9 +32,9 @@ The historical constraint applies to **each DSE individually**. The Scene DJ's l
 
 ### Window mode, fullscreen, and mobile reading
 
-- All transient stage overlays—including **BUS ACTIVE**, Now Playing, stage status, logo, and the expanded Lab HUD—auto-hide in windowed and fullscreen modes and wake on interaction.
+- Transient stage overlays—including **BUS ACTIVE**, Now Playing, stage status, and the expanded Lab HUD—auto-hide in windowed and fullscreen modes and wake on interaction. The **Chiptunes Fantasy logo always remains visible**.
 - The stage respects iPhone safe areas, keeping the logo and **Lab Mode** below the notch. Every fullscreen control, including **EXIT**, disappears after inactivity.
-- Mobile transport, progress, volume, computer tabs, and core selection use compact layouts; the oversized mobile fullscreen panel no longer dominates the stage. At **393 × 659 px**, the playback bar measures **95 px instead of 255 px**.
+- Mobile transport, progress, volume, computer tabs, and core selection use compact layouts. The Now Playing panel is desktop-only, and mobile fullscreen uses a structured Previous/Play/Next row with a separate Pure Audio control.
 - On mobile, Previous/Play/Next remains sticky above Living Silicon and museum articles. **Next Track** changes playback without losing the reader's scroll position, including after rotation.
 
 ### Assembly C64 winners and museum research
@@ -130,7 +130,6 @@ Each of the three sound pillars features a real-time SVG silicon die and externa
 ### 1. MOS Technology SID 6581 / CSG 8580 (Commodore 64)
 Our PAL-clock SID engine combines a documented digital core with independently measured analogue calibration:
 *   **Curated 54-Track Library & Song Lengths:** Retains 26 existing paths and 24 HVSC #85 classics, then adds four verified Assembly C64 overall-winner title tracks in a dedicated folder. Every entry has an individual museum card and hash-bound provenance. The 53 HVSC-backed files have matched sub-song length lists; the new 2024 rip uses the documented 180-second fallback. See [C64 track sources](doc/museum/c64-track-sources.md), [Assembly provenance](tracks/c64/assembly/provenance.json), and the [54-track acceptance corpus](doc/verification/c64/curation-library-corpus.json).
-*   **Stable Environmental Diagnostics:** Excludes the SID bus-rate telemetry slot from channel-level averaging, removes random jitter, and uses time-based smoothing so readouts behave consistently across display refresh rates. SID synthesis is unchanged.
 *   **Re-Entrant 50Hz Play-IRQ Dispatcher (`$FFD0–$FFDD`):** A 14-byte phantom KERNAL IRQ wrapper allows 50Hz music voice updates to cleanly interrupt Martin Galway's multi-frame foreground `$D418` drum synthesis loops (*Arkanoid*) whenever `CLI` (`I = 0`) is active, resuming the procedural drum loop via `RTI` with zero dropped music frames.
 *   **6510 Sub-Cycle Bus Write Pipelining & RMW Dummy-Writes:** Store instructions (`STA/STX/STY`) commit to the hardware bus strictly on the final 4th clock cycle, while Read-Modify-Write instructions (`INC/DEC/ASL/LSR/ROL/ROR`) execute a penultimate-cycle dummy write of the unmodified byte before committing the new value.
 *   **Phase 4 CPU / MOS 6526 Timing:** Penultimate-cycle IRQ polling, delayed CLI/SEI mask behavior, RDY write-cycle progression, CIA timer start/force-load/reload pipelines, cascaded Timer B, one-clock delayed IRQ/NMI outputs and final-cycle `LDA $DC0D` acknowledgement are regression-tested against a synthetic corpus and external libsidplayfp black-box traces. This is bounded reference-model agreement, not a complete bus-cycle CPU or real-hardware proof; see `doc/specs/emulation/c64/sid-cpu-cia-timing.md`.

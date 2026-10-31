@@ -4,8 +4,6 @@
 // Dynamic Layouts & Symmetrical Column-Nested Amiga LEDs
 // =========================================================
 
-import { EnvironmentalSensors } from './environmental-sensors.js';
-
 const NOISE_LUT_HZ = [
     125000, 125000,  62500,  41667,  31250,  25000,  20833,  17857,
      15625,  13889,  12500,  11364,  10417,   9615,   8929,   8333,
@@ -23,8 +21,6 @@ const pitchHistC = new Float32Array(HIST_LEN);
 const pitchHistD = new Float32Array(HIST_LEN); 
 let histIdx = 0;
 
-const environmentalSensors = new EnvironmentalSensors();
-
 export function resetHUD() {
     pitchHistA.fill(0);
     pitchHistB.fill(0);
@@ -33,36 +29,6 @@ export function resetHUD() {
     histIdx = 0;
     cachedSystem = null;
     hudValElements = [];
-    environmentalSensors.reset();
-}
-
-function updateEnvironmentalSensors(stateGetters) {
-    const activeSystem = stateGetters.getActiveSystem();
-    const isPlaying = stateGetters.getIsPlaying();
-    const vols = stateGetters.getChannelVolumes ? stateGetters.getChannelVolumes() : null;
-    const currentChipRegs = stateGetters.getCurrentChipRegs ? stateGetters.getCurrentChipRegs() : null;
-
-    // C64 and Atari provide three voice levels. On C64 the following telemetry
-    // slot is the register-write rate, not a fourth audio channel.
-    const channelCount = activeSystem === 'amiga' ? 4 : 3;
-    const temp = activeSystem === 'c64' && currentChipRegs && currentChipRegs[29] !== undefined
-        ? currentChipRegs[29]
-        : 55;
-
-    const sensors = environmentalSensors.update({
-        volumes: vols,
-        channelCount,
-        temperature: temp,
-        isPlaying
-    }, performance.now() * 0.001);
-
-    const elVolt = document.getElementById('sensor-volt');
-    const elNoise = document.getElementById('sensor-noise');
-    const elBias = document.getElementById('sensor-bias');
-
-    if (elVolt) elVolt.innerText = sensors.voltage.toFixed(2) + 'V';
-    if (elNoise) elNoise.innerText = sensors.noiseDb.toFixed(1) + 'dB';
-    if (elBias) elBias.innerText = sensors.bias.toFixed(3);
 }
 
 function drawSparkline(canvasId, historyArr, headIdx, color) {
@@ -347,10 +313,6 @@ export function updateChipHUD(stateGetters) {
         }
     }
 
-    // Keep updating while stopped so the readouts settle back to their rest
-    // values instead of freezing at the last musical transient.
-    updateEnvironmentalSensors(stateGetters);
-    
     if (!isPlaying || !currentChipRegs) return;
     
     if (activeSystem === 'atari') {

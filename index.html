@@ -228,23 +228,6 @@
                     <select id="core-selector" aria-label="Emulations-Core"></select>
                 </div>
                 
-                <!-- Einklappbare Diagnostik gibt der Bibliothek auf kleinen Displays Raum. -->
-                <details class="sensor-bay terminal-card" id="sensor-bay-container">
-                    <summary class="terminal-card-header">&gt; ENV DIAGNOSTICS</summary>
-                    <div class="sensor-bay-content">
-                        <div class="core-control" id="temp-control-container">
-                            <label for="temp-slider">TEMP:</label>
-                            <input type="range" id="temp-slider" min="15" max="75" value="55" aria-label="Simulierte Chiptemperatur">
-                            <span id="temp-display">55°C</span>
-                        </div>
-                        <div class="terminal-grid" id="sensor-grid-values">
-                            <span class="lbl">[VOLT]</span><span class="val" id="sensor-volt">5.02V</span>
-                            <span class="lbl">[NOIS]</span><span class="val" id="sensor-noise">-74.0dB</span>
-                            <span class="lbl">[BIAS]</span><span class="val" id="sensor-bias">0.82</span>
-                        </div>
-                    </div>
-                </details>
-
                 <section id="library-controls" aria-label="Bibliothek durchsuchen und navigieren">
                     <div class="library-status-row">
                         <nav id="tracklist-breadcrumb" aria-label="Aktueller Bibliothekspfad"></nav>
