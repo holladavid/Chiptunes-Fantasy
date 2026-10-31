@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.5.6)
+# 💾 CHIPTUNES FANTASY (v1.5.7)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -16,51 +16,42 @@ Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with rut
 
 ---
 
-## 🚀 v1.5.6 Release Highlights
+## 🚀 v1.5.7 Release Highlights
 
-Version 1.5.6 unites eight Scene-DJ/DSE optimization phases with comprehensive mobile repairs and four newly curated Assembly C64 title tracks. The curated library now contains **213 directly playable tracks**: **73 Amiga**, **54 C64**, and **86 Atari ST** titles. All previous playlist paths remain available.
+Version 1.5.7 turns the main oscilloscope into a real, triggered PCM instrument, redesigns the FFT display as a segmented phosphor analyzer, and refines the existing Scene-DJ/DSE presentation. The curated library remains unchanged at **213 directly playable tracks**: **73 Amiga**, **54 C64**, and **86 Atari ST** titles. No SID, Paula, or YM synthesis-engine replacement is included.
 
-### Scene DJ and historically constrained DSEs — phases 1–8
+### Real PCM oscilloscope with CRT phosphor sweep
 
-- **Reproducible visual baseline:** 20 managed DSE/system combinations were captured in portrait and landscape, including motion, determinism, beat response, and live portrait → landscape → portrait rotation with the same DSE instance.
-- **Music-driven activity and scheduling:** live SID, Paula, and YM register snapshots reach the Track Monitor without creating a phantom beat on startup. Hardware and analogue beats share a cooldown; track/system changes clear stale history, buildup uses hysteresis, and DSE swaps wait for an accepted beat with a bounded beatless fallback.
-- **Period-oriented pixels:** individual effects use low internal resolutions, nearest-neighbor scaling, C64/Amiga/Atari palette constraints, and aliased integer rasterizers instead of browser anti-aliasing. Render-budget optimizations preserve the reviewed pixels.
-- **Palette-safe transitions and PAL timing:** ordered-dither fades stay inside each system palette. DSE image calculation is capped at PAL-style **50 Hz** with transparent per-layer caches, while DJ logic, beat analysis, and state transitions retain their full time resolution.
-- **Visible beat response and stable operation:** previously passive effects now expose hardware-like beat reactions. Paula cold-start work is reduced, and identity, rotation, and mixed-layer stress checks guard the optimized path.
+- **Actual audio time-domain data:** the scope reads a reused **4096-sample AnalyserNode buffer** through `getFloatTimeDomainData()`, with a byte-domain fallback. Each **32 ms** analysis window is derived from the real `AudioContext.sampleRate`—**1,536 samples at 48 kHz** or **1,411 samples at 44.1 kHz**—rather than from a 60 Hz history of scalar values.
+- **Stable, loss-aware waveform rasterization:** whole-buffer DC removal, a hysteresis-armed rising zero-crossing trigger with linear interpolation, and per-pixel-column min/max mapping preserve the waveform shape and single-sample impulses. A fixed gain and **160 quantized amplitude levels** retain the retro instrument character.
+- **Readable phosphor motion:** a bright **32 ms left-to-right sweep** draws only newly reached columns, while a separate dim reference trace persists for **420 ms**. Retrace stays blank, avoiding an artificial horizontal return line.
+- **Bounded rendering work:** PCM buffers and column rasters are reused, the internal canvas runs at reduced resolution, and a wide transparent outer stroke replaces expensive shadow blur on hundreds of subpaths. Soft shadow is reserved for the small beam head; the spark pool is capped at **64** particles.
 
-The historical constraint applies to **each DSE individually**. The Scene DJ's layered mix remains deliberately fantastical rather than a claim that the complete composition could run on one vintage machine. No full-computer emulator was added for visualization.
+### Segmented FFT phosphor analyzer
 
-### Window mode, fullscreen, and mobile reading
+The FFT display now uses **48 logarithmic bars from 45 Hz to 12 kHz**, system-specific palettes, an unlit LED matrix, measurement lines, a logarithmic frequency ruler, and time-based peak-hold gravity. A **4096-point FFT / 2,048-bin** analyser is sampled at **30 Hz**; typed arrays, bin ranges, segment colors, and the static grid are reused or cached. Animation and peak decay use elapsed time rather than assuming a 60 Hz display.
 
-- Transient stage overlays—including **BUS ACTIVE**, Now Playing, stage status, and the expanded Lab HUD—auto-hide in windowed and fullscreen modes and wake on interaction. The **Chiptunes Fantasy logo always remains visible**.
-- The stage respects iPhone safe areas, keeping the logo and **Lab Mode** below the notch. Every fullscreen control, including **EXIT**, disappears after inactivity.
-- Mobile transport, progress, volume, computer tabs, and core selection use compact layouts. The Now Playing panel is desktop-only, and mobile fullscreen uses a structured Previous/Play/Next row with a separate Pure Audio control.
-- On mobile, Previous/Play/Next remains sticky above Living Silicon and museum articles. **Next Track** changes playback without losing the reader's scroll position, including after rotation.
+### Music-aware DSE refinement and responsive continuity
 
-### Assembly C64 winners and museum research
+- **Tension and macro states:** moderate passages accumulate tension more slowly, while full-board channel energy and active beats can accelerate the build. Distinct **playing** and **buildup** phases remain visible before climax. C64 tension ignores the fourth telemetry slot, which carries SID write rate rather than an audio-channel level.
+- **Starfield:** three exact-beat-switched patterns add warp/vortex variation, deterministic recycling, and system-specific movement. Widescreen coverage and immediate redistribution after mobile rotation prevent clustered stars and large empty regions without restarting the DSE.
+- **Copperbars:** three fourth-beat-switched formations, alternating beat direction, state-sensitive punch/twist, and a dedicated afterglow treatment create clearer musical choreography while retaining deterministic system palettes.
+- **TrackPresenter:** aliased 5×7 bitmap typography, exact fourth-beat layout changes, state-specific color/motion, and rotation-safe deterministic layouts replace browser-text styling in the presenter.
+- **C64 and Paula repairs:** the C64 sunset positions its rasterized sun relative to the actual raster radius so narrow portrait buffers do not hide it below the horizon. Paula silicon-floor cache hits now receive instance-owned canvas copies, preventing later resizes from deforming shared cache snapshots or other formats.
+- **Development contract:** [DSE development rules](doc/concepts/dse_development_rules.md) document music response, exact beat events, macro states, historical palettes/resolutions, responsive projection, rotation continuity, deterministic resources, performance, and the acceptance matrix.
 
-The 2006–2025 Assembly Oldskool/Mixed Demo results were reviewed without filling non-qualifying years with lower placements or non-C64 productions. Four verified C64 overall winners now have a dedicated `assembly` folder and individual museum entries:
+### CF pixel-chip identity for browser, iOS, and PWA
 
-| Year | Winning production | Integrated title track |
-|---|---|---|
-| 2012 | *Conservative Megademo* | *Playhorse* |
-| 2020 | *Fantomas* | *Nine Nights from the Black Moon* |
-| 2023 | *The Scroll of Antonius* | *The Scroll of Antonius* |
-| 2024 | *Transcend the Game* | *Transcend the Game* |
-
-The 2012, 2020, and 2023 files preserve their HVSC bytes. The 2024 title is a new PSID-v2 rip from the original PRG, retaining the complete `$0400–$0AFF` music/player region. Its lack of an official song length uses the documented **180-second fallback**; no exact full-state loop is claimed. Sources, hashes, headers, song lengths, and exclusions are recorded in [Assembly provenance](tracks/c64/assembly/provenance.json).
+A custom CF pixel-chip mark is now used as the SVG favicon, opaque **180×180 Apple touch icon**, and **192×192 / 512×512 PWA icons**, including a maskable 512px entry. The artwork is local to the project; no external icon service or runtime dependency was added.
 
 ### Release validation and limits
 
-- **39/39 focused tests passed** across Scene-DJ music behavior, C64 curation, tracklist navigation, and SID CPU/CIA timing.
-- DSE acceptance covers **120 stills, 40 motion sequences / 1,440 frames, 20 rotations, and 40 diagnostics**, with 40/40 beat-reactive and deterministic runs, no render errors, and no still-palette violations. All **320 transition samples** stayed palette-valid; **36/36** production-browser checks passed.
-- Final optimization retained **120/120 stills, 40/40 motions, and 40/40 diagnostics identically**, with maximum observed p95 render time **12.7 ms** and no DSE above 20 ms in that corpus. The phase-7 motion audit's two palette-violation samples remain disclosed; identity to that corpus is not a claim that they were removed.
-- **54/54 C64 tracks** passed audible, finite, deterministic, block-size-independent, and restart-identical offline acceptance (47 PSID v2, 7 RSID v2). All four Assembly tracks also passed production-browser playback.
-- Mobile acceptance passed **10/10 checks**, including window/fullscreen auto-hide, sticky transport, scroll-position preservation, and landscape rotation. Headless Chromium, simulated safe areas, and offline timing are not physical-device or underrun guarantees. The known pre-existing SID synthetic-corpus mismatch and unavailable C64/SID random-access seeking remain disclosed; no newly all-green full suite is claimed.
+- **23/23 focused tests passed:** 11 spectrum/PCM-visualizer tests plus 12 tension, Starfield, Copperbars, and TrackPresenter tests. Coverage includes 30/60/120 Hz sweep behavior, PCM capture/window sizing, DC removal and triggering, impulse preservation, reference-trace decay, resize/clear safety, deterministic DSE behavior, exact beat events, and responsive redistribution.
+- Production-browser playback was checked with **Commando** (C64/SID), **Space Debris** (Amiga/Paula), and **Goldrunner** (Atari/YM), including desktop, mobile portrait/landscape, and **1440×896 fullscreen** presentation, with no observed runtime errors.
+- In the final measured PCM browser run, oscilloscope rendering averaged **2.1871 ms**, with **1.7 ms median** and **2.8 ms p95**. These measurements describe that browser/setup only and are not a universal frame-rate or physical-device guarantee.
+- This is focused release validation, not a newly all-green complete-suite claim. The known pre-existing SID synthetic-corpus mismatch and unavailable C64/SID random-access seeking remain outside this release's scope. Headless/mobile-viewport testing does not replace final physical-device Safari/PWA acceptance.
 
-Public availability in HVSC or a scene archive does **not** imply public domain, redistribution permission, or a commercial-use license. Rights remain with their respective holders.
-
-Copy-ready GitHub texts are included for the [v1.5.6 pull request](doc/releases/v1.5.6-PR-Text.md) and [v1.5.6 release](doc/releases/v1.5.6-Release-Text.md).
+Copy-ready GitHub texts are included for the [v1.5.7 pull request](doc/releases/v1.5.7-PR-Text.md) and [v1.5.7 release](doc/releases/v1.5.7-Release-Text.md). Earlier release documents remain unchanged as historical records.
 
 ---
 
