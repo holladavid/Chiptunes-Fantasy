@@ -2,7 +2,8 @@ import { dseRegistry } from '../../js/visuals/dse/registry.js';
 import { C64_PALETTE, SYSTEM_RESOLUTIONS } from '../../js/visuals/utils/hardware-constraints.js';
 
 const SYSTEMS = ['c64', 'amiga', 'atari'];
-const STATES = ['playing', 'buildup', 'climax'];
+const STATES = ['playing', 'buildup', 'climax', 'afterglow'];
+const TRANSITION_SEQUENCE = ['starting', 'playing', 'buildup', 'climax', 'afterglow', 'stopping'];
 const VIEWPORTS = {
     portrait: { width: 390, height: 844 },
     landscape: { width: 844, height: 390 }
@@ -59,7 +60,7 @@ function bufferSize(system, orientation) {
     };
 }
 
-function makeMetrics(system, state, frame, beatMode = 'pattern') {
+function makeMetrics(system, state, frame, beatMode = 'pattern', stateFrame = frame) {
     const phase = frame % 9;
     const stateGain = state === 'climax' ? 1 : state === 'buildup' ? 0.72 : 0.48;
     const patternedBeat = phase === 0 ? 1 : Math.max(0, 0.82 - phase * 0.19);
@@ -72,21 +73,30 @@ function makeMetrics(system, state, frame, beatMode = 'pattern') {
         regs[9] = Math.round(15 * Math.max(0, energy - 0.12));
         regs[10] = Math.round(15 * beat);
     }
+
+    let tensionPct = 0.38;
+    if (state === 'buildup') tensionPct = 0.68;
+    else if (state === 'climax') tensionPct = 0.94;
+    else if (state === 'afterglow') tensionPct = Math.max(0, 1 - stateFrame / (FPS * 5));
+
     return {
         energy,
         pulse: beat,
         beat: [beat, beat * 0.72, beat * 0.45, beat * 0.3],
+        beatStarted: beatMode !== 'zero' && phase === 0,
+        beatCount: beatMode === 'zero' ? 0 : Math.floor(frame / 9) + 1,
         smooth: [
             energy,
             Math.max(0, energy - 0.13),
             Math.max(0, energy - 0.25),
             Math.max(0, energy - 0.34)
         ],
-        rawEnergyState: state,
+        // Die rohe Energie kennt keinen Afterglow; nur der Makrozustand tut das.
+        rawEnergyState: state === 'buildup' || state === 'climax' ? state : 'playing',
         system,
-        tensionPct: state === 'climax' ? 0.94 : state === 'buildup' ? 0.68 : 0.38,
+        tensionPct,
         isClimaxLocked: state === 'climax',
-        climaxTimer: state === 'climax' ? frame / FPS : 0,
+        climaxTimer: state === 'climax' ? stateFrame / FPS : 0,
         climaxHoldTime: 12,
         regs
     };
@@ -238,16 +248,17 @@ function summarizeProfile(profile) {
     };
 }
 
-function renderFrame(target, dse, meta, frame, state, beatMode, profile, errors) {
+function renderFrame(target, dse, meta, frame, state, beatMode, profile, errors, timing = null) {
     target.ctx.fillStyle = '#000000';
     target.ctx.fillRect(0, 0, target.canvas.width, target.canvas.height);
     target.monitor.reset();
     const t = 1 + frame / FPS;
-    const stateTime = 3 + frame / FPS;
+    const stateTime = timing?.stateTime ?? 3 + frame / FPS;
+    const stateFrame = timing?.stateFrame ?? frame;
     const started = performance.now();
     try {
         dse.render(target.ctx, target.canvas.width, target.canvas.height, t, state, stateTime,
-            makeMetrics(meta.system, state, frame, beatMode));
+            makeMetrics(meta.system, state, frame, beatMode, stateFrame));
     } catch (error) {
         errors.push({ frame, message: String(error && error.stack || error) });
     }
@@ -367,6 +378,49 @@ export function runDiagnostics(request) {
     };
 }
 
+export function runTransition(request) {
+    const {
+        dse, system, orientation, seed = 0x5eed1234,
+        framesPerState = 8, states = TRANSITION_SEQUENCE
+    } = request;
+    const created = createDSE(dse, seed);
+    const target = createTarget(system, orientation);
+    const errors = [];
+    const profile = { frameMs: [], operations: [] };
+    const phases = [];
+    let globalFrame = 0;
+
+    for (const state of states) {
+        const meta = { dse, system, state, orientation };
+        let analysis = null;
+        for (let stateFrame = 0; stateFrame < framesPerState; stateFrame++, globalFrame++) {
+            const isFadeState = state === 'starting' || state === 'stopping';
+            const fadeProgress = stateFrame / Math.max(1, framesPerState - 1);
+            const stateTime = isFadeState ? fadeProgress * 1.5 : 3 + stateFrame / FPS;
+            analysis = renderFrame(
+                target, created.dse, meta, globalFrame, state, 'pattern', profile, errors,
+                { stateTime, stateFrame }
+            );
+        }
+        phases.push({
+            state,
+            orientation,
+            frames: framesPerState,
+            instanceId: created.id,
+            buffer: { ...target.size },
+            color: publicAnalysis(analysis),
+            png: target.canvas.toDataURL('image/png')
+        });
+    }
+
+    return {
+        kind: 'transition', dse, system, orientation, instanceId: created.id,
+        stateSequence: [...states],
+        sameInstance: phases.every(phase => phase.instanceId === created.id),
+        errors, profile: summarizeProfile(profile), phases
+    };
+}
+
 export function runRotation(request) {
     const { dse, system, state = 'playing', seed = 0x5eed1234, phaseFrames = 10 } = request;
     const created = createDSE(dse, seed);
@@ -400,5 +454,8 @@ export function runRotation(request) {
     };
 }
 
-window.DSEBaseline = { inventory, runStill, runMotion, runDiagnostics, runRotation, SYSTEMS, STATES, VIEWPORTS };
+window.DSEBaseline = {
+    inventory, runStill, runMotion, runDiagnostics, runTransition, runRotation,
+    SYSTEMS, STATES, TRANSITION_SEQUENCE, VIEWPORTS
+};
 window.dispatchEvent(new Event('dse-baseline-ready'));

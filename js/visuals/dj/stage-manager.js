@@ -97,6 +97,10 @@ export class StageManager {
         metricsWrapper.energy = dynamics.masterEnergy;
         metricsWrapper.pulse = dynamics.transientPulse;
         metricsWrapper.beat = dynamics.beatEnvelope;
+        // Exakte Ereignisse ergaenzen die abklingende Beat-Huelle: DSEs koennen
+        // damit Patternwechsel einmal pro Beat statt per Schwellenwert ausloesen.
+        metricsWrapper.beatStarted = dynamics.beatStarted;
+        metricsWrapper.beatCount = dynamics.beatCount;
         metricsWrapper.smooth = dynamics.channelSmooth;
         metricsWrapper.rawEnergyState = dynamics.rawEnergyState;
         metricsWrapper.system = info.system;

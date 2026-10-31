@@ -31,6 +31,9 @@ for item in RESULTS["stills"]:
 for item in RESULTS["rotations"]:
     for phase in item["phases"]:
         upscale(ROOT / phase["file"], phase["buffer"]["width"])
+for item in RESULTS.get("transitions", []):
+    for phase in item["phases"]:
+        upscale(ROOT / phase["file"], phase["buffer"]["width"])
 
 
 def fit_image(path: Path, width: int, height: int) -> Image.Image:
@@ -59,7 +62,9 @@ def state_sheet(state: str, orientation: str) -> None:
     sheet.save(CONTACTS / f"stills-{state}-{orientation}.png")
 
 
-for state in ("playing", "buildup", "climax"):
+states = [state for state in ("playing", "buildup", "climax", "afterglow")
+          if any(item["state"] == state for item in RESULTS["stills"])]
+for state in states:
     for orientation in ("portrait", "landscape"):
         state_sheet(state, orientation)
 
@@ -85,5 +90,28 @@ def rotation_sheet(items, page: int) -> None:
 rotations = RESULTS["rotations"]
 for page in range((len(rotations) + 4) // 5):
     rotation_sheet(rotations[page * 5:(page + 1) * 5], page + 1)
+
+
+def transition_sheet(items, page: int, orientation: str) -> None:
+    row_h, image_w, image_h = 200, 185, 125
+    sheet = Image.new("RGB", (1280, 64 + row_h * len(items)), BG)
+    draw = ImageDraw.Draw(sheet)
+    draw.text((20, 17), f"Zustandssequenz, dieselbe Instanz — {orientation} — Übersicht {page}", font=BOLD, fill=TEXT)
+    for row, item in enumerate(items):
+        y = 64 + row * row_h
+        draw.text((18, y + 8), f'{item["dse"]} / {item["system"]} — Instanz #{item["instanceId"]}', font=FONT, fill=TEXT)
+        for column, phase in enumerate(item["phases"]):
+            x = 18 + column * (image_w + 20)
+            image = fit_image(ROOT / phase["file"], image_w, image_h)
+            sheet.paste(image, (x, y + 38))
+            draw.text((x, y + 38 + image_h + 6), phase["state"], font=SMALL, fill=TEXT)
+    sheet.save(CONTACTS / f"transitions-{orientation}-{page}.png")
+
+
+transitions = RESULTS.get("transitions", [])
+for orientation in ("portrait", "landscape"):
+    items = [item for item in transitions if item["orientation"] == orientation]
+    for page in range((len(items) + 4) // 5):
+        transition_sheet(items[page * 5:(page + 1) * 5], page + 1, orientation)
 
 print(f"Kontaktübersichten: {CONTACTS}")

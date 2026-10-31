@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { TrackMonitor } from '../js/visuals/dj/track-monitor.js';
 import { TensionManager } from '../js/visuals/dj/tension-manager.js';
+import { StageManager } from '../js/visuals/dj/stage-manager.js';
 
 const DT = 1 / 60;
 
@@ -98,4 +99,48 @@ test('Full-board energy and drums reach overdrive faster without skipping buildu
     assert.ok(fullBoard.climaxAt < 10, 'Full board should reach overdrive quickly');
     assert.ok(fullBoard.climaxAt - fullBoard.buildupAt >= 1.4,
         'Even the fastest buildup must remain visible for at least 1.4 seconds');
+});
+
+test('Stage manager routes exact beat events alongside the decaying envelope', () => {
+    const stage = new StageManager();
+    const renders = [];
+    const dse = {
+        state: 'playing',
+        render(ctx, width, height, t, state, stateTime, metrics) {
+            renders.push({ beatStarted: metrics.beatStarted, beatCount: metrics.beatCount });
+        }
+    };
+    stage.activeDSEs.push(dse);
+    stage.frameCaches.set(dse, {
+        canvas: { width: 8, height: 8 },
+        ctx: { globalAlpha: 1, imageSmoothingEnabled: false, clearRect() {} },
+        tick: null,
+        state: null,
+        system: null
+    });
+
+    const dynamics = {
+        masterEnergy: new Float32Array(1),
+        transientPulse: new Float32Array(1),
+        beatEnvelope: new Float32Array(1),
+        channelSmooth: new Float32Array(4),
+        rawEnergyState: 'playing',
+        beatStarted: true,
+        beatCount: 7
+    };
+    const targetCtx = { imageSmoothingEnabled: false, drawImage() {} };
+    const metrics = {};
+
+    stage.renderAll(targetCtx, 8, 8, 0, dynamics, { system: 'c64' }, metrics);
+    assert.equal(metrics.beatStarted, true);
+    assert.equal(metrics.beatCount, 7);
+
+    dynamics.beatStarted = false;
+    dynamics.beatCount = 8;
+    stage.renderAll(targetCtx, 8, 8, 1 / 50, dynamics, { system: 'c64' }, metrics);
+
+    assert.deepEqual(renders, [
+        { beatStarted: true, beatCount: 7 },
+        { beatStarted: false, beatCount: 8 }
+    ]);
 });
