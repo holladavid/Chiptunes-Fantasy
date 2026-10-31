@@ -199,8 +199,8 @@ let lastDrawTime = performance.now();
             dss.render(ctx, canvas.width, canvas.height, t, channelVolumes, isPlaying, sessionId, trackMetadata, chipRegs);
         } else {
             drawReticle(); 
-            osc.render(ctx, canvas.width, canvas.height, stateGetters, lineColor);
-            fft.render(ctx, canvas.width, canvas.height, stateGetters, lineColor);
+            osc.render(ctx, canvas.width, canvas.height, stateGetters, lineColor, dt);
+            fft.render(ctx, canvas.width, canvas.height, stateGetters, lineColor, dt, currentSystem);
         }
 
         // =========================================================
