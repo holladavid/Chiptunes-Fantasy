@@ -10,6 +10,7 @@ import { FftAnalyzer } from './components/fft-analyzer.js';
 import { Oscilloscope } from './components/oscilloscope.js';
 import { LivingSilicon } from '../ui/living-silicon.js';
 import { CrtGlitch } from './components/crt-glitch.js';
+import { CrtShadowMask } from './components/crt-shadow-mask.js';
 
 // NEU: Statisches, prä-allozierte Null-Array zur Vermeidung von Heap-Garbages bei Inaktivität
 const zeroVolumes = new Float32Array(4);
@@ -54,6 +55,12 @@ export function initVisuals(stateGetters, callbacks) {
     const fft = new FftAnalyzer();
     const osc = new Oscilloscope(canvas.width, canvas.height);
     const glitch = new CrtGlitch(); // NEU: Instanziiert den Glitcher
+    const visualZone = document.getElementById('visual-zone');
+    const crtMask = new CrtShadowMask(
+        canvas,
+        document.getElementById('crt-mask-canvas'),
+        isAvailable => visualZone?.classList.toggle('crt-mask-active', isAvailable)
+    );
 
     // --- INTERACTIVE GIMMICK STATE & TOGGLE ---
     let showGimmick = false;
@@ -90,6 +97,7 @@ export function initVisuals(stateGetters, callbacks) {
             canvas.height = newHeight;
             osc.resize(newWidth, newHeight); 
             dss.resize(newWidth, newHeight); // Resize ans DSE-Ökosystem leiten
+            crtMask.resize(newWidth, newHeight);
         }
     }
     
@@ -184,6 +192,7 @@ let lastDrawTime = performance.now();
         if (typeof glitch !== 'undefined' && glitch) {
             glitch.render(ctx, canvas.width, canvas.height, dt);
         }
+        crtMask.render();
 
         hudCounter++;
         callbacks.updateTimelineUI();

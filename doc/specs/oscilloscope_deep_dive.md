@@ -79,14 +79,23 @@ Um bei 60–144 FPS ohne teure WebGL-Shader oder langsame `ctx.shadowBlur`-Aufru
             └─────────────────────────┼─────────────────────────┘
                                       ▼
                ┌──────────────────────────────────────────────┐
-               │ 3. Haupt-Canvas Compositing (mode: 'screen') │
+               │ 3. 2D-Canvas Compositing (mode: 'screen')    │
                │ • Layer 0: this.graticule (Geätztes Raster)  │
                │ • Layer 1: this.bloom (Weiches Glas-Leuchten)│
                │ • Layer 2: this.memory (Phosphoreszenz)      │
                │ • Layer 3: this.offscreen (Fluoreszenz-Spur) │
                │ • Layer 4: Kathoden-Brennspot & Funken-Pool  │
+               └──────────────────────┬───────────────────────┘
+                                      ▼
+               ┌──────────────────────────────────────────────┐
+               │ 4. WebGL CRT-Shadow-Mask                    │
+               │ • Kanalgetrennte RGB-Phosphorpunkte         │
+               │ • Feste 3-CSS-Pixel-Maske + Scanlines       │
+               │ • CSS-Fallback, wenn WebGL nicht verfügbar  │
                └──────────────────────────────────────────────┘
 ```
+
+Der nachgelagerte Shader in `crt-shadow-mask.js` tastet das fertige 2D-Canvas als Textur ab und moduliert Rot, Grün und Blau an versetzten Phosphorpunkten separat. Die Maskenfrequenz wird in CSS-Pixeln berechnet und bleibt damit bei Resize, Hoch-/Querformat und Vollbild gleich; die Textur selbst wird ohne Glättung auf die vorhandene Canvas-Auflösung abgebildet. Wenn WebGL fehlt oder der Kontext verloren geht, bleibt das 2D-Canvas sichtbar und das CSS-CRT-Overlay dient als Fallback.
 
 ### Zusammenspiel mit `FftAnalyzer`
 * `FftAnalyzer` belegt die unteren **43 %** der Viewport-Höhe (`height * 0.43`) und rendert sein statisches VFD-Anodengitter sowie die Frequenzskala über ein gecachtes Canvas (`this.staticGrid`), das nur bei einem `resize`-Event oder Systemwechsel (`c64`, `amiga`, `atari`) neu aufgebaut wird.
