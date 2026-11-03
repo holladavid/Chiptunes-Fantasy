@@ -105,7 +105,7 @@ export function initVisuals(stateGetters, callbacks) {
         const h = canvas.height;
         const midY = h / 2;
         
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.075)';
         ctx.lineWidth = 1;
         ctx.setLineDash([4, 4]);
         ctx.beginPath();

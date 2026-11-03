@@ -599,14 +599,14 @@ export class Oscilloscope {
             const colorIdx = clamp(Math.round(totalEnergy * (COLOR_LUT_SIZE - 1)), 0, COLOR_LUT_SIZE - 1);
 
             // 1. Äußere Korona entlang der Spur (nur merklich bei moderater bis hoher Verweildauer)
-            if (totalEnergy > 0.28) {
+            if (totalEnergy > 0.25) {
                 ctx.fillStyle = this.haloColors[colorIdx];
-                ctx.globalAlpha = (totalEnergy - 0.22) * 0.42;
+                ctx.globalAlpha = (totalEnergy - 0.20) * 0.45;
                 ctx.fillRect(x, segTop - 1, 1, span + 2);
             }
 
-            // 2. Vertikaler Übergangs-Strahl (1px scharf; bei großen Sprüngen dezent-transparent)
-            const edgeAlpha = clamp(0.11 + Math.pow(totalEnergy, 1.15) * 0.89, 0.11, 1.0);
+            // 2. Vertikaler Übergangs-Strahl (1px scharf; Transienten bleiben hinter Röhrenmatrix klar definiert)
+            const edgeAlpha = clamp(0.20 + Math.pow(totalEnergy, 1.15) * 0.80, 0.20, 1.0);
             ctx.fillStyle = this.coreColors[colorIdx];
             ctx.globalAlpha = edgeAlpha;
             ctx.fillRect(x, segTop, 1, span);
@@ -807,7 +807,7 @@ export class Oscilloscope {
 
             // 2. Weites optisches Röhrenglas-Halation (weiches bilineares Upscaling des 0.25x Buffers)
             ctx.imageSmoothingEnabled = true;
-            ctx.globalAlpha = 0.52;
+            ctx.globalAlpha = 0.58;
             ctx.drawImage(
                 this.bloom,
                 0, 0, this.bloom.width, this.bloom.height,

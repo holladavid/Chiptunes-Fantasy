@@ -196,9 +196,9 @@ export class FftAnalyzer {
         }
 
         // Doppelt abgesetzte Instrumenten-Basislinie
-        ctx.fillStyle = rgba(this.palette.grid, 0.42);
+        ctx.fillStyle = rgba(this.palette.grid, 0.52);
         ctx.fillRect(0, this.baseY + 1, width, 1);
-        ctx.fillStyle = rgba(this.palette.grid, 0.16);
+        ctx.fillStyle = rgba(this.palette.grid, 0.22);
         ctx.fillRect(0, this.baseY + 2, width, 1);
 
         const logRange = Math.log(MAX_FREQUENCY / MIN_FREQUENCY);
@@ -228,9 +228,9 @@ export class FftAnalyzer {
         for (const frequency of majorFrequencies) {
             const ratio = Math.log(frequency / MIN_FREQUENCY) / logRange;
             const x = Math.max(12, Math.min(width - 12, Math.round(ratio * width)));
-            ctx.fillStyle = rgba(this.palette.grid, 0.55);
+            ctx.fillStyle = rgba(this.palette.grid, 0.65);
             ctx.fillRect(x, this.baseY + 2, 1, 5);
-            ctx.fillStyle = rgba(this.palette.grid, 0.78);
+            ctx.fillStyle = rgba(this.palette.grid, 0.88);
             const label = frequency >= 1000 ? `${frequency / 1000}K` : String(frequency);
             ctx.fillText(label, x, height - 2);
         }
