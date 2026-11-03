@@ -325,5 +325,10 @@ export const c64MuseumMetadata = {
         `Für diesen Titel liegt in HVSC #85 noch kein eigenständiger Eintrag vor. Der lokale <strong>PSID-v2-Rip</strong> wurde deshalb direkt aus dem unveränderten Originalrelease rekonstruiert: Load und Init bei <code>$0400</code>, Play bei <code>$0403</code>, ein Subsong, PAL/6581-Header. Der originale 6510-Replay und sämtliche referenzierten Musikdaten von <code>$0400–$0AFF</code> bleiben erhalten; 15.000 Play-Aufrufe wurden mit laufender, musikalisch aktiver SID-Registerausgabe validiert.`,
         csdb(244634, 'Transcend the Game'),
         { label: 'Pouët: Transcend the Game', url: 'https://www.pouet.net/prod.php?which=97441' }
+    ),
+    "SID_Emulation_Test.sid": museumCustom(
+        'CHIPTUNES FANTASY — SID EMULATION TEST SUITE',
+        `Diese eigenständige <strong>PSID-v2-Testdatei</strong> wurde für reproduzierbare Prüfungen der SID-Emulation erstellt. Sie ist kein historischer C64-Soundtrack und kein HVSC-Rip.`,
+        `Der 61 Sekunden lange Loop enthält 61 jeweils etwa einsekündige Registertests: acht Wellenformvarianten bei fünf Frequenzen, fünf ADSR-Verläufe mit Release, Filtermodi mit verschiedenen Cutoffs und Resonanzen sowie zwei Oszillatoren mit unabhängiger Ausgabe, Hard Sync und Ringmodulation.`
     )
 };

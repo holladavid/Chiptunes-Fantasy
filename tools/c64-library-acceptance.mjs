@@ -1,4 +1,4 @@
-// Separate acceptance for the curated 54-track C64 library.
+// Separate acceptance for the curated 55-track C64 library.
 //   node tools/c64-library-acceptance.mjs --seconds 3 \
 //     --report doc/verification/c64/curation-library-corpus.json
 // Production-worklet regression measurements; no hardware-reference or browser-dropout claim.

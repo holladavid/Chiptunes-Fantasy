@@ -3,6 +3,8 @@
 // Keys intentionally match the basename normalization in js/parsers/sid-parser.js.
 
 export const SID_SLDB = {
+    // Chiptunes Fantasy SID_Emulation_Test.sid — one 61-second test sequence
+    "sidemulationtest": { lengths: [61] },
     // Commando.sid — HVSC #85 MD5 match
     "commando": { lengths: [235.594, 61.288, 6, 1.124, 0.645, 0.964, 4.435, 1.882, 3.518, 5.592, 3.5, 1.922, 2.879, 0.804, 1.124, 2.7, 2.281, 1.503, 0.824] },
     // Crazy_Comets.sid — HVSC #85 MD5 match

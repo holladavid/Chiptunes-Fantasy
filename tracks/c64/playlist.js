@@ -1,6 +1,6 @@
 // === tracks/c64/playlist.js ===
 // C64 Jukebox Playlist Registry
-// 26 preserved legacy paths + 24 researched HVSC #85 classics + 4 Assembly winners.
+// 26 preserved legacy paths + 24 HVSC #85 classics + 4 Assembly winners + 1 SID test tune.
 
 import { loadSidFile } from '../../js/parsers/sid-parser.js';
 import { c64MuseumMetadata } from './museum.js';
@@ -31,7 +31,8 @@ const legacySidFiles = [
     "Way_of_the_Tiger.sid",
     "Platoon.sid",
     "Compilation_I.sid",
-    "Compilation_II.sid"
+    "Compilation_II.sid",
+    "SID_Emulation_Test.sid"
 ];
 
 const classicSidFiles = [
@@ -103,6 +104,7 @@ const c64ListTitles = [
     'Platoon',
     'Compilation I',
     'Compilation III',
+    'SID Emulation Test Suite',
     'Glider Rider',
     'Lazy Jones',
     'Ocean Loader 2',

@@ -52,10 +52,10 @@ function header(relative) {
 
 const hex = (value, width) => `0x${value.toString(16).padStart(width, '0')}`;
 
-test('Kuration: 26 Bestandspfade, 24 Klassiker und vier Assembly-Sieger bleiben eindeutig', () => {
-    assert.equal(c64Playlist.length, 54);
-    assert.equal(c64TrackPaths.length, 54);
-    assert.equal(new Set(c64TrackPaths).size, 54);
+test('Kuration: Bestand, Klassiker, Assembly-Sieger und SID-Testdatei bleiben eindeutig', () => {
+    assert.equal(c64Playlist.length, 55);
+    assert.equal(c64TrackPaths.length, 55);
+    assert.equal(new Set(c64TrackPaths).size, 55);
     assert.deepEqual(c64TrackPaths.slice(0, 26), expectedLegacyPrefix);
     assert.deepEqual(c64Playlist.map(entry => entry.path), c64TrackPaths);
     const additions = c64TrackPaths.slice(26);
@@ -63,12 +63,15 @@ test('Kuration: 26 Bestandspfade, 24 Klassiker und vier Assembly-Sieger bleiben 
     assert.equal(additions.filter(filename => filename.startsWith('classics/demoscene/')).length, 4);
     assert.equal(additions.filter(filename => filename.startsWith('assembly/')).length, 4);
     assert.ok(additions.every(filename => filename.endsWith('.sid')));
+    assert.equal(c64TrackPaths[26], 'SID_Emulation_Test.sid');
+    assert.equal(searchTracks(trackRegistry.c64, 'SID Emulation Test Suite')[0].song.path,
+        'SID_Emulation_Test.sid');
 });
 
 test('Kuration: jeder Titel besitzt einen eigenen strukturierten Museumstext mit sicheren Quellenlinks', () => {
-    assert.equal(Object.keys(c64MuseumMetadata).length, 54);
+    assert.equal(Object.keys(c64MuseumMetadata).length, 55);
     assert.deepEqual(Object.keys(c64MuseumMetadata).sort(), [...c64TrackPaths].sort());
-    assert.equal(new Set(Object.values(c64MuseumMetadata)).size, 54);
+    assert.equal(new Set(Object.values(c64MuseumMetadata)).size, 55);
     for (const entry of c64Playlist) {
         const museumText = c64MuseumMetadata[entry.path];
         assert.equal(entry.composerInfo, museumText);
@@ -104,6 +107,15 @@ test('Kuration: sichtbare Titel und Museumstexte folgen den tatsächlichen SID-H
     }
     assert.match(byPath('Compilation_II.sid').composerInfo, /1989 bei A\.U\.D\.I\.O\.S/);
     assert.match(byPath('To_be_on_Top.sid').composerInfo, /erschien 1987/);
+
+    const testTune = byPath('SID_Emulation_Test.sid');
+    const testHeader = header('tracks/c64/SID_Emulation_Test.sid');
+    assert.equal(testTune.listTitle, 'SID Emulation Test Suite');
+    assert.equal(testHeader.magic, 'PSID');
+    assert.equal(testHeader.version, 2);
+    assert.equal(testHeader.songs, 1);
+    assert.equal(SID_SLDB.sidemulationtest.lengths[0], 61);
+    assert.match(testTune.composerInfo, /kein historischer C64-Soundtrack/);
 });
 
 test('Kuration: Provenienz und SID-Header stimmen mit allen 24 neuen Dateibytes überein', () => {
@@ -115,7 +127,7 @@ test('Kuration: Provenienz und SID-Header stimmen mit allen 24 neuen Dateibytes 
     assert.equal(provenance.source.archiveBytes, 84827547);
     assert.equal(provenance.source.archiveSha256,
         'f770339229446df1b8e037938fb70f3f4c953cb4a6eeef7ce357f05ca2c73225');
-    const additions = new Set(c64TrackPaths.slice(26, 50).map(filename => `tracks/c64/${filename}`));
+    const additions = new Set(c64TrackPaths.slice(27, 51).map(filename => `tracks/c64/${filename}`));
     assert.deepEqual(new Set(provenance.tracks.map(track => track.path)), additions);
 
     for (const track of provenance.tracks) {
@@ -141,8 +153,8 @@ test('Kuration: Provenienz und SID-Header stimmen mit allen 24 neuen Dateibytes 
     }
 });
 
-test('Kuration: 53 HVSC-Songlength-Listen passen; der neue 2024-Rip nutzt bewusst den Fallback', () => {
-    assert.equal(Object.keys(SID_SLDB).length, 53);
+test('Kuration: Songlength-Listen passen; lokale Testdatei und 2024-Rip sind dokumentiert', () => {
+    assert.equal(Object.keys(SID_SLDB).length, 54);
     for (const filename of c64TrackPaths) {
         const sid = header(`tracks/c64/${filename}`);
         assert.ok(['PSID', 'RSID'].includes(sid.magic), filename);
@@ -165,7 +177,7 @@ test('Kuration: 53 HVSC-Songlength-Listen passen; der neue 2024-Rip nutzt bewuss
 
 test('Kuration: Tracklist-Navigation erhält Klassikergruppen und den Assembly-Ordner', () => {
     const rootEntries = getTracklistEntries(trackRegistry.c64);
-    assert.equal(rootEntries.filter(entry => entry.type === 'track').length, 26);
+    assert.equal(rootEntries.filter(entry => entry.type === 'track').length, 27);
     const classics = rootEntries.find(entry => entry.type === 'folder' && entry.name === 'classics');
     assert.ok(classics);
     const groups = getTracklistEntries(trackRegistry.c64, classics.path);
@@ -225,17 +237,17 @@ test('Assembly: 20-Jahres-Abdeckung, Provenienz und Suche sind an die gelieferte
     }
 });
 
-test('Kuration: separate 54-Titel-Audioabnahme ist bestanden und an die ausgelieferten Quellen gebunden', () => {
+test('Kuration: separate 55-Titel-Audioabnahme ist bestanden und an die ausgelieferten Quellen gebunden', () => {
     const result = json('doc/verification/c64/curation-library-corpus.json');
     assert.equal(result.format, 'chiptunes-fantasy-c64-curation-library-v1');
     assert.equal(result.passed, true);
     assert.equal(result.engine, 'exact');
     assert.equal(result.processor, 'sid-exact-processor');
-    assert.equal(result.corpus.trackCount, 54);
-    assert.equal(result.corpus.tracks.length, 54);
+    assert.equal(result.corpus.trackCount, 55);
+    assert.equal(result.corpus.tracks.length, 55);
     assert.deepEqual(result.corpus.tracks.map(track => track.path), c64TrackPaths);
-    assert.equal(Object.values(result.corpus.formatCounts).reduce((sum, count) => sum + count, 0), 54);
-    assert.equal(result.corpus.formatCounts['PSID v2'], 47);
+    assert.equal(Object.values(result.corpus.formatCounts).reduce((sum, count) => sum + count, 0), 55);
+    assert.equal(result.corpus.formatCounts['PSID v2'], 48);
     assert.equal(result.corpus.formatCounts['RSID v2'], 7);
     assert.ok(result.corpus.tracks.some(track => track.path === 'classics/demoscene/comaland-100-end.sid' &&
         track.format === 'RSID v2' && track.audible));
