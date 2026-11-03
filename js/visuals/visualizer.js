@@ -100,30 +100,6 @@ export function initVisuals(stateGetters, callbacks) {
     const startTime = performance.now();
     let hudCounter = 0; 
 
-    function drawReticle() {
-        const w = canvas.width;
-        const h = canvas.height;
-        const midY = h / 2;
-        
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.075)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(0, midY);
-        ctx.lineTo(w, midY);
-        ctx.stroke();
-        
-        const divisions = 10;
-        const stepX = w / divisions;
-        ctx.beginPath();
-        for (let i = 1; i < divisions; i++) {
-            ctx.moveTo(i * stepX, 0);
-            ctx.lineTo(i * stepX, h);
-        }
-        ctx.stroke();
-        ctx.setLineDash([]); 
-    }
-
 let lastDrawTime = performance.now();
 
     function draw() {
@@ -198,7 +174,6 @@ let lastDrawTime = performance.now();
             // FIX: chipRegs als 9. Argument an den SceneDJ übergeben!
             dss.render(ctx, canvas.width, canvas.height, t, channelVolumes, isPlaying, sessionId, trackMetadata, chipRegs);
         } else {
-            drawReticle(); 
             osc.render(ctx, canvas.width, canvas.height, stateGetters, lineColor, dt);
             fft.render(ctx, canvas.width, canvas.height, stateGetters, lineColor, dt, currentSystem);
         }
