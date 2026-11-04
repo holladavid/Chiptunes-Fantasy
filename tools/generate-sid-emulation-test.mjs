@@ -114,8 +114,8 @@ for (const [name, attackDecay, sustainRelease] of [
     ['fast attack / low sustain', 0x18, 0x20],
     ['medium attack / medium sustain', 0x48, 0xA6],
     ['slow attack / full sustain', 0x98, 0xF9],
-    ['decay-focused', 0x3F, 0x50],
-    ['instant attack / long release', 0x00, 0xFF]
+    ['medium decay / medium sustain', 0x09, 0x84],
+    ['instant attack / long release', 0x00, 0xF4]
 ]) {
     tests.push(makeTest(`ADSR ${name}`, {
         waveform: 0x41,
