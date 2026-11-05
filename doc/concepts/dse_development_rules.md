@@ -97,6 +97,9 @@ Ein DSE SOLL nicht ausschließlich lauter und heller werden. Ein guter Effekt ve
 | `metrics.energy` | Geglättete Gesamtenergie (`masterEnergy`), geeignet für allgemeine Intensität. Nicht als Beat-Event verwenden. |
 | `metrics.pulse` | Transientenimpuls (`transientPulse`), geeignet für kurze lokale Akzente. |
 | `metrics.beat[c]` | Abklingende Beat-Hüllkurve pro logischem Band/Kanal, geeignet für kurze Amplituden, Nudges oder Helligkeitsstufen. |
+| `metrics.beatStrength` | Stärke des letzten akzeptierten Beats von 0 bis 1. Bleibt während dessen Abklingens erhalten und wird erst beim nächsten akzeptierten Beat ersetzt. |
+| `metrics.beatLevel` | Diskrete Einordnung der letzten Beat-Stärke: `0` = kein Beat, `1` = soft, `2` = medium, `3` = hard. |
+| `metrics.beatImpulse[0]` | Stärkegewichteter Beat-Ausschlag: `beat[0] × beatStrength`. Bevorzugte Metrik für kontinuierliche sichtbare Reaktionen. |
 | `metrics.beatStarted` | Exaktes Einmalereignis für einen erkannten Beat. Einzige zentrale Basis für diskrete Pattern-, Paletten- oder Richtungswechsel. |
 | `metrics.beatCount` | Fortlaufende Beatnummer, beispielsweise für jeden zweiten oder vierten Beat. |
 | `metrics.smooth[c]` | Geglättete Kanalenergie, geeignet für einzelne Balken, Sterne, Flächen oder Parameter einer Ebene. |
@@ -136,6 +139,9 @@ Regeln:
 - Beat-Zähler speichern, statt ein Ereignis in mehreren Frames erneut auszuführen.
 - Vier- oder Acht-Beat-Raster für größere Wechsel bevorzugen; nicht jeder Effekt braucht denselben Rhythmus.
 - Die Hüllkurve weiterhin für einen weichen oder gestuften Ausschlag verwenden.
+- Kontinuierliche stärkeabhängige Ausschläge über `beatImpulse[0]` berechnen, nicht über erneute lokale Schwellen an `beat[0]`.
+- `beatLevel` darf zusammen mit `beatStarted` eine soft-, medium- oder hard-Variante auswählen. Der während des Abklingens erhaltene Levelwert allein ist kein neues Ereignis.
+- `beatStrength` beschreibt die Impulsgröße, nicht die Dauerlautstärke und nicht die Tension.
 - Ein Beat-Test MUSS auch mehrere Frames mit aktiver Hüllkurve, aber ohne neues `beatStarted`, enthalten.
 
 ### 3.4 Kanalzuordnung
@@ -437,12 +443,13 @@ Für einen neuen oder wesentlich veränderten DSE sind mindestens erforderlich:
 2. **Numerik:** endliche Koordinaten, positive beziehungsweise nichtnegative Rechteckgrößen, keine Division durch null.
 3. **Deterministik:** zwei gleiche Eingabesequenzen liefern über mehrere hundert Frames identische Ausgabe beziehungsweise Operationen.
 4. **Beat:** exakte Wechsel nur bei `beatStarted`; aktive Hüllkurve ohne neues Event retriggert nichts.
-5. **Beat an/aus:** ein isolierter Beat-Eingang erzeugt die vorgesehene Änderung; ohne Beat bleibt das diskrete Pattern stabil.
-6. **Zustände:** `starting → playing → buildup → climax → afterglow → stopping` mit derselben Instanz.
-7. **Rotation:** Porträt → Querformat → Porträt mit derselben Instanz und ohne leere Bereiche, Cluster oder Ressourcenfehler.
-8. **Palette:** tatsächliche Ausgabepixel erfüllen C64-/Amiga-/Atari-Grenzen.
-9. **Viewport:** kleine, hohe, breite und extreme Seitenverhältnisse.
-10. **Lifecycle:** Auswahl, Dauer, Stopping und Entfernung entsprechen den Registry-Metadaten; One-Shots zusätzlich erneut starten.
+5. **Beat-Intensität:** reproduzierbare soft-/medium-/hard-Sequenzen mit `beatStrength`, `beatLevel` und `beatImpulse`; die vorgesehenen Ausschläge müssen sich sichtbar unterscheiden.
+6. **Beat an/aus:** ein isolierter Beat-Eingang erzeugt die vorgesehene Änderung; ohne Beat bleibt das diskrete Pattern stabil.
+7. **Zustände:** `starting → playing → buildup → climax → afterglow → stopping` mit derselben Instanz.
+8. **Rotation:** Porträt → Querformat → Porträt mit derselben Instanz und ohne leere Bereiche, Cluster oder Ressourcenfehler.
+9. **Palette:** tatsächliche Ausgabepixel erfüllen C64-/Amiga-/Atari-Grenzen.
+10. **Viewport:** kleine, hohe, breite und extreme Seitenverhältnisse.
+11. **Lifecycle:** Auswahl, Dauer, Stopping und Entfernung entsprechen den Registry-Metadaten; One-Shots zusätzlich erneut starten.
 
 Ein Fake-Canvas für Unit-Tests SOLL absichtlich keine verbotenen Funktionen wie `fillText()` oder `measureText()` anbieten. Dadurch fallen verbotene APIs sofort auf.
 
@@ -495,6 +502,7 @@ Ein neuer DSE ist erst abnahmebereit, wenn alle zutreffenden Punkte erfüllt sin
 - [ ] Tension steuert Verhalten, nicht nur Helligkeit.
 - [ ] `playing`, `buildup`, `climax` und `afterglow` sind unterscheidbar.
 - [ ] Diskrete Wechsel verwenden ausschließlich `beatStarted`/`beatCount`.
+- [ ] Kontinuierliche Beat-Ausschläge verwenden `beatImpulse`; soft, medium und hard sind bei vorgesehenen Reaktionen sichtbar unterscheidbar.
 - [ ] Kanalpegel haben eine nachvollziehbare visuelle Aufgabe.
 - [ ] Fehlende Metriken führen zu sicheren Fallbacks.
 

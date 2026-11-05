@@ -21,7 +21,7 @@ function clamp01(value) {
     return Math.max(0.0, Math.min(1.0, value));
 }
 
-function beatLevelForStrength(strength) {
+export function getBeatLevel(strength) {
     if (strength <= 0.0) return BEAT_LEVEL.NONE;
     if (strength >= HARD_BEAT_STRENGTH) return BEAT_LEVEL.HARD;
     if (strength >= MEDIUM_BEAT_STRENGTH) return BEAT_LEVEL.MEDIUM;
@@ -288,7 +288,7 @@ export class TrackMonitor {
             this.dynamics.transientPulse[0] = 1.0;
             this.dynamics.beatEnvelope[0] = 1.0;
             this.dynamics.beatStrength = strength;
-            this.dynamics.beatLevel = beatLevelForStrength(strength);
+            this.dynamics.beatLevel = getBeatLevel(strength);
             this.dynamics.beatStarted = true;
             this.dynamics.beatCount++;
             this.dynamics.beatCooldown = 0.15;

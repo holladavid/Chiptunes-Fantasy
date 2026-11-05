@@ -1,4 +1,6 @@
 // === js/visuals/dj/stage-manager.js ===
+import { getBeatLevel } from './track-monitor.js';
+
 const TRANSITION_TIME = 1.5;
 const PAL_FRAME_RATE = 50;
 const Z_ORDER = { 'background': 0, 'floor': 1, 'foreground': 2, 'overlay': 3 };
@@ -7,6 +9,9 @@ export class StageManager {
     constructor() {
         this.activeDSEs = [];
         this.frameCaches = new WeakMap();
+        // Einmaliger Puffer fuer alte Metriken ohne beatImpulse. Der Renderloop
+        // erzeugt dadurch auch im Kompatibilitaetsfall keine neuen Arrays.
+        this.legacyBeatImpulse = new Float32Array(1);
     }
 
     sortZOrder() {
@@ -101,6 +106,28 @@ export class StageManager {
         // damit Patternwechsel einmal pro Beat statt per Schwellenwert ausloesen.
         metricsWrapper.beatStarted = dynamics.beatStarted;
         metricsWrapper.beatCount = dynamics.beatCount;
+
+        const envelope = dynamics.beatEnvelope && Number.isFinite(dynamics.beatEnvelope[0])
+            ? Math.max(0.0, Math.min(1.0, dynamics.beatEnvelope[0]))
+            : 0.0;
+        // Vor graduellen Beats war jeder akzeptierte Schlag ein Vollschlag.
+        // Dieser Fallback haelt alte Harness- und Test-Metriken kompatibel.
+        const strength = Number.isFinite(dynamics.beatStrength)
+            ? Math.max(0.0, Math.min(1.0, dynamics.beatStrength))
+            : (envelope > 0.0 || dynamics.beatStarted ? 1.0 : 0.0);
+        metricsWrapper.beatStrength = strength;
+        metricsWrapper.beatLevel = Number.isInteger(dynamics.beatLevel)
+            && dynamics.beatLevel >= 0 && dynamics.beatLevel <= 3
+            ? dynamics.beatLevel
+            : getBeatLevel(strength);
+
+        if (dynamics.beatImpulse && Number.isFinite(dynamics.beatImpulse[0])) {
+            metricsWrapper.beatImpulse = dynamics.beatImpulse;
+        } else {
+            this.legacyBeatImpulse[0] = envelope * strength;
+            metricsWrapper.beatImpulse = this.legacyBeatImpulse;
+        }
+
         metricsWrapper.smooth = dynamics.channelSmooth;
         metricsWrapper.rawEnergyState = dynamics.rawEnergyState;
         metricsWrapper.system = info.system;
