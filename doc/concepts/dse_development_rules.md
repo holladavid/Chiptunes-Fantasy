@@ -27,10 +27,10 @@ Ein DSE MUSS ohne Audioeingabe, mit fehlenden Metriken und bei sehr kleinen oder
 ### 2.1 Zuständigkeiten
 
 - `SceneDJ` koordiniert TrackMonitor, TensionManager, SetlistManager und StageManager.
-- `TrackMonitor` liefert Energie, Transienten, Beat-Hüllkurven und exakte Beat-Events.
+- `TrackMonitor` liefert Energie, Transienten, Beat-Hüllkurven, graduelle Beat-Stärken und exakte Beat-Events.
 - `TensionManager` bestimmt den musikalischen Makrozustand.
 - `SetlistManager` wählt DSEs anhand ihrer Registry-Metadaten aus.
-- `StageManager` verwaltet Instanzen, Zustandsübergänge und das PAL-Tick-Caching.
+- `StageManager` verwaltet Instanzen, Zustandsübergänge, das PAL-Tick-Caching und das kompatible Routing der graduellen Beat-Metriken.
 - Der DSE rendert ausschließlich seine eigene visuelle Ausgabe. Er wählt keine Tracks, verändert keine DJ-Logik und steuert keine anderen DSEs.
 
 ### 2.2 Render-Schnittstelle
@@ -97,6 +97,9 @@ Ein DSE SOLL nicht ausschließlich lauter und heller werden. Ein guter Effekt ve
 | `metrics.energy` | Geglättete Gesamtenergie (`masterEnergy`), geeignet für allgemeine Intensität. Nicht als Beat-Event verwenden. |
 | `metrics.pulse` | Transientenimpuls (`transientPulse`), geeignet für kurze lokale Akzente. |
 | `metrics.beat[c]` | Abklingende Beat-Hüllkurve pro logischem Band/Kanal, geeignet für kurze Amplituden, Nudges oder Helligkeitsstufen. |
+| `metrics.beatStrength` | Stärke des letzten akzeptierten Beats von 0 bis 1. Bleibt während dessen Abklingens erhalten und wird erst beim nächsten akzeptierten Beat ersetzt. |
+| `metrics.beatLevel` | Diskrete Einordnung der letzten Beat-Stärke: `0` = kein Beat, `1` = soft, `2` = medium, `3` = hard. |
+| `metrics.beatImpulse[0]` | Stärkegewichteter Beat-Ausschlag: `beat[0] × beatStrength`. Bevorzugte Metrik für kontinuierliche sichtbare Reaktionen. |
 | `metrics.beatStarted` | Exaktes Einmalereignis für einen erkannten Beat. Einzige zentrale Basis für diskrete Pattern-, Paletten- oder Richtungswechsel. |
 | `metrics.beatCount` | Fortlaufende Beatnummer, beispielsweise für jeden zweiten oder vierten Beat. |
 | `metrics.smooth[c]` | Geglättete Kanalenergie, geeignet für einzelne Balken, Sterne, Flächen oder Parameter einer Ebene. |
@@ -108,6 +111,25 @@ Ein DSE SOLL nicht ausschließlich lauter und heller werden. Ein guter Effekt ve
 | `metrics.regs` | Optionale Chip-/Registerinformationen für bewusst systemspezifische Effekte. Vor Verwendung Verfügbarkeit und Semantik prüfen. |
 
 Werte MÜSSEN defensiv gelesen werden. Optionale Arrays und Felder können fehlen; verwende endliche Fallbacks und begrenze Steuerwerte auf einen sinnvollen Bereich.
+
+Der TrackMonitor bündelt Hardware- und analoge Beat-Kandidaten desselben Schlags per `Math.max(...)`, nicht durch Addition. Beide Quellen durchlaufen denselben Cooldown und erzeugen gemeinsam höchstens ein Beat-Event. Ein akzeptierter Beat erhält mindestens die Stärke `0.15`; die zentrale Levelzuordnung erfolgt ausschließlich über `getBeatLevel(...)`:
+
+| Level | Stärke |
+| --- | --- |
+| `NONE` (`0`) | `0` |
+| `SOFT` (`1`) | größer als `0` und kleiner als `1/3` |
+| `MEDIUM` (`2`) | mindestens `1/3` und kleiner als `2/3` |
+| `HARD` (`3`) | mindestens `2/3` |
+
+Der kontinuierliche Ausschlag wird zentral berechnet:
+
+```javascript
+beatImpulse[0] = beatEnvelope[0] * beatStrength;
+```
+
+Beim akzeptierten Beat ist die Hüllkurve `1`, daher entspricht der Anfangsimpuls genau `beatStrength`. Während des Abklingens bleiben Stärke und Level erhalten, während `beatImpulse` mit der Hüllkurve abnimmt.
+
+Der StageManager begrenzt eingehende Werte auf ihren gültigen Bereich. Fehlt `beatStrength` in einem alten Metrics-Objekt, wird ein vorhandener Beat als Vollschlag interpretiert. Fehlt `beatImpulse`, stellt ein wiederverwendeter `Float32Array(1)`-Puffer `beatEnvelope × beatStrength` bereit. Diese Kompatibilität darf keine neuen Arrays im Renderloop erzeugen.
 
 ### 3.3 Exakte Beats statt Hüllkurven-Retrigger
 
@@ -136,6 +158,9 @@ Regeln:
 - Beat-Zähler speichern, statt ein Ereignis in mehreren Frames erneut auszuführen.
 - Vier- oder Acht-Beat-Raster für größere Wechsel bevorzugen; nicht jeder Effekt braucht denselben Rhythmus.
 - Die Hüllkurve weiterhin für einen weichen oder gestuften Ausschlag verwenden.
+- Kontinuierliche stärkeabhängige Ausschläge über `beatImpulse[0]` berechnen, nicht über erneute lokale Schwellen an `beat[0]`.
+- `beatLevel` darf zusammen mit `beatStarted` eine soft-, medium- oder hard-Variante auswählen. Der während des Abklingens erhaltene Levelwert allein ist kein neues Ereignis.
+- `beatStrength` beschreibt die Impulsgröße, nicht die Dauerlautstärke und nicht die Tension.
 - Ein Beat-Test MUSS auch mehrere Frames mit aktiver Hüllkurve, aber ohne neues `beatStarted`, enthalten.
 
 ### 3.4 Kanalzuordnung
@@ -169,6 +194,18 @@ if (this.lastState !== state) {
 ```
 
 Der Übergang in `afterglow` SOLL die letzte Formation und Objektpositionen übernehmen. Kein Re-Seed und kein harter Szenenwechsel nur wegen des neuen Makrozustands.
+
+### 3.6 Universelle DSEs: finaler Umsetzungsstand
+
+| DSE | Kontinuierliche Reaktion auf `beatImpulse[0]` | Diskrete Ereignisse und Sonderregeln |
+| --- | --- | --- |
+| `Starfield` | Gewichteter Warp-Schub; C64-Rasterwobble, Amiga-Nebel-/Helligkeitsakzente und ganzzahliger Atari-Größenkick | Pattern und Paletten nur bei `beatStarted`/`beatCount` |
+| `Copperbars` | Vertikaler Nudge, Climax-Interferenz und abgestufter Core-Punch | Formationen und Copperlists nur am exakten vierten Beat |
+| `TrackPresenter` | Systemgerechte Panel-Bewegung; zusätzlicher horizontaler Bitmap-Titel-Nudge im Climax | Layoutwechsel nur am exakten vierten Beat; One-Shot-Verhalten bleibt unverändert |
+| `LimitBar` | C64-Rasterstärke, Amiga-Sweep-Größe sowie Atari-Funkenanzahl und -länge; Impulssteuerung des Climax-Strobes | Bleibt über `.disabled()` deaktiviert und wird nur isoliert getestet |
+| `VoidElement` | Absichtlich keine; der Platzhalter liest keine Musikmetriken und zeichnet nichts | Alle drei Registry-Einträge bleiben `isVoid()` |
+
+Alle sichtbaren universellen DSEs verwenden bei fehlendem `beatImpulse` weiterhin die begrenzte `beat[0]`-Hüllkurve als Fallback. Eine abklingende Hüllkurve oder ein erhaltener `beatLevel` darf bei ihnen keine Pattern-, Paletten-, Formations-, Richtungs- oder Layoutwechsel erneut auslösen.
 
 ## 4. Historischer Stil und Hardwaregrenzen
 
@@ -437,12 +474,28 @@ Für einen neuen oder wesentlich veränderten DSE sind mindestens erforderlich:
 2. **Numerik:** endliche Koordinaten, positive beziehungsweise nichtnegative Rechteckgrößen, keine Division durch null.
 3. **Deterministik:** zwei gleiche Eingabesequenzen liefern über mehrere hundert Frames identische Ausgabe beziehungsweise Operationen.
 4. **Beat:** exakte Wechsel nur bei `beatStarted`; aktive Hüllkurve ohne neues Event retriggert nichts.
-5. **Beat an/aus:** ein isolierter Beat-Eingang erzeugt die vorgesehene Änderung; ohne Beat bleibt das diskrete Pattern stabil.
-6. **Zustände:** `starting → playing → buildup → climax → afterglow → stopping` mit derselben Instanz.
-7. **Rotation:** Porträt → Querformat → Porträt mit derselben Instanz und ohne leere Bereiche, Cluster oder Ressourcenfehler.
-8. **Palette:** tatsächliche Ausgabepixel erfüllen C64-/Amiga-/Atari-Grenzen.
-9. **Viewport:** kleine, hohe, breite und extreme Seitenverhältnisse.
-10. **Lifecycle:** Auswahl, Dauer, Stopping und Entfernung entsprechen den Registry-Metadaten; One-Shots zusätzlich erneut starten.
+5. **Beat-Intensität:** reproduzierbare soft-/medium-/hard-Sequenzen mit `beatStrength`, `beatLevel` und `beatImpulse`; die vorgesehenen Ausschläge müssen sich sichtbar unterscheiden.
+6. **Beat an/aus:** ein isolierter Beat-Eingang erzeugt die vorgesehene Änderung; ohne Beat bleibt das diskrete Pattern stabil.
+7. **Zustände:** `starting → playing → buildup → climax → afterglow → stopping` mit derselben Instanz.
+8. **Rotation:** Porträt → Querformat → Porträt mit derselben Instanz und ohne leere Bereiche, Cluster oder Ressourcenfehler.
+9. **Palette:** tatsächliche Ausgabepixel erfüllen C64-/Amiga-/Atari-Grenzen.
+10. **Viewport:** kleine, hohe, breite und extreme Seitenverhältnisse.
+11. **Lifecycle:** Auswahl, Dauer, Stopping und Entfernung entsprechen den Registry-Metadaten; One-Shots zusätzlich erneut starten.
+
+Der DSE-Baseline-Harness stellt dafür `makeMetrics(...)` und `runBeatIntensity(...)` bereit. Die festen Vergleichsstärken `GRADED_BEAT_STRENGTHS` sind `soft = 0.20`, `medium = 0.50` und `hard = 0.90`. Für exakte Onset-Frames ist ein Still mit `warmup: 0` sinnvoll; bei DSEs mit eigenem Einzug ist zusätzlich eine Sequenz mit separatem Warmup zu prüfen.
+
+Die fokussierte Gesamtsuite für das graduelle Beat-System umfasst:
+
+```sh
+node --test \
+  test/graded-beat-detection.test.mjs \
+  test/graded-beat-routing.test.mjs \
+  test/starfield.test.mjs \
+  test/copperbars.test.mjs \
+  test/track-presenter.test.mjs \
+  test/limit-bar.test.mjs \
+  test/void-element.test.mjs
+```
 
 Ein Fake-Canvas für Unit-Tests SOLL absichtlich keine verbotenen Funktionen wie `fillText()` oder `measureText()` anbieten. Dadurch fallen verbotene APIs sofort auf.
 
@@ -495,6 +548,7 @@ Ein neuer DSE ist erst abnahmebereit, wenn alle zutreffenden Punkte erfüllt sin
 - [ ] Tension steuert Verhalten, nicht nur Helligkeit.
 - [ ] `playing`, `buildup`, `climax` und `afterglow` sind unterscheidbar.
 - [ ] Diskrete Wechsel verwenden ausschließlich `beatStarted`/`beatCount`.
+- [ ] Kontinuierliche Beat-Ausschläge verwenden `beatImpulse`; soft, medium und hard sind bei vorgesehenen Reaktionen sichtbar unterscheidbar.
 - [ ] Kanalpegel haben eine nachvollziehbare visuelle Aufgabe.
 - [ ] Fehlende Metriken führen zu sicheren Fallbacks.
 
@@ -538,4 +592,6 @@ Bei Detailfragen haben die aktuellen Implementierungen Vorrang vor älteren Konz
 - `js/visuals/dse/universal/starfield.js` — responsive Projektion, Recycling und Rotationskontinuität
 - `js/visuals/dse/universal/copperbars.js` — exakte Beatwechsel, Formationen und Afterglow
 - `js/visuals/dse/universal/track-presenter.js` — Bitmap-Typografie und One-Shot-Overlay
-- `tools/dse-baseline/harness.js` — deterministische isolierte DSE-Prüfung
+- `js/visuals/dse/universal/limit-bar.js` — isoliert getesteter, deaktivierter Tension-Overlay
+- `js/visuals/dse/universal/void-element.js` — transparenter Zero-CPU-Platzhalter
+- `tools/dse-baseline/harness.js` — deterministische isolierte DSE-Prüfung einschließlich gradueller Beat-Intensitäten

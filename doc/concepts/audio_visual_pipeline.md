@@ -66,7 +66,11 @@ Contains metadata about the currently playing song.
 Updated every frame (60Hz). Contains the heavily filtered DSP metrics utilized by the DSEs.
 *   `masterEnergy` (Float): The RMS moving average of all active channels.
 *   `transientPulse` (Float): True rising-edge delta measuring instantaneous drum hits (`max(0, raw - smooth)`).
-*   `beatEnvelope` (Float): An exponential decay curve (`0.0 -> 1.0`). Triggers instantly on severe transients and decays smoothly. Used for Micro-Dynamics.
+*   `beatEnvelope` (Float): An exponential decay curve (`0.0 -> 1.0`). It starts at full amplitude for every accepted beat and retains the existing binary timing semantics.
+*   `beatStrength` (Float): Continuous strength (`0.0 -> 1.0`) of the last accepted beat. Hardware and analog candidates are combined by maximum rather than summed.
+*   `beatLevel` (Integer): Shared classification of that strength: `0` = none, `1` = soft, `2` = medium, `3` = hard.
+*   `beatImpulse` (Float): Strength-weighted microdynamic response, calculated as `beatEnvelope[0] × beatStrength` and decaying without changing the retained strength or level.
+*   `beatStarted` / `beatCount`: Exact one-frame beat event and monotonic beat number for discrete pattern, palette, formation, direction, or layout changes.
 *   `rawEnergyState` (String): The instantaneous, debounced threshold evaluation (`'playing'`, `'buildup'`, `'climax'`).
 
 ---
@@ -92,6 +96,8 @@ The stage technician managing the active visual pool.
 *   **State Machine:** Routes DSEs smoothly through `idle` $\to$ `starting` (1.5s) $\to$ `[macroState]` $\to$ `stopping` (1.5s) $\to$ `idle`.
 *   **Instant Wake-Up:** Bypasses debouncing when transitioning from a stopped (`idle`) state to playback, triggering an immediate visual fade-in and a fresh DSE roulette roll.
 *   **Z-Order Sorting:** Enforces strict rendering order (`background` $\to$ `floor` $\to$ `foreground` $\to$ `overlay`).
+*   **Graded Metrics Routing:** Clamps `beatStrength`, maps `beatLevel` through the shared `getBeatLevel(...)` thresholds, and forwards `beatImpulse` to the persistent DSE metrics wrapper.
+*   **Legacy Compatibility:** Metrics without graded fields retain full-strength beat behavior. A reusable one-element buffer supplies the impulse fallback without allocating new metric arrays in the render loop.
 
 ---
 
@@ -113,13 +119,13 @@ Visual effects are decoupled classes registered inside `dse/registry.js`. The `d
 
 ## 5. DSE Arsenal & Reactivity Mapping
 
-Demo-Scene-Elements are designed to react to **Macro-Dynamics** (the overall `state` string managing base speed and pattern complexity) and **Micro-Dynamics** (the `metrics.beat[0]` float managing instantaneous scale, thickness, or strobing). All spatial modifiers are wrapped in "Continuous Math" low-pass interpolators to prevent visual teleportation during state transitions.
+Demo-Scene-Elements are designed to react to **Macro-Dynamics** (the overall `state` string managing base speed and pattern complexity) and **Micro-Dynamics**. Continuous reactions use `metrics.beatImpulse[0]`, while discrete changes require the exact `beatStarted`/`beatCount` event. A retained beat level during envelope decay is not a new event. All spatial modifiers are wrapped in "Continuous Math" low-pass interpolators to prevent visual teleportation during state transitions.
 
-### 5.1. `LimitBar` (Overlay)
-*   **Function:** Borderless tension accumulation meter.
+### 5.1. `LimitBar` (Overlay, currently disabled)
+*   **Function:** Borderless tension accumulation meter, retained for isolated diagnostics but excluded from the active setlist through `.disabled()`.
 *   **Macro-Reaction:** Bar width is mapped precisely to `tensionPct`. Color milestones change based on segment position (50% warning, 100% climax).
-*   **Micro-Reaction:** At 100% Climax, the white strobe-flashing of the segments is tied exactly to `metrics.beat[0] > 0.5`.
-*   **System Styling:** C64 chunky blocks & rasterbars; Amiga 3D-bevels & copper-sweeps; Atari ST 16-color neon segments & vector sparks. Auto-fades to `opacity: 0` during `idle` or `0.0` tension.
+*   **Micro-Reaction:** `beatImpulse[0]` grades C64 raster borders, the Amiga sweep, and Atari spark count/length. The climax strobe also follows the weighted impulse.
+*   **System Styling:** C64 chunky blocks & rasterbars; Amiga copper-sweeps; Atari ST quantized neon segments & aliased vector sparks. Entry and exit use a structural vertical slide without alpha blending.
 
 ### 5.2. `RetroSunset` (Background)
 *   **Function:** IK+ inspired landscape.
@@ -130,22 +136,28 @@ Demo-Scene-Elements are designed to react to **Macro-Dynamics** (the overall `st
 ### 5.3. `Starfield` (Background)
 *   **Function:** Universal 3D warp starfield.
 *   **Macro-Reaction (`state`):** Adjusts the base Z-axis warp velocity (`smoothedWarp`).
-*   **Micro-Reaction (`beat`):** Injects instantaneous warp-speed boosts (`beatWarp`) directly into the Z-axis math on heavy drum transients.
-*   **System Styling:** C64 `square` line-caps; Amiga `round` caps with `rgba` depth-fading and `screen` glow; Atari ST `butt` caps with rigid 16-color palette clamping.
+*   **Micro-Reaction (`beatImpulse`):** Grades instantaneous warp travel and system accents: C64 raster wobble, Amiga nebula/climax brightness, and an integer Atari star-size kick.
+*   **Discrete Events:** Pattern and palette changes still require exact `beatStarted`/`beatCount` events; envelope decay cannot retrigger them.
+*   **System Styling:** Deterministic recycling, integer rasterization, system-correct palettes, and bounded star pools on every system.
 
 ### 5.4. `Copperbars` (Floor)
 *   **Function:** 3D Helix rasterbars.
 *   **Macro-Reaction (`state`):** Scales the orbital `targetAmplitude` and rotation `targetSpeed`. Transitions unlock new behavioral patterns.
-*   **Micro-Reaction (`beat`):** The `punch` (thickness of the bars) breathes exactly with the beat envelope. During the `climax` state, a vertical sine-wave distortion (`twistAmplitude`) is unlocked and driven exclusively by the beat transient.
+*   **Micro-Reaction (`beatImpulse`):** Grades the vertical nudge, climax interference, and core `punch` thickness. Formation and Copperlist changes remain restricted to exact fourth-beat events.
 
-### 5.5. `AmigaCube` / `AtariBobs` (Foreground)
+### 5.5. `TrackPresenter` (One-Shot Overlay)
+*   **Function:** Three-second track-information overlay rendered entirely with deterministic bitmap typography.
+*   **Micro-Reaction (`beatImpulse`):** Grades system-specific panel movement in `playing`, `buildup`, and `climax`; the climax also adds a horizontal title nudge.
+*   **Discrete Events:** Layout changes remain restricted to exact fourth-beat events. Afterglow adds no panel kick, and the one-shot lifecycle is unchanged.
+
+### 5.6. `AmigaCube` / `AtariBobs` (Foreground)
 *   **Function:** Central 3D focal points (Glenz Vector Cube / Pre-rendered Lissajous Sprites).
 *   **Macro-Reaction (`state`):** Increases target orbital or rotational speeds.
 *   **Micro-Reaction (`beat`):** Modulates the `scaleMultiplier` causing the 3D objects to physically inflate and bounce to the kick drum.
 *   **Special:** `AtariBobs` features strict aspect-ratio preservation, mapping its X/Y radii to `Math.min(width, height)` to prevent squishing on mobile screens.
 
-### 5.6. `VoidElement` (Floor / Background / Foreground)
-*   **Function:** A structural placeholder returning empty render passes.
+### 5.7. `VoidElement` (Floor / Background / Foreground)
+*   **Function:** A structural placeholder returning empty render passes. It intentionally has no beat response, reads no visual metrics, and issues no drawing operations.
 *   **Usage:** Allows the DJ's Roulette-Wheel to periodically clear specific Z-layers (e.g., hiding the Copperbars) to let the background elements breathe. Secured by the DJ's Black-Screen Protection to ensure the screen never goes completely blank.
 ```
 

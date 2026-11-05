@@ -29,6 +29,17 @@ export class LimitBar {
 
         this.frameCounter++;
 
+        const rawBeat = metrics.beat?.[0];
+        const beat = Number.isFinite(rawBeat)
+            ? Math.max(0, Math.min(1, rawBeat))
+            : 0;
+        const rawImpulse = metrics.beatImpulse?.[0];
+        // Alte Metriken ohne beatImpulse verwenden weiterhin die Beat-Huelle.
+        const beatImpulse = Number.isFinite(rawImpulse)
+            ? Math.max(0, Math.min(1, rawImpulse))
+            : beat;
+        const beatPunch = Math.ceil(beatImpulse * 3);
+
         let pct = metrics.tensionPct;
         let isFlashing = false;
         let animIntensity = (state === 'climax') ? 1.0 : pct;
@@ -39,7 +50,7 @@ export class LimitBar {
             } else if (metrics.isClimaxLocked) {
                 pct = Math.max(0.0, 1.0 - (metrics.climaxTimer / metrics.climaxHoldTime));
             }
-            isFlashing = (metrics.beat[0] > 0.5);
+            isFlashing = beatImpulse > 0.5;
         }
         pct = Math.max(0, Math.min(1.0, pct));
 
@@ -68,12 +79,12 @@ export class LimitBar {
         if (metrics.system === 'c64') {
             // --- STRICT C64 PALETTE BINDING ---
             let segCount = 20; let gap = 2;
-            let segW = (w / segCount) - gap;
+            let segW = Math.floor(w / segCount) - gap;
             let activeSegs = Math.floor(pct * segCount);
             let activeW = activeSegs > 0 ? (activeSegs * (segW + gap) - gap) : 0;
 
             if (animIntensity > 0.05 && activeW > 0) {
-                let borderThick = Math.floor(1 + animIntensity * 2); 
+                let borderThick = Math.floor(1 + animIntensity * 2) + beatPunch; 
                 let numStripes = 6;
                 let stripeH = (h + borderThick * 2) / numStripes;
                 
@@ -82,7 +93,7 @@ export class LimitBar {
                 for (let i = 0; i < numStripes; i++) {
                     let colIdx = Math.floor((t * (5 + animIntensity * 15) + i) % 4);
                     // Deterministisches Flimmern statt Math.random()
-                    if (animIntensity >= 1.0 && metrics.beat[0] > 0.3) {
+                    if (animIntensity >= 1.0 && beatImpulse > 0.3) {
                         colIdx = 4 + ((this.frameCounter + i) % 2); 
                     }
                     
@@ -104,7 +115,7 @@ export class LimitBar {
 
         } else if (metrics.system === 'amiga') {
             // --- 12-BIT AMIGA COPPERLIST STEPS (Absolut OCS-Banding!) ---
-            let activeW = w * pct;
+            let activeW = Math.floor(w * pct);
 
             if (pct > 0) {
                 const cBlue = [0, 85, 255];
@@ -142,11 +153,18 @@ export class LimitBar {
                 let sweepPos = Math.floor((Math.sin(sweepSpeed) * 0.5 + 0.5) * activeW);
                 
                 // Draw pure, deckende weiße Blöcke (Wertüberschreibung im Farb-Register)
+                const sweepPunch = Math.ceil(beatImpulse * 4);
+                const sweepWidth = 8 + sweepPunch * 2;
                 ctx.fillStyle = '#ffffff';
-                ctx.fillRect(x + sweepPos - 4, currentY - 2, 8, h + 4);
+                ctx.fillRect(
+                    x + sweepPos - Math.floor(sweepWidth / 2),
+                    currentY - 2 - sweepPunch,
+                    sweepWidth,
+                    h + 4 + sweepPunch * 2
+                );
                 
                 if (animIntensity >= 1.0) {
-                    let bY = currentY + h/2 + Math.floor(Math.sin(t * 20) * 4);
+                    let bY = Math.floor(currentY + h / 2) + Math.floor(Math.sin(t * 20) * 4);
                     ctx.fillRect(x - 4, bY - 1, 2, 2);
                     ctx.fillRect(x + activeW + 2, bY - 1, 2, 2);
                 }
@@ -155,17 +173,19 @@ export class LimitBar {
         } else {
             // --- 9-BIT ATARI ST STYLE ---
             let segCount = 24; let gap = 2;
-            let segW = (w / segCount) - gap;
+            let segW = Math.floor(w / segCount) - gap;
             let activeSegs = Math.floor(pct * segCount);
             let activeW = activeSegs > 0 ? (activeSegs * (segW + gap) - gap) : 0;
 
             const cGreen = rgbToHex(...quantizeAtari9Bit(85, 255, 85));
             const cYellow = rgbToHex(...quantizeAtari9Bit(255, 255, 51));
             const cRed = rgbToHex(...quantizeAtari9Bit(255, 51, 51));
+            const cWhite = rgbToHex(...quantizeAtari9Bit(255, 255, 255));
 
             // Vektor-Sparks shooting out
             if (animIntensity > 0.05 && activeW > 0) {
-                let numSparks = Math.floor(animIntensity * 12);
+                let numSparks = Math.min(25,
+                    Math.floor(animIntensity * 12) + Math.ceil(beatImpulse * 8));
                 if (animIntensity >= 1.0) numSparks = 25; 
                 
                 for(let i=0; i < numSparks; i++) {
@@ -178,15 +198,15 @@ export class LimitBar {
                     let edge = Math.floor(rVal1 * 4);
                     let sx, sy, dx, dy;
                     
-                    let offset = (rVal2 - 0.5) * (4 + animIntensity * 5);
-                    let sparkLen = rVal3 * 4 * animIntensity;
+                    let offset = (rVal2 - 0.5) * (4 + animIntensity * 5 + beatImpulse * 4);
+                    let sparkLen = rVal3 * (4 * animIntensity + beatImpulse * 12);
                     
                     if (edge === 0) { sx = x + rVal1 * activeW; sy = currentY - 4; dx = sx + offset; dy = sy - sparkLen; } 
                     else if (edge === 1) { sx = x + rVal1 * activeW; sy = currentY + h + 4; dx = sx + offset; dy = sy + sparkLen; } 
                     else if (edge === 2) { sx = x - 4; sy = currentY + rVal1 * h; dx = sx - sparkLen; dy = sy + offset; } 
                     else { sx = x + activeW + 4; sy = currentY + rVal1 * h; dx = sx + sparkLen; dy = sy + offset; } 
                     
-                    let sparkColor = animIntensity >= 1.0 ? '#ffffff' : cGreen;
+                    let sparkColor = animIntensity >= 1.0 ? cWhite : cGreen;
                     
                     // --- STRENGES ATARI-RESTRIKTION UPGRADE ---
                     // Keine Kantenglättung über ctx.lineTo()! Wir zeichnen die Vektoren
@@ -201,7 +221,7 @@ export class LimitBar {
                     if (i >= 23) color = cRed;      
                     else if (i >= 12) color = cYellow; 
                     
-                    if (isFlashing) color = '#ffffff'; 
+                    if (isFlashing) color = cWhite; 
                     
                     ctx.fillStyle = color;
                     ctx.fillRect(x + i * (segW + gap), currentY, segW, h); 

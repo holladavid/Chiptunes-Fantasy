@@ -2,7 +2,7 @@
 
 ## Umfang und Primärquellen
 
-Die C64-Bibliothek umfasst **50 Titel**: 26 unveränderte Bestandspfade und 24 Neuzugänge aus der **High Voltage SID Collection #85**, veröffentlicht am 28. Juni 2026. Die Neuzugänge gliedern sich in 20 Spielmusiken und vier Demoscene-Arbeiten.
+Die recherchierte C64-Sammlung umfasst 26 unveränderte Bestandspfade und 24 Neuzugänge aus der **High Voltage SID Collection #85**, veröffentlicht am 28. Juni 2026. Die Neuzugänge gliedern sich in 20 Spielmusiken und vier Demoscene-Arbeiten. Vier Assembly-Sieger und eine eigens erzeugte SID-Emulationstestdatei ergänzen die kuratierte Wiedergabeliste; die Testdatei ist kein historischer Soundtrack und kein HVSC-Rip.
 
 Als Primärquellen dienten:
 

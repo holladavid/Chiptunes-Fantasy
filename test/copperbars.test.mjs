@@ -52,7 +52,8 @@ test('Copperbars changes formations only on exact fourth-beat events', () => {
     assert.equal(bars.palettePhase, 1);
 
     bars.render(ctx, 320, 200, 1.04, 'playing', 0.04, createMetrics('c64', {
-        beat: [1, 1, 1, 1], beatStarted: false, beatCount: 4
+        beat: [1, 1, 1, 1], beatImpulse: [1], beatStrength: 1, beatLevel: 3,
+        beatStarted: false, beatCount: 4
     }));
     assert.equal(bars.pattern, 1, 'The beat envelope must not retrigger a formation');
     assert.equal(bars.palettePhase, 1);
@@ -65,6 +66,72 @@ test('Copperbars changes formations only on exact fourth-beat events', () => {
     assert.equal(bars.barsToDraw[0].intensity, 0.4);
 });
 
+test('Copperbars makes soft, medium and hard impulses visibly distinct on every system', () => {
+    for (const system of ['c64', 'amiga', 'atari']) {
+        const responses = [0.2, 0.5, 0.9].map(strength => {
+            const bars = new Copperbars();
+            const ctx = createContext();
+            bars.render(ctx, 320, 200, 1, 'playing', 0, createMetrics(system, {
+                beat: [1, 0, 0, 0],
+                beatImpulse: [strength],
+                beatStrength: strength,
+                beatStarted: true,
+                beatCount: 1
+            }));
+            return { hash: ctx.hash, nudgeY: bars.barsToDraw[0].y };
+        });
+
+        assert.ok(responses[0].nudgeY < responses[1].nudgeY
+            && responses[1].nudgeY < responses[2].nudgeY,
+        `${system} nudge must increase with beat strength`);
+        assert.equal(new Set(responses.map(response => response.hash)).size, 3,
+            `${system} soft/medium/hard frames must be visibly distinct`);
+    }
+});
+
+test('Copperbars thickens climax cores with beat intensity', () => {
+    for (const system of ['c64', 'amiga', 'atari']) {
+        const responses = [0.2, 0.5, 0.9].map(strength => {
+            const bars = new Copperbars();
+            const ctx = createContext();
+            bars.render(ctx, 320, 200, 1, 'climax', 3, createMetrics(system, {
+                beat: [1, 0, 0, 0],
+                beatImpulse: [strength],
+                beatStrength: strength,
+                beatStarted: true,
+                beatCount: 1
+            }));
+            return { hash: ctx.hash, punch: bars.barsToDraw[0].punch };
+        });
+
+        assert.deepEqual(responses.map(response => response.punch), [1, 2, 3]);
+        assert.equal(new Set(responses.map(response => response.hash)).size, 3,
+            `${system} climax intensity must be visible`);
+    }
+});
+
+test('Copperbars uses the legacy beat envelope when impulse metrics are absent', () => {
+    for (const system of ['c64', 'amiga', 'atari']) {
+        const legacy = new Copperbars();
+        const graded = new Copperbars();
+        const legacyCtx = createContext();
+        const gradedCtx = createContext();
+        const beat = 0.55;
+
+        legacy.render(legacyCtx, 320, 200, 1, 'climax', 3, createMetrics(system, {
+            beat: [beat, 0, 0, 0]
+        }));
+        graded.render(gradedCtx, 320, 200, 1, 'climax', 3, createMetrics(system, {
+            beat: [beat, 0, 0, 0],
+            beatImpulse: [beat]
+        }));
+
+        assert.equal(gradedCtx.hash, legacyCtx.hash, `${system} fallback must match the impulse path`);
+        assert.equal(graded.barsToDraw[0].y, legacy.barsToDraw[0].y);
+        assert.equal(graded.barsToDraw[0].punch, legacy.barsToDraw[0].punch);
+    }
+});
+
 test('Copperbars remains deterministic across systems and macro states', () => {
     for (const system of ['c64', 'amiga', 'atari']) {
         const first = new Copperbars();
@@ -74,8 +141,12 @@ test('Copperbars remains deterministic across systems and macro states', () => {
 
         for (let frame = 0; frame < 600; frame++) {
             const beatStarted = frame % 10 === 0;
+            const envelope = beatStarted ? 1 : 0.2;
             const metrics = createMetrics(system, {
-                beat: [beatStarted ? 1 : 0.2, 0, 0, 0],
+                beat: [envelope, 0, 0, 0],
+                beatImpulse: [envelope * 0.55],
+                beatStrength: 0.55,
+                beatLevel: 2,
                 beatStarted,
                 beatCount: Math.floor(frame / 10) + 1,
                 tensionPct: frame < 450 ? 0.8 : Math.max(0, 1 - (frame - 450) / 150)

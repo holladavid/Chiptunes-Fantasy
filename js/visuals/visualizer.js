@@ -10,6 +10,7 @@ import { FftAnalyzer } from './components/fft-analyzer.js';
 import { Oscilloscope } from './components/oscilloscope.js';
 import { LivingSilicon } from '../ui/living-silicon.js';
 import { CrtGlitch } from './components/crt-glitch.js';
+import { CrtShadowMask } from './components/crt-shadow-mask.js';
 
 // NEU: Statisches, prä-allozierte Null-Array zur Vermeidung von Heap-Garbages bei Inaktivität
 const zeroVolumes = new Float32Array(4);
@@ -54,6 +55,12 @@ export function initVisuals(stateGetters, callbacks) {
     const fft = new FftAnalyzer();
     const osc = new Oscilloscope(canvas.width, canvas.height);
     const glitch = new CrtGlitch(); // NEU: Instanziiert den Glitcher
+    const visualZone = document.getElementById('visual-zone');
+    const crtMask = new CrtShadowMask(
+        canvas,
+        document.getElementById('crt-mask-canvas'),
+        isAvailable => visualZone?.classList.toggle('crt-mask-active', isAvailable)
+    );
 
     // --- INTERACTIVE GIMMICK STATE & TOGGLE ---
     let showGimmick = false;
@@ -90,6 +97,7 @@ export function initVisuals(stateGetters, callbacks) {
             canvas.height = newHeight;
             osc.resize(newWidth, newHeight); 
             dss.resize(newWidth, newHeight); // Resize ans DSE-Ökosystem leiten
+            crtMask.resize(newWidth, newHeight);
         }
     }
     
@@ -99,30 +107,6 @@ export function initVisuals(stateGetters, callbacks) {
     
     const startTime = performance.now();
     let hudCounter = 0; 
-
-    function drawReticle() {
-        const w = canvas.width;
-        const h = canvas.height;
-        const midY = h / 2;
-        
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(0, midY);
-        ctx.lineTo(w, midY);
-        ctx.stroke();
-        
-        const divisions = 10;
-        const stepX = w / divisions;
-        ctx.beginPath();
-        for (let i = 1; i < divisions; i++) {
-            ctx.moveTo(i * stepX, 0);
-            ctx.lineTo(i * stepX, h);
-        }
-        ctx.stroke();
-        ctx.setLineDash([]); 
-    }
 
 let lastDrawTime = performance.now();
 
@@ -198,7 +182,6 @@ let lastDrawTime = performance.now();
             // FIX: chipRegs als 9. Argument an den SceneDJ übergeben!
             dss.render(ctx, canvas.width, canvas.height, t, channelVolumes, isPlaying, sessionId, trackMetadata, chipRegs);
         } else {
-            drawReticle(); 
             osc.render(ctx, canvas.width, canvas.height, stateGetters, lineColor, dt);
             fft.render(ctx, canvas.width, canvas.height, stateGetters, lineColor, dt, currentSystem);
         }
@@ -209,6 +192,7 @@ let lastDrawTime = performance.now();
         if (typeof glitch !== 'undefined' && glitch) {
             glitch.render(ctx, canvas.width, canvas.height, dt);
         }
+        crtMask.render();
 
         hudCounter++;
         callbacks.updateTimelineUI();

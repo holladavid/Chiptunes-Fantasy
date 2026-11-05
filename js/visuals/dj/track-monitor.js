@@ -6,6 +6,28 @@
 // to guarantee 100% frame-accurate demoscene beat syncing.
 // =========================================================
 
+export const BEAT_LEVEL = Object.freeze({
+    NONE: 0,
+    SOFT: 1,
+    MEDIUM: 2,
+    HARD: 3
+});
+
+const MIN_BEAT_STRENGTH = 0.15;
+const MEDIUM_BEAT_STRENGTH = 1.0 / 3.0;
+const HARD_BEAT_STRENGTH = 2.0 / 3.0;
+
+function clamp01(value) {
+    return Math.max(0.0, Math.min(1.0, value));
+}
+
+export function getBeatLevel(strength) {
+    if (strength <= 0.0) return BEAT_LEVEL.NONE;
+    if (strength >= HARD_BEAT_STRENGTH) return BEAT_LEVEL.HARD;
+    if (strength >= MEDIUM_BEAT_STRENGTH) return BEAT_LEVEL.MEDIUM;
+    return BEAT_LEVEL.SOFT;
+}
+
 export class TrackInfo {
     constructor() {
         this.system = 'c64';
@@ -19,6 +41,9 @@ export class TrackDynamics {
         this.masterEnergy = new Float32Array(1);
         this.transientPulse = new Float32Array(1);
         this.beatEnvelope = new Float32Array(1);
+        // Staerkegewichteter Impuls fuer die spaetere DSE-Auswertung. Die
+        // bestehende Huelle bleibt normalisiert und damit abwaertskompatibel.
+        this.beatImpulse = new Float32Array(1);
         this.channelSmooth = new Float32Array(4);
         this.rawEnergyState = 'playing';
         this.beatCooldown = 0.0;
@@ -26,6 +51,8 @@ export class TrackDynamics {
         // bleibt davon unabhaengig und klingt weiterhin weich ab.
         this.beatStarted = false;
         this.beatCount = 0;
+        this.beatStrength = 0.0;
+        this.beatLevel = BEAT_LEVEL.NONE;
     }
 }
 
@@ -47,9 +74,12 @@ export class TrackMonitor {
         this.dynamics.masterEnergy[0] = 0.0;
         this.dynamics.transientPulse[0] = 0.0;
         this.dynamics.beatEnvelope[0] = 0.0;
+        this.dynamics.beatImpulse[0] = 0.0;
         this.dynamics.beatCooldown = 0.0;
         this.dynamics.beatStarted = false;
         this.dynamics.beatCount = 0;
+        this.dynamics.beatStrength = 0.0;
+        this.dynamics.beatLevel = BEAT_LEVEL.NONE;
         this.dynamics.rawEnergyState = 'playing';
     }
 
@@ -81,6 +111,9 @@ export class TrackMonitor {
             this.hasRegisterSnapshot = false;
             this.dynamics.transientPulse[0] = 0.0;
             this.dynamics.beatEnvelope[0] = 0.0;
+            this.dynamics.beatImpulse[0] = 0.0;
+            this.dynamics.beatStrength = 0.0;
+            this.dynamics.beatLevel = BEAT_LEVEL.NONE;
             this.dynamics.beatCooldown = 0.0;
             this.dynamics.rawEnergyState = 'playing';
             return;
@@ -89,7 +122,7 @@ export class TrackMonitor {
         // =========================================================
         // 2. HARDWARE TRIGGER DETECTION (Demoscene Precision)
         // =========================================================
-        let isHardwareBeat = false;
+        let hardwareBeatStrength = 0.0;
 
         if (chipRegs) {
             // Der erste Snapshot ist eine Basislinie, kein Gate-/Volume-Event.
@@ -109,17 +142,30 @@ export class TrackMonitor {
                     
                     // Rising Edge: Gate ging von 0 auf 1!
                     if ((ctrl & 1) && !(lastCtrl & 1)) {
-                        // 1. Snare/Hi-Hat: Nutzt das Noise-Bit (128)
-                        if (ctrl & 128) isHardwareBeat = true; 
-                        // 2. Synth-Kickdrum: Keine Noise, aber extrem tiefe Frequenz (< ~250 Hz entspricht SID-Wert 4000)
-                        else if (freq > 0 && freq < 4000) isHardwareBeat = true;
+                        // 1. Snare/Hi-Hat: Nutzt das Noise-Bit (128). Ohne
+                        // zusaetzliche Pegelinformation ist dies ein mittlerer Impuls.
+                        if (ctrl & 128) {
+                            hardwareBeatStrength = Math.max(hardwareBeatStrength, 0.55);
+                        // 2. Synth-Kickdrum: Je tiefer die Frequenz landet,
+                        // desto kraeftiger darf der Impuls ausfallen.
+                        } else if (freq > 0 && freq < 4000) {
+                            const bassWeight = 1.0 - freq / 4000.0;
+                            hardwareBeatStrength = Math.max(hardwareBeatStrength,
+                                0.35 + bassWeight * 0.45);
+                        }
                     }
                     
                     // 3. Fallback für Arpeggio-Kicks (Schneller Pitch-Drop ohne erneutes Gate-On)
                     let lastFreq = this.lastRegs[v * 7] | (this.lastRegs[v * 7 + 1] << 8);
                     if ((ctrl & 1) && (lastCtrl & 1)) {
-                        // Frequenz stürzt rasant ab und landet im Bass-Bereich
-                        if (lastFreq > freq + 2000 && freq < 3500) isHardwareBeat = true;
+                        // Drop-Tiefe und Zielregister bestimmen gemeinsam die Staerke.
+                        const drop = lastFreq - freq;
+                        if (drop > 2000 && freq < 3500) {
+                            const dropWeight = clamp01((drop - 2000) / 8000.0);
+                            const bassWeight = 1.0 - freq / 3500.0;
+                            hardwareBeatStrength = Math.max(hardwareBeatStrength,
+                                0.35 + dropWeight * 0.5 + bassWeight * 0.15);
+                        }
                     }
                 }
             } else if (this.info.system === 'atari') {
@@ -132,8 +178,15 @@ export class TrackMonitor {
                     let lastVol = this.lastRegs[8 + v] & 15;
                     let isEnv = (chipRegs[8 + v] & 16) !== 0;
 
-                    // 1. Harter Volume-Spike (Empfindlichkeit von +3 auf +2 gesenkt!)
-                    if (!isEnv && vol > lastVol + 2) isHardwareBeat = true;
+                    // 1. Volume-Spike: Sprunghoehe und erreichter Pegel bestimmen
+                    // gemeinsam, ob der Impuls soft, medium oder hard ausfaellt.
+                    if (!isEnv && vol > lastVol + 2) {
+                        const jump = vol - lastVol;
+                        const jumpWeight = clamp01((jump - 2) / 13.0);
+                        const levelWeight = vol / 15.0;
+                        hardwareBeatStrength = Math.max(hardwareBeatStrength,
+                            0.25 + jumpWeight * 0.55 + levelWeight * 0.20);
+                    }
 
                     // 2. Noise-Gate Snare/Hi-Hat Detection (NEU!)
                     // Im YM2149 ist Noise aktiv, wenn das Bit 0 ist (Active Low)
@@ -143,20 +196,25 @@ export class TrackMonitor {
                     
                     // Wenn Noise *jetzt* eingeschaltet wurde und Volume hörbar ist -> Harter Snare Hit!
                     if (noiseNowOn && noiseWasOff && (vol > 5 || isEnv)) {
-                        isHardwareBeat = true;
+                        const noiseStrength = isEnv ? 0.60 : 0.35 + (vol / 15.0) * 0.40;
+                        hardwareBeatStrength = Math.max(hardwareBeatStrength, noiseStrength);
                     }
                 }
 
                 // 3. Hardware-Envelope getriggert (Sync-Buzzer Bässe & Kicks)
                 if (chipRegs[13] !== this.lastRegs[13] && chipRegs[13] !== 255) {
-                    isHardwareBeat = true;
+                    hardwareBeatStrength = Math.max(hardwareBeatStrength, 0.45);
                 }
 
                 // 4. Digidrum Trigger via Virtual Registers (NEU!)
                 // Fängt die Jochen Hippel 4-Bit-PCM Samples ab, die ansonsten zwischen 
                 // den 60Hz Frame-Snapshots durchrutschen würden!
-                if (chipRegs[14] !== this.lastRegs[14] && chipRegs[14] > 0) isHardwareBeat = true;
-                if (chipRegs[15] !== this.lastRegs[15] && chipRegs[15] > 0) isHardwareBeat = true;
+                if (chipRegs[14] !== this.lastRegs[14] && chipRegs[14] > 0) {
+                    hardwareBeatStrength = Math.max(hardwareBeatStrength, 0.50);
+                }
+                if (chipRegs[15] !== this.lastRegs[15] && chipRegs[15] > 0) {
+                    hardwareBeatStrength = Math.max(hardwareBeatStrength, 0.50);
+                }
 
 } else if (this.info.system === 'amiga') {
                 // --- AMIGA PAULA: THE ULTIMATE PROTRACKER & FASTTRACKER BEAT CATCHER ---
@@ -173,7 +231,11 @@ export class TrackMonitor {
                     // 1. Harter Volume-Spike (Empfindlichkeit von +12 auf +8 gesenkt!)
                     // Fängt nun auch sanftere XM-Volume-Column-Befehle zuverlässig ab.
                     if (vol > lastVol + 8) {
-                        isHardwareBeat = true;
+                        const jump = vol - lastVol;
+                        const jumpWeight = clamp01((jump - 8) / 56.0);
+                        const levelWeight = clamp01(vol / 64.0);
+                        hardwareBeatStrength = Math.max(hardwareBeatStrength,
+                            0.25 + jumpWeight * 0.50 + levelWeight * 0.25);
                     }
 
                     // 2. Note-Trigger-Analyse (DMA-Pointer Reset)
@@ -182,7 +244,10 @@ export class TrackMonitor {
                         // Die alte Einschränkung (Nur Kanal 0 & 3) ist gelöscht.
                         // Wir filtern lediglich extremes High-Pitch-Gepiepe heraus (Period < 120).
                         if (period > 120 && vol > 16) {
-                            isHardwareBeat = true;
+                            const levelWeight = clamp01(vol / 64.0);
+                            const bassWeight = clamp01((600.0 - period) / 480.0);
+                            hardwareBeatStrength = Math.max(hardwareBeatStrength,
+                                0.30 + levelWeight * 0.45 + bassWeight * 0.15);
                         }
                     }
                 }
@@ -202,17 +267,28 @@ export class TrackMonitor {
         // und triggern das DSE-Netzwerk völlig problemlos von hinten herum!
         let pulseThresh = this.info.system === 'c64' ? 0.48 : (this.info.system === 'atari' ? 0.30 : 0.34);
         let isAnalogBeat = (analogMaxPulse > pulseThresh);
+        const analogBeatStrength = isAnalogBeat
+            ? clamp01((analogMaxPulse - pulseThresh) / Math.max(0.000001, 1.0 - pulseThresh))
+            : 0.0;
 
         // 4. Gemeinsame Beat-Annahme fuer Hardware- und Analogtrigger.
         // Beide Quellen durchlaufen denselben Cooldown, damit ein Frame nicht
-        // mehrere unterschiedlich starke DSE-Impulse ausloesen kann.
+        // mehrere unterschiedlich starke DSE-Impulse ausloesen kann. Mehrere
+        // Register desselben Schlags werden per Maximum statt Addition gebündelt.
         this.dynamics.beatCooldown = Math.max(0.0, this.dynamics.beatCooldown - dt);
-        const beatRequested = isHardwareBeat || isAnalogBeat;
+        const beatRequested = hardwareBeatStrength > 0.0 || isAnalogBeat;
         const beatAccepted = beatRequested && this.dynamics.beatCooldown <= 0.0;
 
         if (beatAccepted) {
+            const strength = clamp01(Math.max(
+                MIN_BEAT_STRENGTH,
+                hardwareBeatStrength,
+                analogBeatStrength
+            ));
             this.dynamics.transientPulse[0] = 1.0;
             this.dynamics.beatEnvelope[0] = 1.0;
+            this.dynamics.beatStrength = strength;
+            this.dynamics.beatLevel = getBeatLevel(strength);
             this.dynamics.beatStarted = true;
             this.dynamics.beatCount++;
             this.dynamics.beatCooldown = 0.15;
@@ -220,6 +296,7 @@ export class TrackMonitor {
             this.dynamics.transientPulse[0] = analogMaxPulse;
             this.dynamics.beatEnvelope[0] *= Math.exp(-dt * 15.0);
         }
+        this.dynamics.beatImpulse[0] = this.dynamics.beatEnvelope[0] * this.dynamics.beatStrength;
 
         // 5. Macro State Logic (Tension States)
         const energy = this.dynamics.masterEnergy[0];

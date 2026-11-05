@@ -606,8 +606,7 @@ export class Oscilloscope {
             }
 
             // 2. Vertikaler Übergangs-Strahl (1px scharf; bei großen Sprüngen dezent-transparent)
-            const edgeAlpha = clamp(0.11 + Math.pow(totalEnergy, 1.15) * 0.89, 0.11, 1.0);
-            ctx.fillStyle = this.coreColors[colorIdx];
+            const edgeAlpha = clamp(0.11 + Math.pow(totalEnergy, 1.15) * 0.89, 0.11, 1.0);            ctx.fillStyle = this.coreColors[colorIdx];
             ctx.globalAlpha = edgeAlpha;
             ctx.fillRect(x, segTop, 1, span);
 

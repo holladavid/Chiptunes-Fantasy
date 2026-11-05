@@ -230,7 +230,15 @@ export class TrackPresenter {
             if (count > 0 && count % 4 === 0) this.layout = (this.layout + 1) % 3;
         }
 
-        const beat = metrics.beat?.[0] || 0;
+        const rawBeat = metrics.beat?.[0];
+        const beat = Number.isFinite(rawBeat)
+            ? Math.max(0, Math.min(1, rawBeat))
+            : 0;
+        const rawImpulse = metrics.beatImpulse?.[0];
+        // Alte Metriken ohne beatImpulse verwenden weiterhin die Beat-Huelle.
+        const beatImpulse = Number.isFinite(rawImpulse)
+            ? Math.max(0, Math.min(1, rawImpulse))
+            : beat;
         const smooth = metrics.smooth || [];
         const fallbackTension = state === 'afterglow' ? Math.max(0, 1 - this.stateAge / 5) : 0.5;
         const tension = Math.max(0, Math.min(1,
@@ -266,9 +274,13 @@ export class TrackPresenter {
         const titleText = normalizeText(this.trackInfo.name, 'UNKNOWN');
         const authorText = normalizeText(`BY ${this.trackInfo.author || 'UNKNOWN'}`, 'BY UNKNOWN');
         const typeText = normalizeText(this.trackInfo.type, 'RAW DATA');
-        const panelNudge = state === 'climax' ? Math.round(beat * 2)
-            : state === 'buildup' ? Math.round(beat) : 0;
-        const titleNudge = state === 'climax' ? Math.round(beat) * this.beatDirection : 0;
+        const panelScale = state === 'climax' ? 6 : state === 'buildup' ? 4 : 5;
+        const panelNudge = state === 'afterglow'
+            ? 0
+            : Math.ceil(beatImpulse * panelScale);
+        const titleNudge = state === 'climax'
+            ? Math.ceil(beatImpulse * 2) * this.beatDirection
+            : 0;
 
         if (metrics.system === 'c64') {
             const barH = 55;

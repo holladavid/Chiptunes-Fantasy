@@ -66,8 +66,15 @@ export function clockSidEnvelope(voice) {
     }
 
     if (voice.state === SID_ENV_ATTACK) {
-        voice.envelope_counter++;
-        if (voice.envelope_counter === 0xFF) voice.state = SID_ENV_DECAY;
+        // A fast gate retrigger can enter Attack while the envelope is already
+        // at full level. Saturate instead of incrementing past the 8-bit DAC.
+        if (voice.envelope_counter >= 0xFF) {
+            voice.envelope_counter = 0xFF;
+            voice.state = SID_ENV_DECAY;
+        } else {
+            voice.envelope_counter++;
+            if (voice.envelope_counter === 0xFF) voice.state = SID_ENV_DECAY;
+        }
         voice.exponential_period = 1;
         return;
     }

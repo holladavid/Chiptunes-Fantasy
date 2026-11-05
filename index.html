@@ -25,7 +25,7 @@
 
     <div id="boot-screen" role="button" tabindex="0" aria-label="Chiptunes Fantasy starten">
         <div class="boot-box">
-            <p class="boot-header">**** CHIPTUNES FANTASY V1.5.7 ****</p>
+            <p class="boot-header">**** CHIPTUNES FANTASY V1.5.8 ****</p>
             <p class="boot-subheader">64K RAM SYSTEM  38911 BASIC BYTES FREE</p>
             <div class="boot-logs">
                 <p>EMU CORES LOADED: OK</p>
@@ -43,6 +43,7 @@
         <div id="visual-zone" class="user-inactive">
 
             <canvas id="demo-canvas"></canvas>
+            <canvas id="crt-mask-canvas" aria-hidden="true"></canvas>
                         
             <!-- Das animierte Chiptunes Fantasy Logo -->
             <div id="brand-logo" role="button" tabindex="0" aria-label="Scene-DJ Demo-Modus umschalten" aria-pressed="false">
@@ -183,7 +184,6 @@
                     aria-controls="visual-zone" aria-pressed="false" aria-keyshortcuts="F">[ ⛶ ]</button>
             </div>
             
-            <div class="scanlines"></div> <!-- CRT Monitor Effekt -->            
             <div class="scanlines"></div> <!-- CRT Monitor Effekt -->
         </div>
         

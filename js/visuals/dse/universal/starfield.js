@@ -154,7 +154,15 @@ export class Starfield {
             }
         }
 
-        const beat = metrics.beat?.[0] || 0;
+        const rawBeat = metrics.beat?.[0];
+        const beat = Number.isFinite(rawBeat)
+            ? Math.max(0, Math.min(1, rawBeat))
+            : 0;
+        const rawImpulse = metrics.beatImpulse?.[0];
+        // Alte Metriken ohne beatImpulse behalten den bisherigen Vollschlag.
+        const beatImpulse = Number.isFinite(rawImpulse)
+            ? Math.max(0, Math.min(1, rawImpulse))
+            : beat;
         const fallbackTension = state === 'afterglow' ? Math.max(0, 1 - this.stateAge / 5) : 0.5;
         const tension = Math.max(0, Math.min(1,
             Number.isFinite(metrics.tensionPct) ? metrics.tensionPct : fallbackTension));
@@ -192,17 +200,17 @@ export class Starfield {
         this.smoothedWarp += (targetWarp - this.smoothedWarp) * warpBlend;
         this.smoothedSpin += (spinSpeed - this.smoothedSpin) * spinBlend;
 
-        const activeWarp = Math.max(0, this.smoothedWarp + beat * beatWarp);
+        const activeWarp = Math.max(0, this.smoothedWarp + beatImpulse * beatWarp);
         this.internalT += dt * this.smoothedSpin;
         this.updateProjectionRanges(metrics.system, width, height);
         ctx.globalAlpha = 1.0;
 
         if (metrics.system === 'c64') {
-            this.drawC64(ctx, width, height, activeWarp, metrics, state, tension, trail);
+            this.drawC64(ctx, width, height, activeWarp, metrics, state, tension, trail, beatImpulse);
         } else if (metrics.system === 'amiga') {
-            this.drawAmiga(ctx, width, height, activeWarp, metrics, state, tension, trail, beat);
+            this.drawAmiga(ctx, width, height, activeWarp, metrics, state, tension, trail, beatImpulse);
         } else {
-            this.drawAtari(ctx, width, height, activeWarp, metrics, dt, state, tension, trail);
+            this.drawAtari(ctx, width, height, activeWarp, metrics, dt, state, tension, trail, beatImpulse);
         }
 
         applyOrderedDitherFade(ctx, width, height, globalAlpha);
@@ -212,7 +220,7 @@ export class Starfield {
     // =========================================================
     // RENDERER 1: COMMODORE 64 (VIC-II)
     // =========================================================
-    drawC64(ctx, w, h, activeWarp, metrics, state, tension, trail) {
+    drawC64(ctx, w, h, activeWarp, metrics, state, tension, trail, beatImpulse) {
         const cx = Math.floor(w / 2);
         const cy = Math.floor(h / 2);
         const fov = Math.min(250, Math.min(w, h) * 1.25);
@@ -226,7 +234,7 @@ export class Starfield {
         else if (state === 'afterglow') waveAmp = 1.0 + tension * 3.0;
 
         const v2Gate = metrics.regs ? (metrics.regs[11] & 1) : 0;
-        const wobbleAmp = (waveAmp + metrics.beat[0] * 12.0) * (v2Gate ? -1.5 : 1.0);
+        const wobbleAmp = (waveAmp + beatImpulse * 12.0) * (v2Gate ? -1.5 : 1.0);
         const twist = state === 'climax' ? 1.15 : state === 'buildup' ? 0.75 : 0.16;
 
         for (let i = 0; i < N; i++) {
@@ -274,7 +282,7 @@ export class Starfield {
     // =========================================================
     // RENDERER 2: AMIGA 500 (OCS)
     // =========================================================
-    drawAmiga(ctx, w, h, activeWarp, metrics, state, tension, trail, beat) {
+    drawAmiga(ctx, w, h, activeWarp, metrics, state, tension, trail, beatImpulse) {
         const cx = Math.floor(w / 2);
         const cy = Math.floor(h / 2);
         const fov = Math.min(250, Math.min(w, h) * 1.25);
@@ -288,7 +296,7 @@ export class Starfield {
         const copperH = Math.floor(h * (state === 'climax' ? 0.22 : state === 'afterglow' ? 0.12 : 0.18));
         const bandCount = 12;
         const bandHeight = Math.max(1, Math.ceil(copperH / bandCount));
-        const nebulaBeat = state === 'afterglow' ? 0 : beat;
+        const nebulaBeat = state === 'afterglow' ? 0 : beatImpulse;
 
         for (let b = 0; b < bandCount; b++) {
             const pct = Math.abs(b - bandCount / 2) / (bandCount / 2);
@@ -323,7 +331,7 @@ export class Starfield {
             const birthFactor = star.z > 900 ? (1000 - star.z) / 100 : 1.0;
             let brightness = Math.max(0.0, 1.0 - star.z / 1000) * birthFactor;
             if (state === 'afterglow') brightness *= 0.3 + tension * 0.7;
-            else if (state === 'climax') brightness = Math.min(1, brightness * (1 + beat * 0.25));
+            else if (state === 'climax') brightness = Math.min(1, brightness * (1 + beatImpulse * 0.25));
 
             let starColor;
             if (state === 'afterglow') {
@@ -350,7 +358,7 @@ export class Starfield {
     // =========================================================
     // RENDERER 3: ATARI ST (SHIFTER)
     // =========================================================
-    drawAtari(ctx, w, h, activeWarp, metrics, dt, state, tension, trail) {
+    drawAtari(ctx, w, h, activeWarp, metrics, dt, state, tension, trail, beatImpulse) {
         const cx = Math.floor(w / 2);
         const cy = Math.floor(h / 2);
         const fov = Math.min(250, Math.min(w, h) * 1.25);
@@ -415,7 +423,13 @@ export class Starfield {
                 const tailY = Math.floor(cy + (ryRot / tailZ) * fov);
                 drawAliasedLine(ctx, tailX, tailY, px, py, starColor);
             }
-            const size = star.z < 300 && state !== 'afterglow' ? 2 : 1;
+            const baseSize = star.z < 300 && state !== 'afterglow' ? 2 : 1;
+            // Subpixel-Warp allein geht im Playing-State im Integer-Raster unter.
+            // Der zusaetzliche Groessen-Kick macht die Impulsstaerke sofort sichtbar.
+            const pulseSize = state === 'afterglow'
+                ? 0
+                : Math.min(3, Math.floor(beatImpulse * 12));
+            const size = baseSize + pulseSize;
             ctx.fillStyle = starColor;
             ctx.fillRect(px, py, size, size);
         }

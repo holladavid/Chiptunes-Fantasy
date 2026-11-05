@@ -1,4 +1,5 @@
 import { dseRegistry } from '../../js/visuals/dse/registry.js';
+import { getBeatLevel } from '../../js/visuals/dj/track-monitor.js';
 import { C64_PALETTE, SYSTEM_RESOLUTIONS } from '../../js/visuals/utils/hardware-constraints.js';
 
 const SYSTEMS = ['c64', 'amiga', 'atari'];
@@ -9,6 +10,11 @@ const VIEWPORTS = {
     landscape: { width: 844, height: 390 }
 };
 const FPS = 18;
+export const GRADED_BEAT_STRENGTHS = Object.freeze({
+    soft: 0.20,
+    medium: 0.50,
+    hard: 0.90
+});
 const instanceIds = new WeakMap();
 let nextInstanceId = 1;
 let randomState = 0x5eed1234;
@@ -22,7 +28,7 @@ function seededRandom() {
     return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
 }
 
-Math.random = seededRandom;
+if (typeof window !== 'undefined') Math.random = seededRandom;
 
 function instanceId(dse) {
     if (!instanceIds.has(dse)) instanceIds.set(dse, nextInstanceId++);
@@ -60,11 +66,16 @@ function bufferSize(system, orientation) {
     };
 }
 
-function makeMetrics(system, state, frame, beatMode = 'pattern', stateFrame = frame) {
+export function makeMetrics(system, state, frame, beatMode = 'pattern', stateFrame = frame) {
     const phase = frame % 9;
     const stateGain = state === 'climax' ? 1 : state === 'buildup' ? 0.72 : 0.48;
     const patternedBeat = phase === 0 ? 1 : Math.max(0, 0.82 - phase * 0.19);
     const beat = beatMode === 'zero' ? 0 : beatMode === 'one' ? 1 : patternedBeat * stateGain;
+    // "pattern" und "one" bilden den bisherigen Vollschlag ab. Die drei
+    // festen Intensitaeten bleiben auch waehrend des Abklingens erhalten.
+    const beatStrength = beatMode === 'zero'
+        ? 0
+        : (GRADED_BEAT_STRENGTHS[beatMode] ?? 1);
     const energy = Math.min(1, (0.32 + 0.18 * Math.sin(frame * 0.17) + stateGain * 0.42));
     const regs = new Uint8Array(32);
     for (let i = 0; i < regs.length; i++) regs[i] = (i * 37 + frame * 11 + (i % 5) * 19) & 255;
@@ -83,6 +94,9 @@ function makeMetrics(system, state, frame, beatMode = 'pattern', stateFrame = fr
         energy,
         pulse: beat,
         beat: [beat, beat * 0.72, beat * 0.45, beat * 0.3],
+        beatStrength,
+        beatLevel: getBeatLevel(beatStrength),
+        beatImpulse: Float32Array.from([beat * beatStrength]),
         beatStarted: beatMode !== 'zero' && phase === 0,
         beatCount: beatMode === 'zero' ? 0 : Math.floor(frame / 9) + 1,
         smooth: [
@@ -284,15 +298,18 @@ function publicAnalysis(analysis) {
 }
 
 export function runStill(request) {
-    const { dse, system, state, orientation, seed = 0x5eed1234, warmup = 8 } = request;
-    const meta = { dse, system, state, orientation };
+    const {
+        dse, system, state, orientation, seed = 0x5eed1234,
+        warmup = 8, beatMode = 'pattern'
+    } = request;
+    const meta = { dse, system, state, orientation, beatMode };
     const errors = [];
     const profile = { frameMs: [], operations: [] };
     const created = createDSE(dse, seed);
     const target = createTarget(system, orientation);
     let analysis = null;
     for (let frame = 0; frame <= warmup; frame++) {
-        analysis = renderFrame(target, created.dse, meta, frame, state, 'pattern', profile, errors);
+        analysis = renderFrame(target, created.dse, meta, frame, state, beatMode, profile, errors);
     }
     return {
         kind: 'still', ...meta, instanceId: created.id, buffer: target.size,
@@ -302,20 +319,23 @@ export function runStill(request) {
 }
 
 export function runMotion(request) {
-    const { dse, system, state = 'playing', orientation, seed = 0x5eed1234, warmup = 4, frames = 36 } = request;
-    const meta = { dse, system, state, orientation };
+    const {
+        dse, system, state = 'playing', orientation, seed = 0x5eed1234,
+        warmup = 4, frames = 36, beatMode = 'pattern'
+    } = request;
+    const meta = { dse, system, state, orientation, beatMode };
     const errors = [];
     const profile = { frameMs: [], operations: [] };
     const created = createDSE(dse, seed);
     const target = createTarget(system, orientation);
     for (let frame = 0; frame < warmup; frame++) {
-        renderFrame(target, created.dse, meta, frame, state, 'pattern', profile, errors);
+        renderFrame(target, created.dse, meta, frame, state, beatMode, profile, errors);
     }
     const images = [];
     const analyses = [];
     let previous = null;
     for (let frame = warmup; frame < warmup + frames; frame++) {
-        let current = renderFrame(target, created.dse, meta, frame, state, 'pattern', profile, errors);
+        let current = renderFrame(target, created.dse, meta, frame, state, beatMode, profile, errors);
         if (previous) {
             current = analyzeWithPrevious(target, system, previous);
         }
@@ -385,6 +405,38 @@ export function runDiagnostics(request) {
             fullBeatHash: fullBeat.analysis.hash
         },
         errors: [...first.errors, ...second.errors, ...noBeat.errors, ...fullBeat.errors]
+    };
+}
+
+export function runBeatIntensity(request) {
+    const { dse, system, state = 'playing', orientation, seed = 0x5eed1234 } = request;
+    const modes = ['zero', 'soft', 'medium', 'hard'];
+    const sequences = {};
+    for (const mode of modes) {
+        sequences[mode] = diagnosticSequence(dse, system, state, orientation, seed, mode);
+    }
+
+    const target = createTarget(system, orientation);
+    const baseline = sequences.zero.analysis.pixels;
+    const levels = {};
+    for (const mode of modes.slice(1)) {
+        const sequence = sequences[mode];
+        target.ctx.putImageData(
+            new ImageData(sequence.analysis.pixels, target.canvas.width, target.canvas.height), 0, 0);
+        const comparison = analyzePixels(target, system, baseline);
+        levels[mode] = {
+            strength: GRADED_BEAT_STRENGTHS[mode],
+            color: publicAnalysis(sequence.analysis),
+            changedPixelRatio: comparison.changedPixelRatio,
+            meanAbsoluteRgbDifference: comparison.meanAbsoluteRgbDifference,
+            png: target.canvas.toDataURL('image/png')
+        };
+    }
+
+    return {
+        kind: 'beat-intensity', dse, system, state, orientation,
+        seed, frames: 9, levels,
+        errors: modes.flatMap(mode => sequences[mode].errors)
     };
 }
 
@@ -464,8 +516,11 @@ export function runRotation(request) {
     };
 }
 
-window.DSEBaseline = {
-    inventory, runStill, runMotion, runDiagnostics, runTransition, runRotation,
-    SYSTEMS, STATES, TRANSITION_SEQUENCE, VIEWPORTS
-};
-window.dispatchEvent(new Event('dse-baseline-ready'));
+if (typeof window !== 'undefined') {
+    window.DSEBaseline = {
+        inventory, runStill, runMotion, runDiagnostics, runBeatIntensity,
+        runTransition, runRotation,
+        SYSTEMS, STATES, TRANSITION_SEQUENCE, VIEWPORTS
+    };
+    window.dispatchEvent(new Event('dse-baseline-ready'));
+}

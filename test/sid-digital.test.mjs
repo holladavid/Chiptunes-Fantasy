@@ -121,6 +121,27 @@ test('attack is linear and transitions to decay exactly at envelope 255', () => 
     assert.equal(voice.state, SID_ENV_DECAY);
 });
 
+test('retriggered attack saturates at 255 instead of overflowing the envelope DAC', () => {
+    const sid = new SIDChip(0);
+    const voice = sid.voices[0];
+    sid.writeReg(6, 0xF0);
+    voice.state = SID_ENV_ATTACK;
+    voice.gate = true;
+    voice.gateInput = true;
+    voice.gateDelay = true;
+    voice.hold_zero = false;
+    voice.attack_period = 9;
+    voice.rate_counter = 8;
+    voice.envelope_counter = 255;
+
+    clock(sid, 1);
+    assert.equal(voice.envelope_counter, 255);
+    assert.equal(voice.state, SID_ENV_DECAY);
+    clock(sid, 1000);
+    assert.equal(voice.envelope_counter, 255);
+    assert.ok(Number.isFinite(sid.synthesizeVoiceOneCycle(0)));
+});
+
 test('decay and release load exponential periods at documented envelope thresholds', () => {
     const sid = new SIDChip(0);
     const voice = sid.voices[0];
