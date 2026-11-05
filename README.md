@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.5.7)
+# 💾 CHIPTUNES FANTASY (v1.5.8)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -13,6 +13,54 @@ A real Commodore 64, Amiga 500, or Atari ST could *never* execute a cycle-exact 
 
 But memory paints the past grander than it actually was. **This is our Fantasy.**
 Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with ruthless historical accuracy (strict hardware palettes, true bit-banged integer math, zero anti-aliasing). Our `Scene-DJ` then acts as the ultimate virtual orchestrator, taking these isolated, period-accurate effects and layering them into a breathtaking, synchronized demoscene experience that feels *exactly* like our childhood memories.
+
+---
+
+## 🚀 v1.5.8 Release Highlights
+
+Version 1.5.8 makes the Scene-DJ respond to **how hard a beat hits**, adds a dedicated **CRT shadow-mask post-processing pipeline**, and turns the SID emulation test into an audible **ADSR and analogue-filter sweep laboratory**. The curated library now contains **214 directly playable tracks**: **73 Amiga**, **55 C64**, and **86 Atari ST** titles.
+
+### Sophisticated CRT monitor shadow-mask shader
+
+- **Real WebGL post-processing:** the existing demo canvas is rendered through a dedicated CRT pass after the visualizer, oscilloscope/FFT, Scene-DJ, and CRT-glitch stages. The source DSE rendering and its system-correct retro raster remain unchanged.
+- **Tube optics:** restrained barrel distortion, radial red/blue convergence drift, analogue beam-bandwidth smoothing, dynamic scanlines, phosphor cross-bleed, glass sheen, vignette, and tube-edge shading create a coherent monitor image rather than a simple overlay.
+- **Energy-aware RGB mask:** a staggered RGB slot/dot-triad mask with a black matrix shapes individual phosphor apertures. Mask bloom follows beam energy, while scanline depth eases at high brightness to retain luminous detail.
+- **Stable and efficient integration:** the mask pitch is anchored to CSS pixels, source textures are allocated only when dimensions change and updated in place thereafter, and no framework or external runtime dependency is introduced.
+- **Graceful fallback:** if WebGL is unavailable or its context is lost, the existing CSS scanline presentation remains available; a restored context re-enables the shader path.
+
+### Gradual beat intensity for the Scene-DJ and universal DSEs
+
+The `TrackMonitor` now publishes a continuous `beatStrength` from **0.0 to 1.0**, a shared `beatLevel` (**none / soft / medium / hard**), and a strength-weighted `beatImpulse`. Its initial value is `beatEnvelope[0] × beatStrength` and it decays smoothly without erasing the last accepted beat's strength or level.
+
+This separates **visual intensity** from **musical timing**: continuous movement, brightness, thickness, and warp reactions use `beatImpulse`, while pattern, palette, formation, direction, and layout changes still require the exact `beatStarted` / `beatCount` event. A decaying envelope can therefore never retrigger choreography.
+
+- **Starfield:** graded warp thrust plus C64 raster wobble, Amiga nebula/brightness accents, and an integer Atari star-size kick.
+- **Copperbars:** graded vertical nudge, climax interference, and core-punch thickness; formations and Copperlists still change only on exact fourth beats.
+- **TrackPresenter:** system-correct panel motion and an additional climax title nudge; one-shot behavior and exact fourth-beat layout changes remain intact.
+- **LimitBar:** its isolated soft/medium/hard responses were refined, but the DSE intentionally remains disabled in the registry.
+- **VoidElement:** remains a transparent, zero-drawing placeholder and does not invent a beat reaction.
+
+The DSE baseline harness provides reproducible **soft = 0.20**, **medium = 0.50**, and **hard = 0.90** impulses. The [DSE development rules](doc/concepts/dse_development_rules.md) and [audio/visual pipeline](doc/concepts/audio_visual_pipeline.md) document the complete contract and legacy-metrics fallbacks.
+
+### SID emulation test: audible ADSR and analogue-filter sweeps
+
+`SID_Emulation_Test.sid` is now a **60-test, 91.72-second PSID v2 program** driven by real generated 6502 code at 50 Hz. After the **40 oscillator patterns**, one common **220 Hz sawtooth** makes the following settings directly comparable:
+
+- Four **16-step ADSR sweeps** cover attack, decay, sustain, and release. Gate retriggers make each step audible; the release sweep explicitly gates off.
+- A dry filter reference and **11 filter sweeps** then exercise cutoff, resonance, routing, and mode combinations using a constant full-level envelope, without retriggering the gate or ADSR between filter steps.
+- Four coupling tests complete the sequence. The updated song-length metadata and curated duration both use **91.72 seconds**.
+
+A targeted SID engine fix now saturates a retriggered Attack envelope at **255** instead of overflowing the 8-bit envelope DAC. This removes the non-finite synthesis output exposed by fast full-level retriggers rather than hiding it in the test generator.
+
+### Release validation and limits
+
+- **62/62 focused release-feature tests passed**, covering the CRT pass and fallback, graded beat detection/routing, universal DSE responses, generated 6502/SID register sequences, envelope saturation, and C64 curation.
+- The complete **55-track C64 curation corpus** was regenerated after the envelope fix: every track passed the audible, finite, deterministic, block-size-independent, and restart-identical checks.
+- The complete **4,586-frame / 91.72-second** SID test render completed with **zero non-finite samples**. Browser playback and the intentionally truncated **01:31** duration display were also checked.
+- The full regression run comprised **427 tests: 411 passed, 9 failed, and 7 skipped**. The remaining failures are the known unrelated SID synthetic-corpus `noise-adsr` hash mismatch and eight FFT/oscilloscope tests; this is not an all-green full-suite claim.
+- The CRT effect requires WebGL for the full shader presentation and retains a CSS fallback otherwise. Headless checks do not replace final physical-device GPU/browser acceptance.
+
+Copy-ready GitHub texts are included for the [v1.5.8 pull request](doc/releases/v1.5.8-PR-Text.md) and [v1.5.8 release](doc/releases/v1.5.8-Release-Text.md). Earlier release documents remain unchanged as historical records.
 
 ---
 
