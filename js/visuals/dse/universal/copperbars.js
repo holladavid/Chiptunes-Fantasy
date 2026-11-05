@@ -163,7 +163,15 @@ export class Copperbars {
         const system = metrics.system;
         const numBars = system === 'amiga' ? 4 : 3;
         const scanlineHeight = 1;
-        const beat = metrics.beat?.[0] || 0;
+        const rawBeat = metrics.beat?.[0];
+        const beat = Number.isFinite(rawBeat)
+            ? Math.max(0, Math.min(1, rawBeat))
+            : 0;
+        const rawImpulse = metrics.beatImpulse?.[0];
+        // Alte Metriken ohne beatImpulse verwenden weiterhin die Beat-Huelle.
+        const beatImpulse = Number.isFinite(rawImpulse)
+            ? Math.max(0, Math.min(1, rawImpulse))
+            : beat;
         const fallbackTension = state === 'afterglow' ? Math.max(0, 1 - this.stateAge / 5) : 0.5;
         const tension = Math.max(0, Math.min(1,
             Number.isFinite(metrics.tensionPct) ? metrics.tensionPct : fallbackTension));
@@ -198,7 +206,9 @@ export class Copperbars {
 
         const baseSpeed = 0.65;
         const phaseStep = (Math.PI * 2) / numBars;
-        const beatNudge = Math.round(beat * (state === 'climax' ? 4 : 2));
+        // Ceil laesst auch einen schwachen Impuls als kleinen ganzzahligen
+        // Nudge sichtbar werden; die Staerke bestimmt die weitere Auslenkung.
+        const beatNudge = Math.ceil(beatImpulse * (state === 'climax' ? 8 : 5));
         const amplitude = height * 0.24 * this.smoothedAmplitude;
 
         for (let c = 0; c < numBars; c++) {
@@ -226,7 +236,7 @@ export class Copperbars {
 
             if (state === 'climax') {
                 const twistIdx = (Math.floor(this.internalT * 96) + c * 32) & 255;
-                yCenter += this.sinLUT[twistIdx] * beat * (this.pattern === 0 ? 8 : 4);
+                yCenter += this.sinLUT[twistIdx] * beatImpulse * (this.pattern === 0 ? 8 : 4);
                 if (this.pattern === 2) yCenter += this.beatDirection * 3;
             }
             if (this.pattern === 2 && state !== 'afterglow') {
@@ -239,7 +249,9 @@ export class Copperbars {
             bar.vol = smoothVol;
             bar.z = this.sinLUT[(lutIdx + 64) & 255];
             bar.intensity = state === 'afterglow' ? 0.25 + tension * 0.75 : 1;
-            bar.punch = state === 'climax' ? Math.round(beat * 2) : state === 'buildup' ? Math.round(beat) : 0;
+            bar.punch = state === 'climax'
+                ? Math.ceil(beatImpulse * 3)
+                : state === 'buildup' ? Math.ceil(beatImpulse * 2) : 0;
             bar.wobble = 0;
             if (system === 'c64' && state === 'climax') {
                 bar.wobble = this.pattern === 1 ? 3 : this.pattern === 2 ? 5 : 0;
