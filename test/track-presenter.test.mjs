@@ -13,6 +13,7 @@ function createContext() {
             assert.ok(Number.isFinite(x) && Number.isFinite(y), 'Text and panel coordinates must remain finite');
             assert.ok(Number.isFinite(width) && Number.isFinite(height), 'Rectangle sizes must remain finite');
             assert.ok(width > 0 && height > 0, 'Drawn rectangles must have a positive size');
+            if (!this.firstRect) this.firstRect = { x, y, width, height };
             this.operations++;
             const signature = `${this.fillStyle}:${x},${y},${width},${height};`;
             for (let i = 0; i < signature.length; i++) {
@@ -72,7 +73,8 @@ test('TrackPresenter switches layout only on exact fourth-beat events', () => {
     assert.equal(presenter.palettePhase, 0);
 
     presenter.render(ctx, 432, 200, 1.04, 'playing', 0.04, createMetrics('c64', {
-        beat: [1, 1, 1, 1], beatStarted: false, beatCount: 4
+        beat: [1, 1, 1, 1], beatImpulse: [1], beatStrength: 1, beatLevel: 3,
+        beatStarted: false, beatCount: 4
     }));
     assert.equal(presenter.layout, 1, 'The beat envelope must not retrigger a layout');
 
@@ -80,6 +82,51 @@ test('TrackPresenter switches layout only on exact fourth-beat events', () => {
         tensionPct: 0.2
     }));
     assert.equal(presenter.stateAge, 0, 'Afterglow needs a local transition timestamp');
+});
+
+test('TrackPresenter makes soft, medium and hard panel impulses visibly distinct', () => {
+    for (const system of ['c64', 'amiga', 'atari']) {
+        const responses = [0.2, 0.5, 0.9].map(strength => {
+            const presenter = createPresenter();
+            const ctx = createContext();
+            presenter.render(ctx, 432, 200, 1, 'playing', 0, createMetrics(system, {
+                beat: [1, 0, 0, 0],
+                beatImpulse: [strength],
+                beatStrength: strength,
+                beatStarted: true,
+                beatCount: 1
+            }));
+            return { hash: ctx.hash, panelY: ctx.firstRect.y, operations: ctx.operations };
+        });
+
+        assert.ok(responses[0].panelY < responses[1].panelY
+            && responses[1].panelY < responses[2].panelY,
+        `${system} panel nudge must increase with beat strength`);
+        assert.equal(new Set(responses.map(response => response.hash)).size, 3,
+            `${system} soft/medium/hard frames must be visibly distinct`);
+        assert.ok(responses.every(response => response.operations > 0));
+    }
+});
+
+test('TrackPresenter uses the legacy beat envelope when impulse metrics are absent', () => {
+    for (const system of ['c64', 'amiga', 'atari']) {
+        const legacy = createPresenter();
+        const graded = createPresenter();
+        const legacyCtx = createContext();
+        const gradedCtx = createContext();
+        const beat = 0.55;
+
+        legacy.render(legacyCtx, 432, 200, 1, 'climax', 3, createMetrics(system, {
+            beat: [beat, 0, 0, 0]
+        }));
+        graded.render(gradedCtx, 432, 200, 1, 'climax', 3, createMetrics(system, {
+            beat: [beat, 0, 0, 0],
+            beatImpulse: [beat]
+        }));
+
+        assert.equal(gradedCtx.hash, legacyCtx.hash, `${system} fallback must match the impulse path`);
+        assert.deepEqual(gradedCtx.firstRect, legacyCtx.firstRect);
+    }
 });
 
 test('TrackPresenter is deterministic across systems, macro states and rotation', () => {
@@ -91,8 +138,12 @@ test('TrackPresenter is deterministic across systems, macro states and rotation'
 
         for (let frame = 0; frame < 600; frame++) {
             const beatStarted = frame % 10 === 0;
+            const envelope = beatStarted ? 1 : 0.2;
             const metrics = createMetrics(system, {
-                beat: [beatStarted ? 1 : 0.2, 0, 0, 0],
+                beat: [envelope, 0, 0, 0],
+                beatImpulse: [envelope * 0.55],
+                beatStrength: 0.55,
+                beatLevel: 2,
                 beatStarted,
                 beatCount: Math.floor(frame / 10) + 1,
                 tensionPct: frame < 450 ? 0.8 : Math.max(0, 1 - (frame - 450) / 150)
