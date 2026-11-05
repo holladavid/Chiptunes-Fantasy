@@ -8,7 +8,7 @@
   "museumSha256": "cfee6c8e031a8b3a8e83d46fbf6372ce9efb932e29588dff1660f8d57a1d035c",
   "provenanceSha256": "2afb4c3014dc3da22b9091ad3e6a1d6d2851fedda4d40afad35a07ccdddf6cd7",
   "assemblyProvenanceSha256": "b325034e0b050c74aefeff00c055aba1912d7ac20715f6fb9796dbee75c883d5",
-  "songlengthsSha256": "577ce7f7ebe4d6f3ab1fe9b0694227193d8ec63dfb0730369b791178c63e1011",
+  "songlengthsSha256": "4efc50ded5bced6cd68bf4812c0b09fca406c75cea641b9baac17c8e6bc8e977",
   "corpus": {
     "seconds": 2,
     "discardSeconds": 0.25,
@@ -41,7 +41,7 @@
     "maximumPeak": 0.8455578088760376,
     "minimumRms": 0.008933512708508022,
     "silentTracks": [],
-    "maximumOfflineRealTimeRatio": 5.7912139208888895,
+    "maximumOfflineRealTimeRatio": 0.8144496511111113,
     "tracks": [
       {
         "path": "Commando.sid",
@@ -54,7 +54,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 5.7912139208888895,
+        "maximumOfflineRealTimeRatio": 0.6825769013333334,
         "metrics": {
           "pcmSha256": "af9fcc6f7abd238c85ec81266f0103e87b761ef69f637c2a1b6b5684ff175f78",
           "frames": 96000,
@@ -67,7 +67,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 5.54303656
+          "offlineRealTimeRatio": 0.6825769013333334
         },
         "passed": true
       },
@@ -82,7 +82,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 3.6379297733333336,
+        "maximumOfflineRealTimeRatio": 0.5375015124444448,
         "metrics": {
           "pcmSha256": "aa59ee6db82f6306f81df87aaa7775cbdd0d6ec255b7e019a77a2b55976a74fa",
           "frames": 96000,
@@ -95,7 +95,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 3.568741811555555
+          "offlineRealTimeRatio": 0.5339222946666669
         },
         "passed": true
       },
@@ -110,7 +110,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 4.43667918577778,
+        "maximumOfflineRealTimeRatio": 0.5338120662222225,
         "metrics": {
           "pcmSha256": "d339c3ace78bb3e3a44d17e09acf8e0ba7edb8306ed29385c0b6bfe80a0c2bf6",
           "frames": 96000,
@@ -123,7 +123,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 4.039443091111109
+          "offlineRealTimeRatio": 0.5260888951111111
         },
         "passed": true
       },
@@ -138,7 +138,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 4.219856316444445,
+        "maximumOfflineRealTimeRatio": 0.5715641702222234,
         "metrics": {
           "pcmSha256": "b3b16eb089b9f623a9d984bc899396365e4bfc2ebb4b6e33631343d19abc9bd6",
           "frames": 96000,
@@ -151,7 +151,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 3.9701228080000015
+          "offlineRealTimeRatio": 0.5715641702222234
         },
         "passed": true
       },
@@ -166,7 +166,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 4.125603462222227,
+        "maximumOfflineRealTimeRatio": 0.643812201333334,
         "metrics": {
           "pcmSha256": "3184d4b89ff3c5ac3a27ab470500889106a48b0f28c92ccadbae5b826894297d",
           "frames": 96000,
@@ -179,7 +179,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 4.125603462222227
+          "offlineRealTimeRatio": 0.643812201333334
         },
         "passed": true
       },
@@ -194,7 +194,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.3100840955555517,
+        "maximumOfflineRealTimeRatio": 0.5184975804444435,
         "metrics": {
           "pcmSha256": "9d736374177a9cda91df9cd73c7a5239b01d380308d8b7ee0dae30518d33c5f1",
           "frames": 96000,
@@ -207,7 +207,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.0096870533333342
+          "offlineRealTimeRatio": 0.5184975804444435
         },
         "passed": true
       },
@@ -222,7 +222,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 0.8101415728888889,
+        "maximumOfflineRealTimeRatio": 0.5425397320000015,
         "metrics": {
           "pcmSha256": "593cd443ce102abe86b4d61265a3650c0a1045aeb2007a8b98bcb62d3716c059",
           "frames": 96000,
@@ -235,7 +235,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 0.7660786626666604
+          "offlineRealTimeRatio": 0.5425397320000015
         },
         "passed": true
       },
@@ -250,7 +250,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 0.8887367204444405,
+        "maximumOfflineRealTimeRatio": 0.6024058475555535,
         "metrics": {
           "pcmSha256": "47c27fe1fab85795ae7d8d58c2b176bce384091e452efd162c85d9030da57c30",
           "frames": 96000,
@@ -263,7 +263,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 0.7874506066666606
+          "offlineRealTimeRatio": 0.6024058475555535
         },
         "passed": true
       },
@@ -278,7 +278,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.3034925711111218,
+        "maximumOfflineRealTimeRatio": 0.7897164293333319,
         "metrics": {
           "pcmSha256": "29aa3a834ffb089b3d5915e220d5fa353d67a48b65359f31cea68b307a246200",
           "frames": 96000,
@@ -291,7 +291,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.3034925711111218
+          "offlineRealTimeRatio": 0.7897164293333319
         },
         "passed": true
       },
@@ -306,7 +306,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.5265814542222198,
+        "maximumOfflineRealTimeRatio": 0.7145277933333322,
         "metrics": {
           "pcmSha256": "4a66b5852e2b688ed873087607d4c5c2259595f730ab5dbf087ed17dfe572e9b",
           "frames": 96000,
@@ -319,7 +319,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.2011425777777849
+          "offlineRealTimeRatio": 0.7102687591111106
         },
         "passed": true
       },
@@ -334,7 +334,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.1656646795555587,
+        "maximumOfflineRealTimeRatio": 0.7012911755555542,
         "metrics": {
           "pcmSha256": "61291b5e6322e7a71e482068a7a6083d8bbef0078d680797ff5944732ec59dd7",
           "frames": 96000,
@@ -347,7 +347,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.0997565991111073
+          "offlineRealTimeRatio": 0.6924682613333344
         },
         "passed": true
       },
@@ -362,7 +362,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.1609344746666677,
+        "maximumOfflineRealTimeRatio": 0.7615952364444416,
         "metrics": {
           "pcmSha256": "e2d97309a1e7c5b16438a34234ca09f6d3f873abdaa8f47154a692e8d5ea9abc",
           "frames": 96000,
@@ -375,7 +375,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1609344746666677
+          "offlineRealTimeRatio": 0.7615952364444416
         },
         "passed": true
       },
@@ -390,7 +390,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.282664817333338,
+        "maximumOfflineRealTimeRatio": 0.745956820888891,
         "metrics": {
           "pcmSha256": "f513f4dc22e3fa4832a7f27b6d6d85a2cf27a9e6b7b25620566ac86d53c96d33",
           "frames": 96000,
@@ -403,7 +403,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.282664817333338
+          "offlineRealTimeRatio": 0.745956820888891
         },
         "passed": true
       },
@@ -418,7 +418,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.207211387111107,
+        "maximumOfflineRealTimeRatio": 0.726117076444446,
         "metrics": {
           "pcmSha256": "30af7ea0abbfec19cf1af985900b4e5751f1cf0e8d7fd9e2394a914d920c8ec6",
           "frames": 96000,
@@ -431,7 +431,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1265908897777812
+          "offlineRealTimeRatio": 0.726117076444446
         },
         "passed": true
       },
@@ -446,7 +446,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.2392634128888862,
+        "maximumOfflineRealTimeRatio": 0.7695910582222213,
         "metrics": {
           "pcmSha256": "39dadd4c2a2b944992446fc01bef99a227159f10cbfdc6dc9c425f1e28b8474a",
           "frames": 96000,
@@ -459,7 +459,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1543574528888954
+          "offlineRealTimeRatio": 0.746650244444447
         },
         "passed": true
       },
@@ -474,7 +474,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.274268063555575,
+        "maximumOfflineRealTimeRatio": 0.7248867679999998,
         "metrics": {
           "pcmSha256": "6e7705f8bd7a6a39237188f5b9b3bcd241f551f73bcca3b65ca441bce906f643",
           "frames": 96000,
@@ -487,7 +487,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.274268063555575
+          "offlineRealTimeRatio": 0.7248867679999998
         },
         "passed": true
       },
@@ -502,7 +502,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.228199102222221,
+        "maximumOfflineRealTimeRatio": 0.7510945857777778,
         "metrics": {
           "pcmSha256": "7f0dd3c329bdd282c7268ebb50ade4b9791c49297eb395f281c21d795d53a147",
           "frames": 96000,
@@ -515,7 +515,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1785729399999967
+          "offlineRealTimeRatio": 0.7257166222222279
         },
         "passed": true
       },
@@ -530,7 +530,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.2013439306666713,
+        "maximumOfflineRealTimeRatio": 0.7366769133333324,
         "metrics": {
           "pcmSha256": "cbbae78f599655b6d24c33890b489e24e72fd34782ee219d3c061af115e2c996",
           "frames": 96000,
@@ -543,7 +543,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.163083319555554
+          "offlineRealTimeRatio": 0.7249643408888886
         },
         "passed": true
       },
@@ -558,7 +558,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.5361258475555677,
+        "maximumOfflineRealTimeRatio": 0.7461216786666709,
         "metrics": {
           "pcmSha256": "96bf1f11b170873bdb055fceed8585603ba97c08df0343f65d5ea596d1d9878c",
           "frames": 96000,
@@ -571,7 +571,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.261271816888876
+          "offlineRealTimeRatio": 0.7461216786666709
         },
         "passed": true
       },
@@ -586,7 +586,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.270779173777775,
+        "maximumOfflineRealTimeRatio": 0.7378581120000001,
         "metrics": {
           "pcmSha256": "a2ff74336593c7d6e9776fb758f480b0fa08e4f5aaa47fcb5231ac476a0d4446",
           "frames": 96000,
@@ -599,7 +599,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.0853327315555783
+          "offlineRealTimeRatio": 0.7183197884444444
         },
         "passed": true
       },
@@ -614,7 +614,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.1574189524444647,
+        "maximumOfflineRealTimeRatio": 0.6730839502222241,
         "metrics": {
           "pcmSha256": "476b475bf68c29a1ff2680585fc0c41fb1142747bc4d6f03b8b0623f383332d3",
           "frames": 96000,
@@ -627,7 +627,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1574189524444647
+          "offlineRealTimeRatio": 0.6643216937777793
         },
         "passed": true
       },
@@ -642,7 +642,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.4733838502222207,
+        "maximumOfflineRealTimeRatio": 0.7247663404444465,
         "metrics": {
           "pcmSha256": "27922549cac8de3a265573ed31d0c434225a097614a8ccb442f25726900a836c",
           "frames": 96000,
@@ -655,7 +655,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1508030733333434
+          "offlineRealTimeRatio": 0.7247663404444465
         },
         "passed": true
       },
@@ -670,7 +670,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.170475091111096,
+        "maximumOfflineRealTimeRatio": 0.7653826777777738,
         "metrics": {
           "pcmSha256": "60ee6c8fea4885fe3fc4ad1cc6a9276a40b9e17cb8decf8c332d2b1dd80c94cb",
           "frames": 96000,
@@ -683,7 +683,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.170475091111096
+          "offlineRealTimeRatio": 0.7461663982222219
         },
         "passed": true
       },
@@ -698,7 +698,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.09454369644443,
+        "maximumOfflineRealTimeRatio": 0.7786584071111089,
         "metrics": {
           "pcmSha256": "8e134e9ac8324caccdaae106c9a759ecd0419144dd791b48eb748446f792234d",
           "frames": 96000,
@@ -711,7 +711,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.0651550151111249
+          "offlineRealTimeRatio": 0.7786584071111089
         },
         "passed": true
       },
@@ -726,7 +726,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.330070508000001,
+        "maximumOfflineRealTimeRatio": 0.810897809777771,
         "metrics": {
           "pcmSha256": "d085161230f7d4ed2bca7b6e376c6344fd3149d9a7464db9702499df528734f9",
           "frames": 96000,
@@ -739,7 +739,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.2674723044444496
+          "offlineRealTimeRatio": 0.810897809777771
         },
         "passed": true
       },
@@ -754,7 +754,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.1073978875555461,
+        "maximumOfflineRealTimeRatio": 0.6989870008888861,
         "metrics": {
           "pcmSha256": "db563dcfec624744bdf89cb93332c419cd719dabb04bae25a70c4578d8a5bd5f",
           "frames": 96000,
@@ -767,13 +767,13 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1073978875555461
+          "offlineRealTimeRatio": 0.6989870008888861
         },
         "passed": true
       },
       {
         "path": "SID_Emulation_Test.sid",
-        "tuneSha256": "a4ecb21b27249a05035932ecc0b9a4f29a0b330353660c64d307a4e74110a4f5",
+        "tuneSha256": "d96d20f2af9ea3c5db8b415150091d68b401a9061991365416929668ece2480c",
         "format": "PSID v2",
         "songs": 1,
         "startSong": 1,
@@ -782,20 +782,20 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.34439507066668,
+        "maximumOfflineRealTimeRatio": 0.75756006977777,
         "metrics": {
-          "pcmSha256": "dab5af4a692e2eaa5a9e1f543a9be1389e26cefd9b05d0df32f0a57baeedbbb3",
+          "pcmSha256": "db1cbaaf1ad3bc6b693ca1b80cc06d9838e58f67b3cb48fc852db4ec4350a749",
           "frames": 96000,
-          "rmsL": 0.13513165412472777,
-          "rmsR": 0.13513165412472777,
-          "rms": 0.13513165412472777,
-          "peak": 0.2546588182449341,
-          "dcL": 0.00003485776093161697,
-          "dcR": 0.00003485776093161697,
+          "rmsL": 0.13512821583703574,
+          "rmsR": 0.13512821583703574,
+          "rms": 0.13512821583703574,
+          "peak": 0.2551546096801758,
+          "dcL": 0.000031890309839803047,
+          "dcR": 0.000031890309839803047,
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1075785386666603
+          "offlineRealTimeRatio": 0.6936324977777744
         },
         "passed": true
       },
@@ -810,7 +810,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.153402512444442,
+        "maximumOfflineRealTimeRatio": 0.7289555800000025,
         "metrics": {
           "pcmSha256": "75d172512dc28e37721ad8c01d7864be1402bfae544ed68be00bee6e60265dda",
           "frames": 96000,
@@ -823,7 +823,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.153402512444442
+          "offlineRealTimeRatio": 0.7175941240000021
         },
         "passed": true
       },
@@ -838,7 +838,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.1111890902222237,
+        "maximumOfflineRealTimeRatio": 0.8144496511111113,
         "metrics": {
           "pcmSha256": "23c2459c4a0b09d455c76ab86e1f011e2b15a613f73356fc87ffdd528cfc27aa",
           "frames": 96000,
@@ -851,7 +851,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1111890902222237
+          "offlineRealTimeRatio": 0.7269855759999999
         },
         "passed": true
       },
@@ -866,7 +866,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.0960645728888923,
+        "maximumOfflineRealTimeRatio": 0.7061715435555541,
         "metrics": {
           "pcmSha256": "e2095b4385f4a231f3bd14baeda884b148bc099bf5096524e605897f413af071",
           "frames": 96000,
@@ -879,7 +879,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.0960645728888923
+          "offlineRealTimeRatio": 0.7061715435555541
         },
         "passed": true
       },
@@ -894,7 +894,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.083896954666668,
+        "maximumOfflineRealTimeRatio": 0.7335357155555652,
         "metrics": {
           "pcmSha256": "eff726b40bf1f745cbcdde99101ddbce3125db40796a86aa10a6fdbde98ec251",
           "frames": 96000,
@@ -907,7 +907,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.083896954666668
+          "offlineRealTimeRatio": 0.718280867111106
         },
         "passed": true
       },
@@ -922,7 +922,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.4116347497777961,
+        "maximumOfflineRealTimeRatio": 0.7218553462222141,
         "metrics": {
           "pcmSha256": "c14ef0b16f21da57f4ee20eb048f26ad3b3fc11a6b871114c4b7e2a0d75ba671",
           "frames": 96000,
@@ -935,7 +935,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1520255440000133
+          "offlineRealTimeRatio": 0.7159477053333281
         },
         "passed": true
       },
@@ -950,7 +950,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.0889575168889067,
+        "maximumOfflineRealTimeRatio": 0.7016315102222143,
         "metrics": {
           "pcmSha256": "e80a5e3c9e7fb9729dd702d8dd36e31e32170fc7ec9c99e22129806a4c53626b",
           "frames": 96000,
@@ -963,7 +963,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.0889575168889067
+          "offlineRealTimeRatio": 0.684411485333332
         },
         "passed": true
       },
@@ -978,7 +978,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.1517545573333434,
+        "maximumOfflineRealTimeRatio": 0.7372360102222172,
         "metrics": {
           "pcmSha256": "8d0670b96c9a89929c3f0f6d91732ed261f03d2a4e8dc8dc845742f9fd9faba0",
           "frames": 96000,
@@ -991,7 +991,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.0853537711111
+          "offlineRealTimeRatio": 0.7372360102222172
         },
         "passed": true
       },
@@ -1006,7 +1006,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.2001109293333203,
+        "maximumOfflineRealTimeRatio": 0.7575662395555604,
         "metrics": {
           "pcmSha256": "57b857fdf0a7fdc6e64ebcb9ac86d702a3a85ab92ac31902cff8d049615d4678",
           "frames": 96000,
@@ -1019,7 +1019,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.122454490222218
+          "offlineRealTimeRatio": 0.7575662395555604
         },
         "passed": true
       },
@@ -1034,7 +1034,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.1848777577777703,
+        "maximumOfflineRealTimeRatio": 0.7621388568888909,
         "metrics": {
           "pcmSha256": "1d237cd511005f8714f992897f65499a4fc558649ae4b0abccb4cf24eaf67bc2",
           "frames": 96000,
@@ -1047,7 +1047,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1558658008888985
+          "offlineRealTimeRatio": 0.7498642493333254
         },
         "passed": true
       },
@@ -1062,7 +1062,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.1407139866666662,
+        "maximumOfflineRealTimeRatio": 0.7945763319999937,
         "metrics": {
           "pcmSha256": "8b5e1b404961ebb8acc60f01f49d496f78852480b8c0f77aac8e0ce7f59e9b21",
           "frames": 96000,
@@ -1075,7 +1075,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1407139866666662
+          "offlineRealTimeRatio": 0.7258663631111073
         },
         "passed": true
       },
@@ -1090,7 +1090,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.4756008675555803,
+        "maximumOfflineRealTimeRatio": 0.731183946666657,
         "metrics": {
           "pcmSha256": "e5581f77f65f3720c9b2bd4cc5a1c571c8b2e8cda54530b15b0bb6c34681c375",
           "frames": 96000,
@@ -1103,7 +1103,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1815944008888781
+          "offlineRealTimeRatio": 0.7271951586666594
         },
         "passed": true
       },
@@ -1118,7 +1118,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.1217198364444387,
+        "maximumOfflineRealTimeRatio": 0.729428034666667,
         "metrics": {
           "pcmSha256": "9c57e260f4094f260021403d752a85a837d83291e79dfae7fde95de02f7470ca",
           "frames": 96000,
@@ -1131,7 +1131,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1039392306667029
+          "offlineRealTimeRatio": 0.7074501315555535
         },
         "passed": true
       },
@@ -1146,7 +1146,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.2432943506666667,
+        "maximumOfflineRealTimeRatio": 0.7458291684444477,
         "metrics": {
           "pcmSha256": "b96a70684e4611709995d4ef03b024777bea9fbae9082a5664875ba9b5405257",
           "frames": 96000,
@@ -1159,7 +1159,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1265697786666247
+          "offlineRealTimeRatio": 0.7273444151111309
         },
         "passed": true
       },
@@ -1174,7 +1174,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.1717144351111104,
+        "maximumOfflineRealTimeRatio": 0.7233100697777959,
         "metrics": {
           "pcmSha256": "b2d5524757b0f348d823c9a2261c2524094a9f01b7209af6fd9f75643c67e577",
           "frames": 96000,
@@ -1187,7 +1187,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1717144351111104
+          "offlineRealTimeRatio": 0.7158447902222267
         },
         "passed": true
       },
@@ -1202,7 +1202,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.2183854795555171,
+        "maximumOfflineRealTimeRatio": 0.7502284066666487,
         "metrics": {
           "pcmSha256": "7b0814cc4be0b498070114933ba662c041d3394553f9c817857401b947459866",
           "frames": 96000,
@@ -1215,7 +1215,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.0917076066666698
+          "offlineRealTimeRatio": 0.7061749048888839
         },
         "passed": true
       },
@@ -1230,7 +1230,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.3220251746667135,
+        "maximumOfflineRealTimeRatio": 0.766855141777778,
         "metrics": {
           "pcmSha256": "387cb05c95c834549f7d5974215404bcee19735135fc3044686c1b0aa2f38341",
           "frames": 96000,
@@ -1243,7 +1243,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1649345928888974
+          "offlineRealTimeRatio": 0.766855141777778
         },
         "passed": true
       },
@@ -1258,7 +1258,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 2.3766952991110997,
+        "maximumOfflineRealTimeRatio": 0.7109534964444271,
         "metrics": {
           "pcmSha256": "19dd8dcec6f69f483c52a84a457062eb3bc3761f6d0fe6976d3119a4d2c4dee5",
           "frames": 96000,
@@ -1271,7 +1271,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 2.3766952991110997
+          "offlineRealTimeRatio": 0.7037516884444437
         },
         "passed": true
       },
@@ -1286,7 +1286,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.1192188617778012,
+        "maximumOfflineRealTimeRatio": 0.7728730155555531,
         "metrics": {
           "pcmSha256": "9d0ed86d3e31fbf2d2dcc05358915af212425b1df349a3b9769de168010c9c5d",
           "frames": 96000,
@@ -1299,7 +1299,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.1192188617778012
+          "offlineRealTimeRatio": 0.7263513400000002
         },
         "passed": true
       },
@@ -1314,7 +1314,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.1089171288888902,
+        "maximumOfflineRealTimeRatio": 0.7513757355555426,
         "metrics": {
           "pcmSha256": "8805f5c53af582bfdd89591906ab9840dd7cb8a83b49292ed6a0fa7032dc8297",
           "frames": 96000,
@@ -1327,7 +1327,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.0529277764444447
+          "offlineRealTimeRatio": 0.7499406653333507
         },
         "passed": true
       },
@@ -1342,7 +1342,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.3447468328888839,
+        "maximumOfflineRealTimeRatio": 0.754953712444442,
         "metrics": {
           "pcmSha256": "855a9140dbfe537db559f7ef692c6ddff830537379599c3bbb4072075005f371",
           "frames": 96000,
@@ -1355,7 +1355,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.3447468328888839
+          "offlineRealTimeRatio": 0.7096711742222412
         },
         "passed": true
       },
@@ -1370,7 +1370,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.0111921835555178,
+        "maximumOfflineRealTimeRatio": 0.6842254039999873,
         "metrics": {
           "pcmSha256": "fd8c67d8348b6bc4427dd976403fb73ba61b9b30dd224298583e3320092ee30e",
           "frames": 96000,
@@ -1383,7 +1383,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.0111921835555178
+          "offlineRealTimeRatio": 0.6781159968888905
         },
         "passed": true
       },
@@ -1398,7 +1398,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.044545561333342,
+        "maximumOfflineRealTimeRatio": 0.7720992893333444,
         "metrics": {
           "pcmSha256": "c19beb3034030f0778e55994dab1ff59e5ff2782cde66bfd920d714945277d82",
           "frames": 96000,
@@ -1411,7 +1411,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.0336147039999874
+          "offlineRealTimeRatio": 0.7164356097777943
         },
         "passed": true
       },
@@ -1426,7 +1426,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.029349947111112,
+        "maximumOfflineRealTimeRatio": 0.7157787799999997,
         "metrics": {
           "pcmSha256": "e26351c8770dee39ce853c605965030c62ef0d601f4f7166eb8846af6f11d131",
           "frames": 96000,
@@ -1439,7 +1439,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 0.962417811999977
+          "offlineRealTimeRatio": 0.7113411386666768
         },
         "passed": true
       },
@@ -1454,7 +1454,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.0413280764444628,
+        "maximumOfflineRealTimeRatio": 0.718802271111118,
         "metrics": {
           "pcmSha256": "be44600d1b7fe7ba80058686c52284bb32b241917b9dff5c367c2b4d7561c084",
           "frames": 96000,
@@ -1467,7 +1467,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 0.9852086715555439
+          "offlineRealTimeRatio": 0.7148148871111011
         },
         "passed": true
       },
@@ -1482,7 +1482,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.0013585751111516,
+        "maximumOfflineRealTimeRatio": 0.6927646333333364,
         "metrics": {
           "pcmSha256": "78e5632f47b65af91998101ffa4bc1f9677169ba541841d6609bcb9b4f384643",
           "frames": 96000,
@@ -1495,7 +1495,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.0013585751111516
+          "offlineRealTimeRatio": 0.6798208288889016
         },
         "passed": true
       },
@@ -1510,7 +1510,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.0755633351111578,
+        "maximumOfflineRealTimeRatio": 0.7803757328889074,
         "metrics": {
           "pcmSha256": "e1f3d22d7dc2e6dbf792c49d6daa0b9091c5dfe4cd2a2be488e82e0ef4020a72",
           "frames": 96000,
@@ -1523,7 +1523,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.0755633351111578
+          "offlineRealTimeRatio": 0.7461994968888919
         },
         "passed": true
       },
@@ -1538,7 +1538,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.052117676888903,
+        "maximumOfflineRealTimeRatio": 0.7370749439999927,
         "metrics": {
           "pcmSha256": "2a70c8471cdb766a824146083875321fdd08d1432117a1e1f32d20beeb09c880",
           "frames": 96000,
@@ -1551,7 +1551,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.0159350208888969
+          "offlineRealTimeRatio": 0.7108375835555554
         },
         "passed": true
       },
@@ -1566,7 +1566,7 @@
         "restartIdentical": true,
         "finite": true,
         "audible": true,
-        "maximumOfflineRealTimeRatio": 1.0241111417778044,
+        "maximumOfflineRealTimeRatio": 0.7367847826666613,
         "metrics": {
           "pcmSha256": "e145b33e9ae3c5acb2a60996f121ba7f455291792738f509ed84ea4b3e79b0ac",
           "frames": 96000,
@@ -1579,7 +1579,7 @@
           "stereoCorrelation": 1,
           "sideRms": 0,
           "nonFinite": 0,
-          "offlineRealTimeRatio": 1.022944836888928
+          "offlineRealTimeRatio": 0.7193320222221987
         },
         "passed": true
       }
@@ -1588,8 +1588,8 @@
   "performance": {
     "scope": "Offline production worklet; four renders per track including deterministic-analysis overhead.",
     "realTimeBudget": 1,
-    "withinOfflineRealTimeBudget": false,
+    "withinOfflineRealTimeBudget": true,
     "note": "This is not a browser underrun or device-specific performance proof."
   },
-  "passed": false
+  "passed": true
 }

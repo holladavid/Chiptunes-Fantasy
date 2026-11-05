@@ -1,13 +1,15 @@
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUTPUT = join(ROOT, 'tracks/c64/SID_Emulation_Test.sid');
 const LOAD_ADDRESS = 0x1000;
 const SID_CLOCK = 985248;
-const TEST_SECONDS = 1;
 const FRAME_RATE = 50;
+const BASE_VOICE_HZ = 220;
+const BASE_VOICE_WAVEFORM = 0x21;
+const SWEEP_STEPS = 16;
 
 class Assembler6502 {
     constructor(origin) {
@@ -83,6 +85,11 @@ function makeTest(name, options = {}) {
         resonanceRouting: options.resonanceRouting ?? 0,
         modeVolume: options.modeVolume ?? 0x0F,
         releaseTicks: options.releaseTicks ?? 0,
+        stepTicks: options.stepTicks ?? FRAME_RATE,
+        stepCount: options.stepCount ?? 1,
+        sweepTarget: options.sweepTarget ?? 0,
+        sweepReverse: options.sweepReverse ? 1 : 0,
+        retriggerEachStep: options.retriggerEachStep === false ? 0 : 1,
         voice2Frequency: options.voice2Waveform === undefined ? 0 : secondFrequency,
         voice2Control: options.voice2Waveform ?? 0,
         voice2AttackDecay: options.voice2Waveform === undefined ? 0 : 0x00,
@@ -110,40 +117,58 @@ for (const [waveformName, waveform] of waveforms) {
     }
 }
 
-for (const [name, attackDecay, sustainRelease] of [
-    ['fast attack / low sustain', 0x18, 0x20],
-    ['medium attack / medium sustain', 0x48, 0xA6],
-    ['slow attack / full sustain', 0x98, 0xF9],
-    ['medium decay / medium sustain', 0x09, 0x84],
-    ['instant attack / long release', 0x00, 0xF4]
-]) {
-    tests.push(makeTest(`ADSR ${name}`, {
-        waveform: 0x41,
+const adsrSweepTest = (name, sweepTarget, attackDecay, sustainRelease, sweepReverse = false) =>
+    makeTest(`ADSR ${name}`, {
+        hz: BASE_VOICE_HZ,
+        waveform: BASE_VOICE_WAVEFORM,
         attackDecay,
         sustainRelease,
-        releaseTicks: 25
-    }));
-}
+        releaseTicks: sweepTarget === 4 ? 10 : 0,
+        stepTicks: 20,
+        stepCount: SWEEP_STEPS,
+        sweepTarget,
+        sweepReverse
+    });
 
-const filterTest = (name, cutoff, resonance, mode) => makeTest(`Filter ${name}`, {
-    waveform: 0x21,
+// Jede Stufe wird neu angeschlagen. Slow-to-fast bei Attack/Decay/Release
+// beginnt hoerbar im langsamsten Bereich und endet mit dem kuerzesten Impuls.
+tests.push(adsrSweepTest('attack sweep slow to fast', 1, 0x06, 0x80, true));
+tests.push(adsrSweepTest('decay sweep slow to fast', 2, 0x00, 0x00, true));
+tests.push(adsrSweepTest('sustain sweep low to high', 3, 0x06, 0x00));
+tests.push(adsrSweepTest('release sweep slow to fast', 4, 0x00, 0xF0, true));
+
+const filterTest = (name, cutoff, resonance, mode, sweepTarget = 0) => makeTest(`Filter ${name}`, {
+    hz: BASE_VOICE_HZ,
+    waveform: BASE_VOICE_WAVEFORM,
+    // Die Hüllkurve bleibt waehrend aller Filter-Sweeps statisch auf Vollpegel.
+    attackDecay: 0x00,
+    sustainRelease: 0xF0,
     cutoff,
     resonanceRouting: (resonance << 4) | 0x01,
-    modeVolume: mode | 0x0F
+    modeVolume: mode | 0x0F,
+    stepTicks: sweepTarget ? 6 : FRAME_RATE,
+    stepCount: sweepTarget ? SWEEP_STEPS : 1,
+    sweepTarget,
+    retriggerEachStep: false
 });
 
-tests.push(makeTest('Filter dry reference', { waveform: 0x21 }));
-tests.push(filterTest('low-pass low cutoff', 0x040, 2, 0x10));
-tests.push(filterTest('low-pass mid cutoff', 0x300, 2, 0x10));
-tests.push(filterTest('low-pass high cutoff', 0x700, 2, 0x10));
-tests.push(filterTest('band-pass', 0x300, 8, 0x20));
-tests.push(filterTest('high-pass', 0x300, 8, 0x40));
-tests.push(filterTest('low + band-pass', 0x300, 8, 0x30));
-tests.push(filterTest('low + high-pass', 0x300, 8, 0x50));
-tests.push(filterTest('band + high-pass', 0x300, 8, 0x60));
-tests.push(filterTest('all modes', 0x300, 8, 0x70));
-tests.push(filterTest('low-pass low resonance', 0x300, 1, 0x10));
-tests.push(filterTest('low-pass high resonance', 0x300, 15, 0x10));
+tests.push(makeTest('Filter dry reference', {
+    hz: BASE_VOICE_HZ,
+    waveform: BASE_VOICE_WAVEFORM,
+    attackDecay: 0x00,
+    sustainRelease: 0xF0
+}));
+tests.push(filterTest('low-pass cutoff sweep / low resonance', 0, 2, 0x10, 5));
+tests.push(filterTest('low-pass cutoff sweep / high resonance', 0, 12, 0x10, 5));
+tests.push(filterTest('band-pass cutoff sweep', 0, 8, 0x20, 5));
+tests.push(filterTest('high-pass cutoff sweep', 0, 8, 0x40, 5));
+tests.push(filterTest('low + band-pass cutoff sweep', 0, 8, 0x30, 5));
+tests.push(filterTest('low + high-pass cutoff sweep', 0, 8, 0x50, 5));
+tests.push(filterTest('band + high-pass cutoff sweep', 0, 8, 0x60, 5));
+tests.push(filterTest('all modes cutoff sweep', 0, 8, 0x70, 5));
+tests.push(filterTest('low-pass resonance sweep', 0x300, 0, 0x10, 6));
+tests.push(filterTest('band-pass resonance sweep', 0x300, 0, 0x20, 6));
+tests.push(filterTest('high-pass resonance sweep', 0x300, 0, 0x40, 6));
 
 for (const [name, flags] of [
     ['independent voices', 0x00],
@@ -159,7 +184,7 @@ for (const [name, flags] of [
     }));
 }
 
-if (tests.length !== 61) throw new Error(`Expected 61 tests, got ${tests.length}`);
+if (tests.length !== 60) throw new Error(`Expected 60 tests, got ${tests.length}`);
 
 const assembler = new Assembler6502(LOAD_ADDRESS);
 assembler.label('init');
@@ -179,11 +204,20 @@ assembler.absolute(0xBD, 'voice1Control'); // LDA voice1Control,X
 assembler.emit(0x29, 0xFE, 0x8D, 0x04, 0xD4); // Clear gate / STA $D404
 
 assembler.label('checkFrame');
-assembler.emit(0xC6, 0x03); // DEC frame timer
+assembler.emit(0xC6, 0x03); // DEC step timer
 assembler.branch(0xD0, 'playDone');
-assembler.emit(0xA9, FRAME_RATE, 0x85, 0x03); // Reset frame timer
+assembler.emit(0xA6, 0x04); // LDX current test
+assembler.emit(0xE6, 0x05); // INC sweep step
+assembler.emit(0xA5, 0x05); // LDA sweep step
+assembler.absolute(0xDD, 'stepCount'); // CMP stepCount,X
+assembler.branch(0xB0, 'nextTest');
+assembler.absolute(0x20, 'applyStep'); // Next sweep step of the same test
+assembler.emit(0x60); // RTS
+
+assembler.label('nextTest');
+assembler.emit(0xA9, 0x00, 0x85, 0x05); // Reset sweep step
 assembler.emit(0xE6, 0x04); // INC current test
-assembler.emit(0xA5, 0x04, 0xC9, tests.length); // LDA step / CMP test count
+assembler.emit(0xA5, 0x04, 0xC9, tests.length); // LDA current test / CMP test count
 assembler.branch(0x90, 'applyCurrentTest');
 assembler.emit(0xA9, 0x00, 0x85, 0x04); // Wrap to test zero
 
@@ -195,8 +229,10 @@ assembler.label('playDone');
 assembler.emit(0x60); // RTS
 
 assembler.label('applyTest');
-assembler.absolute(0xBD, 'releaseTicks');
-assembler.emit(0x85, 0x02); // STA release timer
+assembler.emit(0xA9, 0x00, 0x85, 0x05); // Start at sweep step zero
+assembler.emit(0xA6, 0x04); // LDX current test
+assembler.absolute(0xBD, 'stepTicks');
+assembler.emit(0x85, 0x03); // STA step timer
 
 for (const [table, register] of [
     ['frequencyLow', 0xD400],
@@ -209,11 +245,6 @@ for (const [table, register] of [
     assembler.absolute(0xBD, table);
     assembler.emit(0x8D, register & 0xFF, register >> 8);
 }
-
-assembler.absolute(0xBD, 'voice1Control');
-assembler.emit(0x29, 0xFE, 0x8D, 0x04, 0xD4); // Retrigger voice 1
-assembler.absolute(0xBD, 'voice1Control');
-assembler.emit(0x8D, 0x04, 0xD4);
 
 for (const [table, register] of [
     ['voice2FrequencyLow', 0xD407],
@@ -240,6 +271,87 @@ assembler.absolute(0xBD, 'resonanceRouting');
 assembler.emit(0x8D, 0x17, 0xD4); // STA $D417
 assembler.absolute(0xBD, 'modeVolume');
 assembler.emit(0x8D, 0x18, 0xD4); // STA $D418
+assembler.absolute(0x20, 'applyStep');
+assembler.emit(0x60); // RTS
+
+// Ein Sweep besteht aus 16 gleich langen Stufen. Y enthaelt den aktuellen
+// Nibble-Wert, X weiterhin den Testindex. Filter-Sweeps retrigger'n das Gate
+// nicht; die ADSR-Sweeps tun dies bewusst bei jeder neuen Einstellung.
+assembler.label('applyStep');
+assembler.emit(0xA6, 0x04); // LDX current test
+assembler.absolute(0xBD, 'stepTicks');
+assembler.emit(0x85, 0x03); // Reset step timer
+assembler.absolute(0xBD, 'releaseTicks');
+assembler.emit(0x85, 0x02); // STA release timer
+assembler.absolute(0xBD, 'sweepTarget');
+assembler.branch(0xF0, 'noSweep'); // Kein Sweep in diesem Test
+assembler.emit(0xA5, 0x05); // LDA sweep step
+assembler.absolute(0xBC, 'sweepReverse'); // LDY sweepReverse,X
+assembler.branch(0xF0, 'sweepValueReady');
+assembler.emit(0x49, 0x0F); // EOR #15: reverse sweep
+assembler.label('sweepValueReady');
+assembler.emit(0xA8); // TAY
+assembler.absolute(0xBD, 'sweepTarget');
+assembler.emit(0xC9, 0x01); // Attack?
+assembler.branch(0xF0, 'sweepAttack');
+assembler.emit(0xC9, 0x02); // Decay?
+assembler.branch(0xF0, 'sweepDecay');
+assembler.emit(0xC9, 0x03); // Sustain?
+assembler.branch(0xF0, 'sweepSustain');
+assembler.emit(0xC9, 0x04); // Release?
+assembler.branch(0xF0, 'sweepRelease');
+assembler.emit(0xC9, 0x05); // Cutoff?
+assembler.branch(0xF0, 'sweepCutoff');
+assembler.emit(0xC9, 0x06); // Resonance?
+assembler.branch(0xF0, 'sweepResonance');
+assembler.absolute(0x4C, 'triggerVoice');
+assembler.label('noSweep');
+assembler.absolute(0x4C, 'triggerVoice');
+
+assembler.label('sweepAttack');
+assembler.emit(0x98, 0x0A, 0x0A, 0x0A, 0x0A, 0x85, 0x06); // Step << 4
+assembler.absolute(0xBD, 'attackDecay');
+assembler.emit(0x29, 0x0F, 0x05, 0x06, 0x8D, 0x05, 0xD4);
+assembler.absolute(0x4C, 'triggerVoice');
+
+assembler.label('sweepDecay');
+assembler.absolute(0xBD, 'attackDecay');
+assembler.emit(0x29, 0xF0, 0x85, 0x06); // Preserve attack nibble
+assembler.emit(0x98, 0x05, 0x06, 0x8D, 0x05, 0xD4);
+assembler.absolute(0x4C, 'triggerVoice');
+
+assembler.label('sweepSustain');
+assembler.emit(0x98, 0x0A, 0x0A, 0x0A, 0x0A, 0x85, 0x06); // Step << 4
+assembler.absolute(0xBD, 'sustainRelease');
+assembler.emit(0x29, 0x0F, 0x05, 0x06, 0x8D, 0x06, 0xD4);
+assembler.absolute(0x4C, 'triggerVoice');
+
+assembler.label('sweepRelease');
+assembler.absolute(0xBD, 'sustainRelease');
+assembler.emit(0x29, 0xF0, 0x85, 0x06); // Preserve sustain nibble
+assembler.emit(0x98, 0x05, 0x06, 0x8D, 0x06, 0xD4);
+assembler.absolute(0x4C, 'triggerVoice');
+
+assembler.label('sweepCutoff');
+assembler.emit(0xA9, 0x00, 0x8D, 0x15, 0xD4); // Cutoff low = 0
+assembler.emit(0x98, 0x0A, 0x0A, 0x0A, 0x0A); // 16 steps x 128 cutoff units
+assembler.emit(0x8D, 0x16, 0xD4);
+assembler.absolute(0x4C, 'triggerVoice');
+
+assembler.label('sweepResonance');
+assembler.emit(0x98, 0x0A, 0x0A, 0x0A, 0x0A, 0x85, 0x06); // Step << 4
+assembler.absolute(0xBD, 'resonanceRouting');
+assembler.emit(0x29, 0x0F, 0x05, 0x06, 0x8D, 0x17, 0xD4);
+assembler.absolute(0x4C, 'triggerVoice');
+
+assembler.label('triggerVoice');
+assembler.absolute(0xBD, 'retriggerEachStep');
+assembler.branch(0xF0, 'stepDone');
+assembler.absolute(0xBD, 'voice1Control');
+assembler.emit(0x29, 0xFE, 0x8D, 0x04, 0xD4); // Gate off
+assembler.absolute(0xBD, 'voice1Control');
+assembler.emit(0x8D, 0x04, 0xD4); // Gate on
+assembler.label('stepDone');
 assembler.emit(0x60); // RTS
 
 const tableValues = {
@@ -261,7 +373,12 @@ const tableValues = {
     cutoffHigh: tests.map(test => test.cutoff >> 3),
     resonanceRouting: tests.map(test => test.resonanceRouting),
     modeVolume: tests.map(test => test.modeVolume),
-    releaseTicks: tests.map(test => test.releaseTicks)
+    releaseTicks: tests.map(test => test.releaseTicks),
+    stepTicks: tests.map(test => test.stepTicks),
+    stepCount: tests.map(test => test.stepCount),
+    sweepTarget: tests.map(test => test.sweepTarget),
+    sweepReverse: tests.map(test => test.sweepReverse),
+    retriggerEachStep: tests.map(test => test.retriggerEachStep)
 };
 
 for (const [name, values] of Object.entries(tableValues)) assembler.table(name, values);
@@ -285,8 +402,14 @@ const payload = Buffer.concat([
     Buffer.from([LOAD_ADDRESS & 0xFF, LOAD_ADDRESS >> 8]),
     Buffer.from(code)
 ]);
-writeFileSync(OUTPUT, Buffer.concat([header, payload]));
+const sidImage = Buffer.concat([header, payload]);
+const totalFrames = tests.reduce((sum, test) => sum + test.stepTicks * test.stepCount, 0);
 
-console.log(`Generated ${OUTPUT}`);
-console.log(`${tests.length} tests x ${TEST_SECONDS}s = ${tests.length * TEST_SECONDS}s`);
-console.log(`PSID v2, init $${assembler.labels.get('init').toString(16)}, play $${assembler.labels.get('play').toString(16)}, ${code.length} code/data bytes`);
+export { tests, sidImage };
+
+if (resolve(process.argv[1] || '') === fileURLToPath(import.meta.url)) {
+    writeFileSync(OUTPUT, sidImage);
+    console.log(`Generated ${OUTPUT}`);
+    console.log(`${tests.length} tests, ${totalFrames} PAL frames = ${(totalFrames / FRAME_RATE).toFixed(2)}s`);
+    console.log(`PSID v2, init $${assembler.labels.get('init').toString(16)}, play $${assembler.labels.get('play').toString(16)}, ${code.length} code/data bytes`);
+}

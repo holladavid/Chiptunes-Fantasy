@@ -114,7 +114,7 @@ test('Kuration: sichtbare Titel und Museumstexte folgen den tatsächlichen SID-H
     assert.equal(testHeader.magic, 'PSID');
     assert.equal(testHeader.version, 2);
     assert.equal(testHeader.songs, 1);
-    assert.equal(SID_SLDB.sidemulationtest.lengths[0], 61);
+    assert.equal(SID_SLDB.sidemulationtest.lengths[0], 91.72);
     assert.match(testTune.composerInfo, /kein historischer C64-Soundtrack/);
 });
 
