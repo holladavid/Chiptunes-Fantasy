@@ -82,7 +82,8 @@ test('Starfield switches patterns only on exact beat events', () => {
     assert.equal(starfield.palettePhase, 0);
 
     starfield.render(ctx, 160, 200, 1.04, 'playing', 0.04, createMetrics('c64', {
-        beat: [1, 1, 1, 1], beatStarted: false, beatCount: 4
+        beat: [1, 1, 1, 1], beatImpulse: [1], beatStrength: 1, beatLevel: 3,
+        beatStarted: false, beatCount: 4
     }));
     assert.equal(starfield.pattern, 1, 'The decaying envelope must not retrigger a pattern');
 
@@ -91,6 +92,62 @@ test('Starfield switches patterns only on exact beat events', () => {
     }));
     assert.equal(starfield.lastState, 'afterglow');
     assert.equal(starfield.stateAge, 0, 'Afterglow needs a local transition timestamp');
+});
+
+test('Starfield scales visible warp and system accents with soft, medium and hard impulses', () => {
+    for (const system of ['c64', 'amiga', 'atari']) {
+        const responses = [0.2, 0.5, 0.9].map(strength => {
+            const starfield = createSeededStarfield();
+            const ctx = createContext();
+            // Ein sicher sichtbarer Referenzstern verhindert, dass das Frustum-
+            // Recycling anstelle des Warp-Schubs gemessen wird.
+            const beforeZ = 500;
+            starfield.stars[0].x = 0;
+            starfield.stars[0].y = 0;
+            starfield.stars[0].z = beforeZ;
+            for (let frame = 0; frame < 3; frame++) {
+                starfield.render(ctx, 160, 200, 1 + frame / 50, 'playing', frame / 50,
+                    createMetrics(system, {
+                        beat: [1, 0, 0, 0],
+                        beatImpulse: [strength],
+                        beatStrength: strength,
+                        beatStarted: frame === 0,
+                        beatCount: 1
+                    }));
+            }
+            return {
+                travel: beforeZ - starfield.stars[0].z,
+                hash: ctx.hash
+            };
+        });
+
+        assert.ok(responses[0].travel < responses[1].travel
+            && responses[1].travel < responses[2].travel,
+        `${system} warp travel must increase with beat strength`);
+        assert.equal(new Set(responses.map(response => response.hash)).size, 3,
+            `${system} soft/medium/hard frames must be visibly distinct`);
+    }
+});
+
+test('Starfield keeps legacy beat-envelope rendering as impulse fallback', () => {
+    for (const system of ['c64', 'amiga', 'atari']) {
+        const legacy = createSeededStarfield();
+        const graded = createSeededStarfield();
+        const legacyCtx = createContext();
+        const gradedCtx = createContext();
+        const beat = 0.55;
+
+        legacy.render(legacyCtx, 160, 200, 1, 'playing', 0, createMetrics(system, {
+            beat: [beat, 0, 0, 0]
+        }));
+        graded.render(gradedCtx, 160, 200, 1, 'playing', 0, createMetrics(system, {
+            beat: [beat, 0, 0, 0],
+            beatImpulse: [beat]
+        }));
+
+        assert.equal(gradedCtx.hash, legacyCtx.hash, `${system} fallback must preserve legacy output`);
+        assert.equal(graded.stars[0].z, legacy.stars[0].z);
+    }
 });
 
 test('Starfield recycling is deterministic and uses no randomness while rendering', () => {
@@ -109,8 +166,12 @@ test('Starfield recycling is deterministic and uses no randomness while renderin
             for (let frame = 0; frame < 720; frame++) {
                 const beatStarted = frame % 10 === 0;
                 const beatCount = Math.floor(frame / 10) + 1;
+                const envelope = beatStarted ? 1 : 0.25;
                 const metrics = createMetrics(system, {
-                    beat: [beatStarted ? 1 : 0.25, 0, 0, 0],
+                    beat: [envelope, 0, 0, 0],
+                    beatImpulse: [envelope * 0.55],
+                    beatStrength: 0.55,
+                    beatLevel: 2,
                     beatStarted,
                     beatCount
                 });
