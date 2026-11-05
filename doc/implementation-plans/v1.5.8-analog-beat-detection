@@ -1,0 +1,153 @@
+## Zielbild: kontinuierliche Beat-Stärke plus Beat-Level
+
+Der bisherige Ablauf „Beat oder kein Beat“ wird erweitert:
+
+- **`beatStrength`**: kontinuierlicher Wert von `0.0` bis `1.0`.
+- **`beatLevel`**: zentral abgeleitete Stufe:
+  - `0`: kein Beat
+  - `1`: soft
+  - `2`: medium
+  - `3`: hard
+- **`beatImpulse`**: abklingender, stärkegewichteter Impuls für kontinuierliche DSE-Reaktionen.
+- **`beatStarted` und `beatCount`** bleiben unverändert die einzige Grundlage für diskrete Wechsel.
+
+Damit kann ein DSE beispielsweise die Sonne bei einem soft Beat nur um ein Pixel anheben, bei einem medium Beat deutlich pulsieren lassen und bei einem hard Beat eine große, aber weiterhin begrenzte Bewegung ausführen.
+
+Wichtig: **Beat-Stärke beschreibt die Impulsstärke, nicht die allgemeine Lautstärke und nicht die Tension.** Die bestehende Makro-Dramaturgie des Tension Managers soll dadurch zunächst nicht verändert werden.
+
+## Umsetzungsplan
+
+### Schritt 1: Graduelle Beat-Erkennung im TrackMonitor
+
+Die bisherigen booleschen Hardware- und Analogtrigger werden zu normalisierten Stärkekandidaten erweitert.
+
+- **Analoger Anteil:** Aus dem positiven Lautstärkeanstieg eines Kanals wird oberhalb der systemspezifischen Erkennungsschwelle eine Stärke berechnet.
+- **C64/SID:** Gate-On, Noise, Bassfrequenz und Pitch-Drop liefern unterschiedliche Impulswerte. Kanalpegel können die Stärke ergänzen.
+- **Atari/YM:** Lautstärkesprünge, Noise-Gates, Hardware-Envelope und Digidrums werden einzeln bewertet.
+- **Amiga/Paula:** Volume-Sprünge und DMA-/Note-Trigger fließen mit Lautstärke und Periodenkontext ein.
+- Mehrere nahezu gleichzeitige Registerereignisse desselben Schlags dürfen sich nicht unbegrenzt addieren. Vorrangig wird der stärkste plausible Impuls verwendet.
+- Erste Register-Snapshots, Trackwechsel und Systemwechsel erzeugen weiterhin keine Phantom-Beats.
+- Der vorhandene Beat-Cooldown bleibt erhalten. Während des Cooldowns darf kein neuer Stärkewert den laufenden Impuls überschreiben.
+- Die Kalibrierung erfolgt pro System, die ausgegebenen Werte verwenden anschließend denselben Bereich `0.0–1.0`.
+
+**Tests:** soft/medium/hard für alle drei Systeme, keine Phantom-Beats, Cooldown, Reset-Verhalten und endliche Werte.
+
+**Conventional Commit nach Implementierung:**
+
+```text
+feat(visuals): add graded beat intensity detection
+```
+
+### Schritt 2: Metrikenvertrag, Kompatibilität und Test-Harness
+
+`TrackDynamics`, `StageManager` und die DSE-Dokumentation erhalten die neuen Metriken. Die bisherige Beat-Hüllkurve bleibt zunächst kompatibel.
+
+```text
+beatStarted     exaktes Einmalereignis
+beatCount       fortlaufende Beatnummer
+beatStrength    Stärke des aktuellen Beats, 0.0–1.0
+beatLevel       none, soft, medium oder hard
+beat[0]         weiterhin die normalisierte Abklinghüllkurve
+beatImpulse[0]  Hüllkurve × Beat-Stärke
+```
+
+Regeln für DSEs:
+
+- **Kontinuierliche Reaktionen** wie Punch, Warp, Nudge oder Trails verwenden `beatImpulse`.
+- **Diskrete Reaktionen** wie Paletten-, Richtungs- oder Musterwechsel erfolgen ausschließlich bei `beatStarted`; dabei darf `beatLevel` die Variante auswählen.
+- Ein abklingender Impuls darf keinen erneuten Patternwechsel auslösen.
+- Alle Werte benötigen defensive Fallbacks und dürfen keine neuen Allokationen im Renderloop verursachen.
+
+Der DSE-Baseline-Harness wird um reproduzierbare soft-/medium-/hard-Sequenzen erweitert. So lässt sich bei sonst identischen Eingaben nachweisen, ob die sichtbare Reaktion tatsächlich zunimmt.
+
+**Conventional Commit nach Implementierung:**
+
+```text
+feat(visuals): route graded beat metrics to DSEs
+```
+
+### Schritt 3: Starfield als erster visueller Referenz-DSE
+
+Das Starfield eignet sich als erster Nachweis, weil Warp, Rotation, Trails und systemeigene Effekte bereits vorhanden sind.
+
+- **Soft:** kleiner Warp-Impuls, kurze oder keine Trails, minimale Rasterbewegung.
+- **Medium:** deutlich sichtbarer Warp und begrenzte Trails.
+- **Hard:** starker Warp-/Vortex-Impuls, längere aliaste Trails und kräftigere systemeigene Akzente.
+- **C64:** Stärke wirkt zusätzlich auf Rasterwobble und wenige Palettenstufen.
+- **Amiga:** Stärke beeinflusst Parallax-Schub und Copper-Nebula innerhalb fester Farb- und Bandbudgets.
+- **Atari:** Stärke steuert Rotationsimpuls und begrenzte Sterngrößen-/Helligkeitsstufen.
+- Die Anzahl der Sterne bleibt in allen Stufen gleich. Ein hard Beat erzeugt keine zusätzliche Geometrie oder unbegrenzte Rechenlast.
+- Der bestehende Patternwechsel auf jeden vierten Beat bleibt erhalten.
+
+**Abnahme:** gleiche Eingabesequenz mit drei Beat-Stärken erzeugt erkennbar unterschiedliche, reproduzierbare Bild- und Bewegungsabläufe.
+
+**Conventional Commit nach Implementierung:**
+
+```text
+feat(dse): visualize graded beats in starfield
+```
+
+### Schritt 4: Copperbars mit gestuftem Punch und Twist
+
+Bei den Copperbars wird die Stärke unmittelbar als mechanische Bewegung lesbar.
+
+- **Soft:** kleiner vertikaler Nudge und leichte Aufhellung beziehungsweise Kernverdickung über Palettenindizes.
+- **Medium:** deutlicher Punch, größerer Nudge und begrenztes Wobble.
+- **Hard:** kräftiger Kern-Punch und im Climax stärkerer Twist beziehungsweise Rasterversatz.
+- Die Richtungswechsel bleiben beatgenau und alternierend.
+- Formation und Copperliste wechseln weiterhin nur auf vierten Beats.
+- Kanalpegel behalten ihre Zuordnung zu einzelnen Balken; nicht alle Balken sollen bei jedem Beat identisch pumpen.
+- Im Afterglow werden auch harte Beats deutlich gedämpft.
+- Keine Alpha-Effekte, zusätzlichen Balken oder wachsenden Geometriebudgets.
+
+**Conventional Commit nach Implementierung:**
+
+```text
+feat(dse): visualize graded beats in copperbars
+```
+
+### Schritt 5: TrackPresenter mit lesbaren Impulsstufen
+
+Der TrackPresenter erhält ebenfalls eine gestufte Reaktion, ohne die Lesbarkeit zu opfern.
+
+- **Soft:** minimaler Panel- oder Titel-Nudge.
+- **Medium:** deutlicheres Raster-/Panel-Pulsieren und kurze Palettenakzente.
+- **Hard:** stärkere, aber kurze Bewegung und akzentuierte Rahmen-/Copperdetails.
+- Bitmap-Schrift und sichere Textbereiche bleiben unverändert.
+- Layoutwechsel erfolgen weiterhin nur auf jeden vierten Beat.
+- One-Shot-Neustarts müssen Beat-Stärke und visuelle Zustände kontrolliert zurücksetzen.
+
+**Conventional Commit nach Implementierung:**
+
+```text
+feat(dse): visualize graded beats in track presenter
+```
+
+### Schritt 6: Übrige universelle DSEs
+
+- **LimitBar:** Soft Beats erzeugen kleine Paletten-/Segmentakzente, medium Beats einen stärkeren Sweep und hard Beats die maximale vorgesehene Strobe-/Spark-Reaktion. Der DSE bleibt vorerst entsprechend der Registry deaktiviert; die Änderung aktiviert ihn nicht.
+- **VoidElement:** bleibt bewusst ohne Ausgabe und ohne Beat-Reaktion.
+
+**Conventional Commit nach Implementierung:**
+
+```text
+feat(dse): complete graded beat support for universal elements
+```
+
+### Schritt 7: Dokumentation und Gesamtabnahme
+
+- `dse_development_rules.md` um Stärke, Level, Impuls und Visualisierungsregeln ergänzen.
+- Soft/medium/hard-Stills und kurze Bewegungsclips für jeden veränderten DSE erstellen.
+- Sichtbarkeit in `playing`, `buildup`, `climax` und `afterglow` prüfen.
+- Porträt, Querformat, Widescreen, Rotation und extreme Seitenverhältnisse testen.
+- Deterministik, Palettentreue, feste Ressourcenbudgets und fehlende Metriken prüfen.
+- Bestehende Scene-DJ-/DSE-Regressionstests erneut ausführen.
+- Reale App mit C64-, Amiga- und Atari-Tracks prüfen: ruhige Passagen müssen soft Beats zeigen, energiegeladene Passagen dürfen nicht ausschließlich hard Beats erzeugen.
+
+**Conventional Commit nach Implementierung:**
+
+```text
+docs(dse): document graded beat intensity choreography
+```
+
+Erst nach dieser universellen Referenzrunde würde ich die gleiche Auswertung auf die systemspezifischen DSEs ausrollen. Dadurch bleiben Erkennung, Metriken und visuelle Qualität zunächst an wenigen, gut vergleichbaren Effekten kalibrierbar. Noch wurde kein Code verändert.
