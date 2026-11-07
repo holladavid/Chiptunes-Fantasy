@@ -736,7 +736,7 @@ input[type="range"]::-moz-range-thumb {
 
 .brand-main {
     font-family: 'Press Start 2P', monospace;
-    font-size: 28px;
+    font-size: clamp(11px, min(1.76vw, 3.2vh), 22.4px);
     letter-spacing: 2px;
     background: linear-gradient(to bottom, #ffffff 0%, var(--text-color) 45%, var(--bg-color) 50%, #ffffff 53%, var(--text-color) 100%);
     background-size: 100% 200%;
@@ -2437,7 +2437,7 @@ body.theme-atari .now-playing-next-row > span:first-child {
         bottom: 24px;
     }
 
-    .brand-main { font-size: 34px; }
+    .brand-main { font-size: clamp(11px, min(1.76vw, 3.2vh), 22.4px); }
 }
 
 /* --- Low-height desktop and laptop displays --- */
