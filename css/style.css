@@ -3891,6 +3891,10 @@ body:has(#visual-zone.pseudo-fullscreen) {
         overflow: visible !important;
     }
 
+    #visual-zone.lab-mode-expanded {
+        z-index: 101;
+    }
+
     /* Keep previous/play/next reachable while museum and silicon content scroll. */
     #playback-bar {
         position: sticky !important;

@@ -847,6 +847,7 @@ async function setTheme(themeName, isBootSequence = false) {
 
     const hudBody = document.getElementById('hud-body');
     if (hudBody) hudBody.classList.add('hidden');
+    visualZone?.classList.remove('lab-mode-expanded');
     
     const hudMain = document.getElementById('chip-hud'); 
     if (hudMain) hudMain.classList.add('collapsed');     
@@ -1678,6 +1679,7 @@ document.getElementById('btn-hud-toggle').addEventListener('click', (event) => {
     body.classList.toggle('hidden', !willExpand);
     infoBtn.classList.toggle('hidden', !willExpand);
     hud.classList.toggle('collapsed', !willExpand);
+    visualZone?.classList.toggle('lab-mode-expanded', willExpand);
     event.currentTarget.innerText = willExpand ? '[ LAB MODE: ON ]' : '[ LAB MODE: OFF ]';
     event.currentTarget.setAttribute('aria-expanded', String(willExpand));
 
