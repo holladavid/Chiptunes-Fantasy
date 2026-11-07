@@ -9,7 +9,7 @@
 class MasterDSPProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.crossfeedEnabled = true;
+        this.crossfeedEnabled = false;
         
         // =========================================================
         // 1. BAUER BINAURAL CROSSFEED (bs2b Standard)

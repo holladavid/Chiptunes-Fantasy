@@ -25,7 +25,7 @@ Die Benutzeroberfläche ist als **taktiles Hardware-Labor** aufgebaut: Skeuomorp
    * **`ym-fantasy` & `ym-bladerunner`:** Reimagined Studio-Cores mit PolyBLEP Anti-Aliasing, 4-Pole Moog-Filtern, Tape Wow/Flutter und Cinematic Hall.
 
 4. **Master DSP Stage & Kopfhörer-Akustik (`master-processor.js`):**
-   * **Bauer Binaural Crossfeed (bs2b 700Hz / 4.5dB @ 250µs Delay):** Beseitigt Stereo-Ermüdung auf Kopfhörern (im HUD umschaltbar via `[ STEREO BLEND: ON/OFF ]`).
+   * **Bauer Binaural Crossfeed (bs2b 700Hz / 4.5dB @ 250µs Delay):** Beseitigt Stereo-Ermüdung auf Kopfhörern, ist standardmäßig deaktiviert und im HUD via `[ STEREO BLEND: ON/OFF ]` umschaltbar.
    * **1.0ms Lookahead True-Peak Brickwall Limiter:** Schützt das Signal bei $-0.35\text{ dBFS}$ vor Clipping und verhindert zuverlässig jedes Lautstärke-Ducking von macOS CoreAudio und Windows WASAPI.
 
 ---

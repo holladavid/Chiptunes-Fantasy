@@ -379,7 +379,8 @@ function initApp() {
         // INTERAKTIVER STEREO BLEND BUTTON
         const btnCrossfeed = document.getElementById('btn-hud-crossfeed');
         if (btnCrossfeed) {
-            let crossfeedOn = true;
+            let crossfeedOn = false;
+            btnCrossfeed.style.opacity = '0.5';
             btnCrossfeed.addEventListener('click', (e) => {
                 crossfeedOn = !crossfeedOn;
                 setMasterCrossfeed(crossfeedOn);

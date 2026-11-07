@@ -18,7 +18,7 @@ let ymGain = null;
 
 let masterGain = null;
 let analyserNode = null;
-let isCrossfeedActive = true;
+let isCrossfeedActive = false;
 
 export function getAudioContext() { return audioCtx; }
 export function getAnalyserNode() { return analyserNode; }
