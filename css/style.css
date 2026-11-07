@@ -2375,7 +2375,7 @@ body.theme-atari .now-playing-next-row > span:first-child {
 }
 
 /* Transient controls clear after inactivity; the brand logo always remains visible. */
-#visual-zone.user-inactive #chip-hud,
+#visual-zone.user-inactive #chip-hud.collapsed,
 #visual-zone.user-inactive .now-playing {
     opacity: 0;
     pointer-events: none;
