@@ -380,12 +380,10 @@ function initApp() {
         const btnCrossfeed = document.getElementById('btn-hud-crossfeed');
         if (btnCrossfeed) {
             let crossfeedOn = false;
-            btnCrossfeed.style.opacity = '0.5';
             btnCrossfeed.addEventListener('click', (e) => {
                 crossfeedOn = !crossfeedOn;
                 setMasterCrossfeed(crossfeedOn);
                 e.currentTarget.innerText = crossfeedOn ? '[ STEREO BLEND: ON ]' : '[ STEREO BLEND: OFF ]';
-                e.currentTarget.style.opacity = crossfeedOn ? '1.0' : '0.5';
                 e.currentTarget.setAttribute('aria-pressed', String(crossfeedOn));
             });
         }
