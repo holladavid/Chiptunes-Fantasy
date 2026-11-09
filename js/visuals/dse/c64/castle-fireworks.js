@@ -244,6 +244,10 @@ export class C64CastleFireworks {
         ctx.fillRect(0, 0, width, height);
 
         const horizon = this.floorY;
+        if (horizon <= 0 || width < 4 || height < 4) {
+            return;
+        }
+
         const u = this.pixelSize;
 
         // Tension dynamically shifts the raster sky bands
@@ -253,12 +257,11 @@ export class C64CastleFireworks {
         const crimsonHeight = this.tension > 0.38
             ? Math.floor(horizon * (this.tension - 0.38) * 0.34)
             : 0;
-        const band3 = Math.max(band2 + u * 4, horizon - crimsonHeight);
+        const band3 = Math.min(horizon, Math.max(band2 + u * 4, horizon - crimsonHeight));
 
         // 1. Upper Deep Night Band
         if (band1 > topBlackEnd) {
-            ctx.fillStyle = COLORS.darkBlue;
-            ctx.fillRect(0, topBlackEnd, width, band1 - topBlackEnd);
+            this.rect(ctx, 0, topBlackEnd, width, band1 - topBlackEnd, COLORS.darkBlue);
             if (topBlackEnd > u * 3) {
                 this.drawRasterTransition(ctx, width, topBlackEnd, COLORS.black, COLORS.darkBlue);
             }
@@ -266,23 +269,20 @@ export class C64CastleFireworks {
 
         // 2. Mid Gothic Purple Band
         if (band2 > band1) {
-            ctx.fillStyle = COLORS.purple;
-            ctx.fillRect(0, band1, width, band2 - band1);
+            this.rect(ctx, 0, band1, width, band2 - band1, COLORS.purple);
             this.drawRasterTransition(ctx, width, band1, COLORS.darkBlue, COLORS.purple);
         }
 
         // 3. Lower Horizon Twilight Band (no hard horizon line!)
         if (band3 > band2) {
-            ctx.fillStyle = COLORS.darkBlue;
-            ctx.fillRect(0, band2, width, band3 - band2);
+            this.rect(ctx, 0, band2, width, band3 - band2, COLORS.darkBlue);
             this.drawRasterTransition(ctx, width, band2, COLORS.purple, COLORS.darkBlue);
         }
 
         // 4. High-Tension Crimson Undertow (Dracula Blood-Sky Raster near Horizon)
         if (horizon > band3) {
             const glowColor = this.tension > 0.72 && this.heavyPulse > 0.3 ? COLORS.red : COLORS.brown;
-            ctx.fillStyle = glowColor;
-            ctx.fillRect(0, band3, width, horizon - band3);
+            this.rect(ctx, 0, band3, width, horizon - band3, glowColor);
             this.drawRasterTransition(ctx, width, band3, COLORS.darkBlue, glowColor);
         }
 
@@ -1079,6 +1079,10 @@ export class C64CastleFireworks {
 
         // 1. C64 Raster Night Sky, Moon, Lightning, Stars & Clouds
         this.drawSky(ctx, width, height, t);
+
+        if (this.floorY <= 0 || width < 4 || height < 4) {
+            return;
+        }
 
         // 2. Fireworks in the Sky (BEHIND the Castle!)
         this.updateFireworks(ctx, width, height, t);

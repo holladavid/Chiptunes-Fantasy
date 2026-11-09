@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.5.8)
+# 💾 CHIPTUNES FANTASY (v1.5.9)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -13,6 +13,43 @@ A real Commodore 64, Amiga 500, or Atari ST could *never* execute a cycle-exact 
 
 But memory paints the past grander than it actually was. **This is our Fantasy.**
 Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with ruthless historical accuracy (strict hardware palettes, true bit-banged integer math, zero anti-aliasing). Our `Scene-DJ` then acts as the ultimate virtual orchestrator, taking these isolated, period-accurate effects and layering them into a breathtaking, synchronized demoscene experience that feels *exactly* like our childhood memories.
+
+---
+
+## 🚀 v1.5.9 Release Highlights
+
+Version 1.5.9 introduces the **C64 Castle Fireworks** background DSE, redesigns the brand logo into an interactive **Demoscene Soundchip Crest**, and refines oscilloscope phosphor persistence for razor-sharp transient tracking. The curated library remains at **214 directly playable tracks**: **73 Amiga**, **55 C64**, and **86 Atari ST** titles.
+
+### C64 Castle Fireworks background DSE (`C64CastleFireworks`)
+
+- **Castlevania-style gothic fortress:** standing centered and flush on the horizon (`floorHorizon = 0.55`), the multi-tiered castle features a towering keep with spire needle, asymmetric flank towers with crenellations and bartizans, glowing amber lancet windows, an arched portcullis gate with torches, and craggy rock foundations.
+- **Asymmetric mountain crags without artificial horizon lines:** dramatic rocky ridges rise above the horizon on the left flank, while terraced hills slope gently on the right, framing the fortress organically without any drawn horizontal ruler line.
+- **Dracula-style gothic silhouetted trees:** knobby dead oaks with twisted skeletal branches and drooping spruce/pines stand silhouetted against the night sky, moon, and stars.
+- **Musical beat-synchronized fireworks:** multi-colored C64 fireworks launch and detonate in the sky *behind* the castle silhouette, featuring radial particle bursts, parabolic gravity arcs, spark trails, center flashes, and intense climax barrages.
+- **Atmospheric night sky and foreground:** deep raster twilight sky with crescent moon, drifting clouds, twinkling stars, rolling dark meadows with dithered grass, plowed furrow fields, and a perspective S-curve winding path leading from the portcullis.
+- **Seamless floor DSE layering:** because the sky and castle reside strictly at `y <= floorY`, activating any Floor DSE cleanly replaces only the foreground landscape while keeping the gothic castle and sky fireworks 100% visible and unclipped.
+
+### Demoscene Soundchip brand crest and UI identity
+
+- **Interactive DIP-IC crest emblem:** redesigned `#brand-logo` features a 16-pin gold-plated DIP soundchip package with orientation notch, ceramic bevel, twilight raster horizon, and an animated 4-channel equalizer wavebar core.
+- **Demoscene typography and copper lockup:** dual-deck chrome-cycling typography with an animated copper raster bar and an active DJ status LED badge.
+- **System-specific color palettes:** dynamically adapts between C64 (VIC-II/SID purple-blue), Amiga (OCS Copper/Boing orange-amber), and Atari ST (YM2149/SM124 phosphor green).
+- **Interactive animations and idle auto-fade:** bouncing wavebars during demo mode, 3D push responses, and an automatic 10-second idle fade-out during Scene-DJ demo mode that restores immediately upon pointer movement.
+- **High-resolution icon set:** refreshed SVG, 192px, 512px, and Apple touch icons incorporating the new soundchip mark.
+
+### Oscilloscope phosphor persistence and decay tuning
+
+- **Crisp transient definition:** optimized phosphor decay rates (`slowFade` adjusted from 4.8 to 8.0 s⁻¹ active, `bloomFade` from 14.5 to 18.0 s⁻¹) reduce ghosting trails and visual clutter during rapid chiptune arpeggios and note transitions ($\tau = 125\text{ ms}$).
+- **Higher trace contrast:** increased baseline minimum trace alpha (`edgeAlpha` = 0.20) and optical bloom (0.58) ensure sharp, punchy signal visibility through the CRT shadow mask.
+- **Documentation:** updated mathematical decay formulas and time constants in the [Oscilloscope technical deep dive](doc/specs/oscilloscope_deep_dive.md).
+
+### Release validation and limits
+
+- **All 4 focused C64 castle fireworks tests passed (`test/c64-castle-fireworks.test.mjs`)**, verifying integer pixel geometry, C64 palette conformance, beat triggering, and viewport safety across standard, narrow, and widescreen viewports.
+- **Full visual/DSE suite green:** StageManager tension, Starfield, Copperbars, and TrackPresenter deterministic regression tests passed with zero errors.
+- As always, all audio synthesis remains genuine real-time emulation with zero prerecorded shortcuts.
+
+Copy-ready GitHub texts are included for the [v1.5.9 pull request](doc/releases/v1.5.9-PR-Text.md) and [v1.5.9 release](doc/releases/v1.5.9-Release-Text.md). Earlier release documents remain unchanged as historical records.
 
 ---
 
