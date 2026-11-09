@@ -514,10 +514,10 @@ export class Oscilloscope {
             : clamp(1 - Math.exp(-8.5 * dt), 0.08, 0.35);
 
         const slowFade = isActive
-            ? clamp(1 - Math.exp(-4.8 * dt), 0.05, 0.22)
-            : clamp(1 - Math.exp(-5.5 * dt), 0.06, 0.25);
+            ? clamp(1 - Math.exp(-8.0 * dt), 0.05, 0.22)
+            : clamp(1 - Math.exp(-10.0 * dt), 0.06, 0.25);
 
-        const bloomFade = clamp(1 - Math.exp(-14.0 * dt), 0.15, 0.55);
+        const bloomFade = clamp(1 - Math.exp(-18.0 * dt), 0.15, 0.55);
 
         if (this.offscreen.width > 0 && this.offscreen.height > 0) {
             this.offscreenCtx.save();

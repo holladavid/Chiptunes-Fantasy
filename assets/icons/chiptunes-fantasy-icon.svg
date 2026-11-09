@@ -1,65 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 32 32" shape-rendering="crispEdges" role="img" aria-labelledby="title desc">
-  <title id="title">Chiptunes Fantasy</title>
-  <desc id="desc">Pixeliges CF-Monogramm auf einem Computerchip mit kleinem Fantasy-Funken.</desc>
-  <rect width="32" height="32" fill="#0E0E0E"/>
-
-  <!-- Chipgehäuse und Kontakte -->
-  <g fill="#2C6469">
-    <rect x="4" y="3" width="24" height="1"/>
-    <rect x="4" y="28" width="24" height="1"/>
-    <rect x="3" y="4" width="1" height="24"/>
-    <rect x="28" y="4" width="1" height="24"/>
-    <rect x="8" y="1" width="2" height="2"/>
-    <rect x="14" y="1" width="2" height="2"/>
-    <rect x="20" y="1" width="2" height="2"/>
-    <rect x="8" y="29" width="2" height="2"/>
-    <rect x="14" y="29" width="2" height="2"/>
-    <rect x="20" y="29" width="2" height="2"/>
-    <rect x="1" y="8" width="2" height="2"/>
-    <rect x="1" y="14" width="2" height="2"/>
-    <rect x="1" y="20" width="2" height="2"/>
-    <rect x="29" y="8" width="2" height="2"/>
-    <rect x="29" y="14" width="2" height="2"/>
-    <rect x="29" y="20" width="2" height="2"/>
-  </g>
-
-  <!-- Versatz des C: ein harter, cyan-blauer Pixelschatten -->
-  <g fill="#000BBF">
-    <rect x="8" y="10" width="9" height="2"/>
-    <rect x="15" y="12" width="2" height="2"/>
-    <rect x="7" y="12" width="2" height="10"/>
-    <rect x="8" y="22" width="9" height="2"/>
-    <rect x="15" y="20" width="2" height="2"/>
-  </g>
-
-  <!-- Versatz des F -->
-  <g fill="#00FFE2">
-    <rect x="20" y="10" width="8" height="2"/>
-    <rect x="19" y="12" width="2" height="12"/>
-    <rect x="20" y="16" width="6" height="2"/>
-    <rect x="26" y="12" width="2" height="2"/>
-  </g>
-
-  <!-- C -->
-  <g fill="#F5E6B8">
-    <rect x="7" y="9" width="9" height="2"/>
-    <rect x="14" y="11" width="2" height="2"/>
-    <rect x="6" y="11" width="2" height="10"/>
-    <rect x="7" y="21" width="9" height="2"/>
-    <rect x="14" y="19" width="2" height="2"/>
-  </g>
-
-  <!-- F -->
-  <g fill="#CFFF49">
-    <rect x="19" y="9" width="8" height="2"/>
-    <rect x="18" y="11" width="2" height="12"/>
-    <rect x="19" y="15" width="6" height="2"/>
-    <rect x="25" y="11" width="2" height="2"/>
-  </g>
-
-  <!-- Fantasy-Funke -->
-  <g fill="#DF6536">
-    <rect x="26" y="3" width="2" height="6"/>
-    <rect x="24" y="5" width="6" height="2"/>
-  </g>
+<svg viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+    <rect width="44" height="44" fill="#141040"/>
+    <!-- Gold/Indigo DIP-IC Pins -->
+    <g fill="#b9afff">
+        <rect x="1" y="8" width="4" height="3" />
+        <rect x="1" y="16" width="4" height="3" />
+        <rect x="1" y="25" width="4" height="3" />
+        <rect x="1" y="33" width="4" height="3" />
+        <rect x="39" y="8" width="4" height="3" />
+        <rect x="39" y="16" width="4" height="3" />
+        <rect x="39" y="25" width="4" height="3" />
+        <rect x="39" y="33" width="4" height="3" />
+    </g>
+    <!-- IC Package -->
+    <rect x="5" y="4" width="34" height="36" fill="#07060d" stroke="#4a3d99" stroke-width="2" />
+    <rect x="7" y="6" width="30" height="32" fill="#1c1544" stroke="#88d8ff" stroke-width="1" />
+    <!-- Chip Notch -->
+    <rect x="18" y="4" width="8" height="3" fill="#ffcc33" />
+    <!-- Demoscene Raster Bars -->
+    <rect x="9" y="10" width="26" height="2" fill="#ff4455" />
+    <rect x="9" y="14" width="26" height="2" fill="#ffcc33" />
+    <rect x="9" y="18" width="26" height="2" fill="#5c94fc" />
+    <!-- 4-Channel Pulse Wave -->
+    <rect x="10" y="24" width="5" height="11" fill="#76d6ff" />
+    <rect x="17" y="17" width="4" height="18" fill="#ffffff" />
+    <rect x="23" y="13" width="4" height="22" fill="#ff4455" />
+    <rect x="29" y="21" width="5" height="14" fill="#76d6ff" />
+    <!-- Specular Highlight -->
+    <rect x="9" y="8" width="5" height="2" fill="#ffffff" />
 </svg>

@@ -15,6 +15,25 @@
     --screen-bg: #1c1544;     /* Dunkler CRT-Hintergrund */
     --bus-active-color: #5c94fc; /* C64 Leuchtend Blau */
     
+    /* Logo-Spezifische Variablen (C64 VIC-II & SID Palette) */
+    --logo-chrome-top: #ffffff;
+    --logo-chrome-mid: #88d8ff;
+    --logo-chrome-horizon: #261b66;
+    --logo-chrome-bot: #a799ff;
+    --logo-extrude-1: #3b2d8a;
+    --logo-extrude-2: #191142;
+    --logo-sub-color: #d6d0ff;
+    --logo-raster-1: #ff4455;
+    --logo-raster-2: #ffcc33;
+    --logo-raster-3: #5c94fc;
+    --logo-pin-color: #b9afff;
+    --logo-wave-idle: #7c6fd6;
+    --logo-wave-active: #76d6ff;
+    --logo-glow-primary: rgba(92, 148, 252, 0.58);
+    --logo-glow-secondary: rgba(167, 153, 255, 0.35);
+    --logo-plaque-bg: rgba(18, 13, 48, 0.72);
+    --logo-plaque-border: rgba(136, 216, 255, 0.42);
+    
     --font-main: 'Press Start 2P', monospace;
     /* GFX UPGRADE: Fluid Typography wächst dynamisch mit der Bildschirmbreite mit */
     --font-size-base: clamp(9px, 0.8vw, 12px);
@@ -33,6 +52,25 @@ body.theme-amiga {
     --screen-bg: #0a0500;     /* Tiefer Bernstein-Glow Background */
     --bus-active-color: #ff8800; /* Amiga Warmes Bernstein / Orange */
     
+    /* Logo-Spezifische Variablen (Amiga OCS Copper-List & Boing Palette) */
+    --logo-chrome-top: #fff6d6;
+    --logo-chrome-mid: #ffae00;
+    --logo-chrome-horizon: #3d0c00;
+    --logo-chrome-bot: #ff3366;
+    --logo-extrude-1: #802800;
+    --logo-extrude-2: #240700;
+    --logo-sub-color: #ffcc66;
+    --logo-raster-1: #ff1e56;
+    --logo-raster-2: #ffaa00;
+    --logo-raster-3: #00e5ff;
+    --logo-pin-color: #ffbb55;
+    --logo-wave-idle: #ff8800;
+    --logo-wave-active: #00e5ff;
+    --logo-glow-primary: rgba(255, 136, 0, 0.6);
+    --logo-glow-secondary: rgba(255, 30, 86, 0.38);
+    --logo-plaque-bg: rgba(18, 8, 2, 0.76);
+    --logo-plaque-border: rgba(255, 170, 0, 0.48);
+    
     --font-main: 'VT323', monospace;
     --font-size-base: clamp(18px, 1.3vw, 22px);
 }
@@ -49,6 +87,25 @@ body.theme-atari {
     
     --screen-bg: #001100;     /* Phosphor-Grün Background */
     --bus-active-color: #39ff14; /* Atari Vivid Phosphor-Grün */
+    
+    /* Logo-Spezifische Variablen (Atari ST YM2149 & SM124 Phosphor Palette) */
+    --logo-chrome-top: #f2fff2;
+    --logo-chrome-mid: #55ff55;
+    --logo-chrome-horizon: #002908;
+    --logo-chrome-bot: #00ffa6;
+    --logo-extrude-1: #0b6623;
+    --logo-extrude-2: #002206;
+    --logo-sub-color: #99ffbb;
+    --logo-raster-1: #39ff14;
+    --logo-raster-2: #00ffcc;
+    --logo-raster-3: #bfff00;
+    --logo-pin-color: #66ff88;
+    --logo-wave-idle: #2acc44;
+    --logo-wave-active: #bfff00;
+    --logo-glow-primary: rgba(57, 255, 20, 0.55);
+    --logo-glow-secondary: rgba(0, 255, 170, 0.32);
+    --logo-plaque-bg: rgba(2, 20, 6, 0.76);
+    --logo-plaque-border: rgba(85, 255, 85, 0.45);
     
     --font-main: 'VT323', monospace;
     --font-size-base: 20px;
@@ -720,123 +777,415 @@ input[type="range"]::-moz-range-thumb {
 .museum-content p { margin-bottom: 12px; }
 
 /* =========================================
-   BRANDING LOGO
-========================================= */
+   BRANDING LOGO (DEMOSCENE SOUNDCHIP CREST & COPPER LOCKUP)
+   ========================================= */
 #brand-logo {
     position: absolute;
-    top: 25px;  /* Von 15px auf 25px erhöht für mehr Abstand zum Gehäuserand */
-    left: 30px; /* Von 20px on 30px erhöht für einen edlen Weißraum */
-    z-index: 10;
-    pointer-events: auto; 
-    cursor: pointer;      
+    top: 18px;
+    left: 22px;
+    z-index: 14;
+    pointer-events: auto;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    max-width: min(310px, calc(100vw - 44px));
+    padding: 6px 10px 6px 8px;
+    background: var(--logo-plaque-bg);
+    border-top: 1px solid var(--logo-plaque-border);
+    border-left: 1px solid var(--logo-plaque-border);
+    border-right: 2px solid rgba(0, 0, 0, 0.85);
+    border-bottom: 2px solid rgba(0, 0, 0, 0.9);
+    box-shadow:
+        0 4px 14px rgba(0, 0, 0, 0.75),
+        inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    animation: float-logo 4s ease-in-out infinite alternate;
+    transition:
+        transform 0.16s cubic-bezier(0.25, 0.8, 0.25, 1),
+        border-color 0.25s ease,
+        box-shadow 0.25s ease,
+        background-color 0.25s ease,
+        opacity 0.4s ease,
+        visibility 0s linear;
+}
+
+#brand-logo:hover {
+    transform: translateY(-1px) scale(1.015);
+    border-top-color: var(--highlight-color);
+    border-left-color: var(--highlight-color);
+    box-shadow:
+        0 6px 18px rgba(0, 0, 0, 0.85),
+        0 0 14px var(--logo-glow-secondary),
+        inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+#brand-logo:active {
+    transform: translateY(1px) scale(0.99);
+}
+
+/* --- Soundchip Crest Icon (Links) --- */
+.brand-emblem {
+    position: relative;
+    flex: 0 0 auto;
+    width: clamp(30px, 2.5vw, 38px);
+    height: clamp(30px, 2.5vw, 38px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(2px 2px 0 #000000);
+}
+
+.brand-crest-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    overflow: visible;
+}
+
+.brand-crest-svg .crest-pins {
+    fill: var(--logo-pin-color);
+    transition: fill 0.3s ease;
+}
+
+.brand-crest-svg .crest-package {
+    fill: #07060d;
+    stroke: var(--logo-extrude-1);
+    stroke-width: 1.5;
+}
+
+.brand-crest-svg .crest-bevel {
+    fill: var(--screen-bg);
+    stroke: var(--logo-plaque-border);
+    stroke-width: 1;
+}
+
+.brand-crest-svg .crest-notch {
+    fill: var(--logo-raster-2);
+}
+
+.brand-crest-svg .crest-raster.r1 { fill: var(--logo-raster-1); opacity: 0.78; }
+.brand-crest-svg .crest-raster.r2 { fill: var(--logo-raster-2); opacity: 0.58; }
+.brand-crest-svg .crest-raster.r3 { fill: var(--logo-raster-3); opacity: 0.42; }
+
+.brand-crest-svg .wave-bar {
+    fill: var(--logo-wave-idle);
+    transform-box: fill-box;
+    transform-origin: center bottom;
+    transition: fill 0.25s ease, transform 0.25s ease;
+}
+
+.brand-crest-svg .wave-bar.b2,
+.brand-crest-svg .wave-bar.b3 {
+    fill: var(--highlight-color);
+}
+
+.brand-crest-svg .crest-glint {
+    fill: rgba(255, 255, 255, 0.72);
+}
+
+/* --- Typografie & Raster-Lockup (Rechts) --- */
+.brand-lockup {
     display: flex;
     flex-direction: column;
-    animation: float-logo 3.5s ease-in-out infinite alternate;
+    justify-content: center;
+    min-width: 0;
+    gap: 5px;
 }
 
 .brand-main {
+    position: relative;
     font-family: 'Press Start 2P', monospace;
-    font-size: clamp(11px, min(1.76vw, 3.2vh), 22.4px);
-    letter-spacing: 2px;
-    background: linear-gradient(to bottom, #ffffff 0%, var(--text-color) 45%, var(--bg-color) 50%, #ffffff 53%, var(--text-color) 100%);
-    background-size: 100% 200%;
+    font-size: clamp(11px, min(1.38vw, 2.5vh), 18px);
+    line-height: 1.05;
+    letter-spacing: 1.5px;
+    white-space: nowrap;
+    background: linear-gradient(
+        180deg,
+        var(--logo-chrome-top) 0%,
+        var(--logo-chrome-mid) 44%,
+        var(--logo-chrome-horizon) 50%,
+        var(--logo-chrome-top) 56%,
+        var(--logo-chrome-bot) 100%
+    );
+    background-size: 100% 220%;
     -webkit-background-clip: text;
+    background-clip: text;
     color: transparent;
-    filter: drop-shadow(1px 1px 0px var(--bg-color)) drop-shadow(2px 2px 0px var(--bg-color)) drop-shadow(4px 4px 0px #000000);
-    margin-bottom: 2px;
-    animation: chrome-cycle 3s ease-in-out infinite alternate;
+    filter:
+        drop-shadow(1px 1px 0px var(--logo-extrude-1))
+        drop-shadow(2px 2px 0px var(--logo-extrude-2))
+        drop-shadow(3px 3px 0px #000000);
+    animation: chrome-cycle 4.2s ease-in-out infinite alternate;
 }
+
+/* Unterdeck: Rasterbar + FANTASY + DJ-Status-Badge */
+.brand-lower-deck {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.brand-raster-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: 1 1 18px;
+    min-width: 14px;
+    height: 7px;
+    justify-content: center;
+}
+
+.brand-raster-bar span {
+    display: block;
+    width: 100%;
+    height: 1.5px;
+    box-shadow: 1px 1px 0 #000;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.brand-raster-bar .r-seg-1 { background: var(--logo-raster-1); }
+.brand-raster-bar .r-seg-2 { background: var(--logo-raster-2); }
+.brand-raster-bar .r-seg-3 { background: var(--logo-raster-3); }
 
 .brand-sub {
     font-family: 'Press Start 2P', monospace;
-    font-size: 11px; /* Minimal kompakter für schärferen Textitz */
-    color: var(--highlight-color);
-    letter-spacing: 12px; /* Breites, edles Kerning */
-    text-align: right; 
-    padding-right: 2px;
-    margin-top: 8px; /* Verschiebt "FANTASY" nach unten, weg von der Chrom-Kante */
-    
-    /* GFX FIX: Kein weichgezeichneter Glow mehr, sondern ein messerscharfer Hardware-Schatten */
-    text-shadow: 1px 1px 0px #000000;
+    font-size: clamp(7px, min(0.75vw, 1.4vh), 9.5px);
+    line-height: 1;
+    color: var(--logo-sub-color);
+    letter-spacing: clamp(2.5px, 0.45vw, 5.5px);
+    white-space: nowrap;
+    text-shadow: 1px 1px 0px #000000, 2px 2px 0px var(--logo-extrude-2);
+    transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+
+.brand-dj-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 4px;
+    background: rgba(0, 0, 0, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--panel-text);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    line-height: 1;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.9);
+    transition: all 0.25s ease;
+}
+
+.brand-dj-led {
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    background: var(--panel-text);
+    opacity: 0.55;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
 
 /* =========================================
-   BRANDING LOGO DEMO MODE ACTIVE GLOW
+   BRANDING LOGO DEMO MODE ACTIVE GLOW & ANIMATION
+   (Aktiviert per Klick -> .demo-mode-active oder aria-pressed="true")
    ========================================= */
-#brand-logo.demo-mode-active::before {
+#brand-logo.demo-mode-active,
+#brand-logo[aria-pressed="true"] {
+    border-top-color: var(--highlight-color);
+    border-left-color: var(--highlight-color);
+    border-right-color: var(--bus-active-color);
+    border-bottom-color: var(--bus-active-color);
+    box-shadow:
+        0 0 18px var(--logo-glow-primary),
+        0 0 34px var(--logo-glow-secondary),
+        inset 0 0 12px var(--logo-glow-secondary);
+}
+
+#visual-zone #brand-logo.demo-mode-active.logo-idle {
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+    transition: opacity 0.4s ease, visibility 0s linear 0.4s;
+}
+
+/* Äußerer rotierender Demoscene-Plasma-Halo */
+#brand-logo.demo-mode-active::before,
+#brand-logo[aria-pressed="true"]::before {
     content: '';
     position: absolute;
-    top: -40px;
-    left: -40px;
-    width: calc(100% + 80px);
-    height: calc(100% + 80px);
-    z-index: -1;
+    inset: -18px -24px;
+    z-index: -2;
     pointer-events: none;
     border-radius: 50%;
-    /* Schimmert und rotiert organisch auf der GPU */
-    animation: pulse-glow 3.5s ease-in-out infinite alternate;
-    transition: background 0.5s ease;
+    background: radial-gradient(
+        ellipse at center,
+        var(--logo-glow-primary) 0%,
+        var(--logo-glow-secondary) 48%,
+        transparent 74%
+    );
+    animation: pulse-glow 2.6s ease-in-out infinite alternate;
 }
 
-/* System-spezifische, dreidimensionale Neon-Glows */
-body.theme-c64 #brand-logo.demo-mode-active::before {
-    background: radial-gradient(circle, rgba(108, 94, 181, 0.45) 0%, rgba(53, 40, 121, 0.15) 50%, transparent 70%);
+/* Innerer Copper-Scanline-Rahmen im aktiven Scene-DJ-Modus */
+#brand-logo.demo-mode-active::after,
+#brand-logo[aria-pressed="true"]::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    z-index: -1;
+    pointer-events: none;
+    border: 1px solid var(--highlight-color);
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        var(--logo-glow-secondary) 50%,
+        transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: logo-copper-sweep 1.8s linear infinite;
+    opacity: 0.85;
 }
 
-body.theme-amiga #brand-logo.demo-mode-active::before {
-    background: radial-gradient(circle, rgba(255, 136, 0, 0.4) 0%, rgba(255, 51, 0, 0.15) 55%, transparent 75%);
+/* System-spezifischer Back-Glow für die Chrom-Hauptschrift im Demo-Modus */
+body.theme-c64 #brand-logo.demo-mode-active .brand-main,
+body.theme-c64 #brand-logo[aria-pressed="true"] .brand-main {
+    filter:
+        drop-shadow(1px 1px 0px var(--logo-extrude-1))
+        drop-shadow(2px 2px 0px var(--logo-extrude-2))
+        drop-shadow(3px 3px 0px #000000)
+        drop-shadow(0 0 10px rgba(92, 148, 252, 0.78));
 }
 
-body.theme-atari #brand-logo.demo-mode-active::before {
-    background: radial-gradient(circle, rgba(85, 255, 85, 0.35) 0%, rgba(0, 51, 0, 0.15) 60%, transparent 75%);
+body.theme-amiga #brand-logo.demo-mode-active .brand-main,
+body.theme-amiga #brand-logo[aria-pressed="true"] .brand-main {
+    filter:
+        drop-shadow(1px 1px 0px var(--logo-extrude-1))
+        drop-shadow(2px 2px 0px var(--logo-extrude-2))
+        drop-shadow(3px 3px 0px #000000)
+        drop-shadow(0 0 10px rgba(255, 153, 0, 0.82));
 }
 
-/* Nobel und edel pulsierender Back-Glow über CSS-Filter statt unruhigem Text-Schatten */
-#brand-logo.demo-mode-active .brand-main {
-    transition: filter 0.5s ease;
+body.theme-atari #brand-logo.demo-mode-active .brand-main,
+body.theme-atari #brand-logo[aria-pressed="true"] .brand-main {
+    filter:
+        drop-shadow(1px 1px 0px var(--logo-extrude-1))
+        drop-shadow(2px 2px 0px var(--logo-extrude-2))
+        drop-shadow(3px 3px 0px #000000)
+        drop-shadow(0 0 10px rgba(57, 255, 20, 0.78));
 }
 
-body.theme-c64 #brand-logo.demo-mode-active .brand-main {
-    filter: drop-shadow(1px 1px 0px var(--bg-color)) 
-            drop-shadow(2px 2px 0px var(--bg-color)) 
-            drop-shadow(4px 4px 0px #000000)
-            /* Der weiche, noble Back-Glow sitzt sauber hinter der 3D-Kante */
-            drop-shadow(0 0 10px rgba(108, 94, 181, 0.55));
+/* Im aktiven Modus tanzen die 4 Chiptune-Wellenbalken im Soundchip */
+#brand-logo.demo-mode-active .crest-wave .wave-bar,
+#brand-logo[aria-pressed="true"] .crest-wave .wave-bar {
+    fill: var(--logo-wave-active);
 }
 
-body.theme-amiga #brand-logo.demo-mode-active .brand-main {
-    filter: drop-shadow(1px 1px 0px var(--bg-color)) 
-            drop-shadow(2px 2px 0px var(--bg-color)) 
-            drop-shadow(4px 4px 0px #000000)
-            drop-shadow(0 0 10px rgba(255, 136, 0, 0.5));
+#brand-logo.demo-mode-active .crest-wave .wave-bar.b1,
+#brand-logo[aria-pressed="true"] .crest-wave .wave-bar.b1 {
+    animation: chip-wave-bounce 0.48s steps(4, end) infinite alternate;
 }
 
-body.theme-atari #brand-logo.demo-mode-active .brand-main {
-    filter: drop-shadow(1px 1px 0px var(--bg-color)) 
-            drop-shadow(2px 2px 0px var(--bg-color)) 
-            drop-shadow(4px 4px 0px #000000)
-            drop-shadow(0 0 10px rgba(85, 255, 85, 0.45));
+#brand-logo.demo-mode-active .crest-wave .wave-bar.b2,
+#brand-logo[aria-pressed="true"] .crest-wave .wave-bar.b2 {
+    fill: var(--highlight-color);
+    animation: chip-wave-bounce 0.34s steps(4, end) -0.15s infinite alternate;
+}
+
+#brand-logo.demo-mode-active .crest-wave .wave-bar.b3,
+#brand-logo[aria-pressed="true"] .crest-wave .wave-bar.b3 {
+    fill: var(--logo-raster-1);
+    animation: chip-wave-bounce 0.42s steps(4, end) -0.28s infinite alternate;
+}
+
+#brand-logo.demo-mode-active .crest-wave .wave-bar.b4,
+#brand-logo[aria-pressed="true"] .crest-wave .wave-bar.b4 {
+    animation: chip-wave-bounce 0.38s steps(4, end) -0.08s infinite alternate;
+}
+
+/* Im aktiven Modus pulsiert die Rasterbar wie ein echter VIC-II / Copper-Interrupt */
+#brand-logo.demo-mode-active .brand-raster-bar span,
+#brand-logo[aria-pressed="true"] .brand-raster-bar span {
+    animation: raster-bar-cycle 0.9s steps(3, end) infinite;
+}
+
+#brand-logo.demo-mode-active .brand-sub,
+#brand-logo[aria-pressed="true"] .brand-sub {
+    color: var(--highlight-color);
+    text-shadow: 0 0 8px var(--bus-active-color), 1px 1px 0 #000000;
+}
+
+/* DJ-Badge schaltet auf ON-Glow */
+#brand-logo.demo-mode-active .brand-dj-badge,
+#brand-logo[aria-pressed="true"] .brand-dj-badge {
+    color: var(--highlight-color);
+    border-color: var(--bus-active-color);
+    background: rgba(0, 0, 0, 0.88);
+    box-shadow: 0 0 8px var(--logo-glow-primary);
+}
+
+#brand-logo.demo-mode-active .brand-dj-led,
+#brand-logo[aria-pressed="true"] .brand-dj-led {
+    background: var(--bus-active-color);
+    opacity: 1;
+    box-shadow: 0 0 6px var(--bus-active-color), 0 0 10px var(--highlight-color);
+    animation: c64-blink 0.8s steps(2, start) infinite;
+}
+
+/* Keyframes für Logo-Animationen */
+@keyframes float-logo {
+    0%   { transform: translateY(0px); }
+    100% { transform: translateY(-2px); }
+}
+
+@keyframes chrome-cycle {
+    0%   { background-position: 0% 0%; }
+    100% { background-position: 0% 100%; }
 }
 
 @keyframes pulse-glow {
     0% {
-        transform: scale(0.85) rotate(0deg);
-        opacity: 0.5;
-        filter: blur(25px);
-    }
-    50% {
-        opacity: 0.85;
+        transform: scale(0.92) rotate(0deg);
+        opacity: 0.55;
         filter: blur(18px);
     }
+    50% {
+        opacity: 0.9;
+        filter: blur(14px);
+    }
     100% {
-        /* Weiche 15-Grad-Rotation erzeugt lebendigen Licht-Schimmer */
-        transform: scale(1.12) rotate(15deg);
-        opacity: 0.65;
-        filter: blur(32px);
+        transform: scale(1.08) rotate(8deg);
+        opacity: 0.72;
+        filter: blur(22px);
     }
 }
 
-body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: paused !important; }
+@keyframes logo-copper-sweep {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+@keyframes chip-wave-bounce {
+    0%   { transform: scaleY(0.32); }
+    50%  { transform: scaleY(0.72); }
+    100% { transform: scaleY(1.05); }
+}
+
+@keyframes raster-bar-cycle {
+    0%   { filter: hue-rotate(0deg) brightness(1.1); }
+    50%  { filter: hue-rotate(45deg) brightness(1.35); }
+    100% { filter: hue-rotate(0deg) brightness(1.1); }
+}
+
+body.eco-mode #brand-logo,
+body.eco-mode #brand-logo *,
+body.eco-mode #brand-logo::before,
+body.eco-mode #brand-logo::after {
+    animation-play-state: paused !important;
+}
 
 /* =========================================
    7. CHIP HUD (DSP MATRIX & ANALYZER)
@@ -1044,7 +1393,7 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
 }
 
 #fs-ui-bar:hover { opacity: 1.0; }
-/* Fadet das komplette Panel stufenlos aus, wenn der User inaktiv ist (Sohwohl im Fenster als auch im Vollbild!) */
+/* Fadet das komplette Panel stufenlos aus, wenn der User inaktiv ist (Sowohl im Fenster als auch im Vollbild!) */
 #visual-zone.user-inactive #fs-ui-bar {
     opacity: 0;
     pointer-events: none;
@@ -1138,20 +1487,6 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     #player-panel, #museum-panel { flex: none; width: 100%; }
     .museum-content { overflow-y: visible !important; }
 
-#playback-bar {
-        position: -webkit-sticky; 
-        position: sticky; 
-        top: 0; 
-        z-index: 100; 
-        display: flex !important;
-        flex-direction: column !important; /* Schaltet auf vertikale Spalte um, um Zeilen-Wrapping zu umgehen */
-        align-items: stretch !important;    /* Zwingt alle Kind-Reihen auf exakt 100% Breite */
-        padding: 12px 10px !important;     /* Taktiler, kompakter Rahmenabstand */
-        box-shadow: 0 5px 15px rgba(0,0,0,0.8); 
-        width: 100% !important;
-        box-sizing: border-box !important;
-    }
-    
     #playback-bar {
         position: -webkit-sticky; 
         position: sticky; 
@@ -1170,7 +1505,7 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
         box-sizing: border-box !important;
     }
     
-/* =========================================================
+    /* =========================================================
        MOBILE PLAYBACK BAR FIX
        Erzwingt volle Breite und killt den Höhen-Blowout
     ========================================================= */
@@ -1250,22 +1585,38 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
         margin-bottom: 2px;
     }
     
-    /* Logo auf Handys weiter verkleinern und aus der extremen Ecke rücken */
+    /* Logo auf Handys kompakt halten, damit es nie mit dem HUD kollidiert */
     #brand-logo {
-        top: 18px;  /* Von 10px auf 18px erhöht */
-        left: 18px; /* Von 10px auf 18px erhöht */
+        top: 12px;
+        left: 12px;
+        gap: 7px;
+        padding: 5px 8px 5px 6px;
+        max-width: min(215px, calc(100vw - 24px));
+    }
+    .brand-emblem {
+        width: 26px;
+        height: 26px;
+    }
+    .brand-lockup {
+        gap: 4px;
     }
     .brand-main { 
-        font-size: 14px; 
-        margin-bottom: 6px;
+        font-size: clamp(10px, 3vw, 12px); 
+        letter-spacing: 1px;
+        margin-bottom: 0;
     }
-    
-    /* "FANTASY" auch auf Handys sauber abrücken und scharfstellen */
     .brand-sub { 
-        font-size: 7px; 
-        letter-spacing: 5px; 
-        margin-top: 4px; /* Auch auf Handys etwas mehr Luft nach oben */
-        text-shadow: 1px 1px 0px #000000; /* Scharfer Kontrast-Schatten */
+        font-size: 6.5px; 
+        letter-spacing: 2.5px; 
+        margin-top: 0;
+    }
+    .brand-raster-bar {
+        min-width: 10px;
+        height: 6px;
+    }
+    .brand-dj-badge {
+        font-size: 5.5px;
+        padding: 2px 3px;
     }
 
     #chip-hud { width: 94%; top: 10px; right: 3%; padding: 8px; z-index: 110; }
@@ -1306,9 +1657,6 @@ body.eco-mode #brand-logo, body.eco-mode .brand-main { animation-play-state: pau
     pointer-events: none;
 }
 
-/* =========================================
-   9. LIVING SILICON STYLING (HARDWARE LABORATORY)
-========================================= */
 /* =========================================
    9. LIVING SILICON STYLING (HARDWARE LABORATORY)
    ========================================= */
@@ -2437,7 +2785,21 @@ body.theme-atari .now-playing-next-row > span:first-child {
         bottom: 24px;
     }
 
-    .brand-main { font-size: clamp(11px, min(1.76vw, 3.2vh), 22.4px); }
+    #brand-logo {
+        top: 22px;
+        left: 28px;
+        max-width: 330px;
+        padding: 7px 12px 7px 9px;
+    }
+
+    .brand-emblem {
+        width: 38px;
+        height: 38px;
+    }
+
+    .brand-main {
+        font-size: clamp(13px, min(1.15vw, 2.2vh), 18px);
+    }
 }
 
 /* --- Low-height desktop and laptop displays --- */
@@ -2464,6 +2826,17 @@ body.theme-atari .now-playing-next-row > span:first-child {
     .now-playing {
         bottom: 12px;
         padding: 8px 10px;
+    }
+
+    #brand-logo {
+        top: 12px;
+        left: 16px;
+        padding: 5px 8px 5px 7px;
+    }
+
+    .brand-emblem {
+        width: 28px;
+        height: 28px;
     }
 }
 
@@ -2673,6 +3046,29 @@ body.theme-atari .now-playing-next-row > span:first-child {
     #visual-zone {
         height: 180px;
         min-height: 160px;
+    }
+
+    /* Kompaktes Logo im Mobile-Querformat */
+    #brand-logo {
+        top: 10px;
+        left: 12px;
+        gap: 7px;
+        padding: 4px 8px 4px 6px;
+        max-width: 210px;
+    }
+
+    .brand-emblem {
+        width: 24px;
+        height: 24px;
+    }
+
+    .brand-main {
+        font-size: 10.5px;
+    }
+
+    .brand-sub {
+        font-size: 6px;
+        letter-spacing: 2px;
     }
 
     #playback-bar {
@@ -3870,8 +4266,8 @@ body:has(#visual-zone.pseudo-fullscreen) {
     #visual-zone:fullscreen #brand-logo,
     #visual-zone:-webkit-full-screen #brand-logo,
     #visual-zone.pseudo-fullscreen #brand-logo {
-        top: calc(18px + var(--stage-safe-top));
-        left: calc(18px + var(--stage-safe-left));
+        top: calc(12px + var(--stage-safe-top));
+        left: calc(12px + var(--stage-safe-left));
     }
 
     #visual-zone:fullscreen #chip-hud,
@@ -4014,6 +4410,29 @@ body:has(#visual-zone.pseudo-fullscreen) {
     #demo-container > #visual-zone:not(.pseudo-fullscreen):not(:fullscreen):not(:-webkit-full-screen) {
         height: clamp(240px, 38dvh, 300px);
         min-height: 240px;
+    }
+
+    /* Auf kleinen Portrait-Smartphones bleibt das Logo flach (ca. 38px hoch) über dem HUD (top: 62px) */
+    #visual-zone #brand-logo {
+        top: 10px;
+        left: 10px;
+        padding: 4px 7px 4px 5px;
+        gap: 6px;
+        max-width: calc(100vw - 20px);
+    }
+
+    #visual-zone .brand-emblem {
+        width: 24px;
+        height: 24px;
+    }
+
+    #visual-zone .brand-main {
+        font-size: 10px;
+    }
+
+    #visual-zone .brand-sub {
+        font-size: 6px;
+        letter-spacing: 2px;
     }
 
     #visual-zone #chip-hud {

@@ -200,6 +200,7 @@ Der Übergang in `afterglow` SOLL die letzte Formation und Objektpositionen übe
 | DSE | Kontinuierliche Reaktion auf `beatImpulse[0]` | Diskrete Ereignisse und Sonderregeln |
 | --- | --- | --- |
 | `Starfield` | Gewichteter Warp-Schub; C64-Rasterwobble, Amiga-Nebel-/Helligkeitsakzente und ganzzahliger Atari-Größenkick | Pattern und Paletten nur bei `beatStarted`/`beatCount` |
+| `C64CastleFireworks` | VIC-II-Paletten-Nachtszene mit pixelgerasterter Burg und Vordergrund ab einer festen Horizontlinie | Himmel-Feuerwerk nur auf `beatStarted`; Kadenz und Burst-Größe folgen Makrozustand und Beat-Stärke |
 | `Copperbars` | Vertikaler Nudge, Climax-Interferenz und abgestufter Core-Punch | Formationen und Copperlists nur am exakten vierten Beat |
 | `TrackPresenter` | Systemgerechte Panel-Bewegung; zusätzlicher horizontaler Bitmap-Titel-Nudge im Climax | Layoutwechsel nur am exakten vierten Beat; One-Shot-Verhalten bleibt unverändert |
 | `LimitBar` | C64-Rasterstärke, Amiga-Sweep-Größe sowie Atari-Funkenanzahl und -länge; Impulssteuerung des Climax-Strobes | Bleibt über `.disabled()` deaktiviert und wird nur isoliert getestet |
