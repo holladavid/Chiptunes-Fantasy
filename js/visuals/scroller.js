@@ -6,6 +6,39 @@ const SEPARATOR = '   +++   ';
 const baseGreets = "AT LAST, THE ULTIMATE HTML5 MUSIC DISK IS COMPLETE +++ CODE & DSP MAGIK RUNNING AT A SOLID 50 HZ VBLANK +++ DEEP CHIP EMULATION VIA AUDIOWORKLETS +++ NO MP3, NO BULLSHIT, JUST PURE MATHEMATICS +++ GREETS FLY OUT TO ALL THE PIXEL PUSHERS, CYCLE CRUNCHERS AND WAVEFORM WIZARDS OUT THERE +++ TO EVERYONE WHO STILL KEEPS THE SPIRIT OF THE 8-BIT AND 16-BIT ERA ALIVE +++ TO THE TRUE LOVERS OF DEMOSCENE ART AND CHIPTUNE MAGIC +++ LET THE ANALOG FILTERS BURN +++ WRAP AROUND";
 const systemLabels = { c64: 'C64 / MOS 6581 SID', amiga: 'AMIGA / MOS 8364 PAULA', atari: 'ATARI ST / YM2149F' };
 const channelNames = ['track', 'tech', 'story'];
+const baselineOffsets = new Map();
+
+function getVisibleTextBaselineOffset(font, fontSize) {
+    if (baselineOffsets.has(font)) return baselineOffsets.get(font);
+
+    const probe = document.createElement('canvas');
+    const probeContext = probe.getContext('2d', { willReadFrequently: true });
+    if (!probeContext) return 0;
+
+    const sample = 'CHIPTUNES FANTASY';
+    const baseline = fontSize * 2;
+    probe.width = Math.ceil(fontSize * sample.length * 2);
+    probe.height = Math.ceil(fontSize * 4);
+    probeContext.font = font;
+    probeContext.textBaseline = 'alphabetic';
+    probeContext.fillStyle = '#fff';
+    probeContext.fillText(sample, 0, baseline);
+
+    const pixels = probeContext.getImageData(0, 0, probe.width, probe.height).data;
+    let top = probe.height;
+    let bottom = -1;
+    for (let y = 0; y < probe.height; y++) {
+        for (let x = 0; x < probe.width; x++) {
+            if (pixels[(y * probe.width + x) * 4 + 3] === 0) continue;
+            top = Math.min(top, y);
+            bottom = Math.max(bottom, y);
+        }
+    }
+
+    const offset = bottom < top ? 0 : baseline - (top + bottom + 1) / 2;
+    baselineOffsets.set(font, offset);
+    return offset;
+}
 
 function cleanText(value) {
     return String(value || '').replace(/\s+/g, ' ').trim();
@@ -134,6 +167,7 @@ export function initScroller(getScrollerText, getEcoMode, getScrollerContext = (
     const modeButtons = [...zone.querySelectorAll('[data-scroller-mode]')];
     const toggle = document.getElementById('scroller-toggle');
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    document.fonts?.addEventListener('loadingdone', () => baselineOffsets.clear());
     let dpr = window.devicePixelRatio || 1;
     let mode = 'track';
     let userPaused = reducedMotion.matches;
@@ -248,7 +282,8 @@ export function initScroller(getScrollerText, getEcoMode, getScrollerContext = (
         ctx.fillStyle = '#0e0e0e';
         ctx.fillRect(0, 0, cssWidth, cssHeight);
         ctx.font = `${fontSize}px ${isAmiga || isAtari ? "'VT323'" : "'Press Start 2P'"}, monospace`;
-        ctx.textBaseline = 'middle';
+        ctx.textBaseline = 'alphabetic';
+        const baselineOffset = getVisibleTextBaselineOffset(ctx.font, fontSize);
         ctx.shadowColor = 'transparent';
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
@@ -273,7 +308,7 @@ export function initScroller(getScrollerText, getEcoMode, getScrollerContext = (
                 if (x < -charWidth || x > cssWidth + charWidth) continue;
                 const wave = Math.sin(x * 0.009 + phase * 1.35) * amplitude +
                     Math.cos(x * 0.017 + phase * 0.8) * amplitude * 0.35;
-                const y = cssHeight / 2 + wave;
+                const y = cssHeight / 2 + baselineOffset + wave;
                 ctx.globalAlpha = 0.22;
                 ctx.fillStyle = accent;
                 ctx.fillText(scrollUnit[index], x, y + 1);

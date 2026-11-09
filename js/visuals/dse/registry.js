@@ -25,6 +25,7 @@ import { SidSiliconBg } from './c64/sid-silicon-bg.js';
 import { PaulaSiliconBg } from './amiga/paula-silicon-bg.js';
 import { YmSiliconBg } from './atari/ym-silicon-bg.js';
 import { C64VectorStar } from './c64/vector-star.js';
+import { C64CastleFireworks } from './c64/castle-fireworks.js';
 
 // =========================================================
 // FLUENT BUILDER PATTERN (1 Funktion je Attribut)
@@ -116,6 +117,14 @@ export const dseRegistry = [
         .climaxHold(12.0)
         .build(),
 
+    RegisterDSE(C64CastleFireworks)
+        .systems('c64')
+        .layer('background')
+        .weight(12)
+        .duration(15.0)
+        .climaxHold(12.0)
+        .build(),
+
     RegisterDSE(AmigaRetroSunset)
         .systems('amiga')
         .layer('background')
@@ -175,7 +184,7 @@ export const dseRegistry = [
 
     // --- FLOORS ---
     RegisterDSE(Copperbars)
-        .layer('floor')
+        .layer('foreground')
         .weight(8)
         .duration(15.0)
         .climaxHold(12.0)

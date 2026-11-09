@@ -89,6 +89,7 @@ test('Copperbars makes soft, medium and hard impulses visibly distinct on every 
     }
 });
 
+
 test('Copperbars thickens climax cores with beat intensity', () => {
     for (const system of ['c64', 'amiga', 'atari']) {
         const responses = [0.2, 0.5, 0.9].map(strength => {

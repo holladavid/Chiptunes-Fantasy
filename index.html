@@ -25,7 +25,7 @@
 
     <div id="boot-screen" role="button" tabindex="0" aria-label="Chiptunes Fantasy starten">
         <div class="boot-box">
-            <p class="boot-header">**** CHIPTUNES FANTASY V1.5.8 ****</p>
+            <p class="boot-header">**** CHIPTUNES FANTASY V1.5.9 ****</p>
             <p class="boot-subheader">64K RAM SYSTEM  38911 BASIC BYTES FREE</p>
             <div class="boot-logs">
                 <p>EMU CORES LOADED: OK</p>
@@ -45,10 +45,55 @@
             <canvas id="demo-canvas"></canvas>
             <canvas id="crt-mask-canvas" aria-hidden="true"></canvas>
                         
-            <!-- Das animierte Chiptunes Fantasy Logo -->
-            <div id="brand-logo" role="button" tabindex="0" aria-label="Scene-DJ Demo-Modus umschalten" aria-pressed="false">
-                <div class="brand-main">CHIPTUNES</div>
-                <div class="brand-sub">FANTASY</div>
+            <!-- Das animierte Chiptunes Fantasy Logo (Demoscene Soundchip Crest & Copper Lockup) -->
+            <div id="brand-logo" role="button" tabindex="0" aria-label="Scene-DJ Demo-Modus umschalten" aria-pressed="false" title="Scene-DJ Demo-Modus umschalten">
+                <div class="brand-emblem" aria-hidden="true">
+                    <svg class="brand-crest-svg" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+                        <!-- Gold/Metall DIP-IC Pins -->
+                        <g class="crest-pins">
+                            <rect x="0" y="8" width="5" height="3" />
+                            <rect x="0" y="16" width="5" height="3" />
+                            <rect x="0" y="25" width="5" height="3" />
+                            <rect x="0" y="33" width="5" height="3" />
+                            <rect x="39" y="8" width="5" height="3" />
+                            <rect x="39" y="16" width="5" height="3" />
+                            <rect x="39" y="25" width="5" height="3" />
+                            <rect x="39" y="33" width="5" height="3" />
+                        </g>
+                        <!-- Keramik/Epoxid IC-Gehäuse -->
+                        <rect class="crest-package" x="5" y="4" width="34" height="36" />
+                        <rect class="crest-bevel" x="7" y="6" width="30" height="32" />
+                        <!-- IC-Orientierungskerbe -->
+                        <rect class="crest-notch" x="18" y="4" width="8" height="3" />
+                        <!-- Demoscene Raster-Horizont im Chip-Inneren -->
+                        <rect class="crest-raster r1" x="9" y="10" width="26" height="2" />
+                        <rect class="crest-raster r2" x="9" y="14" width="26" height="2" />
+                        <rect class="crest-raster r3" x="9" y="18" width="26" height="2" />
+                        <!-- 4-Kanal Chiptune Pulse/Equalizer -->
+                        <g class="crest-wave">
+                            <rect class="wave-bar b1" x="10" y="24" width="5" height="11" />
+                            <rect class="wave-bar b2" x="17" y="17" width="4" height="18" />
+                            <rect class="wave-bar b3" x="23" y="13" width="4" height="22" />
+                            <rect class="wave-bar b4" x="29" y="21" width="5" height="14" />
+                        </g>
+                        <!-- Lichtreflex oben links -->
+                        <rect class="crest-glint" x="9" y="8" width="5" height="2" />
+                    </svg>
+                </div>
+                <div class="brand-lockup">
+                    <div class="brand-main" data-text="CHIPTUNES">CHIPTUNES</div>
+                    <div class="brand-lower-deck">
+                        <div class="brand-raster-bar" aria-hidden="true">
+                            <span class="r-seg-1"></span>
+                            <span class="r-seg-2"></span>
+                            <span class="r-seg-3"></span>
+                        </div>
+                        <div class="brand-sub">FANTASY</div>
+                        <span class="brand-dj-badge" aria-hidden="true">
+                            <i class="brand-dj-led"></i>DJ
+                        </span>
+                    </div>
+                </div>
             </div>
 
             <!-- Persistenter, eindeutiger Wiedergabe- und Ladestatus -->
@@ -133,7 +178,7 @@
                                 aria-controls="hud-body" aria-expanded="false">[ LAB MODE: OFF ]</button>
                         </div>
                         <button id="btn-hud-crossfeed" type="button" title="Stereo Blend / Binaural Crossfeed umschalten"
-                            aria-pressed="true">[ STEREO BLEND: ON ]</button>
+                            aria-pressed="false">[ STEREO BLEND: OFF ]</button>
                     </div>
                 </div>
                 

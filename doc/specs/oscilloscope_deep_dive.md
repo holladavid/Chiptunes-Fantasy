@@ -71,9 +71,9 @@ Um bei 60–144 FPS ohne teure WebGL-Shader oder langsame `ctx.shadowBlur`-Aufru
 │   this.offscreen      │ │     this.memory       │ │      this.bloom       │
 │   (Auflösung: 1:1)    │ │   (Auflösung: 1:1)    │ │  (Auflösung: 0.25x)   │
 │                       │ │                       │ │                       │
-│ • Scharfer 1px Kern   │ │ • Langsamer P31/P11   │ │ • Bilineares Tent-    │
-│ • Z-Modulations-Alpha │ │   Phosphor-Afterglow  │ │   Filter Upscaling    │
-│ • Schnelles Decay     │ │ • τ ≈ 208 ms          │ │ • Glas-Halation       │
+│ • Scharfer 1px Kern   │ │ • P31/P11-Afterglow   │ │ • Bilineares Tent-    │
+│ • Z-Modulations-Alpha │ │   (verkürzte Spur)   │ │   Filter Upscaling    │
+│ • Schnelles Decay     │ │ • τ ≈ 125 ms          │ │ • Glas-Halation       │
 └───────────┬───────────┘ └───────────┬───────────┘ └───────────┬───────────┘
             │                         │                         │
             └─────────────────────────┼─────────────────────────┘
@@ -134,7 +134,7 @@ Echter P31- oder P11-Phosphor fällt nicht linear ab, sondern besitzt zwei Zeitk
 $$A_{\text{fade}}(\Delta t) = 1 - e^{-\lambda \cdot \Delta t}$$
 
 1. **Fluoreszenz-Schicht (`this.offscreen`):** $\lambda_{\text{fast}} = 16.5\text{ s}^{-1}$ (Zeitkonstante $\tau \approx 60.6\text{ ms}$). Sorgt dafür, dass schnelle Wellenformänderungen (Arpeggios, Drum-Transienten) sofort scharf abgebildet werden.
-2. **Phosphoreszenz-Schicht (`this.memory`):** $\lambda_{\text{slow}} = 4.8\text{ s}^{-1}$ (Zeitkonstante $\tau \approx 208.3\text{ ms}$). Hält das nachglühende Geisterbild vergangener Perioden auf dem Schirm.
+2. **Phosphoreszenz-Schicht (`this.memory`):** $\lambda_{\text{slow}} = 8.0\text{ s}^{-1}$ (Zeitkonstante $\tau = 125\text{ ms}$ während der Wiedergabe; im Leerlauf `10.0 s⁻¹`). Das kürzere Nachleuchten reduziert überlagerte alte Wellenformen bei schnellen Frequenzwechseln.
 
 ### 3.4 HF-Reject Schmitt-Trigger mit Phasen-Korrelation
 
@@ -196,7 +196,8 @@ Alle zentralen Parameter sind am Dateikopf als Konstanten bzw. in den Kernmethod
 | `MAX_SPARKS` | `64` | Anzahl Partikel (`Int`) | **Größe des Funken-Ringbuffers.** Bestimmt, wie viele ballistische Kathoden-Funken gleichzeitig bei harten Transienten existieren dürfen (`0` deaktiviert Funken komplett). |
 | `alpha` *(in `captureWaveform`)* | `0.22` | Filterkoeffizient `[0.05..1.0]` | **Grenzfrequenz des Trigger-Tiefpasses (`HF REJ`).** Kleinerer Wert (z. B. `0.10`) filtert Oberwellen im Trigger noch aggressiver weg (ideal für reine Bass-Synchronisation). `1.0` deaktiviert den Tiefpass. |
 | `fastFade` *(in `fadePhosphorSurfaces`)* | `-16.5` | Abklingrate $\lambda$ (`1/s`) | **Fluoreszenz-Abklinggeschwindigkeit.** Höherer Betrag (z. B. `-25.0`) lässt die Hauptspur schneller verschwinden; niedrigerer Betrag (`-10.0`) erzeugt längeres Nachziehen bei schnellen Wellenänderungen. |
-| `slowFade` *(in `fadePhosphorSurfaces`)* | `-4.8` | Abklingrate $\lambda$ (`1/s`) | **Phosphoreszenz-Nachleuchtdauer (`memory`).** Kleinerer Betrag (z. B. `-2.5`) simuliert extrem lang nachleuchtenden P7/P39-Radarphosphor. |
+| `slowFade` *(in `fadePhosphorSurfaces`)* | `-8.0` aktiv, `-10.0` Leerlauf | Abklingrate $\lambda$ (`1/s`) | **Phosphoreszenz-Nachleuchtdauer (`memory`).** Höherer Betrag löscht alte Spuren schneller und macht Frequenzwechsel schärfer; `8.0 s⁻¹` entspricht während der Wiedergabe einer Zeitkonstante von `125 ms`. |
+| `bloomFade` *(in `fadePhosphorSurfaces`)* | `-18.0` | Abklingrate $\lambda$ (`1/s`) | **Abklinggeschwindigkeit des weichen Halation-Glows.** Der schnellere Rücklauf reduziert den weichen Schweif bei Signalwechseln. |
 | `sweepRate` *(in `burnPhosphorTrace`)* | `2.15` | Durchläufe / Sekunde (`Hz`) | **Grundgeschwindigkeit des sichtbaren Kathoden-Brennspots**, der mit seinem Kometenschweif über die stehende Welle wandert. |
 
 ### 6.2 Parameter in `fft-analyzer.js`

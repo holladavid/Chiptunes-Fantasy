@@ -66,6 +66,19 @@ export function initVisuals(stateGetters, callbacks) {
     let showGimmick = false;
     const logo = document.getElementById('brand-logo');
     if (logo) {
+        let logoIdleTimer = null;
+
+        const revealLogoAndRestartTimer = () => {
+            clearTimeout(logoIdleTimer);
+            logo.classList.remove('logo-idle');
+
+            if (showGimmick) {
+                logoIdleTimer = setTimeout(() => {
+                    if (showGimmick) logo.classList.add('logo-idle');
+                }, 10000);
+            }
+        };
+
         logo.addEventListener('click', () => {
             showGimmick = !showGimmick;
             if (!showGimmick) osc.clear();
@@ -73,10 +86,15 @@ export function initVisuals(stateGetters, callbacks) {
             // NEU: Klassenzuweisung für den systemgetreuen Glow
             logo.classList.toggle('demo-mode-active', showGimmick);
             logo.setAttribute('aria-pressed', String(showGimmick));
+            revealLogoAndRestartTimer();
 
             logo.style.filter = 'brightness(2.0)';
             setTimeout(() => logo.style.filter = '', 100);
         });
+
+        visualZone?.addEventListener('pointermove', revealLogoAndRestartTimer);
+        visualZone?.addEventListener('pointerdown', revealLogoAndRestartTimer);
+        visualZone?.addEventListener('pointerup', revealLogoAndRestartTimer);
     }
 
     function resizeCanvas() {

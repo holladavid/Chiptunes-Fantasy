@@ -379,12 +379,11 @@ function initApp() {
         // INTERAKTIVER STEREO BLEND BUTTON
         const btnCrossfeed = document.getElementById('btn-hud-crossfeed');
         if (btnCrossfeed) {
-            let crossfeedOn = true;
+            let crossfeedOn = false;
             btnCrossfeed.addEventListener('click', (e) => {
                 crossfeedOn = !crossfeedOn;
                 setMasterCrossfeed(crossfeedOn);
                 e.currentTarget.innerText = crossfeedOn ? '[ STEREO BLEND: ON ]' : '[ STEREO BLEND: OFF ]';
-                e.currentTarget.style.opacity = crossfeedOn ? '1.0' : '0.5';
                 e.currentTarget.setAttribute('aria-pressed', String(crossfeedOn));
             });
         }
@@ -848,6 +847,7 @@ async function setTheme(themeName, isBootSequence = false) {
 
     const hudBody = document.getElementById('hud-body');
     if (hudBody) hudBody.classList.add('hidden');
+    visualZone?.classList.remove('lab-mode-expanded');
     
     const hudMain = document.getElementById('chip-hud'); 
     if (hudMain) hudMain.classList.add('collapsed');     
@@ -1679,6 +1679,7 @@ document.getElementById('btn-hud-toggle').addEventListener('click', (event) => {
     body.classList.toggle('hidden', !willExpand);
     infoBtn.classList.toggle('hidden', !willExpand);
     hud.classList.toggle('collapsed', !willExpand);
+    visualZone?.classList.toggle('lab-mode-expanded', willExpand);
     event.currentTarget.innerText = willExpand ? '[ LAB MODE: ON ]' : '[ LAB MODE: OFF ]';
     event.currentTarget.setAttribute('aria-expanded', String(willExpand));
 
