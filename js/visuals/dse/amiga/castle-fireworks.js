@@ -1,16 +1,17 @@
 // === js/visuals/dse/amiga/castle-fireworks.js ===
 // =========================================================
 // DEMO-SCENE-ELEMENT: AMIGA CASTLE FIREWORKS (Background DSE)
-// Cinemaware / "Defender of the Crown" (Jim Sachs) inspired medieval
-// fantasy fortress with cylindrical 3D-shaded stone towers, conical
-// slate roofs, corbelled parapets, twin-towered gatehouse, rocky cliff
-// promontory, forested ridges, and a BPLCON1 reflective castle moat.
-// Embedded Amiga Demo-Scene effects: scanline-dithered Copper sky,
-// horizon aurora waves, multi-stage Blitter fireworks with directional
-// tower rim-lighting, battlement spark fountains, swooping bats, and
-// forked Copper lightning.
-// Fully reactive to music beat-levels (1=soft, 2=medium, 3=hard),
-// continuous beat-strength, and tension progression.
+// Romantic Masterpiece & "Defender of the Crown" (Jim Sachs / Schinkel)
+// inspired castle landscape composed along the Golden Ratio (Phi = 0.618):
+// - Asymmetrical Grand Citadel on a craggy rock promontory with soaring
+//   east Donjon, west watchtower, and high stone viaduct arch over a gorge.
+// - Organic, winding Highland Loch (lake) with natural bays, rocky headlands,
+//   pine-clad peninsulas, and real-time BPLCON1 water reflections.
+// - Multi-arch stone causeway & S-curve cobblestone road in the foreground.
+// - Full musical synchronization: beatLevel (1=soft, 2=medium, 3=hard),
+//   beatStrength, and tensionPct drive Blitter fireworks, directional
+//   tower rim-lighting, battlement spark fountains, stained-glass rose
+//   windows, horizon aurora waves, swooping bats, and forked lightning.
 // 100% Amiga 12-bit quantized 27-color OCS palette, zero-GC render loop.
 // =========================================================
 
@@ -69,12 +70,12 @@ const COLOR = Object.freeze({
 });
 
 const STAR_POSITIONS = [
-    [0.035, 0.12], [0.095, 0.32], [0.16, 0.19], [0.225, 0.09],
-    [0.29, 0.29], [0.355, 0.15], [0.42, 0.39], [0.48, 0.11],
-    [0.54, 0.25], [0.60, 0.08], [0.66, 0.34], [0.72, 0.16],
-    [0.78, 0.41], [0.84, 0.10], [0.90, 0.27], [0.965, 0.18],
-    [0.07, 0.48], [0.24, 0.44], [0.40, 0.50], [0.61, 0.47],
-    [0.76, 0.51], [0.93, 0.46]
+    [0.04, 0.09], [0.11, 0.28], [0.18, 0.07], [0.27, 0.14],
+    [0.33, 0.26], [0.41, 0.08], [0.47, 0.21], [0.53, 0.06],
+    [0.61, 0.15], [0.68, 0.09], [0.74, 0.24], [0.81, 0.11],
+    [0.87, 0.29], [0.93, 0.14], [0.97, 0.25], [0.07, 0.41],
+    [0.15, 0.36], [0.38, 0.35], [0.66, 0.33], [0.79, 0.38],
+    [0.89, 0.42], [0.95, 0.36]
 ];
 
 const DIRECTIONS_X = [100, 92, 71, 38, 0, -38, -71, -92, -100, -92, -71, -38, 0, 38, 71, 92];
@@ -88,50 +89,35 @@ const MOON_ROWS = [
     [0, 6], [1, 5], [2, 4], [3, 4]
 ];
 
-// High-res 18-row Deluxe Paint spherical moon chord table [startCol, endCol, MariaCraterStart, MariaCraterEnd]
-const DP_MOON_CHORDS = [
-    [6, 11, -1, -1],
-    [4, 13, -1, -1],
-    [3, 14, 8, 11],
-    [2, 15, 7, 12],
-    [1, 16, 6, 12],
-    [1, 16, 5, 10],
-    [0, 17, 4, 9],
-    [0, 17, 5, 11],
-    [0, 17, 8, 13],
-    [0, 17, 9, 14],
-    [0, 17, 7, 12],
-    [0, 17, 5, 9],
-    [1, 16, 6, 10],
-    [1, 16, -1, -1],
-    [2, 15, 8, 11],
-    [3, 14, -1, -1],
-    [4, 13, -1, -1],
-    [6, 11, -1, -1]
+// Clean circular 16-row Moon disc [startX, endX] (Symmetric circle, no jagged teeth!)
+const MOON_DISC_16 = [
+    [5, 10],
+    [3, 12],
+    [2, 13],
+    [1, 14],
+    [1, 14],
+    [0, 15],
+    [0, 15],
+    [0, 15],
+    [0, 15],
+    [0, 15],
+    [0, 15],
+    [1, 14],
+    [1, 14],
+    [2, 13],
+    [3, 12],
+    [5, 10]
 ];
 
-// Sculpted cumulus cloud dome profile [xOffsetUnits, widthUnits, heightUnits]
-const CLOUD_DOMES = [
-    [2, 5, 2],
-    [5, 7, 4],
-    [10, 6, 3],
-    [14, 5, 2],
-    [7, 6, 5]
-];
-
-const SKY_BAND_EDGES = [0, 0.12, 0.27, 0.43, 0.57, 0.68, 0.78, 1];
+const SKY_BAND_EDGES = [0, 0.13, 0.28, 0.43, 0.56, 0.67, 0.77, 1];
 const SKY_BAND_COLORS = [
     COLOR.black, COLOR.deepSky, COLOR.blueSky, COLOR.indigo,
     COLOR.purple, COLOR.horizon, COLOR.wine
 ];
 
-const COPPER_BAR_CALM = [COLOR.indigo, COLOR.copperBlue, COLOR.cyan, COLOR.copperBlue, COLOR.indigo];
-const COPPER_BAR_MYSTIC = [COLOR.purple, COLOR.magenta, COLOR.silver, COLOR.magenta, COLOR.purple];
-const COPPER_BAR_TENSE = [COLOR.blood, COLOR.rust, COLOR.orange, COLOR.gold, COLOR.rust];
-const COPPER_BAR_CLIMAX = [COLOR.wine, COLOR.red, COLOR.white, COLOR.gold, COLOR.blood];
-
-const FOUNTAIN_X_OFFSETS = [0.23, 0.38, 0.62, 0.77];
-const TORCH_DEPTHS = [0.22, 0.54, 0.84];
+// Battlement fountain launch positions matching the asymmetrical Golden Ratio towers
+const FOUNTAIN_X_OFFSETS = [0.24, 0.44, 0.58, 0.75];
+const TORCH_DEPTHS = [0.18, 0.44, 0.72, 0.92];
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value));
 const paletteColor = index => AMIGA_CASTLE_FIREWORKS_PALETTE[index];
@@ -252,24 +238,22 @@ export class AmigaCastleFireworks {
 
     drawSky(ctx, width, height, time, tension, beatImpulse) {
         // 1. Deluxe Paint / Amiga Copper sky gradient with scanline interleave dithering
-        const ditherSpan = clamp(Math.floor(height / 45), 1, 8);
+        const ditherSpan = clamp(Math.floor(height / 42), 1, 9);
         for (let i = 0; i < SKY_BAND_COLORS.length; i++) {
-            const edgeOffset = i >= 4 ? tension * 0.04 : 0;
+            const edgeOffset = i >= 4 ? tension * 0.035 : 0;
             const top = Math.floor(height * Math.min(1, SKY_BAND_EDGES[i] + edgeOffset));
             const nextEdge = i === SKY_BAND_COLORS.length - 1
                 ? 1
-                : Math.min(1, SKY_BAND_EDGES[i + 1] + (i + 1 >= 4 ? tension * 0.04 : 0));
+                : Math.min(1, SKY_BAND_EDGES[i + 1] + (i + 1 >= 4 ? tension * 0.035 : 0));
             const bottom = Math.floor(height * nextEdge);
             if (bottom > top) {
                 this.rect(ctx, width, height, 0, top, width, bottom - top, SKY_BAND_COLORS[i]);
 
-                // 2-stage Amiga scanline dither transition between sky bands
                 if (i < SKY_BAND_COLORS.length - 1 && height >= 48) {
                     const nextColor = SKY_BAND_COLORS[i + 1];
                     const seamStart = Math.max(top, bottom - ditherSpan);
                     for (let sy = seamStart; sy < bottom; sy++) {
-                        const rel = sy - seamStart;
-                        if ((sy & 1) === 1 || (rel > ditherSpan * 0.6 && (sy % 3 === 0))) {
+                        if ((sy & 1) === 1) {
                             this.rect(ctx, width, height, 0, sy, width, 1, nextColor);
                         }
                     }
@@ -277,44 +261,45 @@ export class AmigaCastleFireworks {
             }
         }
 
-        // 2. Embedded Amiga Copper Aurora / Horizon Raster Ribbons behind the mountains
-        const baseRasterY = Math.floor(height * (0.53 + tension * 0.05));
-        const waveAmp = Math.max(1, Math.floor(height * (0.010 + tension * 0.014 + beatImpulse * 0.010)));
-        const barCount = tension > 0.68 ? 3 : 2;
-        const phase = this.copperPhase || (time * 3.2);
+        // 2. Organic Undulating Horizon Aurora / Twilight Glow (replaces harsh straight ruler lines!)
+        const auroraBaseY = Math.floor(height * (0.54 + tension * 0.03));
+        const phase = this.copperPhase || (time * 2.5);
+        const colOuter = tension > 0.68 ? COLOR.blood : COLOR.purple;
+        const colMid = this.heavyPulse > 0.4
+            ? COLOR.gold
+            : (tension > 0.65 ? COLOR.rust : COLOR.horizon);
+        const colCore = this.heavyPulse > 0.4
+            ? COLOR.white
+            : (beatImpulse > 0.42 ? (tension > 0.65 ? COLOR.orange : COLOR.cyan) : COLOR.wine);
 
-        for (let b = 0; b < barCount; b++) {
-            const barWave = Math.sin(phase + b * 2.1) * waveAmp
-                + Math.cos(phase * 0.65 - b * 1.4) * (waveAmp * 0.45);
-            const centerLine = Math.floor(baseRasterY + barWave);
-            const palette = this.heavyPulse > 0.45
-                ? COPPER_BAR_CLIMAX
-                : (tension > 0.65
-                    ? (b % 2 === 0 ? COPPER_BAR_TENSE : COPPER_BAR_MYSTIC)
-                    : (b % 2 === 0 ? COPPER_BAR_CALM : COPPER_BAR_MYSTIC));
-
-            if (height < 60) {
-                this.rect(ctx, width, height, 0, centerLine, width, 1, palette[2]);
-            } else {
-                for (let row = 0; row < 5; row++) {
-                    const ly = centerLine + row - 2;
-                    let col = palette[row];
-                    if (row === 2 && (beatImpulse > 0.5 || this.medPulse > 0.5)) {
-                        col = tension > 0.65 ? COLOR.white : COLOR.gold;
-                    }
-                    this.rect(ctx, width, height, 0, ly, width, 1, col);
+        if (width < 48 || height < 48) {
+            this.rect(ctx, width, height, 0, auroraBaseY, width, 1, colCore);
+        } else {
+            const segW = Math.max(4, Math.ceil(width / 48));
+            const waveScale = Math.max(2, Math.floor(height * (0.014 + beatImpulse * 0.012)));
+            for (let ax = 0; ax < width; ax += segW) {
+                const nx = ax / width;
+                const yOff = Math.floor(
+                    Math.sin(nx * Math.PI * 3.5 + phase) * waveScale +
+                    Math.cos(nx * Math.PI * 6.0 - phase * 0.7) * (waveScale * 0.45)
+                );
+                const ay = auroraBaseY + yOff;
+                this.rect(ctx, width, height, ax, ay - 2, segW, 5, colOuter);
+                this.rect(ctx, width, height, ax, ay - 1, segW, 3, colMid);
+                if (beatImpulse > 0.25 || tension > 0.55 || (Math.floor(ax / segW) & 1) === 0) {
+                    this.rect(ctx, width, height, ax, ay, segW, 1, colCore);
                 }
             }
         }
 
-        // 3. Twinkling stars with beat-level glints
-        const twinkle = Math.floor(time * (1.8 + tension * 2.4));
+        // 3. Twinkling stars with beat-level cross-glints
+        const twinkle = Math.floor(time * (1.8 + tension * 2.2));
         for (let i = 0; i < STAR_POSITIONS.length; i++) {
             const x = Math.floor(STAR_POSITIONS[i][0] * width);
-            const y = Math.floor(STAR_POSITIONS[i][1] * height * 0.62);
-            const isGlintStar = (i + twinkle) % 4 === 0;
+            const y = Math.floor(STAR_POSITIONS[i][1] * height * 0.60);
+            const isGlintStar = (i + twinkle) % 5 === 0;
 
-            if (isGlintStar && (beatImpulse > 0.20 || this.softPulse > 0.25)) {
+            if (isGlintStar && (beatImpulse > 0.22 || this.softPulse > 0.30)) {
                 const arm = (this.heavyPulse > 0.4 && i % 2 === 0) ? 2 : 1;
                 const armCol = tension > 0.7 ? COLOR.gold : COLOR.silver;
                 this.rect(ctx, width, height, x - arm, y, arm * 2 + 1, 1, armCol);
@@ -348,10 +333,10 @@ export class AmigaCastleFireworks {
         }
 
         this.drawMoon(ctx, width, height, tension);
-        // Multi-layered Deluxe Paint clouds drifting across moon and sky
-        this.drawCloud(ctx, width, height, time, 0.12, 0.21, 0.008 + tension * 0.005, COLOR.cloud);
-        this.drawCloud(ctx, width, height, time, 0.42, 0.17, 0.013 + tension * 0.008, COLOR.cloud);
-        this.drawCloud(ctx, width, height, time, 0.74, 0.31, -0.010 - tension * 0.006, COLOR.cloudLight);
+        // Sweeping nocturnal stratus & cumulus cloud banks
+        this.drawCloud(ctx, width, height, time, 0.14, 0.22, 0.007 + tension * 0.004, COLOR.cloud);
+        this.drawCloud(ctx, width, height, time, 0.48, 0.15, 0.011 + tension * 0.006, COLOR.cloud);
+        this.drawCloud(ctx, width, height, time, 0.78, 0.28, -0.009 - tension * 0.005, COLOR.cloudLight);
     }
 
     drawMoon(ctx, width, height, tension) {
@@ -362,9 +347,9 @@ export class AmigaCastleFireworks {
         if (minDim < 64) {
             const unit = clamp(Math.floor(minDim / 55), 1, 7);
             if (width < unit * 8 || height < unit * 8) return;
-            const x = clamp(Math.floor(width * 0.10), 0, width - unit * 8);
-            const y = clamp(Math.floor(height * 0.13), 0, height - unit * 8);
-            const moonColor = tension > 0.72 ? COLOR.rust : COLOR.moon;
+            const x = clamp(Math.floor(width * 0.16), 0, width - unit * 8);
+            const y = clamp(Math.floor(height * 0.12), 0, height - unit * 8);
+            const moonColor = tension > 0.72 ? COLOR.orange : COLOR.moon;
             for (let row = 0; row < MOON_ROWS.length; row++) {
                 const [start, end] = MOON_ROWS[row];
                 this.rect(ctx, width, height, x + start * unit, y + row * unit, (end - start + 1) * unit, unit, moonColor);
@@ -372,48 +357,41 @@ export class AmigaCastleFireworks {
             return;
         }
 
-        // Deluxe Paint 18-row Spherical Moon with lunar Maria craters & spherical shading
-        const unit = clamp(Math.floor(minDim / 95), 1, 4);
-        const moonSize = unit * 18;
+        // Clean, Luminous Spherical Moon positioned near the Left Golden Section (x ~ 0.18)
+        const unit = clamp(Math.floor(minDim / 100), 1, 4);
+        const moonSize = unit * 16;
         if (width < moonSize || height < moonSize) return;
-        const x = clamp(Math.floor(width * 0.09), 0, width - moonSize);
+        const x = clamp(Math.floor(width * 0.17), 0, width - moonSize);
         const y = clamp(Math.floor(height * 0.10), 0, height - moonSize);
 
-        const isBloodMoon = tension > 0.72;
-        const baseCol = isBloodMoon ? COLOR.orange : COLOR.moon;
-        const rimCol = isBloodMoon ? COLOR.gold : COLOR.white;
-        const shadeCol = isBloodMoon ? COLOR.rust : COLOR.silver;
-        const craterCol = isBloodMoon ? COLOR.blood : COLOR.cloudLight;
+        const isBloodMoon = tension > 0.74;
+        const litCrescentCol = isBloodMoon ? COLOR.gold : COLOR.white;
+        const mainOrbCol = isBloodMoon ? COLOR.orange : COLOR.moon;
+        const midShadeCol = isBloodMoon ? COLOR.rust : COLOR.silver;
+        const mariaSeaCol = isBloodMoon ? COLOR.blood : COLOR.cloudLight;
 
-        // Scanline-dithered outer lunar corona
-        if (x >= unit * 3 && y >= unit * 3) {
-            const haloCol = isBloodMoon ? COLOR.wine : COLOR.blueSky;
-            for (let r = -2; r < 20; r++) {
-                if ((r & 1) === 0) {
-                    const chord = DP_MOON_CHORDS[clamp(r, 0, 17)];
-                    const hx = x + (chord[0] - 2) * unit;
-                    const hw = (chord[1] - chord[0] + 5) * unit;
-                    this.rect(ctx, width, height, hx, y + r * unit, hw, unit, haloCol);
-                }
-            }
-        }
-
-        for (let r = 0; r < DP_MOON_CHORDS.length; r++) {
-            const [start, end, cStart, cEnd] = DP_MOON_CHORDS[r];
+        // Smooth circular moon disc without spiky outer halo teeth
+        for (let r = 0; r < MOON_DISC_16.length; r++) {
+            const [start, end] = MOON_DISC_16[r];
             const span = end - start + 1;
             const rowY = y + r * unit;
 
-            // Main spherical body
-            this.rect(ctx, width, height, x + start * unit, rowY, span * unit, unit, baseCol);
-            // Bright upper-left rim highlight
-            this.rect(ctx, width, height, x + start * unit, rowY, Math.max(1, Math.floor(span * 0.22)) * unit, unit, rimCol);
-            // Lower-right spherical terminator shading
-            const shadeW = Math.max(1, Math.floor(span * 0.28));
-            this.rect(ctx, width, height, x + (end - shadeW + 1) * unit, rowY, shadeW * unit, unit, shadeCol);
+            // 1. Main warm lunar disc
+            this.rect(ctx, width, height, x + start * unit, rowY, span * unit, unit, mainOrbCol);
 
-            // Lunar Maria (seas & craters)
-            if (cStart >= 0 && cEnd >= cStart) {
-                this.rect(ctx, width, height, x + cStart * unit, rowY, (cEnd - cStart + 1) * unit, unit, craterCol);
+            // 2. Bright left crescent edge
+            const crescentW = Math.max(1, Math.floor(span * 0.24));
+            this.rect(ctx, width, height, x + start * unit, rowY, crescentW * unit, unit, litCrescentCol);
+
+            // 3. Soft spherical shading on right limb
+            const rightShadeW = Math.max(1, Math.floor(span * 0.25));
+            this.rect(ctx, width, height, x + (end - rightShadeW + 1) * unit, rowY, rightShadeW * unit, unit, midShadeCol);
+
+            // 4. Subtle, natural Lunar Maria (sea patches) on upper-right and mid-left
+            if (r >= 3 && r <= 6) {
+                this.rect(ctx, width, height, x + (start + Math.floor(span * 0.45)) * unit, rowY, Math.max(1, Math.floor(span * 0.28)) * unit, unit, mariaSeaCol);
+            } else if (r >= 8 && r <= 11) {
+                this.rect(ctx, width, height, x + (start + Math.floor(span * 0.30)) * unit, rowY, Math.max(1, Math.floor(span * 0.22)) * unit, unit, mariaSeaCol);
             }
         }
     }
@@ -421,8 +399,8 @@ export class AmigaCastleFireworks {
     drawCloud(ctx, width, height, time, baseX, baseY, speed, color) {
         const minDim = Math.min(width, height);
         if (minDim < 12) return;
-        const unit = clamp(Math.floor(minDim / 115), 1, 5);
-        const cloudWidth = unit * 22;
+        const unit = clamp(Math.floor(minDim / 130), 1, 4);
+        const cloudWidth = unit * 28;
         if (cloudWidth >= width) return;
 
         const travel = width + cloudWidth;
@@ -430,55 +408,38 @@ export class AmigaCastleFireworks {
         const x = ((baseX * width + offset + cloudWidth) % travel + travel) % travel - cloudWidth;
         const y = Math.floor(baseY * height);
 
-        // Dynamic top highlight from moon, lightning, or nearby firework bursts
         let rimColor = COLOR.silver;
-        let midHighlight = COLOR.cloudLight;
+        let midCol = COLOR.cloudLight;
         if (this.lightningTimer > 0.08) {
             rimColor = COLOR.white;
-            midHighlight = COLOR.cyan;
+            midCol = COLOR.cyan;
         } else if (baseX < 0.5 && this.leftGlow > 0.22) {
             rimColor = this.leftGlowColor;
         } else if (baseX >= 0.5 && this.rightGlow > 0.22) {
             rimColor = this.rightGlowColor;
         }
 
-        // Sculpted multi-dome Deluxe Paint cumulus cloud bank
-        for (let d = 0; d < CLOUD_DOMES.length; d++) {
-            const [dx, dw, dh] = CLOUD_DOMES[d];
-            const domeX = x + dx * unit;
-            const domeY = y - dh * unit;
-            const domeW = dw * unit;
-            const domeH = dh * unit;
-
-            // Silver/lit upper rim
-            this.rect(ctx, width, height, domeX + unit, domeY, domeW - unit * 2, unit, rimColor);
-            // Upper billow highlight
-            this.rect(ctx, width, height, domeX, domeY + unit, domeW, Math.max(unit, domeH - unit), midHighlight);
-            // Core cloud volume
-            this.rect(ctx, width, height, domeX + unit, domeY + unit * 2, domeW - unit, Math.max(unit, domeH - unit), color);
-        }
-
-        // Flat shadowed cloud base & stratus wisps
-        this.rect(ctx, width, height, x + unit, y, unit * 19, unit * 2, color);
-        this.rect(ctx, width, height, x + unit * 2, y + unit, unit * 18, unit, COLOR.indigo);
-        this.rect(ctx, width, height, x + unit * 4, y + unit * 2, unit * 14, Math.max(1, Math.floor(unit * 0.7)), COLOR.deepSky);
+        // Sleek, tapered Romantic night-sky cloud bank with trailing wisps (no blocky pyramid steps!)
+        this.rect(ctx, width, height, x + unit * 9, y - unit * 3, unit * 8, unit, rimColor);
+        this.rect(ctx, width, height, x + unit * 6, y - unit * 2, unit * 14, unit, midCol);
+        this.rect(ctx, width, height, x + unit * 3, y - unit, unit * 20, unit, color);
+        this.rect(ctx, width, height, x, y, unit * 26, unit, color);
+        this.rect(ctx, width, height, x + unit * 2, y + unit, unit * 23, unit, COLOR.indigo);
+        // Delicate trailing wind-blown wisps on left and right
+        this.rect(ctx, width, height, x - unit * 2, y, unit * 3, Math.max(1, Math.floor(unit * 0.6)), COLOR.cloud);
+        this.rect(ctx, width, height, x + unit * 25, y - unit, unit * 4, Math.max(1, Math.floor(unit * 0.6)), midCol);
     }
 
     drawLightning(ctx, width, height) {
         if (this.lightningTimer <= 0) return;
         const flashIntensity = this.lightningTimer / 0.22;
 
-        // 1. Amiga Copper sky flash bars
-        const cloudY = Math.floor(height * 0.20);
+        const cloudY = Math.floor(height * 0.18);
         this.rect(ctx, width, height, 0, cloudY, width, 2, flashIntensity > 0.5 ? COLOR.white : COLOR.silver);
-        if (flashIntensity > 0.65) {
-            this.rect(ctx, width, height, 0, Math.floor(height * 0.12), width, 1, COLOR.cyan);
-        }
 
-        // 2. Jagged gothic forked lightning bolt
         const startX = Math.floor(this.lightningX * width);
-        const startY = Math.floor(height * 0.10);
-        const endY = Math.floor(height * 0.54);
+        const startY = Math.floor(height * 0.09);
+        const endY = Math.floor(height * 0.52);
         const segments = 8;
         const stepY = Math.max(1, Math.floor((endY - startY) / segments));
         let curX = startX;
@@ -581,9 +542,9 @@ export class AmigaCastleFireworks {
         const fromLeft = (index & 1) === 0;
         comet.active = true;
         comet.startX = fromLeft ? 0.08 + ((index * 7) % 25) / 100 : 0.92 - ((index * 7) % 25) / 100;
-        comet.startY = 0.06 + ((index * 5) % 18) / 100;
+        comet.startY = 0.05 + ((index * 5) % 16) / 100;
         comet.dx = fromLeft ? 0.22 : -0.22;
-        comet.dy = 0.10 + ((index % 3) * 0.03);
+        comet.dy = 0.09 + ((index % 3) * 0.03);
         comet.startTime = time;
         comet.duration = 0.38;
         comet.color = (index % 3 === 0) ? COLOR.cyan : ((index % 3 === 1) ? COLOR.gold : COLOR.magenta);
@@ -597,8 +558,8 @@ export class AmigaCastleFireworks {
         const variation = (index * 7) % 5;
         const leftSide = (index & 1) === 0;
         burst.active = true;
-        burst.x = leftSide ? 0.16 + variation * 0.025 : 0.84 - variation * 0.025;
-        burst.y = 0.18 + ((index * 3) % 5) * 0.052;
+        burst.x = leftSide ? 0.14 + variation * 0.03 : 0.86 - variation * 0.03;
+        burst.y = 0.16 + ((index * 3) % 5) * 0.052;
         burst.launchY = 0.72;
         burst.startTime = time;
         burst.duration = 0.85 + tension * 0.40;
@@ -620,9 +581,9 @@ export class AmigaCastleFireworks {
             bat.duration = 2.1 + ((index * 7) % 3) * 0.45;
             const spawnLeft = (index & 1) === 0;
             bat.startX = spawnLeft ? 0.28 : 0.72;
-            bat.startY = 0.40 + ((index % 3) * 0.04);
+            bat.startY = 0.38 + ((index % 3) * 0.04);
             bat.targetX = spawnLeft ? -0.08 : 1.08;
-            bat.targetY = 0.10 + ((index * 5) % 5) * 0.05;
+            bat.targetY = 0.09 + ((index * 5) % 5) * 0.05;
             bat.flapSpeed = 10 + Math.round(strength * 6);
         }
     }
@@ -664,7 +625,7 @@ export class AmigaCastleFireworks {
             // Ascending corkscrew rocket trail
             if (progress < 0.24) {
                 const rocketProg = progress / 0.24;
-                const launchBaseline = Math.floor(horizon * 0.92);
+                const launchBaseline = Math.floor(horizon * 0.90);
                 const curRocketY = clamp(
                     Math.floor(launchBaseline + (centerY - launchBaseline) * rocketProg),
                     0,
@@ -681,12 +642,6 @@ export class AmigaCastleFireworks {
                     const sparkX = clamp(centerX + ((Math.floor(time * 40)) % 3 - 1), 0, Math.max(0, width - 1));
                     this.rect(ctx, width, height, sparkX, curRocketY + 6, 1, 1, COLOR.orange);
                 }
-            }
-
-            // Subtle Copper horizon flash at detonation
-            if (progress >= 0.20 && progress <= 0.28 && burst.strength >= 0.55 && height >= 40) {
-                const flashY = clamp(centerY, 0, Math.max(0, horizon - 1));
-                this.rect(ctx, width, height, 0, flashY, width, 1, burst.color);
             }
 
             const fadeColor = progress > 0.68 ? burst.secondaryColor : burst.color;
@@ -760,9 +715,9 @@ export class AmigaCastleFireworks {
             }
             const prog = age / fountain.duration;
             const baseX = Math.floor(FOUNTAIN_X_OFFSETS[fountain.slot] * width);
-            const baseY = Math.floor(horizon * 0.66);
+            const baseY = Math.floor(horizon * 0.62);
             const maxRise = Math.max(2, Math.floor(horizon * (0.08 + fountain.level * 0.04)));
-            const spread = Math.max(1, Math.floor(width * 0.032));
+            const spread = Math.max(1, Math.floor(width * 0.028));
 
             for (let p = -2; p <= 2; p++) {
                 const jetProg = clamp(prog * 1.2 - Math.abs(p) * 0.08, 0, 1);
@@ -775,103 +730,94 @@ export class AmigaCastleFireworks {
         }
     }
 
-    // Helper: Jim Sachs / Defender of the Crown 3D Cylindrical Tower with Corbels, Merlons & Conical Slate Roof
+    // Helper: Fine Deluxe Paint 3D Cylindrical Tower with Subtle Masonry, Corbels & Steep Conical Spire
     drawCylinderTower(ctx, width, height, castleX, castleY, castleWidth, castleHeight, tx, ty, tw, th, roofH, merlonCount, leftRim, rightRim) {
-        // 1. Cylindrical 3D shaded vertical stone strips (Moonlight from left, deep shadow on right)
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, tx, ty, tw * 0.13, th, leftRim);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, tx + tw * 0.13, ty, tw * 0.25, th, COLOR.stoneLight);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, tx + tw * 0.38, ty, tw * 0.28, th, COLOR.stone);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, tx + tw * 0.66, ty, tw * 0.20, th, COLOR.castle);
+        // 1. Smooth 5-zone cylindrical shading (no giant white Lego bricks!)
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, tx, ty, tw * 0.09, th, leftRim);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, tx + tw * 0.09, ty, tw * 0.24, th, COLOR.stoneLight);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, tx + tw * 0.33, ty, tw * 0.31, th, COLOR.stone);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, tx + tw * 0.64, ty, tw * 0.22, th, COLOR.castle);
         this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, tx + tw * 0.86, ty, tw * 0.14, th, rightRim);
 
-        // 2. Horizontal Ashlar masonry courses & stone blocks
-        const courseStep = 0.065;
-        for (let cy = ty + 0.05; cy < ty + th - 0.03; cy += courseStep) {
-            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, tx + tw * 0.08, cy, tw * 0.82, 0.008, COLOR.castle);
-            const stagger = ((Math.floor((cy - ty) * 100)) & 1) === 0 ? 0.16 : 0.32;
-            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, tx + tw * stagger, cy - 0.025, tw * 0.18, 0.015, COLOR.silver);
+        // 2. Fine, subtle masonry texture lines (gives monumental scale!)
+        const courseStep = 0.055;
+        for (let cy = ty + 0.04; cy < ty + th - 0.02; cy += courseStep) {
+            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, tx + tw * 0.10, cy, tw * 0.76, 0.005, COLOR.castle);
+            const stagger = ((Math.floor((cy - ty) * 100)) & 1) === 0 ? 0.18 : 0.42;
+            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, tx + tw * stagger, cy - 0.015, tw * 0.12, 0.006, COLOR.stoneLight);
         }
 
-        // 3. Overhanging Machicolation / Corbelled Parapet Collar
-        const overhang = tw * 0.06;
+        // 3. Overhanging Corbelled Parapet Collar
+        const overhang = tw * 0.05;
         const pLeft = tx - overhang;
         const pWidth = tw + overhang * 2;
-        // Dark shadow under the overhanging corbels
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, pLeft, ty + 0.018, pWidth, 0.018, COLOR.black);
-        // Shaded parapet cornice band
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, pLeft, ty, pWidth * 0.45, 0.020, leftRim);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, pLeft + pWidth * 0.45, ty, pWidth * 0.35, 0.020, COLOR.stone);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, pLeft + pWidth * 0.80, ty, pWidth * 0.20, 0.020, rightRim);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, pLeft, ty + 0.014, pWidth, 0.014, COLOR.black);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, pLeft, ty, pWidth * 0.38, 0.015, leftRim);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, pLeft + pWidth * 0.38, ty, pWidth * 0.40, 0.015, COLOR.stone);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, pLeft + pWidth * 0.78, ty, pWidth * 0.22, 0.015, rightRim);
 
-        // Individual stone corbel brackets underneath
-        const corbelStep = pWidth / (merlonCount * 2);
-        for (let c = 0; c < merlonCount * 2; c += 2) {
-            const cx = pLeft + (c + 0.3) * corbelStep;
-            const cCol = c < merlonCount ? COLOR.stoneLight : COLOR.stone;
-            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, cx, ty + 0.018, corbelStep * 0.8, 0.016, cCol);
-        }
-
-        // 4. 3D-shaded Battlement Merlons (Crenellations)
+        // 4. Fine Crenellations (Merlons)
         if (merlonCount > 0) {
             const mSpan = pWidth / merlonCount;
-            const mWidth = mSpan * 0.62;
-            const mHeight = 0.036;
+            const mWidth = mSpan * 0.58;
+            const mHeight = 0.024;
             for (let m = 0; m < merlonCount; m++) {
-                const mx = pLeft + m * mSpan + mSpan * 0.1;
-                const mFaceCol = m < merlonCount * 0.45 ? COLOR.stoneLight : (m < merlonCount * 0.75 ? COLOR.stone : COLOR.castle);
-                const mEdgeCol = m === 0 ? leftRim : COLOR.silver;
-                this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, mx, ty - mHeight, mWidth, mHeight, mFaceCol);
-                this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, mx, ty - mHeight, mWidth * 0.28, mHeight, mEdgeCol);
-                this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, mx, ty - mHeight, mWidth, 0.007, COLOR.silver);
+                const mx = pLeft + m * mSpan + mSpan * 0.12;
+                const mCol = m < merlonCount * 0.45 ? COLOR.stoneLight : (m < merlonCount * 0.75 ? COLOR.stone : COLOR.castle);
+                this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, mx, ty - mHeight, mWidth, mHeight, mCol);
+                this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, mx, ty - mHeight, mWidth * 0.30, mHeight, leftRim);
             }
         }
 
-        // 5. Steep Conical Slate Roof (Scanline-stepped triangle with 3D cylindrical slate shading)
+        // 5. Steep Conical Gothic Slate Spire (12-step tapered cone)
         if (roofH > 0) {
-            const steps = 10;
-            const roofBaseY = ty - (merlonCount > 0 ? 0.022 : 0);
-            const roofLeftSlope = this.lightningTimer > 0 ? COLOR.white : COLOR.blue;
-            const roofMidSlope = COLOR.copperBlue;
-            const roofRightSlope = this.rightGlow > 0.22 ? this.rightGlowColor : COLOR.deepSky;
+            const steps = 12;
+            const roofBaseY = ty - (merlonCount > 0 ? 0.016 : 0);
+            const roofLeftCol = this.lightningTimer > 0 ? COLOR.white : COLOR.blue;
+            const roofMidCol = COLOR.copperBlue;
+            const roofRightCol = this.rightGlow > 0.22 ? this.rightGlowColor : COLOR.deepSky;
 
             for (let s = 0; s < steps; s++) {
                 const t0 = s / steps;
                 const t1 = (s + 1) / steps;
-                const sliceW = pWidth * (1 - t0 * 0.88);
+                const sliceW = pWidth * Math.pow(1 - t0, 0.88);
                 const sliceX = pLeft + (pWidth - sliceW) * 0.5;
                 const sliceY = roofBaseY - t1 * roofH;
                 const sliceH = (roofH / steps) + 0.004;
 
-                this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, sliceX, sliceY, sliceW * 0.26, sliceH, roofLeftSlope);
-                this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, sliceX + sliceW * 0.26, sliceY, sliceW * 0.34, sliceH, roofMidSlope);
-                this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, sliceX + sliceW * 0.60, sliceY, sliceW * 0.40, sliceH, roofRightSlope);
+                this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, sliceX, sliceY, sliceW * 0.26, sliceH, roofLeftCol);
+                this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, sliceX + sliceW * 0.26, sliceY, sliceW * 0.34, sliceH, roofMidCol);
+                this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, sliceX + sliceW * 0.60, sliceY, sliceW * 0.40, sliceH, roofRightCol);
             }
-            // Wrought-iron roof finial spire
-            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, tx + tw * 0.47, roofBaseY - roofH - 0.045, tw * 0.06, 0.048, COLOR.silver);
+            // Delicate tall finial needle
+            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, tx + tw * 0.48, roofBaseY - roofH - 0.055, tw * 0.04, 0.058, COLOR.silver);
         }
     }
 
-    // Helper: Recessed Pointed Gothic Window with Stone Jambs, Mullions & Stained/Torchlit Glass
-    drawGothicWindow(ctx, width, height, castleX, castleY, castleWidth, castleHeight, wx, wy, ww, wh, glassColor, glowCoreColor) {
-        // Deep recessed stone shadow
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, wx - 0.005, wy, ww + 0.010, wh + 0.008, COLOR.black);
-        // Moonlit right interior stone jamb & sill
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, wx + ww, wy + wh * 0.2, 0.007, wh * 0.8, COLOR.stoneLight);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, wx - 0.005, wy + wh, ww + 0.012, 0.009, COLOR.silver);
-
-        // Pointed Gothic arch top + main window lancet body
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, wx + ww * 0.20, wy - wh * 0.22, ww * 0.60, wh * 0.24, glassColor);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, wx, wy, ww, wh, glassColor);
-        // Inner warm/arcane glow core
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, wx + ww * 0.22, wy + wh * 0.15, ww * 0.56, wh * 0.65, glowCoreColor);
-
-        // Leaded glass central mullion & transom crossbar
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, wx + ww * 0.46, wy - wh * 0.15, ww * 0.08, wh * 1.15, COLOR.castle);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, wx, wy + wh * 0.45, ww, wh * 0.10, COLOR.castle);
+    // Helper: Slender Monumental Lancet Window (makes the castle look colossal!)
+    drawSlenderWindow(ctx, width, height, castleX, castleY, castleWidth, castleHeight, wx, wy, ww, wh, outerGlow, coreGlow) {
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, wx - 0.003, wy - 0.006, ww + 0.006, wh + 0.010, COLOR.black);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, wx + ww, wy, 0.004, wh, COLOR.stoneLight);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, wx + ww * 0.2, wy - 0.008, ww * 0.6, 0.010, outerGlow);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, wx, wy, ww, wh, outerGlow);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, wx + ww * 0.25, wy + wh * 0.15, ww * 0.5, wh * 0.70, coreGlow);
     }
 
     drawCastle(ctx, width, height, baseline, castleX, castleY, castleWidth, castleHeight, time, tension, beatPulse, glowIntensity, glowColor) {
-        // Determine directional lighting colors from moon, lightning, and left/right fireworks
+        // 0. Distant Misty Mountain Range drawn BEHIND the castle (so hills never bury the castle!)
+        const mtnStep = Math.max(2, Math.ceil(width / 220));
+        for (let x = 0; x < width; x += mtnStep) {
+            const nx = x / Math.max(1, width);
+            const farWave = Math.sin(nx * Math.PI * 3.2 + 0.4) * height * 0.055
+                + Math.cos(nx * Math.PI * 7.5 + 1.1) * height * 0.022;
+            const farSlope = Math.cos(nx * Math.PI * 3.2 + 0.4);
+            const farY = Math.floor(baseline - height * 0.11 + farWave);
+            const mtnCol = farSlope > 0.1 ? COLOR.midHill : COLOR.farHill;
+            const ridgeCol = this.lightningTimer > 0 ? COLOR.white : (farSlope > 0 ? COLOR.stone : COLOR.castle);
+            this.rect(ctx, width, height, x, farY, mtnStep, baseline - farY + 4, mtnCol);
+            this.rect(ctx, width, height, x, farY, mtnStep, 2, ridgeCol);
+        }
+
         const leftRim = this.lightningTimer > 0
             ? COLOR.white
             : (this.leftGlow > 0.20 ? this.leftGlowColor : COLOR.silver);
@@ -879,58 +825,106 @@ export class AmigaCastleFireworks {
             ? COLOR.silver
             : (this.rightGlow > 0.20 ? this.rightGlowColor : COLOR.farHill);
 
-        // 1. Rear Great Keep (Central Citadel & Cathedral Hall) with 3D cylindrical volume
-        this.drawCylinderTower(
-            ctx, width, height, castleX, castleY, castleWidth, castleHeight,
-            0.33, 0.21, 0.34, 0.77, 0.13, 6, leftRim, rightRim
-        );
-
-        // High belfry spire & flapping royal pennant banner
-        this.drawCylinderTower(
-            ctx, width, height, castleX, castleY, castleWidth, castleHeight,
-            0.43, 0.08, 0.14, 0.14, 0.07, 3, leftRim, rightRim
-        );
-        const flagWave = Math.sin(time * (6 + tension * 10)) > 0 ? 0.008 : -0.006;
-        const flagColor = tension > 0.68 ? COLOR.red : (this.currentBeatLevel === 3 ? COLOR.gold : COLOR.magenta);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.50, 0.015, 0.055, 0.022, flagColor);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.555, 0.018 + flagWave, 0.040, 0.015, COLOR.gold);
-
-        // 2. Inner Curtain Walls & Stepped Flying Buttresses
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.12, 0.50, 0.30, 0.48, COLOR.stone);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.12, 0.50, 0.12, 0.48, COLOR.stoneLight);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.58, 0.50, 0.30, 0.48, COLOR.castle);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.80, 0.50, 0.08, 0.48, rightRim);
-
-        // Curtain wall crenellations & parapet walk
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.10, 0.49, 0.80, 0.018, COLOR.silver);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.10, 0.508, 0.80, 0.015, COLOR.black);
-        for (let i = 0; i < 11; i++) {
-            const mx = 0.11 + i * 0.072;
-            const mCol = i < 5 ? COLOR.stoneLight : COLOR.stone;
-            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, mx, 0.462, 0.042, 0.030, mCol);
+        // =========================================================================
+        // 1. DRAMATIC ROCKY CLIFF PROMONTORY (Castle sits HIGH atop this rock crag!)
+        // =========================================================================
+        const cliffTopY = 0.72;
+        const cliffH = 0.30;
+        // Sculpted multi-faceted cliff face with moonlit western crags and shadowed eastern fissures
+        const cragFacets = [
+            [0.08, 0.78, 0.12, 0.22],
+            [0.16, 0.72, 0.16, 0.28],
+            [0.29, 0.74, 0.14, 0.26],
+            [0.40, 0.75, 0.18, 0.25],
+            [0.54, 0.68, 0.20, 0.32],
+            [0.71, 0.73, 0.15, 0.27],
+            [0.82, 0.79, 0.11, 0.21]
+        ];
+        for (let f = 0; f < cragFacets.length; f++) {
+            const [cx, cy, cw, ch] = cragFacets[f];
+            // Deep cliff shadow core
+            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, cx, cy, cw, ch, COLOR.black);
+            // Lit left rock ledge
+            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, cx, cy, cw * 0.28, ch * 0.85, COLOR.stoneLight);
+            // Mid-tone rock face
+            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, cx + cw * 0.28, cy + 0.01, cw * 0.38, ch * 0.85, COLOR.stone);
+            // Dark rock strata & crevices
+            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, cx + cw * 0.66, cy + 0.02, cw * 0.24, ch * 0.85, COLOR.castle);
+            // Craggy diagonal ledge highlights
+            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, cx + 0.01, cy, cw * 0.65, 0.015, leftRim);
+            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, cx + 0.02, cy + ch * 0.42, cw * 0.55, 0.012, COLOR.stoneLight);
         }
 
-        // 3. Outer Flanking Bastion Towers (Anchored into the cliffside)
+        // =========================================================================
+        // 2. GOLDEN RATIO ASYMMETRICAL CASTLE SILHOUETTE (Schinkel / Neuschwanstein)
+        // =========================================================================
+
+        // A. High Gothic Flying Viaduct Arch spanning the chasm between West Watchtower & Central Palas
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.26, 0.50, 0.14, 0.09, COLOR.stone);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.26, 0.49, 0.14, 0.014, leftRim);
+        // Open Gothic chasm arch under the viaduct bridge (shows night sky / mountain behind!)
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.285, 0.535, 0.085, 0.19, COLOR.indigo);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.295, 0.525, 0.065, 0.02, COLOR.indigo);
+
+        // B. Western Wizard Watchtower (Golden Ratio Left Axis: x ~ 0.17..0.28)
         this.drawCylinderTower(
             ctx, width, height, castleX, castleY, castleWidth, castleHeight,
-            0.05, 0.47, 0.12, 0.51, 0.10, 3, leftRim, rightRim
+            0.17, 0.34, 0.11, 0.39, 0.15, 4, leftRim, rightRim
         );
+        // Outer Western Cliff Bastion
         this.drawCylinderTower(
             ctx, width, height, castleX, castleY, castleWidth, castleHeight,
-            0.83, 0.47, 0.12, 0.51, 0.10, 3, leftRim, rightRim
+            0.10, 0.52, 0.08, 0.27, 0.08, 3, leftRim, rightRim
         );
 
-        // 4. Tall Left & Right Watchtowers (Jim Sachs style round drum towers with conical roofs)
+        // C. Central Great Hall / Palas & Cathedral Nave (x: 0.36..0.58)
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.36, 0.38, 0.22, 0.36, COLOR.stone);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.36, 0.38, 0.07, 0.36, COLOR.stoneLight);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.51, 0.38, 0.07, 0.36, COLOR.castle);
+        // Steep Palas Pitched Slate Roof
+        for (let r = 0; r < 8; r++) {
+            const ry = 0.38 - (r + 1) * 0.012;
+            const rw = 0.22 - r * 0.012;
+            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.36 + r * 0.006, ry, rw * 0.6, 0.014, COLOR.copperBlue);
+            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.36 + r * 0.006 + rw * 0.6, ry, rw * 0.4, 0.014, COLOR.deepSky);
+        }
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.37, 0.282, 0.18, 0.008, COLOR.silver);
+
+        // D. SOARING GRAND DONJON / KEEP on the Right Golden Ratio Axis (x ~ 0.55..0.73)
         this.drawCylinderTower(
             ctx, width, height, castleX, castleY, castleWidth, castleHeight,
-            0.16, 0.33, 0.18, 0.65, 0.12, 4, leftRim, rightRim
+            0.54, 0.20, 0.19, 0.52, 0.14, 6, leftRim, rightRim
         );
+        // Upper Crown Spire of the Grand Donjon (soaring to y = 0.02!)
         this.drawCylinderTower(
             ctx, width, height, castleX, castleY, castleWidth, castleHeight,
-            0.66, 0.33, 0.18, 0.65, 0.12, 4, leftRim, rightRim
+            0.585, 0.09, 0.10, 0.12, 0.11, 4, leftRim, rightRim
+        );
+        // Slender overhanging Bartizan (corner turret) on the Grand Donjon
+        this.drawCylinderTower(
+            ctx, width, height, castleX, castleY, castleWidth, castleHeight,
+            0.515, 0.25, 0.05, 0.20, 0.07, 2, leftRim, rightRim
         );
 
-        // 5. Cathedral Rose Window & Lancet Windows in Great Keep
+        // Delicate swallowtail royal pennant on the highest spire
+        const flagWave = Math.sin(time * (6 + tension * 10)) * 0.006;
+        const flagCol = tension > 0.68 ? COLOR.red : (this.currentBeatLevel === 3 ? COLOR.gold : COLOR.cyan);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.638, 0.002, 0.032, 0.012, flagCol);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.670, 0.004 + flagWave, 0.022, 0.008, COLOR.gold);
+
+        // E. Eastern Flanking Watchtower & Curtain Wall (x: 0.72..0.88)
+        this.drawCylinderTower(
+            ctx, width, height, castleX, castleY, castleWidth, castleHeight,
+            0.72, 0.39, 0.11, 0.35, 0.12, 4, leftRim, rightRim
+        );
+        this.drawCylinderTower(
+            ctx, width, height, castleX, castleY, castleWidth, castleHeight,
+            0.81, 0.53, 0.08, 0.26, 0.08, 3, leftRim, rightRim
+        );
+
+        // =========================================================================
+        // 3. MONUMENTAL WINDOWS, CATHEDRAL ROSE & FOREGROUND BARBICAN GATEHOUSE
+        // =========================================================================
         const roseOuter = beatPulse > 0.45
             ? (tension > 0.65 ? COLOR.gold : COLOR.cyan)
             : (tension > 0.65 ? COLOR.magenta : COLOR.blue);
@@ -938,332 +932,351 @@ export class AmigaCastleFireworks {
             ? COLOR.white
             : (this.medPulse > 0.3 ? COLOR.gold : COLOR.cyan);
 
-        // Sculpted Rose Window with stone tracery spokes
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.445, 0.27, 0.11, 0.11, COLOR.black);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.455, 0.28, 0.09, 0.09, roseOuter);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.475, 0.30, 0.05, 0.05, roseCore);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.495, 0.27, 0.01, 0.11, COLOR.castle);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.445, 0.32, 0.11, 0.01, COLOR.castle);
+        // Grand Donjon Cathedral Rose Window & Tall Gothic Tracery Lancets
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.605, 0.24, 0.06, 0.06, COLOR.black);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.612, 0.247, 0.046, 0.046, roseOuter);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.623, 0.258, 0.024, 0.024, roseCore);
+        // Three slender Cathedral Lancets below the Rose Window
+        this.drawSlenderWindow(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.585, 0.34, 0.018, 0.085, roseOuter, roseCore);
+        this.drawSlenderWindow(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.625, 0.33, 0.020, 0.095, roseOuter, roseCore);
+        this.drawSlenderWindow(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.668, 0.34, 0.018, 0.085, roseOuter, roseCore);
 
-        // Great Hall Lancet Windows
-        this.drawGothicWindow(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.38, 0.43, 0.045, 0.11, roseOuter, roseCore);
-        this.drawGothicWindow(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.478, 0.42, 0.045, 0.12, roseOuter, roseCore);
-        this.drawGothicWindow(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.575, 0.43, 0.045, 0.11, roseOuter, roseCore);
-
-        // 6. Watchtower & Bastion Torch-lit Gothic Windows
-        for (let row = 0; row < 3; row++) {
-            const wy = 0.44 + row * 0.15;
-            const flicker = Math.sin(time * 8.5 + row * 2.1) > 0.1;
-            const glassCol = flicker ? COLOR.orange : COLOR.rust;
-            const coreCol = beatPulse > 0.5 ? COLOR.white : (flicker ? COLOR.gold : COLOR.orange);
-
-            // Left & Right Watchtower windows
-            this.drawGothicWindow(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.225, wy, 0.042, 0.085, glassCol, coreCol);
-            this.drawGothicWindow(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.730, wy, 0.042, 0.085, glassCol, coreCol);
+        // Great Hall Arcade of Warm Candlelit Windows (5 slender arched windows)
+        for (let w = 0; w < 4; w++) {
+            const wx = 0.385 + w * 0.036;
+            const flicker = Math.sin(time * 8 + w * 1.7) > 0.05;
+            const wOuter = flicker ? COLOR.orange : COLOR.rust;
+            const wCore = beatPulse > 0.5 ? COLOR.white : (flicker ? COLOR.gold : COLOR.orange);
+            this.drawSlenderWindow(ctx, width, height, castleX, castleY, castleWidth, castleHeight, wx, 0.43, 0.016, 0.065, wOuter, wCore);
         }
-        // Outer bastion arrow slits
-        this.drawGothicWindow(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.095, 0.58, 0.025, 0.075, COLOR.rust, COLOR.gold);
-        this.drawGothicWindow(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.875, 0.58, 0.025, 0.075, COLOR.rust, COLOR.gold);
 
-        // 7. Foreground Twin-Towered Gatehouse & Barbican (Signature Defender of the Crown feature)
+        // West & East Watchtower vertical tiers of slender windows
+        for (let tier = 0; tier < 3; tier++) {
+            const wy = 0.40 + tier * 0.095;
+            const flicker = Math.sin(time * 9 + tier * 2.3) > 0.1;
+            const wOuter = flicker ? COLOR.orange : COLOR.rust;
+            const wCore = beatPulse > 0.5 ? COLOR.white : COLOR.gold;
+            this.drawSlenderWindow(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.215, wy, 0.016, 0.055, wOuter, wCore);
+            this.drawSlenderWindow(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.765, wy + 0.04, 0.016, 0.055, wOuter, wCore);
+        }
+        // Bastion arrow slits
+        this.drawSlenderWindow(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.132, 0.58, 0.012, 0.045, COLOR.rust, COLOR.gold);
+        this.drawSlenderWindow(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.842, 0.59, 0.012, 0.045, COLOR.rust, COLOR.gold);
+
+        // Foreground Twin-Drum Gatehouse Barbican (positioned at x: 0.39..0.55 above the viaduct bridge)
         this.drawCylinderTower(
             ctx, width, height, castleX, castleY, castleWidth, castleHeight,
-            0.35, 0.60, 0.10, 0.39, 0, 3, leftRim, rightRim
+            0.39, 0.55, 0.065, 0.22, 0, 3, leftRim, rightRim
         );
         this.drawCylinderTower(
             ctx, width, height, castleX, castleY, castleWidth, castleHeight,
-            0.55, 0.60, 0.10, 0.39, 0, 3, leftRim, rightRim
+            0.505, 0.55, 0.065, 0.22, 0, 3, leftRim, rightRim
         );
-        // Gatehouse central upper bridgehouse
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.43, 0.62, 0.14, 0.37, COLOR.stone);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.43, 0.60, 0.14, 0.022, COLOR.silver);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.445, 0.56, 0.07, 0.21, COLOR.stone);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.445, 0.55, 0.07, 0.014, leftRim);
 
-        // Recessed Stone Archway & Portcullis Gate
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.445, 0.74, 0.11, 0.25, COLOR.stoneLight);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.455, 0.76, 0.09, 0.23, COLOR.black);
-        // Warm interior courtyard firelight glowing through the gate
-        const gateGlow = beatPulse > 0.45 ? COLOR.gold : COLOR.orange;
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.465, 0.78, 0.07, 0.21, COLOR.rust);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.475, 0.80, 0.05, 0.19, gateGlow);
-        // Iron Portcullis Lattice & Spikes
-        for (let gx = 0.468; gx <= 0.528; gx += 0.018) {
-            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, gx, 0.77, 0.006, 0.16, COLOR.castle);
-        }
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.462, 0.81, 0.076, 0.012, COLOR.castle);
-        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.462, 0.86, 0.076, 0.012, COLOR.castle);
+        // Recessed Gothic Gatehouse Archway & Warm Courtyard Firelight
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.455, 0.64, 0.050, 0.13, COLOR.black);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.460, 0.65, 0.040, 0.12, COLOR.rust);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.466, 0.66, 0.028, 0.11, beatPulse > 0.4 ? COLOR.gold : COLOR.orange);
+        // Fine iron portcullis grate
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.474, 0.65, 0.004, 0.09, COLOR.castle);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.484, 0.65, 0.004, 0.09, COLOR.castle);
+        this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, 0.460, 0.68, 0.040, 0.008, COLOR.castle);
 
-        // 8. Blazing Tower Braziers on the Gatehouse & Watchtowers
-        const flamePulse = beatPulse * 0.024;
-        const flameFlicker = Math.sin(time * 12) * 0.006;
-        const flameH = Math.max(0.018, 0.038 + flamePulse + flameFlicker);
-        const flameCol = this.heavyPulse > 0.35
-            ? COLOR.cyan
-            : (beatPulse > 0.60 ? COLOR.white : (beatPulse > 0.28 ? COLOR.gold : COLOR.orange));
-
-        const brazierPositions = [0.17, 0.38, 0.60, 0.81];
-        for (let b = 0; b < brazierPositions.length; b++) {
-            const bx = brazierPositions[b];
-            const by = (b === 1 || b === 2) ? 0.57 : 0.30;
-            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, bx, by, 0.022, 0.022, COLOR.castle);
-            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, bx + 0.003, by - flameH, 0.016, flameH, COLOR.orange);
-            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, bx + 0.006, by - flameH * 0.75, 0.010, flameH * 0.75, flameCol);
-        }
-
-        // 9. Sculpted Rocky Crag / Cliff Promontory Base under the Castle
-        for (let c = 0; c < 9; c++) {
-            const cragX = 0.04 + c * 0.102;
-            const cragW = 0.115;
-            const cragY = 0.93 + ((c * 3) % 3) * 0.012;
-            const cragH = 0.08;
-            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, cragX, cragY, cragW * 0.35, cragH, leftRim);
-            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, cragX + cragW * 0.35, cragY, cragW * 0.40, cragH, COLOR.stone);
-            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, cragX + cragW * 0.75, cragY, cragW * 0.25, cragH, COLOR.black);
+        // Delicate Tapered Beacon Flames on the Barbican & Watchtowers
+        const flameBoost = beatPulse * 0.016;
+        const flameH = 0.022 + flameBoost + Math.sin(time * 13) * 0.004;
+        const tipCol = this.heavyPulse > 0.35 ? COLOR.cyan : COLOR.white;
+        const midFlameCol = beatPulse > 0.45 ? COLOR.gold : COLOR.orange;
+        const beacons = [
+            [0.218, 0.33],
+            [0.415, 0.54],
+            [0.530, 0.54],
+            [0.768, 0.38]
+        ];
+        for (let b = 0; b < beacons.length; b++) {
+            const [bx, by] = beacons[b];
+            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, bx - 0.004, by - flameH * 0.5, 0.014, flameH * 0.5, COLOR.rust);
+            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, bx - 0.002, by - flameH * 0.85, 0.010, flameH * 0.6, midFlameCol);
+            this.scaledRect(ctx, width, height, castleX, castleY, castleWidth, castleHeight, bx, by - flameH, 0.006, flameH * 0.4, tipCol);
         }
     }
 
     drawHills(ctx, width, height, baseline, time, tension) {
-        const step = Math.max(1, Math.ceil(width / 380));
-        const moatTop = Math.floor(baseline - height * 0.008);
-        const moatBottom = Math.min(height, Math.floor(baseline + height * 0.078));
+        const step = Math.max(1, Math.ceil(width / 360));
+        const lakeTop = Math.floor(baseline - height * 0.005);
+        const lakeBottom = Math.min(height, Math.floor(baseline + height * 0.145));
 
-        // 1. Distant Two-Tone Shaded Carpathian / Sherwood Mountain Peaks & Mid-Ground Forested Hills
+        // 1. Flanking Forested Valley Slopes (Left & Right Coulisse Hills framing the Castle Cliff)
         for (let x = 0; x < width; x += step) {
             const nx = x / Math.max(1, width);
-            const farWave1 = Math.sin(nx * Math.PI * 4 + 0.7);
-            const farSlope = Math.cos(nx * Math.PI * 4 + 0.7);
-            const farRise = farWave1 * height * 0.042 + Math.sin(nx * Math.PI * 9 + 1.4) * height * 0.016;
-            const farY = Math.floor(baseline - height * 0.095 + farRise);
 
-            // Mountain body + directional moonlit slope shading on ascending ridges
-            const mtnBodyCol = farSlope > 0.15 ? COLOR.midHill : COLOR.farHill;
-            const mtnRidgeCol = this.lightningTimer > 0
-                ? COLOR.white
-                : (farSlope > 0 ? COLOR.stoneLight : COLOR.stone);
-            this.rect(ctx, width, height, x, farY, step, height - farY, mtnBodyCol);
-            this.rect(ctx, width, height, x, farY, step, Math.max(2, Math.floor(height * 0.008)), mtnRidgeCol);
+            // Valley slopes dip low in the center (0.28..0.74) so the castle cliff & lake stand proud!
+            const valleyMask = nx < 0.32
+                ? Math.cos((nx / 0.32) * (Math.PI * 0.5))
+                : (nx > 0.70 ? Math.sin(((nx - 0.70) / 0.30) * (Math.PI * 0.5)) : 0);
 
-            // Mid-ground rolling hills
-            const nearRise = Math.sin(nx * Math.PI * 3 + 2.2) * height * 0.038
-                + Math.sin(nx * Math.PI * 7 + 0.5) * height * 0.014;
-            const nearY = Math.floor(baseline - height * 0.015 + nearRise);
-            this.rect(ctx, width, height, x, nearY, step, height - nearY, COLOR.midHill);
+            const hillUndulation = Math.sin(nx * Math.PI * 5 + 1.2) * height * 0.018;
+            const slopeY = Math.floor(baseline + height * 0.01 - valleyMask * height * 0.105 + hillUndulation);
 
-            // Lush Deluxe Paint Forest Canopy Silhouette along the hills flanking the castle
-            if (nx < 0.26 || nx > 0.74) {
-                const treeCluster = Math.abs(Math.sin(nx * 42) * Math.cos(nx * 19));
-                const canopyH = Math.max(3, Math.floor(height * (0.018 + treeCluster * 0.032)));
-                const treeTop = nearY - canopyH;
-                // Dark forest shadow base
-                this.rect(ctx, width, height, x, treeTop + 2, step, canopyH, COLOR.black);
-                // Mid-tone foliage volume
-                this.rect(ctx, width, height, x, treeTop + 1, step, Math.max(2, Math.floor(canopyH * 0.6)), COLOR.castle);
-                // Moonlit treetop foliage highlights
-                const tipCol = (Math.floor(x / step) & 1) === 0 ? COLOR.copperBlue : COLOR.stone;
-                this.rect(ctx, width, height, x, treeTop, step, 2, tipCol);
+            this.rect(ctx, width, height, x, slopeY, step, height - slopeY, COLOR.farHill);
+            this.rect(ctx, width, height, x, slopeY + 3, step, height - slopeY, COLOR.midHill);
+
+            // Pine & Deciduous Forest Treeline along the flanking valley ridges
+            if (valleyMask > 0.08) {
+                const treeWave = Math.abs(Math.sin(nx * 55) * Math.cos(nx * 23));
+                const treeH = Math.max(2, Math.floor(height * (0.015 + treeWave * 0.032) * valleyMask));
+                const treeTop = slopeY - treeH;
+                this.rect(ctx, width, height, x, treeTop + 2, step, treeH, COLOR.black);
+                this.rect(ctx, width, height, x, treeTop + 1, step, Math.max(1, Math.floor(treeH * 0.55)), COLOR.castle);
+                if ((Math.floor(x / step) & 1) === 0) {
+                    this.rect(ctx, width, height, x, treeTop, step, 2, COLOR.copperBlue);
+                }
             }
         }
 
-        // 2. Sculpted Castle Moat with Stone Embankments & BPLCON1 Scanline Water Reflections
-        if (moatBottom > moatTop + 2) {
-            const moatWidth = Math.floor(width * 0.84);
-            const moatLeft = Math.floor((width - moatWidth) / 2);
+        // 2. ORGANIC WINDING HIGHLAND LOCH / MOUNTAIN LAKE (Zero rectangular edges!)
+        if (lakeBottom > lakeTop + 2) {
+            for (let wy = lakeTop; wy < lakeBottom; wy++) {
+                const depth = (wy - lakeTop) / Math.max(1, lakeBottom - lakeTop);
 
-            // Far stone embankment wall
-            this.rect(ctx, width, height, moatLeft, moatTop - 3, moatWidth, 3, COLOR.stone);
-            this.rect(ctx, width, height, moatLeft, moatTop - 1, moatWidth, 1, COLOR.black);
-            // Deep moat water basin
-            this.rect(ctx, width, height, moatLeft, moatTop, moatWidth, moatBottom - moatTop, COLOR.black);
+                // Natural, asymmetrical curving left & right shorelines (bays, headlands, coves)
+                let leftShoreRatio = 0.10
+                    - Math.sin(depth * Math.PI * 1.35) * 0.065
+                    + Math.sin(depth * Math.PI * 3.8 + 0.6) * 0.045;
+                let rightShoreRatio = 0.86
+                    - depth * 0.07
+                    - Math.sin(depth * Math.PI * 2.6 + 0.4) * 0.065
+                    + Math.cos(depth * Math.PI * 4.2) * 0.030;
 
-            for (let wy = moatTop; wy < moatBottom; wy++) {
-                const depth = (wy - moatTop) / Math.max(1, moatBottom - moatTop);
-                const bplShift = Math.floor(Math.sin(wy * 0.85 + time * 7.2) * (1.5 + depth * 3.5));
-                const inset = Math.floor((1 - depth) * width * 0.04);
-                const rowLeft = moatLeft + inset;
-                const rowWidth = moatWidth - inset * 2;
+                // Smoothly round off the foreground cove shore at the bottom of the lake
+                if (depth > 0.82) {
+                    const closeT = (depth - 0.82) / 0.18;
+                    const curve = closeT * closeT;
+                    leftShoreRatio += curve * 0.24;
+                    rightShoreRatio -= curve * 0.26;
+                }
 
-                // Interleaved Copper water gradient
+                const lakeLeft = Math.floor(clamp(leftShoreRatio, 0.03, 0.45) * width);
+                const lakeRight = Math.floor(clamp(rightShoreRatio, 0.52, 0.96) * width);
+                const spanW = lakeRight - lakeLeft;
+                if (spanW <= 4) continue;
+
+                const bplShift = Math.floor(Math.sin(wy * 0.75 + time * 6.5) * (1.5 + depth * 3.0));
+
+                // Deep nocturnal water base + Copper scanline shimmer
+                this.rect(ctx, width, height, lakeLeft, wy, spanW, 1, COLOR.black);
                 if ((wy & 1) === 0) {
-                    const waterCol = depth < 0.4 ? COLOR.deepSky : (depth < 0.75 ? COLOR.blueSky : COLOR.indigo);
-                    this.rect(ctx, width, height, rowLeft, wy, rowWidth, 1, waterCol);
+                    const waterTone = depth < 0.35 ? COLOR.deepSky : (depth < 0.72 ? COLOR.blueSky : COLOR.indigo);
+                    this.rect(ctx, width, height, lakeLeft + 4, wy, Math.max(2, spanW - 8), 1, waterTone);
                 }
 
-                // Shimmering Moon Reflection Column on left moat
-                const moonRefX = Math.floor(width * 0.14 + bplShift);
-                const moonRefW = Math.max(2, Math.floor(width * 0.045 * (0.5 + depth * 0.5)));
-                const moonRefCol = tension > 0.72 ? COLOR.rust : ((wy & 1) === 0 ? COLOR.silver : COLOR.copperBlue);
-                this.rect(ctx, width, height, moonRefX, wy, moonRefW, 1, moonRefCol);
-
-                // Reflected Castle Tower Stonework & Warm Torchlit Windows in the water
-                const leftTowerRefX = Math.floor(width * 0.30 + bplShift);
-                const rightTowerRefX = Math.floor(width * 0.66 - bplShift);
-                this.rect(ctx, width, height, leftTowerRefX, wy, Math.max(2, Math.floor(width * 0.05)), 1, (wy & 1) ? COLOR.castle : COLOR.stone);
-                this.rect(ctx, width, height, rightTowerRefX, wy, Math.max(2, Math.floor(width * 0.05)), 1, (wy & 1) ? COLOR.castle : COLOR.stone);
-
-                if ((wy % 3) === 0) {
-                    this.rect(ctx, width, height, leftTowerRefX + 2, wy, Math.max(1, Math.floor(width * 0.015)), 1, COLOR.orange);
-                    this.rect(ctx, width, height, rightTowerRefX + 2, wy, Math.max(1, Math.floor(width * 0.015)), 1, COLOR.orange);
+                // A. Shimmering Moon Reflection Path in the Western Bay (x ~ 0.17..0.24)
+                const moonCenterX = Math.floor(width * 0.205 + bplShift * 1.3);
+                const moonRippleW = Math.max(2, Math.floor(width * (0.025 + depth * 0.035) * (0.7 + 0.3 * Math.sin(wy * 1.3 + time * 4))));
+                if (moonCenterX > lakeLeft + 4 && moonCenterX + moonRippleW < lakeRight - 4) {
+                    const mCol = tension > 0.74
+                        ? ((wy & 1) ? COLOR.orange : COLOR.rust)
+                        : ((wy & 1) ? COLOR.moon : COLOR.silver);
+                    this.rect(ctx, width, height, moonCenterX - Math.floor(moonRippleW * 0.5), wy, moonRippleW, 1, mCol);
                 }
 
-                // Reflected Gatehouse Golden Torchlight
-                const gateRefX = Math.floor(width * 0.47 + bplShift * 0.5);
-                this.rect(ctx, width, height, gateRefX, wy, Math.max(2, Math.floor(width * 0.06)), 1, (wy & 1) ? COLOR.gold : COLOR.rust);
+                // B. Reflected Castle Promontory & Golden Window Shimmers (following the asymmetric towers!)
+                if (depth < 0.78) {
+                    const donjonRefX = Math.floor(width * 0.61 + bplShift);
+                    const palasRefX = Math.floor(width * 0.46 - bplShift * 0.8);
+                    const westRefX = Math.floor(width * 0.27 + bplShift * 0.6);
 
-                // Active Firework Color Reflections on the water surface
-                if (this.leftGlow > 0.15) {
-                    const lx = Math.floor(width * 0.24 + bplShift * 1.5);
-                    this.rect(ctx, width, height, lx, wy, Math.max(2, Math.floor(width * 0.05)), 1, this.leftGlowColor);
+                    if ((wy & 1) === 1) {
+                        this.rect(ctx, width, height, donjonRefX, wy, Math.floor(width * 0.08), 1, COLOR.castle);
+                        this.rect(ctx, width, height, palasRefX, wy, Math.floor(width * 0.07), 1, COLOR.castle);
+                    }
+                    // Warm flickering window & gatehouse reflections on the water ripples
+                    if ((wy % 3) === 0) {
+                        const winRefCol = this.heavyPulse > 0.35 ? COLOR.cyan : COLOR.orange;
+                        this.rect(ctx, width, height, donjonRefX + Math.floor(width * 0.025), wy, Math.max(2, Math.floor(width * 0.022)), 1, winRefCol);
+                        this.rect(ctx, width, height, palasRefX + Math.floor(width * 0.02), wy, Math.max(2, Math.floor(width * 0.025)), 1, COLOR.gold);
+                        if (westRefX > lakeLeft + 6) {
+                            this.rect(ctx, width, height, westRefX, wy, Math.max(2, Math.floor(width * 0.015)), 1, COLOR.orange);
+                        }
+                    }
                 }
-                if (this.rightGlow > 0.15) {
-                    const rx = Math.floor(width * 0.72 - bplShift * 1.5);
-                    this.rect(ctx, width, height, rx, wy, Math.max(2, Math.floor(width * 0.05)), 1, this.rightGlowColor);
+
+                // C. Active Firework Reflection Ripples directly beneath each exploding burst!
+                for (let b = 0; b < this.bursts.length; b++) {
+                    const burst = this.bursts[b];
+                    if (!burst.active) continue;
+                    const age = time - burst.startTime;
+                    if (age >= 0.15 && age < burst.duration * 0.85 && ((wy + b) & 1) === 0) {
+                        const fx = Math.floor(burst.x * width + bplShift * 1.8);
+                        const fw = Math.max(2, Math.floor(width * 0.035 * (1 - age / burst.duration)));
+                        if (fx > lakeLeft + 3 && fx + fw < lakeRight - 3) {
+                            this.rect(ctx, width, height, fx - Math.floor(fw * 0.5), wy, fw, 1, burst.color);
+                        }
+                    }
                 }
+
+                // D. Natural Organic Shoreline Banks (Rock ledges, reeds & water-edge foam)
+                const bankW = Math.max(3, Math.floor(width * (0.022 + depth * 0.025)));
+                this.rect(ctx, width, height, lakeLeft - bankW, wy, bankW, 1, (wy & 1) ? COLOR.stone : COLOR.castle);
+                this.rect(ctx, width, height, lakeLeft, wy, Math.max(2, Math.floor(bankW * 0.35)), 1, COLOR.copperBlue);
+                this.rect(ctx, width, height, lakeRight - Math.max(2, Math.floor(bankW * 0.35)), wy, Math.max(2, Math.floor(bankW * 0.35)), 1, COLOR.indigo);
+                this.rect(ctx, width, height, lakeRight, wy, bankW, 1, (wy & 1) ? COLOR.castle : COLOR.black);
             }
         }
 
-        // 3. Textured Foreground Meadow & Rocky Outcrops (from moat shore to bottom of screen)
-        const fgTop = moatBottom;
-        if (fgTop < height) {
-            this.rect(ctx, width, height, 0, fgTop, width, height - fgTop, COLOR.farHill);
-            // Near moat stone embankment & rocky shore
-            this.rect(ctx, width, height, 0, fgTop, width, Math.max(2, Math.floor(height * 0.012)), COLOR.stone);
-            this.rect(ctx, width, height, 0, fgTop + Math.max(2, Math.floor(height * 0.012)), width, 2, COLOR.black);
+        // 3. Mid-Ground Headland Silhouettes & Pine Promontories jutting into the Loch
+        const leftHeadlandY = Math.floor(lakeTop + (lakeBottom - lakeTop) * 0.46);
+        const rightHeadlandY = Math.floor(lakeTop + (lakeBottom - lakeTop) * 0.34);
+        this.rect(ctx, width, height, 0, leftHeadlandY, Math.floor(width * 0.16), 5, COLOR.black);
+        this.rect(ctx, width, height, Math.floor(width * 0.04), leftHeadlandY - 2, Math.floor(width * 0.11), 2, COLOR.stone);
+        this.rect(ctx, width, height, Math.floor(width * 0.81), rightHeadlandY, Math.floor(width * 0.19), 5, COLOR.black);
+        this.rect(ctx, width, height, Math.floor(width * 0.82), rightHeadlandY - 2, Math.floor(width * 0.12), 2, COLOR.castle);
 
-            // Dithered Deluxe Paint turf/rock horizontal strata bands
-            const bandStep = Math.max(2, Math.floor((height - fgTop) / 14));
-            for (let fy = fgTop + 4; fy < height; fy += bandStep) {
-                const rel = (fy - fgTop) / Math.max(1, height - fgTop);
-                const turfCol = rel < 0.35 ? COLOR.castle : (rel < 0.7 ? COLOR.midHill : COLOR.black);
-                this.rect(ctx, width, height, 0, fy, width, Math.max(1, Math.floor(bandStep * 0.55)), turfCol);
+        // 4. Foreground Repoussoir Framing Slopes (Organic sloping meadows & rocky bluffs, NO rectangular stairs!)
+        for (let x = 0; x < width; x += step) {
+            const nx = x / Math.max(1, width);
+            const leftBluff = nx < 0.36 ? Math.pow(1 - nx / 0.36, 1.5) * height * 0.12 : 0;
+            const rightBluff = nx > 0.62 ? Math.pow((nx - 0.62) / 0.38, 1.4) * height * 0.14 : 0;
+            const fgWave = Math.sin(nx * Math.PI * 6 + 0.8) * height * 0.008;
+            const fgTopY = Math.floor(lakeBottom - leftBluff - rightBluff + fgWave);
 
-                // Moonlit rock outcrops on left & right foreground banks
-                const rockW = Math.floor(width * (0.12 + rel * 0.14));
-                this.rect(ctx, width, height, Math.floor(width * 0.04), fy, rockW, 2, COLOR.stone);
-                this.rect(ctx, width, height, Math.floor(width * 0.96 - rockW), fy, rockW, 2, COLOR.stone);
-            }
+            this.rect(ctx, width, height, x, fgTopY, step, height - fgTopY, COLOR.black);
+            this.rect(ctx, width, height, x, fgTopY, step, 3, (nx < 0.45) ? COLOR.stone : COLOR.castle);
+            this.rect(ctx, width, height, x, fgTopY + 3, step, Math.max(2, Math.floor((height - fgTopY) * 0.35)), COLOR.farHill);
         }
 
-        // 4. Atmospheric Rolling Mist Drifting over the Moat
+        // 5. Soft Drifting Highland Mist Wisps over the Loch
         for (let m = 0; m < 2; m++) {
-            const mistSpeed = m === 0 ? 0.022 : -0.016;
-            const mistY = Math.floor(baseline + height * (0.012 + m * 0.038));
+            const mistSpeed = m === 0 ? 0.018 : -0.014;
+            const mistY = Math.floor(lakeTop + (lakeBottom - lakeTop) * (0.22 + m * 0.35));
             const mistOffset = Math.floor(time * width * mistSpeed);
-            for (let mx = 0; mx < width; mx += 10) {
+            for (let mx = Math.floor(width * 0.14); mx < Math.floor(width * 0.84); mx += 12) {
                 const px = ((mx + mistOffset) % width + width) % width;
-                const wave = Math.sin(mx * 0.04 + time * 2.2 + m) * 2;
-                const mistCol = (m + Math.floor(time)) % 2 === 0 ? COLOR.copperBlue : COLOR.stone;
-                this.rect(ctx, width, height, px, Math.floor(mistY + wave), 6, 1, mistCol);
+                if (px > width * 0.14 && px < width * 0.82) {
+                    const wave = Math.sin(mx * 0.05 + time * 2.0 + m) * 2;
+                    this.rect(ctx, width, height, px, Math.floor(mistY + wave), 7, 1, COLOR.copperBlue);
+                }
             }
         }
     }
 
     drawPath(ctx, width, height, time, tension, beatPulse) {
         const startY = Math.floor(height * 0.72);
-        const moatEndY = Math.floor(height * 0.798);
-        const maxWidth = Math.max(1, Math.floor(Math.min(width * 0.26, height * 0.21)));
+        const lakeEndY = Math.floor(height * 0.855);
+        const maxWidth = Math.max(2, Math.floor(Math.min(width * 0.24, height * 0.20)));
         const rowStep = Math.max(1, Math.ceil(height / 240));
 
-        // 1. Stone Bridge Piers & Dark Archways spanning the Moat
-        if (moatEndY > startY + 2) {
-            const bridgeTopW = Math.max(4, Math.floor(maxWidth * 0.34));
-            const bridgeX = Math.floor(width * 0.5 - bridgeTopW * 0.65);
-            const bridgeW = Math.floor(bridgeTopW * 1.3);
-            const bridgeH = moatEndY - startY;
+        // 1. MULTI-ARCH STONE VIADUCT BRIDGE spanning across the Highland Loch
+        if (lakeEndY > startY + 4) {
+            const bridgeSpanH = lakeEndY - startY;
+            const archCount = 3;
+            for (let a = 0; a < archCount; a++) {
+                const t0 = a / archCount;
+                const t1 = (a + 0.65) / archCount;
+                const ay = Math.floor(startY + t0 * bridgeSpanH);
+                const ah = Math.max(2, Math.floor((t1 - t0) * bridgeSpanH));
+                const depth = (ay - startY) / Math.max(1, height - startY);
 
-            // Stone bridge masonry spandrel
-            this.rect(ctx, width, height, bridgeX, startY, bridgeW, bridgeH, COLOR.stone);
-            this.rect(ctx, width, height, bridgeX, startY, Math.max(2, Math.floor(bridgeW * 0.25)), bridgeH, COLOR.stoneLight);
-            // Twin dark bridge arches over the water
-            const archW = Math.max(2, Math.floor(bridgeW * 0.26));
-            const archH = Math.max(2, Math.floor(bridgeH * 0.65));
-            this.rect(ctx, width, height, bridgeX + Math.floor(bridgeW * 0.16), startY + bridgeH - archH, archW, archH, COLOR.black);
-            this.rect(ctx, width, height, bridgeX + Math.floor(bridgeW * 0.58), startY + bridgeH - archH, archW, archH, COLOR.black);
+                // Follow the S-curve causeway trajectory
+                const sCurve = Math.sin(depth * Math.PI * 1.85 - 0.35) * maxWidth * 0.38;
+                const bWidth = Math.max(4, Math.floor(maxWidth * (0.20 + depth * 0.72)));
+                const center = Math.floor(width * 0.48 + sCurve);
+                const pierLeft = Math.floor(center - bWidth * 0.58);
+                const pierTotalW = Math.floor(bWidth * 1.16);
+
+                // Sun/Moonlit Stone Bridge Piers & Spandrel Wall dipping into the water
+                this.rect(ctx, width, height, pierLeft, ay, pierTotalW, ah + 3, COLOR.stone);
+                this.rect(ctx, width, height, pierLeft, ay, Math.max(2, Math.floor(pierTotalW * 0.24)), ah + 3, COLOR.stoneLight);
+                this.rect(ctx, width, height, pierLeft + Math.floor(pierTotalW * 0.76), ay, Math.max(2, Math.floor(pierTotalW * 0.24)), ah + 3, COLOR.castle);
+
+                // Dark Open Viaduct Archway (shows the dark lake water & shimmer underneath!)
+                const archOpenW = Math.max(2, Math.floor(pierTotalW * 0.44));
+                const archOpenX = pierLeft + Math.floor((pierTotalW - archOpenW) * 0.5);
+                this.rect(ctx, width, height, archOpenX, ay + 2, archOpenW, Math.max(1, ah), COLOR.black);
+                this.rect(ctx, width, height, archOpenX + 1, ay + Math.max(2, ah), Math.max(1, archOpenW - 2), 1, COLOR.copperBlue);
+            }
         }
 
-        // 2. Winding Cobblestone Causeway with Perspective Stone Courses & Parapet Curbs
+        // 2. GRACEFUL S-CURVE COBBLESTONE CAUSEWAY & PARAPET WALLS
         for (let y = Math.max(0, startY); y < height; y += rowStep) {
             const depth = (y - startY) / Math.max(1, height - startY);
-            const isBridge = y < moatEndY;
-            const sway = Math.sin(depth * Math.PI * 2.1) * maxWidth * 0.20;
-            const pathWidth = Math.max(2, Math.floor(maxWidth * (0.24 + depth * 0.76)));
-            const center = Math.floor(width * 0.5 + sway);
+            const sCurve = Math.sin(depth * Math.PI * 1.85 - 0.35) * maxWidth * 0.38;
+            const pathWidth = Math.max(2, Math.floor(maxWidth * (0.18 + Math.pow(depth, 1.1) * 0.82)));
+            const center = Math.floor(width * 0.48 + sCurve);
             const leftEdge = Math.floor(center - pathWidth / 2);
-            const curbW = Math.max(1, Math.floor(pathWidth * 0.09));
+            const curbW = Math.max(1, Math.floor(pathWidth * 0.10));
 
-            // Outer stone parapet / curbstone walls (lit left curb, shadowed right curb)
-            this.rect(ctx, width, height, leftEdge - curbW, y, curbW, rowStep, COLOR.silver);
-            this.rect(ctx, width, height, leftEdge + pathWidth, y, curbW, rowStep, COLOR.castle);
+            // Crenellated Stone Bridge Parapet Walls (lit left wall, shadowed right wall)
+            const isMerlon = (Math.floor((y - startY) / (rowStep * 2)) & 1) === 0;
+            this.rect(ctx, width, height, leftEdge - curbW, y, curbW, rowStep, isMerlon ? COLOR.silver : COLOR.stoneLight);
+            this.rect(ctx, width, height, leftEdge + pathWidth, y, curbW, rowStep, isMerlon ? COLOR.stone : COLOR.castle);
 
-            // Base cobblestone roadbed
+            // Base Cobblestone Roadbed
             const courseIdx = Math.floor((y - startY) / (rowStep * 2));
             const baseStoneCol = (courseIdx & 1) === 0 ? COLOR.stone : COLOR.castle;
             this.rect(ctx, width, height, leftEdge, y, pathWidth, rowStep, baseStoneCol);
 
-            // Individual perspective cobblestone blocks across the road width
+            // Subtle Perspective Cobblestone Courses (natural stone shades, no neon yellow road stripes!)
             if (pathWidth >= 8) {
                 const stones = 4;
                 const stoneW = Math.floor(pathWidth / stones);
                 const stagger = (courseIdx & 1) === 0 ? 0 : Math.floor(stoneW * 0.45);
                 for (let s = 0; s < stones; s++) {
                     const sx = leftEdge + s * stoneW + stagger;
-                    if (sx + stoneW * 0.7 < leftEdge + pathWidth) {
-                        const cobbleCol = s === 0 ? COLOR.stoneLight : (s === stones - 1 ? COLOR.castle : COLOR.stone);
-                        this.rect(ctx, width, height, sx, y, Math.max(1, Math.floor(stoneW * 0.72)), rowStep, cobbleCol);
+                    if (sx + stoneW * 0.72 < leftEdge + pathWidth) {
+                        const cobbleCol = s === 0 ? COLOR.stoneLight : (s === stones - 1 ? COLOR.midHill : COLOR.stone);
+                        this.rect(ctx, width, height, sx, y, Math.max(1, Math.floor(stoneW * 0.70)), rowStep, cobbleCol);
                     }
                 }
             }
 
-            // Wooden Drawbridge Planks at the top of the bridge
-            if (isBridge && depth < 0.16) {
+            // Wooden Drawbridge Planks at the Gatehouse entrance
+            if (depth < 0.11) {
                 const plankCol = (courseIdx & 1) === 0 ? COLOR.rust : COLOR.blood;
                 this.rect(ctx, width, height, leftEdge + 1, y, Math.max(1, pathWidth - 2), rowStep, plankCol);
-            } else if (pathWidth > 4) {
-                // Center cobblestone crown highlight (pulses gold/cyan on heavy beats)
-                const crownCol = (this.heavyPulse > 0.38 && (courseIdx % 3 === 0))
-                    ? COLOR.cyan
-                    : ((tension > 0.70 && (courseIdx % 4 === 0)) ? COLOR.gold : COLOR.stoneLight);
-                this.rect(ctx, width, height, center - 1, y, 2, rowStep, crownCol);
             }
         }
 
-        // 3. Wrought-Iron Cresset Torches & Warm Cobblestone Light Pools
+        // 3. Wrought-Iron Bridge Lanterns & Cobblestone Torchlight Pools
         for (let t = 0; t < TORCH_DEPTHS.length; t++) {
             const depth = TORCH_DEPTHS[t];
             const y = Math.floor(startY + depth * (height - startY));
-            const sway = Math.sin(depth * Math.PI * 2.1) * maxWidth * 0.20;
-            const pathWidth = Math.max(2, Math.floor(maxWidth * (0.24 + depth * 0.76)));
+            const sCurve = Math.sin(depth * Math.PI * 1.85 - 0.35) * maxWidth * 0.38;
+            const pathWidth = Math.max(2, Math.floor(maxWidth * (0.18 + Math.pow(depth, 1.1) * 0.82)));
+            const center = Math.floor(width * 0.48 + sCurve);
             const primarySide = (t & 1) === 0 ? -1 : 1;
 
-            const sides = tension > 0.52 ? 2 : 1;
+            const sides = tension > 0.55 ? 2 : 1;
             for (let s = 0; s < sides; s++) {
                 const side = s === 0 ? primarySide : -primarySide;
-                const torchX = Math.floor(width * 0.5 + sway + side * (pathWidth / 2 + 4));
-                const postH = Math.max(5, Math.floor(5 + depth * 5));
+                const torchX = Math.floor(center + side * (pathWidth / 2 + 2));
+                const postH = Math.max(4, Math.floor(4 + depth * 5));
 
-                // Multi-ring warm torchlight pool cast onto the cobblestones
-                const poolX = Math.floor(torchX - side * (4 + depth * 5));
-                const poolW = Math.max(3, Math.floor(4 + depth * 6 + beatPulse * 3));
-                this.rect(ctx, width, height, poolX - 1, y - 1, poolW + 2, 3, COLOR.wine);
-                this.rect(ctx, width, height, poolX, y, poolW, 2, COLOR.rust);
-                this.rect(ctx, width, height, poolX + 1, y, Math.max(1, poolW - 2), 1, beatPulse > 0.4 ? COLOR.gold : COLOR.orange);
+                // Soft warm torchlight pool on the cobblestones inside the bridge
+                const poolW = Math.max(2, Math.floor(3 + depth * 4 + beatPulse * 2));
+                const poolX = side < 0 ? torchX + 2 : torchX - poolW - 1;
+                this.rect(ctx, width, height, poolX, y, poolW, Math.max(1, rowStep), COLOR.rust);
+                if (beatPulse > 0.35) {
+                    this.rect(ctx, width, height, poolX + 1, y, Math.max(1, poolW - 2), 1, COLOR.orange);
+                }
 
-                // Wrought-iron pillar & cresset basket
-                this.rect(ctx, width, height, torchX, y - postH, 2, postH + 2, COLOR.black);
-                this.rect(ctx, width, height, torchX, y - postH, 1, postH, COLOR.stone);
-                this.rect(ctx, width, height, torchX - 2, y - postH - 2, 6, 2, COLOR.castle);
+                // Wrought-iron lantern post
+                this.rect(ctx, width, height, torchX, y - postH, 2, postH + 1, COLOR.black);
                 this.rect(ctx, width, height, torchX - 1, y - postH - 1, 4, 1, COLOR.stoneLight);
 
-                // Layered 3-tone dancing flame reactive to beatLevel & beatPulse
-                const flamePulse = beatPulse * 3.5 + this.heavyPulse * 2.5;
-                const flameFlicker = Math.sin(time * 13 + t * 3.5 + s * 2) * 1.5;
-                const flameH = Math.max(3, Math.floor(4 + depth * 2 + flamePulse + flameFlicker));
+                // Tapered pixel flame reactive to beatLevel & beatPulse
+                const flamePulse = beatPulse * 3.0 + this.heavyPulse * 2.0;
+                const flameFlicker = Math.sin(time * 13 + t * 3.5 + s * 2) * 1.2;
+                const flameH = Math.max(2, Math.floor(3 + depth * 2 + flamePulse + flameFlicker));
                 const outerFlame = this.heavyPulse > 0.4 ? COLOR.magenta : COLOR.orange;
                 const innerFlame = this.heavyPulse > 0.4
                     ? COLOR.cyan
                     : (beatPulse > 0.5 ? COLOR.white : COLOR.gold);
 
-                this.rect(ctx, width, height, torchX - 1, y - postH - 2 - flameH, 4, flameH, outerFlame);
-                this.rect(ctx, width, height, torchX, y - postH - 1 - Math.floor(flameH * 0.75), 2, Math.max(1, Math.floor(flameH * 0.75)), innerFlame);
-                this.rect(ctx, width, height, torchX, y - postH - 3 - flameH, 1, 1, COLOR.white);
+                this.rect(ctx, width, height, torchX - 1, y - postH - 1 - Math.floor(flameH * 0.7), 3, Math.max(1, Math.floor(flameH * 0.7)), outerFlame);
+                this.rect(ctx, width, height, torchX, y - postH - 1 - flameH, 1, flameH, innerFlame);
             }
         }
     }
@@ -1297,7 +1310,7 @@ export class AmigaCastleFireworks {
             ? clamp(metrics.tensionPct, 0, 1)
             : fallbackTension;
         this.tension += (requestedTension - this.tension) * Math.min(1, dt * 2.5);
-        this.copperPhase += dt * (2.6 + this.tension * 3.8 + this.beatPulse * 2.2);
+        this.copperPhase += dt * (2.2 + this.tension * 3.4 + this.beatPulse * 2.0);
 
         const rawBeatCount = Number.isFinite(metrics?.beatCount)
             ? Math.max(0, Math.floor(metrics.beatCount))
@@ -1359,7 +1372,7 @@ export class AmigaCastleFireworks {
             ? clamp(metrics.beatImpulse[0], 0, 1)
             : this.beatPulse;
 
-        // Compute directional firework illumination for 3D cylindrical tower & water reflections
+        // Compute directional firework illumination for 3D cylindrical tower & lake reflections
         let maxGlow = 0;
         let glowColor = COLOR.stoneLight;
         this.leftGlow = 0;
@@ -1388,13 +1401,13 @@ export class AmigaCastleFireworks {
 
         const horizon = Math.floor(height * 0.72);
         const minDim = Math.min(width, height);
-        const castleWidth = Math.max(1, Math.min(width * 0.92, minDim * 0.80));
-        const castleHeight = Math.max(1, Math.min(height * 0.50, minDim * 0.84));
+        const castleWidth = Math.max(1, Math.min(width * 0.92, minDim * 0.82));
+        const castleHeight = Math.max(1, Math.min(height * 0.52, minDim * 0.86));
         const baseline = Math.floor(height * 0.72);
         const castleX = Math.floor((width - castleWidth) / 2);
         const castleY = Math.floor(baseline - castleHeight);
 
-        // Render painted world & embedded Amiga effects back-to-front
+        // Render Romantic painted world & embedded Amiga effects back-to-front
         this.drawSky(ctx, width, height, time, this.tension, beatImpulse);
         this.drawLightning(ctx, width, height);
         this.drawBats(ctx, width, height, time);
