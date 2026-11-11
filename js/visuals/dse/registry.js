@@ -27,6 +27,7 @@ import { YmSiliconBg } from './atari/ym-silicon-bg.js';
 import { C64VectorStar } from './c64/vector-star.js';
 import { C64CastleFireworks } from './c64/castle-fireworks.js';
 import { AmigaCastleFireworks } from './amiga/castle-fireworks.js';
+import { AtariEnchantedCastle } from './atari/enchanted-castle.js';
 
 // =========================================================
 // FLUENT BUILDER PATTERN (1 Funktion je Attribut)
@@ -128,6 +129,14 @@ export const dseRegistry = [
 
     RegisterDSE(AmigaCastleFireworks)
         .systems('amiga')
+        .layer('background')
+        .weight(12)
+        .duration(15.0)
+        .climaxHold(12.0)
+        .build(),
+
+    RegisterDSE(AtariEnchantedCastle)
+        .systems('atari')
         .layer('background')
         .weight(12)
         .duration(15.0)
