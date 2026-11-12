@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.5.9)
+# 💾 CHIPTUNES FANTASY (v1.5.10)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -13,6 +13,30 @@ A real Commodore 64, Amiga 500, or Atari ST could *never* execute a cycle-exact 
 
 But memory paints the past grander than it actually was. **This is our Fantasy.**
 Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with ruthless historical accuracy (strict hardware palettes, true bit-banged integer math, zero anti-aliasing). Our `Scene-DJ` then acts as the ultimate virtual orchestrator, taking these isolated, period-accurate effects and layering them into a breathtaking, synchronized demoscene experience that feels *exactly* like our childhood memories.
+
+---
+
+## 🚀 v1.5.10 Release Highlights
+
+Version 1.5.10 expands the synchronized castle DSEs across all three retro systems: it adds **Amiga Castle Fireworks**, reimagines the **Atari Enchanted Castle** as a gothic storm scene, and refines the existing **C64 Castle Fireworks**. The Paula silicon visualization also receives a more compact output-stage layout.
+
+### Three system-specific castle scenes
+
+- **Amiga Castle Fireworks (`AmigaCastleFireworks`):** A new Amiga-only background DSE with a Gothic citadel, moonlit loch, stone viaduct, and beat-responsive fireworks, lightning, and atmospheric effects. Its bounded palette is quantized to Amiga 12-bit OCS colors.
+- **Atari Enchanted Castle (`AtariEnchantedCastle`):** A dark Atari ST castle-and-storm scene with a strict 16-color, 9-bit Shifter palette, precomputed ridge geometry, and beat-graded effects.
+- **C64 Castle Fireworks (`C64CastleFireworks`):** Refined castle, roof, and shoreline details, with scene choreography responding to beat strength and musical tension.
+- Each castle is registered only as a background for its corresponding system; the other systems' setlists remain separate.
+
+### Paula silicon output-stage layout
+
+- Compacts and shifts the filter-response windows to better fit the output-stage diagram.
+- Simplifies the FIFO status labels while preserving the live channel/fetch status.
+
+### Release validation status
+
+The focused command `node --test test/amiga-castle-fireworks.test.mjs test/atari-enchanted-castle.test.mjs test/c64-castle-fireworks.test.mjs test/paula-visualizer.test.mjs` currently reports **23 passing and 4 failing tests**. The failing assertions cover Amiga macro-state/tension choreography, Atari beat grading and macro-state choreography, and the Atari ordered-dither fade test in Node without a `document` global. Resolve or explicitly disposition these failures before treating the release as fully validated.
+
+Copy-ready GitHub texts are included for the [v1.5.10 pull request](doc/releases/v1.5.10-PR-Text.md) and [v1.5.10 release](doc/releases/v1.5.10-Release-Text.md). Earlier release highlights remain below as historical records.
 
 ---
 
