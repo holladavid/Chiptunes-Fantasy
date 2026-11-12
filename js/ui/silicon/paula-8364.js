@@ -187,7 +187,7 @@ export class Paula8364 extends BaseChip {
         setGlow(this.cache.coreBlock, activeChannelCount > 0 ? 0.55 + totalOut * 0.45 : 0.25);
 
         if (this.cache.fifoStatus) {
-            const fifoTxt = activeChannelCount > 0 ? `FIFO: ${activeChannelCount}CH WORD-FETCH` : 'FIFO: STANDBY';
+            const fifoTxt = activeChannelCount > 0 ? `FIFO ${activeChannelCount}CH FETCH` : 'FIFO STANDBY';
             if (this.cache.fifoStatus.textContent !== fifoTxt) {
                 this.cache.fifoStatus.textContent = fifoTxt;
             }
@@ -234,11 +234,11 @@ export class Paula8364 extends BaseChip {
 
             // Morph Filter Response Curve between 3.09kHz 12dB Butterworth Roll-Off and Flat Passband
             const curveL = filterOn
-                ? 'M 684 122 L 722 122 Q 736 122 744 132 L 764 143'
-                : 'M 684 122 L 752 122 Q 760 122 764 128';
+                ? 'M 708 122 L 735 122 Q 744 122 750 132 L 764 143'
+                : 'M 708 122 L 756 122 Q 761 122 764 128';
             const curveR = filterOn
-                ? 'M 684 176 L 722 176 Q 736 176 744 186 L 764 197'
-                : 'M 684 176 L 752 176 Q 760 176 764 182';
+                ? 'M 708 176 L 735 176 Q 744 176 750 186 L 764 197'
+                : 'M 708 176 L 756 176 Q 761 176 764 182';
 
             if (this.cache.filtCurveL) this.cache.filtCurveL.setAttribute('d', curveL);
             if (this.cache.filtCurveR) this.cache.filtCurveR.setAttribute('d', curveR);
@@ -399,7 +399,7 @@ export class Paula8364 extends BaseChip {
                     <rect x="383" y="154" width="88" height="42" rx="1" fill="var(--chassis-dark)" stroke="var(--text-color)" stroke-width="0.6" />
                     <text x="427" y="166" class="paula-channel-registers" fill="var(--text-color)" text-anchor="middle">AUDxDAT DEMUX</text>
                     <text x="427" y="178" class="paula-channel-state" fill="var(--highlight-color)" text-anchor="middle">16B -&gt; HI/LO 8B</text>
-                    <text x="427" y="190" class="paula-channel-registers paula-fifo-status" fill="var(--text-color)" text-anchor="middle">FIFO: STANDBY</text>
+                    <text x="427" y="190" class="paula-channel-registers paula-fifo-status" fill="var(--text-color)" text-anchor="middle">FIFO STANDBY</text>
                 </g>
 
                 <!-- =========================================================
@@ -435,8 +435,8 @@ export class Paula8364 extends BaseChip {
                     <rect x="568" y="137" width="96" height="5" fill="var(--chassis-dark)" />
                     <rect class="paula-filt-bar-l" x="568" y="137" width="0" height="5" fill="var(--highlight-color)" />
                     <!-- Mini Filter Response Curve Window -->
-                    <rect x="680" y="110" width="88" height="34" rx="1" fill="var(--chassis-dark)" stroke="var(--text-color)" stroke-width="0.6" />
-                    <path class="paula-filt-curve-l" d="M 684 122 L 722 122 Q 736 122 744 132 L 764 143" fill="none" stroke="var(--highlight-color)" stroke-width="1.4" />
+                    <rect x="704" y="110" width="64" height="34" rx="1" fill="var(--chassis-dark)" stroke="var(--text-color)" stroke-width="0.6" />
+                    <path class="paula-filt-curve-l" d="M 708 122 L 735 122 Q 744 122 750 132 L 764 143" fill="none" stroke="var(--highlight-color)" stroke-width="1.4" />
                 </g>
 
                 <!-- Stage 6C: Right 3.09kHz 12dB/oct Butterworth LED Filter -->
@@ -447,8 +447,8 @@ export class Paula8364 extends BaseChip {
                     <rect x="568" y="191" width="96" height="5" fill="var(--chassis-dark)" />
                     <rect class="paula-filt-bar-r" x="568" y="191" width="0" height="5" fill="var(--highlight-color)" />
                     <!-- Mini Filter Response Curve Window -->
-                    <rect x="680" y="164" width="88" height="34" rx="1" fill="var(--chassis-dark)" stroke="var(--text-color)" stroke-width="0.6" />
-                    <path class="paula-filt-curve-r" d="M 684 176 L 722 176 Q 736 176 744 186 L 764 197" fill="none" stroke="var(--highlight-color)" stroke-width="1.4" />
+                    <rect x="704" y="164" width="64" height="34" rx="1" fill="var(--chassis-dark)" stroke="var(--text-color)" stroke-width="0.6" />
+                    <path class="paula-filt-curve-r" d="M 708 176 L 735 176 Q 744 176 750 186 L 764 197" fill="none" stroke="var(--highlight-color)" stroke-width="1.4" />
                 </g>
 
                 <!-- Clean RCA Output Arrows Exiting Right Edge of Filter Stages -->
