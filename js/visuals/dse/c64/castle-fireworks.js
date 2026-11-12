@@ -1,15 +1,15 @@
 // === js/visuals/dse/c64/castle-fireworks.js ===
 // =========================================================
 // DEMO-SCENE-ELEMENT: C64 CASTLE FIREWORKS (Background DSE)
-// Masterpiece Edition: Golden Ratio composition & Bob Ross
-// landscape layering meets Castlevania C64 pixel art.
-// - Distant Carpathian mountains with directional moonlight
-// - Asymmetric Dracula Citadel + Clock Tower + Viaduct flush
-//   on the horizon (floorHorizon = 0.55, no hard horizon line)
-// - Shimmering moonlit mountain stream & waterfall on the left
-// - Winding cobblestone road with beat-chasing torch posts
-// - Repoussoir gnarled foreground oak & layered evergreens
-// - 3-tier beat-synced fireworks, vampire bats & lightning
+// Masterpiece Edition v2: Pixel-perfect Gothic contours,
+// Golden Ratio composition & Bob Ross landscape layering.
+// - Exact integer-grid towers & concave Gothic spires with
+//   unbroken 1-pixel silhouettes and corbelled parapets
+// - Distant Carpathian mountains with unified ridge contours
+// - Viaduct waterfall & stream reflecting moonlight & fireworks
+// - Aspect-ratio-locked cobblestone road & chaser torches
+// - Physically accurate directional moonlight from upper-left
+// - 3-tier beat-synced fireworks, 8-sprite bats & lightning
 // Strict C64 VIC-II 16-color palette, 100% zero-GC render loop.
 // =========================================================
 
@@ -35,11 +35,11 @@ const COLORS = {
 };
 
 const STAR_POSITIONS = [
-    [0.05, 0.08], [0.11, 0.26], [0.24, 0.06], [0.31, 0.18],
-    [0.38, 0.07], [0.46, 0.22], [0.53, 0.06], [0.64, 0.14],
-    [0.71, 0.08], [0.79, 0.22], [0.88, 0.09], [0.95, 0.25],
-    [0.08, 0.39], [0.21, 0.34], [0.36, 0.31], [0.68, 0.33],
-    [0.84, 0.35], [0.93, 0.41], [0.14, 0.46], [0.89, 0.48]
+    [0.05, 0.08], [0.11, 0.24], [0.25, 0.06], [0.32, 0.17],
+    [0.39, 0.07], [0.46, 0.21], [0.53, 0.05], [0.64, 0.13],
+    [0.72, 0.07], [0.80, 0.20], [0.88, 0.09], [0.95, 0.24],
+    [0.09, 0.37], [0.22, 0.33], [0.36, 0.30], [0.69, 0.31],
+    [0.85, 0.34], [0.93, 0.40], [0.14, 0.44], [0.90, 0.47]
 ];
 
 // True unmasked crescent moon pixel rows: [offsetX, totalWidth, highlightWidth]
@@ -55,16 +55,16 @@ const CRESCENT_ROWS = [
     [3, 3, 1]
 ];
 
-// Bob Ross distant Carpathian peaks: [peakXRatio, heightRatioOfHorizon, halfSpanRatio]
+// Distant Carpathian peaks: [peakXRatio, heightRatioOfHorizon, halfSpanRatio]
 const MOUNTAIN_PEAKS = [
-    [0.10, 0.30, 0.14],
-    [0.26, 0.48, 0.19],
-    [0.44, 0.34, 0.16],
-    [0.76, 0.42, 0.18],
-    [0.91, 0.28, 0.14]
+    [0.10, 0.28, 0.14],
+    [0.25, 0.47, 0.18],
+    [0.43, 0.33, 0.15],
+    [0.77, 0.43, 0.18],
+    [0.91, 0.29, 0.14]
 ];
 
-// 4 Clock hand offsets [dx, dy] in clock-radius units
+// 4 Clock hand offsets [dx, dy] around center
 const CLOCK_HANDS = [
     [0, -1],
     [1, 0],
@@ -106,6 +106,11 @@ export class C64CastleFireworks {
         this.placementType = 'background';
         this.floorHorizon = 0.55; // Horizont exakt auf Floor-DSE-Ebene (55%)
         this.floorY = 0;
+        this.horizonRow = 55;
+        this.totalCols = 160;
+        this.gateCol = 75;
+        this.viaductArchCol = 45;
+
         this.lastT = 0;
         this.lastBeatCount = -1;
         this.cloudOffset = 0;
@@ -160,6 +165,21 @@ export class C64CastleFireworks {
         return Math.floor(value / this.pixelSize + 0.5) * this.pixelSize;
     }
 
+    // Exact integer-grid rectangle filler (Zero sub-pixel rounding artifacts!)
+    gridRect(ctx, col, row, wCols, hRows, color) {
+        if (wCols <= 0 || hRows <= 0) return;
+        const u = this.pixelSize;
+        const x = col * u;
+        const y = row * u;
+        const right = Math.min(this.width, x + wCols * u);
+        const bottom = Math.min(this.height, y + hRows * u);
+        const cx = Math.max(0, x);
+        const cy = Math.max(0, y);
+        if (right <= cx || bottom <= cy) return;
+        ctx.fillStyle = color;
+        ctx.fillRect(cx, cy, right - cx, bottom - cy);
+    }
+
     rect(ctx, x, y, width, height, color) {
         const px = this.snap(x);
         const py = this.snap(y);
@@ -176,35 +196,166 @@ export class C64CastleFireworks {
         ctx.fillRect(clippedX, clippedY, pw, ph);
     }
 
-    castleRect(ctx, left, top, cw, ch, x1, y1, w, h, color) {
-        this.rect(ctx, left + cw * x1, top + ch * y1, cw * w, ch * h, color);
+    // Subtle 2-scanline C64 VIC-II raster split
+    drawSubtleRasterSplit(ctx, splitRow, colorTop, colorBottom) {
+        this.gridRect(ctx, 0, splitRow - 1, this.totalCols + 1, 1, colorBottom);
+        this.gridRect(ctx, 0, splitRow, this.totalCols + 1, 1, colorTop);
     }
 
-    // Subtle 2-line C64 VIC-II raster split (avoids thick zebra striping)
-    drawSubtleRasterSplit(ctx, width, splitY, colorTop, colorBottom) {
-        const u = this.pixelSize;
-        const sy = this.snap(splitY);
-        this.rect(ctx, 0, sy - u, width, u, colorBottom);
-        this.rect(ctx, 0, sy, width, u, colorTop);
-    }
+    // =========================================================
+    // PIXEL-PERFECT CONCAVE GOTHIC SPIRE BUILDER
+    // Guarantees 100% left-right symmetry, overhanging eaves,
+    // unbroken 8-connected 1-pixel contours on both slopes,
+    // slate sheen, and a razor-sharp 1-pixel needle apex.
+    // =========================================================
+    drawCleanSpire(ctx, cxCol, baseRow, eavesHalfW, spireH, leftRimCol, rightRimCol) {
+        if (spireH <= 0) return;
 
-    // Draws a gothic spire roof with Bob Ross directional moon-lighting on the left edge
-    drawGothicSpire(ctx, left, top, cw, ch, centerXRatio, baseYRatio, baseWidthRatio, spireHeightRatio, rimColor) {
-        const steps = 6;
-        const stepH = spireHeightRatio / steps;
-        for (let s = 0; s < steps; s++) {
-            const progress = s / steps;
-            const currentW = baseWidthRatio * (1 - progress * 0.82);
-            const rx = centerXRatio - currentW * 0.5;
-            const ry = baseYRatio - (s + 1) * stepH;
+        // 1. Overhanging Eaves Cornice Molding at baseRow
+        this.gridRect(ctx, cxCol - eavesHalfW, baseRow, eavesHalfW * 2 + 1, 1, COLORS.darkGrey);
+        this.gridRect(ctx, cxCol - eavesHalfW, baseRow, eavesHalfW, 1, COLORS.grey);
+        this.gridRect(ctx, cxCol - eavesHalfW, baseRow, 1, 1, leftRimCol);
+        // Eaves cast shadow immediately below
+        this.gridRect(ctx, cxCol - eavesHalfW + 1, baseRow + 1, eavesHalfW * 2 - 1, 1, COLORS.black);
 
-            // Core slate roof in black/darkBlue so it pops against any purple/blue sky
-            this.castleRect(ctx, left, top, cw, ch, rx, ry, currentW, stepH + 0.005, COLORS.black);
-            // Right shadow side
-            this.castleRect(ctx, left, top, cw, ch, centerXRatio, ry, currentW * 0.5, stepH, COLORS.darkBlue);
-            // Left moonlit edge
-            this.castleRect(ctx, left, top, cw, ch, rx, ry, Math.max(0.012, currentW * 0.22), stepH, rimColor);
+        let prevHalfW = eavesHalfW;
+        for (let r = 1; r <= spireH; r++) {
+            const row = baseRow - r;
+            const t = r / spireH;
+            // Concave witch-hat curve tapering to exact 0 half-width (1-pixel needle)
+            const curHalfW = r === spireH ? 0 : Math.floor(eavesHalfW * Math.pow(1 - t, 1.32));
+
+            // Connect any multi-column horizontal step on previous row so the 1px outline never breaks!
+            const stepDiff = prevHalfW - curHalfW;
+            if (stepDiff > 1 && r > 1) {
+                const prevRow = row + 1;
+                this.gridRect(ctx, cxCol - prevHalfW, prevRow, stepDiff, 1, leftRimCol);
+                this.gridRect(ctx, cxCol + curHalfW + 1, prevRow, stepDiff, 1, rightRimCol);
+            }
+
+            if (curHalfW === 0) {
+                // Exact 1-pixel spire needle apex
+                this.gridRect(ctx, cxCol, row, 1, 1, leftRimCol);
+            } else {
+                // Dark slate core
+                this.gridRect(ctx, cxCol - curHalfW, row, curHalfW * 2 + 1, 1, COLORS.black);
+
+                // Subtle moonlit slate sheen just inside the left contour
+                if (curHalfW >= 2) {
+                    const sheenCol = (r & 1) === 0 ? COLORS.darkBlue : COLORS.purple;
+                    this.gridRect(ctx, cxCol - curHalfW + 1, row, Math.max(1, curHalfW - 1), 1, sheenCol);
+                }
+
+                // Crisp 1-pixel outer contours (never blends into purple/blue/black sky!)
+                this.gridRect(ctx, cxCol - curHalfW, row, 1, 1, leftRimCol);
+                this.gridRect(ctx, cxCol + curHalfW, row, 1, 1, rightRimCol);
+            }
+
+            prevHalfW = curHalfW;
         }
+    }
+
+    // Pixel-perfect pitched cathedral gable roof with unbroken bargeboard contours
+    drawCleanGable(ctx, cxCol, baseRow, eavesHalfW, gableH, leftRimCol, rightRimCol) {
+        if (gableH <= 0) return;
+        this.gridRect(ctx, cxCol - eavesHalfW, baseRow, eavesHalfW * 2 + 1, 1, COLORS.grey);
+        this.gridRect(ctx, cxCol - eavesHalfW, baseRow, 1, 1, leftRimCol);
+        this.gridRect(ctx, cxCol + eavesHalfW, baseRow, 1, 1, rightRimCol);
+
+        let prevHalfW = eavesHalfW;
+        for (let r = 1; r <= gableH; r++) {
+            const row = baseRow - r;
+            const curHalfW = r === gableH ? 0 : Math.round(eavesHalfW * (1 - r / gableH));
+            const stepDiff = prevHalfW - curHalfW;
+            if (stepDiff > 1 && r > 1) {
+                this.gridRect(ctx, cxCol - prevHalfW, row + 1, stepDiff, 1, leftRimCol);
+                this.gridRect(ctx, cxCol + curHalfW + 1, row + 1, stepDiff, 1, rightRimCol);
+            }
+
+            if (curHalfW === 0) {
+                this.gridRect(ctx, cxCol, row, 1, 1, leftRimCol);
+            } else {
+                // Stone gable face with dark timber/slate inlay
+                this.gridRect(ctx, cxCol - curHalfW, row, curHalfW * 2 + 1, 1, COLORS.black);
+                if (curHalfW >= 2) {
+                    this.gridRect(ctx, cxCol - curHalfW + 1, row, curHalfW - 1, 1, COLORS.darkGrey);
+                }
+                this.gridRect(ctx, cxCol - curHalfW, row, 1, 1, leftRimCol);
+                this.gridRect(ctx, cxCol + curHalfW, row, 1, 1, rightRimCol);
+            }
+            prevHalfW = curHalfW;
+        }
+    }
+
+    // Symmetric tower wall with directional moonlit left rim, ashlar masonry & right contour
+    drawTowerWall(ctx, cxCol, topRow, bottomRow, halfW, litStone, rightEdgeStone) {
+        const h = bottomRow - topRow;
+        if (h <= 0) return;
+        const totalW = halfW * 2 + 1;
+        const leftCol = cxCol - halfW;
+
+        // Shadowed core
+        this.gridRect(ctx, leftCol, topRow, totalW, h, COLORS.black);
+        // Mid-lit left & center masonry
+        this.gridRect(ctx, leftCol, topRow, halfW + 1, h, COLORS.darkGrey);
+        // Strong moonlit left edge (2 cols on wide towers, 1 col on narrow)
+        const rimW = halfW >= 6 ? 2 : 1;
+        this.gridRect(ctx, leftCol, topRow, rimW, h, litStone);
+        // Subtle right-side contour edge so shadowed wall never vanishes into black sky/mountains
+        this.gridRect(ctx, cxCol + halfW, topRow, 1, h, rightEdgeStone);
+
+        // Subtle horizontal ashlar stone course highlights every 4 rows
+        for (let r = topRow + 3; r < bottomRow - 2; r += 4) {
+            this.gridRect(ctx, leftCol + rimW, r, Math.max(1, halfW - rimW), 1, COLORS.grey);
+        }
+    }
+
+    // Corbelled parapet & symmetric battlements (Machikolationen & Zinnen)
+    drawParapet(ctx, cxCol, wallTopRow, towerHalfW, rimCol, drawMerlons) {
+        const pHalfW = towerHalfW + 1;
+        const leftCol = cxCol - pHalfW;
+        const totalW = pHalfW * 2 + 1;
+
+        // Corbel teeth underneath overhanging parapet
+        for (let c = leftCol + 1; c <= cxCol + pHalfW - 1; c += 2) {
+            this.gridRect(ctx, c, wallTopRow + 1, 1, 1, c <= cxCol ? COLORS.grey : COLORS.darkGrey);
+        }
+
+        // Solid parapet cornice band
+        this.gridRect(ctx, leftCol, wallTopRow - 1, totalW, 2, COLORS.darkGrey);
+        this.gridRect(ctx, leftCol, wallTopRow - 1, pHalfW + 1, 1, rimCol);
+        this.gridRect(ctx, leftCol, wallTopRow, 1, 1, rimCol);
+
+        // Symmetric 2u merlons along top
+        if (drawMerlons) {
+            for (let offset = -pHalfW; offset <= pHalfW - 1; offset += 4) {
+                const mCol = cxCol + offset;
+                this.gridRect(ctx, mCol, wallTopRow - 3, 2, 2, offset <= 0 ? COLORS.grey : COLORS.darkGrey);
+                this.gridRect(ctx, mCol, wallTopRow - 3, 1, 2, rimCol);
+            }
+        }
+    }
+
+    // Symmetric pointed Gothic arch window centered on cxCol
+    drawGothicWindow(ctx, cxCol, topRow, halfW, hRows, rimColor, coreColor, hasMullion) {
+        // Pointed arch crown
+        this.gridRect(ctx, cxCol, topRow, 1, 1, coreColor);
+        if (halfW >= 1 && hRows >= 3) {
+            this.gridRect(ctx, cxCol - halfW, topRow + 1, halfW * 2 + 1, hRows - 1, rimColor);
+            if (halfW >= 2) {
+                this.gridRect(ctx, cxCol - halfW + 1, topRow + 1, (halfW - 1) * 2 + 1, hRows - 2, coreColor);
+            } else {
+                this.gridRect(ctx, cxCol, topRow + 1, 1, hRows - 2, coreColor);
+            }
+        }
+        // Crisp centered stone tracery cross
+        if (hasMullion && halfW >= 2) {
+            this.gridRect(ctx, cxCol, topRow + 1, 1, hRows - 1, COLORS.black);
+            const transomRow = topRow + Math.floor(hRows * 0.45);
+            this.gridRect(ctx, cxCol - halfW, transomRow, halfW * 2 + 1, 1, COLORS.black);
+        }
+        // Moonlit stone sill
+        this.gridRect(ctx, cxCol - halfW, topRow + hRows, halfW * 2 + 1, 1, COLORS.grey);
     }
 
     updateAudioState(dt, t, state, metrics) {
@@ -222,8 +373,8 @@ export class C64CastleFireworks {
 
         this.windPhase = (this.windPhase + dt * (1.2 + this.tension * 3.0)) % 628.318;
         this.torchPhase = (this.torchPhase + dt * (9.0 + this.tension * 7.0 + this.beatPulse * 8.0)) % 628.318;
-        this.waterPhase = (this.waterPhase + dt * (4.0 + this.tension * 5.0 + this.beatPulse * 4.0)) % 628.318;
-        this.cloudOffset = (this.cloudOffset + dt * Math.min(this.width, this.height) * (0.018 + this.tension * 0.02)) % Math.max(1, this.width);
+        this.waterPhase = (this.waterPhase + dt * (4.5 + this.tension * 5.0 + this.beatPulse * 4.0)) % 628.318;
+        this.cloudOffset = (this.cloudOffset + dt * Math.min(this.width, this.height) * (0.016 + this.tension * 0.018)) % Math.max(1, this.width);
 
         const event = metrics?.beatStarted === true;
         if (event) {
@@ -248,10 +399,10 @@ export class C64CastleFireworks {
                 // Trigger Carpathian Lightning on heavy beats + high tension
                 if ((strength >= 0.76 && this.tension >= 0.50) || (state === 'climax' && beatCount % 4 === 0 && strength >= 0.58)) {
                     this.lightningTimer = 0.24;
-                    this.lightningX = (beatCount & 1) === 0 ? this.width * 0.27 : this.width * 0.78;
+                    this.lightningX = (beatCount & 1) === 0 ? this.width * 0.26 : this.width * 0.80;
                 }
 
-                // Spawn vampire bats from the Clock Tower & Keep
+                // Spawn vampire bats from the Keep & Clock Tower
                 const batCountToSpawn = strength >= 0.70 ? 2 : (strength >= 0.35 || this.tension >= 0.52 ? 1 : 0);
                 for (let s = 0; s < batCountToSpawn; s++) {
                     this.spawnBat(beatCount + s, strength);
@@ -274,75 +425,66 @@ export class C64CastleFireworks {
     }
 
     drawSky(ctx, width, height, t) {
-        // 1. Deep night sky base
         ctx.fillStyle = COLORS.black;
         ctx.fillRect(0, 0, width, height);
 
-        const horizon = this.floorY;
-        const u = this.pixelSize;
-
-        // Calm, atmospheric C64 sky zones (avoids noisy zebra bars across the moon)
-        const band0 = Math.floor(horizon * 0.22);
-        const band1 = Math.floor(horizon * 0.54);
-        const crimsonH = this.tension > 0.35 ? Math.floor(horizon * (this.tension - 0.35) * 0.36) : 0;
-        const band2 = Math.max(band1 + u * 4, horizon - crimsonH);
+        const hRow = this.horizonRow;
+        const band0 = Math.floor(hRow * 0.22);
+        const band1 = Math.floor(hRow * 0.54);
+        const crimsonRows = this.tension > 0.35 ? Math.floor(hRow * (this.tension - 0.35) * 0.36) : 0;
+        const band2 = Math.max(band1 + 4, hRow - crimsonRows);
 
         if (band1 > band0) {
-            ctx.fillStyle = COLORS.darkBlue;
-            ctx.fillRect(0, band0, width, band1 - band0);
-            this.drawSubtleRasterSplit(ctx, width, band0, COLORS.black, COLORS.darkBlue);
+            this.gridRect(ctx, 0, band0, this.totalCols + 1, band1 - band0, COLORS.darkBlue);
+            this.drawSubtleRasterSplit(ctx, band0, COLORS.black, COLORS.darkBlue);
         }
 
         if (band2 > band1) {
-            ctx.fillStyle = COLORS.purple;
-            ctx.fillRect(0, band1, width, band2 - band1);
-            this.drawSubtleRasterSplit(ctx, width, band1, COLORS.darkBlue, COLORS.purple);
+            this.gridRect(ctx, 0, band1, this.totalCols + 1, band2 - band1, COLORS.purple);
+            this.drawSubtleRasterSplit(ctx, band1, COLORS.darkBlue, COLORS.purple);
         }
 
-        if (horizon > band2) {
+        if (hRow > band2) {
             const horizonGlow = this.tension > 0.72 && this.heavyPulse > 0.3 ? COLORS.red : COLORS.brown;
-            ctx.fillStyle = horizonGlow;
-            ctx.fillRect(0, band2, width, horizon - band2);
-            this.drawSubtleRasterSplit(ctx, width, band2, COLORS.purple, horizonGlow);
+            this.gridRect(ctx, 0, band2, this.totalCols + 1, hRow - band2, horizonGlow);
+            this.drawSubtleRasterSplit(ctx, band2, COLORS.purple, horizonGlow);
         }
 
-        // 2. Lightning Flash & Forked Bolt
+        // Lightning Flash & Forked Bolt
         if (this.lightningTimer > 0) {
             if ((Math.floor(this.lightningTimer * 36) & 1) === 0) {
-                this.rect(ctx, 0, u * 2, width, u, COLORS.lightBlue);
-                this.rect(ctx, 0, band0, width, u, COLORS.white);
+                this.gridRect(ctx, 0, 2, this.totalCols + 1, 1, COLORS.lightBlue);
+                this.gridRect(ctx, 0, band0, this.totalCols + 1, 1, COLORS.white);
             }
-            this.drawLightningBolt(ctx, this.lightningX, horizon);
+            this.drawLightningBolt(ctx, this.lightningX, this.floorY);
         }
 
-        // 3. Twinkling Stars
+        // Twinkling Stars
         const twinkle = Math.floor(t * (3 + this.tension * 3));
         const starBoost = this.beatPulse > 0.55;
         for (let i = 0; i < STAR_POSITIONS.length; i++) {
-            const nx = STAR_POSITIONS[i][0];
-            const ny = STAR_POSITIONS[i][1];
-            const x = this.snap(nx * width);
-            const y = this.snap(ny * horizon);
-            if (y >= horizon - u * 4) continue;
+            const col = Math.floor(STAR_POSITIONS[i][0] * this.totalCols);
+            const row = Math.floor(STAR_POSITIONS[i][1] * hRow);
+            if (row >= hRow - 4) continue;
 
             const isSparkle = (i + twinkle) % 6 === 0 || (starBoost && i % 3 === 0);
             const color = isSparkle
                 ? COLORS.white
                 : (i % 3 === 0 ? COLORS.lightBlue : COLORS.lightGrey);
-            this.rect(ctx, x, y, u, u, color);
+            this.gridRect(ctx, col, row, 1, 1, color);
 
             if (isSparkle && (i % 5 === 0 || starBoost)) {
-                this.rect(ctx, x - u, y, u, u, COLORS.lightBlue);
-                this.rect(ctx, x + u, y, u, u, COLORS.lightBlue);
+                this.gridRect(ctx, col - 1, row, 1, 1, COLORS.lightBlue);
+                this.gridRect(ctx, col + 1, row, 1, 1, COLORS.lightBlue);
             }
         }
 
-        // 4. True Unmasked Crescent Moon in Upper-Left Golden Zone
-        this.drawMoon(ctx, width, height);
+        // True Unmasked Crescent Moon in Upper-Left Golden Zone (x ≈ 0.17)
+        this.drawMoon(ctx);
 
-        // 5. Drifting Night Clouds
-        this.drawCloud(ctx, width, height, 0.34, 0.14, 34, 0.12);
-        this.drawCloud(ctx, width, height, 0.76, 0.24, 26, -0.09);
+        // High Drifting Gothic Clouds (kept high so they frame spires cleanly)
+        this.drawCloud(ctx, width, 0.35, 0.12, 22, 0.12);
+        this.drawCloud(ctx, width, 0.78, 0.19, 18, -0.09);
     }
 
     drawLightningBolt(ctx, startX, horizon) {
@@ -367,104 +509,106 @@ export class C64CastleFireworks {
         }
     }
 
-    drawMoon(ctx, width, height) {
-        const u = Math.max(this.pixelSize, Math.floor(Math.min(width, height) / 100));
-        // Positioned in the upper-left Golden Ratio zone
-        const mx = Math.floor((width * 0.16) / u) * u;
-        const my = Math.floor((this.floorY * 0.13) / u) * u;
+    drawMoon(ctx) {
+        const mCol = Math.floor(this.totalCols * 0.16);
+        const mRow = Math.max(2, Math.floor(this.horizonRow * 0.12));
 
         const isBloodMoon = this.tension > 0.74;
         const bodyColor = isBloodMoon && this.heavyPulse > 0.25 ? COLORS.orange : COLORS.yellow;
         const rimColor = isBloodMoon ? COLORS.yellow : COLORS.white;
 
-        // Draw only the true crescent pixels (no fake sky-mask rectangles!)
-        for (let row = 0; row < CRESCENT_ROWS.length; row++) {
-            const offsetX = CRESCENT_ROWS[row][0];
-            const totalW = CRESCENT_ROWS[row][1];
-            const hiW = CRESCENT_ROWS[row][2];
+        for (let r = 0; r < CRESCENT_ROWS.length; r++) {
+            const offsetX = CRESCENT_ROWS[r][0];
+            const totalW = CRESCENT_ROWS[r][1];
+            const hiW = CRESCENT_ROWS[r][2];
 
-            this.rect(ctx, mx + offsetX * u, my + row * u, totalW * u, u, bodyColor);
-            this.rect(ctx, mx + offsetX * u, my + row * u, hiW * u, u, rimColor);
+            this.gridRect(ctx, mCol + offsetX, mRow + r, totalW, 1, bodyColor);
+            this.gridRect(ctx, mCol + offsetX, mRow + r, hiW, 1, rimColor);
         }
 
         // Sharp upper and lower crescent horn tips
-        this.rect(ctx, mx + 6 * u, my, u, u, bodyColor);
-        this.rect(ctx, mx + 6 * u, my + 8 * u, u, u, bodyColor);
+        this.gridRect(ctx, mCol + 6, mRow, 1, 1, bodyColor);
+        this.gridRect(ctx, mCol + 6, mRow + 8, 1, 1, bodyColor);
 
         // Subtle outer lunar aura on strong beats
         if (this.beatPulse > 0.45 || this.tension > 0.60) {
             const auraCol = isBloodMoon ? COLORS.lightRed : COLORS.lightBlue;
-            this.rect(ctx, mx - u, my + 3 * u, u, 3 * u, auraCol);
-            this.rect(ctx, mx + u, my - u, 2 * u, u, auraCol);
-            this.rect(ctx, mx + u, my + 9 * u, 2 * u, u, auraCol);
+            this.gridRect(ctx, mCol - 1, mRow + 3, 1, 3, auraCol);
+            this.gridRect(ctx, mCol + 1, mRow - 1, 2, 1, auraCol);
+            this.gridRect(ctx, mCol + 1, mRow + 9, 2, 1, auraCol);
         }
     }
 
-    drawCloud(ctx, width, height, baseX, baseY, logicalWidth, speed) {
-        const scale = Math.max(this.pixelSize, Math.floor(Math.min(width / 320, height / 200) * 2));
-        const cloudWidth = logicalWidth * scale;
-        const travel = width + cloudWidth;
-        const x = ((baseX * width + this.cloudOffset * speed) % travel + travel) % travel - cloudWidth / 2;
-        const y = baseY * this.floorY;
+    drawCloud(ctx, width, baseX, baseY, wCols, speed) {
+        const u = this.pixelSize;
+        const cloudPxW = wCols * u;
+        const travel = width + cloudPxW;
+        const px = ((baseX * width + this.cloudOffset * speed) % travel + travel) % travel - cloudPxW * 0.5;
+        const col = Math.floor(px / u);
+        const row = Math.floor(baseY * this.horizonRow);
 
-        const topRim = this.lightningTimer > 0 ? COLORS.lightBlue : COLORS.grey;
-        this.rect(ctx, x + cloudWidth * 0.18, y, cloudWidth * 0.36, scale, topRim);
-        this.rect(ctx, x + cloudWidth * 0.08, y + scale, cloudWidth * 0.76, scale * 2, COLORS.darkGrey);
-        this.rect(ctx, x, y + scale * 3, cloudWidth, scale, COLORS.black);
+        const topRim = this.lightningTimer > 0 ? COLORS.white : COLORS.lightBlue;
+        // Soft stepped C64 cloud with moonlit upper-left edge & dithered base
+        this.gridRect(ctx, col + 4, row, Math.floor(wCols * 0.45), 1, topRim);
+        this.gridRect(ctx, col + 2, row + 1, Math.floor(wCols * 0.75), 1, COLORS.grey);
+        this.gridRect(ctx, col, row + 2, wCols, 1, COLORS.darkGrey);
+        this.gridRect(ctx, col + 2, row + 3, wCols - 3, 1, COLORS.darkBlue);
     }
 
-    drawMountains(ctx, width) {
-        // =========================================================
-        // BOB ROSS PALETTE-KNIFE CARPATHIAN MOUNTAINS
-        // Left slopes catch cold moonlight (lightBlue/grey/purple),
-        // right slopes fall into deep shadow (darkBlue/black).
-        // =========================================================
-        const horizon = this.floorY;
-        const u = this.pixelSize;
+    // Helper to evaluate peak height & lit-side status at a given column (Zero-GC)
+    drawMountains(ctx) {
+        const hRow = this.horizonRow;
+        const cols = this.totalCols;
+        const moonCol = Math.floor(cols * 0.16);
 
-        for (let p = 0; p < MOUNTAIN_PEAKS.length; p++) {
-            const peakX = MOUNTAIN_PEAKS[p][0] * width;
-            const peakH = MOUNTAIN_PEAKS[p][1] * horizon;
-            const halfSpan = MOUNTAIN_PEAKS[p][2] * width;
-            const startX = Math.max(0, this.snap(peakX - halfSpan));
-            const endX = Math.min(width, this.snap(peakX + halfSpan));
+        let prevH = 0;
+        for (let c = 0; c <= cols; c++) {
+            let bestH = 0;
+            let bestPeakCol = 0;
+            let bestPeakIdx = 0;
 
-            for (let x = startX; x < endX; x += u) {
-                const dist = x - peakX;
-                const normDist = Math.abs(dist) / halfSpan;
-                if (normDist >= 1) continue;
+            for (let p = 0; p < MOUNTAIN_PEAKS.length; p++) {
+                const pCol = MOUNTAIN_PEAKS[p][0] * cols;
+                const pMaxH = MOUNTAIN_PEAKS[p][1] * hRow;
+                const halfSpan = MOUNTAIN_PEAKS[p][2] * cols;
+                const dist = Math.abs(c - pCol);
+                if (dist >= halfSpan) continue;
 
-                // Jagged ridge profile
-                const ridgeJag = Math.sin(normDist * Math.PI * 3.0) * (u * 1.5);
-                const colH = Math.max(u, Math.floor(peakH * (1 - Math.pow(normDist, 0.82)) + ridgeJag));
-                const colTop = horizon - colH;
-
-                if (dist < 0) {
-                    // LEFT SLOPE: Illuminated by the Moon!
-                    const bodyCol = (p & 1) === 0 ? COLORS.darkBlue : COLORS.black;
-                    const ridgeCol = this.lightningTimer > 0
-                        ? COLORS.white
-                        : (normDist < 0.35 ? COLORS.lightGrey : COLORS.lightBlue);
-                    const subRidgeCol = normDist < 0.55 ? COLORS.grey : COLORS.purple;
-
-                    this.rect(ctx, x, colTop, u, colH, bodyCol);
-                    this.rect(ctx, x, colTop, u, u, ridgeCol);
-                    if (colH > u * 3) {
-                        this.rect(ctx, x, colTop + u, u, u * 2, subRidgeCol);
-                    }
-                    // Bob Ross diagonal snow/rock striation
-                    if (colH > u * 7 && ((Math.floor(x / u) + p) % 3 === 0)) {
-                        this.rect(ctx, x, colTop + u * 4, u, u * 2, COLORS.purple);
-                    }
-                } else {
-                    // RIGHT SLOPE: Deep Mountain Shadow
-                    this.rect(ctx, x, colTop, u, colH, COLORS.black);
-                    this.rect(ctx, x, colTop, u, u, COLORS.darkBlue);
-                    if (colH > u * 5 && (Math.floor(x / u) & 1) === 0) {
-                        this.rect(ctx, x, colTop + u * 2, u, u * 2, COLORS.darkGrey);
-                    }
+                const norm = dist / halfSpan;
+                const crag = Math.sin(norm * Math.PI * 3.0) * 1.2;
+                const h = Math.floor(pMaxH * (1 - Math.pow(norm, 0.85)) + crag);
+                if (h >= bestH) {
+                    bestH = h;
+                    bestPeakCol = pCol;
+                    bestPeakIdx = p;
                 }
             }
+
+            if (bestH > 0) {
+                const topRow = hRow - bestH;
+                // Slope faces the moon if it's on the moonward side of its peak!
+                const facesMoon = bestPeakCol >= moonCol ? (c <= bestPeakCol) : (c >= bestPeakCol);
+                const stepSpan = Math.max(1, Math.abs(bestH - prevH));
+
+                if (facesMoon) {
+                    const bodyCol = (bestPeakIdx & 1) === 0 ? COLORS.darkBlue : COLORS.black;
+                    const ridgeCol = this.lightningTimer > 0 ? COLORS.white : COLORS.lightBlue;
+                    this.gridRect(ctx, c, topRow, 1, bestH, bodyCol);
+                    if (bestH > 4) {
+                        this.gridRect(ctx, c, topRow + 1, 1, Math.min(3, bestH - 2), COLORS.purple);
+                    }
+                    // Unbroken 1px ridge highlight
+                    this.gridRect(ctx, c, topRow, 1, Math.min(bestH, stepSpan), ridgeCol);
+                } else {
+                    this.gridRect(ctx, c, topRow, 1, bestH, COLORS.black);
+                    if (bestH > 5 && (c & 1) === 0) {
+                        this.gridRect(ctx, c, topRow + 2, 1, 2, COLORS.darkGrey);
+                    }
+                    // Clean shadow-side ridge contour
+                    this.gridRect(ctx, c, topRow, 1, Math.min(bestH, stepSpan), COLORS.darkBlue);
+                }
+            }
+            prevH = bestH;
         }
     }
 
@@ -474,9 +618,8 @@ export class C64CastleFireworks {
 
         const dir = (seed & 1) === 0 ? -1 : 1;
         bat.active = true;
-        // Fly out from the Golden-Ratio Keep & Clock Tower
-        bat.x = this.width * (0.58 + dir * 0.04);
-        bat.y = this.floorY * (0.28 + ((seed * 3) % 5) * 0.06);
+        bat.x = this.width * (0.56 + dir * 0.04);
+        bat.y = this.floorY * (0.26 + ((seed * 3) % 5) * 0.06);
         const speed = Math.min(this.width, this.height) * (0.09 + strength * 0.08 + this.tension * 0.05);
         bat.vx = dir * speed;
         bat.vy = -speed * (0.16 + (seed % 3) * 0.07);
@@ -626,425 +769,484 @@ export class C64CastleFireworks {
         }
     }
 
-    drawTorchFlame(ctx, tx, ty, flameScale, phaseOffset) {
-        const u = this.pixelSize;
+    drawGridTorch(ctx, col, row, phaseOffset) {
         const flicker = Math.sin(this.torchPhase + phaseOffset);
-        const beatBoost = this.beatPulse > 0.45 ? u : 0;
+        const beatBoost = this.beatPulse > 0.45 ? 1 : 0;
 
-        this.rect(ctx, tx, ty + u, u, u * 2, COLORS.brown);
-        this.rect(ctx, tx, ty, u * flameScale, u, COLORS.red);
-        this.rect(ctx, tx + (flicker > 0.3 ? u * 0.5 : 0), ty - u, u * flameScale, u, COLORS.orange);
-        this.rect(ctx, tx, ty - u * 2 - beatBoost, u, u + beatBoost, this.beatPulse > 0.5 ? COLORS.white : COLORS.yellow);
+        this.gridRect(ctx, col, row + 1, 1, 2, COLORS.brown);
+        this.gridRect(ctx, col, row, 1, 1, COLORS.red);
+        this.gridRect(ctx, col + (flicker > 0.45 ? 1 : 0), row - 1, 1, 1, COLORS.orange);
+        this.gridRect(ctx, col, row - 2 - beatBoost, 1, 1 + beatBoost, this.beatPulse > 0.5 ? COLORS.white : COLORS.yellow);
     }
 
-    drawCastle(ctx, width) {
+    drawCastle(ctx) {
         // =========================================================
-        // GOLDEN RATIO CASTLEVANIA CITADEL (Flush on this.floorY)
-        // - Asymmetric silhouette with soaring Keep at x ≈ 0.58 (Phi)
-        // - Left Viaduct arches over the mountain stream
-        // - Right Clock Tower connected via high Gothic Skybridge
-        // - Directional moonlight on left edges, deep shadow on right
+        // PIXEL-PERFECT INTEGER-GRID CASTLEVANIA CITADEL
+        // Every spire, gable, battlement, arch and window is built
+        // symmetrically around integer columns for razor-sharp
+        // contours with zero sub-pixel quantization artifacts.
         // =========================================================
-        const horizon = this.floorY;
-        const u = this.pixelSize;
+        const hRow = this.horizonRow;
+        const hScale = Math.min(1, hRow / 55);
+        const sc = val => Math.max(1, Math.round(val * hScale));
 
-        const cw = Math.min(Math.floor(width * 0.72), Math.floor(horizon * 1.75));
-        const ch = Math.min(Math.floor(horizon * 0.88), Math.floor(cw * 0.82));
-        const left = Math.floor(width * 0.52 - cw * 0.5);
-        const top = horizon - ch;
+        // Golden-Ratio anchor column for the soaring Dracula Keep
+        const keepCol = Math.floor(this.totalCols * 0.56);
+        const bastionCol = keepCol - sc(25);
+        const gateCol = keepCol - sc(13);
+        const clockCol = keepCol + sc(18);
+        const viaductStartCol = bastionCol - sc(20);
 
-        const stone = COLORS.darkGrey;
-        const litStone = this.lightningTimer > 0 ? COLORS.white : COLORS.grey;
-        const moonRim = this.lightningTimer > 0
+        // Save exact grid anchors so the foreground road & waterfall lock 100% flush!
+        this.gateCol = gateCol;
+        this.viaductArchCol = viaductStartCol + sc(6);
+
+        const litStone = this.lightningTimer > 0 ? COLORS.white : COLORS.lightGrey;
+        const leftRoofRim = this.lightningTimer > 0
             ? COLORS.white
-            : (this.activeRimColor !== null && this.beatPulse > 0.40 ? this.activeRimColor : COLORS.lightGrey);
-        const shade = COLORS.black;
+            : (this.activeRimColor !== null && this.beatPulse > 0.38 ? this.activeRimColor : COLORS.lightGrey);
+        // Right roof contour uses grey/darkGrey so it NEVER vanishes into black, darkBlue, or purple sky!
+        const rightRoofRim = this.activeRimColor !== null && this.beatPulse > 0.55
+            ? this.activeRimColor
+            : COLORS.darkGrey;
 
-        // 1. Left Gothic Viaduct & Ruined Watchtower (x: 0.02 .. 0.30)
-        this.castleRect(ctx, left, top, cw, ch, 0.04, 0.72, 0.26, 0.06, stone);
-        this.castleRect(ctx, left, top, cw, ch, 0.04, 0.70, 0.26, 0.02, moonRim);
-        // Viaduct Pillars standing flush on horizon (leaving open arches for the stream!)
-        this.castleRect(ctx, left, top, cw, ch, 0.04, 0.78, 0.04, 0.22, stone);
-        this.castleRect(ctx, left, top, cw, ch, 0.12, 0.78, 0.04, 0.22, stone);
-        this.castleRect(ctx, left, top, cw, ch, 0.20, 0.78, 0.05, 0.22, shade);
-
-        // Left Flanking Bastion Tower (x: 0.18 .. 0.32)
-        this.castleRect(ctx, left, top, cw, ch, 0.18, 0.44, 0.14, 0.56, shade);
-        this.castleRect(ctx, left, top, cw, ch, 0.18, 0.44, 0.09, 0.56, stone);
-        this.castleRect(ctx, left, top, cw, ch, 0.18, 0.44, 0.03, 0.56, litStone); // Moonlit left wall
-        this.castleRect(ctx, left, top, cw, ch, 0.16, 0.41, 0.18, 0.03, moonRim);
-        this.drawGothicSpire(ctx, left, top, cw, ch, 0.25, 0.41, 0.15, 0.22, moonRim);
-
-        // 2. Central Great Hall & Portcullis Gatehouse (x: 0.28 .. 0.54)
-        this.castleRect(ctx, left, top, cw, ch, 0.28, 0.50, 0.26, 0.50, shade);
-        this.castleRect(ctx, left, top, cw, ch, 0.29, 0.50, 0.20, 0.50, stone);
-        this.castleRect(ctx, left, top, cw, ch, 0.29, 0.50, 0.03, 0.50, litStone);
-        // Stepped Cathedral Gable Roof
-        this.drawGothicSpire(ctx, left, top, cw, ch, 0.41, 0.50, 0.24, 0.18, moonRim);
-
-        // 3. The Soaring Dracula Keep (Golden Ratio Focal Point, x: 0.48 .. 0.68)
-        this.castleRect(ctx, left, top, cw, ch, 0.48, 0.22, 0.20, 0.78, shade);
-        this.castleRect(ctx, left, top, cw, ch, 0.48, 0.22, 0.14, 0.78, stone);
-        this.castleRect(ctx, left, top, cw, ch, 0.48, 0.22, 0.04, 0.78, litStone); // Strong moonlit edge
-
-        // Keep Cantilevered Machicolations & Battlements
-        this.castleRect(ctx, left, top, cw, ch, 0.46, 0.19, 0.24, 0.04, moonRim);
-        for (let i = 0; i < 4; i++) {
-            this.castleRect(ctx, left, top, cw, ch, 0.47 + i * 0.06, 0.15, 0.035, 0.04, moonRim);
-        }
-
-        // Upper Dracula Belfry & Needle Spire (reaches y = 0.00)
-        this.castleRect(ctx, left, top, cw, ch, 0.51, 0.10, 0.14, 0.09, stone);
-        this.castleRect(ctx, left, top, cw, ch, 0.51, 0.10, 0.03, 0.09, litStone);
-        this.drawGothicSpire(ctx, left, top, cw, ch, 0.58, 0.10, 0.15, 0.12, moonRim);
-        // High Cross Finial
-        this.castleRect(ctx, left, top, cw, ch, 0.575, -0.05, 0.015, 0.04, COLORS.white);
-        this.castleRect(ctx, left, top, cw, ch, 0.56, -0.04, 0.045, 0.015, COLORS.white);
-
-        // 4. High Gothic Skybridge & Right Clock Tower (x: 0.68 .. 0.90)
-        // Skybridge arch connecting Keep to Clock Tower
-        this.castleRect(ctx, left, top, cw, ch, 0.67, 0.44, 0.10, 0.05, stone);
-        this.castleRect(ctx, left, top, cw, ch, 0.67, 0.43, 0.10, 0.015, moonRim);
-
-        // Slender Clock Tower (x: 0.75 .. 0.90)
-        this.castleRect(ctx, left, top, cw, ch, 0.75, 0.30, 0.15, 0.70, shade);
-        this.castleRect(ctx, left, top, cw, ch, 0.75, 0.30, 0.10, 0.70, stone);
-        this.castleRect(ctx, left, top, cw, ch, 0.75, 0.30, 0.03, 0.70, litStone);
-        this.castleRect(ctx, left, top, cw, ch, 0.73, 0.27, 0.19, 0.03, moonRim);
-        this.drawGothicSpire(ctx, left, top, cw, ch, 0.825, 0.27, 0.17, 0.19, moonRim);
-
-        // Waving Crimson Pennants on Spires (synced to windPhase)
-        const bannerWave = Math.sin(this.windPhase * 2.5) > 0 ? 0.012 : -0.012;
-        const bannerColor = this.beatPulse > 0.60 ? COLORS.lightRed : COLORS.red;
-        this.castleRect(ctx, left, top, cw, ch, 0.25, 0.18, 0.035, 0.02, bannerColor);
-        this.castleRect(ctx, left, top, cw, ch, 0.285, 0.18 + bannerWave, 0.03, 0.02, bannerColor);
-        this.castleRect(ctx, left, top, cw, ch, 0.825, 0.07, 0.035, 0.02, bannerColor);
-        this.castleRect(ctx, left, top, cw, ch, 0.86, 0.07 - bannerWave, 0.03, 0.02, bannerColor);
-
-        // 5. Beat-Ticking Clock Face on the Right Clock Tower
-        const clockX = left + cw * 0.80;
-        const clockY = top + ch * 0.35;
-        this.rect(ctx, clockX, clockY, u * 5, u * 5, COLORS.orange);
-        this.rect(ctx, clockX + u, clockY + u, u * 3, u * 3, this.beatPulse > 0.4 ? COLORS.white : COLORS.yellow);
-        const handIdx = Math.max(0, this.lastBeatCount) & 3;
-        const hdx = CLOCK_HANDS[handIdx][0];
-        const hdy = CLOCK_HANDS[handIdx][1];
-        this.rect(ctx, clockX + u * 2, clockY + u * 2, u, u, COLORS.black);
-        this.rect(ctx, clockX + u * (2 + hdx), clockY + u * (2 + hdy), u, u, COLORS.red);
-
-        // 6. Gothic Windows & Dracula's Chamber
         const isHighTension = this.tension > 0.58;
         const winRim = isHighTension ? COLORS.red : COLORS.orange;
         const winCore = this.heavyPulse > 0.45
             ? COLORS.white
             : (this.beatPulse > 0.35 ? COLORS.yellow : (isHighTension ? COLORS.lightRed : COLORS.yellow));
+        const beatAlt = (this.lastBeatCount & 1) === 0;
+        const bannerShift = Math.sin(this.windPhase * 2.5) > 0 ? 0 : 1;
+        const bannerColor = this.beatPulse > 0.60 ? COLORS.lightRed : COLORS.red;
 
-        // Keep Grand Stained Glass Window
-        this.castleRect(ctx, left, top, cw, ch, 0.53, 0.32, 0.09, 0.18, winRim);
-        this.castleRect(ctx, left, top, cw, ch, 0.54, 0.34, 0.07, 0.14, winCore);
-        this.castleRect(ctx, left, top, cw, ch, 0.555, 0.30, 0.04, 0.03, winCore);
-        this.castleRect(ctx, left, top, cw, ch, 0.57, 0.32, 0.015, 0.18, shade);
-        this.castleRect(ctx, left, top, cw, ch, 0.53, 0.39, 0.09, 0.02, shade);
+        // ---------------------------------------------------------
+        // 1. LEFT GOTHIC VIADUCT BRIDGE (with true semicircular arches)
+        // ---------------------------------------------------------
+        const viaTop = hRow - sc(13);
+        const viaW = (bastionCol - sc(5)) - viaductStartCol;
+        if (viaW > 6) {
+            this.gridRect(ctx, viaductStartCol, viaTop, viaW, sc(13), COLORS.darkGrey);
+            this.gridRect(ctx, viaductStartCol, viaTop, viaW, 1, leftRoofRim);
+            this.gridRect(ctx, viaductStartCol, viaTop + 1, viaW, 1, COLORS.grey);
+
+            // Carve two clean Gothic arches into the viaduct (waterfall flows through arch 1!)
+            for (let a = 0; a < 2; a++) {
+                const aCenter = viaductStartCol + sc(6 + a * 9);
+                const archH = sc(8);
+                this.gridRect(ctx, aCenter - 2, hRow - archH + 1, 5, archH - 1, COLORS.black);
+                this.gridRect(ctx, aCenter - 1, hRow - archH, 3, 1, COLORS.black);
+                // Moonlit inner right arch intrados
+                this.gridRect(ctx, aCenter + 2, hRow - archH + 1, 1, archH - 1, COLORS.grey);
+            }
+        }
+
+        // ---------------------------------------------------------
+        // 2. LEFT FLANKING BASTION TOWER
+        // ---------------------------------------------------------
+        const bastTop = hRow - sc(24);
+        const bastHalfW = sc(5);
+        this.drawTowerWall(ctx, bastionCol, bastTop, hRow, bastHalfW, litStone, COLORS.darkGrey);
+        this.drawParapet(ctx, bastionCol, bastTop, bastHalfW, leftRoofRim, false);
+        this.drawCleanSpire(ctx, bastionCol, bastTop - 2, bastHalfW + 1, sc(12), leftRoofRim, rightRoofRim);
+        // Spire Finial & Waving Pennant
+        const bastApex = bastTop - 2 - sc(12);
+        this.gridRect(ctx, bastionCol, bastApex - 2, 1, 2, COLORS.lightGrey);
+        this.gridRect(ctx, bastionCol + 1, bastApex - 1, 2, 1, bannerColor);
+        this.gridRect(ctx, bastionCol + 3, bastApex - 1 + bannerShift, 2, 1, bannerColor);
+        // Lancet window
+        this.drawGothicWindow(ctx, bastionCol, bastTop + sc(5), 1, sc(5), winRim, beatAlt ? winCore : winRim, false);
+
+        // ---------------------------------------------------------
+        // 3. CENTRAL CATHEDRAL HALL & PORTCULLIS GATEHOUSE
+        // ---------------------------------------------------------
+        const hallTop = hRow - sc(21);
+        const hallHalfW = sc(8);
+        this.drawTowerWall(ctx, gateCol, hallTop, hRow, hallHalfW, litStone, COLORS.darkGrey);
+        this.drawCleanGable(ctx, gateCol, hallTop, hallHalfW + 1, sc(9), leftRoofRim, rightRoofRim);
+        this.gridRect(ctx, gateCol, hallTop - sc(9) - 2, 1, 2, COLORS.lightGrey);
+
+        // Cathedral Twin Window above Portcullis
+        this.drawGothicWindow(ctx, gateCol, hallTop + sc(2), 2, sc(5), winRim, beatAlt ? winRim : winCore, true);
+
+        // ---------------------------------------------------------
+        // 4. HIGH FLYING SKYBRIDGE & RIGHT CLOCK TOWER
+        // ---------------------------------------------------------
+        const skyTop = hRow - sc(23);
+        const bridgeLeft = keepCol + sc(7);
+        const bridgeRight = clockCol - sc(5);
+        if (bridgeRight > bridgeLeft) {
+            const bw = bridgeRight - bridgeLeft;
+            this.gridRect(ctx, bridgeLeft, skyTop, bw, sc(4), COLORS.darkGrey);
+            this.gridRect(ctx, bridgeLeft, skyTop, bw, 1, leftRoofRim);
+            // Vaulted sky-arch cutout underneath
+            if (bw >= 4) {
+                this.gridRect(ctx, bridgeLeft + 1, skyTop + 2, bw - 2, 2, COLORS.black);
+            }
+        }
+
+        const clockTop = hRow - sc(29);
+        const clockHalfW = sc(5);
+        this.drawTowerWall(ctx, clockCol, clockTop, hRow, clockHalfW, litStone, COLORS.darkGrey);
+        this.drawParapet(ctx, clockCol, clockTop, clockHalfW, leftRoofRim, true);
+        this.drawCleanSpire(ctx, clockCol, clockTop - 3, clockHalfW + 1, sc(13), leftRoofRim, rightRoofRim);
+
+        const clockApex = clockTop - 3 - sc(13);
+        this.gridRect(ctx, clockCol, clockApex - 2, 1, 2, COLORS.white);
+        this.gridRect(ctx, clockCol + 1, clockApex - 1, 2, 1, bannerColor);
+        this.gridRect(ctx, clockCol + 3, clockApex - bannerShift, 2, 1, bannerColor);
+
+        // Beat-Ticking Illuminated Clock Face (5x5 symmetric around clockCol!)
+        const cfRow = clockTop + sc(3);
+        this.gridRect(ctx, clockCol - 2, cfRow, 5, 5, COLORS.orange);
+        this.gridRect(ctx, clockCol - 1, cfRow, 3, 5, this.beatPulse > 0.4 ? COLORS.white : COLORS.yellow);
+        this.gridRect(ctx, clockCol - 2, cfRow + 1, 5, 3, this.beatPulse > 0.4 ? COLORS.white : COLORS.yellow);
+        const handIdx = Math.max(0, this.lastBeatCount) & 3;
+        this.gridRect(ctx, clockCol, cfRow + 2, 1, 1, COLORS.black);
+        this.gridRect(ctx, clockCol + CLOCK_HANDS[handIdx][0], cfRow + 2 + CLOCK_HANDS[handIdx][1], 1, 1, COLORS.red);
+
+        // Lower Clock Tower Window
+        this.drawGothicWindow(ctx, clockCol, clockTop + sc(12), 1, sc(5), winRim, beatAlt ? winCore : COLORS.orange, false);
+
+        // ---------------------------------------------------------
+        // 5. SOARING DRACULA GREAT KEEP (Golden Ratio Focal Point!)
+        // Drawn in front of flanking wings for crisp architectural depth
+        // ---------------------------------------------------------
+        const keepTop = hRow - sc(33);
+        const keepHalfW = sc(7);
+        this.drawTowerWall(ctx, keepCol, keepTop, hRow, keepHalfW, litStone, COLORS.darkGrey);
+        this.drawParapet(ctx, keepCol, keepTop, keepHalfW, leftRoofRim, true);
+
+        // Upper Dracula Belfry Lantern
+        const belfryTop = keepTop - sc(8);
+        const belfryHalfW = sc(4);
+        this.drawTowerWall(ctx, keepCol, belfryTop, keepTop - 2, belfryHalfW, litStone, COLORS.darkGrey);
+
+        // Soaring Needle Spire & Symmetric Cross Finial
+        const mainSpireH = sc(11);
+        this.drawCleanSpire(ctx, keepCol, belfryTop, belfryHalfW + 1, mainSpireH, leftRoofRim, rightRoofRim);
+        const keepApex = Math.max(3, belfryTop - mainSpireH);
+        this.gridRect(ctx, keepCol, keepApex - 3, 1, 3, COLORS.white);
+        this.gridRect(ctx, keepCol - 1, keepApex - 2, 3, 1, COLORS.white);
 
         // Dracula's Upper Chamber Window (with dark Count silhouette)
-        this.castleRect(ctx, left, top, cw, ch, 0.55, 0.12, 0.05, 0.05, this.heavyPulse > 0.3 ? COLORS.lightRed : COLORS.yellow);
-        this.castleRect(ctx, left, top, cw, ch, 0.57, 0.13, 0.015, 0.04, shade);
+        this.gridRect(ctx, keepCol - 1, belfryTop + 2, 3, sc(4), this.heavyPulse > 0.3 ? COLORS.lightRed : COLORS.yellow);
+        this.gridRect(ctx, keepCol, belfryTop + 3, 1, sc(3), COLORS.black);
 
-        // Left & Cathedral Lancet Windows
-        const beatAlt = (this.lastBeatCount & 1) === 0;
-        this.castleRect(ctx, left, top, cw, ch, 0.22, 0.52, 0.04, 0.09, beatAlt ? winCore : winRim);
-        this.castleRect(ctx, left, top, cw, ch, 0.38, 0.56, 0.06, 0.10, beatAlt ? winRim : winCore);
-        this.castleRect(ctx, left, top, cw, ch, 0.405, 0.56, 0.012, 0.10, shade);
-        this.castleRect(ctx, left, top, cw, ch, 0.80, 0.54, 0.04, 0.09, beatAlt ? winCore : COLORS.orange);
+        // Grand Cathedral Stained-Glass Window in Great Keep
+        this.drawGothicWindow(ctx, keepCol, keepTop + sc(5), 3, sc(10), winRim, winCore, true);
 
-        // 7. Rocky Crags Base & Main Portcullis Gate (x: 0.35 .. 0.47, Flush on floorY)
-        this.castleRect(ctx, left, top, cw, ch, 0.16, 0.86, 0.76, 0.14, shade);
-        this.castleRect(ctx, left, top, cw, ch, 0.14, 0.88, 0.12, 0.12, stone);
-        this.castleRect(ctx, left, top, cw, ch, 0.14, 0.88, 0.04, 0.12, litStone);
-        this.castleRect(ctx, left, top, cw, ch, 0.84, 0.88, 0.10, 0.12, stone);
+        // Gargoyle Eyes Glinting on Keep Parapet Corners
+        if (this.tension > 0.50 || this.heavyPulse > 0.2) {
+            const eyeCol = this.heavyPulse > 0.4 ? COLORS.yellow : COLORS.lightRed;
+            this.gridRect(ctx, keepCol - keepHalfW - 2, keepTop - 1, 1, 1, eyeCol);
+            this.gridRect(ctx, keepCol + keepHalfW + 2, keepTop - 1, 1, 1, eyeCol);
+        }
 
-        // Portcullis Archway
-        const gateGlow = this.heavyPulse > 0.4 ? COLORS.orange : (this.beatPulse > 0.25 ? COLORS.brown : shade);
-        this.castleRect(ctx, left, top, cw, ch, 0.35, 0.74, 0.12, 0.26, shade);
-        this.castleRect(ctx, left, top, cw, ch, 0.37, 0.70, 0.08, 0.05, shade);
-        this.castleRect(ctx, left, top, cw, ch, 0.36, 0.90, 0.10, 0.10, gateGlow);
+        // ---------------------------------------------------------
+        // 6. CRAGGY ROCK FOUNDATION & MAIN PORTCULLIS GATE (Flush on hRow)
+        // ---------------------------------------------------------
+        // Stepped cliff outcrops anchoring the right & center walls
+        this.gridRect(ctx, clockCol + clockHalfW, hRow - sc(7), sc(5), sc(7), COLORS.black);
+        this.gridRect(ctx, clockCol + clockHalfW, hRow - sc(7), 2, sc(7), COLORS.darkGrey);
+        this.gridRect(ctx, bastionCol - bastHalfW - 2, hRow - sc(5), 4, sc(5), COLORS.grey);
 
-        // Iron Portcullis Bars
-        this.castleRect(ctx, left, top, cw, ch, 0.38, 0.74, 0.015, 0.26, COLORS.darkGrey);
-        this.castleRect(ctx, left, top, cw, ch, 0.425, 0.74, 0.015, 0.26, COLORS.darkGrey);
-        this.castleRect(ctx, left, top, cw, ch, 0.35, 0.82, 0.12, 0.02, COLORS.darkGrey);
-        this.castleRect(ctx, left, top, cw, ch, 0.35, 0.90, 0.12, 0.02, COLORS.darkGrey);
+        // Portcullis Archway centered on gateCol
+        const gateH = sc(10);
+        const gateHalfW = 4;
+        const gateGlow = this.heavyPulse > 0.4 ? COLORS.orange : (this.beatPulse > 0.25 ? COLORS.brown : COLORS.black);
 
-        // Gate & Battlement Torches
-        this.drawTorchFlame(ctx, left + cw * 0.33, top + ch * 0.80, 1, 0.0);
-        this.drawTorchFlame(ctx, left + cw * 0.48, top + ch * 0.80, 1, 1.7);
-        this.drawTorchFlame(ctx, left + cw * 0.50, top + ch * 0.45, 1, 3.2);
-        this.drawTorchFlame(ctx, left + cw * 0.72, top + ch * 0.42, 1, 4.8);
+        // Stone arch surround
+        this.gridRect(ctx, gateCol - gateHalfW - 1, hRow - gateH, (gateHalfW + 1) * 2 + 1, gateH, COLORS.grey);
+        this.gridRect(ctx, gateCol - gateHalfW + 1, hRow - gateH - 1, (gateHalfW - 1) * 2 + 1, 1, COLORS.lightGrey);
+        // Dark archway opening
+        this.gridRect(ctx, gateCol - gateHalfW, hRow - gateH + 1, gateHalfW * 2 + 1, gateH - 1, COLORS.black);
+        this.gridRect(ctx, gateCol - gateHalfW + 1, hRow - gateH, (gateHalfW - 1) * 2 + 1, 1, COLORS.black);
+        // Warm firelight on threshold floor
+        this.gridRect(ctx, gateCol - gateHalfW + 1, hRow - 2, (gateHalfW - 1) * 2 + 1, 2, gateGlow);
+
+        // Crisp symmetric iron portcullis grate
+        for (let bar = -2; bar <= 2; bar += 2) {
+            this.gridRect(ctx, gateCol + bar, hRow - gateH + 1, 1, gateH - 1, COLORS.darkGrey);
+        }
+        this.gridRect(ctx, gateCol - gateHalfW, hRow - sc(6), gateHalfW * 2 + 1, 1, COLORS.darkGrey);
+        this.gridRect(ctx, gateCol - gateHalfW, hRow - sc(3), gateHalfW * 2 + 1, 1, COLORS.darkGrey);
+
+        // Animated Torches flanking Portcullis & Keep Battlements
+        this.drawGridTorch(ctx, gateCol - gateHalfW - 2, hRow - sc(6), 0.0);
+        this.drawGridTorch(ctx, gateCol + gateHalfW + 2, hRow - sc(6), 1.7);
+        this.drawGridTorch(ctx, keepCol - keepHalfW + 1, keepTop + sc(18), 3.1);
+        this.drawGridTorch(ctx, keepCol + keepHalfW - 1, keepTop + sc(18), 4.6);
     }
 
-    drawBobRossEvergreen(ctx, baseX, baseY, treeH) {
-        // =========================================================
-        // BOB ROSS FAN-BRUSH EVERGREEN TREE
-        // Dense triangular pixel foliage with darkBlue/black shadow
-        // on the right and moonlit green/lightGreen/lightBlue tips on left.
-        // =========================================================
-        const u = this.pixelSize;
-        const topY = baseY - treeH;
-        const sway = Math.round(Math.sin(this.windPhase + baseX * 0.03)) * u;
+    drawBobRossEvergreen(ctx, baseCol, baseRow, treeHRows) {
+        const sway = Math.round(Math.sin(this.windPhase + baseCol * 0.2));
+        const topRow = baseRow - treeHRows;
 
         // Trunk base
-        this.rect(ctx, baseX, baseY - u * 3, u * 2, u * 3, COLORS.brown);
+        this.gridRect(ctx, baseCol, baseRow - 3, 2, 3, COLORS.brown);
 
-        for (let y = topY; y < baseY - u * 2; y += u) {
-            const progress = (y - topY) / Math.max(1, treeH - u * 2);
-            const rowIndex = Math.floor((y - topY) / u);
-            // Tiered branch flare every 2 rows
-            const tierFlare = (rowIndex % 2 === 0) ? u : 0;
-            const halfW = Math.floor(progress * u * 5.5) + tierFlare;
-            const rowSway = progress < 0.35 ? sway : 0;
-            const cx = baseX + rowSway;
+        for (let r = 0; r < treeHRows - 2; r++) {
+            const row = topRow + r;
+            const progress = r / Math.max(1, treeHRows - 2);
+            const tierFlare = (r % 2 === 0) ? 1 : 0;
+            const halfW = Math.floor(progress * 5.5) + tierFlare;
+            const cx = baseCol + (progress < 0.35 ? sway : 0);
 
-            // Shadowed core and right side
-            this.rect(ctx, cx - halfW, y, halfW * 2 + u, u, COLORS.black);
-            this.rect(ctx, cx, y, halfW + u, u, COLORS.darkBlue);
+            this.gridRect(ctx, cx - halfW, row, halfW * 2 + 1, 1, COLORS.black);
+            this.gridRect(ctx, cx, row, halfW + 1, 1, COLORS.darkBlue);
 
-            // Moonlit left foliage boughs
-            const litW = Math.max(u, Math.floor(halfW * 0.65));
-            this.rect(ctx, cx - halfW, y, litW, u, COLORS.green);
+            // Moonlit left foliage boughs (Moon is upper-left of right-side evergreens)
+            const litW = Math.max(1, Math.floor(halfW * 0.65));
+            this.gridRect(ctx, cx - halfW, row, litW, 1, COLORS.green);
 
-            // Brightest moonlit needle tips on left outer edge
-            if (rowIndex % 2 === 0) {
+            if (r % 2 === 0) {
                 const tipCol = this.lightningTimer > 0
                     ? COLORS.white
-                    : (progress < 0.4 ? COLORS.lightBlue : COLORS.lightGreen);
-                this.rect(ctx, cx - halfW, y, u, u, tipCol);
+                    : (progress < 0.38 ? COLORS.lightBlue : COLORS.lightGreen);
+                this.gridRect(ctx, cx - halfW, row, 1, 1, tipCol);
             }
         }
     }
 
-    drawRepoussoirOak(ctx, baseX, baseY, treeH) {
+    drawRepoussoirOak(ctx, baseCol, baseRow, treeHRows) {
         // =========================================================
-        // FOREGROUND REPOUSSOIR GNARLED OAK TREE (Left Frame)
-        // Thick 3-pixel trunk with brown/grey moonlit bark on the
-        // left, black shadow on the right, and organic boughs
-        // reaching high into the night sky.
+        // FOREGROUND REPOUSSOIR GNARLED OAK (Far Left, x ≈ 0.06)
+        // Physically accurate directional lighting: because this
+        // oak stands to the LEFT of the Moon (x ≈ 0.16), its RIGHT
+        // bark edge and upper-right boughs catch the moonlight!
         // =========================================================
-        const u = this.pixelSize;
-        const trunkH = Math.floor(treeH * 0.56);
-        const sway = Math.round(Math.sin(this.windPhase)) * u;
+        const trunkH = Math.floor(treeHRows * 0.56);
+        const sway = Math.round(Math.sin(this.windPhase));
 
-        // 1. Thick organic roots gripping the foreground knoll
-        this.rect(ctx, baseX - u * 4, baseY, u * 8, u * 2, COLORS.black);
-        this.rect(ctx, baseX - u * 4, baseY, u * 3, u, COLORS.brown);
-        this.rect(ctx, baseX - u * 2, baseY - u, u * 5, u, COLORS.brown);
+        // Buttress roots gripping foreground knoll
+        this.gridRect(ctx, baseCol - 4, baseRow, 9, 2, COLORS.black);
+        this.gridRect(ctx, baseCol + 1, baseRow, 4, 1, COLORS.brown);
+        this.gridRect(ctx, baseCol - 1, baseRow - 1, 5, 1, COLORS.brown);
+        this.gridRect(ctx, baseCol + 3, baseRow - 1, 1, 1, COLORS.grey);
 
-        // 2. Gnarled twisting trunk
-        for (let y = baseY - u; y > baseY - trunkH; y -= u) {
-            const p = (baseY - y) / trunkH;
-            const curve = Math.floor(Math.sin(p * Math.PI * 1.3) * u * 2.5);
-            const tx = baseX + curve;
-            const tw = p < 0.45 ? u * 3 : u * 2;
+        for (let r = 1; r <= trunkH; r++) {
+            const row = baseRow - r;
+            const p = r / trunkH;
+            const curve = Math.round(Math.sin(p * Math.PI * 1.25) * 2.5);
+            const tCol = baseCol + curve;
+            const tw = p < 0.42 ? 4 : (p < 0.80 ? 3 : 2);
 
-            this.rect(ctx, tx, y, tw, u, COLORS.black);
-            this.rect(ctx, tx, y, u, u, COLORS.grey); // Moonlit bark edge
-            if (tw >= u * 3) {
-                this.rect(ctx, tx + u, y, u, u, COLORS.brown);
+            this.gridRect(ctx, tCol, row, tw, 1, COLORS.black);
+            if (tw >= 3) {
+                this.gridRect(ctx, tCol + tw - 2, row, 1, 1, COLORS.brown);
             }
+            // Rightmost edge faces the Moon at x ≈ 0.16!
+            this.gridRect(ctx, tCol + tw - 1, row, 1, 1, this.lightningTimer > 0 ? COLORS.white : COLORS.grey);
         }
 
-        const crownY = baseY - trunkH;
-        const crownX = baseX + u;
+        const crownRow = baseRow - trunkH;
+        const crownCol = baseCol + 1;
 
-        // Glowing Owl Eyes in the trunk hollow
+        // Blinking Owl Eyes in trunk hollow
         if (this.beatPulse > 0.2 || (Math.floor(this.windPhase * 2) % 5 !== 0)) {
             const eyeCol = this.tension > 0.65 ? COLORS.lightRed : COLORS.yellow;
-            this.rect(ctx, crownX, crownY + u * 3, u, u, eyeCol);
-            this.rect(ctx, crownX + u * 2, crownY + u * 3, u, u, eyeCol);
+            this.gridRect(ctx, crownCol, crownRow + 3, 1, 1, eyeCol);
+            this.gridRect(ctx, crownCol + 2, crownRow + 3, 1, 1, eyeCol);
         }
 
-        // 3. Sweeping Main Boughs reaching toward the Moon & Castle
-        const boughLen = Math.floor(treeH * 0.46);
-        for (let i = 0; i < boughLen; i += u) {
-            const bp = i / boughLen;
-            const tipSway = bp > 0.6 ? sway : 0;
+        // Sweeping crooked Gothic boughs
+        const boughSteps = Math.floor(treeHRows * 0.44);
+        for (let i = 0; i < boughSteps; i++) {
+            const bp = i / Math.max(1, boughSteps);
+            const tipSway = bp > 0.55 ? sway : 0;
 
-            // Right-reaching dramatic bough
-            const rx = crownX + i + tipSway;
-            const ry = crownY - Math.floor(i * 0.72) + Math.floor(Math.sin(bp * Math.PI * 2) * u * 1.5);
-            this.rect(ctx, rx, ry, u * 2, u, COLORS.black);
-            this.rect(ctx, rx, ry - u, u, u, COLORS.darkGrey);
+            // Dramatic bough reaching right toward the Moon
+            const rCol = crownCol + i + tipSway;
+            const rRow = crownRow - Math.floor(i * 0.72) + Math.round(Math.sin(bp * Math.PI * 2) * 1.2);
+            this.gridRect(ctx, rCol, rRow, 2, 1, COLORS.black);
+            this.gridRect(ctx, rCol + 1, rRow - 1, 1, 1, COLORS.lightGrey);
+
+            // Secondary forked twig
+            if (i === Math.floor(boughSteps * 0.55)) {
+                for (let f = 1; f <= 4; f++) {
+                    this.gridRect(ctx, rCol + f, rRow + Math.floor(f * 0.5), 1, 1, COLORS.black);
+                }
+            }
 
             // Left-reaching high bough
-            if (i < boughLen * 0.8) {
-                const lx = crownX - Math.floor(i * 0.75) + tipSway;
-                const ly = crownY - Math.floor(i * 0.85);
-                this.rect(ctx, lx, ly, u * 2, u, COLORS.black);
-                this.rect(ctx, lx, ly - u, u, u, COLORS.grey);
+            if (i < boughSteps * 0.8) {
+                const lCol = crownCol - Math.floor(i * 0.75) + tipSway;
+                const lRow = crownRow - Math.floor(i * 0.85);
+                this.gridRect(ctx, lCol, lRow, 2, 1, COLORS.black);
+                this.gridRect(ctx, lCol + 1, lRow - 1, 1, 1, COLORS.darkGrey);
             }
         }
 
-        // 4. Dark twilight moss/foliage clusters on the boughs
-        this.rect(ctx, crownX - u * 6 + sway, crownY - Math.floor(boughLen * 0.75), u * 5, u * 2, COLORS.black);
-        this.rect(ctx, crownX - u * 6 + sway, crownY - Math.floor(boughLen * 0.75) - u, u * 3, u, COLORS.darkBlue);
-        this.rect(ctx, crownX + Math.floor(boughLen * 0.65) + sway, crownY - Math.floor(boughLen * 0.55), u * 6, u * 2, COLORS.black);
-        this.rect(ctx, crownX + Math.floor(boughLen * 0.65) + sway, crownY - Math.floor(boughLen * 0.55) - u, u * 3, u, COLORS.darkBlue);
+        // Dark twilight foliage & hanging moss clusters
+        const topMossCol = crownCol + Math.floor(boughSteps * 0.65) + sway;
+        const topMossRow = crownRow - Math.floor(boughSteps * 0.52);
+        this.gridRect(ctx, topMossCol, topMossRow, 6, 2, COLORS.black);
+        this.gridRect(ctx, topMossCol + 2, topMossRow - 1, 4, 1, COLORS.darkBlue);
+        this.gridRect(ctx, topMossCol + 5, topMossRow - 1, 1, 1, COLORS.lightBlue);
     }
 
-    drawForeground(ctx, width, height) {
-        // =========================================================
-        // BOB ROSS FOREGROUND COMPOSITION
-        // 1. Organic layered hillside contours (no polka-dot grid!)
-        // 2. Shimmering moonlit mountain stream & waterfall on left
-        // 3. Golden-Ratio winding cobblestone road & stone bridge
-        // 4. Beat-chasing medieval torch posts
-        // 5. Layered evergreens on right & Repoussoir oak on left
-        // =========================================================
-        const horizon = this.floorY;
-        const fgHeight = height - horizon;
-        if (fgHeight <= 0) return;
+    drawForeground(ctx) {
+        const hRow = this.horizonRow;
+        const totalRows = Math.ceil(this.height / this.pixelSize);
+        const fgRows = totalRows - hRow;
+        if (fgRows <= 0) return;
 
-        const u = this.pixelSize;
+        const cols = this.totalCols;
 
         // 1. Deep Night Ground Base
-        ctx.fillStyle = COLORS.black;
-        ctx.fillRect(0, horizon, width, fgHeight);
+        this.gridRect(ctx, 0, hRow, cols + 1, fgRows + 1, COLORS.black);
 
-        // 2. Asymmetric Flanking Foothills rising slightly above horizon
-        const leftHillSpan = Math.floor(width * 0.25);
-        for (let x = 0; x < leftHillSpan; x += u) {
-            const p = x / Math.max(1, leftHillSpan);
-            const hillH = Math.floor(fgHeight * (0.14 * Math.sin(p * Math.PI)));
+        // 2. Flanking Foothills Rising Organically Above Horizon (No hard ruler line!)
+        const leftSpan = Math.floor(cols * 0.22);
+        for (let c = 0; c < leftSpan; c++) {
+            const p = c / Math.max(1, leftSpan);
+            const hillH = Math.floor(fgRows * 0.13 * Math.sin(p * Math.PI));
             if (hillH > 0) {
-                this.rect(ctx, x, horizon - hillH, u, hillH, COLORS.black);
-                this.rect(ctx, x, horizon - hillH, u, u, COLORS.darkBlue);
+                this.gridRect(ctx, c, hRow - hillH, 1, hillH, COLORS.black);
+                this.gridRect(ctx, c, hRow - hillH, 1, 1, COLORS.darkBlue);
             }
         }
 
-        const rightHillStart = Math.floor(width * 0.74);
-        for (let x = rightHillStart; x < width; x += u) {
-            const p = (x - rightHillStart) / Math.max(1, width - rightHillStart);
-            const hillH = Math.floor(fgHeight * (0.20 * Math.sin(p * Math.PI * 0.85)));
+        const rightStart = Math.floor(cols * 0.75);
+        for (let c = rightStart; c <= cols; c++) {
+            const p = (c - rightStart) / Math.max(1, cols - rightStart);
+            const hillH = Math.floor(fgRows * 0.19 * Math.sin(p * Math.PI * 0.85));
             if (hillH > 0) {
-                this.rect(ctx, x, horizon - hillH, u, hillH, COLORS.black);
-                this.rect(ctx, x, horizon - hillH, u, u, COLORS.green);
-                this.rect(ctx, x, horizon - hillH + u, u, u, COLORS.darkBlue);
+                this.gridRect(ctx, c, hRow - hillH, 1, hillH, COLORS.black);
+                this.gridRect(ctx, c, hRow - hillH, 1, 1, COLORS.green);
+                this.gridRect(ctx, c, hRow - hillH + 1, 1, 1, COLORS.darkBlue);
             }
         }
 
-        // 3. Organic Layered Hillside Terraces (Replaces the artificial dot matrix)
-        for (let y = horizon; y < height; y += u) {
-            const depth = (y - horizon) / Math.max(1, fgHeight);
-            const rowIdx = Math.floor((y - horizon) / u);
+        // 3. Organic Rolling Meadow Ridges & Dithered Terraces
+        for (let r = 1; r < fgRows; r += 2) {
+            const depth = r / Math.max(1, fgRows);
+            const row = hRow + r;
+            const curveShift = Math.round(Math.sin(depth * 9.0) * 6);
 
-            // Sweeping organic contour wave
-            const wavePhase = Math.sin(depth * 14.0) * 0.04;
-            if ((rowIdx % 3) === 0) {
-                // Left mossy meadow terrace contour
-                const leftSegW = width * (0.28 + wavePhase - depth * 0.08);
-                const leftColor = depth < 0.45 ? COLORS.darkBlue : COLORS.green;
-                this.rect(ctx, width * 0.03, y, leftSegW * 0.35, u, leftColor);
-                this.rect(ctx, width * 0.24, y, leftSegW * 0.40, u, COLORS.darkGrey);
+            // Left rolling grassy knolls
+            const leftKnollCol = Math.floor(cols * 0.08) + curveShift;
+            const leftKnollW = Math.floor(cols * (0.14 + depth * 0.06));
+            this.gridRect(ctx, leftKnollCol, row, leftKnollW, 1, (r % 4 === 1) ? COLORS.darkBlue : COLORS.green);
 
-                // Right hillside foliage & warm earth contour
-                const rightStart = width * (0.56 + depth * 0.14 + wavePhase);
-                const rightColor = (rowIdx % 6 === 0) ? COLORS.green : COLORS.brown;
-                this.rect(ctx, rightStart, y, width - rightStart - u * 2, u, COLORS.darkBlue);
-                this.rect(ctx, rightStart + u * 3, y, (width - rightStart) * 0.45, u, rightColor);
+            // Right terraced woodland slopes
+            const rightSlopeCol = Math.floor(this.gateCol + cols * (0.10 + depth * 0.18)) - curveShift;
+            if (rightSlopeCol < cols) {
+                const rw = Math.min(cols - rightSlopeCol, Math.floor(cols * 0.24));
+                this.gridRect(ctx, rightSlopeCol, row, rw, 1, COLORS.darkBlue);
+                if (r % 4 === 1 && rw > 4) {
+                    this.gridRect(ctx, rightSlopeCol + 2, row, Math.floor(rw * 0.55), 1, COLORS.green);
+                } else if (rw > 6) {
+                    this.gridRect(ctx, rightSlopeCol + 4, row, Math.floor(rw * 0.35), 1, COLORS.brown);
+                }
             }
         }
 
-        // 4. Bob Ross Shimmering Moonlit Mountain Stream (Left Valley)
-        // Cascades from under the Castle Viaduct (x ≈ 0.23) down into the foreground
-        for (let y = horizon; y < height; y += u) {
-            const depth = (y - horizon) / Math.max(1, fgHeight);
-            const streamX = width * (0.23 - depth * 0.09 + Math.sin(depth * Math.PI * 2.6) * 0.028);
-            const streamW = u * (2 + Math.floor(depth * 7));
+        // 4. Bob Ross Waterfall (under Viaduct Arch) & Shimmering Mountain Stream
+        const archCol = this.viaductArchCol;
+        // Vertical Waterfall Cascade plunging out of the open Viaduct Arch!
+        const fallH = Math.max(3, Math.floor(fgRows * 0.10));
+        this.gridRect(ctx, archCol - 1, hRow - 2, 3, fallH + 2, COLORS.darkBlue);
+        const foamShift = Math.floor(this.waterPhase * 2) & 1;
+        this.gridRect(ctx, archCol - 1 + foamShift, hRow - 2, 1, fallH + 1, COLORS.cyan);
+        this.gridRect(ctx, archCol, hRow - 1 + foamShift, 1, fallH, COLORS.white);
+        // Plunge-pool mist & white foam
+        this.gridRect(ctx, archCol - 2, hRow + fallH - 1, 5, 1, this.beatPulse > 0.35 ? COLORS.white : COLORS.lightBlue);
 
-            // Rocky banks with moonlit highlights
-            this.rect(ctx, streamX - streamW * 0.5 - u * 2, y, u * 2, u, COLORS.darkGrey);
-            this.rect(ctx, streamX + streamW * 0.5, y, u, u, COLORS.grey);
+        // Meandering Stream reflecting Moonlight & Active Fireworks!
+        for (let r = fallH; r < fgRows; r++) {
+            const depth = r / Math.max(1, fgRows);
+            const row = hRow + r;
+            const sCol = Math.round(
+                archCol - ( depth - 0.10 ) * (cols * 0.14) + Math.sin(depth * Math.PI * 2.5) * (cols * 0.025)
+            );
+            const sW = 2 + Math.floor(depth * 7);
+            const leftBank = sCol - Math.floor(sW * 0.5);
 
-            // Deep water base
-            this.rect(ctx, streamX - streamW * 0.5, y, streamW, u, COLORS.darkBlue);
+            // Mossy & moonlit rocky banks
+            this.gridRect(ctx, leftBank - 2, row, 2, 1, COLORS.darkGrey);
+            this.gridRect(ctx, leftBank + sW, row, 1, 1, COLORS.grey);
 
-            // Animated horizontal C64 water-shimmer reflections
+            // Deep stream water
+            this.gridRect(ctx, leftBank, row, sW, 1, COLORS.darkBlue);
+
+            // Horizontal C64 water-shimmer reflections (reflects firework rim color when bursting!)
             const ripple = Math.sin(depth * 22.0 - this.waterPhase);
             if (ripple > -0.2) {
-                const shimmerW = Math.max(u, Math.floor(streamW * 0.55));
-                const shimmerCol = (ripple > 0.65 || this.beatPulse > 0.55)
-                    ? COLORS.white
-                    : (ripple > 0.25 ? COLORS.cyan : COLORS.lightBlue);
-                this.rect(ctx, streamX - shimmerW * 0.5, y, shimmerW, u, shimmerCol);
+                const shimW = Math.max(1, Math.floor(sW * 0.55));
+                const shimCol = this.activeRimColor !== null && ripple > 0.45
+                    ? this.activeRimColor
+                    : ((ripple > 0.65 || this.beatPulse > 0.55)
+                        ? COLORS.white
+                        : (ripple > 0.25 ? COLORS.cyan : COLORS.lightBlue));
+                this.gridRect(ctx, sCol - Math.floor(shimW * 0.5), row, shimW, 1, shimCol);
             }
         }
 
-        // 5. Golden-Ratio Winding Cobblestone Road (sweeps from Portcullis to x ≈ 0.62)
-        const gateCenterX = width * 0.43;
-        for (let y = horizon; y < height; y += u) {
-            const depth = (y - horizon) / Math.max(1, fgHeight);
-            const rowIdx = Math.floor((y - horizon) / u);
+        // 5. Aspect-Ratio-Locked Winding Cobblestone Road
+        // Starts flush at this.gateCol and sweeps gracefully to Golden Ratio (0.62 * cols)
+        const targetEndCol = cols * 0.62;
+        const deltaCols = targetEndCol - this.gateCol;
 
-            // Smooth S-curve sweeping toward the lower-right Golden Ratio (0.62)
-            const pathX = gateCenterX
-                + Math.pow(depth, 0.9) * (width * 0.19)
-                + Math.sin(depth * Math.PI * 2.0) * (width * 0.055);
-            const pathWidth = u * (3 + Math.floor(depth * Math.min(18, (width / u) * 0.085)));
+        for (let r = 0; r < fgRows; r++) {
+            const depth = r / Math.max(1, fgRows);
+            const row = hRow + r;
+            const pCol = Math.round(
+                this.gateCol + Math.pow(depth, 0.92) * deltaCols + Math.sin(depth * Math.PI * 2.0) * (cols * 0.05)
+            );
+            const pW = 3 + Math.floor(depth * Math.min(18, cols * 0.09));
+            const leftRoad = pCol - Math.floor(pW * 0.5);
 
             const isThreshold = depth < 0.10 && this.beatPulse > 0.25;
-            const isCobbleBand = (rowIdx % 2) === 0;
-            const baseRoadCol = isThreshold
+            const isCobbleBand = (r % 2) === 0;
+            const roadCol = isThreshold
                 ? COLORS.yellow
-                : (depth < 0.22
+                : (depth < 0.20
                     ? (isCobbleBand ? COLORS.orange : COLORS.brown)
-                    : (depth < 0.60
+                    : (depth < 0.58
                         ? (isCobbleBand ? COLORS.brown : COLORS.darkGrey)
                         : (isCobbleBand ? COLORS.darkGrey : COLORS.grey)));
 
-            this.rect(ctx, pathX - pathWidth * 0.5, y, pathWidth, u, baseRoadCol);
-
-            // Moonlit left curb & shadowed right curb
-            this.rect(ctx, pathX - pathWidth * 0.5 - u, y, u, u, COLORS.lightGrey);
-            this.rect(ctx, pathX + pathWidth * 0.5, y, u, u, COLORS.darkGrey);
+            this.gridRect(ctx, leftRoad, row, pW, 1, roadCol);
+            // Crisp moonlit left curbstone & shadowed right curbstone
+            this.gridRect(ctx, leftRoad - 1, row, 1, 1, COLORS.lightGrey);
+            this.gridRect(ctx, leftRoad + pW, row, 1, 1, COLORS.darkGrey);
         }
 
-        // 6. Beat-Synchronized Medieval Torch-Posts along the Road
+        // 6. Beat-Chasing Medieval Torch-Posts along the Cobblestone Road
         const activeChaserIdx = ((3 - (this.lastBeatCount % 4)) + 4) % 4;
         for (let tIdx = 0; tIdx < PATH_TORCH_DEPTHS.length; tIdx++) {
             const depth = PATH_TORCH_DEPTHS[tIdx];
-            const ty = horizon + Math.floor(depth * fgHeight);
-            const pathX = gateCenterX
-                + Math.pow(depth, 0.9) * (width * 0.19)
-                + Math.sin(depth * Math.PI * 2.0) * (width * 0.055);
-            const pathWidth = u * (3 + Math.floor(depth * Math.min(18, (width / u) * 0.085)));
-
+            const tRow = hRow + Math.floor(depth * fgRows);
+            const pCol = Math.round(
+                this.gateCol + Math.pow(depth, 0.92) * deltaCols + Math.sin(depth * Math.PI * 2.0) * (cols * 0.05)
+            );
+            const pW = 3 + Math.floor(depth * Math.min(18, cols * 0.09));
             const side = (tIdx & 1) === 0 ? -1 : 1;
-            const postX = pathX + side * (pathWidth * 0.5 + u * 2);
-            const postH = u * (3 + tIdx);
+            const postCol = pCol + side * (Math.floor(pW * 0.5) + 2);
+            const postH = 3 + tIdx;
 
-            // Warm torchlight pool cast across the cobblestones
             const isChaserLit = tIdx === activeChaserIdx && this.beatPulse > 0.15;
-            this.rect(ctx, pathX - pathWidth * 0.35, ty, pathWidth * 0.7, u, isChaserLit ? COLORS.yellow : COLORS.orange);
+            const poolW = Math.max(2, Math.floor(pW * 0.65));
+            this.gridRect(ctx, pCol - Math.floor(poolW * 0.5), tRow, poolW, 1, isChaserLit ? COLORS.yellow : COLORS.orange);
 
-            // Wooden post & animated flame
-            this.rect(ctx, postX, ty - postH, u, postH, COLORS.brown);
-            this.drawTorchFlame(ctx, postX, ty - postH, 1, tIdx * 1.6);
+            this.gridRect(ctx, postCol, tRow - postH, 1, postH, COLORS.brown);
+            this.drawGridTorch(ctx, postCol, tRow - postH, tIdx * 1.6);
         }
 
-        // 7. Cluster of Bob Ross "Happy Little Evergreens" on the Right Ridge
-        this.drawBobRossEvergreen(ctx, Math.floor(width * 0.79), horizon + u * 3, Math.floor(fgHeight * 0.34));
-        this.drawBobRossEvergreen(ctx, Math.floor(width * 0.85), horizon + u * 2, Math.floor(fgHeight * 0.44));
-        this.drawBobRossEvergreen(ctx, Math.floor(width * 0.91), horizon + u * 5, Math.floor(fgHeight * 0.38));
-        this.drawBobRossEvergreen(ctx, Math.floor(width * 0.96), horizon + u * 8, Math.floor(fgHeight * 0.28));
+        // 7. Cluster of Bob Ross "Happy Little Evergreens" Framing Right & Left Banks
+        this.drawBobRossEvergreen(ctx, Math.floor(cols * 0.79), hRow + 3, Math.floor(fgRows * 0.34));
+        this.drawBobRossEvergreen(ctx, Math.floor(cols * 0.85), hRow + 2, Math.floor(fgRows * 0.45));
+        this.drawBobRossEvergreen(ctx, Math.floor(cols * 0.91), hRow + 5, Math.floor(fgRows * 0.38));
+        this.drawBobRossEvergreen(ctx, Math.floor(cols * 0.96), hRow + 8, Math.floor(fgRows * 0.28));
+        this.drawBobRossEvergreen(ctx, Math.max(14, archCol - 9), hRow + 4, Math.floor(fgRows * 0.30));
 
-        // Midground evergreen on the left bank near the waterfall
-        this.drawBobRossEvergreen(ctx, Math.floor(width * 0.16), horizon + u * 4, Math.floor(fgHeight * 0.32));
-
-        // 8. Grand Foreground Repoussoir Gnarled Oak Tree on the Left
+        // 8. Grand Foreground Repoussoir Gnarled Oak on the Far Left
         this.drawRepoussoirOak(
             ctx,
-            Math.floor(width * 0.07),
-            horizon + Math.floor(fgHeight * 0.56),
-            Math.floor(fgHeight * 0.96)
+            Math.floor(cols * 0.06),
+            hRow + Math.floor(fgRows * 0.56),
+            Math.floor(fgRows * 0.96)
         );
     }
 
@@ -1065,11 +1267,11 @@ export class C64CastleFireworks {
         this.width = width;
         this.height = height;
 
-        // C64 integer pixel quantization
+        // C64 integer pixel quantization & unified column/row grid
         this.pixelSize = Math.max(1, Math.floor(Math.min(width, height) / 100));
-
-        // Exact horizon position matching Floor DSEs (0.55)
-        this.floorY = Math.floor((height * this.floorHorizon) / this.pixelSize) * this.pixelSize;
+        this.totalCols = Math.ceil(width / this.pixelSize);
+        this.horizonRow = Math.floor((height * this.floorHorizon) / this.pixelSize);
+        this.floorY = this.horizonRow * this.pixelSize;
 
         // Update musical beat, tension & atmospheric timers
         this.updateAudioState(dt, t, state, metrics);
@@ -1080,17 +1282,17 @@ export class C64CastleFireworks {
         // LAYER 2: Multi-Tier Fireworks in the Sky (Behind Mountains & Castle)
         this.updateFireworks(ctx, width, height, t);
 
-        // LAYER 3: Bob Ross Distant Carpathian Mountains (Directional Moonlight)
-        this.drawMountains(ctx, width);
+        // LAYER 3: Unified Carpathian Mountains with Clean 1px Ridge Contours
+        this.drawMountains(ctx);
 
         // LAYER 4: C64 Hardware-Sprite Vampire Bats
         this.updateAndDrawBats(ctx, dt, t);
 
-        // LAYER 5: Golden-Ratio Castlevania Citadel & Clock Tower (Flush on Horizon)
-        this.drawCastle(ctx, width);
+        // LAYER 5: Integer-Grid Castlevania Citadel with Concave Spire Contours
+        this.drawCastle(ctx);
 
-        // LAYER 6: Foreground Terraces, Moonlit Stream, Cobblestone Road & Trees
-        this.drawForeground(ctx, width, height);
+        // LAYER 6: Waterfall, Stream, Locked Cobblestone Road & Framed Trees
+        this.drawForeground(ctx);
 
         // DSE Lifecycle Transitions (Ordered Dither Crossfade)
         let visibility = 1;
