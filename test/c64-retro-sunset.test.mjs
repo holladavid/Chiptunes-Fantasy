@@ -178,4 +178,63 @@ test('Graduelle Beat-Stärken (0.20 / 0.50 / 0.90) unterscheiden sich sichtbar',
     assert.notDeepEqual(snapshots[1], snapshots[2]);
 });
 
-test('Zustände & Afterglow: sa
+test('Zustände & Afterglow: sanfte C64-Dämmerung ohne Phase-Reset', () => {
+    const dse = new C64RetroSunset();
+    let t = 0.02;
+
+    for (let i = 0; i < 30; i++) {
+        const c = createStrictFakeCanvas(320, 200);
+        dse.render(c.ctx, 320, 200, t, 'climax', t, makeTestMetrics({ tensionPct: 0.95, energy: 0.9, beatImpulse: [0.6] }));
+        t += 0.02;
+    }
+    const climaxSnap = createStrictFakeCanvas(320, 200);
+    dse.render(climaxSnap.ctx, 320, 200, t, 'climax', t, makeTestMetrics({ tensionPct: 0.95, energy: 0.9, beatImpulse: [0.6] }));
+
+    const waterBefore = dse.waterT;
+    for (let i = 0; i < 50; i++) {
+        t += 0.02;
+        const c = createStrictFakeCanvas(320, 200);
+        dse.render(c.ctx, 320, 200, t, 'afterglow', t, makeTestMetrics({ tensionPct: 0.15, energy: 0.2 }));
+    }
+    const afterglowSnap = createStrictFakeCanvas(320, 200);
+    dse.render(afterglowSnap.ctx, 320, 200, t + 0.02, 'afterglow', t + 0.02, makeTestMetrics({ tensionPct: 0.15, energy: 0.2 }));
+
+    assert.notDeepEqual(climaxSnap.rects, afterglowSnap.rects);
+    assert.ok(dse.afterglowMix > 0.7, 'afterglowMix muss im Afterglow ansteigen');
+    assert.notEqual(dse.waterT, waterBefore);
+});
+
+test('Responsive Viewports & Rotation (Portrait -> Landscape -> Portrait, Extremratios & ungerade Höhe)', () => {
+    const dse = new C64RetroSunset();
+    const viewports = [
+        [32, 32],   // Tiny Buffer
+        [112, 200], // 320x568 Small Portrait
+        [92, 200],  // 390x844 Mobile Portrait
+        [67, 200],  // ~1:3 Extreme Portrait
+        [432, 200], // 844x390 Mobile Landscape
+        [355, 200], // 16:9 Desktop
+        [317, 199], // Ungerade Maße (Edge & Odd-Row Clipping Check)
+        [474, 200], // 2560x1080 Ultrawide
+        [600, 200], // 3:1 Extreme Landscape
+        [92, 200]   // Rück-Rotation auf derselben Instanz
+    ];
+
+    let t = 0.2;
+    for (const [w, h] of viewports) {
+        dse.resize(w, h);
+        const c = createStrictFakeCanvas(w, h);
+        dse.render(c.ctx, w, h, t, 'climax', t, makeTestMetrics({
+            tensionPct: 0.85,
+            beatImpulse: [0.65],
+            smooth: [0.75, 0.7, 0.8]
+        }));
+
+        assert.ok(c.rects.length > 0, `Viewport ${w}x${h} muss Ausgabe erzeugen`);
+        for (const r of c.rects) {
+            assertC64PaletteHex(r.fillStyle);
+        }
+        t += 0.02;
+    }
+
+    assert.ok(dse.waterT > 0, 'waterT bleibt bei Rotation erhalten');
+});
