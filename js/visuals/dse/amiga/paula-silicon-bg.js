@@ -1,458 +1,801 @@
 // === js/visuals/dse/amiga/paula-silicon-bg.js ===
 // =========================================================
-// DEMO-SCENE-ELEMENT: PAULA 8364 MICROVERSE (v2.3.0 - DMA Edition)
-// 100% Alpha & Anti-Aliasing free! Employs a direct-memory Software 
-// Rasterizer (ImageData) for instant Bresenham pre-compilation 
-// without browser API bottlenecks. 
+// DEMO-SCENE-ELEMENT: PAULA 8364 MICROVERSE
+// Pure retro-buffer Amiga OCS Copper sky, dual-center Moire
+// interference, 4 stereo DMA hardware towers (L-R-R-L) and
+// 3D silicon bus floor — 100% DOM-free, zero alpha, zero AA.
+// Horizon aligned with KefrensCheckerboard at floor(height * 0.55).
 // =========================================================
 
-import { quantizeAmiga12Bit, rgbToHex, applyOrderedDitherFade } from '../../../visuals/utils/hardware-constraints.js';
+import { quantizeAmiga12Bit, rgbToHex } from '../../utils/hardware-constraints.js';
 
-// Die Raster sind nach ihrer Erstellung unveraenderlich. Ein kleiner LRU-Cache
-// vermeidet den wiederholten Aufbau bei DSE-Wechseln und Mobilrotationen.
-const PAULA_RASTER_CACHE = new Map();
-const PAULA_RASTER_CACHE_LIMIT = 4;
+const TWO_PI = Math.PI * 2;
+const Z_MAX = 380;
+const Z_STEP = 18;
+const TRANSITION_DURATION = 1.15;
+
+// 4x4 Bayer threshold matrix (0..15) for floor/sky power-on/off dither
+const BAYER_4X4 = Object.freeze([
+    0, 8, 2, 10,
+    12, 4, 14, 6,
+    3, 11, 1, 9,
+    15, 7, 13, 5
+]);
+
+// Precompute all 4096 Amiga 12-bit OCS hex colors once
+const AMIGA_HEX_LUT = (() => {
+    const lut = new Array(4096);
+    for (let r4 = 0; r4 < 16; r4++) {
+        for (let g4 = 0; g4 < 16; g4++) {
+            for (let b4 = 0; b4 < 16; b4++) {
+                const [qr, qg, qb] = quantizeAmiga12Bit(r4 * 17, g4 * 17, b4 * 17);
+                lut[(r4 << 8) | (g4 << 4) | b4] = rgbToHex(qr, qg, qb);
+            }
+        }
+    }
+    return Object.freeze(lut);
+})();
+
+// Precompute one octant (0 <= x <= y) of concentric Moire circle offsets once
+const MOIRE_OCTANT_POINTS = (() => {
+    const pts = [];
+    for (let r = 12; r <= 124; r += 16) {
+        let x = 0;
+        let y = r;
+        let d = 3 - 2 * r;
+        while (y >= x) {
+            pts.push(x, y);
+            x++;
+            if (d > 0) {
+                y--;
+                d = d + 4 * (x - y) + 10;
+            } else {
+                d = d + 4 * x + 6;
+            }
+        }
+    }
+    return Int16Array.from(pts);
+})();
+
+function clamp01(v) {
+    if (!Number.isFinite(v)) return 0;
+    return v < 0 ? 0 : (v > 1 ? 1 : v);
+}
+
+function lerp(a, b, t) {
+    return a + (b - a) * t;
+}
+
+function readChannel(arr, idx, fallback) {
+    if (!arr || idx >= arr.length) return fallback;
+    return clamp01(arr[idx]);
+}
+
+function toAmigaHex(r, g, b) {
+    const r4 = r <= 0 ? 0 : (r >= 255 ? 15 : Math.round(r / 17));
+    const g4 = g <= 0 ? 0 : (g >= 255 ? 15 : Math.round(g / 17));
+    const b4 = b <= 0 ? 0 : (b >= 255 ? 15 : Math.round(b / 17));
+    return AMIGA_HEX_LUT[(r4 << 8) | (g4 << 4) | b4];
+}
+
+function fillClippedRect(ctx, x, y, rw, rh, bufW, bufH, minY = 0, maxY = bufH) {
+    let x0 = Math.floor(x);
+    let y0 = Math.floor(y);
+    let x1 = Math.floor(x + rw);
+    let y1 = Math.floor(y + rh);
+    if (x0 < 0) x0 = 0;
+    if (y0 < minY) y0 = minY;
+    if (x1 > bufW) x1 = bufW;
+    if (y1 > maxY) y1 = maxY;
+    const cw = x1 - x0;
+    const ch = y1 - y0;
+    if (cw > 0 && ch > 0) {
+        ctx.fillRect(x0, y0, cw, ch);
+    }
+}
+
+function drawClippedLine(ctx, x0, y0, x1, y1, minX, minY, maxX, maxY) {
+    if (
+        !Number.isFinite(x0) || !Number.isFinite(y0) ||
+        !Number.isFinite(x1) || !Number.isFinite(y1) ||
+        maxX < minX || maxY < minY
+    ) {
+        return;
+    }
+
+    let t0 = 0;
+    let t1 = 1;
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+
+    const clipTest = (p, q) => {
+        if (p === 0) return q >= 0;
+        const r = q / p;
+        if (p < 0) {
+            if (r > t1) return false;
+            if (r > t0) t0 = r;
+        } else {
+            if (r < t0) return false;
+            if (r < t1) t1 = r;
+        }
+        return true;
+    };
+
+    if (
+        !clipTest(-dx, x0 - minX) ||
+        !clipTest(dx, maxX - x0) ||
+        !clipTest(-dy, y0 - minY) ||
+        !clipTest(dy, maxY - y0)
+    ) {
+        return;
+    }
+
+    let cx0 = Math.floor(x0 + t0 * dx);
+    let cy0 = Math.floor(y0 + t0 * dy);
+    let cx1 = Math.floor(x0 + t1 * dx);
+    let cy1 = Math.floor(y0 + t1 * dy);
+
+    cx0 = cx0 < minX ? minX : (cx0 > maxX ? maxX : cx0);
+    cy0 = cy0 < minY ? minY : (cy0 > maxY ? maxY : cy0);
+    cx1 = cx1 < minX ? minX : (cx1 > maxX ? maxX : cx1);
+    cy1 = cy1 < minY ? minY : (cy1 > maxY ? maxY : cy1);
+
+    const adx = Math.abs(cx1 - cx0);
+    const ady = Math.abs(cy1 - cy0);
+    const sx = cx0 < cx1 ? 1 : -1;
+    const sy = cy0 < cy1 ? 1 : -1;
+    let err = adx - ady;
+    const maxSteps = adx + ady + 2;
+
+    for (let step = 0; step < maxSteps; step++) {
+        ctx.fillRect(cx0, cy0, 1, 1);
+        if (cx0 === cx1 && cy0 === cy1) break;
+        const e2 = err * 2;
+        if (e2 > -ady) {
+            err -= ady;
+            cx0 += sx;
+        }
+        if (e2 < adx) {
+            err += adx;
+            cy0 += sy;
+        }
+    }
+}
 
 export class PaulaSiliconBg {
     constructor() {
         this.name = 'Paula 8364 Microverse';
-        this.computerType = ['amiga'];
-        this.placementType = 'background';
-        
-        this.offscreen = document.createElement('canvas');
-        this.ctx = this.offscreen.getContext('2d', { alpha: false });
 
-        this.moireCanvas = document.createElement('canvas');
-        this.climaxMoireCanvas = document.createElement('canvas');
-        this.gridCanvases = Array.from({ length: 16 }, () => document.createElement('canvas'));
-        
-        this.lastT = 0;
-        this.internalT = 0;
+        // Time & state tracking
+        this.lastT = null;
+        this.lastState = 'idle';
+        this.stateAge = 0;
 
-        this.skyPalettes = [];
-        this.stars = [];
-        this.leftFades = [];
-        this.rightFades = [];
+        // Continuous simulation phases (preserved across resize/rotation)
+        this.scrollZ = 0;
+        this.moirePhase = 0;
+        this.starPhase = 0;
+        this.dmaTime = 0;
+        this.smoothedSpeed = 1.0;
+        this.afterglowMix = 0.0;
 
-        this.lfsrSeed = 0xACE1;
-        this.initialized = false;
-        this.ensureInitialized();
+        // Discrete beat-driven state
+        this.lastBeatCount = 0;
+        this.moirePaletteMode = 0;
+        this.beatDirection = 1;
+        this.zWaveAge = 10.0;
+        this.zWavePeak = 0.0;
+        this.syncGlitchAge = 10.0;
+
+        // Instance-owned deterministic Xorshift32 PRNG (zero Math.random!)
+        this.prngState = 0x5041554C; // 'PAUL'
+
+        // Deterministic starfield seeded once per instance
+        this.stars = new Array(24);
+        for (let i = 0; i < this.stars.length; i++) {
+            this.stars[i] = {
+                x: this._nextRandom(),
+                y: this._nextRandom() * 0.72,
+                phase: this._nextRandom() * TWO_PI,
+                speed: 2.5 + this._nextRandom() * 3.5
+            };
+        }
     }
 
-    ensureInitialized() {
-        if (this.initialized) return;
-
-        // NEU: Zerschlägt den Marsaglia-Gittereffekt durch echten, organischen Zufall bei System-Boot!
-        // Da dies nur einmalig geschieht, entstehen im Loop keinerlei CPU-Garbages.
-        for (let i = 0; i < 20; i++) {
-            this.stars.push({
-                x: Math.random(),
-                y: Math.random() * 0.5,
-                phase: Math.random() * 10
-            });
-        }
-
-        for (let t = 0; t <= 10; t++) {
-            let tension = t / 10.0;
-            let pal = [];
-            for (let i = 0; i < 16; i++) {
-                let r, g, b, pct = i / 15.0; 
-                if (tension < 0.5) {
-                    r = Math.floor(pct * 80 + tension * 100); g = Math.floor(pct * 20); b = Math.floor(50 + pct * 150);
-                } else {
-                    r = Math.floor(pct * 150 + tension * 105); g = Math.floor(pct * 120 * tension); b = Math.floor(50 + (1.0 - pct) * 80);
-                }
-                pal.push(rgbToHex(...quantizeAmiga12Bit(r, g, b)));
-            }
-            this.skyPalettes.push(pal);
-        }
-
-        this.mFront = rgbToHex(...quantizeAmiga12Bit(34, 34, 68));
-        this.mHighlight = rgbToHex(...quantizeAmiga12Bit(68, 68, 102));
-        this.mShadow = rgbToHex(...quantizeAmiga12Bit(17, 17, 34));
-
-        this.floorColor = rgbToHex(...quantizeAmiga12Bit(5, 5, 17));
-        this.whiteColor = rgbToHex(...quantizeAmiga12Bit(255, 255, 255));
-        this.reflectionColor = rgbToHex(...quantizeAmiga12Bit(255, 119, 0));
-        this.glitchColor = rgbToHex(...quantizeAmiga12Bit(255, 0, 255));
-        this.glitchColor2 = rgbToHex(...quantizeAmiga12Bit(0, 255, 0));
-
-        for (let i = 0; i < 16; i++) {
-            let pct = i / 15.0;
-            this.leftFades.push(rgbToHex(...quantizeAmiga12Bit(0, Math.floor(50 + pct * 200), 255)));
-            this.rightFades.push(rgbToHex(...quantizeAmiga12Bit(Math.floor(255 * pct), Math.floor(50 + pct * 100), 0)));
-        }
-
-        this.initialized = true;
+    _nextRandom() {
+        let x = this.prngState | 0;
+        x ^= x << 13;
+        x ^= x >>> 17;
+        x ^= x << 5;
+        this.prngState = x;
+        return (x >>> 0) / 4294967296;
     }
 
-    nextLfsr() {
-        let bit = ((this.lfsrSeed >> 0) ^ (this.lfsrSeed >> 2) ^ (this.lfsrSeed >> 3) ^ (this.lfsrSeed >> 5)) & 1;
-        this.lfsrSeed = (this.lfsrSeed >> 1) | (bit << 15);
-        return this.lfsrSeed;
+    resize() {
+        // Projection and DMA layout derive dynamically from width/height;
+        // keep continuous simulation phases intact across rotations.
     }
 
-    nextLfsrFloat() { return this.nextLfsr() / 65535.0; }
-
-    // =========================================================
-    // DIRECT-MEMORY SOFTWARE RASTERIZER (Zero API Overhead!)
-    // Plottet Bresenham und Kreise direkt als Bytes ins RAM. 
-    // Garantiert 100% Aliasing bei maximaler Geschwindigkeit.
-    // =========================================================
-    rebuildResizedCanvases(offW, offH, horizon) {
-        const cacheKey = `${offW}x${offH}:${horizon}`;
-        const cached = PAULA_RASTER_CACHE.get(cacheKey);
-        const copyRasterCanvas = (source) => {
-            const canvas = document.createElement('canvas');
-            canvas.width = source.width;
-            canvas.height = source.height;
-            const ctx = canvas.getContext('2d');
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(source, 0, 0);
-            return canvas;
-        };
-        if (cached) {
-            // LRU-Reihenfolge aktualisieren, ohne die Raster neu zu berechnen.
-            // Jede Instanz erhaelt eigene Canvas: Ein spaeterer Resize darf die
-            // unveraenderlichen Cache-Snapshots und andere Formate nicht verformen.
-            PAULA_RASTER_CACHE.delete(cacheKey);
-            PAULA_RASTER_CACHE.set(cacheKey, cached);
-            this.moireCanvas = copyRasterCanvas(cached.moireCanvas);
-            this.climaxMoireCanvas = copyRasterCanvas(cached.climaxMoireCanvas);
-            this.gridCanvases = cached.gridCanvases.map(copyRasterCanvas);
+    _drawMoireCenter(ctx, cx, cy, scale, w, horizon, colorHex) {
+        const pts = MOIRE_OCTANT_POINTS;
+        const maxR = Math.ceil(124 * scale);
+        if (cx + maxR < 0 || cx - maxR >= w || cy - maxR >= horizon || cy + maxR < 0) {
             return;
         }
 
-        // Auch beim Cache-Miss von bisherigen Canvas-Referenzen loesen. Diese
-        // koennen bereits als Snapshot eines anderen Formats im Cache liegen.
-        this.moireCanvas = document.createElement('canvas');
-        this.climaxMoireCanvas = document.createElement('canvas');
-        this.gridCanvases = Array.from({ length: 16 }, () => document.createElement('canvas'));
-
-        // Helper: Hex String (#RRGGBB) zu RGBA Bytes parsen
-        const hexToRgba = (hex) => ({
-            r: parseInt(hex.slice(1, 3), 16),
-            g: parseInt(hex.slice(3, 5), 16),
-            b: parseInt(hex.slice(5, 7), 16),
-            a: 255
-        });
-
-        // 1. Moiré-Kreise Software Renderer
-        const rMax = 200;
-        const moireSize = rMax * 2;
-        
-        const drawSoftwareCircles = (canvas, colorHex) => {
-            canvas.width = moireSize; canvas.height = moireSize;
-            const ctx = canvas.getContext('2d');
-            let imgData = ctx.createImageData(moireSize, moireSize);
-            let data = imgData.data;
-            let c = hexToRgba(colorHex);
-            
-            const setPixel = (x, y) => {
-                if (x < 0 || x >= moireSize || y < 0 || y >= moireSize) return;
-                let idx = (y * moireSize + x) * 4;
-                data[idx] = c.r; data[idx+1] = c.g; data[idx+2] = c.b; data[idx+3] = c.a;
-            };
-
-            const drawMidpointCircle = (xc, yc, r) => {
-                let x = 0, y = r, d = 3 - 2 * r;
-                while (y >= x) {
-                    setPixel(xc + x, yc + y); setPixel(xc - x, yc + y);
-                    setPixel(xc + x, yc - y); setPixel(xc - x, yc - y);
-                    setPixel(xc + y, yc + x); setPixel(xc - y, yc + x);
-                    setPixel(xc + y, yc - x); setPixel(xc - y, yc - x);
-                    x++;
-                    if (d > 0) { y--; d = d + 4 * (x - y) + 10; } 
-                    else { d = d + 4 * x + 6; }
-                }
-            };
-
-            for (let r = 10; r < rMax; r += 14) drawMidpointCircle(rMax, rMax, r);
-            ctx.putImageData(imgData, 0, 0); // Einziger Grafik-API Aufruf!
+        ctx.fillStyle = colorHex;
+        const plot = (px, py) => {
+            if (px >= 0 && px < w && py >= 0 && py < horizon) {
+                ctx.fillRect(px, py, 1, 1);
+            }
         };
 
-        drawSoftwareCircles(this.moireCanvas, rgbToHex(...quantizeAmiga12Bit(0, 140, 255)));
-        drawSoftwareCircles(this.climaxMoireCanvas, rgbToHex(...quantizeAmiga12Bit(255, 100, 0)));
+        for (let i = 0; i < pts.length; i += 2) {
+            const ox = Math.round(pts[i] * scale);
+            const oy = Math.round(pts[i + 1] * scale);
 
-        // 2. 3D Grid Floor Software Renderer
-        const zMax = 400, zStep = 16, fov = 150, camY = 38;
-        const gridH = offH - horizon;
-        
-        if (gridH <= 0 || offW <= 0) return;
-
-        // Native 32-Bit-Writes fuellen dieselben RGBA-Bytes wie zuvor, vermeiden
-        // aber Millionen einzelner Byte-Zuweisungen beim Kaltstart eines Formats.
-        const packRgba = (c) => new Uint32Array(Uint8Array.of(c.r, c.g, c.b, c.a).buffer)[0];
-        const bgWord = packRgba(hexToRgba(this.floorColor));
-        const lnWord = packRgba(hexToRgba(rgbToHex(...quantizeAmiga12Bit(0, 140, 255))));
-
-        for (let f = 0; f < 16; f++) {
-            let gCanvas = this.gridCanvases[f];
-            gCanvas.width = offW; gCanvas.height = gridH;
-            let gCtx = gCanvas.getContext('2d');
-            
-            let imgData = gCtx.createImageData(offW, gridH);
-            let pixels = new Uint32Array(imgData.data.buffer);
-            pixels.fill(bgWord);
-
-            const drawBresenham = (x0, y0, x1, y1) => {
-                x0 = Math.floor(x0); y0 = Math.floor(y0);
-                x1 = Math.floor(x1); y1 = Math.floor(y1);
-                let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-                let dy = Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-                let err = (dx > dy ? dx : -dy) / 2;
-                const majorSteps = Math.max(dx, dy);
-                if (majorSteps === 0) {
-                    if (x0 >= 0 && x0 < offW && y0 >= 0 && y0 < gridH) pixels[y0 * offW + x0] = lnWord;
-                    return;
-                }
-
-                // Auf der Major-Axis exakt bis zum sichtbaren Intervall springen.
-                // Fehlerakkumulator und Minor-Axis werden dabei um dieselbe
-                // Schrittanzahl weitergerechnet; die sichtbare Punktfolge bleibt
-                // gegenueber dem vollstaendigen Bresenham-Lauf unveraendert.
-                const xMajor = dx > dy;
-                const majorStart = xMajor ? x0 : y0;
-                const majorStep = xMajor ? sx : sy;
-                const majorMax = xMajor ? offW - 1 : gridH - 1;
-                const boundA = (0 - majorStart) / majorStep;
-                const boundB = (majorMax - majorStart) / majorStep;
-                const skip = Math.max(0, Math.ceil(Math.min(boundA, boundB)));
-                const stop = Math.min(majorSteps, Math.floor(Math.max(boundA, boundB)));
-                if (stop < skip || skip > majorSteps) return;
-
-                if (skip > 0) {
-                    if (xMajor) {
-                        const minorSteps = Math.max(0, Math.ceil((skip * dy - err) / dx));
-                        x0 += skip * sx;
-                        y0 += minorSteps * sy;
-                        err += minorSteps * dx - skip * dy;
-                    } else {
-                        const minorSteps = Math.max(0, Math.ceil((skip * dx + err) / dy));
-                        y0 += skip * sy;
-                        x0 += minorSteps * sx;
-                        err += skip * dx - minorSteps * dy;
-                    }
-                }
-
-                for (let step = skip; step <= stop; step++) {
-                    if (x0 >= 0 && x0 < offW && y0 >= 0 && y0 < gridH) pixels[y0 * offW + x0] = lnWord;
-                    if (x0 === x1 && y0 === y1) break;
-                    let e2 = err;
-                    if (e2 > -dx) { err -= dy; x0 += sx; }
-                    if (e2 < dy) { err += dx; y0 += sy; }
-                }
-            };
-
-            let scrollZ = f;
-            for (let z = zMax; z >= zStep; z -= zStep) {
-                let pZ = z - scrollZ;
-                if (pZ < 2.5) continue;
-                let py = Math.floor((camY * fov) / pZ);
-                if (py > gridH) continue;
-                // Ganze Scanline als native 32-Bit-Spanne statt Einzelpixeln.
-                if (py >= 0 && py < gridH) pixels.fill(lnWord, py * offW, (py + 1) * offW);
+            plot(cx + ox, cy + oy);
+            plot(cx - ox, cy + oy);
+            plot(cx + ox, cy - oy);
+            plot(cx - ox, cy - oy);
+            if (ox !== oy) {
+                plot(cx + oy, cy + ox);
+                plot(cx - oy, cy + ox);
+                plot(cx + oy, cy - ox);
+                plot(cx - oy, cy - ox);
             }
-
-            const xRange = Math.max(400, offW * 1.5);
-            const cx = offW / 2;
-            for (let x = -xRange; x <= xRange; x += 32) {
-                let startZ = zStep - scrollZ;
-                if (startZ < 2.5) startZ = 2.5;
-                let pxStart = cx + (x * fov) / startZ;
-                let pyStart = (camY * fov) / startZ;
-                let pxEnd = cx + (x * fov) / zMax;
-                let pyEnd = (camY * fov) / zMax;
-                drawBresenham(pxStart, pyStart, pxEnd, pyEnd);
-            }
-
-            gCtx.putImageData(imgData, 0, 0); // BAM! Im Bruchteil einer Millisekunde aufs Canvas!
-        }
-
-        PAULA_RASTER_CACHE.set(cacheKey, {
-            moireCanvas: this.moireCanvas,
-            climaxMoireCanvas: this.climaxMoireCanvas,
-            gridCanvases: this.gridCanvases
-        });
-        if (PAULA_RASTER_CACHE.size > PAULA_RASTER_CACHE_LIMIT) {
-            PAULA_RASTER_CACHE.delete(PAULA_RASTER_CACHE.keys().next().value);
         }
     }
 
-    render(mainCtx, width, height, t, state, stateTime, metrics) {
-        this.ensureInitialized();
+    _drawPowerCurtain(ctx, w, h, horizon, revealRatio) {
+        const halfSky = horizon * (1.0 - revealRatio);
+        const skyActiveTop = Math.min(horizon, Math.max(0, Math.ceil(halfSky)));
+        const floorHeight = Math.max(1, h - horizon);
+        const floorActiveBottom = Math.min(
+            h,
+            Math.max(horizon, horizon + Math.floor(floorHeight * revealRatio))
+        );
 
-        if (state === 'idle') { this.lastT = t; return; }
-        
-        if (width <= 0 || height <= 0) return; 
-
-        let dt = this.lastT === 0 ? 0.016 : t - this.lastT;
-        this.lastT = t;
-
-        const TARGET_HEIGHT = 256;
-        const aspect = width / height;
-
-        if (!isFinite(aspect) || aspect <= 0) return;
-
-        const offW = Math.floor(TARGET_HEIGHT * aspect);
-        const offH = TARGET_HEIGHT;
-
-        const horizon = Math.floor(offH * 0.55); 
-        if (this.offscreen.width !== offW || this.offscreen.height !== offH) {
-            this.offscreen.width = offW;
-            this.offscreen.height = offH;
-            this.rebuildResizedCanvases(offW, offH, horizon);
+        ctx.fillStyle = '#000000';
+        if (skyActiveTop > 0) {
+            ctx.fillRect(0, 0, w, skyActiveTop);
+        }
+        if (floorActiveBottom < h) {
+            ctx.fillRect(0, floorActiveBottom, w, h - floorActiveBottom);
         }
 
-        const beat = metrics.beat[0]; 
-        const tension = metrics.tensionPct; 
-        const vols = metrics.smooth; 
+        // Bayer 4x4 ordered-dither frontier bands (pure fillRect, zero getImageData)
+        const bandPx = Math.max(4, Math.min(18, Math.floor(h * 0.07)));
+        const stepX = Math.max(2, Math.min(4, Math.floor(w * 0.02)));
+        const stepY = 2;
 
-        let globalAlpha = 1.0;
-        let speedMult = 1.0;
-        if (state === 'starting') { globalAlpha = Math.min(1.0, stateTime / 1.5); } 
-        else if (state === 'stopping') { globalAlpha = Math.max(0.0, 1.0 - (stateTime / 1.5)); } 
-        else if (state === 'buildup') { speedMult = 1.8; } 
-        else if (state === 'climax') { speedMult = 3.0; }
+        // Top frontier
+        const topStart = skyActiveTop;
+        const topEnd = Math.min(horizon, skyActiveTop + bandPx);
+        for (let y = topStart; y < topEnd; y += stepY) {
+            const vis = (y - topStart + 1) / bandPx;
+            const bayerRow = ((y >> 1) & 3) * 4;
+            for (let x = 0; x < w; x += stepX) {
+                if (BAYER_4X4[bayerRow + ((x >> 2) & 3)] >= vis * 16) {
+                    const bw = Math.min(stepX, w - x);
+                    const bh = Math.min(stepY, topEnd - y);
+                    if (bw > 0 && bh > 0) ctx.fillRect(x, y, bw, bh);
+                }
+            }
+        }
 
-        // Paula reagiert mit einem kurzen Taktimpuls auf den Beat; die
-        // vorhandenen Register- und Spannungsanzeigen bleiben unveraendert.
-        this.internalT += dt * speedMult * (1.0 + beat * 0.35);
-        const time = this.internalT;
+        // Bottom frontier
+        const botEnd = floorActiveBottom;
+        const botStart = Math.max(horizon, floorActiveBottom - bandPx);
+        for (let y = botStart; y < botEnd; y += stepY) {
+            const vis = (botEnd - y) / bandPx;
+            const bayerRow = ((y >> 1) & 3) * 4;
+            for (let x = 0; x < w; x += stepX) {
+                if (BAYER_4X4[bayerRow + ((x >> 2) & 3)] >= vis * 16) {
+                    const bw = Math.min(stepX, w - x);
+                    const bh = Math.min(stepY, botEnd - y);
+                    if (bw > 0 && bh > 0) ctx.fillRect(x, y, bw, bh);
+                }
+            }
+        }
+    }
 
-        const ctx = this.ctx;
-        ctx.imageSmoothingEnabled = false;
-        const cx = offW / 2; 
+    render(ctx, width, height, t, state, stateTime, metrics) {
+        const safeT = Number.isFinite(t) ? t : (this.lastT !== null ? this.lastT : 0);
 
-        let palIdx = Math.floor(tension * 10);
-        if (palIdx > 10) palIdx = 10;
-        const activeSkyPalette = this.skyPalettes[palIdx];
+        if (
+            !ctx ||
+            !Number.isFinite(width) ||
+            !Number.isFinite(height) ||
+            width <= 0 ||
+            height <= 0 ||
+            !Number.isFinite(width / height)
+        ) {
+            this.lastT = safeT;
+            return;
+        }
 
-        const bandH = Math.ceil(horizon / 16);
+        const w = Math.floor(width);
+        const h = Math.floor(height);
+        if (w <= 0 || h <= 0) {
+            this.lastT = safeT;
+            return;
+        }
+
+        if (state === 'idle') {
+            this.lastT = safeT;
+            this.lastState = 'idle';
+            this.stateAge = 0;
+            return;
+        }
+
+        // Safe PAL-friendly dt clamped against tab switches
+        let dt = this.lastT === null ? 0.02 : (safeT - this.lastT);
+        this.lastT = safeT;
+        if (!Number.isFinite(dt) || dt < 0) {
+            dt = 0.02;
+        } else if (dt > 0.1) {
+            dt = 0.1;
+        }
+
+        if (this.lastState !== state) {
+            this.lastState = state;
+            this.stateAge = 0;
+        } else {
+            this.stateAge += dt;
+        }
+
+        // ---------------------------------------------------------
+        // Defensive metric parsing
+        // ---------------------------------------------------------
+        const safeMetrics = metrics || {};
+        const energy = clamp01(safeMetrics.energy ?? 0.35);
+        const pulse = clamp01(safeMetrics.pulse ?? 0);
+        const tension = clamp01(safeMetrics.tensionPct ?? 0.3);
+        const isClimaxLocked = Boolean(safeMetrics.isClimaxLocked);
+
+        const beatArr = safeMetrics.beat;
+        const beatEnv = beatArr && beatArr.length > 0 ? clamp01(beatArr[0]) : 0;
+
+        const impulseArr = safeMetrics.beatImpulse;
+        const beatImpulse = impulseArr && impulseArr.length > 0
+            ? clamp01(impulseArr[0])
+            : beatEnv;
+
+        const beatStarted = Boolean(safeMetrics.beatStarted);
+        const beatStrength = Number.isFinite(safeMetrics.beatStrength)
+            ? clamp01(safeMetrics.beatStrength)
+            : beatImpulse;
+        const beatLevel = Number.isFinite(safeMetrics.beatLevel) ? safeMetrics.beatLevel : 0;
+
+        const smooth = (Array.isArray(safeMetrics.smooth) || ArrayBuffer.isView(safeMetrics.smooth))
+            ? safeMetrics.smooth
+            : null;
+        const ch0 = readChannel(smooth, 0, energy);
+        const ch1 = readChannel(smooth, 1, energy * 0.9);
+        const ch2 = readChannel(smooth, 2, energy * 0.8);
+        const ch3 = readChannel(smooth, 3, energy * 0.85);
+        const vols = [ch0, ch1, ch2, ch3];
+
+        // ---------------------------------------------------------
+        // Discrete Beat Events (strictly gated on beatStarted)
+        // ---------------------------------------------------------
+        const allowDiscreteSwitches = state !== 'afterglow' && state !== 'stopping';
+        if (beatStarted) {
+            const incomingCount = Number.isFinite(safeMetrics.beatCount)
+                ? Math.floor(safeMetrics.beatCount)
+                : (this.lastBeatCount + 1);
+
+            if (incomingCount !== this.lastBeatCount || !Number.isFinite(safeMetrics.beatCount)) {
+                this.lastBeatCount = incomingCount;
+                this.beatDirection = (incomingCount & 1) ? 1 : -1;
+
+                // Trigger Silicon Bus Copper Z-wave scaled by beatLevel/beatStrength
+                this.zWaveAge = 0;
+                const levelWeight = beatLevel >= 3 ? 1.0 : (beatLevel === 2 ? 0.65 : (beatLevel === 1 ? 0.35 : 0.0));
+                this.zWavePeak = Math.max(beatStrength, levelWeight);
+
+                // Controlled hardware DMA sync glitch only on strong climax beats
+                if (state === 'climax' && beatLevel >= 3) {
+                    this.syncGlitchAge = 0;
+                }
+
+                if (allowDiscreteSwitches && incomingCount > 0 && incomingCount % 4 === 0) {
+                    this.moirePaletteMode = (this.moirePaletteMode + 1) % 3;
+                }
+            }
+        }
+
+        this.zWaveAge = Math.min(10.0, this.zWaveAge + dt);
+        this.syncGlitchAge = Math.min(10.0, this.syncGlitchAge + dt);
+
+        // ---------------------------------------------------------
+        // Macro State Dynamics & Tension Mapping
+        // ---------------------------------------------------------
+        let targetSpeed = 1.0 + tension * 0.4;
+        let targetAfterglow = 0.0;
+        let moireIntensity = Math.max(0, (tension - 0.18) / 0.82);
+
+        if (state === 'starting') {
+            targetSpeed = 0.8;
+            moireIntensity *= 0.4;
+        } else if (state === 'playing') {
+            targetSpeed = 0.9 + tension * 0.45;
+            moireIntensity *= 0.55;
+        } else if (state === 'buildup') {
+            targetSpeed = 1.55 + tension * 0.75;
+            moireIntensity = Math.max(0.35, moireIntensity);
+        } else if (state === 'climax') {
+            targetSpeed = 2.5 + tension * 0.8 + (isClimaxLocked ? 0.25 : 0);
+            moireIntensity = 1.0;
+        } else if (state === 'afterglow') {
+            targetSpeed = 0.30;
+            targetAfterglow = 1.0;
+            moireIntensity *= 0.45;
+        } else if (state === 'stopping') {
+            targetSpeed = 0.40;
+            moireIntensity *= 0.35;
+        }
+
+        this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * Math.min(1.0, dt * 4.0);
+        this.afterglowMix += (targetAfterglow - this.afterglowMix) * Math.min(1.0, dt * 2.2);
+        const ag = this.afterglowMix;
+
+        const effectiveSpeed = Math.max(0.1, this.smoothedSpeed * (1.0 + beatImpulse * (state === 'afterglow' ? 0.12 : 0.45)));
+        this.scrollZ = (this.scrollZ + dt * effectiveSpeed * 95) % Z_STEP;
+        this.moirePhase = (this.moirePhase + dt * (0.75 + effectiveSpeed * 0.55)) % TWO_PI;
+        this.starPhase = (this.starPhase + dt * (1.2 + effectiveSpeed * 0.8)) % TWO_PI;
+        this.dmaTime = (this.dmaTime + dt * effectiveSpeed) % 1024;
+
+        // ---------------------------------------------------------
+        // Transition Progress (starting / stopping)
+        // ---------------------------------------------------------
+        let revealRatio = 1.0;
+        if (state === 'starting') {
+            revealRatio = clamp01((this.stateAge + 0.08) / TRANSITION_DURATION);
+        } else if (state === 'stopping') {
+            revealRatio = 1.0 - clamp01(this.stateAge / TRANSITION_DURATION);
+            if (revealRatio <= 0.001) {
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, w, h);
+                return;
+            }
+        }
+
+        // ---------------------------------------------------------
+        // Responsive Geometry (Portrait -> Ultrawide & 3:1 / 1:3)
+        // ---------------------------------------------------------
+        const minDim = Math.min(w, h);
+        const horizon = Math.min(h - 1, Math.max(1, Math.floor(h * 0.55)));
+        const floorHeight = Math.max(1, h - horizon);
+        const cx = w * 0.5;
+
+        // ---------------------------------------------------------
+        // 1. 16-Band Copper Sky (tension & afterglow responsive)
+        // ---------------------------------------------------------
+        const bandH = Math.max(1, Math.ceil(horizon / 16));
+        const skyWarmth = tension * (1.0 - 0.75 * ag);
+        const skyBoost = 1.0 + beatImpulse * 0.14 * (1.0 - ag);
+
         for (let i = 0; i < 16; i++) {
-            ctx.fillStyle = activeSkyPalette[i];
-            ctx.fillRect(0, i * bandH, offW, bandH);
+            const bandY = i * bandH;
+            if (bandY >= horizon) break;
+            const drawH = Math.min(bandH, horizon - bandY);
+            const pct = i / 15.0;
+
+            let r;
+            let g;
+            let b;
+            if (skyWarmth < 0.5) {
+                r = (pct * 80 + skyWarmth * 100) * skyBoost;
+                g = (pct * 22) * skyBoost;
+                b = (42 + pct * 148) * skyBoost;
+            } else {
+                r = (pct * 150 + skyWarmth * 105) * skyBoost;
+                g = (pct * 115 * skyWarmth) * skyBoost;
+                b = (44 + (1.0 - pct) * 85) * skyBoost;
+            }
+
+            // Cool toward midnight silicon in afterglow
+            if (ag > 0.001) {
+                const coolR = 12 + pct * 34;
+                const coolG = 14 + pct * 44;
+                const coolB = 34 + pct * 102;
+                r = lerp(r, coolR, ag);
+                g = lerp(g, coolG, ag);
+                b = lerp(b, coolB, ag);
+            }
+
+            ctx.fillStyle = toAmigaHex(r, g, b);
+            ctx.fillRect(0, bandY, w, drawH);
         }
 
-        const starColors = ['#ffffff', '#ffff00', '#ff8800', '#0055ff'];
+        // ---------------------------------------------------------
+        // 2. Deterministic Starfield (distributed over full width)
+        // ---------------------------------------------------------
+        const starPal = ag > 0.5
+            ? ['#8899cc', '#5577bb', '#4466aa', '#aabbdd']
+            : ['#ffffff', '#ffff00', '#ff8800', '#0055ff'];
         for (let i = 0; i < this.stars.length; i++) {
-            let s = this.stars[i];
-            let sx = Math.floor(s.x * offW);
-            let sy = Math.floor(s.y * horizon);
-            let cIdx = Math.floor(time * 5.0 + s.phase) % 4;
-            ctx.fillStyle = starColors[cIdx];
+            const s = this.stars[i];
+            const sx = Math.min(w - 1, Math.max(0, Math.floor(s.x * w)));
+            const sy = Math.min(horizon - 1, Math.max(0, Math.floor(s.y * horizon)));
+            const cIdx = Math.floor(this.starPhase * s.speed + s.phase) & 3;
+            ctx.fillStyle = starPal[cIdx];
             ctx.fillRect(sx, sy, 1, 1);
         }
 
-        if (tension > 0.2) {
-            const intensity = (tension - 0.2) / 0.8; 
-            const cx1 = Math.floor(cx + Math.sin(time) * (40 + intensity * 40));
-            const cy1 = Math.floor(70 + Math.cos(time * 1.3) * 30);
-            const cx2 = Math.floor(cx + Math.sin(time * 1.1 + Math.PI) * (40 + intensity * 40));
-            const cy2 = Math.floor(70 + Math.cos(time * 0.9 + Math.PI) * 30);
-            
-            const rMax = 200;
-            let activeMoire = (state === 'climax') ? this.climaxMoireCanvas : this.moireCanvas;
-            
-            ctx.drawImage(activeMoire, cx1 - rMax, cy1 - rMax);
-            ctx.drawImage(activeMoire, cx2 - rMax, cy2 - rMax);
+        // ---------------------------------------------------------
+        // 3. Dual-Center Moire Interference (strictly clipped to sky)
+        // ---------------------------------------------------------
+        if (moireIntensity > 0.02 && horizon >= 8 && w >= 8) {
+            const mScale = Math.max(0.32, Math.min(1.15, minDim / 210));
+            const orbitX = w * (0.14 + 0.16 * moireIntensity);
+            const orbitY = horizon * 0.24;
+            const cyBase = horizon * 0.48;
+
+            const cx1 = Math.floor(cx + Math.sin(this.moirePhase) * orbitX);
+            const cy1 = Math.floor(cyBase + Math.cos(this.moirePhase * 1.3) * orbitY);
+            const cx2 = Math.floor(cx + Math.sin(this.moirePhase * 1.1 + Math.PI) * orbitX);
+            const cy2 = Math.floor(cyBase + Math.cos(this.moirePhase * 0.9 + Math.PI) * orbitY);
+
+            let cA;
+            let cB;
+            if (state === 'climax') {
+                cA = this.moirePaletteMode === 1 ? '#ffaa00' : '#ff6600';
+                cB = this.moirePaletteMode === 2 ? '#88eeff' : '#00bbff';
+            } else if (ag > 0.4) {
+                cA = '#4466aa';
+                cB = '#335588';
+            } else {
+                cA = this.moirePaletteMode === 1 ? '#33bbff' : '#0088ff';
+                cB = this.moirePaletteMode === 2 ? '#ff8833' : '#0055dd';
+            }
+
+            this._drawMoireCenter(ctx, cx1, cy1, mScale, w, horizon, cA);
+            this._drawMoireCenter(ctx, cx2, cy2, mScale, w, horizon, cB);
         }
 
-        let scrollZ = (time * 150) % 16;
-        let fIdx = Math.floor(scrollZ);
-        ctx.drawImage(this.gridCanvases[fIdx], 0, horizon);
+        // ---------------------------------------------------------
+        // 4. 3D Silicon Bus Floor (zero ImageData, full width coverage)
+        // ---------------------------------------------------------
+        const floorBgHex = toAmigaHex(lerp(5, 8, ag), lerp(5, 10, ag), lerp(20, 26, ag));
+        ctx.fillStyle = floorBgHex;
+        ctx.fillRect(0, horizon, w, floorHeight);
 
-        if (this.nextLfsrFloat() < 0.35) {
-            let nx = Math.floor(this.nextLfsrFloat() * offW);
-            let ny = horizon + 2 + Math.floor(this.nextLfsrFloat() * (offH - horizon - 2));
-            ctx.fillStyle = (this.nextLfsrFloat() > 0.5) ? this.whiteColor : this.horizonLineColor;
-            ctx.fillRect(nx, ny, 2, 1);
+        const fov = Math.max(16, minDim * 0.56);
+        const baseCamY = Math.max(6, floorHeight * 0.30);
+        const camY = Math.max(3.5, baseCamY * (1.0 - Math.min(0.40, beatImpulse * 0.34)));
+
+        const zWaveActive = this.zWaveAge < 1.0 && this.zWavePeak > 0.01;
+        const zWaveCenter = this.zWaveAge / 0.8;
+        const zWaveAmp = zWaveActive ? this.zWavePeak * (1.0 - 0.55 * ag) * (1.0 - this.zWaveAge * 0.75) : 0.0;
+
+        // Perspective longitudinal grid lines covering full width on Ultrawide & 3:1
+        const worldStep = Math.max(16, fov * 0.28);
+        const edgeWorldX = (w * 0.54) * (Z_MAX / fov);
+        const gridSteps = Math.min(28, Math.ceil(edgeWorldX / worldStep));
+        const baseGridLum = (0.45 + 0.30 * energy + 0.35 * beatImpulse) * (1.0 - 0.40 * ag);
+        const radLineHex = toAmigaHex(0, 136 * baseGridLum, 255 * baseGridLum);
+        ctx.fillStyle = radLineHex;
+
+        const startZ = Math.max(2.5, Z_STEP - this.scrollZ);
+        const pyStart = (camY * fov) / startZ;
+        const pyEnd = (camY * fov) / Z_MAX;
+
+        for (let k = -gridSteps; k <= gridSteps; k++) {
+            const worldX = k * worldStep;
+            const pxStart = cx + (worldX * fov) / startZ;
+            const pxEnd = cx + (worldX * fov) / Z_MAX;
+            drawClippedLine(
+                ctx,
+                pxStart,
+                horizon + pyStart,
+                pxEnd,
+                horizon + pyEnd,
+                0,
+                horizon,
+                w - 1,
+                h - 1
+            );
         }
 
-        const span = Math.min(100, offW * 0.25); 
-        const dmaX = [cx - span, cx + span * 0.35, cx + span, cx - span * 0.35];
+        // Responsive X-positions of the 4 Paula DMA channels (Amiga Stereo L-R-R-L)
+        const slotFracs = [0.14, 0.36, 0.64, 0.86];
+        const dmaX = [
+            Math.floor(w * slotFracs[0]),
+            Math.floor(w * slotFracs[2]),
+            Math.floor(w * slotFracs[3]),
+            Math.floor(w * slotFracs[1])
+        ];
+
+        // Highlighted DMA bus traces running from each chip pedestal out toward foreground
+        for (let i = 0; i < 4; i++) {
+            const isLeft = (i === 0 || i === 3);
+            const traceGlow = (0.28 + 0.72 * vols[i] + 0.45 * beatImpulse) * (1.0 - 0.50 * ag);
+            if (isLeft) {
+                ctx.fillStyle = toAmigaHex(0, 170 * traceGlow, 255 * traceGlow);
+            } else {
+                ctx.fillStyle = toAmigaHex(255 * traceGlow, 120 * traceGlow, 17 * traceGlow);
+            }
+            const worldChipX = (dmaX[i] - cx) * (Z_MAX / fov);
+            const chipPxStart = cx + (worldChipX * fov) / startZ;
+            drawClippedLine(
+                ctx,
+                chipPxStart,
+                horizon + pyStart,
+                dmaX[i],
+                horizon,
+                0,
+                horizon,
+                w - 1,
+                h - 1
+            );
+        }
+
+        // Horizontal Z-depth grid scanlines (with traveling Copper Z-wave)
+        for (let z = Z_MAX; z >= Z_STEP; z -= Z_STEP) {
+            const pZ = z - this.scrollZ;
+            if (pZ < 2.2) continue;
+            const py = Math.floor((camY * fov) / pZ);
+            if (py < 0 || py >= floorHeight) continue;
+
+            const depth = py / floorHeight;
+            let waveBoost = 0;
+            if (zWaveAmp > 0.01) {
+                const dist = Math.abs(depth - zWaveCenter);
+                if (dist < 0.18) {
+                    waveBoost = (1.0 - dist / 0.18) * zWaveAmp;
+                }
+            }
+
+            const lineLum = (0.35 + 0.55 * depth + 0.35 * beatImpulse + waveBoost * 0.75) * (1.0 - 0.42 * ag);
+            ctx.fillStyle = toAmigaHex(
+                34 * waveBoost * 2.5,
+                145 * lineLum + 60 * waveBoost,
+                255 * lineLum
+            );
+            ctx.fillRect(0, horizon + py, w, 1);
+        }
+
+        // Copper Horizon Bus Line (fixes undefined horizonLineColor from legacy code)
+        const horizonGlow = (0.45 + 0.35 * energy + 0.55 * beatImpulse + (isClimaxLocked ? 0.2 : 0))
+            * (1.0 - 0.5 * ag);
+        const horizonLineHex = toAmigaHex(102 * horizonGlow, 221 * horizonGlow, 255 * horizonGlow);
+        ctx.fillStyle = horizonLineHex;
+        ctx.fillRect(0, horizon, w, 1);
+
+        // Deterministic silicon bus sparks (only on floor)
+        if (ag < 0.7 && this._nextRandom() < (0.25 + 0.35 * energy)) {
+            const nx = Math.floor(this._nextRandom() * Math.max(1, w - 2));
+            const ny = horizon + 1 + Math.floor(this._nextRandom() * Math.max(1, floorHeight - 1));
+            ctx.fillStyle = this._nextRandom() > 0.5 ? '#ffffff' : horizonLineHex;
+            fillClippedRect(ctx, nx, ny, 2, 1, w, h, horizon, h);
+        }
+
+        // ---------------------------------------------------------
+        // 5. Four Paula 8364 Hardware DMA Towers (L-R-R-L)
+        // ---------------------------------------------------------
+        let colW = Math.max(4, Math.min(24, Math.floor(Math.min(w * 0.12, minDim * 0.10))));
+        colW = (colW & ~1) || 4;
+        const halfCol = colW >> 1;
+        const maxTowerH = Math.max(8, Math.floor(horizon * 0.42));
+
+        const mFront = toAmigaHex(lerp(34, 24, ag), lerp(34, 28, ag), lerp(68, 58, ag));
+        const mHighlight = toAmigaHex(lerp(68, 48, ag), lerp(68, 56, ag), lerp(119, 98, ag));
+        const mShadow = toAmigaHex(17, 17, lerp(34, 30, ag));
+        const pinHex = toAmigaHex(lerp(136, 85, ag), lerp(153, 102, ag), lerp(170, 119, ag));
 
         for (let i = 0; i < 4; i++) {
-            let x = Math.floor(dmaX[i]);
-            let vol = vols[i];
-            let isLeft = (i === 0 || i === 3);
+            const x = dmaX[i];
+            const vol = vols[i];
+            const isLeft = (i === 0 || i === 3);
 
-            const baseW = 24;
-            const baseH = 20 + Math.floor(vol * 15);
-            const baseY = horizon;
+            const baseH = Math.max(
+                6,
+                Math.floor(maxTowerH * (0.42 + 0.48 * vol + 0.12 * beatImpulse * (1.0 - ag)))
+            );
+            const topY = Math.max(2, horizon - baseH);
 
-            ctx.fillStyle = this.mShadow;
-            ctx.fillRect(x - baseW/2 - 4, baseY - 2, baseW + 8, 2);
-            
-            ctx.fillStyle = this.mFront;
-            ctx.fillRect(x - baseW/2, baseY - baseH, baseW, baseH - 2);
-            
-            ctx.fillStyle = this.mHighlight; 
-            ctx.fillRect(x - baseW/2, baseY - baseH, 2, baseH - 2);
-            
-            ctx.fillStyle = this.mShadow;    
-            ctx.fillRect(x + baseW/2 - 2, baseY - baseH, 2, baseH - 2);
-            
-            ctx.fillStyle = this.mHighlight; 
-            ctx.fillRect(x - baseW/2, baseY - baseH, baseW, 2);
+            // Shadow plinth
+            ctx.fillStyle = mShadow;
+            fillClippedRect(ctx, x - halfCol - 2, horizon - 2, colW + 4, 2, w, h, 0, horizon);
 
-            let fadeArray = isLeft ? this.leftFades : this.rightFades;
-            let volIdx = Math.floor(vol * 15);
-            ctx.fillStyle = fadeArray[volIdx];
-            ctx.fillRect(x - 6, baseY - baseH + 6, 12, 12);
+            // Main beveled IC chip body
+            ctx.fillStyle = mFront;
+            fillClippedRect(ctx, x - halfCol, topY, colW, baseH - 2, w, h, 0, horizon);
 
-            let fetchSpeed = 40 + vol * 150 + tension * 100;
-            let numBlocks = Math.floor(vol * 8) + (tension > 0.5 ? 3 : 1);
-            
+            ctx.fillStyle = mHighlight;
+            fillClippedRect(ctx, x - halfCol, topY, 1, baseH - 2, w, h, 0, horizon);
+            fillClippedRect(ctx, x - halfCol, topY, colW, 1, w, h, 0, horizon);
+
+            ctx.fillStyle = mShadow;
+            fillClippedRect(ctx, x + halfCol - 1, topY, 1, baseH - 2, w, h, 0, horizon);
+
+            // IC chip pins along base edge
+            if (colW >= 8) {
+                ctx.fillStyle = pinHex;
+                for (let px = x - halfCol + 1; px <= x + halfCol - 2; px += 3) {
+                    fillClippedRect(ctx, px, horizon - 2, 1, 2, w, h, 0, horizon);
+                }
+            }
+
+            // Inner DMA channel meter core
+            const meterPad = Math.max(1, Math.floor(colW * 0.22));
+            const meterW = Math.max(2, colW - meterPad * 2);
+            const meterMaxH = Math.max(2, baseH - 6);
+            const meterH = Math.max(1, Math.floor(meterMaxH * clamp01(0.15 + vol * 0.85)));
+            const meterY = horizon - 3 - meterH;
+            const glowGain = (0.55 + 0.45 * vol + 0.25 * beatImpulse) * (1.0 - 0.45 * ag);
+
+            ctx.fillStyle = isLeft
+                ? toAmigaHex(0, Math.floor((85 + vol * 170) * glowGain), Math.floor(255 * glowGain))
+                : toAmigaHex(Math.floor(255 * glowGain), Math.floor((51 + vol * 136) * glowGain), 0);
+            fillClippedRect(ctx, x - Math.floor(meterW * 0.5), meterY, meterW, meterH, w, h, 0, horizon);
+
+            // Ascending DMA sample fetch packets
+            const blockW = Math.max(4, Math.floor(colW * 0.55));
+            const blockHalf = blockW >> 1;
+            const fetchSpeed = (28 + vol * 95 + tension * 65) * (1.0 - 0.65 * ag);
+            const numBlocks = Math.max(1, Math.floor(vol * 6) + (tension > 0.5 ? 2 : 1));
+            const blockSpacing = Math.max(12, Math.floor(horizon * 0.16));
+
             for (let b = 0; b < numBlocks; b++) {
-                let yOffset = (time * fetchSpeed + b * 25) % horizon;
-                let blockY = (baseY - baseH) - yOffset;
-                
-                if (blockY < 0) continue; 
-                
+                const yOffset = (this.dmaTime * fetchSpeed + b * blockSpacing) % Math.max(1, topY);
+                const blockY = topY - yOffset;
+                if (blockY < 0 || blockY >= topY) continue;
+
                 let jitterX = 0;
-                if (tension > 0.7 && vol > 0.4) {
-                    jitterX = Math.floor((this.nextLfsrFloat() - 0.5) * 6 * tension);
+                if (ag < 0.3 && tension > 0.68 && vol > 0.35) {
+                    jitterX = Math.floor((this._nextRandom() - 0.5) * 4 * tension);
                 }
 
-                let hPct = blockY / horizon; 
-                let blockVolIdx = Math.floor(volIdx * hPct);
-                
-                ctx.fillStyle = fadeArray[blockVolIdx];
-                ctx.fillRect(x - 5 + jitterX, Math.floor(blockY), 10, Math.max(3, Math.floor(vol * 12)));
+                const hPct = clamp01(blockY / Math.max(1, horizon));
+                const fade = (0.30 + 0.70 * hPct) * (0.55 + 0.45 * vol) * (1.0 - 0.45 * ag);
+                const blockH = Math.max(2, Math.min(8, Math.floor(2 + vol * 6)));
+
+                ctx.fillStyle = isLeft
+                    ? toAmigaHex(0, 221 * fade, 255 * fade)
+                    : toAmigaHex(255 * fade, 136 * fade, 17 * fade);
+                fillClippedRect(ctx, x - blockHalf + jitterX, blockY, blockW, blockH, w, h, 0, topY);
+
+                // Crisp 1px Amiga Blitter top edge
+                ctx.fillStyle = isLeft
+                    ? toAmigaHex(153 * fade, 255 * fade, 255 * fade)
+                    : toAmigaHex(255 * fade, 221 * fade, 136 * fade);
+                fillClippedRect(ctx, x - blockHalf + jitterX, blockY, blockW, 1, w, h, 0, topY);
             }
 
-            if (state === 'climax' && beat > 0.3 && vol > 0.3) {
-                let beamYStart = 0;
-                let beamYEnd = baseY - baseH;
-                
-                ctx.fillStyle = this.whiteColor;
-                for (let beamY = beamYStart; beamY < beamYEnd; beamY += 4) {
-                    if ((beamY + Math.floor(time * 50)) % 8 < 4) ctx.fillRect(x - 4, beamY, 8, 2);
-                }
-                
-                ctx.fillStyle = this.reflectionColor;
-                for (let beamY = beamYStart; beamY < beamYEnd; beamY += 4) {
-                    if ((beamY + Math.floor(time * 50)) % 8 >= 4) ctx.fillRect(x - 4, beamY, 8, 2);
+            // Climax DMA Interrupt Beams (50-Hz-stable striped Copper columns)
+            if (state === 'climax' && (beatImpulse > 0.22 || isClimaxLocked) && vol > 0.28) {
+                const beamW = Math.max(2, Math.floor(colW * 0.35));
+                const beamHalf = beamW >> 1;
+                const phaseShift = Math.floor(this.dmaTime * 16) & 7;
+                for (let beamY = 0; beamY < topY; beamY += 4) {
+                    const stripe = (beamY + phaseShift) & 7;
+                    ctx.fillStyle = stripe < 4 ? '#ffffff' : '#ff7700';
+                    fillClippedRect(ctx, x - beamHalf, beamY, beamW, 2, w, h, 0, topY);
                 }
             }
         }
 
-        if (state !== 'idle' && this.nextLfsrFloat() < 0.03) {
-            let gx = Math.floor(this.nextLfsrFloat() * offW);
-            let gy = Math.floor(this.nextLfsrFloat() * offH);
-            ctx.fillStyle = this.glitchColor; 
-            ctx.fillRect(gx, gy, 16, 2);
-            ctx.fillStyle = this.glitchColor2; 
-            ctx.fillRect(gx + 4, gy + 2, 8, 2);
+        // ---------------------------------------------------------
+        // 6. Controlled Climax Sync Glitch (only on strong climax beats)
+        // ---------------------------------------------------------
+        if (state === 'climax' && this.syncGlitchAge < 0.08 && w >= 16) {
+            const gx = Math.floor(this._nextRandom() * Math.max(1, w - 16));
+            const gy = Math.floor(this._nextRandom() * Math.max(1, h - 4));
+            ctx.fillStyle = '#ff00ff';
+            fillClippedRect(ctx, gx, gy, 12, 1, w, h, 0, h);
+            ctx.fillStyle = '#00ffff';
+            fillClippedRect(ctx, gx + 3, gy + 1, 8, 1, w, h, 0, h);
         }
 
-        mainCtx.globalAlpha = 1.0;
-        mainCtx.imageSmoothingEnabled = false; 
-        mainCtx.drawImage(this.offscreen, 0, 0, width, height);
-        // Der naechste DSE erbt bewusst harte Pixel, niemals Browser-AA.
-        mainCtx.imageSmoothingEnabled = false;
-        applyOrderedDitherFade(mainCtx, width, height, globalAlpha);
-        mainCtx.globalAlpha = 1.0;
+        // ---------------------------------------------------------
+        // 7. Power-On / Power-Off Bayer 4x4 Curtain (no globalAlpha)
+        // ---------------------------------------------------------
+        if (revealRatio < 1.0) {
+            this._drawPowerCurtain(ctx, w, h, horizon, revealRatio);
+        }
     }
 }
