@@ -15,6 +15,43 @@ But memory paints the past grander than it actually was. **This is our Fantasy.*
 Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with ruthless historical accuracy (strict hardware palettes, true bit-banged integer math, zero anti-aliasing). Our `Scene-DJ` then acts as the ultimate virtual orchestrator, taking these isolated, period-accurate effects and layering them into a breathtaking, synchronized demoscene experience that feels *exactly* like our childhood memories.
 
 ---
+# 💾 CHIPTUNES FANTASY (v1.6.0)
+> **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
+
+---
+
+## 🚀 v1.6.0 Release Highlights
+
+Version 1.6.0 delivers a comprehensive **DSE Overhaul** across **12 system-specific Demo-Scene-Elements** for Amiga, Commodore 64, and Atari ST. Every updated effect now adheres strictly to the [DSE development rules](doc/concepts/dse_development_rules.md): deterministic, DOM-free integer rastering, strict hardware palettes, graded beat/channel choreography, dedicated `afterglow` transitions, and seamless continuity from mobile portrait to ultrawide displays. No audio synthesis engines or track-library counts are altered.
+
+### Architectural overhaul across all 12 updated DSEs
+
+- **True time-based 50 Hz PAL design:** Replaced frame-counter intervals, frame-rate-coupled smoothing, and `Math.random()` calls with clamped `dt` accumulators, local `stateAge` transition timers, modulo-wrapped phases, and instance-owned Xorshift32 PRNGs.
+- **DOM-free, zero-alpha retro rendering:** Eliminated `ctx.globalAlpha`, `ctx.save()`/`ctx.clip()`, offscreen DOM sprite/pattern canvases, shared module caches, and per-frame `getImageData()`/`putImageData()` raster readbacks. Background transitions use native Bayer 4×4 `fillRect` power curtains, while foreground DSEs emerge and retract geometrically without painting over background or floor layers.
+- **Strict hardware palettes & zero-allocation loops:** Precomputed immutable 12-bit Amiga OCS (4,096-entry), 9-bit Atari ST Shifter (512-entry), and 16-color C64 VIC-II Colodore hex tables alongside reusable typed buffers.
+- **Graded musical choreography:** Continuous reactions (`beatImpulse[0]`) scale motion, perspective depth, and luminance smoothly across soft, medium, and hard beats, while discrete palette, formation, and spawn changes trigger strictly on exact `beatStarted`/`beatCount` events. Dedicated **afterglow** modes preserve positions and decelerate into cooled night/dusk palettes instead of snapping back to `playing`.
+- **Responsive projection & rotation continuity:** Scaled projections, safe-area orbits, and dual landscape/portrait silicon layouts dynamically from buffer dimensions with strict `[0..width, 0..height]` clipping across portrait (`1:3`), desktop, and ultrawide (`3:1`) viewports.
+
+### Amiga OCS/ECS DSEs (12-bit RGB, 256 px)
+
+- **`KefrensCheckerboard` (`floor`):** Upgraded with four Copper palettes plus *Moonlit Indigo* afterglow, four scanline tile formations (Classic, Beveled Slabs, Cyber Grid, Racing Check), Copper line-scroll S-curves, traveling Z-shockwaves, scanline-interlaced horizon dither, and a specular sun-track aligned with `RetroSunset`.
+- **`PaulaSiliconBg` (`background`):** Rebuilt without DOM canvases or shared caches using precomputed octant Moiré rings clipped to the sky, non-overlapping L-R-R-L Paula DMA towers with live 3D PCB bus traces, and `smooth[0..3]` channel mapping.
+- **`AmigaRetroSunset` (`background`):** Activated the second parallax cloud layer, added aspect-stable tiled parallax mountains with beat-lit rim outlines, climax solar raster slits, clipped seagulls, deterministic leaping fish, odd-height-safe water reflections, and a blue-hour dusk afterglow.
+
+### Commodore 64 VIC-II DSEs (16-color Colodore, 200 px)
+
+- **`ChunkyPlasma` (`background`):** Added animated 8×8 PETSCII sub-block dithering across four circular VIC-II ramps, four plasma families (Dual-Sine, Twin-Orb, Diamond, Hyper-Vortex), Bayer-dithered night-indigo afterglow, and 3-voice SID channel mapping.
+- **`C64RetroSunset` (`background`):** Converted sky breathing, inner-edge sun dithering, and 1 px horizon heat-haze to time-based phases, added ordered sky-band dither seams, climax sun slits, deterministic `$D016` water ripples with traveling sparkle waves, and a twilight afterglow.
+- **`SidSiliconBg` (`background`):** Added dual adaptive landscape/portrait chip layouts, deterministic fallback waveform synthesis when `regs` are absent, sustain `1.0` ADSR protection, and beat-reactive bus/VCF highlights replacing the full-screen white climax flash.
+- **`C64VectorStar` (`foreground`):** Preserved the mechanical 6510 3-tick rotation stutter on a `dt` accumulator, added four Y-Raster-Interrupt palettes, 2-pass Z-depth splits, 2-step opaque wireframe ghost trails, vertex node sparkles, and safe-area Lissajous orbits.
+
+### Atari ST Shifter DSEs (9-bit RGB, 200 px)
+
+- **`AtariDotTorus` (`foreground`):** Fixed 50 Hz PAL Z-axis rotation stagnation, added depth-cued `1×1` back / `2×2` front pixel passes, four Shifter cycling palettes, knot/spiral morph modes, opaque ghost trails, and *Midnight Steel* afterglow.
+- **`AtariBobs` (`foreground`):** Replaced offscreen DOM sprite blitting with precomputed scanline circle LUTs, fixed single-quadrant clamping into symmetric 4-way kaleidoscope mirroring, added 3D chain-wave sizing, and horizontal/vertical carrier sweeps.
+- **`AtariRetroSunset` (`background`):** Fixed undefined `cPathLight`/`cPathDark` stone-path colors, line-clipping endpoint doubling, and out-of-bounds Torii/shrine/water draws; sculpted curved tapered Bonsai boughs tucked beneath sunlit foliage cushions with drifting beat petals and Zen moonlit afterglow.
+- **`WireframeMorph` (`foreground`):** Calibrated projection scaling across narrow and wide viewports, added four Shifter themes, 2-pass Z-depth lines, opaque ghost trails, and an inner-cube dual-shell mode.
+- **`YmSiliconBg` (`background`):** Eliminated `getImageData()`/`putImageData()` tears and full-screen white strobes in favor of dual adaptive landscape/portrait YM2149F square-wave bays, Log-DAC Copper shockwaves, deterministic LFSR noise rain, and zero-readback Timer-B Sync-Buzzer scanline shifts.
 
 ## 🚀 v1.5.10 Release Highlights
 
