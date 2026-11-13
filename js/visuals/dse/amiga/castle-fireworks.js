@@ -39,6 +39,10 @@ export const MAX_FIREWORK_BURSTS = 6;
 const MAX_BATS = 4;
 const MAX_FOUNTAINS = 4;
 const MAX_COMETS = 3;
+const LIGHTNING_DURATION = 0.22;
+const MAIN_BOLT_SEGMENTS = 32;
+const MAX_LIGHTNING_BRANCHES = 8;
+const MAX_BRANCH_POINTS = 9;
 
 const COLOR = Object.freeze({
     black: 0,
@@ -103,6 +107,23 @@ const FOUNTAIN_X_OFFSETS = [0.23, 0.44, 0.59, 0.76];
 const TORCH_DEPTHS = [0.18, 0.44, 0.72, 0.92];
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value));
+
+function boltHash(seed, index) {
+    let h = (Math.imul(seed | 0, 374761393) + Math.imul(index | 0, 668265263)) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    h = h ^ (h >>> 16);
+    return ((h & 0xffff) / 32767.5) - 1;
+}
+
+function lightningEnvelope(timer) {
+    if (!Number.isFinite(timer) || timer <= 0) return 0;
+    const tNorm = 1 - clamp(timer / LIGHTNING_DURATION, 0, 1);
+    if (tNorm < 0.28) return 1.0 - (tNorm / 0.28) * 0.40;
+    if (tNorm < 0.42) return 0.20;
+    if (tNorm < 0.68) return 0.88 - ((tNorm - 0.42) / 0.26) * 0.38;
+    return 0.42 * (1 - (tNorm - 0.68) / 0.32);
+}
+
 const paletteColor = index => AMIGA_CASTLE_FIREWORKS_PALETTE[index];
 
 function macroTension(state) {
@@ -139,6 +160,13 @@ export class AmigaCastleFireworks {
         this.rightGlow = 0;
         this.leftGlowColor = COLOR.stoneLight;
         this.rightGlowColor = COLOR.stoneLight;
+
+        this.boltX = new Float32Array(MAIN_BOLT_SEGMENTS + 1);
+        this.boltY = new Float32Array(MAIN_BOLT_SEGMENTS + 1);
+        this.branchX = new Float32Array(MAX_LIGHTNING_BRANCHES * MAX_BRANCH_POINTS);
+        this.branchY = new Float32Array(MAX_LIGHTNING_BRANCHES * MAX_BRANCH_POINTS);
+        this.branchPoints = new Uint8Array(MAX_LIGHTNING_BRANCHES);
+        this.branchTier = new Uint8Array(MAX_LIGHTNING_BRANCHES);
 
         this.bursts = Array.from({ length: MAX_FIREWORK_BURSTS }, () => ({
             active: false,
@@ -396,11 +424,16 @@ export class AmigaCastleFireworks {
         const x = Math.floor(((baseX * width + offset + cloudWidth) % travel + travel) % travel - cloudWidth);
         const y = Math.floor(baseY * height);
 
-        let rimColor = COLOR.silver;
-        let midCol = COLOR.cloudLight;
-        if (this.lightningTimer > 0.08) {
+        let rimColor = color === COLOR.cloudLight ? COLOR.silver : COLOR.cloudLight;
+        let midCol = color;
+
+        const flashEnv = lightningEnvelope(this.lightningTimer);
+        if (flashEnv > 0.45) {
             rimColor = COLOR.white;
             midCol = COLOR.cyan;
+        } else if (flashEnv > 0.20) {
+            rimColor = COLOR.silver;
+            midCol = COLOR.blue;
         } else if (baseX < 0.5 && this.leftGlow > 0.22) {
             rimColor = this.leftGlowColor;
         } else if (baseX >= 0.5 && this.rightGlow > 0.22) {
@@ -419,39 +452,260 @@ export class AmigaCastleFireworks {
         this.rect(ctx, width, height, x + unit * 32, y - unit, unit * 4, 1, midCol);
     }
 
+    drawBoltSegment(ctx, width, height, x0, y0, x1, y1, thickness, colorIndex) {
+        if (!Number.isFinite(x0) || !Number.isFinite(y0) ||
+            !Number.isFinite(x1) || !Number.isFinite(y1)) return;
+
+        let ix0 = Math.round(x0);
+        let iy0 = Math.round(y0);
+        const ix1 = Math.round(x1);
+        const iy1 = Math.round(y1);
+        const dx = Math.abs(ix1 - ix0);
+        const dy = Math.abs(iy1 - iy0);
+        const sx = ix0 < ix1 ? 1 : -1;
+        const sy = iy0 < iy1 ? 1 : -1;
+        let err = dx - dy;
+        const half = thickness >> 1;
+        let guard = dx + dy + 2;
+
+        while (guard-- > 0) {
+            this.rect(ctx, width, height, ix0 - half, iy0 - half, thickness, thickness, colorIndex);
+            if (ix0 === ix1 && iy0 === iy1) break;
+            const e2 = err << 1;
+            if (e2 > -dy) {
+                err -= dy;
+                ix0 += sx;
+            }
+            if (e2 < dx) {
+                err += dx;
+                iy0 += sy;
+            }
+        }
+    }
+
     drawLightning(ctx, width, height) {
         if (this.lightningTimer <= 0) return;
-        const flashIntensity = this.lightningTimer / 0.22;
+        const minDim = Math.min(width, height);
+        if (!Number.isFinite(minDim) || minDim < 4) return;
 
-        const cloudY = Math.floor(height * 0.18);
-        this.rect(ctx, width, height, 0, cloudY, width, 2, flashIntensity > 0.5 ? COLOR.white : COLOR.silver);
+        const env = lightningEnvelope(this.lightningTimer);
+        if (env <= 0.02) return;
 
-        const startX = Math.floor(this.lightningX * width);
-        const startY = Math.floor(height * 0.09);
-        const endY = Math.floor(height * 0.52);
-        const segments = 8;
-        const stepY = Math.max(1, Math.floor((endY - startY) / segments));
-        let curX = startX;
-        let curY = startY;
+        const px = clamp(Math.floor(minDim / 280), 1, 3);
+        const seed = this.lightningSeed | 0;
+        const lx = Number.isFinite(this.lightningX) ? clamp(this.lightningX, 0.05, 0.95) : 0.5;
+        const maxX = Math.max(1, width - 2);
+        const startX = clamp(Math.floor(lx * width), 1, maxX);
+        const startY = 0;
+        const endY = Math.max(startY + 2, Math.floor(height * 0.70));
 
-        for (let s = 0; s < segments; s++) {
-            const nextY = Math.min(endY, curY + stepY);
-            const zig = (((s + this.lightningSeed) * 11) % 7 - 3) * Math.max(1, Math.floor(width / 180));
-            const nextX = clamp(curX + zig, 0, Math.max(0, width - 2));
-            const segX = Math.min(curX, nextX);
-            const segW = Math.max(1, Math.abs(nextX - curX) + 1);
-            const segCol = (s & 1) === 0 ? COLOR.white : COLOR.cyan;
-            this.rect(ctx, width, height, segX, curY, segW, Math.max(1, nextY - curY), segCol);
+        let drift = boltHash(seed, 3) * width * 0.13;
+        if (lx < 0.15 && drift > 0) {
+            drift = -Math.abs(drift) * 0.55;
+        }
+        const endX = clamp(Math.floor(startX + drift), 1, maxX);
 
-            if (s === 2 || s === 5) {
-                const dir = s === 2 ? -1 : 1;
-                const forkX = clamp(curX + dir * Math.abs(zig * 2 + 3), 0, Math.max(0, width - 1));
-                const fLeft = Math.min(curX, forkX);
-                this.rect(ctx, width, height, fLeft, curY, Math.max(1, Math.abs(forkX - curX)), Math.max(1, Math.floor(stepY * 0.8)), COLOR.silver);
-                this.rect(ctx, width, height, forkX, curY + Math.floor(stepY * 0.8), 1, stepY, COLOR.blue);
+        // Minimaler Fallback für sehr kleine Test-Canvases
+        if (minDim < 24) {
+            const midX = clamp(Math.floor((startX + endX) * 0.5 + boltHash(seed, 4) * width * 0.12), 0, Math.max(0, width - 1));
+            const midY = Math.floor((startY + endY) * 0.5);
+            const col = env > 0.5 ? COLOR.white : COLOR.cyan;
+            this.drawBoltSegment(ctx, width, height, startX, startY, midX, midY, 1, col);
+            this.drawBoltSegment(ctx, width, height, midX, midY, endX, endY, 1, col);
+            return;
+        }
+
+        // 1. Fraktales Midpoint-Displacement für den 32-Segment-Hauptkanal
+        const N = MAIN_BOLT_SEGMENTS;
+        const bx = this.boltX;
+        const by = this.boltY;
+        bx[0] = startX;
+        by[0] = startY;
+        bx[N] = endX;
+        by[N] = endY;
+
+        let step = N;
+        let level = 0;
+        const spanX = Math.max(4, width * 0.070);
+        const spanY = Math.max(1, (endY - startY) * 0.045);
+        let hIdx = 10;
+        while (step > 1) {
+            const half = step >> 1;
+            const decayX = spanX * Math.pow(0.58, level);
+            const decayY = level < 3 ? spanY * Math.pow(0.45, level) : 0;
+            for (let i = 0; i < N; i += step) {
+                const mid = i + half;
+                let rx = boltHash(seed, hIdx++);
+                const ry = boltHash(seed, hIdx++);
+                if (level >= 2 && Math.abs(rx) < 0.25) {
+                    rx = ((mid + seed) & 1) === 0 ? 0.45 : -0.45;
+                }
+                bx[mid] = clamp((bx[i] + bx[i + step]) * 0.5 + rx * decayX, 1, maxX);
+                by[mid] = clamp((by[i] + by[i + step]) * 0.5 + ry * decayY, startY, endY);
             }
-            curX = nextX;
-            curY = nextY;
+            step = half;
+            level++;
+        }
+
+        // 2. Hierarchische Äste (Wolken-Ausläufer, Hauptgabeln, Nebenäste)
+        const fx = this.branchX;
+        const fy = this.branchY;
+        let branchCount = 0;
+
+        for (let c = 0; c < 2 && branchCount < MAX_LIGHTNING_BRANCHES; c++) {
+            const cAnchor = 1 + c * 2;
+            const cax = bx[cAnchor];
+            const cay = by[cAnchor];
+            const cSide = c === 0 ? -1 : 1;
+            const cScale = ((lx < 0.15 && cSide > 0) || (lx < 0.34 && cSide < 0)) ? 0.40 : 1.0;
+            const cex = clamp(cax + cSide * width * (0.055 + Math.abs(boltHash(seed, 50 + c)) * 0.07) * cScale, 1, maxX);
+            const cey = clamp(cay + height * (0.04 + Math.abs(boltHash(seed, 60 + c)) * 0.05), 1, height * 0.20);
+            const off = branchCount * MAX_BRANCH_POINTS;
+            fx[off] = cax;
+            fy[off] = cay;
+            fx[off + 4] = cex;
+            fy[off + 4] = cey;
+            fx[off + 2] = clamp((fx[off] + fx[off + 4]) * 0.5 + boltHash(seed, 70 + c) * width * 0.015 * cScale, 1, maxX);
+            fy[off + 2] = clamp((fy[off] + fy[off + 4]) * 0.5 + boltHash(seed, 75 + c) * height * 0.020, 1, height * 0.22);
+            fx[off + 1] = clamp((fx[off] + fx[off + 2]) * 0.5, 1, maxX);
+            fy[off + 1] = clamp((fy[off] + fy[off + 2]) * 0.5 + boltHash(seed, 80 + c) * height * 0.012, 1, height * 0.22);
+            fx[off + 3] = clamp((fx[off + 2] + fx[off + 4]) * 0.5, 1, maxX);
+            fy[off + 3] = clamp((fy[off + 2] + fy[off + 4]) * 0.5 + boltHash(seed, 85 + c) * height * 0.012, 1, height * 0.22);
+            this.branchPoints[branchCount] = 5;
+            this.branchTier[branchCount] = 2;
+            branchCount++;
+        }
+
+        const primaryTotal = 3 + (Math.abs(seed) & 1);
+        for (let b = 0; b < primaryTotal && branchCount < MAX_LIGHTNING_BRANCHES; b++) {
+            const anchorIdx = 5 + ((b * 5 + Math.abs(seed * 3)) % 17);
+            const ax = bx[anchorIdx];
+            const ay = by[anchorIdx];
+            const side = ((b + seed) & 1) === 0 ? -1 : 1;
+            const frac = 1.0 - (anchorIdx / N) * 0.45;
+            const bDx = side * width * (0.04 + Math.abs(boltHash(seed, 100 + b * 7)) * 0.075) * frac;
+            const bDy = Math.max(Math.abs(bDx) * 0.72, height * (0.11 + Math.abs(boltHash(seed, 101 + b * 7)) * 0.14) * frac);
+            const ex = clamp(ax + bDx, 1, maxX);
+            const ey = clamp(ay + bDy, startY, endY);
+
+            const off = branchCount * MAX_BRANCH_POINTS;
+            fx[off] = ax;
+            fy[off] = ay;
+            fx[off + 8] = ex;
+            fy[off + 8] = ey;
+            let bStep = 8;
+            let bLevel = 0;
+            while (bStep > 1) {
+                const bHalf = bStep >> 1;
+                const bDec = Math.max(2.5, width * 0.028) * Math.pow(0.56, bLevel);
+                for (let i = 0; i < 8; i += bStep) {
+                    const mid = i + bHalf;
+                    const rx = boltHash(seed, 120 + b * 20 + mid);
+                    const ry = boltHash(seed, 140 + b * 20 + mid);
+                    fx[off + mid] = clamp((fx[off + i] + fx[off + i + bStep]) * 0.5 + rx * bDec, 1, maxX);
+                    fy[off + mid] = clamp((fy[off + i] + fy[off + i + bStep]) * 0.5 + ry * bDec * 0.25, startY, endY);
+                }
+                bStep = bHalf;
+                bLevel++;
+            }
+            this.branchPoints[branchCount] = 9;
+            this.branchTier[branchCount] = 1;
+            const primaryOff = off;
+            branchCount++;
+
+            if (b < 2 && branchCount < MAX_LIGHTNING_BRANCHES) {
+                const tAnchor = 3 + (b & 1);
+                const tax = fx[primaryOff + tAnchor];
+                const tay = fy[primaryOff + tAnchor];
+                const tSide = boltHash(seed, 200 + b) > -0.25 ? side : -side;
+                const tDx = tSide * width * (0.022 + Math.abs(boltHash(seed, 210 + b)) * 0.035);
+                const tDy = Math.max(Math.abs(tDx) * 0.75, height * (0.055 + Math.abs(boltHash(seed, 220 + b)) * 0.055));
+                const tex = clamp(tax + tDx, 1, maxX);
+                const tey = clamp(tay + tDy, startY, endY);
+
+                const tOff = branchCount * MAX_BRANCH_POINTS;
+                fx[tOff] = tax;
+                fy[tOff] = tay;
+                fx[tOff + 4] = tex;
+                fy[tOff + 4] = tey;
+                fx[tOff + 2] = clamp((fx[tOff] + fx[tOff + 4]) * 0.5 + boltHash(seed, 230 + b) * width * 0.012, 1, maxX);
+                fy[tOff + 2] = (fy[tOff] + fy[tOff + 4]) * 0.5;
+                fx[tOff + 1] = clamp((fx[tOff] + fx[tOff + 2]) * 0.5 + boltHash(seed, 235 + b) * width * 0.006, 1, maxX);
+                fy[tOff + 1] = (fy[tOff] + fy[tOff + 2]) * 0.5;
+                fx[tOff + 3] = clamp((fx[tOff + 2] + fx[tOff + 4]) * 0.5 + boltHash(seed, 240 + b) * width * 0.006, 1, maxX);
+                fy[tOff + 3] = (fy[tOff + 2] + fy[tOff + 4]) * 0.5;
+                this.branchPoints[branchCount] = 5;
+                this.branchTier[branchCount] = 2;
+                branchCount++;
+            }
+        }
+
+        // 3. Mehrschichtiges Painter's-Order-Rendering (Corona -> Plasma -> weißer Kern)
+        let outerCol = COLOR.indigo;
+        let midCol = COLOR.copperBlue;
+        let coreCol = COLOR.blue;
+        let branchHalo = COLOR.indigo;
+        let branchCore = COLOR.copperBlue;
+        let twigCol = COLOR.indigo;
+        let outerThick = px * 2;
+        let midThick = px;
+        const coreThick = px;
+
+        if (env > 0.65) {
+            outerCol = COLOR.blue;
+            midCol = COLOR.cyan;
+            coreCol = COLOR.white;
+            branchHalo = COLOR.copperBlue;
+            branchCore = COLOR.silver;
+            twigCol = COLOR.cyan;
+            outerThick = px * 3;
+            midThick = px * 2;
+        } else if (env > 0.32) {
+            outerCol = COLOR.copperBlue;
+            midCol = COLOR.blue;
+            coreCol = COLOR.cyan;
+            branchHalo = COLOR.indigo;
+            branchCore = COLOR.blue;
+            twigCol = COLOR.copperBlue;
+            outerThick = px * 2 + 1;
+            midThick = px * 2;
+        }
+
+        for (let b = 0; b < branchCount; b++) {
+            if (this.branchTier[b] !== 1 || env <= 0.30) continue;
+            const off = b * MAX_BRANCH_POINTS;
+            const pts = this.branchPoints[b];
+            for (let i = 0; i < pts - 2; i++) {
+                this.drawBoltSegment(ctx, width, height, fx[off + i], fy[off + i], fx[off + i + 1], fy[off + i + 1], px * 2, branchHalo);
+            }
+        }
+        for (let i = 0; i < N; i++) {
+            const tThick = i < N * 0.72 ? outerThick : Math.max(px, outerThick - px);
+            this.drawBoltSegment(ctx, width, height, bx[i], by[i], bx[i + 1], by[i + 1], tThick, outerCol);
+        }
+
+        for (let b = 0; b < branchCount; b++) {
+            const off = b * MAX_BRANCH_POINTS;
+            const pts = this.branchPoints[b];
+            const tier = this.branchTier[b];
+            const baseCol = tier === 1 ? branchCore : twigCol;
+            const tipCol = env > 0.45 ? COLOR.blue : COLOR.indigo;
+            for (let i = 0; i < pts - 1; i++) {
+                const segCol = i < pts - 3 ? baseCol : tipCol;
+                this.drawBoltSegment(ctx, width, height, fx[off + i], fy[off + i], fx[off + i + 1], fy[off + i + 1], px, segCol);
+            }
+            if (tier === 1 && env > 0.58) {
+                this.drawBoltSegment(ctx, width, height, fx[off], fy[off], fx[off + 1], fy[off + 1], px, env < 0.8 ? COLOR.cyan : COLOR.white);
+            }
+        }
+        for (let i = 0; i < N; i++) {
+            this.drawBoltSegment(ctx, width, height, bx[i], by[i], bx[i + 1], by[i + 1], midThick, midCol);
+        }
+
+        for (let i = 0; i < N; i++) {
+            const tCore = (env > 0.78 && i < N * 0.35 && px === 1) ? px + 1 : coreThick;
+            const tCol = (env > 0.45 || i < N - 6) ? coreCol : midCol;
+            this.drawBoltSegment(ctx, width, height, bx[i], by[i], bx[i + 1], by[i + 1], tCore, tCol);
         }
     }
 
@@ -729,8 +983,7 @@ export class AmigaCastleFireworks {
         }
 
         const topY = baseY - roofH;
-        const litSlate = this.lightningTimer > 0 ? COLOR.cyan : COLOR.blue;
-        const midSlate = COLOR.copperBlue;
+        const litSlate = lightningEnvelope(this.lightningTimer) > 0.35 ? COLOR.cyan : COLOR.blue;        const midSlate = COLOR.copperBlue;
         const darkSlate = COLOR.castle;
         const deepShadow = COLOR.black;
 
@@ -916,6 +1169,7 @@ export class AmigaCastleFireworks {
 
     drawCastle(ctx, width, height, baseline, castleX, castleY, castleWidth, castleHeight, time, tension, beatPulse, glowIntensity, glowColor) {
         const px = Math.max(1, Math.floor(Math.min(castleWidth, castleHeight) / 260));
+        const flashEnv = lightningEnvelope(this.lightningTimer);
 
         // 0. Distant Misty Mountain Range BEHIND the castle
         const mtnStep = Math.max(2, Math.ceil(width / 240));
@@ -926,21 +1180,22 @@ export class AmigaCastleFireworks {
             const farSlope = Math.cos(nx * Math.PI * 3.2 + 0.4);
             const farY = Math.floor(baseline - height * 0.11 + farWave);
             const mtnCol = farSlope > 0.1 ? COLOR.midHill : COLOR.farHill;
-            const ridgeCol = this.lightningTimer > 0 ? COLOR.white : (farSlope > 0 ? COLOR.stone : COLOR.castle);
-            this.rect(ctx, width, height, x, farY, mtnStep, baseline - farY + 4, mtnCol);
+            const ridgeCol = flashEnv > 0.70
+            ? COLOR.white
+            : (flashEnv > 0.35 ? COLOR.silver : (farSlope > 0 ? COLOR.stone : COLOR.castle));            this.rect(ctx, width, height, x, farY, mtnStep, baseline - farY + 4, mtnCol);
             this.rect(ctx, width, height, x, farY, mtnStep, 2, ridgeCol);
         }
 
-        const leftRim = this.lightningTimer > 0
+        const leftRim = flashEnv > 0.45
             ? COLOR.white
-            : (this.leftGlow > 0.20 ? this.leftGlowColor : COLOR.silver);
-        const rightRim = this.lightningTimer > 0
+            : (flashEnv > 0.22 ? COLOR.silver : (this.leftGlow > 0.20 ? this.leftGlowColor : COLOR.silver));
+        const rightRim = flashEnv > 0.45
             ? COLOR.stoneLight
             : (this.rightGlow > 0.20 ? this.rightGlowColor : COLOR.farHill);
-        const rightSkyContour = this.lightningTimer > 0
+        const rightSkyContour = flashEnv > 0.55
             ? COLOR.white
-            : (this.rightGlow > 0.18 ? this.rightGlowColor : COLOR.stone);
-
+            : (flashEnv > 0.25 ? COLOR.cyan : (this.rightGlow > 0.18 ? this.rightGlowColor : COLOR.stone));
+            
         // 1. Sculpted Craggy Cliff Promontory
         const cliffStep = Math.max(2, Math.floor(castleWidth / 90));
         const cliffLeft = Math.floor(castleX + castleWidth * 0.07);
@@ -1238,6 +1493,27 @@ export class AmigaCastleFireworks {
                     }
                 }
 
+                if (this.lightningTimer > 0) {
+                    const flashEnv = lightningEnvelope(this.lightningTimer);
+                    if (flashEnv > 0.28 && ((wy + (this.lightningSeed | 0)) % 3 === 0)) {
+                        let boltDrift = boltHash(this.lightningSeed | 0, 3) * width * 0.13;
+                        if (this.lightningX < 0.15 && boltDrift > 0) boltDrift = -Math.abs(boltDrift) * 0.55;
+                        const boltRefX = Math.floor(this.lightningX * width + boltDrift * 0.7 + bplShift * 1.8);
+                        const ripple = Math.sin(wy * 1.9 + this.lightningSeed);
+                        if (ripple > -0.2) {
+                            const refW = Math.max(1, Math.floor(width * (0.008 + depth * 0.016) * flashEnv * (0.5 + 0.5 * ripple)));
+                            if (boltRefX > lakeLeft + 4 && boltRefX + refW < lakeRight - 4) {
+                                const refCol = flashEnv < 0.65 ? COLOR.blue : COLOR.cyan;
+                                this.rect(ctx, width, height, boltRefX - Math.floor(refW * 0.5), wy, refW, 1, refCol);
+                                if (flashEnv > 0.72 && refW >= 3 && (wy & 3) === 0) {
+                                    const coreW = Math.max(1, Math.floor(refW * 0.35));
+                                    this.rect(ctx, width, height, boltRefX - Math.floor(coreW * 0.5), wy, coreW, 1, COLOR.silver);
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Organic Shoreline Banks & Water-Edge Ripples
                 const bankW = Math.max(3, Math.floor(width * (0.022 + depth * 0.025)));
                 this.rect(ctx, width, height, lakeLeft - bankW, wy, bankW, 1, (wy & 1) ? COLOR.stone : COLOR.castle);
@@ -1497,8 +1773,11 @@ export class AmigaCastleFireworks {
                 if ((rawStrength >= 0.72 && this.tension >= 0.55) ||
                     (beatLevel === 3 && this.tension >= 0.50) ||
                     (state === 'climax' && beatIndex % 3 === 0 && rawStrength >= 0.55)) {
-                    this.lightningTimer = 0.22;
-                    this.lightningX = ((beatIndex * 73 + 19) % 70 + 15) / 100;
+                    this.lightningTimer = LIGHTNING_DURATION;
+                    const rawSlot = ((beatIndex * 73 + 19) % 76) / 100;
+                    this.lightningX = rawSlot < 0.09
+                        ? 0.06 + rawSlot
+                        : 0.28 + ((rawSlot - 0.09) / 0.67) * 0.64;
                     this.lightningSeed = beatIndex;
                 }
             }
