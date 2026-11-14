@@ -225,7 +225,7 @@ function setPlaybackState(nextState, detail = '') {
 
     if (siliconVisualizer) siliconVisualizer.setPlaybackState(nextState);
 
-if (fsUI) {
+    if (fsUI) {
         const isTrackLoaded = loadedTrackIndex === currentTrackIndex && trackData.length > 0;
         const totalSongs = isTrackLoaded ? (Number(trackData?.metadata?.songs) || 0) : 0;
         const hasSubsongs = totalSongs > 1 && ((activeSystem === 'c64' && trackData?.isSidFile) || isLoadedHipcTrack());
@@ -234,6 +234,10 @@ if (fsUI) {
             : '[ AWAITING INJECTION ]';
         fsUI.updateTrack(fsTitle);
         fsUI.updatePlaybackState(nextState);
+    }
+
+    if (nextState === 'loading' || nextState === 'playing' || nextState === 'error') {
+        resetMouseIdleTimer();
     }
 }
 
@@ -959,29 +963,19 @@ function updateLivingSiliconTitle() {
 function renderCoreSelector(system) {
     const select = document.getElementById('core-selector');
     select.innerHTML = '';
-    
-    const cores = workletRegistry[system];
-    
-    // Maximale Länge für das Padding ermitteln
-    const maxLen = Math.max(...cores.map(c => c.name.length));
 
+    const cores = workletRegistry[system];
     cores.forEach((core, index) => {
         const opt = document.createElement('option');
         opt.value = index;
-        
-        let cpuLoad = core.cpu || 1;
+
+        const cpuLoad = core.cpu || 1;
         let meter = '';
         for (let i = 1; i <= 4; i++) {
-            // UI FIX: Reine ASCII-Zeichen, um Font-Fallback-Bugs (unterschiedliche Breiten) zu verhindern
             meter += (i <= cpuLoad) ? '#' : '-';
         }
-        
-        // damit auf kleinen Handys-Screens mehr vom Core-Namen sichtbar bleibt.
-        const padCount = maxLen - core.name.length + 1;
-        const padding = '.'.repeat(padCount);
-        
-        // Erst Name, dann Punkte, dann CPU-Last
-        opt.text = `${core.name} ${padding} CPU:[${meter}]`;
+
+        opt.text = `${core.name} · CPU:[${meter}]`;
         select.appendChild(opt);
     });
 }
