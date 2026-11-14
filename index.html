@@ -162,7 +162,7 @@
                         <span>NEXT TRACK</span>
                         <span id="now-playing-next">—</span>
                     </div>
-                    <div class="now-playing-progress" aria-hidden="true">
+                    <div class="now-playing-progress" id="now-playing-progress" aria-hidden="true">
                         <span id="now-playing-progress-fill"></span>
                     </div>
                 </div>
@@ -208,6 +208,7 @@
             </div>
 
             <!-- FULLSCREEN UI BAR -->
+  <!-- FULLSCREEN UI BAR -->
             <div id="fs-ui-bar">
                 <span id="stage-mode-status" data-mode="windowed" role="status" aria-live="polite">
                     <span class="stage-mode-led" aria-hidden="true"></span>
@@ -215,8 +216,14 @@
                 </span>
                 <div id="fs-playback-controls">
                     <div class="fs-track-copy">
-                        <span id="fs-playback-status" data-state="idle">STANDBY</span>
+                        <div class="fs-track-topline">
+                            <span id="fs-playback-status" data-state="idle">STANDBY</span>
+                            <span id="fs-track-time">00:00 / 00:00</span>
+                        </div>
                         <div class="fs-track-info" id="fs-track-info" aria-live="polite" aria-atomic="true">[ AWAITING INJECTION ]</div>
+                        <div class="fs-progress-bar" id="fs-progress-bar" aria-hidden="true">
+                            <span id="fs-progress-fill"></span>
+                        </div>
                     </div>
                     <div class="fs-controls">
                         <button id="fs-btn-prev" type="button" aria-label="Vorheriger Track oder Subsong">|&lt;</button>
@@ -227,7 +234,7 @@
                     </div>
                 </div>
                 <button id="btn-fullscreen" type="button" title="Fullscreen [F]" aria-label="Vollbild aktivieren"
-                    aria-controls="visual-zone" aria-pressed="false" aria-keyshortcuts="F">[ ⛶ ]</button>
+                    aria-controls="visual-zone" aria-pressed="false" aria-keyshortcuts="F">[ FULL ]</button>
             </div>
             
             <div class="scanlines"></div> <!-- CRT Monitor Effekt -->

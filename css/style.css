@@ -1857,7 +1857,7 @@ body.eco-mode #brand-logo::after {
     inset: 0;
     background: rgba(0, 0, 0, 0.85);
     backdrop-filter: blur(5px);
-    z-index: 20;
+    z-index: 50;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -1959,7 +1959,7 @@ body.eco-mode #brand-logo::after {
 #btn-eco-off:active { transform: translateY(4px); box-shadow: 0 0 0 var(--chassis-dark); }
 
 /* =========================================
-   8. NOW PLAYING & FULLSCREEN STAGE UI
+   8. NOW PLAYING & FULLSCREEN STAGE UI (STUFE 4)
    ========================================= */
 .now-playing {
     position: absolute;
@@ -2038,14 +2038,14 @@ body.eco-mode #brand-logo::after {
 #visual-zone:fullscreen .now-playing,
 #visual-zone:-webkit-full-screen .now-playing,
 #visual-zone.pseudo-fullscreen .now-playing {
-    bottom: 82px;
+    bottom: 80px;
     align-items: start;
     width: min(760px, calc(100% - 48px));
     max-width: min(760px, calc(100% - 48px));
-    background: rgba(4, 4, 10, 0.96);
-    border-left-width: 1px;
-    box-shadow: none;
-    backdrop-filter: none;
+    background: rgba(4, 4, 10, 0.94);
+    border-left-width: 2px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(4px);
 }
 
 #visual-zone:fullscreen .now-playing-expanded,
@@ -2164,13 +2164,30 @@ body.eco-mode #brand-logo::after {
     white-space: nowrap;
 }
 
-.now-playing-progress {
+.now-playing-progress,
+.fs-progress-bar {
+    position: relative;
     height: 3px;
     overflow: hidden;
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.14);
+    transition: height 0.12s ease;
 }
 
-#now-playing-progress-fill {
+.now-playing-progress[data-seekable="true"],
+.fs-progress-bar[data-seekable="true"] {
+    pointer-events: auto;
+    cursor: pointer;
+    height: 6px;
+    touch-action: none;
+}
+
+.now-playing-progress[data-seekable="true"]:hover,
+.fs-progress-bar[data-seekable="true"]:hover {
+    height: 9px;
+}
+
+#now-playing-progress-fill,
+#fs-progress-fill {
     display: block;
     width: 100%;
     height: 100%;
@@ -2259,7 +2276,7 @@ body.eco-mode #brand-logo::after {
 #fs-playback-controls {
     display: none;
     align-items: center;
-    gap: 15px;
+    gap: 12px;
     min-width: 0;
 }
 
@@ -2272,8 +2289,15 @@ body.eco-mode #brand-logo::after {
 .fs-track-copy {
     display: grid;
     min-width: 0;
-    gap: 5px;
-    text-align: right;
+    gap: 4px;
+}
+
+.fs-track-topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
 }
 
 #fs-playback-status {
@@ -2283,23 +2307,29 @@ body.eco-mode #brand-logo::after {
     font-weight: bold;
     letter-spacing: 0.06em;
     line-height: 1.2;
+    white-space: nowrap;
 }
 
 #fs-playback-status[data-state="playing"] { color: var(--bus-active-color); }
 #fs-playback-status[data-state="loading"] { color: var(--highlight-color); }
 #fs-playback-status[data-state="error"] { color: var(--status-error); }
 
+#fs-track-time {
+    color: var(--panel-text);
+    font-family: var(--font-main);
+    font-size: var(--font-size-xs);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
 .fs-track-info {
-    display: none;
     font-family: var(--font-main);
     font-size: var(--font-size-sm);
     color: var(--highlight-color);
     text-shadow: 1px 1px 0 #000;
-    max-width: 350px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    text-align: right;
     letter-spacing: 0.04em;
 }
 
@@ -2311,13 +2341,14 @@ body.eco-mode #brand-logo::after {
 .fs-controls button,
 #btn-fullscreen {
     min-height: 44px;
-    background: rgba(0, 0, 0, 0.82);
+    background: rgba(0, 0, 0, 0.85);
     border: 1px solid var(--panel-text);
     color: var(--highlight-color);
     padding: 8px 14px;
     font-family: var(--font-main);
     font-size: var(--font-size-sm);
     cursor: pointer;
+    white-space: nowrap;
     transition: all 0.1s;
     outline: none;
 }
@@ -2354,7 +2385,7 @@ body.eco-mode #brand-logo::after {
     right: calc(15px + env(safe-area-inset-right));
     bottom: calc(15px + env(safe-area-inset-bottom));
     justify-content: flex-end;
-    gap: 12px;
+    gap: 10px;
 }
 
 #visual-zone:fullscreen #stage-mode-status,
@@ -2363,18 +2394,16 @@ body.eco-mode #brand-logo::after {
     margin-right: auto;
 }
 
-#visual-zone:fullscreen .fs-track-info,
-#visual-zone:-webkit-full-screen .fs-track-info,
-#visual-zone.pseudo-fullscreen .fs-track-info {
-    display: block;
-    max-width: min(34vw, 420px);
-}
-
 #visual-zone.user-inactive #fs-ui-bar,
 #visual-zone.user-inactive #chip-hud.collapsed,
 #visual-zone.user-inactive .now-playing {
     opacity: 0;
     pointer-events: none;
+}
+
+#visual-zone.user-inactive #fs-ui-bar:focus-within {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 #visual-zone.user-inactive .now-playing {
@@ -2963,7 +2992,7 @@ body:has(#visual-zone.pseudo-fullscreen) {
 }
 
 /* =========================================
-   12. DESKTOP / LAPTOP / WIDESCREEN COMMAND DECK (STUFE 2)
+   12. DESKTOP / LAPTOP / WIDESCREEN COMMAND DECK
    ========================================= */
 @media (min-width: 801px) {
     #chip-hud:not(.collapsed) {
@@ -2988,6 +3017,13 @@ body:has(#visual-zone.pseudo-fullscreen) {
     #visual-zone:-webkit-full-screen #chip-hud:not(.collapsed),
     #visual-zone.pseudo-fullscreen #chip-hud:not(.collapsed) {
         max-height: calc(100% - 96px);
+    }
+
+    /* Desktop Fullscreen: #now-playing zeigt alles – #fs-ui-bar bleibt kompakt einzeilig */
+    #visual-zone:fullscreen .fs-track-copy,
+    #visual-zone:-webkit-full-screen .fs-track-copy,
+    #visual-zone.pseudo-fullscreen .fs-track-copy {
+        display: none;
     }
 }
 
@@ -3273,7 +3309,7 @@ body:has(#visual-zone.pseudo-fullscreen) {
 }
 
 /* =========================================
-   13. MOBILE & TABLET RESPONSIVE DESIGN (STUFE 3)
+   13. MOBILE & TABLET RESPONSIVE DESIGN
    ========================================= */
 @media (max-width: 800px) {
     :root {
@@ -3349,7 +3385,6 @@ body:has(#visual-zone.pseudo-fullscreen) {
     .brand-raster-bar { min-width: 10px; height: 6px; }
     .brand-dj-badge { font-size: 5.5px; padding: 2px 3px; }
 
-    /* Eingeklapptes HUD kompakt in der Ecke; ausgeklappt exakt innerhalb der Stage */
     #chip-hud.collapsed {
         top: 10px;
         right: 10px;
@@ -3388,7 +3423,7 @@ body:has(#visual-zone.pseudo-fullscreen) {
         top: calc(10px + var(--stage-safe-top));
         right: calc(10px + var(--stage-safe-right));
         left: calc(10px + var(--stage-safe-left));
-        bottom: calc(118px + env(safe-area-inset-bottom));
+        bottom: calc(172px + env(safe-area-inset-bottom));
         max-height: none;
     }
 
@@ -3396,7 +3431,6 @@ body:has(#visual-zone.pseudo-fullscreen) {
     .hud-row label { width: 55px; }
     .hud-channel { margin-bottom: 6px; padding-bottom: 6px; }
 
-    /* Mobile Playback Bar */
     #playback-bar {
         position: sticky;
         top: env(safe-area-inset-top, 0px);
@@ -3646,7 +3680,7 @@ body:has(#visual-zone.pseudo-fullscreen) {
     .sid-activity svg { max-height: 134px; }
 }
 
-/* Mobile Eco-Mode & Fullscreen Stage Dock */
+/* Mobile Eco-Mode Overlay */
 @media (max-width: 800px), (max-height: 600px) {
     body.eco-mode #demo-container > #visual-zone:not(.pseudo-fullscreen):not(:fullscreen):not(:-webkit-full-screen) {
         height: calc(100dvh - var(--stage-safe-top, 0px));
@@ -3669,48 +3703,6 @@ body:has(#visual-zone.pseudo-fullscreen) {
         max-height: 100%;
         gap: 8px;
         padding: 14px;
-    }
-
-    #visual-zone:fullscreen #fs-ui-bar,
-    #visual-zone:-webkit-full-screen #fs-ui-bar,
-    #visual-zone.pseudo-fullscreen #fs-ui-bar {
-        left: calc(10px + env(safe-area-inset-left));
-        right: calc(10px + env(safe-area-inset-right));
-        bottom: calc(10px + env(safe-area-inset-bottom));
-        align-items: center;
-        gap: 8px;
-    }
-
-    #visual-zone:fullscreen #fs-playback-controls,
-    #visual-zone:-webkit-full-screen #fs-playback-controls,
-    #visual-zone.pseudo-fullscreen #fs-playback-controls {
-        flex: 1 1 100%;
-        order: 3;
-        flex-wrap: wrap;
-        justify-content: space-between;
-        gap: 8px;
-    }
-
-    #visual-zone:fullscreen .fs-track-copy,
-    #visual-zone:-webkit-full-screen .fs-track-copy,
-    #visual-zone.pseudo-fullscreen .fs-track-copy {
-        flex: 1 1 150px;
-        text-align: left;
-    }
-
-    #visual-zone:fullscreen .fs-track-info,
-    #visual-zone:-webkit-full-screen .fs-track-info,
-    #visual-zone.pseudo-fullscreen .fs-track-info {
-        max-width: 100%;
-        text-align: left;
-    }
-
-    #visual-zone:fullscreen .fs-controls,
-    #visual-zone:-webkit-full-screen .fs-controls,
-    #visual-zone.pseudo-fullscreen .fs-controls {
-        flex: 0 1 auto;
-        flex-wrap: wrap;
-        justify-content: flex-end;
     }
 
     #stage-mode-status { min-height: 44px; }
@@ -3781,7 +3773,6 @@ body:has(#visual-zone.pseudo-fullscreen) {
         left: calc(10px + var(--stage-safe-left));
     }
 
-    /* Im Querformat stehen eingeklappte HUD-Buttons kompakt nebeneinander */
     #chip-hud.collapsed {
         top: 8px;
         right: 10px;
@@ -3803,7 +3794,6 @@ body:has(#visual-zone.pseudo-fullscreen) {
         gap: 6px;
     }
 
-    /* Geoeffnetes HUD bleibt im Landscape innerhalb der Stage und nutzt 2 Spalten */
     #chip-hud:not(.collapsed) {
         inset: 6px;
         width: auto;
@@ -3820,7 +3810,7 @@ body:has(#visual-zone.pseudo-fullscreen) {
         top: calc(8px + var(--stage-safe-top));
         right: calc(10px + var(--stage-safe-right));
         left: calc(10px + var(--stage-safe-left));
-        bottom: calc(108px + env(safe-area-inset-bottom));
+        bottom: calc(122px + env(safe-area-inset-bottom));
         max-height: none;
     }
 
@@ -3950,6 +3940,14 @@ body:has(#visual-zone.pseudo-fullscreen) {
     #scroller-zone::after { inset: 40px 0 0; }
     .scroller-toolbar { padding: 0 8px; }
     .scroller-actions button { min-height: 40px; }
+
+    /* Eco Box kompakt für flaches Handy-Querformat */
+    .eco-box {
+        padding: clamp(10px, 3vh, 18px) 16px;
+        gap: 6px;
+    }
+    .eco-box h2 { font-size: clamp(14px, 4vh, 20px); }
+    .eco-now-playing { padding: 8px 12px; gap: 4px; }
 }
 
 @media (max-width: 720px) and (max-height: 600px) and (orientation: landscape) {
@@ -3958,9 +3956,13 @@ body:has(#visual-zone.pseudo-fullscreen) {
     }
 }
 
-/* Mobile Stage Clarity (Hoch + Quer) */
+/* =========================================
+   14. MOBILE VOLLBILD-COCKPIT (STUFE 4 - HOCH & QUER)
+   ========================================= */
 @media (max-width: 800px),
        (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) and (orientation: landscape) {
+    /* Im Windowed-Modus auf Mobile bleibt .now-playing ausgeblendet;
+       im Vollbild übernimmt die kompakte #fs-ui-bar Track-Karte */
     .now-playing { display: none; }
 
     #visual-zone.user-inactive #brand-logo,
@@ -3978,6 +3980,10 @@ body:has(#visual-zone.pseudo-fullscreen) {
         grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
         gap: 8px;
+        left: calc(10px + env(safe-area-inset-left));
+        right: calc(10px + env(safe-area-inset-right));
+        bottom: calc(10px + env(safe-area-inset-bottom));
+        opacity: 1;
     }
 
     #visual-zone:fullscreen #stage-mode-status,
@@ -4000,24 +4006,39 @@ body:has(#visual-zone.pseudo-fullscreen) {
     #visual-zone:fullscreen #fs-playback-controls,
     #visual-zone:-webkit-full-screen #fs-playback-controls,
     #visual-zone.pseudo-fullscreen #fs-playback-controls {
-        display: grid;
-        grid-column: 1 / -1;
-        grid-row: 2;
-        width: 100%;
-        min-width: 0;
+        display: contents;
     }
 
+    /* Kompakte Fullscreen Now-Playing-Karte auf Mobile */
     #visual-zone:fullscreen .fs-track-copy,
     #visual-zone:-webkit-full-screen .fs-track-copy,
     #visual-zone.pseudo-fullscreen .fs-track-copy {
-        display: none;
+        display: grid;
+        grid-column: 1 / -1;
+        grid-row: 2;
+        gap: 5px;
+        padding: 7px 10px;
+        background: rgba(4, 4, 10, 0.9);
+        border: 1px solid var(--chassis-light);
+        border-left: 3px solid var(--bus-active-color);
+        text-align: left;
+    }
+
+    #visual-zone:fullscreen .fs-track-info,
+    #visual-zone:-webkit-full-screen .fs-track-info,
+    #visual-zone.pseudo-fullscreen .fs-track-info {
+        display: block;
+        max-width: 100%;
+        text-align: left;
     }
 
     #visual-zone:fullscreen .fs-controls,
     #visual-zone:-webkit-full-screen .fs-controls,
     #visual-zone.pseudo-fullscreen .fs-controls {
+        grid-column: 1 / -1;
+        grid-row: 3;
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr) minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, 1.3fr);
         gap: 6px;
         width: 100%;
         min-width: 0;
@@ -4033,17 +4054,11 @@ body:has(#visual-zone.pseudo-fullscreen) {
         white-space: nowrap;
     }
 
-    #visual-zone:fullscreen #fs-btn-eco,
-    #visual-zone:-webkit-full-screen #fs-btn-eco,
-    #visual-zone.pseudo-fullscreen #fs-btn-eco {
-        grid-column: 1 / -1;
-    }
-
     body.theme-c64 #visual-zone:fullscreen #fs-playback-controls .fs-controls button,
     body.theme-c64 #visual-zone:-webkit-full-screen #fs-playback-controls .fs-controls button,
     body.theme-c64 #visual-zone.pseudo-fullscreen #fs-playback-controls .fs-controls button {
-        font-size: clamp(8px, 2.5vw, 10px);
-        letter-spacing: 0;
+        font-size: clamp(8px, 2.3vw, 10px);
+        letter-spacing: -0.02em;
     }
 
     body.theme-amiga #visual-zone:fullscreen #fs-playback-controls .fs-controls button,
@@ -4053,7 +4068,75 @@ body:has(#visual-zone.pseudo-fullscreen) {
     body.theme-atari #visual-zone:-webkit-full-screen #fs-playback-controls .fs-controls button,
     body.theme-atari #visual-zone.pseudo-fullscreen #fs-playback-controls .fs-controls button {
         font-size: clamp(13px, 3.4vw, 16px);
-        letter-spacing: 0;
+        letter-spacing: 0.02em;
+    }
+}
+
+/* Schmale Hochformat-Smartphones (<= 520px): HALT GFX bekommt eigene volle Zeile */
+@media (max-width: 520px) {
+    #visual-zone:fullscreen .fs-controls,
+    #visual-zone:-webkit-full-screen .fs-controls,
+    #visual-zone.pseudo-fullscreen .fs-controls {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr) minmax(0, 1fr);
+    }
+
+    #visual-zone:fullscreen #fs-btn-eco,
+    #visual-zone:-webkit-full-screen #fs-btn-eco,
+    #visual-zone.pseudo-fullscreen #fs-btn-eco {
+        grid-column: 1 / -1;
+    }
+
+    #visual-zone:fullscreen #chip-hud:not(.collapsed),
+    #visual-zone:-webkit-full-screen #chip-hud:not(.collapsed),
+    #visual-zone.pseudo-fullscreen #chip-hud:not(.collapsed) {
+        bottom: calc(222px + env(safe-area-inset-bottom));
+    }
+}
+
+/* Mobile-Querformat-Vollbild: Ultrakompakte 2 Reihen (Stage|Track|Exit + 4 Transport-Buttons) */
+@media (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) and (orientation: landscape) {
+    #visual-zone:fullscreen #fs-ui-bar,
+    #visual-zone:-webkit-full-screen #fs-ui-bar,
+    #visual-zone.pseudo-fullscreen #fs-ui-bar {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    #visual-zone:fullscreen #stage-mode-status,
+    #visual-zone:-webkit-full-screen #stage-mode-status,
+    #visual-zone.pseudo-fullscreen #stage-mode-status {
+        grid-column: 1;
+        grid-row: 1;
+        align-self: stretch;
+    }
+
+    #visual-zone:fullscreen .fs-track-copy,
+    #visual-zone:-webkit-full-screen .fs-track-copy,
+    #visual-zone.pseudo-fullscreen .fs-track-copy {
+        grid-column: 2;
+        grid-row: 1;
+        padding: 5px 10px;
+    }
+
+    #visual-zone:fullscreen #btn-fullscreen,
+    #visual-zone:-webkit-full-screen #btn-fullscreen,
+    #visual-zone.pseudo-fullscreen #btn-fullscreen {
+        grid-column: 3;
+        grid-row: 1;
+        align-self: stretch;
+    }
+
+    #visual-zone:fullscreen .fs-controls,
+    #visual-zone:-webkit-full-screen .fs-controls,
+    #visual-zone.pseudo-fullscreen .fs-controls {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.3fr);
+    }
+
+    #visual-zone:fullscreen #fs-btn-eco,
+    #visual-zone:-webkit-full-screen #fs-btn-eco,
+    #visual-zone.pseudo-fullscreen #fs-btn-eco {
+        grid-column: auto;
     }
 }
 

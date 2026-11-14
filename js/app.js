@@ -104,15 +104,25 @@ function updateNowPlayingSystem() {
 }
 
 function updateNowPlayingLive(force = false) {
-    if (!nowPlayingConsole) return;
     const totalFrames = trackData.length || 0;
-    nowPlayingConsole.updateLive({
-        currentTime: totalFrames > 0 ? formatTime(lastKnownFrame) : '00:00',
-        totalTime: totalFrames > 0 ? formatTime(totalFrames) : '00:00',
-        progress: totalFrames > 0 ? lastKnownFrame / totalFrames : 0,
-        levels: channelVolumes,
-        playing: isPlaying
-    }, force);
+    const currentTime = totalFrames > 0 ? formatTime(lastKnownFrame) : '00:00';
+    const totalTime = totalFrames > 0 ? formatTime(totalFrames) : '00:00';
+    const progress = totalFrames > 0 ? lastKnownFrame / totalFrames : 0;
+    const seekable = canSeekActiveTrack();
+
+    if (nowPlayingConsole) {
+        nowPlayingConsole.updateLive({
+            currentTime,
+            totalTime,
+            progress,
+            levels: channelVolumes,
+            playing: isPlaying,
+            seekable
+        }, force);
+    }
+    if (fsUI) {
+        fsUI.updateTimeline({ currentTime, totalTime, progress, seekable });
+    }
 }
 
 function syncNowPlayingConsole() {
@@ -160,7 +170,7 @@ function syncStageModeUI() {
 
     const fullscreenButton = document.getElementById('btn-fullscreen');
     if (fullscreenButton) {
-        fullscreenButton.textContent = fullscreen ? '[ EXIT ]' : '[ ⛶ ]';
+        fullscreenButton.textContent = fullscreen ? '[ EXIT ]' : '[ FULL ]';
         fullscreenButton.setAttribute('aria-pressed', String(fullscreen));
         fullscreenButton.setAttribute('aria-label', fullscreen ? 'Vollbild beenden' : 'Vollbild aktivieren');
     }
@@ -212,9 +222,17 @@ function setPlaybackState(nextState, detail = '') {
     syncTracklistPlaybackState();
     syncEcoPlaybackUI();
     syncStageModeUI();
+
     if (siliconVisualizer) siliconVisualizer.setPlaybackState(nextState);
-    if (fsUI) {
-        fsUI.updateTrack(currentTrackTitle || '[ AWAITING INJECTION ]');
+
+if (fsUI) {
+        const isTrackLoaded = loadedTrackIndex === currentTrackIndex && trackData.length > 0;
+        const totalSongs = isTrackLoaded ? (Number(trackData?.metadata?.songs) || 0) : 0;
+        const hasSubsongs = totalSongs > 1 && ((activeSystem === 'c64' && trackData?.isSidFile) || isLoadedHipcTrack());
+        const fsTitle = currentTrackTitle
+            ? (hasSubsongs ? `${currentTrackTitle} [SUB ${currentSubsongIndex}/${totalSongs}]` : currentTrackTitle)
+            : '[ AWAITING INJECTION ]';
+        fsUI.updateTrack(fsTitle);
         fsUI.updatePlaybackState(nextState);
     }
 }
@@ -248,6 +266,10 @@ function resetMouseIdleTimer() {
 
 function initApp() {
     nowPlayingConsole = new NowPlayingConsole();
+    nowPlayingConsole.bindSeek(ratio => {
+        if (trackData.length > 0) seekToFrame(Math.floor(ratio * trackData.length));
+    });
+    
     syncNowPlayingConsole();
     syncEcoPlaybackUI();
     syncStageModeUI();
@@ -364,16 +386,20 @@ function initApp() {
             siliconVisualizer = new LivingSilicon('living-silicon-container');
             window.siliconVisualizerInstance = siliconVisualizer; // Globaler Hook für den Visualizer
             
-            // setTheme triggert nun automatisch siliconVisualizer.setSystem('c64')
-            setTheme('theme-c64');
-            
             // Initialisiert das Fullscreen Overlay
             fsUI = new FullscreenUI({
                 onTogglePlay: () => document.getElementById('btn-play').click(),
                 onPrev: () => document.getElementById('btn-prev').click(),
                 onNext: () => document.getElementById('btn-next').click(),
-                onToggleEco: () => document.getElementById('btn-eco').click()
+                onToggleEco: () => document.getElementById('btn-eco').click(),
+                onSeek: ratio => {
+                    if (trackData.length > 0) seekToFrame(Math.floor(ratio * trackData.length));
+                }
             });
+
+            // setTheme triggert nun automatisch siliconVisualizer.setSystem('c64')
+            setTheme('theme-c64');
+            
         });
 
         // INTERAKTIVER STEREO BLEND BUTTON
@@ -439,7 +465,12 @@ function seekToFrame(targetFrame) {
     lastKnownFrame = clampedFrame;
     previousFrame = clampedFrame;
     node.port.postMessage({ type: 'SEEK_TRACK', frame: clampedFrame });
+    if (!isUserDragging) {
+        document.getElementById('time-current').innerText = formatTime(clampedFrame);
+        document.getElementById('progress-slider').value = (clampedFrame / trackData.length) * 100;
+    }
     updateNowPlayingLive(true);
+
     mediaSession.updatePosition(framesToSeconds(trackData.length, trackData), framesToSeconds(clampedFrame, trackData), true);
     return true;
 }
@@ -1145,6 +1176,7 @@ async function selectAndPlayTrack(index, system, options = {}) {
     tracklistDirectory = directorySeparator === -1 ? '' : selectedPath.slice(0, directorySeparator);
 
     lastKnownFrame = 0;
+    currentSubsongIndex = 1;
     previousFrame = 0;
 
     resetHUD();
@@ -1352,13 +1384,6 @@ async function selectAndPlayTrack(index, system, options = {}) {
         document.getElementById('progress-slider').disabled = !canSeekActiveTrack();
         syncMediaSessionTrack(selectedSong);
         startPlayback();
-    }
-    if (fsUI) {
-        const totalSongs = trackData?.metadata?.songs || 1;
-        const title = isLoadedHipcTrack() && totalSongs > 1
-            ? `${currentTrackTitle} [SUB ${currentSubsongIndex}/${totalSongs}]`
-            : (currentTrackTitle || selectedSong.title);
-        fsUI.updateTrack(title);
     }
 
 }
