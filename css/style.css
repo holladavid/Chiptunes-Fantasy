@@ -781,7 +781,13 @@ details > summary::before { content: "[+] "; color: var(--panel-text); }
 details[open] > summary::before { content: "[-] "; }
 
 #tracklist li:last-child { border-bottom: none; }
-#tracklist li::before { content: "> "; opacity: 0; font-weight: bold; }
+#tracklist li::before {
+    content: ">";
+    opacity: 0;
+    font-weight: bold;
+    flex-shrink: 0;
+    margin-right: 8px;
+}
 
 #tracklist li.tracklist-folder,
 #tracklist li.tracklist-navigation {
@@ -808,7 +814,7 @@ details[open] > summary::before { content: "[-] "; }
 }
 
 #tracklist li.selected-track[data-playback-state="loading"]::before {
-    content: "> ";
+    content: ">";
     animation: c64-blink 0.65s steps(2, start) infinite;
 }
 
@@ -818,7 +824,7 @@ details[open] > summary::before { content: "[-] "; }
 }
 
 #tracklist li.selected-track[data-playback-state="paused"]::before {
-    content: "|| ";
+    content: "||";
     animation: none;
 }
 
@@ -828,7 +834,7 @@ details[open] > summary::before { content: "[-] "; }
 }
 
 #tracklist li.selected-track[data-playback-state="error"]::before {
-    content: "! ";
+    content: "!";
     animation: none;
 }
 
@@ -843,16 +849,14 @@ details[open] > summary::before { content: "[-] "; }
 
 #tracklist li.active-track::before {
     opacity: 1;
-    content: "█ ";
+    content: "█";
     animation: c64-blink 0.8s steps(2, start) infinite;
 }
 
 body.theme-c64 #tracklist li.active-track::before {
-    content: "█";
     display: inline-block;
     vertical-align: middle;
     transform: translateY(-0.08em);
-    margin-right: 8px;
     line-height: 1;
 }
 
@@ -862,6 +866,18 @@ body.theme-c64 #tracklist li.active-track::before {
     align-items: stretch;
     gap: 4px;
     white-space: normal;
+}
+
+#tracklist li.tracklist-search-result::before {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    margin-right: 0;
+}
+
+#tracklist li.tracklist-search-result.selected-track,
+#tracklist li.tracklist-search-result.active-track {
+    padding-left: 28px;
 }
 
 .track-result-title,
@@ -891,6 +907,10 @@ body.theme-c64 #tracklist li.active-track::before {
     text-align: center;
     white-space: normal;
     cursor: default;
+}
+
+#tracklist li.tracklist-empty::before {
+    content: none;
 }
 
 #tracklist li.tracklist-empty:hover {
@@ -2933,7 +2953,7 @@ body.eco-mode .signal-bus {
 }
 
 body.eco-mode #scroller-zone {
-    filter: brightness(0.08) !important;
+    filter: brightness(0.28) !important;
     transition: filter 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
@@ -2946,7 +2966,6 @@ body:has(#visual-zone.pseudo-fullscreen) {
    12. DESKTOP / LAPTOP / WIDESCREEN COMMAND DECK (STUFE 2)
    ========================================= */
 @media (min-width: 801px) {
-    /* HUD bleibt auf Desktop jederzeit innerhalb der Stage scrollbar & kollisionsfrei */
     #chip-hud:not(.collapsed) {
         display: flex;
         flex-direction: column;
@@ -2972,7 +2991,6 @@ body:has(#visual-zone.pseudo-fullscreen) {
     }
 }
 
-/* Schmale Desktops & Split-Screen Fenster: Logo vs HUD Schutz */
 @media (min-width: 801px) and (max-width: 1060px) {
     #brand-logo {
         top: 14px;
@@ -2990,7 +3008,6 @@ body:has(#visual-zone.pseudo-fullscreen) {
     }
 }
 
-/* Zwischenbreiten (801px-1140px): 2-Zeilen-Playback-Bar damit Progress-Slider breit bleibt */
 @media (min-width: 801px) and (max-width: 1140px) {
     #playback-bar {
         display: grid;
@@ -3018,7 +3035,6 @@ body:has(#visual-zone.pseudo-fullscreen) {
     }
 }
 
-/* Standard-Desktop & Laptops (801px-1499px): kompaktes Silicon, genuegend Platz fuer Museum */
 @media (min-width: 801px) and (max-width: 1499px) {
     #living-silicon-container > .silicon-chassis,
     .silicon-chassis.sid-chassis,
@@ -3062,7 +3078,6 @@ body:has(#visual-zone.pseudo-fullscreen) {
     }
 }
 
-/* Flache Desktop-Fenster / 720p-768p Laptops */
 @media (min-width: 801px) and (max-height: 760px) {
     body, html { overflow: auto; }
 
@@ -3112,8 +3127,6 @@ body:has(#visual-zone.pseudo-fullscreen) {
     }
 }
 
-/* WIDESCREEN 3-SPALTEN-COMMAND-DECK (>= 1500px):
-   Tracklist | Living Silicon Lab | Database & Archive nebeneinander */
 @media (min-width: 1500px) {
     body:not(.archive-expanded) #ui-zone {
         grid-template-columns: minmax(300px, 24%) minmax(540px, 1.35fr) minmax(380px, 1fr);
@@ -3194,7 +3207,6 @@ body:has(#visual-zone.pseudo-fullscreen) {
     }
 }
 
-/* Ultrawide & 4K Command Deck (>= 1800px / >= 1920px) */
 @media (min-width: 1800px) and (min-height: 900px) {
     :root {
         --font-size-xs: clamp(9px, 0.5vw, 11px);
@@ -3261,12 +3273,12 @@ body:has(#visual-zone.pseudo-fullscreen) {
 }
 
 /* =========================================
-   13. MOBILE & TABLET RESPONSIVE DESIGN
+   13. MOBILE & TABLET RESPONSIVE DESIGN (STUFE 3)
    ========================================= */
 @media (max-width: 800px) {
     :root {
-        --font-size-xs: 10px;
-        --font-size-sm: 11px;
+        --font-size-xs: 9.5px;
+        --font-size-sm: 10.5px;
         --font-size-base: 12px;
         --font-size-title: 13px;
         --font-size-grid: 10px;
@@ -3301,17 +3313,12 @@ body:has(#visual-zone.pseudo-fullscreen) {
         --stage-safe-top: env(safe-area-inset-top, 0px);
         --stage-safe-right: env(safe-area-inset-right, 0px);
         --stage-safe-left: env(safe-area-inset-left, 0px);
-        height: clamp(200px, 32dvh, 300px);
-        min-height: 180px;
+        height: clamp(210px, 34dvh, 300px);
+        min-height: 190px;
     }
 
     #demo-container > #visual-zone:not(.pseudo-fullscreen):not(:fullscreen):not(:-webkit-full-screen) {
         margin-top: var(--stage-safe-top);
-    }
-
-    #visual-zone.lab-mode-expanded {
-        z-index: 101;
-        overflow: visible;
     }
 
     #visual-zone:fullscreen #brand-logo,
@@ -3321,9 +3328,9 @@ body:has(#visual-zone.pseudo-fullscreen) {
         left: calc(12px + var(--stage-safe-left));
     }
 
-    #visual-zone:fullscreen #chip-hud,
-    #visual-zone:-webkit-full-screen #chip-hud,
-    #visual-zone.pseudo-fullscreen #chip-hud {
+    #visual-zone:fullscreen #chip-hud.collapsed,
+    #visual-zone:-webkit-full-screen #chip-hud.collapsed,
+    #visual-zone.pseudo-fullscreen #chip-hud.collapsed {
         top: calc(10px + var(--stage-safe-top));
         right: calc(10px + var(--stage-safe-right));
     }
@@ -3342,31 +3349,60 @@ body:has(#visual-zone.pseudo-fullscreen) {
     .brand-raster-bar { min-width: 10px; height: 6px; }
     .brand-dj-badge { font-size: 5.5px; padding: 2px 3px; }
 
-    #chip-hud {
-        width: 94%;
+    /* Eingeklapptes HUD kompakt in der Ecke; ausgeklappt exakt innerhalb der Stage */
+    #chip-hud.collapsed {
         top: 10px;
-        right: 3%;
-        padding: 8px;
-        z-index: 110;
+        right: 10px;
+        width: auto;
+        padding: 6px 8px;
+        z-index: 15;
     }
-    #chip-hud.collapsed { width: auto; right: 10px; }
 
-    #hud-body {
-        max-height: 35vh;
+    #chip-hud:not(.collapsed) {
+        inset: 8px;
+        width: auto;
+        max-height: none;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        z-index: 30;
+    }
+
+    #chip-hud:not(.collapsed) .hud-header {
+        flex-shrink: 0;
+        padding-bottom: 6px;
+        margin-bottom: 8px;
+    }
+
+    #chip-hud:not(.collapsed) #hud-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
         overflow-y: auto;
         overflow-x: hidden;
     }
 
-    .atari-analyzer-grid { grid-template-columns: 1fr; gap: 5px; }
-    .hud-row label { width: 55px; }
-    .hud-channel { margin-bottom: 5px; padding-bottom: 5px; }
+    #visual-zone:fullscreen #chip-hud:not(.collapsed),
+    #visual-zone:-webkit-full-screen #chip-hud:not(.collapsed),
+    #visual-zone.pseudo-fullscreen #chip-hud:not(.collapsed) {
+        top: calc(10px + var(--stage-safe-top));
+        right: calc(10px + var(--stage-safe-right));
+        left: calc(10px + var(--stage-safe-left));
+        bottom: calc(118px + env(safe-area-inset-bottom));
+        max-height: none;
+    }
 
+    .atari-analyzer-grid { grid-template-columns: 1fr; gap: 6px; }
+    .hud-row label { width: 55px; }
+    .hud-channel { margin-bottom: 6px; padding-bottom: 6px; }
+
+    /* Mobile Playback Bar */
     #playback-bar {
         position: sticky;
         top: env(safe-area-inset-top, 0px);
         z-index: 40;
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(92px, 0.34fr);
+        grid-template-columns: minmax(0, 1fr) minmax(82px, 0.28fr);
         align-items: center;
         gap: 6px 10px;
         padding: 8px 10px;
@@ -3387,8 +3423,8 @@ body:has(#visual-zone.pseudo-fullscreen) {
         min-height: 44px;
         min-width: 0;
         padding: 6px 2px;
-        font-size: clamp(8px, 2.3vw, 10px);
-        letter-spacing: -0.02em;
+        font-size: clamp(8.5px, 2.35vw, 10px);
+        letter-spacing: -0.03em;
         overflow: hidden;
         text-overflow: clip;
     }
@@ -3400,14 +3436,15 @@ body:has(#visual-zone.pseudo-fullscreen) {
     }
 
     #playback-bar #btn-prev,
-    #playback-bar #btn-next,
-    #playback-bar #btn-eco { flex: 1 1 0%; }
+    #playback-bar #btn-next { flex: 1.05 1 0%; }
     #playback-bar #btn-play { flex: 1.7 1 0%; }
+    #playback-bar #btn-eco  { flex: 1.25 1 0%; }
 
     #playback-bar .timeline-control {
         grid-column: 1;
+        flex-wrap: wrap;
         width: 100%;
-        gap: 6px;
+        gap: 4px 6px;
     }
 
     #playback-bar .volume-control {
@@ -3417,13 +3454,17 @@ body:has(#visual-zone.pseudo-fullscreen) {
     }
 
     #subsong-display {
-        margin-right: 0;
+        margin-right: 2px;
         letter-spacing: 0;
+    }
+
+    body.theme-c64 #subsong-display {
+        font-size: clamp(7.5px, 2vw, 9px);
     }
 
     input[type="range"] {
         width: 100%;
-        min-width: 0;
+        min-width: 44px;
         height: 44px;
     }
 
@@ -3444,14 +3485,18 @@ body:has(#visual-zone.pseudo-fullscreen) {
     #track-search,
     #btn-clear-track-search,
     #btn-toggle-archive,
-    #btn-hud-info,
-    #btn-hud-crossfeed,
-    #btn-hud-toggle,
     #btn-eco-off,
     .fs-controls button,
     #btn-fullscreen,
     .silicon-guide > summary {
         min-height: 44px;
+    }
+
+    #btn-hud-info,
+    #btn-hud-crossfeed,
+    #btn-hud-toggle {
+        min-height: 40px;
+        padding: 4px 8px;
     }
 
     #ui-zone {
@@ -3469,11 +3514,17 @@ body:has(#visual-zone.pseudo-fullscreen) {
 
     .system-tabs { gap: 6px; margin-bottom: 10px; }
     .system-tabs .tab-btn { padding: 6px 2px; }
+    body.theme-c64 .system-tabs .tab-btn { font-size: clamp(10px, 2.8vw, 12px); }
+
     .core-control { margin-bottom: 8px; }
 
     .core-control select {
         padding: 6px 30px 6px 8px;
         background-position: right 7px center;
+    }
+
+    body.theme-c64 .core-control select {
+        font-size: clamp(9.5px, 2.6vw, 11px);
     }
 
     #library-controls { padding: 8px; }
@@ -3507,6 +3558,14 @@ body:has(#visual-zone.pseudo-fullscreen) {
         line-height: 1.35;
     }
 
+    #tracklist li.tracklist-search-result {
+        align-items: stretch;
+    }
+
+    #tracklist li.tracklist-search-result::before {
+        top: 12px;
+    }
+
     body.theme-amiga #tracklist li,
     body.theme-atari #tracklist li {
         font-size: clamp(22px, 5.8vw, 26px);
@@ -3517,7 +3576,7 @@ body:has(#visual-zone.pseudo-fullscreen) {
     .museum-content { overflow-y: visible; }
     .museum-content .terminal-grid { grid-template-columns: minmax(72px, auto) minmax(0, 1fr); }
 
-    .silicon-chassis { height: 180px; }
+    .silicon-chassis { height: 240px; }
     .silicon-toolbar-status { order: 3; flex-basis: 100%; min-height: 24px; }
     .silicon-readout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
@@ -3538,29 +3597,33 @@ body:has(#visual-zone.pseudo-fullscreen) {
 }
 
 @media (max-width: 720px) {
-    .silicon-chassis:has(.paula-visualization) { height: 380px; }
+    .silicon-chassis { height: 190px; }
+
+    .silicon-chassis:has(.paula-visualization) { height: 305px; }
     .silicon-chassis:has(.paula-visualization) .silicon-die-wrapper {
         justify-content: flex-start;
         overflow-x: auto;
         overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
     }
     .silicon-chassis:has(.paula-visualization) .paula-visualization {
-        width: 800px;
-        min-width: 800px;
-        height: 355px;
+        width: 720px;
+        min-width: 720px;
+        height: 275px;
         max-height: none;
     }
 
-    .silicon-chassis:has(.ym-visualization) { height: 520px; }
+    .silicon-chassis:has(.ym-visualization) { height: 410px; }
     .silicon-chassis:has(.ym-visualization) .silicon-die-wrapper {
         justify-content: flex-start;
         overflow-x: auto;
         overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
     }
     .silicon-chassis:has(.ym-visualization) .silicon-die-wrapper svg.ym-visualization {
-        width: 1240px;
-        min-width: 1240px;
-        height: 480px;
+        width: 980px;
+        min-width: 980px;
+        height: 380px;
         max-height: none;
     }
 
@@ -3585,7 +3648,14 @@ body:has(#visual-zone.pseudo-fullscreen) {
 
 /* Mobile Eco-Mode & Fullscreen Stage Dock */
 @media (max-width: 800px), (max-height: 600px) {
-    body.eco-mode #visual-zone {
+    body.eco-mode #demo-container > #visual-zone:not(.pseudo-fullscreen):not(:fullscreen):not(:-webkit-full-screen) {
+        height: calc(100dvh - var(--stage-safe-top, 0px));
+        min-height: 0;
+    }
+
+    body.eco-mode #visual-zone:fullscreen,
+    body.eco-mode #visual-zone:-webkit-full-screen,
+    body.eco-mode #visual-zone.pseudo-fullscreen {
         height: 100dvh;
         min-height: 100dvh;
     }
@@ -3646,8 +3716,25 @@ body:has(#visual-zone.pseudo-fullscreen) {
     #stage-mode-status { min-height: 44px; }
 }
 
-/* Mobile Landscape Workbench */
+/* Mobile Landscape Workbench (inkl. breiter Notch-Smartphones > 800px) */
 @media (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) and (orientation: landscape) {
+    :root {
+        --font-size-xs: 9.5px;
+        --font-size-sm: 10.5px;
+        --font-size-base: 12px;
+        --font-size-title: 13px;
+        --font-size-grid: 10px;
+    }
+
+    body.theme-amiga,
+    body.theme-atari {
+        --font-size-xs: 14px;
+        --font-size-sm: 16px;
+        --font-size-base: 20px;
+        --font-size-title: 24px;
+        --font-size-grid: 15px;
+    }
+
     body, html {
         height: auto;
         min-height: 100dvh;
@@ -3660,21 +3747,25 @@ body:has(#visual-zone.pseudo-fullscreen) {
         height: auto;
         min-height: 100dvh;
         overflow: visible;
+        padding-left: env(safe-area-inset-left, 0px);
+        padding-right: env(safe-area-inset-right, 0px);
     }
 
     #visual-zone {
-        height: 180px;
+        --stage-safe-top: env(safe-area-inset-top, 0px);
+        --stage-safe-right: env(safe-area-inset-right, 0px);
+        --stage-safe-left: env(safe-area-inset-left, 0px);
+        height: clamp(164px, 42dvh, 210px);
         min-height: 160px;
     }
 
-    #visual-zone.lab-mode-expanded {
-        z-index: 101;
-        overflow: visible;
+    #demo-container > #visual-zone:not(.pseudo-fullscreen):not(:fullscreen):not(:-webkit-full-screen) {
+        margin-top: var(--stage-safe-top);
     }
 
     #brand-logo {
-        top: 10px;
-        left: 12px;
+        top: 8px;
+        left: 10px;
         gap: 7px;
         padding: 4px 8px 4px 6px;
         max-width: 210px;
@@ -3683,12 +3774,81 @@ body:has(#visual-zone.pseudo-fullscreen) {
     .brand-main { font-size: 10.5px; }
     .brand-sub { font-size: 6px; letter-spacing: 2px; }
 
+    #visual-zone:fullscreen #brand-logo,
+    #visual-zone:-webkit-full-screen #brand-logo,
+    #visual-zone.pseudo-fullscreen #brand-logo {
+        top: calc(10px + var(--stage-safe-top));
+        left: calc(10px + var(--stage-safe-left));
+    }
+
+    /* Im Querformat stehen eingeklappte HUD-Buttons kompakt nebeneinander */
+    #chip-hud.collapsed {
+        top: 8px;
+        right: 10px;
+        width: auto;
+        padding: 6px 8px;
+        z-index: 15;
+    }
+
+    #visual-zone:fullscreen #chip-hud.collapsed,
+    #visual-zone:-webkit-full-screen #chip-hud.collapsed,
+    #visual-zone.pseudo-fullscreen #chip-hud.collapsed {
+        top: calc(8px + var(--stage-safe-top));
+        right: calc(10px + var(--stage-safe-right));
+    }
+
+    #chip-hud.collapsed .hud-controls-stack {
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+    }
+
+    /* Geoeffnetes HUD bleibt im Landscape innerhalb der Stage und nutzt 2 Spalten */
+    #chip-hud:not(.collapsed) {
+        inset: 6px;
+        width: auto;
+        max-height: none;
+        padding: 8px 10px;
+        display: flex;
+        flex-direction: column;
+        z-index: 30;
+    }
+
+    #visual-zone:fullscreen #chip-hud:not(.collapsed),
+    #visual-zone:-webkit-full-screen #chip-hud:not(.collapsed),
+    #visual-zone.pseudo-fullscreen #chip-hud:not(.collapsed) {
+        top: calc(8px + var(--stage-safe-top));
+        right: calc(10px + var(--stage-safe-right));
+        left: calc(10px + var(--stage-safe-left));
+        bottom: calc(108px + env(safe-area-inset-bottom));
+        max-height: none;
+    }
+
+    #chip-hud:not(.collapsed) .hud-header {
+        flex-shrink: 0;
+        padding-bottom: 6px;
+        margin-bottom: 6px;
+    }
+
+    #chip-hud:not(.collapsed) #hud-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    #chip-hud .atari-analyzer-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
     #playback-bar {
         position: sticky;
         top: env(safe-area-inset-top, 0px);
         z-index: 40;
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 160px;
+        grid-template-columns: minmax(0, 1fr) 170px;
         align-items: center;
         gap: 8px 12px;
         padding: 8px 12px;
@@ -3698,6 +3858,7 @@ body:has(#visual-zone.pseudo-fullscreen) {
         display: flex;
         grid-column: 1 / -1;
         width: 100%;
+        max-width: none;
         margin: 0;
     }
 
@@ -3708,18 +3869,22 @@ body:has(#visual-zone.pseudo-fullscreen) {
         font-size: var(--font-size-sm);
     }
 
+    #playback-bar #btn-play { flex: 1.6 1 0; }
+    #playback-bar #btn-eco  { flex: 1.25 1 0; }
+
     #playback-bar .timeline-control { grid-column: 1; width: 100%; margin: 0; }
     #playback-bar .volume-control { grid-column: 2; width: 100%; margin: 0; }
 
     input[type="range"] { height: 44px; }
-    input[type="range"]::-webkit-slider-thumb { margin-top: -11px; }
+    input[type="range"]::-webkit-slider-thumb {
+        width: 18px;
+        height: 26px;
+        margin-top: -9px;
+    }
 
     .tab-btn,
     .core-control select,
     #btn-fullscreen,
-    #btn-hud-info,
-    #btn-hud-crossfeed,
-    #btn-hud-toggle,
     .fs-controls button,
     .silicon-guide > summary,
     #btn-toggle-archive,
@@ -3727,6 +3892,12 @@ body:has(#visual-zone.pseudo-fullscreen) {
     #track-search,
     #btn-clear-track-search {
         min-height: 44px;
+    }
+
+    #btn-hud-info,
+    #btn-hud-crossfeed,
+    #btn-hud-toggle {
+        min-height: 38px;
     }
 
     #track-search { font-size: 16px; }
@@ -3748,11 +3919,15 @@ body:has(#visual-zone.pseudo-fullscreen) {
 
     #tracklist { max-height: 280px; }
 
-    .silicon-chassis,
+    #living-silicon-container > .silicon-chassis,
     .silicon-chassis.sid-chassis,
     .silicon-chassis:has(.paula-visualization),
     .silicon-chassis:has(.ym-visualization) {
-        height: 230px;
+        height: 220px;
+    }
+
+    #living-silicon-container:has(.silicon-guide[open]) > .silicon-chassis {
+        display: grid;
     }
 
     .silicon-chassis:has(.paula-visualization) .paula-visualization,
@@ -3763,6 +3938,18 @@ body:has(#visual-zone.pseudo-fullscreen) {
     }
 
     .silicon-readout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    #scroller-zone {
+        flex: none;
+        grid-template-rows: 40px 52px;
+        height: calc(92px + env(safe-area-inset-bottom));
+        min-height: calc(92px + env(safe-area-inset-bottom));
+        padding-bottom: env(safe-area-inset-bottom);
+        box-sizing: border-box;
+    }
+    #scroller-zone::after { inset: 40px 0 0; }
+    .scroller-toolbar { padding: 0 8px; }
+    .scroller-actions button { min-height: 40px; }
 }
 
 @media (max-width: 720px) and (max-height: 600px) and (orientation: landscape) {
@@ -3888,12 +4075,15 @@ body:has(#visual-zone.pseudo-fullscreen) {
     #visual-zone .brand-main { font-size: 10px; }
     #visual-zone .brand-sub { font-size: 6px; letter-spacing: 2px; }
 
-    #visual-zone #chip-hud { top: 62px; }
+    #visual-zone #chip-hud.collapsed {
+        top: 56px;
+        right: 10px;
+    }
 
-    #visual-zone:fullscreen #chip-hud,
-    #visual-zone:-webkit-full-screen #chip-hud,
-    #visual-zone.pseudo-fullscreen #chip-hud {
-        top: calc(62px + var(--stage-safe-top));
+    #visual-zone:fullscreen #chip-hud.collapsed,
+    #visual-zone:-webkit-full-screen #chip-hud.collapsed,
+    #visual-zone.pseudo-fullscreen #chip-hud.collapsed {
+        top: calc(56px + var(--stage-safe-top));
     }
 }
 
