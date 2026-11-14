@@ -200,14 +200,32 @@ Der Übergang in `afterglow` SOLL die letzte Formation und Objektpositionen übe
 | DSE | Kontinuierliche Reaktion auf `beatImpulse[0]` | Diskrete Ereignisse und Sonderregeln |
 | --- | --- | --- |
 | `Starfield` | Gewichteter Warp-Schub; C64-Rasterwobble, Amiga-Nebel-/Helligkeitsakzente und ganzzahliger Atari-Größenkick | Pattern und Paletten nur bei `beatStarted`/`beatCount` |
-| `C64CastleFireworks` | VIC-II-Paletten-Nachtszene mit pixelgerasterter Burg und Vordergrund ab einer festen Horizontlinie | Himmel-Feuerwerk nur auf `beatStarted`; Kadenz und Burst-Größe folgen Makrozustand und Beat-Stärke |
-| `AmigaCastleFireworks` | Gestufte OCS-Nachtpalette, Copper-Raster, proportionale Burg und begrenzte Feuerwerksmuster | Burst-Zündung nur auf dedupliziertem `beatStarted`; Dichte und Choreografie folgen Makrozustand und Tension |
 | `Copperbars` | Vertikaler Nudge, Climax-Interferenz und abgestufter Core-Punch | Formationen und Copperlists nur am exakten vierten Beat |
 | `TrackPresenter` | Systemgerechte Panel-Bewegung; zusätzlicher horizontaler Bitmap-Titel-Nudge im Climax | Layoutwechsel nur am exakten vierten Beat; One-Shot-Verhalten bleibt unverändert |
 | `LimitBar` | C64-Rasterstärke, Amiga-Sweep-Größe sowie Atari-Funkenanzahl und -länge; Impulssteuerung des Climax-Strobes | Bleibt über `.disabled()` deaktiviert und wird nur isoliert getestet |
 | `VoidElement` | Absichtlich keine; der Platzhalter liest keine Musikmetriken und zeichnet nichts | Alle drei Registry-Einträge bleiben `isVoid()` |
 
 Alle sichtbaren universellen DSEs verwenden bei fehlendem `beatImpulse` weiterhin die begrenzte `beat[0]`-Hüllkurve als Fallback. Eine abklingende Hüllkurve oder ein erhaltener `beatLevel` darf bei ihnen keine Pattern-, Paletten-, Formations-, Richtungs- oder Layoutwechsel erneut auslösen.
+
+### 3.7 Systemspezifische DSEs: Umsetzungsstand (v1.6.0)
+
+| System | DSE | Reaktion auf `beatImpulse[0]`, Makrozustand & Kanäle | Besonderheiten & Nachweise |
+| --- | --- | --- | --- |
+| Amiga | `KefrensCheckerboard` | Copper-Kurven, Z-Schockwellen, `camH`-Dip und 4 Paletten/Pattern-Familien | Floor ab `horizon = 0.55 * height`; 12-Bit LUT; Bayer-Floor-Curtain (`test/kefrens-checkerboard.test.mjs`) |
+| Amiga | `PaulaSiliconBg` | 4 L-R-R-L DMA-Säulen, 3D-Busspuren, Z-Welle, Oktant-Moiré und Copper-Himmel | DOM-frei ohne Offscreen-Canvas/Global-Cache (`test/paula-silicon-bg.test.mjs`) |
+| Amiga | `AmigaRetroSunset` | Sonnenpuls, Berg-Rimlight, Wasser-Shimmer, Climax-Slits; 16./24.-Beat-Fisch/Möwen | Kachelnde Berge, 2 Wolken, Xorshift32, Blue-Hour-Afterglow (`test/retro-sunset.test.mjs`) |
+| Amiga | `AmigaCastleFireworks` | Gestufte OCS-Nachtpalette, Copper-Raster, Burg & Feuerwerk nach Tension/Beat | Burst-Zündung nur auf dedupliziertem `beatStarted` (`test/amiga-castle-fireworks.test.mjs`) |
+| C64 | `ChunkyPlasma` | 4 VIC-II-Ramps, 4 Plasmafamilien, Zoom-Bounce, PETSCII-Subblock-Dither (`smooth[0..2]`) | Wiederverwendbare Zeilenpuffer, Bayer-Night-Afterglow (`test/chunky-plasma.test.mjs`) |
+| C64 | `C64RetroSunset` | Sonnenradius, Kegelbreite, Glanztiefe, Sky-Dither-Säume, 1px-Heat-Haze (`smooth[0..2]`) | Rein zeitbasiert ohne `frameCounter`, Xorshift32 `$D016`-Wasser (`test/c64-retro-sunset.test.mjs`) |
+| C64 | `SidSiliconBg` | 3 SID-Oszillatoren + VCF-Kamm, Bus-Elektronen nach `beatLevel`, ADSR-Schutz | Adaptives Landscape-/Portrait-Layout, Fallback ohne `regs` (`test/sid-silicon-bg.test.mjs`) |
+| C64 | `C64VectorStar` | FOV-/Spitzen-Kick, 4 Raster-Paletten, 4 Modi inkl. 2-Step-Ghost-Trails (`smooth[0..2]`) | `0.06s`-6510-Stutter auf `dt`, geclippt, geometrisches Starting/Stopping (`test/c64-vector-star.test.mjs`) |
+| C64 | `C64CastleFireworks` | VIC-II-Nachtszene mit Burg, Vordergrund & Beat-Feuerwerk | Bursts nur auf `beatStarted` (`test/c64-castle-fireworks.test.mjs`) |
+| Atari | `AtariDotTorus` | Scale-Kick, 4 Shifter-Paletten, 4 Morph-Modi, 1×1/2×2-Tiefenpass (`smooth[0..2]`) | Symmetrische 3-Achsen-Float-Phasen für 50 Hz PAL (`test/atari-dot-torus.test.mjs`) |
+| Atari | `AtariBobs` | Radius-/Warp-Schub, Ketten-Highlight-Welle, 3D-Bob-Größe (`smooth[0..2]`) | DOM-freie Scanline-Kreis-LUT, symmetrische 4-Quadranten-Spiegelung (`test/atari-bobs.test.mjs`) |
+| Atari | `AtariRetroSunset` | Sonnenpuls, Wasserwelle, Torii-Kanji, Bonsai-Rascheln & fallende Blütenblätter | DOM-frei, geclippte Kurven-Bonsai-Äste, Zen-Afterglow (`test/atari-retro-sunset.test.mjs`) |
+| Atari | `WireframeMorph` | Morph-Schub, 4 Themes, 2-Pass-Z-Depth, Ghost-Trails & Dual-Shell-Kern (`smooth[0..2]`) | Kalibriertes FOV + geclippte Bresenham-Kanten (`test/atari-wireframe-morph.test.mjs`) |
+| Atari | `YmSiliconBg` | 3 Rechteck-Oszillatoren, Log-DAC-Schockwelle, LFSR-Regen & Timer-B-Scanline-Tears | Ohne `getImageData`/`putImageData` & ohne Weiß-Wipe, Dual-Layout (`test/ym-silicon-bg.test.mjs`) |
+| Atari | `AtariEnchantedCastle` | 9-Bit-Shifter-Sturmszene mit Burg & gradierten Blitz-/Magie-Effekten | Maximal 16 Farben, begrenzte Pools (`test/atari-enchanted-castle.test.mjs`) |
 
 ## 4. Historischer Stil und Hardwaregrenzen
 
@@ -247,6 +265,7 @@ Regeln:
 - Die Abnahme erfolgt an den tatsächlich gerenderten Pixeln, nicht nur an den Farbangaben im Quelltext.
 - Keine Schatten, Browser-Filter, Antialiasing-Kanten oder Textausgabe, die unerlaubte Zwischenfarben erzeugen.
 - Nicht versuchen, Paletteverletzungen nachträglich durch eine undokumentierte Ausnahmeregel zu verstecken.
+- Bei Atari ST beträgt der maximale quantisierte Kanalwert `252` (`7 × 36`, `#fcfcfc`) und nicht `255` (`#ffffff`). Auch Weiß-Highlights müssen über `quantizeAtari9Bit(...)` erzeugt werden.
 
 ### 4.3 Integer-Raster und Geometrie
 
@@ -267,6 +286,7 @@ Geeignete Helfer sind unter anderem:
 - `fillAliasedPolygon(...)`
 
 Historische Bewegung entsteht durch diskrete Raster-, Paletten- und Formwechsel, nicht durch moderne weiche Partikeleffekte.
+Die Helfer in `hardware-constraints.js` clippen Koordinaten nicht automatisch auf den Retro-Buffer. Jeder DSE MUSS sicherstellen, dass Linien, Kreise und Sprites am Bildrand hart auf `[0..width, 0..height]` (bzw. auf layer-spezifische Grenzen wie `y < horizon`) beschnitten werden und keine negativen Koordinaten oder Überläufe an `fillRect()` übergeben.
 
 ### 4.4 Kein Alpha-Blending
 
@@ -279,6 +299,10 @@ Geeignete Alternativen:
 - Raster-/Scanline-Muster einsetzen.
 - `applyOrderedDitherFade(...)` für deterministische Ordered-Dither-Übergänge verwenden.
 - Trails durch begrenzte, opake Nachzeichnungen oder persistente Palettenstufen erzeugen.
+Für Ein- und Ausblendungen gilt zusätzlich die Layer-Trennung:
+- Vollflächige `#000000`-Ordered-Dither-Vorhänge (über `applyOrderedDitherFade(...)` oder native Bayer-4×4-`fillRect`-Muster) sind **nur** für `background`-DSEs (und bei `floor`-DSEs ausschließlich unterhalb der Horizontlinie) zulässig.
+- `foreground`- und `overlay`-DSEs DÜRFEN in `starting`/`stopping` keinen schwarzen Vollbild-Dither über den Hintergrund legen, sondern müssen über eigene Geometrie, Schrittweise-Sichtbarkeit oder Objektanzahl ein- und ausblenden.
+- Hinweis zu `applyOrderedDitherFade(...)`: Der Helfer nutzt intern `document.createElement('canvas')` und `createPattern(...)`. Für DSEs, die ohne DOM in Node getestet werden, ist ein natives Bayer-4×4-`fillRect`-Verfahren vorzuziehen (oder ein entsprechender DOM-freier Test-Fallback nötig).
 
 ### 4.5 Text und Typografie
 
@@ -366,6 +390,7 @@ Für jede System-/DSE-Kombination sind mindestens repräsentative Stills in Port
 
 ### 6.1 Registrierung
 
+Alle DSEs werden **zentral** im Array `dseRegistry` in `js/visuals/dse/registry.js` über den lokalen Builder `RegisterDSE(...)` registriert. Einzelne DSE-Module exportieren ausschließlich ihre Klasse (`export class MyDse`) und importieren `registry.js` **nicht** selbst (Vermeidung zirkulärer Imports und `SyntaxError`).
 Jeder DSE wird über `RegisterDSE(...)` mit expliziten Metadaten registriert. Beispiel:
 
 ```javascript
@@ -401,6 +426,7 @@ Metadatenbewusst wählen:
 | `overlay` | 3 | Präsentation, Einblendungen und vorderste Bildelemente |
 
 Es gibt keinen separaten `presenter`-Layer. Der TrackPresenter ist ein `overlay`-DSE mit `oneshot`-Lifecycle.
+**Horizont-Vertrag (`background` + `floor`):** Kombinierbare `floor`-DSEs (wie `KefrensCheckerboard`) beginnen ab `horizon = Math.floor(height * 0.55)` und lassen den Bereich `0 .. horizon - 1` vollständig unberührt. System-Hintergründe (`RetroSunset`, `PaulaSiliconBg`, `CastleFireworks`, `EnchantedCastle`) platzieren Himmel und Haupt-Silhouetten oberhalb dieser Linie, damit ein aktiver `floor`-DSE nur den unteren Vordergrund übernimmt.
 
 ### 6.3 Lifecycles und Dauer
 
@@ -489,7 +515,22 @@ Der DSE-Baseline-Harness stellt dafür `makeMetrics(...)` und `runBeatIntensity(
 Die fokussierte Gesamtsuite für das graduelle Beat-System umfasst:
 
 ```sh
+Zusätzlich zur universellen Suite decken die systemspezifischen Suites das v1.6.0-Overhaul ab:
+
+```sh
 node --test \
+  test/kefrens-checkerboard.test.mjs \
+  test/paula-silicon-bg.test.mjs \
+  test/retro-sunset.test.mjs \
+  test/chunky-plasma.test.mjs \
+  test/c64-retro-sunset.test.mjs \
+  test/sid-silicon-bg.test.mjs \
+  test/c64-vector-star.test.mjs \
+  test/atari-dot-torus.test.mjs \
+  test/atari-bobs.test.mjs \
+  test/atari-retro-sunset.test.mjs \
+  test/atari-wireframe-morph.test.mjs \
+  test/ym-silicon-bg.test.mjs
   test/graded-beat-detection.test.mjs \
   test/graded-beat-routing.test.mjs \
   test/starfield.test.mjs \
@@ -499,7 +540,7 @@ node --test \
   test/void-element.test.mjs
 ```
 
-Ein Fake-Canvas für Unit-Tests SOLL absichtlich keine verbotenen Funktionen wie `fillText()` oder `measureText()` anbieten. Dadurch fallen verbotene APIs sofort auf.
+Ein Fake-Canvas für Unit-Tests SOLL zusätzlich zu fehlendem fillText()/measureText() strikte Integer-, Bounds- (0 <= x, x + w <= width, 0 <= y, y + h <= height) und Palettenprüfungen erzwingen sowie globalAlpha, save()/clip() und getImageData() verweigern bzw. markieren. DSEs SOLLEN idealerweise ohne globales document in Node testbar sein.
 
 ### 9.2 Visuelle Nachweise
 
