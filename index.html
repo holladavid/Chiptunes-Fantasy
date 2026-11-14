@@ -42,8 +42,9 @@
         <!-- ZONE 1: Das Spektakel (40% Höhe) -->
         <div id="visual-zone" class="user-inactive">
 
-            <canvas id="demo-canvas"></canvas>
-            <canvas id="crt-mask-canvas" aria-hidden="true"></canvas>
+        <canvas id="demo-canvas" aria-hidden="true"></canvas>
+        
+        <canvas id="crt-mask-canvas" aria-hidden="true"></canvas>
                         
             <!-- Das animierte Chiptunes Fantasy Logo (Demoscene Soundchip Crest & Copper Lockup) -->
             <div id="brand-logo" role="button" tabindex="0" aria-label="Scene-DJ Demo-Modus umschalten" aria-pressed="false" title="Scene-DJ Demo-Modus umschalten">
@@ -262,7 +263,7 @@
             
             <!-- Linke Spalte: Player & Tracklist -->
             <div id="player-panel">
-                <div class="system-tabs" aria-label="Emuliertes System">
+            <canvas id="demo-canvas" aria-hidden="true"></canvas>
                     <button class="tab-btn active" type="button" data-theme="theme-c64" aria-pressed="true">C64</button>
                     <button class="tab-btn" type="button" data-theme="theme-amiga" aria-pressed="false">AMIGA</button>
                     <button class="tab-btn" type="button" data-theme="theme-atari" aria-pressed="false">ATARI ST</button>
@@ -300,8 +301,7 @@
                     <button id="btn-toggle-archive" type="button" title="Living Silicon ein- oder ausblenden"
                         aria-controls="living-silicon-container" aria-expanded="true">[ HIDE CHIP ]</button>
                 </div>
-                <div id="living-silicon-container" style="margin-bottom: 15px;"></div>
-                
+                <div id="living-silicon-container"></div>                
                 <div class="museum-toolbar">
                     <span class="museum-toolbar-title">&gt; DATABASE & ARCHIVE</span>
                 </div>

@@ -1,20 +1,25 @@
 /* =========================================
-   1. GLOBALE VARIABLEN & THEMES (Z-DEPTH UPGRADE)
+   1. GLOBALE VARIABLEN & THEMES (Z-DEPTH + METRIC TOKENS)
    ========================================= */
 :root {
+    /* Status & Interaktion */
+    --status-error: #ff7373;
+    --focus-ring: var(--highlight-color);
+    --state-transition: 160ms ease-out;
+
     /* C64 Default Theme */
-    --bg-color: #352879;      
+    --bg-color: #352879;
     --fg-color: #201a60;      /* Tiefes Chassis-Blau */
     --chassis-light: #4a3d99; /* Highlight-Kante */
     --chassis-dark: #141040;  /* Schatten-Kante */
-    
-    --text-color: #6c5eb5;
-    --panel-text: #6c5eb5;    
+
+    --text-color: #9488e8;    /* Lesbares C64-Lavendel auf CRT-Hintergrund */
+    --panel-text: #a498f5;    /* Klare Hardware-Beschriftung auf Chassis */
     --highlight-color: #ffffff;
-    
+
     --screen-bg: #1c1544;     /* Dunkler CRT-Hintergrund */
     --bus-active-color: #5c94fc; /* C64 Leuchtend Blau */
-    
+
     /* Logo-Spezifische Variablen (C64 VIC-II & SID Palette) */
     --logo-chrome-top: #ffffff;
     --logo-chrome-mid: #88d8ff;
@@ -33,25 +38,35 @@
     --logo-glow-secondary: rgba(167, 153, 255, 0.35);
     --logo-plaque-bg: rgba(18, 13, 48, 0.72);
     --logo-plaque-border: rgba(136, 216, 255, 0.42);
-    
+
+    /* Theme-Metrik & Typografie (Press Start 2P) */
     --font-main: 'Press Start 2P', monospace;
-    /* GFX UPGRADE: Fluid Typography wächst dynamisch mit der Bildschirmbreite mit */
-    --font-size-base: clamp(9px, 0.8vw, 12px);
+    --font-display: 'Press Start 2P', monospace;
+    --font-prose: 'VT323', monospace;
+
+    --font-size-xs: clamp(7.5px, 0.56vw, 9px);
+    --font-size-sm: clamp(8.5px, 0.65vw, 10.5px);
+    --font-size-base: clamp(10px, 0.78vw, 12px);
+    --font-size-title: clamp(11px, 0.88vw, 14px);
+    --font-size-prose: clamp(20px, 1.25vw, 24px);
+    --font-size-grid: clamp(8px, 0.58vw, 10px);
+    --letter-spacing-ui: 0.04em;
+    --control-letter-spacing: -0.03em;
 }
 
 body.theme-amiga {
-    --bg-color: #000000;      
-    --fg-color: #111111;      /* Dunkles Graphit-Gehäuse */
-    --chassis-light: #2a2a2a; 
-    --chassis-dark: #050505;  
-    
-    --text-color: #ffffff;
-    --panel-text: #ff8800;    
-    --highlight-color: #ffffff; 
-    
+    --bg-color: #000000;
+    --fg-color: #141414;      /* Dunkles Graphit-Gehäuse */
+    --chassis-light: #333333;
+    --chassis-dark: #050505;
+
+    --text-color: #f4f4f4;
+    --panel-text: #ff941a;
+    --highlight-color: #ffffff;
+
     --screen-bg: #0a0500;     /* Tiefer Bernstein-Glow Background */
     --bus-active-color: #ff8800; /* Amiga Warmes Bernstein / Orange */
-    
+
     /* Logo-Spezifische Variablen (Amiga OCS Copper-List & Boing Palette) */
     --logo-chrome-top: #fff6d6;
     --logo-chrome-mid: #ffae00;
@@ -70,24 +85,31 @@ body.theme-amiga {
     --logo-glow-secondary: rgba(255, 30, 86, 0.38);
     --logo-plaque-bg: rgba(18, 8, 2, 0.76);
     --logo-plaque-border: rgba(255, 170, 0, 0.48);
-    
+
+    /* Theme-Metrik & Typografie (VT323) */
     --font-main: 'VT323', monospace;
+    --font-size-xs: clamp(13px, 0.92vw, 16px);
+    --font-size-sm: clamp(15px, 1.05vw, 18px);
     --font-size-base: clamp(18px, 1.3vw, 22px);
+    --font-size-title: clamp(22px, 1.55vw, 28px);
+    --font-size-grid: clamp(15px, 0.98vw, 18px);
+    --letter-spacing-ui: 0.05em;
+    --control-letter-spacing: 0.02em;
 }
 
 body.theme-atari {
-    --bg-color: #000000;      
-    --fg-color: #141414;      /* Schwarzes Plastik-Chassis */
-    --chassis-light: #222222; 
-    --chassis-dark: #000000;  
-    
-    --text-color: #55ff55;    
-    --panel-text: #55ff55;    
+    --bg-color: #050805;
+    --fg-color: #161816;      /* Plastisches ST-Plastik-Chassis */
+    --chassis-light: #2c332c;
+    --chassis-dark: #030403;
+
+    --text-color: #74ff74;    /* Helles, klares Phosphor-Lesegruen */
+    --panel-text: #38d649;    /* Sattes Hardware-Label-Gruen fuer klare Hierarchie */
     --highlight-color: #ffffff;
-    
-    --screen-bg: #001100;     /* Phosphor-Grün Background */
+
+    --screen-bg: #021204;     /* Tiefer Phosphor-CRT Background */
     --bus-active-color: #39ff14; /* Atari Vivid Phosphor-Grün */
-    
+
     /* Logo-Spezifische Variablen (Atari ST YM2149 & SM124 Phosphor Palette) */
     --logo-chrome-top: #f2fff2;
     --logo-chrome-mid: #55ff55;
@@ -106,13 +128,20 @@ body.theme-atari {
     --logo-glow-secondary: rgba(0, 255, 170, 0.32);
     --logo-plaque-bg: rgba(2, 20, 6, 0.76);
     --logo-plaque-border: rgba(85, 255, 85, 0.45);
-    
+
+    /* Theme-Metrik & Typografie (VT323, nun ebenfalls fluid) */
     --font-main: 'VT323', monospace;
-    --font-size-base: 20px;
+    --font-size-xs: clamp(13px, 0.92vw, 16px);
+    --font-size-sm: clamp(15px, 1.05vw, 18px);
+    --font-size-base: clamp(18px, 1.25vw, 22px);
+    --font-size-title: clamp(22px, 1.55vw, 28px);
+    --font-size-grid: clamp(15px, 0.98vw, 18px);
+    --letter-spacing-ui: 0.05em;
+    --control-letter-spacing: 0.02em;
 }
 
 /* =========================================
-   2. RESET & BASIS
+   2. RESET, BASIS & RETRO-SCROLLBARS
    ========================================= */
 * {
     box-sizing: border-box;
@@ -120,13 +149,6 @@ body.theme-atari {
     padding: 0;
 }
 
-/* =========================================================
-   GFX RETRO-BLITTER UPGRADE (Nearest-Neighbor Enforcement)
-   Zwingt die GPU des Browsers, beim Strecken oder Maximieren
-   des Canvas jegliche bilineare Filterung hart zu blockieren!
-   Garantiert 100% aliaster, knallharter Pixel-Art-Look auf 4K,
-   Retina-Displays und im Vollbild!
-   ========================================================= */
 canvas {
     image-rendering: -moz-crisp-edges;
     image-rendering: -webkit-crisp-edges;
@@ -141,14 +163,95 @@ body, html {
     background-color: var(--bg-color);
     color: var(--text-color);
     font-family: var(--font-main);
-    overflow: hidden; 
+    overflow: hidden;
     transition: background-color 0.5s, color 0.5s;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .hidden { display: none !important; }
 
 .blink { animation: blinker 1s linear infinite; }
 @keyframes blinker { 50% { opacity: 0; } }
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+button,
+select,
+summary,
+[role="button"] {
+    touch-action: manipulation;
+}
+
+button:disabled,
+select:disabled,
+input:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+summary:focus-visible,
+[role="button"]:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 3px;
+}
+
+/* Theme-angepasste CRT-Scrollbars */
+#tracklist,
+.museum-content,
+#hud-body,
+.eco-box,
+#living-silicon-container {
+    scrollbar-width: thin;
+    scrollbar-color: var(--panel-text) var(--screen-bg);
+}
+
+#tracklist::-webkit-scrollbar,
+.museum-content::-webkit-scrollbar,
+#hud-body::-webkit-scrollbar,
+.eco-box::-webkit-scrollbar,
+#living-silicon-container::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+#tracklist::-webkit-scrollbar-track,
+.museum-content::-webkit-scrollbar-track,
+#hud-body::-webkit-scrollbar-track,
+.eco-box::-webkit-scrollbar-track,
+#living-silicon-container::-webkit-scrollbar-track {
+    background: var(--screen-bg);
+    border-left: 1px solid var(--chassis-dark);
+}
+
+#tracklist::-webkit-scrollbar-thumb,
+.museum-content::-webkit-scrollbar-thumb,
+#hud-body::-webkit-scrollbar-thumb,
+.eco-box::-webkit-scrollbar-thumb,
+#living-silicon-container::-webkit-scrollbar-thumb {
+    background: var(--panel-text);
+    border: 1px solid var(--chassis-dark);
+}
+
+#tracklist::-webkit-scrollbar-thumb:hover,
+.museum-content::-webkit-scrollbar-thumb:hover,
+#hud-body::-webkit-scrollbar-thumb:hover,
+.eco-box::-webkit-scrollbar-thumb:hover,
+#living-silicon-container::-webkit-scrollbar-thumb:hover {
+    background: var(--highlight-color);
+}
 
 /* =========================================
    3. BOOT SCREEN (C64 Startup Simulation)
@@ -158,32 +261,38 @@ body, html {
     justify-content: center;
     align-items: center;
     height: 100vh;
+    height: 100dvh;
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
     background-color: #6c5eb5;
     cursor: pointer;
+}
+
+#boot-screen:focus-visible {
+    outline-offset: -8px;
 }
 
 .boot-box {
     width: 100%;
     max-width: 900px;
-    height: 100%;
-    max-height: 70vh;
+    max-height: 100%;
+    overflow-y: auto;
     background-color: #352879;
-    padding: 8vh 4vw;
+    padding: clamp(20px, 6dvh, 60px) clamp(16px, 4vw, 40px);
     color: #6c5eb5;
     font-family: 'Press Start 2P', monospace;
     text-transform: uppercase;
     -webkit-font-smoothing: none;
     font-smooth: never;
     image-rendering: pixelated;
-    font-size: 16px; 
+    font-size: clamp(12px, 2.2vw, 16px);
 }
 
 .boot-header, .boot-subheader {
     text-align: center;
-    margin-bottom: 24px;
+    margin-bottom: clamp(14px, 3dvh, 24px);
     line-height: 1.6;
 }
-.boot-subheader { margin-bottom: 48px; }
+.boot-subheader { margin-bottom: clamp(20px, 5dvh, 48px); }
 
 .boot-logs {
     text-align: left;
@@ -192,12 +301,12 @@ body, html {
     max-width: 640px;
     line-height: 1.6;
 }
-.boot-logs p { margin: 16px 0; }
+.boot-logs p { margin: 12px 0; }
 
 .boot-cursor {
     display: inline-block;
-    width: 16px;
-    height: 16px;
+    width: 1em;
+    height: 1em;
     background-color: #6c5eb5;
     animation: c64-blink 1s steps(2, start) infinite;
     vertical-align: text-bottom;
@@ -209,9 +318,8 @@ body, html {
     50% { opacity: 0; }
 }
 
-@media (min-width: 800px) {
-    .boot-box { font-size: 24px; padding: 60px 40px; }
-    .boot-cursor { width: 24px; height: 24px; }
+@media (min-width: 800px) and (min-height: 620px) {
+    .boot-box { font-size: 24px; max-height: 70vh; }
 }
 
 /* =========================================
@@ -231,14 +339,16 @@ body, html {
     min-height: 0;
     background-color: #000;
     border-bottom: 4px solid var(--chassis-dark);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.8);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.8);
     z-index: 10;
 }
+
 #demo-canvas {
     width: 100%;
     height: 100%;
     display: block;
 }
+
 #crt-mask-canvas {
     position: absolute;
     inset: 0;
@@ -248,6 +358,7 @@ body, html {
     z-index: 1;
     pointer-events: none;
 }
+
 #visual-zone.crt-mask-active #crt-mask-canvas {
     display: block;
 }
@@ -264,11 +375,8 @@ body, html {
     pointer-events: none;
     z-index: 5;
     background:
-        /* 1. Röhrenglas-Vignette (optische Randabdunklung klassischer Kathodenstrahl-Wölbröhren) */
         radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0) 62%, rgba(0, 0, 0, 0.32) 100%),
-        /* 2. Dezente CSS-Scanline-Approximation für den WebGL-Fallback */
         linear-gradient(to bottom, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.16) 100%),
-        /* 3. Commodore 1084S / Philips CM8833 Slot-Mask (authentische Ziegelstein-Phosphormatrix) */
         url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%273%27%20height%3D%274%27%3E%3Crect%20x%3D%270%27%20y%3D%270%27%20width%3D%270.9%27%20height%3D%272.6%27%20fill%3D%27rgba%28255%2C60%2C60%2C0.18%29%27/%3E%3Crect%20x%3D%272%27%20y%3D%270%27%20width%3D%270.9%27%20height%3D%272.6%27%20fill%3D%27rgba%2880%2C140%2C255%2C0.22%29%27/%3E%3Crect%20x%3D%271%27%20y%3D%271.8%27%20width%3D%270.9%27%20height%3D%272.2%27%20fill%3D%27rgba%2860%2C255%2C60%2C0.18%29%27/%3E%3Crect%20x%3D%271%27%20y%3D%270%27%20width%3D%270.9%27%20height%3D%270.4%27%20fill%3D%27rgba%2860%2C255%2C60%2C0.18%29%27/%3E%3C/svg%3E");
     background-repeat: no-repeat, repeat, repeat;
     background-size: 100% 100%, 100% 3px, 3px 4px;
@@ -315,8 +423,8 @@ body, html {
     border-bottom: 1px solid rgba(248, 248, 248, 0.07);
     color: #f8f8f8;
     font-family: var(--font-main);
-    font-size: 9px;
-    letter-spacing: 0.08em;
+    font-size: var(--font-size-sm);
+    letter-spacing: var(--letter-spacing-ui);
 }
 
 .scroller-identity {
@@ -324,7 +432,7 @@ body, html {
     align-items: center;
     gap: 8px;
     white-space: nowrap;
-    opacity: 0.62;
+    opacity: 0.72;
 }
 
 .scroller-identity i {
@@ -351,7 +459,7 @@ body, html {
     color: #f8f8f8;
     font: inherit;
     letter-spacing: inherit;
-    opacity: 0.58;
+    opacity: 0.65;
     cursor: pointer;
     transition: opacity 120ms ease-out, border-color 120ms ease-out, background-color 120ms ease-out;
 }
@@ -360,7 +468,7 @@ body, html {
 .scroller-actions button[aria-pressed="true"] {
     opacity: 1;
     border-bottom-color: var(--bus-active-color);
-    background: rgba(248, 248, 248, 0.035);
+    background: rgba(248, 248, 248, 0.045);
 }
 
 .scroller-actions button:active {
@@ -385,24 +493,6 @@ body, html {
     min-height: 0;
 }
 
-.sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-}
-
-body.theme-amiga .scroller-toolbar,
-body.theme-atari .scroller-toolbar {
-    font-size: 14px;
-    letter-spacing: 0.05em;
-}
-
 /* =========================================
    5. PLAYER PANEL (LINKS)
    ========================================= */
@@ -415,14 +505,12 @@ body.theme-atari .scroller-toolbar {
     padding: 10px;
 }
 
-/* =========================================
-   SKEUOMORPHIC RETRO SYSTEM TABS (Hardware Buttons)
-========================================= */
+/* SKEUOMORPHIC RETRO SYSTEM TABS */
 .system-tabs {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 20px;
-    gap: 12px; 
+    margin-bottom: 18px;
+    gap: 12px;
 }
 
 .tab-btn {
@@ -430,7 +518,7 @@ body.theme-atari .scroller-toolbar {
     position: relative;
     background: var(--fg-color);
     color: var(--panel-text);
-    padding: 12px 0;
+    padding: 12px 4px;
     font-family: inherit;
     font-size: var(--font-size-base);
     cursor: pointer;
@@ -438,15 +526,14 @@ body.theme-atari .scroller-toolbar {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    
-    /* Hardware 3D Bevel (Angehobener Button) */
+
     border: none;
     border-top: 2px solid var(--chassis-light);
     border-left: 2px solid var(--chassis-light);
     border-bottom: 4px solid var(--chassis-dark);
     border-right: 4px solid var(--chassis-dark);
-    box-shadow: 2px 4px 6px rgba(0,0,0,0.4);
-    
+    box-shadow: 2px 4px 6px rgba(0, 0, 0, 0.4);
+
     transition: all 0.1s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
@@ -454,31 +541,37 @@ body.theme-atari .scroller-toolbar {
     color: var(--highlight-color);
 }
 
-/* Gepresster Button (Active State) */
 .tab-btn.active {
-    background: var(--bg-color); /* Vertieft = Schattenfarbe */
+    background: var(--bg-color);
     color: var(--highlight-color);
-    transform: translateY(2px) translateX(2px); /* Physikalisch nach unten/rechts gedrückt */
-    
-    /* Invertierter Bevel (Versunken in das Chassis) */
+    transform: translateY(2px) translateX(2px);
+
     border-top: 4px solid var(--chassis-dark);
     border-left: 4px solid var(--chassis-dark);
     border-bottom: 2px solid var(--chassis-light);
     border-right: 2px solid var(--chassis-light);
-    box-shadow: inset 2px 4px 8px rgba(0,0,0,0.6);
+    box-shadow: inset 2px 4px 8px rgba(0, 0, 0, 0.6);
 }
 
-/* System-spezifische Active-Indikatoren (LED Stripes am oberen Rand) */
 body.theme-c64 .tab-btn.active {
-    border-top: 4px solid #6c5eb5; 
+    border-top: 4px solid #6c5eb5;
 }
+
 body.theme-atari .tab-btn.active {
-    border-top: 4px solid #55ff55;
-    text-shadow: 0 0 8px #55ff55;
+    border-top: 4px solid var(--bus-active-color);
+    text-shadow: 0 0 8px rgba(57, 255, 20, 0.65);
 }
-body.theme-amiga .tab-btn.active {
-    border-top: 4px solid transparent;
-    border-image: linear-gradient(90deg, #ff0000 20%, #ff7700 40%, #ffff00 60%, #00cc00 80%, #0033ff 100%) 1;
+
+/* Amiga Rainbow LED Stripe nur oben – erhaelt das 3D-Bevel links/unten/rechts */
+body.theme-amiga .tab-btn.active::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    right: -2px;
+    height: 4px;
+    background: linear-gradient(90deg, #ff0000 15%, #ff7700 35%, #ffff00 55%, #00cc00 75%, #0055ff 95%);
+    pointer-events: none;
 }
 
 /* --- EMU CORE SELECTOR CONTAINER --- */
@@ -486,31 +579,30 @@ body.theme-amiga .tab-btn.active {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 12px; /* Von 25px auf 12px verringert für kompakten Sitz */
-    font-size: calc(var(--font-size-base) * 0.8);
+    margin-bottom: 12px;
+    font-size: var(--font-size-sm);
     color: var(--panel-text);
 }
 
 .core-control select {
     flex-grow: 1;
-    min-width: 0; 
+    min-width: 0;
     text-overflow: ellipsis;
     white-space: nowrap;
     overflow: hidden;
-    
-    /* Recessed LCD Screen Look */
-    background-color: var(--screen-bg); 
+
+    background-color: var(--screen-bg);
     border: 2px solid var(--chassis-dark);
     border-bottom: 1px solid var(--chassis-light);
-    box-shadow: inset 0 3px 8px rgba(0,0,0,0.9);
-    
-    color: var(--highlight-color);     
-    padding: 10px 12px;
+    box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.9);
+
+    color: var(--highlight-color);
+    padding: 9px 35px 9px 12px;
     font-family: inherit;
     font-size: inherit;
     outline: none;
     cursor: pointer;
-    
+
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
@@ -518,28 +610,150 @@ body.theme-amiga .tab-btn.active {
     background-repeat: no-repeat;
     background-position: right 10px center;
     background-size: 16px;
-    padding-right: 35px;
 }
 
 .core-control select option {
-    background-color: var(--bg-color); 
-    color: var(--highlight-color); 
+    background-color: var(--bg-color);
+    color: var(--highlight-color);
     padding: 8px 5px;
+}
+
+/* --- SEARCHABLE HARDWARE ARCHIVE --- */
+#library-controls {
+    flex: none;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    color: var(--panel-text);
+    background: rgba(0, 0, 0, 0.32);
+    border-top: 2px solid var(--chassis-dark);
+    border-left: 2px solid var(--chassis-dark);
+    border-bottom: 1px solid var(--chassis-light);
+    border-right: 1px solid var(--chassis-light);
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.65);
+}
+
+.library-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+    margin-bottom: 7px;
+}
+
+#tracklist-breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    min-width: 0;
+    gap: 2px;
+    font-size: var(--font-size-xs);
+    line-height: 1.3;
+}
+
+.breadcrumb-button {
+    min-width: 0;
+    min-height: 24px;
+    padding: 2px 4px;
+    overflow-wrap: anywhere;
+    color: var(--panel-text);
+    background: transparent;
+    border: 0;
+    font-family: inherit;
+    font-size: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.breadcrumb-button:hover,
+.breadcrumb-button[aria-current="location"],
+.breadcrumb-current {
+    color: var(--highlight-color);
+}
+
+.breadcrumb-current {
+    padding: 2px 4px;
+}
+
+#tracklist-count {
+    flex: 0 0 auto;
+    color: var(--highlight-color);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+}
+
+.library-search-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.library-search-row > label {
+    flex: 0 0 auto;
+    font-size: var(--font-size-sm);
+    font-weight: bold;
+}
+
+#track-search {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 34px;
+    padding: 6px 9px;
+    color: var(--highlight-color);
+    background: var(--screen-bg);
+    border: 2px solid var(--chassis-dark);
+    border-bottom: 1px solid var(--chassis-light);
+    border-radius: 0;
+    outline: none;
+    box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.9);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    appearance: none;
+}
+
+#track-search::placeholder {
+    color: var(--panel-text);
+    opacity: 0.72;
+}
+
+#track-search::-webkit-search-cancel-button {
+    appearance: none;
+}
+
+#btn-clear-track-search {
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 5px 8px;
+    color: var(--highlight-color);
+    background: var(--bg-color);
+    border-top: 1px solid var(--chassis-light);
+    border-left: 1px solid var(--chassis-light);
+    border-bottom: 2px solid var(--chassis-dark);
+    border-right: 2px solid var(--chassis-dark);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+}
+
+#btn-clear-track-search:active {
+    transform: translateY(1px);
+    border-bottom-width: 1px;
+    border-right-width: 1px;
 }
 
 /* =========================================
    TRACKLIST (Recessed CRT Terminal)
-========================================= */
+   ========================================= */
 #tracklist {
     list-style: none;
     flex-grow: 1;
     min-height: 0;
     overflow-y: auto;
-    font-size: var(--font-size-base); 
-    line-height: 1.6;
-    
-    /* GFX UPGRADE: Echter, versenkter CRT-Screen-Ausschnitt */
-    background: var(--screen-bg); 
+    font-size: var(--font-size-base);
+    line-height: 1.45;
+
+    background: var(--screen-bg);
     border-top: 3px solid var(--chassis-dark);
     border-left: 3px solid var(--chassis-dark);
     border-bottom: 2px solid var(--chassis-light);
@@ -549,18 +763,18 @@ body.theme-amiga .tab-btn.active {
 }
 
 #tracklist li {
-    color: var(--text-color); 
-    /* GFX UPGRADE: Weniger Padding & Line-Height für Laptops */
-    padding: 6px 8px; 
+    position: relative;
+    color: var(--text-color);
+    padding: 6px 8px;
     line-height: 1.3;
     cursor: pointer;
-    border-bottom: 1px dashed rgba(255, 255, 255, 0.1); 
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: background-color var(--state-transition), color var(--state-transition), box-shadow var(--state-transition);
 }
 
-/* GFX UPGRADE: Native Accordion Pfeile überschreiben (Retro Style) */
 details > summary { list-style: none; }
 details > summary::-webkit-details-marker { display: none; }
 details > summary::before { content: "[+] "; color: var(--panel-text); }
@@ -575,145 +789,254 @@ details[open] > summary::before { content: "[-] "; }
 }
 
 #tracklist li:hover {
-    background: rgba(255, 255, 255, 0.1); 
-    color: var(--highlight-color);      
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--highlight-color);
 }
-#tracklist li:hover::before { opacity: 0.5; }
+#tracklist li:hover::before { opacity: 0.55; }
 
-.active-track {
-    background: var(--text-color) !important;
-    color: var(--screen-bg) !important; 
+#tracklist li.selected-track {
+    color: var(--highlight-color);
+    box-shadow: inset 0 0 0 1px var(--panel-text);
+}
+
+#tracklist li.selected-track::before {
+    opacity: 1;
+}
+
+#tracklist li.selected-track[data-playback-state="loading"] {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+#tracklist li.selected-track[data-playback-state="loading"]::before {
+    content: "> ";
+    animation: c64-blink 0.65s steps(2, start) infinite;
+}
+
+#tracklist li.selected-track[data-playback-state="paused"] {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--highlight-color);
+}
+
+#tracklist li.selected-track[data-playback-state="paused"]::before {
+    content: "|| ";
+    animation: none;
+}
+
+#tracklist li.selected-track[data-playback-state="error"] {
+    color: var(--status-error);
+    box-shadow: inset 0 0 0 1px var(--status-error);
+}
+
+#tracklist li.selected-track[data-playback-state="error"]::before {
+    content: "! ";
+    animation: none;
+}
+
+#tracklist li.active-track {
+    background: linear-gradient(rgba(255, 255, 255, 0.15) 50%, transparent 50%), var(--text-color);
+    background-size: 100% 4px;
+    color: var(--screen-bg);
     font-weight: bold;
-    border-bottom-color: transparent !important;
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
-}
-.active-track::before {
-    opacity: 1 !important;
-    animation: c64-blink 1s steps(2, start) infinite; 
+    border-bottom-color: transparent;
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5), 2px 2px 5px rgba(0, 0, 0, 0.5);
 }
 
-/* --- PLAYBACK BAR (Die neue Steuerzentrale) --- */
+#tracklist li.active-track::before {
+    opacity: 1;
+    content: "█ ";
+    animation: c64-blink 0.8s steps(2, start) infinite;
+}
+
+body.theme-c64 #tracklist li.active-track::before {
+    content: "█";
+    display: inline-block;
+    vertical-align: middle;
+    transform: translateY(-0.08em);
+    margin-right: 8px;
+    line-height: 1;
+}
+
+#tracklist li.tracklist-search-result {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    white-space: normal;
+}
+
+.track-result-title,
+.track-result-path {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.track-result-path {
+    color: var(--panel-text);
+    font-size: 0.75em;
+    opacity: 0.82;
+}
+
+#tracklist li.selected-track .track-result-path,
+#tracklist li.active-track .track-result-path {
+    color: currentColor;
+    opacity: 0.85;
+}
+
+#tracklist li.tracklist-empty {
+    padding: 22px 12px;
+    color: var(--panel-text);
+    text-align: center;
+    white-space: normal;
+    cursor: default;
+}
+
+#tracklist li.tracklist-empty:hover {
+    color: var(--panel-text);
+    background: transparent;
+}
+
+/* --- PLAYBACK BAR (Steuerzentrale) --- */
 #playback-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     background-color: var(--fg-color);
-    padding: 15px 20px;
-    gap: 25px;
-    /* GFX FIX: Einzelne, perfekt austarierte 3D-Fuge statt unschöner doppelter Ränder */
-    border-bottom: 1px solid var(--chassis-dark); 
-    box-shadow: 0 1px 0 var(--chassis-light); /* Wirft das Licht-Highlight sauber nach unten */
-    flex-shrink: 0; /* Verhindert unkontrolliertes Strecken/Stauchen durch den parent Flexbox-Container */
+    padding: 14px 20px;
+    gap: 24px;
+    border-bottom: 1px solid var(--chassis-dark);
+    box-shadow: 0 1px 0 var(--chassis-light);
+    flex-shrink: 0;
 }
 
-/* Erweitert den Platz für die hardware-nahen Tasten */
-.controls { 
-    display: flex; 
-    gap: 8px; 
-    flex: 0 0 440px; /* Von 410px auf 440px vergrößert für ausfallsicheren Textfluss */
-    align-items: center; /* Verhindert, dass die Tasten bei vertikaler Ausdehnung der Bar ausbrechen */
+.controls {
+    display: flex;
+    gap: 8px;
+    flex: 0 0 440px;
+    min-width: 0;
+    align-items: center;
 }
 
-/* Kompakteres Letter-Spacing für sauberen Textitz im Button-Gehäuse */
 .controls button {
     flex: 1;
-    background: var(--bg-color); 
+    min-width: 0;
+    background: var(--bg-color);
     color: var(--panel-text);
-    padding: 12px 4px; /* Etwas weniger horizontaler Padding-Verbrauch */
-    font-size: calc(var(--font-size-base) * 1.05); /* Schriftgröße minimal optimiert für den Textfluss */
-    letter-spacing: -0.5px; /* Verhindert das Auseinanderziehen von langen Begriffen */
-    cursor: pointer;
+    padding: 11px 6px;
     font-family: inherit;
-    white-space: nowrap; /* VERHINDERT HÄSSLICHE ZEILENUMBRÜCHE AUF DESKTOP KOMPLETT */
-    
+    font-size: var(--font-size-base);
+    letter-spacing: var(--control-letter-spacing);
+    cursor: pointer;
+    white-space: nowrap;
+
     border: none;
     border-top: 2px solid var(--chassis-light);
     border-left: 2px solid var(--chassis-light);
     border-bottom: 3px solid var(--chassis-dark);
     border-right: 3px solid var(--chassis-dark);
-    box-shadow: 1px 3px 5px rgba(0,0,0,0.4);
-    
+    box-shadow: 1px 3px 5px rgba(0, 0, 0, 0.4);
+
     transition: all 0.05s;
 }
 
-/* GFX FIX: Spezifischer Scaler für die extrem breiten C64-Schriftzeichen */
-body.theme-c64 .controls button {
-    font-size: clamp(10.5px, 0.85vw, 12px) !important; /* Stabiles, scharfes C64-Schriftbild auf allen Monitoren */
-}
-
-/* Verhindert zuverlässig den Zeilenumbruch durch überproportionale Flex-Gewichtung */
-#btn-play {
-    flex: 2.1 !important; 
-}
-
-#btn-eco {
-    flex: 1.3 !important; /* Gibt dem 8-Zeichen "HALT GFX" Button proportional mehr Raum auf Desktop */
-}
+#btn-play { flex: 2.1; }
+#btn-eco { flex: 1.3; }
 
 .controls button:hover {
     background: var(--panel-text);
     color: var(--bg-color);
 }
 
+.controls button:disabled:hover {
+    background: var(--bg-color);
+    color: var(--panel-text);
+}
+
 .controls button:active {
-    transform: translateY(2px) translateX(1px); 
+    transform: translateY(2px) translateX(1px);
     border-top: 3px solid var(--chassis-dark);
     border-left: 3px solid var(--chassis-dark);
     border-bottom: 1px solid var(--chassis-light);
     border-right: 1px solid var(--chassis-light);
-    box-shadow: inset 1px 3px 5px rgba(0,0,0,0.6);
+    box-shadow: inset 1px 3px 5px rgba(0, 0, 0, 0.6);
 }
 
-.timeline-control, .volume-control {
+.timeline-control,
+.volume-control {
     display: flex;
     align-items: center;
     gap: 10px;
+    min-width: 0;
     flex: 1;
-    color: var(--panel-text); 
-    font-size: calc(var(--font-size-base) * 0.9);
+    color: var(--panel-text);
+    font-size: var(--font-size-sm);
+    font-variant-numeric: tabular-nums;
+}
+
+#subsong-display {
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    color: var(--highlight-color);
+    margin-right: 6px;
+    text-shadow: 0 0 4px var(--text-color);
+    letter-spacing: 0.5px;
+    white-space: nowrap;
 }
 
 /* =========================================
    HARDWARE SLIDERS (Real Mixing Desk Faders)
-========================================= */
+   ========================================= */
 input[type="range"] {
     flex-grow: 1;
+    min-width: 48px;
+    height: 32px;
     -webkit-appearance: none;
-    
-    /* Tiefe Hardware-Rille */
-    background: var(--screen-bg); 
-    border-top: 2px solid var(--chassis-dark);
-    border-left: 1px solid var(--chassis-dark);
-    border-bottom: 1px solid var(--chassis-light);
-    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.9); 
-    height: 8px;
+    appearance: none;
+    background: transparent;
+    border: 0;
     outline: none;
     cursor: pointer;
 }
 
-/* Der Schieberegler (Fader Cap) */
+input[type="range"]::-webkit-slider-runnable-track {
+    height: 8px;
+    background: var(--screen-bg);
+    border-top: 2px solid var(--chassis-dark);
+    border-left: 1px solid var(--chassis-dark);
+    border-bottom: 1px solid var(--chassis-light);
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.9);
+}
+
+input[type="range"]::-moz-range-track {
+    height: 8px;
+    background: var(--screen-bg);
+    border-top: 2px solid var(--chassis-dark);
+    border-left: 1px solid var(--chassis-dark);
+    border-bottom: 1px solid var(--chassis-light);
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.9);
+}
+
 input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
     width: 20px;
-    height: 30px; 
-    
-    /* GFX FIX: Neutraler 3D-Schattierungs-Verlauf verhindert optisches Durchbrechen auf schwarzem Grund */
+    height: 30px;
+    margin-top: -12px;
     background: linear-gradient(
         to bottom,
         var(--panel-text) 0%,
         var(--panel-text) 45%,
-        rgba(0, 0, 0, 0.45) 45%,      /* Tiefe, dunkle Fuge */
-        rgba(255, 255, 255, 0.15) 50%, /* Reflektierende Lichtkante am Fugen-Boden */
-        rgba(0, 0, 0, 0.45) 55%,      /* Tiefe, dunkle Fuge */
+        rgba(0, 0, 0, 0.45) 45%,
+        rgba(255, 255, 255, 0.15) 50%,
+        rgba(0, 0, 0, 0.45) 55%,
         var(--panel-text) 55%,
         var(--panel-text) 100%
     );
     border: 1px solid var(--chassis-dark);
-    border-top: 2px solid #fff; /* Starkes Highlight oben */
+    border-top: 2px solid #fff;
     border-radius: 2px;
     cursor: pointer;
-    
-    /* Schwerer Drop-Shadow, der über die Rille geworfen wird */
     box-shadow: -2px 3px 6px rgba(0, 0, 0, 0.6);
 }
 
@@ -724,9 +1047,9 @@ input[type="range"]::-moz-range-thumb {
         to bottom,
         var(--panel-text) 0%,
         var(--panel-text) 45%,
-        rgba(0, 0, 0, 0.45) 45%,      /* Tiefe, dunkle Fuge */
-        rgba(255, 255, 255, 0.15) 50%, /* Reflektierende Lichtkante am Fugen-Boden */
-        rgba(0, 0, 0, 0.45) 55%,      /* Tiefe, dunkle Fuge */
+        rgba(0, 0, 0, 0.45) 45%,
+        rgba(255, 255, 255, 0.15) 50%,
+        rgba(0, 0, 0, 0.45) 55%,
         var(--panel-text) 55%,
         var(--panel-text) 100%
     );
@@ -750,8 +1073,57 @@ input[type="range"]::-moz-range-thumb {
     overflow: hidden;
 }
 
+.museum-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 2px groove var(--chassis-dark);
+}
+
+.living-silicon-toolbar {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin-bottom: 8px;
+}
+
+.museum-toolbar-title {
+    color: var(--highlight-color);
+    font-size: var(--font-size-title);
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    line-height: 1.35;
+}
+
+.living-silicon-toolbar .museum-toolbar-title {
+    flex: 1 1 260px;
+    min-width: 0;
+}
+
+#btn-toggle-archive {
+    background: var(--chassis-dark);
+    border: 1px solid var(--chassis-light);
+    color: var(--highlight-color);
+    padding: 4px 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    transition: all 0.1s;
+    outline: none;
+}
+
+#btn-toggle-archive:active {
+    transform: translateY(1px);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+body.archive-expanded #living-silicon-container {
+    display: none !important;
+}
+
 .museum-header h2 {
-    font-size: calc(var(--font-size-base) * 1.1);
+    font-size: var(--font-size-title);
     margin-bottom: 15px;
     color: var(--highlight-color);
     text-shadow: 2px 2px 0 var(--chassis-dark);
@@ -761,10 +1133,9 @@ input[type="range"]::-moz-range-thumb {
     flex-grow: 1;
     min-height: 0;
     font-size: var(--font-size-base);
-    line-height: 1.6;
+    line-height: 1.5;
     overflow-y: auto;
-    
-    /* GFX UPGRADE: Ebenfalls als Terminal-Screen versenkt */
+
     background: var(--screen-bg);
     border-top: 3px solid var(--chassis-dark);
     border-left: 3px solid var(--chassis-dark);
@@ -774,7 +1145,107 @@ input[type="range"]::-moz-range-thumb {
     padding: 15px;
 }
 
-.museum-content p { margin-bottom: 12px; }
+.terminal-card {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--chassis-dark);
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-left: 1px solid rgba(255, 255, 255, 0.06);
+    margin-bottom: 15px;
+    padding: clamp(12px, 1.2vw, 20px);
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.terminal-card-header {
+    color: var(--highlight-color);
+    border-bottom: 1px dashed var(--panel-text);
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+    font-size: var(--font-size-title);
+    font-weight: bold;
+    letter-spacing: 0.04em;
+    line-height: 1.4;
+}
+
+.terminal-grid {
+    display: grid;
+    grid-template-columns: auto 1fr auto 1fr;
+    gap: 6px 12px;
+    font-family: var(--font-main);
+    font-size: var(--font-size-grid);
+    color: var(--text-color);
+    line-height: 1.4;
+}
+
+.terminal-grid .lbl {
+    color: var(--panel-text);
+}
+
+.terminal-grid .val {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--highlight-color);
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+}
+
+.museum-content h3 {
+    margin: 0 0 14px;
+    overflow-wrap: anywhere;
+    color: var(--highlight-color);
+    font-size: var(--font-size-title);
+    line-height: 1.45;
+}
+
+.museum-content p {
+    max-width: 72ch;
+    margin-bottom: 14px;
+    font-family: var(--font-prose);
+    font-size: var(--font-size-prose);
+    line-height: 1.42;
+}
+
+.museum-content p:last-child {
+    margin-bottom: 0;
+}
+
+.museum-content strong {
+    color: var(--highlight-color);
+    font-weight: bold;
+}
+
+.museum-content code {
+    overflow-wrap: anywhere;
+    color: var(--highlight-color);
+    font-family: var(--font-prose);
+    font-size: 0.95em;
+}
+
+.museum-content a {
+    overflow-wrap: anywhere;
+    color: var(--highlight-color);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+}
+
+.museum-content a:hover {
+    color: var(--text-color);
+    text-decoration-thickness: 2px;
+}
+
+.museum-content .museum-sources {
+    margin-top: 18px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--chassis-light);
+}
+
+.load-error-card {
+    border-color: var(--status-error);
+}
+
+.load-error-card p {
+    overflow-wrap: anywhere;
+}
 
 /* =========================================
    BRANDING LOGO (DEMOSCENE SOUNDCHIP CREST & COPPER LOCKUP)
@@ -827,7 +1298,6 @@ input[type="range"]::-moz-range-thumb {
     transform: translateY(1px) scale(0.99);
 }
 
-/* --- Soundchip Crest Icon (Links) --- */
 .brand-emblem {
     position: relative;
     flex: 0 0 auto;
@@ -863,10 +1333,7 @@ input[type="range"]::-moz-range-thumb {
     stroke-width: 1;
 }
 
-.brand-crest-svg .crest-notch {
-    fill: var(--logo-raster-2);
-}
-
+.brand-crest-svg .crest-notch { fill: var(--logo-raster-2); }
 .brand-crest-svg .crest-raster.r1 { fill: var(--logo-raster-1); opacity: 0.78; }
 .brand-crest-svg .crest-raster.r2 { fill: var(--logo-raster-2); opacity: 0.58; }
 .brand-crest-svg .crest-raster.r3 { fill: var(--logo-raster-3); opacity: 0.42; }
@@ -883,11 +1350,8 @@ input[type="range"]::-moz-range-thumb {
     fill: var(--highlight-color);
 }
 
-.brand-crest-svg .crest-glint {
-    fill: rgba(255, 255, 255, 0.72);
-}
+.brand-crest-svg .crest-glint { fill: rgba(255, 255, 255, 0.72); }
 
-/* --- Typografie & Raster-Lockup (Rechts) --- */
 .brand-lockup {
     display: flex;
     flex-direction: column;
@@ -898,7 +1362,7 @@ input[type="range"]::-moz-range-thumb {
 
 .brand-main {
     position: relative;
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--font-display);
     font-size: clamp(11px, min(1.38vw, 2.5vh), 18px);
     line-height: 1.05;
     letter-spacing: 1.5px;
@@ -922,7 +1386,6 @@ input[type="range"]::-moz-range-thumb {
     animation: chrome-cycle 4.2s ease-in-out infinite alternate;
 }
 
-/* Unterdeck: Rasterbar + FANTASY + DJ-Status-Badge */
 .brand-lower-deck {
     display: flex;
     align-items: center;
@@ -953,7 +1416,7 @@ input[type="range"]::-moz-range-thumb {
 .brand-raster-bar .r-seg-3 { background: var(--logo-raster-3); }
 
 .brand-sub {
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--font-display);
     font-size: clamp(7px, min(0.75vw, 1.4vh), 9.5px);
     line-height: 1;
     color: var(--logo-sub-color);
@@ -971,7 +1434,7 @@ input[type="range"]::-moz-range-thumb {
     background: rgba(0, 0, 0, 0.65);
     border: 1px solid rgba(255, 255, 255, 0.2);
     color: var(--panel-text);
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--font-display);
     font-size: 6px;
     line-height: 1;
     letter-spacing: 0.5px;
@@ -989,10 +1452,6 @@ input[type="range"]::-moz-range-thumb {
     transition: background-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
 
-/* =========================================
-   BRANDING LOGO DEMO MODE ACTIVE GLOW & ANIMATION
-   (Aktiviert per Klick -> .demo-mode-active oder aria-pressed="true")
-   ========================================= */
 #brand-logo.demo-mode-active,
 #brand-logo[aria-pressed="true"] {
     border-top-color: var(--highlight-color);
@@ -1012,7 +1471,6 @@ input[type="range"]::-moz-range-thumb {
     transition: opacity 0.4s ease, visibility 0s linear 0.4s;
 }
 
-/* Äußerer rotierender Demoscene-Plasma-Halo */
 #brand-logo.demo-mode-active::before,
 #brand-logo[aria-pressed="true"]::before {
     content: '';
@@ -1030,7 +1488,6 @@ input[type="range"]::-moz-range-thumb {
     animation: pulse-glow 2.6s ease-in-out infinite alternate;
 }
 
-/* Innerer Copper-Scanline-Rahmen im aktiven Scene-DJ-Modus */
 #brand-logo.demo-mode-active::after,
 #brand-logo[aria-pressed="true"]::after {
     content: '';
@@ -1050,7 +1507,6 @@ input[type="range"]::-moz-range-thumb {
     opacity: 0.85;
 }
 
-/* System-spezifischer Back-Glow für die Chrom-Hauptschrift im Demo-Modus */
 body.theme-c64 #brand-logo.demo-mode-active .brand-main,
 body.theme-c64 #brand-logo[aria-pressed="true"] .brand-main {
     filter:
@@ -1078,7 +1534,6 @@ body.theme-atari #brand-logo[aria-pressed="true"] .brand-main {
         drop-shadow(0 0 10px rgba(57, 255, 20, 0.78));
 }
 
-/* Im aktiven Modus tanzen die 4 Chiptune-Wellenbalken im Soundchip */
 #brand-logo.demo-mode-active .crest-wave .wave-bar,
 #brand-logo[aria-pressed="true"] .crest-wave .wave-bar {
     fill: var(--logo-wave-active);
@@ -1106,7 +1561,6 @@ body.theme-atari #brand-logo[aria-pressed="true"] .brand-main {
     animation: chip-wave-bounce 0.38s steps(4, end) -0.08s infinite alternate;
 }
 
-/* Im aktiven Modus pulsiert die Rasterbar wie ein echter VIC-II / Copper-Interrupt */
 #brand-logo.demo-mode-active .brand-raster-bar span,
 #brand-logo[aria-pressed="true"] .brand-raster-bar span {
     animation: raster-bar-cycle 0.9s steps(3, end) infinite;
@@ -1118,7 +1572,6 @@ body.theme-atari #brand-logo[aria-pressed="true"] .brand-main {
     text-shadow: 0 0 8px var(--bus-active-color), 1px 1px 0 #000000;
 }
 
-/* DJ-Badge schaltet auf ON-Glow */
 #brand-logo.demo-mode-active .brand-dj-badge,
 #brand-logo[aria-pressed="true"] .brand-dj-badge {
     color: var(--highlight-color);
@@ -1135,7 +1588,6 @@ body.theme-atari #brand-logo[aria-pressed="true"] .brand-main {
     animation: c64-blink 0.8s steps(2, start) infinite;
 }
 
-/* Keyframes für Logo-Animationen */
 @keyframes float-logo {
     0%   { transform: translateY(0px); }
     100% { transform: translateY(-2px); }
@@ -1147,20 +1599,9 @@ body.theme-atari #brand-logo[aria-pressed="true"] .brand-main {
 }
 
 @keyframes pulse-glow {
-    0% {
-        transform: scale(0.92) rotate(0deg);
-        opacity: 0.55;
-        filter: blur(18px);
-    }
-    50% {
-        opacity: 0.9;
-        filter: blur(14px);
-    }
-    100% {
-        transform: scale(1.08) rotate(8deg);
-        opacity: 0.72;
-        filter: blur(22px);
-    }
+    0% { transform: scale(0.92) rotate(0deg); opacity: 0.55; filter: blur(18px); }
+    50% { opacity: 0.9; filter: blur(14px); }
+    100% { transform: scale(1.08) rotate(8deg); opacity: 0.72; filter: blur(22px); }
 }
 
 @keyframes logo-copper-sweep {
@@ -1194,23 +1635,23 @@ body.eco-mode #brand-logo::after {
     position: absolute;
     top: 15px;
     right: 15px;
-    width: 540px; 
-    background: rgba(0, 0, 0, 0.85);
+    width: 540px;
+    background: rgba(0, 0, 0, 0.88);
     border: 2px solid var(--chassis-dark);
-    border-top: 1px solid rgba(255,255,255,0.2);
-    border-left: 1px solid rgba(255,255,255,0.1);
-    box-shadow: 4px 6px 15px rgba(0,0,0,0.8);
+    border-top: 1px solid rgba(255, 255, 255, 0.22);
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 4px 6px 15px rgba(0, 0, 0, 0.85);
     backdrop-filter: blur(4px);
-    padding: 15px; 
+    padding: 15px;
     color: var(--highlight-color);
-    pointer-events: auto; 
-    z-index: 15; 
-    transition: opacity 0.4s ease, width 0.3s ease; 
+    pointer-events: auto;
+    z-index: 15;
+    transition: opacity 0.4s ease, width 0.3s ease;
 }
 
 #chip-hud.collapsed {
-    width: auto; 
-    padding: 8px 10px; 
+    width: auto;
+    padding: 8px 10px;
 }
 
 .hud-header {
@@ -1222,13 +1663,12 @@ body.eco-mode #brand-logo::after {
     margin-bottom: 12px;
 }
 
-#chip-hud.collapsed .hud-header { 
-    border-bottom: none; 
-    margin-bottom: 0; 
-    padding-bottom: 0; 
+#chip-hud.collapsed .hud-header {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
 }
 
-/* Vertikaler Button-Stack */
 .hud-controls-stack {
     display: flex;
     flex-direction: column;
@@ -1249,7 +1689,7 @@ body.eco-mode #brand-logo::after {
     padding: 4px 8px;
     cursor: pointer;
     font-family: inherit;
-    font-size: calc(var(--font-size-base) * 0.8);
+    font-size: var(--font-size-sm);
     white-space: nowrap;
     transition: all 0.1s;
     text-align: center;
@@ -1261,24 +1701,24 @@ body.eco-mode #brand-logo::after {
 
 .atari-analyzer-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr; 
-    gap: 20px; 
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
 }
 
 .hud-channel {
     margin-bottom: 12px;
-    background: rgba(255,255,255,0.02); /* Leichte Hinterlegung pro Block */
-    border: 1px solid rgba(255,255,255,0.05);
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     padding: 8px;
 }
 
 .hud-channel h4 {
     color: var(--highlight-color);
-    font-size: calc(var(--font-size-base) * 0.8);
+    font-size: var(--font-size-sm);
     margin-bottom: 8px;
-    text-shadow: 0 0 2px var(--text-color); 
-    letter-spacing: 1px;
-    border-bottom: 1px dotted rgba(255,255,255,0.2);
+    text-shadow: 0 0 2px var(--text-color);
+    letter-spacing: 0.05em;
+    border-bottom: 1px dotted rgba(255, 255, 255, 0.22);
     padding-bottom: 4px;
 }
 
@@ -1286,53 +1726,53 @@ body.eco-mode #brand-logo::after {
     display: flex;
     align-items: center;
     margin-bottom: 5px;
-    font-size: calc(var(--font-size-base) * 0.75);
+    font-size: var(--font-size-xs);
 }
 
 .hud-row label {
     flex-shrink: 0;
-    width: 60px; 
-    color: var(--text-color);
-    opacity: 0.8;
+    width: 60px;
+    color: var(--panel-text);
 }
 
 .hud-sparkline {
     flex-grow: 1;
     height: 18px;
-    background: #000; /* CRT Screen Look für Oszilloskop */
-    box-shadow: inset 0 2px 5px rgba(0,0,0,0.8);
+    background: #000;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.8);
     margin-right: 8px;
-    border: 1px solid rgba(255,255,255,0.1);
-    display: block; 
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    display: block;
 }
 
 .hud-bar {
     flex-grow: 1;
     height: 8px;
     background: #000;
-    box-shadow: inset 0 1px 3px rgba(0,0,0,0.8);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.8);
     margin-right: 8px;
     position: relative;
-    border: 1px solid rgba(255,255,255,0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
+
 .hud-bar-fill {
     height: 100%;
     background: var(--text-color);
-    width: 0%; 
-    transition: width 0.05s linear; 
-    box-shadow: 0 0 5px var(--text-color); /* LED Leuchten */
+    width: 0%;
+    transition: width 0.05s linear;
+    box-shadow: 0 0 5px var(--text-color);
 }
 
 .hud-val {
     flex-shrink: 0;
-    width: 75px; 
+    width: 75px;
     text-align: right;
-    font-family: 'Press Start 2P', monospace; 
+    font-family: var(--font-display);
     font-size: 8px;
     color: var(--highlight-color);
+    font-variant-numeric: tabular-nums;
 }
 
-/* Physikalische LEDs */
 .hud-led {
     flex-shrink: 0;
     width: 12px;
@@ -1340,381 +1780,673 @@ body.eco-mode #brand-logo::after {
     border-radius: 50%;
     background: #111;
     border: 2px solid #000;
-    box-shadow: inset 0 2px 2px rgba(255,255,255,0.2), 0 1px 1px rgba(255,255,255,0.1);
+    box-shadow: inset 0 2px 2px rgba(255, 255, 255, 0.2), 0 1px 1px rgba(255, 255, 255, 0.1);
     margin-right: 4px;
 }
+
 .hud-led.on {
     background: var(--text-color);
     border-color: var(--text-color);
-    box-shadow: inset 0 2px 2px rgba(255,255,255,0.4), 0 0 10px var(--text-color), 0 0 20px var(--text-color);
+    box-shadow: inset 0 2px 2px rgba(255, 255, 255, 0.4), 0 0 10px var(--text-color), 0 0 20px var(--text-color);
 }
-.hud-text-sel { color: var(--highlight-color); font-weight: bold; }
+
+.hud-text-sel {
+    color: var(--highlight-color);
+    font-weight: bold;
+}
 
 #hud-legend {
-    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--text-color);
-    font-size: calc(var(--font-size-base) * 0.7); line-height: 1.4; color: var(--text-color);
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--panel-text);
+    font-size: var(--font-size-sm);
+    line-height: 1.45;
+    color: var(--text-color);
 }
+
+#amiga-led-pwr {
+    width: 16px !important;
+    height: 16px !important;
+    border-width: 2px !important;
+    cursor: pointer;
+    transition: transform 0.1s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+#amiga-led-pwr:hover { transform: scale(1.18); }
+#amiga-led-pwr:active { transform: scale(0.85); }
 
 /* --- PURE AUDIO / ECO MODE OVERLAY --- */
 #eco-overlay {
-    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px);
-    z-index: 20; display: flex; justify-content: center; align-items: center;
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(5px);
+    z-index: 20;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .eco-box {
-    display: flex; flex-direction: column; align-items: center; text-align: center;
+    box-sizing: border-box;
+    width: min(560px, calc(100% - 32px));
+    max-height: calc(100% - 32px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
     border: 2px solid var(--chassis-dark);
     border-top: 1px solid var(--chassis-light);
     background: var(--fg-color);
-    padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.9); gap: 12px;
+    padding: clamp(18px, 4vw, 34px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9);
+    gap: 12px;
 }
 
-.eco-box h2 { color: var(--highlight-color); margin-bottom: 15px; }
-.eco-box p { color: var(--text-color); font-size: calc(var(--font-size-base) * 0.8); margin-bottom: 5px; opacity: 0.9; }
+.eco-kicker,
+.eco-shortcut {
+    color: var(--panel-text);
+    font-family: var(--font-main);
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.08em;
+    line-height: 1.4;
+}
+
+.eco-box h2 {
+    color: var(--highlight-color);
+    margin: 0;
+    font-size: clamp(16px, 2.8vw, 24px);
+    line-height: 1.45;
+}
+
+.eco-now-playing {
+    display: grid;
+    width: 100%;
+    gap: 9px;
+    padding: 14px;
+    color: var(--highlight-color);
+    background: rgba(0, 0, 0, 0.42);
+    border-top: 1px solid var(--chassis-light);
+    border-bottom: 1px solid var(--chassis-dark);
+}
+
+#eco-playback-state {
+    justify-self: center;
+    color: var(--text-color);
+    font-size: var(--font-size-sm);
+    font-weight: bold;
+    letter-spacing: 0.08em;
+}
+
+#eco-playback-state[data-state="playing"] { color: var(--bus-active-color); }
+#eco-playback-state[data-state="loading"] { color: var(--highlight-color); }
+#eco-playback-state[data-state="error"] { color: var(--status-error); }
+
+#eco-track-title {
+    overflow-wrap: anywhere;
+    font-size: clamp(13px, 2.2vw, 20px);
+    line-height: 1.45;
+}
+
+.eco-box p {
+    max-width: 48ch;
+    margin: 0;
+    color: var(--text-color);
+    font-size: var(--font-size-sm);
+    line-height: 1.55;
+    opacity: 0.92;
+}
+
+.eco-box .eco-wake-lock {
+    color: var(--highlight-color);
+}
 
 #btn-eco-off {
-    display: block; margin: 20px auto 0 auto;
-    background: var(--bg-color); color: var(--highlight-color);
-    border: 2px solid var(--highlight-color); padding: 12px 24px;
-    font-family: inherit; font-size: var(--font-size-base);
-    cursor: pointer; transition: all 0.2s;
+    display: block;
+    flex: 0 0 auto;
+    min-width: 150px;
+    min-height: 44px;
+    margin: 8px auto 0 auto;
+    background: var(--bg-color);
+    color: var(--highlight-color);
+    border: 2px solid var(--highlight-color);
+    padding: 12px 24px;
+    font-family: inherit;
+    font-size: var(--font-size-base);
+    cursor: pointer;
+    transition: all 0.2s;
     box-shadow: 0 4px 0 var(--chassis-dark);
 }
 
 #btn-eco-off:active { transform: translateY(4px); box-shadow: 0 0 0 var(--chassis-dark); }
 
 /* =========================================
-   FULLSCREEN UI BAR (Unobtrusive)
-========================================= */
-#fs-ui-bar {
-    position: absolute; bottom: 15px; right: 15px; z-index: 12; 
-    display: flex; align-items: center; gap: 15px; opacity: 0.3; transition: opacity 0.4s ease;
+   8. NOW PLAYING & FULLSCREEN STAGE UI
+   ========================================= */
+.now-playing {
+    position: absolute;
+    left: 24px;
+    bottom: 20px;
+    z-index: 14;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    width: min(620px, calc(100% - 48px));
+    max-width: calc(100% - 170px);
+    padding: 12px 14px;
+    color: var(--highlight-color);
+    background: rgba(4, 4, 10, 0.9);
+    border: 1px solid var(--chassis-light);
+    border-left: 3px solid var(--bus-active-color);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), inset 0 0 18px rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(6px);
+    pointer-events: none;
+    transition: opacity 0.18s ease-out, transform 0.18s ease-out;
 }
 
-#fs-ui-bar:hover { opacity: 1.0; }
-/* Fadet das komplette Panel stufenlos aus, wenn der User inaktiv ist (Sowohl im Fenster als auch im Vollbild!) */
-#visual-zone.user-inactive #fs-ui-bar {
-    opacity: 0;
-    pointer-events: none;
+.now-playing-rail {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    padding-right: 12px;
+    border-right: 1px solid var(--chassis-light);
+    color: var(--bus-active-color);
+    font-size: var(--font-size-sm);
+    font-weight: bold;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
 }
-#fs-playback-controls { display: none; align-items: center; gap: 15px; }
-#visual-zone:fullscreen #fs-playback-controls { display: flex; }
-#visual-zone:-webkit-full-screen #fs-playback-controls { display: flex; }
-#visual-zone.pseudo-fullscreen #fs-playback-controls { display: flex; }
+
+.now-playing-led {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 9px;
+    background: currentColor;
+    border: 1px solid var(--highlight-color);
+    box-shadow: 0 0 9px currentColor;
+}
+
+.now-playing-copy {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+}
+
+#now-playing-system,
+#now-playing-detail {
+    overflow: hidden;
+    color: var(--panel-text);
+    font-size: var(--font-size-xs);
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#now-playing-title {
+    overflow: hidden;
+    color: var(--highlight-color);
+    font-size: var(--font-size-title);
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.now-playing-expanded {
+    display: none;
+}
+
+#visual-zone:fullscreen .now-playing,
+#visual-zone:-webkit-full-screen .now-playing,
+#visual-zone.pseudo-fullscreen .now-playing {
+    bottom: 82px;
+    align-items: start;
+    width: min(760px, calc(100% - 48px));
+    max-width: min(760px, calc(100% - 48px));
+    background: rgba(4, 4, 10, 0.96);
+    border-left-width: 1px;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+#visual-zone:fullscreen .now-playing-expanded,
+#visual-zone:-webkit-full-screen .now-playing-expanded,
+#visual-zone.pseudo-fullscreen .now-playing-expanded {
+    display: grid;
+    grid-column: 1 / -1;
+    gap: 12px;
+    min-width: 0;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.now-playing-metadata {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px 16px;
+    min-width: 0;
+}
+
+.now-playing-metadata > div { min-width: 0; }
+
+.now-playing-meta-composer,
+.now-playing-meta-format {
+    grid-column: span 2;
+}
+
+.now-playing-metadata dt,
+.now-playing-next-row > span:first-child {
+    margin-bottom: 4px;
+    color: var(--highlight-color);
+    font-size: var(--font-size-xs);
+    line-height: 1.25;
+    opacity: 0.72;
+}
+
+.now-playing-metadata dd {
+    overflow-wrap: anywhere;
+    color: var(--highlight-color);
+    font-size: var(--font-size-sm);
+    line-height: 1.35;
+}
+
+#now-playing-time {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.now-playing-channels {
+    display: flex;
+    gap: 12px;
+    min-width: 0;
+}
+
+.now-playing-channel {
+    display: grid;
+    flex: 1 1 0;
+    gap: 5px;
+    min-width: 0;
+}
+
+.now-playing-channel[hidden] { display: none; }
+
+.now-playing-channel-label {
+    overflow: hidden;
+    color: var(--highlight-color);
+    font-size: var(--font-size-xs);
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.72;
+}
+
+.now-playing-channel-track {
+    height: 5px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.now-playing-channel-fill {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: var(--bus-active-color);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 0.08s linear;
+}
+
+.now-playing-channel[data-active="true"] .now-playing-channel-label {
+    color: var(--bus-active-color);
+    opacity: 1;
+}
+
+.now-playing-next-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: baseline;
+    gap: 12px;
+    min-width: 0;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.now-playing-next-row > span:first-child {
+    margin-bottom: 0;
+    white-space: nowrap;
+}
+
+#now-playing-next {
+    overflow: hidden;
+    color: var(--highlight-color);
+    font-size: var(--font-size-sm);
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.now-playing-progress {
+    height: 3px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+#now-playing-progress-fill {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: var(--bus-active-color);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 0.08s linear;
+}
+
+#visual-zone:fullscreen .now-playing[data-state="playing"] #now-playing-detail,
+#visual-zone:-webkit-full-screen .now-playing[data-state="playing"] #now-playing-detail,
+#visual-zone.pseudo-fullscreen .now-playing[data-state="playing"] #now-playing-detail,
+#visual-zone:fullscreen .now-playing[data-state="paused"] #now-playing-detail,
+#visual-zone:-webkit-full-screen .now-playing[data-state="paused"] #now-playing-detail,
+#visual-zone.pseudo-fullscreen .now-playing[data-state="paused"] #now-playing-detail {
+    display: none;
+}
+
+.now-playing[data-state="idle"] {
+    border-left-color: var(--panel-text);
+    opacity: 0.88;
+}
+
+.now-playing[data-state="idle"] .now-playing-rail { color: var(--panel-text); }
+.now-playing[data-state="loading"] .now-playing-led { animation: status-pulse 0.8s steps(2, start) infinite; }
+.now-playing[data-state="playing"] .now-playing-led { animation: status-pulse 1.6s ease-in-out infinite; }
+.now-playing[data-state="paused"] { border-left-color: var(--panel-text); }
+.now-playing[data-state="paused"] .now-playing-rail { color: var(--panel-text); }
+.now-playing[data-state="paused"] .now-playing-led { box-shadow: none; }
+.now-playing[data-state="error"] { border-color: var(--status-error); }
+.now-playing[data-state="error"] .now-playing-rail,
+.now-playing[data-state="error"] #now-playing-detail { color: var(--status-error); }
+
+@keyframes status-pulse {
+    50% { opacity: 0.35; }
+}
+
+/* --- FULLSCREEN UI BAR --- */
+#fs-ui-bar {
+    position: absolute;
+    bottom: 15px;
+    right: 15px;
+    z-index: 12;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    opacity: 0.82;
+    transition: opacity 0.4s ease;
+}
+
+#fs-ui-bar:hover,
+#fs-ui-bar:focus-within {
+    opacity: 1;
+}
+
+#stage-mode-status {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 7px;
+    min-height: 32px;
+    padding: 6px 9px;
+    color: var(--highlight-color);
+    background: rgba(0, 0, 0, 0.82);
+    border: 1px solid var(--chassis-light);
+    font-family: var(--font-main);
+    font-size: var(--font-size-xs);
+    font-weight: bold;
+    letter-spacing: 0.06em;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.stage-mode-led {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 7px;
+    background: currentColor;
+    box-shadow: 0 0 7px currentColor;
+}
+
+#stage-mode-status[data-mode="pure-audio"] { color: var(--bus-active-color); }
+#stage-mode-status[data-mode="windowed"] { color: var(--text-color); }
+
+#fs-playback-controls {
+    display: none;
+    align-items: center;
+    gap: 15px;
+    min-width: 0;
+}
+
+#visual-zone:fullscreen #fs-playback-controls,
+#visual-zone:-webkit-full-screen #fs-playback-controls,
+#visual-zone.pseudo-fullscreen #fs-playback-controls {
+    display: flex;
+}
+
+.fs-track-copy {
+    display: grid;
+    min-width: 0;
+    gap: 5px;
+    text-align: right;
+}
+
+#fs-playback-status {
+    color: var(--text-color);
+    font-family: var(--font-main);
+    font-size: var(--font-size-xs);
+    font-weight: bold;
+    letter-spacing: 0.06em;
+    line-height: 1.2;
+}
+
+#fs-playback-status[data-state="playing"] { color: var(--bus-active-color); }
+#fs-playback-status[data-state="loading"] { color: var(--highlight-color); }
+#fs-playback-status[data-state="error"] { color: var(--status-error); }
 
 .fs-track-info {
-    font-family: var(--font-main); font-size: calc(var(--font-size-base) * 0.8);
-    color: var(--highlight-color); text-shadow: 1px 1px 0px #000; 
-    max-width: 350px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; letter-spacing: 1px;
+    display: none;
+    font-family: var(--font-main);
+    font-size: var(--font-size-sm);
+    color: var(--highlight-color);
+    text-shadow: 1px 1px 0 #000;
+    max-width: 350px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+    letter-spacing: 0.04em;
 }
 
-.fs-controls { display: flex; gap: 5px; }
-.fs-controls button, #btn-fullscreen {
-    background: rgba(0, 0, 0, 0.8); border: 1px solid var(--text-color); color: var(--highlight-color);
-    padding: 8px 14px; font-family: var(--font-main); font-size: 10px; cursor: pointer; transition: all 0.1s; outline: none;
+.fs-controls {
+    display: flex;
+    gap: 6px;
 }
-.fs-controls button:hover, #btn-fullscreen:hover { background: var(--text-color); color: #000; border-color: var(--highlight-color); }
 
-#visual-zone:fullscreen { width: 100% !important; height: 100% !important; }
-#visual-zone:-webkit-full-screen { width: 100% !important; height: 100% !important; }
+.fs-controls button,
+#btn-fullscreen {
+    min-height: 44px;
+    background: rgba(0, 0, 0, 0.82);
+    border: 1px solid var(--panel-text);
+    color: var(--highlight-color);
+    padding: 8px 14px;
+    font-family: var(--font-main);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: all 0.1s;
+    outline: none;
+}
+
+.fs-controls button:hover,
+#btn-fullscreen:hover {
+    background: var(--panel-text);
+    color: #000;
+    border-color: var(--highlight-color);
+}
+
+#visual-zone:fullscreen,
+#visual-zone:-webkit-full-screen {
+    width: 100% !important;
+    height: 100% !important;
+}
 
 #visual-zone.pseudo-fullscreen {
-    position: fixed !important; inset: 0 !important; width: 100% !important; height: 100% !important;
-    max-width: none !important; max-height: none !important; z-index: 999999 !important; margin: 0 !important; border-radius: 0 !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    z-index: 999999 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
 }
 
-/* =========================================
-   SUBSONG DISPLAY TIMELINE OVERLAY
-========================================= */
-#subsong-display {
-    font-family: inherit; font-size: calc(var(--font-size-base) * 0.9);
-    color: var(--highlight-color); margin-right: 15px; text-shadow: 0 0 4px var(--text-color); letter-spacing: 1px;
-}
-
-/* =========================================
-   8. MOBILE RESPONSIVE DESIGN
-   ========================================= */
-@media (max-width: 800px) {
-    body, html { overflow: visible !important; height: auto; min-height: 100dvh; }
-
-    #hud-body { max-height: 35vh; overflow-y: auto; overflow-x: hidden; }
-    #demo-container {
-        display: flex;
-        flex-direction: column;
-        height: auto;
-        min-height: 100dvh;
-        overflow: visible;
-    }
-    #visual-zone { height: clamp(200px, 32dvh, 300px); min-height: 180px; }
-    
-    /* NEU: Maximale Touch-Größe & Treffsicherheit für die Playlist-Buttons */
-    body.theme-amiga #tracklist li,
-    body.theme-atari #tracklist li {
-        font-size: clamp(24px, 6.5vw, 30px) !important;
-        padding: 12px 14px !important;
-    }
-
-    /* NEU: Weit größere Transport-Button-Schrift für Amiga & Atari im Mobile-Modus
-       Da VT323 extrem schmal ist, können wir hier massiv hochskalieren! */
-    body.theme-amiga #playback-bar .controls button,
-    body.theme-atari #playback-bar .controls button {
-        font-size: clamp(14px, 4.4vw, 22px) !important; /* Von max 13px auf bis zu 22px angehoben! */
-        letter-spacing: 0px !important; /* Kein negatives Spacing nötig bei der schmalen Schrift */
-    }
-
-    #hud-body { max-height: 35vh; overflow-y: auto; overflow-x: hidden; }
-    
-    /* Adaptive Lauftext-Kanäle mit sicheren Touch-Zielen und iOS-Rand. */
-    #scroller-zone {
-        flex: none;
-        grid-template-rows: 44px 64px;
-        height: calc(108px + env(safe-area-inset-bottom));
-        min-height: calc(108px + env(safe-area-inset-bottom));
-        padding-bottom: env(safe-area-inset-bottom);
-        box-sizing: border-box;
-    }
-    #scroller-zone::after { inset: 44px 0 0; }
-    .scroller-toolbar { padding: 0 4px; }
-    .scroller-identity { display: none; }
-    .scroller-actions { margin-left: auto; gap: 0; }
-    .scroller-actions button { min-width: 44px; min-height: 44px; padding: 0 6px; }
-    body.theme-amiga .scroller-actions button,
-    body.theme-atari .scroller-actions button { font-size: 16px; }
-    #scroller-toggle { margin-left: 2px; }
-
-    #ui-zone { display: flex; flex-direction: column; height: auto; overflow: visible; padding: 10px; }
-    #player-panel, #museum-panel { flex: none; width: 100%; }
-    .museum-content { overflow-y: visible !important; }
-
-    #playback-bar {
-        position: -webkit-sticky; 
-        position: sticky; 
-        top: 0; 
-        z-index: 100; 
-        display: flex !important;
-        flex-direction: column !important; /* Stack rows vertically */
-        justify-content: flex-start !important; /* Vernichtet den space-between Verteilungs-Bug! */
-        align-items: stretch !important;    /* Force full width on all rows */
-        gap: 12px !important;              /* Hardware-nahes, enges Spacing zwischen den Steuerelementen */
-        padding: 12px 10px !important;     /* Äußerst kompakter Gehäuserahmen */
-        box-shadow: 0 5px 15px rgba(0,0,0,0.8); 
-        width: 100% !important;
-        height: auto !important;           /* Zwingt das Gehäuse, sich flach an den Inhalt anzuschmiegen */
-        flex: none !important;             /* Blockiert jegliches unkontrolliertes Aufblähen durch den parent Flexbox-Sog */
-        box-sizing: border-box !important;
-    }
-    
-    /* =========================================================
-       MOBILE PLAYBACK BAR FIX
-       Erzwingt volle Breite und killt den Höhen-Blowout
-    ========================================================= */
-    #playback-bar .controls {
-        flex: none !important;     /* <--- KILLT DIE VERTIKALE AUSDEHNUNG */
-        width: 100% !important;    
-        display: flex !important;
-        gap: 8px !important;
-        margin-bottom: 10px !important; 
-        box-sizing: border-box !important;
-    }
-
-    #playback-bar .controls button { 
-        padding: 8px 0 !important; 
-        font-size: clamp(8px, 2.2vw, 10px) !important; 
-        white-space: nowrap;
-        letter-spacing: -0.5px;
-        min-width: 0 !important; 
-        overflow: hidden; 
-        text-overflow: clip; 
-    }
-
-    body.theme-amiga #playback-bar .controls button,
-    body.theme-atari #playback-bar .controls button {
-        font-size: clamp(12px, 3.5vw, 15px) !important; 
-        letter-spacing: 0px !important;
-        padding: 8px 0 !important; 
-    }
-
-    #playback-bar #btn-prev, 
-    #playback-bar #btn-next, 
-    #playback-bar #btn-eco { 
-        flex: 1 1 0% !important; 
-    }
-    
-    #playback-bar #btn-play { 
-        flex: 1.6 1 0% !important; 
-    }
-
-    #playback-bar .timeline-control { 
-        flex: none !important;     /* <--- KILLT DIE VERTIKALE AUSDEHNUNG */
-        width: 100% !important; 
-        margin-bottom: 8px !important; 
-        box-sizing: border-box !important;
-    }
-    
-    #playback-bar .volume-control { 
-        flex: none !important;     /* <--- KILLT DIE VERTIKALE AUSDEHNUNG */
-        width: 100% !important; 
-        justify-content: flex-start !important; 
-        margin-bottom: 4px !important; 
-        box-sizing: border-box !important;
-    }
-    
-    /* =========================================
-    GFX UPGRADE: Fullscreen Play-Controls auf Mobile drosseln
-    ========================================= */
-    body.theme-c64 #fs-playback-controls .fs-controls button {
-        font-size: 10px !important; /* Exakter Match zum Vollbild-Button für ein symmetrisches Raster */
-        padding: 8px 14px !important; /* Großzügiges, treffsicheres Touch-Target */
-        white-space: nowrap;
-    }
-
-    body.theme-amiga #fs-playback-controls .fs-controls button,
-    body.theme-atari #fs-playback-controls .fs-controls button {
-        font-size: clamp(13px, 3.5vw, 16px) !important; /* Die schmale VT323 profitiert von etwas mehr Höhe */
-        padding: 8px 12px !important; /* Optimierte Touch-Präzision */
-        white-space: nowrap;
-    }
-       
-    #tracklist {
-        max-height: 250px; 
-    }
-    
-    #tracklist li {
-        padding: 10px 12px;
-        margin-bottom: 2px;
-    }
-    
-    /* Logo auf Handys kompakt halten, damit es nie mit dem HUD kollidiert */
-    #brand-logo {
-        top: 12px;
-        left: 12px;
-        gap: 7px;
-        padding: 5px 8px 5px 6px;
-        max-width: min(215px, calc(100vw - 24px));
-    }
-    .brand-emblem {
-        width: 26px;
-        height: 26px;
-    }
-    .brand-lockup {
-        gap: 4px;
-    }
-    .brand-main { 
-        font-size: clamp(10px, 3vw, 12px); 
-        letter-spacing: 1px;
-        margin-bottom: 0;
-    }
-    .brand-sub { 
-        font-size: 6.5px; 
-        letter-spacing: 2.5px; 
-        margin-top: 0;
-    }
-    .brand-raster-bar {
-        min-width: 10px;
-        height: 6px;
-    }
-    .brand-dj-badge {
-        font-size: 5.5px;
-        padding: 2px 3px;
-    }
-
-    #chip-hud { width: 94%; top: 10px; right: 3%; padding: 8px; z-index: 110; }
-    #chip-hud.collapsed { width: auto; right: 10px; }
-
-    .atari-analyzer-grid { grid-template-columns: 1fr; gap: 5px; }
-    .hud-row label { width: 55px; }
-    .hud-channel { margin-bottom: 5px; padding-bottom: 5px; }
-
-    /* NEU: Kompakte Gehäusehöhe für Mobilgeräte */
-    .silicon-chassis {
-        height: 180px; 
-    }
-}
-
-.fs-track-info { display: none; }
+#visual-zone:fullscreen #fs-ui-bar,
+#visual-zone:-webkit-full-screen #fs-ui-bar,
 #visual-zone.pseudo-fullscreen #fs-ui-bar {
-    bottom: calc(20px + env(safe-area-inset-bottom)) !important;
-    right: calc(15px + env(safe-area-inset-right)) !important;
+    left: calc(15px + env(safe-area-inset-left));
+    right: calc(15px + env(safe-area-inset-right));
+    bottom: calc(15px + env(safe-area-inset-bottom));
+    justify-content: flex-end;
+    gap: 12px;
 }
 
-#visual-zone.no-cursor, #visual-zone.no-cursor * { cursor: none !important; }
-
-#amiga-led-pwr {
-    width: 16px !important; height: 16px !important; border-width: 2px !important; cursor: pointer;
-    transition: transform 0.1s cubic-bezier(0.25, 0.8, 0.25, 1);
+#visual-zone:fullscreen #stage-mode-status,
+#visual-zone:-webkit-full-screen #stage-mode-status,
+#visual-zone.pseudo-fullscreen #stage-mode-status {
+    margin-right: auto;
 }
-#amiga-led-pwr:hover { transform: scale(1.18); }
-#amiga-led-pwr:active { transform: scale(0.85); }
 
-/* =========================================
-   FULLSCREEN HUD AUTO-FADE LOGIC
-   ========================================= */
-/* Blendet das eingeklappte (collapsed) HUD bei Inaktivität komplett aus.
-   Sobald geklickt oder die Maus bewegt wird, fadet es sofort wieder ein! */
-#visual-zone.user-inactive #chip-hud.collapsed {
+#visual-zone:fullscreen .fs-track-info,
+#visual-zone:-webkit-full-screen .fs-track-info,
+#visual-zone.pseudo-fullscreen .fs-track-info {
+    display: block;
+    max-width: min(34vw, 420px);
+}
+
+#visual-zone.user-inactive #fs-ui-bar,
+#visual-zone.user-inactive #chip-hud.collapsed,
+#visual-zone.user-inactive .now-playing {
     opacity: 0;
     pointer-events: none;
 }
 
+#visual-zone.user-inactive .now-playing {
+    transform: translateY(8px);
+}
+
+#visual-zone.no-cursor,
+#visual-zone.no-cursor * {
+    cursor: none !important;
+}
+
 /* =========================================
-   9. LIVING SILICON STYLING (HARDWARE LABORATORY)
+   9. LIVING SILICON STYLING (HARDWARE LAB)
    ========================================= */
-#living-silicon-container { flex-shrink: 0; width: 100%; display: block; }
+#living-silicon-container {
+    flex-shrink: 0;
+    width: 100%;
+    display: block;
+    margin-bottom: 15px;
+}
+
+.silicon-toolbar-status {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 7px;
+    color: var(--panel-text);
+    font-size: var(--font-size-sm);
+    font-weight: bold;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+.silicon-status-led {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 8px;
+    background: currentColor;
+    border: 1px solid var(--chassis-light);
+    box-shadow: 0 0 7px currentColor;
+}
+
+#silicon-playback-status[data-state="playing"] { color: var(--bus-active-color); }
+#silicon-playback-status[data-state="loading"] { color: var(--highlight-color); }
+#silicon-playback-status[data-state="error"] { color: var(--status-error); }
 
 .silicon-chassis {
-    /* Wächst auf Widescreens nun mächtig an */
-    height: clamp(180px, 28vh, 320px); 
+    height: clamp(180px, 28vh, 320px);
     background: var(--screen-bg);
-    border-top: 3px solid var(--chassis-dark); border-left: 3px solid var(--chassis-dark);
-    border-bottom: 2px solid var(--chassis-light); border-right: 2px solid var(--chassis-light);
+    border-top: 3px solid var(--chassis-dark);
+    border-left: 3px solid var(--chassis-dark);
+    border-bottom: 2px solid var(--chassis-light);
+    border-right: 2px solid var(--chassis-light);
     box-shadow: inset 0 4px 15px rgba(0, 0, 0, 0.9);
-    padding: 15px; box-sizing: border-box;
-    
-    /* GFX UPGRADE: Das 3-Spalten Logic-Analyzer Layout */
+    padding: 15px;
+    box-sizing: border-box;
     display: grid;
     grid-template-columns: 80px 1fr 80px;
     gap: 15px;
     align-items: center;
 }
 
-.silicon-die-wrapper { 
-    width: 100%; 
-    height: 100%; 
-    
-    /* FIX: Zwingt CSS-Grid, das SVG einzusperren anstatt es ausbrechen zu lassen */
-    min-width: 0; 
-    min-height: 0; 
-    
-    display: flex; 
-    justify-content: center; 
-    align-items: center; 
+.silicon-die-wrapper {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: opacity var(--state-transition);
 }
 
-.silicon-die-wrapper svg { 
-    width: 100%; 
-    height: 100%; 
-    max-height: 100%; 
-    display: block; 
+#living-silicon-container[data-playback-state="paused"] .silicon-die-wrapper { opacity: 0.68; }
+#living-silicon-container[data-playback-state="error"] .silicon-chassis { border-color: var(--status-error); }
+
+.silicon-die-wrapper svg {
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    display: block;
 }
 
-/* Flanken-Diagnostik */
 .silicon-diagnostics {
-    display: flex; flex-direction: column; justify-content: space-around;
-    height: 60%; text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    height: 60%;
+    text-align: center;
 }
-.diag-block { display: flex; flex-direction: column; gap: 6px; }
-.d-lbl { font-size: 8px; color: var(--panel-text); font-family: 'Press Start 2P', monospace; opacity: 0.8; }
-.d-val { font-size: 10px; color: var(--highlight-color); font-family: 'Press Start 2P', monospace; text-shadow: 0 0 5px var(--highlight-color); }
 
-/* RESPONSIVE DOWN-SCALING */
-@media (max-width: 1400px) {
-    .silicon-chassis {
-        grid-template-columns: 1fr; /* Auf Laptops verschwinden die Flanken, der Chip bekommt 100% Platz */
-        padding: 10px; 
-        height: clamp(160px, 22vh, 220px);
-    }
-    .silicon-diagnostics { display: none; }
+.diag-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.d-lbl {
+    font-size: 8px;
+    color: var(--panel-text);
+    font-family: var(--font-display);
+    opacity: 0.85;
+}
+
+.d-val {
+    font-size: 10px;
+    color: var(--highlight-color);
+    font-family: var(--font-display);
+    text-shadow: 0 0 5px var(--highlight-color);
 }
 
 .silicon-chip-body {
@@ -1732,13 +2464,19 @@ body.eco-mode #brand-logo::after {
 
 .silicon-pin-number {
     fill: var(--panel-text);
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--font-display);
     font-size: 5px;
     pointer-events: none;
 }
 
 .silicon-chip-label {
     font-size: 6px !important;
+    letter-spacing: 0.5px;
+}
+
+body.theme-amiga .silicon-chip-label,
+body.theme-atari .silicon-chip-label {
+    font-size: 8px !important;
     letter-spacing: 0.5px;
 }
 
@@ -1750,50 +2488,30 @@ body.eco-mode #brand-logo::after {
 .paula-stage-caption,
 .paula-filter-status,
 .paula-pin-label {
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--font-display);
     font-size: 5px;
     letter-spacing: 0.15px;
 }
 
 .paula-pin-number {
     fill: var(--panel-text);
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--font-display);
     font-size: 4px;
 }
 
 .paula-audio-pin,
-.paula-pin-label {
-    fill: var(--highlight-color);
-}
-
+.paula-pin-label { fill: var(--highlight-color); }
 .paula-section-label,
-.paula-filter-status {
-    fill: var(--text-color);
-}
-
+.paula-filter-status { fill: var(--text-color); }
 .paula-channel-name,
-.paula-stage-title {
-    font-size: 7px;
-}
-
+.paula-stage-title { font-size: 7px; }
 .paula-channel-state,
 .paula-channel-registers,
-.paula-stage-caption {
-    font-size: 5.6px;
-}
-
-.paula-board-frame {
-    fill: rgba(0, 0, 0, 0.12);
-}
+.paula-stage-caption { font-size: 5.6px; }
+.paula-board-frame { fill: rgba(0, 0, 0, 0.12); }
 
 .paula-visualization .silicon-bus-wire[marker-end] {
     marker-end: url(#paula-arrow);
-}
-
-body.theme-amiga .silicon-chip-label,
-body.theme-atari .silicon-chip-label {
-    font-size: 8px !important;
-    letter-spacing: 0.5px;
 }
 
 .silicon-die-bus {
@@ -1804,9 +2522,7 @@ body.theme-atari .silicon-chip-label {
    10. SILICON DIE SIGNAL-FLOW KEYFRAMES
    ========================================= */
 @keyframes signal-pulse-right {
-    to {
-        stroke-dashoffset: -20;
-    }
+    to { stroke-dashoffset: -20; }
 }
 
 .signal-bus {
@@ -1816,17 +2532,12 @@ body.theme-atari .silicon-chip-label {
     transition: opacity 0.1s ease, stroke 0.1s ease, filter 0.1s ease;
 }
 
-/* =========================================================
-   LIVING SILICON: DISCRETE ENERGY PACKET / PHOTON FLOW
-   Solid PCB/die traces + discrete traveling photon packets
-   Universal for C64 (SID), Amiga (Paula) and Atari ST (YM)
-   ========================================================= */
 .silicon-bus-wire,
 .sid-bus-wire {
     fill: none;
     stroke: var(--text-color);
     stroke-width: 1.2px;
-    opacity: 0.20;
+    opacity: 0.22;
     stroke-linecap: round;
     stroke-linejoin: round;
     transition: stroke 0.12s ease, opacity 0.12s ease, filter 0.12s ease;
@@ -1847,21 +2558,13 @@ body.theme-atari .silicon-chip-label {
 }
 
 @keyframes silicon-packet-pulse {
-    from {
-        stroke-dashoffset: 0;
-    }
-    to {
-        stroke-dashoffset: -59;
-    }
+    from { stroke-dashoffset: 0; }
+    to { stroke-dashoffset: -59; }
 }
 
 @keyframes sid-packet-pulse {
-    from {
-        stroke-dashoffset: 0;
-    }
-    to {
-        stroke-dashoffset: -59;
-    }
+    from { stroke-dashoffset: 0; }
+    to { stroke-dashoffset: -59; }
 }
 
 .silicon-chassis:has(.paula-visualization) {
@@ -1880,8 +2583,7 @@ body.theme-atari .silicon-chip-label {
 
 .silicon-chassis:has(.ym-visualization) .silicon-die-wrapper {
     justify-content: center;
-    overflow-x: hidden;
-    overflow-y: hidden;
+    overflow: hidden;
 }
 
 .silicon-die-wrapper svg.ym-visualization {
@@ -1894,19 +2596,17 @@ body.theme-atari .silicon-chip-label {
 
 .ym-visualization text {
     fill: var(--text-color);
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--font-display);
     font-size: 8px;
     pointer-events: none;
 }
 
-.ym-visualization .silicon-pin {
-    fill: var(--panel-text);
-}
+.ym-visualization .silicon-pin { fill: var(--panel-text); }
 
 .ym-visualization .silicon-pin-number {
     fill: var(--panel-text);
     font-size: 5px;
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--font-display);
     pointer-events: none;
 }
 
@@ -1917,14 +2617,8 @@ body.theme-atari .silicon-chip-label {
     font-size: 9px !important;
 }
 
-.ym-pin-label {
-    font-size: 6px !important;
-}
-
-.ym-board-note {
-    opacity: 0.7;
-    font-size: 6px !important;
-}
+.ym-pin-label { font-size: 6px !important; }
+.ym-board-note { opacity: 0.7; font-size: 6px !important; }
 
 .ym-registers rect,
 .ym-noise-gen rect,
@@ -1945,13 +2639,9 @@ body.theme-atari .silicon-chip-label {
 .ym-ioports text,
 .ym-channel text,
 .ym-gates text,
-.ym-dac text {
-    font-size: 7px;
-}
+.ym-dac text { font-size: 7px; }
 
-.ym-gates > rect {
-    fill: rgba(0, 0, 0, 0.16);
-}
+.ym-gates > rect { fill: rgba(0, 0, 0, 0.16); }
 
 .ym-env-shape-preview {
     fill: none;
@@ -1975,54 +2665,10 @@ body.theme-atari .silicon-chip-label {
     stroke-dasharray: 5 4;
 }
 
-.ym-board text {
-    font-size: 7px;
-}
+.ym-board text { font-size: 7px; }
+.ym-board-title { font-size: 8px !important; }
 
-.ym-board-title {
-    font-size: 8px !important;
-}
-
-@media (max-width: 720px) {
-    .silicon-chassis:has(.paula-visualization) {
-        height: 380px;
-    }
-
-    .silicon-chassis:has(.paula-visualization) .silicon-die-wrapper {
-        justify-content: flex-start;
-        overflow-x: auto;
-        overflow-y: hidden;
-    }
-
-    .silicon-chassis:has(.paula-visualization) .paula-visualization {
-        width: 800px;
-        min-width: 800px;
-        height: 355px;
-        max-height: none;
-    }
-
-    .silicon-chassis:has(.ym-visualization) {
-        height: 520px;
-    }
-
-    .silicon-chassis:has(.ym-visualization) .silicon-die-wrapper {
-        justify-content: flex-start;
-        overflow-x: auto;
-        overflow-y: hidden;
-    }
-
-    .silicon-chassis:has(.ym-visualization) .silicon-die-wrapper svg.ym-visualization {
-        width: 1240px;
-        min-width: 1240px;
-        height: 480px;
-        max-height: none;
-    }
-}
-
-/* =========================================
-   C64 SID ACTIVITY INSTRUMENT
-   Envelope segments + logarithmic register-write history
-   ========================================= */
+/* C64 SID Activity Instrument */
 .silicon-chassis.sid-chassis {
     grid-template-columns: 80px minmax(0, 1fr) 180px;
     gap: 12px;
@@ -2050,7 +2696,7 @@ body.theme-atari .silicon-chip-label {
 }
 
 .sid-activity text {
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--font-display);
     pointer-events: none;
 }
 
@@ -2114,147 +2760,154 @@ body.theme-atari .silicon-chip-label {
     shape-rendering: crispEdges;
 }
 
-@media (max-width: 1400px) {
-    .silicon-chassis.sid-chassis {
-        grid-template-columns: minmax(0, 1fr) 180px;
-        height: clamp(210px, 25vh, 260px);
-    }
-
-    .sid-activity { padding-left: 8px; }
-}
-
-@media (max-width: 720px) {
-    .silicon-chassis.sid-chassis {
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: 180px 142px;
-        height: 352px;
-        gap: 8px;
-    }
-
-    .sid-activity {
-        width: min(100%, 260px);
-        height: 142px;
-        justify-self: center;
-        padding: 8px 0 0;
-        border-left: 0;
-        border-top: 1px solid #222222;
-    }
-
-    .sid-activity svg { max-height: 134px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .sid-meter-segment,
-    .sid-meter-gate,
-    .sid-meter-digi { transition: none !important; }
-}
-
-/* =========================================
-   11. TERMINAL CARDS & HEX GRIDS (MUSEUM)
-   ========================================= */
-.terminal-card {
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid var(--chassis-dark);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    border-left: 1px solid rgba(255, 255, 255, 0.05);
-    margin-bottom: 15px;
-    padding: 12px;
-    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.8);
-}
-
-.terminal-card-header {
-    color: var(--highlight-color);
-    border-bottom: 1px dashed var(--panel-text);
-    padding-bottom: 5px;
-    margin-bottom: 10px;
-    font-size: calc(var(--font-size-base) * 0.9);
-    font-weight: bold;
-    letter-spacing: 1px;
-}
-
-.terminal-grid {
-    display: grid;
-    /* 4 Spalten: Label -> Wert -> Label -> Wert */
-    grid-template-columns: auto 1fr auto 1fr;
-    gap: 6px 12px;
-    font-family: 'Press Start 2P', monospace;
-    font-size: 8px; /* Sehr kleine, dichte Nerd-Schrift */
+/* Silicon Guide (Details Accordion) */
+.silicon-guide {
+    margin-top: 8px;
     color: var(--text-color);
-    line-height: 1.4;
+    background: rgba(0, 0, 0, 0.32);
+    border-top: 2px solid var(--chassis-dark);
+    border-left: 2px solid var(--chassis-dark);
+    border-bottom: 1px solid var(--chassis-light);
+    border-right: 1px solid var(--chassis-light);
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.65);
 }
 
-.terminal-grid .lbl {
+.silicon-guide > summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 36px;
+    padding: 8px 12px;
+    color: var(--highlight-color);
+    font-size: var(--font-size-sm);
+    font-weight: bold;
+    line-height: 1.4;
+    cursor: pointer;
+    list-style: none;
+}
+
+.silicon-guide > summary::-webkit-details-marker { display: none; }
+
+.silicon-guide > summary > span {
+    margin-left: auto;
+    color: var(--panel-text);
+    font-size: 0.9em;
+    white-space: nowrap;
+}
+
+.silicon-guide[open] > summary {
+    border-bottom: 1px dashed var(--chassis-light);
+}
+
+.silicon-guide-content {
+    padding: 14px 12px 12px;
+}
+
+.silicon-signal-flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 12px;
+    padding: 0;
+    list-style: none;
+}
+
+.silicon-signal-flow li {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    color: var(--highlight-color);
+    background: var(--screen-bg);
+    border: 1px solid var(--chassis-dark);
+    font-size: var(--font-size-xs);
+    line-height: 1.35;
+    white-space: nowrap;
+}
+
+.silicon-signal-flow li:not(:last-child)::after {
+    content: '>';
+    margin-left: 12px;
     color: var(--panel-text);
 }
 
-.terminal-grid .val {
+.silicon-guide-copy {
+    max-width: 72ch;
+    margin: 0 0 12px;
+    color: var(--text-color);
+    font-family: var(--font-prose);
+    font-size: var(--font-size-prose);
+    line-height: 1.4;
+}
+
+.silicon-readout {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1px;
+    margin: 0;
+    background: var(--chassis-dark);
+    border: 1px solid var(--chassis-dark);
+}
+
+.silicon-readout > div {
+    min-width: 0;
+    padding: 9px 10px;
+    background: var(--screen-bg);
+}
+
+.silicon-readout dt {
+    margin-bottom: 6px;
+    color: var(--panel-text);
+    font-size: var(--font-size-xs);
+    line-height: 1.3;
+}
+
+.silicon-readout dd {
+    margin: 0;
+    overflow-wrap: anywhere;
     color: var(--highlight-color);
-    text-align: left;
+    font-size: var(--font-size-sm);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
+}
+
+.silicon-guide-note {
+    margin: 10px 0 0;
+    color: var(--panel-text);
+    font-family: var(--font-prose);
+    font-size: calc(var(--font-size-prose) * 0.9);
+    line-height: 1.35;
 }
 
 /* =========================================
-   12. THE ACTIVE TRACK GLOW
-   ========================================= */
-.active-track {
-    background: linear-gradient(rgba(255, 255, 255, 0.15) 50%, transparent 50%), var(--text-color) !important;
-    background-size: 100% 4px !important;
-    color: var(--screen-bg) !important; 
-    font-weight: bold;
-    border-bottom-color: transparent !important;
-    box-shadow: inset 0 0 10px rgba(0,0,0,0.5), 2px 2px 5px rgba(0,0,0,0.5);
-}
-
-/* Globaler Standard: Wieder zu 100% im fehlerfreien Originalzustand (Amiga & Atari gerettet!) */
-.active-track::before {
-    opacity: 1 !important;
-    content: "█ " !important; /* Block-Cursor statt einfachem '>' */
-    animation: c64-blink 0.8s steps(2, start) infinite; 
-}
-
-/* GFX FIX: Spezifischer Höhen- und Abstands-Ausgleich NUR für das C64-Theme */
-body.theme-c64 .active-track::before {
-    content: "█" !important; /* Entfernt das kollabierende Leerzeichen aus dem String */
-    display: inline-block;
-    vertical-align: middle;
-    transform: translateY(-0.08em); /* Schiebt das Zeichen präzise auf die vertikale Mittelachse */
-    margin-right: 8px; /* Stabiler, hardware-getreuer Abstand zum Track-Text */
-    line-height: 1;
-}
-
-/* =========================================
-   14. CINEMATIC BOOT & STATE TRANSITIONS
+   11. CINEMATIC BOOT & ECO STANDBY STATES
    ========================================= */
 body.system-transitioning #ui-zone,
 body.system-transitioning #living-silicon-container,
 body.system-transitioning #chip-hud,
 body.system-transitioning #playback-bar {
     animation: power-flicker 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
-    pointer-events: none; /* Blockiert Klicks während des Schaltvorgangs */
+    pointer-events: none;
 }
 
 @keyframes power-flicker {
     0%   { filter: brightness(1) contrast(1); }
     15%  { filter: brightness(0.2) contrast(1.5); opacity: 0.8; }
     30%  { filter: brightness(0.8) contrast(1.2); opacity: 0.95; }
-    50%  { filter: brightness(0.1) contrast(2.0); opacity: 0.6; } /* Blackout Peak */
+    50%  { filter: brightness(0.1) contrast(2.0); opacity: 0.6; }
     70%  { filter: brightness(0.6) contrast(1.4); opacity: 0.9; }
     85%  { filter: brightness(0.3) contrast(1.8); opacity: 0.7; }
     100% { filter: brightness(1) contrast(1); opacity: 1; }
 }
 
-/* =========================================
-   15. PURE AUDIO / ECO MODE STANDBY (TIEFSCHLAF)
-   ========================================= */
-/* Versetzt das gesamte Silizium-Die in ein kaltes, stromloses Standby-Grau */
 body.eco-mode .silicon-chassis {
     filter: brightness(0.12) grayscale(0.95) !important;
     border-top-color: var(--chassis-dark) !important;
     border-left-color: var(--chassis-dark) !important;
-    box-shadow: inset 0 2px 10px rgba(0,0,0,1) !important;
+    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 1) !important;
     transition: filter 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-/* Friert die Elektronenströme auf den Datenbussen sofort ein */
 body.eco-mode .signal-bus {
     animation-play-state: paused !important;
     stroke: var(--chassis-dark) !important;
@@ -2262,474 +2915,65 @@ body.eco-mode .signal-bus {
     filter: none !important;
 }
 
-/* Dimmt das Scroller-Display unten im Standby ebenfalls tief ab */
 body.eco-mode #scroller-zone {
     filter: brightness(0.08) !important;
     transition: filter 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-/* =========================================
-   16. MUSEUM TOOLBAR & ARCHIVE TOGGLE
-   ========================================= */
-.museum-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-    padding-bottom: 6px;
-    /* Gefräste Fuge als Trenner zum Silizium */
-    border-bottom: 2px groove var(--chassis-dark); 
-}
-
-.living-silicon-toolbar {
-    margin-bottom: 8px;
-}
-
-.museum-toolbar-title {
-    color: var(--highlight-color);
-    font-size: calc(var(--font-size-base) * 0.9);
-    font-weight: bold;
-    letter-spacing: 1px;
-}
-
-#btn-toggle-archive {
-    background: var(--chassis-dark);
-    border: 1px solid var(--chassis-light);
-    color: var(--highlight-color);
-    padding: 4px 8px;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: calc(var(--font-size-base) * 0.8);
-    transition: all 0.1s;
-    outline: none;
-}
-
-#btn-toggle-archive:active {
-    transform: translateY(1px);
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+html:has(#visual-zone.pseudo-fullscreen),
+body:has(#visual-zone.pseudo-fullscreen) {
+    overflow: hidden !important;
 }
 
 /* =========================================
-   ARCHIVE EXPANSION LOGIC
+   12. RESPONSIVE BREAKPOINTS (DESKTOP / LAPTOP / WIDESCREEN)
    ========================================= */
-/* Blendet den Chip aus, wodurch das flex-grow Terminal den Platz übernimmt */
-body.archive-expanded #living-silicon-container {
-    display: none !important;
+@media (min-width: 801px) {
+    #living-silicon-container > .silicon-chassis {
+        height: clamp(170px, 20vh, 260px);
+    }
+
+    #museum-panel > .museum-toolbar {
+        flex-shrink: 0;
+    }
+
+    #living-silicon-container:has(.silicon-guide[open]) {
+        flex: 0 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    #living-silicon-container:has(.silicon-guide[open]) > .silicon-chassis {
+        display: none;
+    }
+
+    #museum-panel:has(.silicon-guide[open]) .museum-content {
+        flex: 1 0 48px;
+    }
 }
 
-/* =========================================
-   17. PHASE 1: RESPONSIVE COMMAND DECK & PLAYBACK STATES
-   ========================================= */
-:root {
-    --status-error: #ff7373;
-    --focus-ring: #ffffff;
-    --state-transition: 160ms ease-out;
+@media (max-width: 1400px) {
+    .silicon-chassis {
+        grid-template-columns: 1fr;
+        padding: 10px;
+        height: clamp(160px, 22vh, 220px);
+    }
+
+    .silicon-diagnostics {
+        display: none;
+    }
+
+    .silicon-chassis.sid-chassis {
+        grid-template-columns: minmax(0, 1fr) 180px;
+        height: clamp(210px, 25vh, 260px);
+    }
+
+    .sid-activity {
+        padding-left: 8px;
+    }
 }
 
-.timeline-control,
-.volume-control,
-.controls {
-    min-width: 0;
-}
-
-button,
-select,
-summary,
-[role="button"] {
-    touch-action: manipulation;
-}
-
-button:disabled,
-select:disabled,
-input:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
-}
-
-.controls button:disabled:hover {
-    background: var(--bg-color);
-    color: var(--panel-text);
-}
-
-button:focus-visible,
-select:focus-visible,
-input:focus-visible,
-summary:focus-visible,
-[role="button"]:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 3px;
-}
-
-#boot-screen:focus-visible {
-    outline-offset: -8px;
-}
-
-#tracklist li {
-    position: relative;
-    transition: background-color var(--state-transition), color var(--state-transition), box-shadow var(--state-transition);
-}
-
-#tracklist li.selected-track {
-    color: var(--highlight-color);
-    box-shadow: inset 0 0 0 1px var(--panel-text);
-}
-
-#tracklist li.selected-track::before {
-    opacity: 1;
-}
-
-#tracklist li.selected-track[data-playback-state="loading"] {
-    background: rgba(255, 255, 255, 0.08);
-}
-
-#tracklist li.selected-track[data-playback-state="loading"]::before {
-    content: "> ";
-    animation: c64-blink 0.65s steps(2, start) infinite;
-}
-
-#tracklist li.selected-track[data-playback-state="paused"] {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--highlight-color);
-}
-
-#tracklist li.selected-track[data-playback-state="paused"]::before {
-    content: "|| ";
-    animation: none;
-}
-
-#tracklist li.selected-track[data-playback-state="error"] {
-    color: var(--status-error);
-    box-shadow: inset 0 0 0 1px var(--status-error);
-}
-
-#tracklist li.selected-track[data-playback-state="error"]::before {
-    content: "! ";
-    animation: none;
-}
-
-/* --- Persistent Now Playing / Hardware Status --- */
-.now-playing {
-    position: absolute;
-    left: 24px;
-    bottom: 20px;
-    z-index: 14;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: 12px;
-    width: min(620px, calc(100% - 48px));
-    max-width: calc(100% - 170px);
-    padding: 12px 14px;
-    color: var(--highlight-color);
-    background: rgba(4, 4, 10, 0.9);
-    border: 1px solid var(--chassis-light);
-    border-left: 3px solid var(--bus-active-color);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), inset 0 0 18px rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(6px);
-    pointer-events: none;
-    transition: opacity 0.18s ease-out, transform 0.18s ease-out;
-}
-
-.now-playing-rail {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 32px;
-    padding-right: 12px;
-    border-right: 1px solid var(--chassis-light);
-    color: var(--bus-active-color);
-    font-size: 10px;
-    font-weight: bold;
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-}
-
-.now-playing-led {
-    width: 9px;
-    height: 9px;
-    flex: 0 0 9px;
-    background: currentColor;
-    border: 1px solid var(--highlight-color);
-    box-shadow: 0 0 9px currentColor;
-}
-
-.now-playing-copy {
-    display: grid;
-    min-width: 0;
-    gap: 4px;
-}
-
-#now-playing-system,
-#now-playing-detail {
-    overflow: hidden;
-    color: var(--panel-text);
-    font-size: 10px;
-    line-height: 1.35;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-#now-playing-title {
-    overflow: hidden;
-    color: var(--highlight-color);
-    font-size: clamp(11px, 0.75vw, 15px);
-    line-height: 1.35;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.now-playing-expanded {
-    display: none;
-}
-
-#visual-zone:fullscreen .now-playing,
-#visual-zone:-webkit-full-screen .now-playing,
-#visual-zone.pseudo-fullscreen .now-playing {
-    align-items: start;
-    width: min(760px, calc(100% - 48px));
-    max-width: min(760px, calc(100% - 48px));
-    background: rgba(4, 4, 10, 0.96);
-    border-left-width: 1px;
-    box-shadow: none;
-    backdrop-filter: none;
-    transition: opacity 0.18s ease-out, transform 0.18s ease-out;
-}
-
-#visual-zone:fullscreen .now-playing-expanded,
-#visual-zone:-webkit-full-screen .now-playing-expanded,
-#visual-zone.pseudo-fullscreen .now-playing-expanded {
-    display: grid;
-    grid-column: 1 / -1;
-    gap: 12px;
-    min-width: 0;
-    padding-top: 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.16);
-}
-
-.now-playing-metadata {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px 16px;
-    min-width: 0;
-}
-
-.now-playing-metadata > div {
-    min-width: 0;
-}
-
-.now-playing-meta-composer,
-.now-playing-meta-format {
-    grid-column: span 2;
-}
-
-.now-playing-metadata dt,
-.now-playing-next-row > span:first-child {
-    margin-bottom: 4px;
-    color: var(--highlight-color);
-    font-size: clamp(10px, 0.6vw, 12px);
-    line-height: 1.25;
-    opacity: 0.68;
-}
-
-.now-playing-metadata dd {
-    overflow-wrap: anywhere;
-    color: var(--highlight-color);
-    font-size: clamp(11px, 0.72vw, 14px);
-    line-height: 1.35;
-}
-
-body.theme-amiga .now-playing-metadata dd,
-body.theme-atari .now-playing-metadata dd,
-body.theme-amiga #now-playing-next,
-body.theme-atari #now-playing-next {
-    font-size: clamp(14px, 1vw, 17px);
-}
-
-body.theme-amiga .now-playing-metadata dt,
-body.theme-atari .now-playing-metadata dt,
-body.theme-amiga .now-playing-channel-label,
-body.theme-atari .now-playing-channel-label,
-body.theme-amiga .now-playing-next-row > span:first-child,
-body.theme-atari .now-playing-next-row > span:first-child {
-    font-size: 12px;
-}
-
-#now-playing-time {
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-
-.now-playing-channels {
-    display: flex;
-    gap: 12px;
-    min-width: 0;
-}
-
-.now-playing-channel {
-    display: grid;
-    flex: 1 1 0;
-    gap: 5px;
-    min-width: 0;
-}
-
-.now-playing-channel[hidden] {
-    display: none;
-}
-
-.now-playing-channel-label {
-    overflow: hidden;
-    color: var(--highlight-color);
-    font-size: clamp(10px, 0.6vw, 12px);
-    line-height: 1.2;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    opacity: 0.68;
-}
-
-.now-playing-channel-track {
-    height: 5px;
-    overflow: hidden;
-    background: rgba(255, 255, 255, 0.12);
-}
-
-.now-playing-channel-fill {
-    display: block;
-    width: 100%;
-    height: 100%;
-    background: var(--bus-active-color);
-    transform: scaleX(0);
-    transform-origin: left center;
-    transition: transform 0.08s linear;
-}
-
-.now-playing-channel[data-active="true"] .now-playing-channel-label {
-    color: var(--bus-active-color);
-    opacity: 1;
-}
-
-.now-playing-next-row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: baseline;
-    gap: 12px;
-    min-width: 0;
-    padding-top: 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.16);
-}
-
-.now-playing-next-row > span:first-child {
-    margin-bottom: 0;
-    white-space: nowrap;
-}
-
-#now-playing-next {
-    overflow: hidden;
-    color: var(--highlight-color);
-    font-size: clamp(11px, 0.72vw, 14px);
-    line-height: 1.35;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.now-playing-progress {
-    height: 3px;
-    overflow: hidden;
-    background: rgba(255, 255, 255, 0.12);
-}
-
-#now-playing-progress-fill {
-    display: block;
-    width: 100%;
-    height: 100%;
-    background: var(--bus-active-color);
-    transform: scaleX(0);
-    transform-origin: left center;
-    transition: transform 0.08s linear;
-}
-
-#visual-zone:fullscreen .now-playing[data-state="playing"] #now-playing-detail,
-#visual-zone:-webkit-full-screen .now-playing[data-state="playing"] #now-playing-detail,
-#visual-zone.pseudo-fullscreen .now-playing[data-state="playing"] #now-playing-detail,
-#visual-zone:fullscreen .now-playing[data-state="paused"] #now-playing-detail,
-#visual-zone:-webkit-full-screen .now-playing[data-state="paused"] #now-playing-detail,
-#visual-zone.pseudo-fullscreen .now-playing[data-state="paused"] #now-playing-detail {
-    display: none;
-}
-
-#visual-zone.user-inactive .now-playing {
-    opacity: 0;
-    transform: translateY(8px);
-}
-
-#fs-ui-bar:focus-within {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-.now-playing[data-state="idle"] {
-    border-left-color: var(--panel-text);
-    opacity: 0.88;
-}
-
-.now-playing[data-state="idle"] .now-playing-rail {
-    color: var(--panel-text);
-}
-
-.now-playing[data-state="loading"] .now-playing-led {
-    animation: status-pulse 0.8s steps(2, start) infinite;
-}
-
-.now-playing[data-state="playing"] .now-playing-led {
-    animation: status-pulse 1.6s ease-in-out infinite;
-}
-
-.now-playing[data-state="paused"] {
-    border-left-color: var(--panel-text);
-}
-
-.now-playing[data-state="paused"] .now-playing-rail {
-    color: var(--panel-text);
-}
-
-.now-playing[data-state="paused"] .now-playing-led {
-    box-shadow: none;
-}
-
-.now-playing[data-state="error"] {
-    border-color: var(--status-error);
-}
-
-.now-playing[data-state="error"] .now-playing-rail,
-.now-playing[data-state="error"] #now-playing-detail {
-    color: var(--status-error);
-}
-
-.load-error-card {
-    border-color: var(--status-error);
-}
-
-.load-error-card p {
-    overflow-wrap: anywhere;
-}
-
-@keyframes status-pulse {
-    50% { opacity: 0.35; }
-}
-
-#visual-zone:fullscreen .now-playing,
-#visual-zone:-webkit-full-screen .now-playing,
-#visual-zone.pseudo-fullscreen .now-playing {
-    bottom: 82px;
-}
-
-/* Transient controls clear after inactivity; the brand logo always remains visible. */
-#visual-zone.user-inactive #chip-hud.collapsed,
-#visual-zone.user-inactive .now-playing {
-    opacity: 0;
-    pointer-events: none;
-}
-
-/* --- Intermediate desktops: transport never forces horizontal overflow --- */
 @media (min-width: 801px) and (max-width: 1200px) {
     #ui-zone {
         grid-template-columns: minmax(250px, 38%) minmax(0, 1fr);
@@ -2751,58 +2995,6 @@ body.theme-atari .now-playing-next-row > span:first-child {
     }
 }
 
-/* --- Widescreen / high-resolution command deck --- */
-@media (min-width: 1800px) and (min-height: 900px) {
-    body.theme-c64 { --font-size-base: clamp(11px, 0.65vw, 15px); }
-    body.theme-amiga { --font-size-base: clamp(20px, 1vw, 26px); }
-    body.theme-atari { --font-size-base: clamp(20px, 0.9vw, 24px); }
-
-    #demo-container {
-        grid-template-rows: minmax(260px, 1.15fr) auto minmax(360px, 1fr) clamp(80px, 8dvh, 120px);
-    }
-
-    #ui-zone {
-        grid-template-columns: minmax(340px, 28%) minmax(0, 1fr);
-        padding: 24px;
-        gap: 24px;
-    }
-
-    #playback-bar {
-        padding: 16px 24px;
-        gap: 28px;
-    }
-
-    #playback-bar .controls {
-        flex-basis: 500px;
-    }
-
-    body.theme-c64 .controls button {
-        font-size: clamp(11px, 0.55vw, 14px) !important;
-    }
-
-    .now-playing {
-        left: 32px;
-        bottom: 24px;
-    }
-
-    #brand-logo {
-        top: 22px;
-        left: 28px;
-        max-width: 330px;
-        padding: 7px 12px 7px 9px;
-    }
-
-    .brand-emblem {
-        width: 38px;
-        height: 38px;
-    }
-
-    .brand-main {
-        font-size: clamp(13px, min(1.15vw, 2.2vh), 18px);
-    }
-}
-
-/* --- Low-height desktop and laptop displays --- */
 @media (min-width: 1001px) and (max-height: 760px) {
     body, html { overflow: auto; }
 
@@ -2840,54 +3032,295 @@ body.theme-atari .now-playing-next-row > span:first-child {
     }
 }
 
-/* --- Mobile portrait and narrow screens --- */
-@media (max-width: 800px) {
-    #playback-bar {
-        position: relative !important;
-        padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+@media (min-width: 1800px) and (min-height: 900px) {
+    :root {
+        --font-size-xs: clamp(9px, 0.5vw, 11px);
+        --font-size-sm: clamp(10px, 0.58vw, 13px);
+        --font-size-base: clamp(11px, 0.65vw, 15px);
+        --font-size-title: clamp(13px, 0.78vw, 17px);
+        --font-size-grid: clamp(9px, 0.52vw, 11px);
     }
 
-    .controls button,
+    body.theme-amiga,
+    body.theme-atari {
+        --font-size-xs: clamp(14px, 0.78vw, 18px);
+        --font-size-sm: clamp(16px, 0.88vw, 21px);
+        --font-size-base: clamp(20px, 1vw, 25px);
+        --font-size-title: clamp(24px, 1.25vw, 31px);
+        --font-size-grid: clamp(16px, 0.85vw, 20px);
+    }
+
+    #demo-container {
+        grid-template-rows: minmax(260px, 1.15fr) auto minmax(360px, 1fr) clamp(80px, 8dvh, 120px);
+    }
+
+    #ui-zone {
+        grid-template-columns: minmax(340px, 28%) minmax(0, 1fr);
+        padding: 24px;
+        gap: 24px;
+    }
+
+    #playback-bar {
+        padding: 16px 24px;
+        gap: 28px;
+    }
+
+    #playback-bar .controls {
+        flex-basis: 500px;
+    }
+
+    .now-playing {
+        left: 32px;
+        bottom: 24px;
+    }
+
+    #brand-logo {
+        top: 22px;
+        left: 28px;
+        max-width: 330px;
+        padding: 7px 12px 7px 9px;
+    }
+
+    .brand-emblem {
+        width: 38px;
+        height: 38px;
+    }
+
+    .brand-main {
+        font-size: clamp(13px, min(1.15vw, 2.2vh), 18px);
+    }
+}
+
+/* =========================================
+   13. MOBILE & TABLET RESPONSIVE DESIGN (KONSOLIDIERT)
+   ========================================= */
+@media (max-width: 800px) {
+    :root {
+        --font-size-xs: 10px;
+        --font-size-sm: 11px;
+        --font-size-base: 12px;
+        --font-size-title: 13px;
+        --font-size-grid: 10px;
+    }
+
+    body.theme-amiga,
+    body.theme-atari {
+        --font-size-xs: 14px;
+        --font-size-sm: 16px;
+        --font-size-base: 20px;
+        --font-size-title: 24px;
+        --font-size-grid: 15px;
+    }
+
+    body, html {
+        overflow: visible !important;
+        height: auto;
+        min-height: 100dvh;
+    }
+
+    #demo-container {
+        display: flex;
+        flex-direction: column;
+        height: auto;
+        min-height: 100dvh;
+        overflow: visible;
+        padding-left: env(safe-area-inset-left, 0px);
+        padding-right: env(safe-area-inset-right, 0px);
+    }
+
+    #visual-zone {
+        --stage-safe-top: env(safe-area-inset-top, 0px);
+        --stage-safe-right: env(safe-area-inset-right, 0px);
+        --stage-safe-left: env(safe-area-inset-left, 0px);
+        height: clamp(200px, 32dvh, 300px);
+        min-height: 180px;
+    }
+
+    #demo-container > #visual-zone:not(.pseudo-fullscreen):not(:fullscreen):not(:-webkit-full-screen) {
+        margin-top: var(--stage-safe-top);
+    }
+
+    #visual-zone.lab-mode-expanded {
+        z-index: 101;
+    }
+
+    /* Kompakter Safe-Area Logo/HUD Versatz im Vollbild */
+    #visual-zone:fullscreen #brand-logo,
+    #visual-zone:-webkit-full-screen #brand-logo,
+    #visual-zone.pseudo-fullscreen #brand-logo {
+        top: calc(12px + var(--stage-safe-top));
+        left: calc(12px + var(--stage-safe-left));
+    }
+
+    #visual-zone:fullscreen #chip-hud,
+    #visual-zone:-webkit-full-screen #chip-hud,
+    #visual-zone.pseudo-fullscreen #chip-hud {
+        top: calc(10px + var(--stage-safe-top));
+        right: calc(10px + var(--stage-safe-right));
+    }
+
+    #brand-logo {
+        top: 12px;
+        left: 12px;
+        gap: 7px;
+        padding: 5px 8px 5px 6px;
+        max-width: min(215px, calc(100vw - 24px));
+    }
+    .brand-emblem { width: 26px; height: 26px; }
+    .brand-lockup { gap: 4px; }
+    .brand-main { font-size: clamp(10px, 3vw, 12px); letter-spacing: 1px; }
+    .brand-sub { font-size: 6.5px; letter-spacing: 2.5px; }
+    .brand-raster-bar { min-width: 10px; height: 6px; }
+    .brand-dj-badge { font-size: 5.5px; padding: 2px 3px; }
+
+    #chip-hud {
+        width: 94%;
+        top: 10px;
+        right: 3%;
+        padding: 8px;
+        z-index: 110;
+    }
+    #chip-hud.collapsed { width: auto; right: 10px; }
+
+    #hud-body {
+        max-height: 35vh;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    .atari-analyzer-grid { grid-template-columns: 1fr; gap: 5px; }
+    .hud-row label { width: 55px; }
+    .hud-channel { margin-bottom: 5px; padding-bottom: 5px; }
+
+    /* Kompakte, sticky Mobile Playback Bar */
+    #playback-bar {
+        position: sticky;
+        top: env(safe-area-inset-top, 0px);
+        z-index: 40;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(92px, 0.34fr);
+        align-items: center;
+        gap: 6px 10px;
+        padding: 8px 10px;
+        width: 100%;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.8);
+    }
+
+    #playback-bar .controls {
+        display: flex;
+        grid-column: 1 / -1;
+        flex: none;
+        width: 100%;
+        gap: 6px;
+        margin: 0;
+    }
+
+    #playback-bar .controls button {
+        min-height: 44px;
+        min-width: 0;
+        padding: 6px 2px;
+        font-size: clamp(8px, 2.3vw, 10px);
+        letter-spacing: -0.02em;
+        overflow: hidden;
+        text-overflow: clip;
+    }
+
+    body.theme-amiga #playback-bar .controls button,
+    body.theme-atari #playback-bar .controls button {
+        font-size: clamp(14px, 4vw, 18px);
+        letter-spacing: 0.02em;
+    }
+
+    #playback-bar #btn-prev,
+    #playback-bar #btn-next,
+    #playback-bar #btn-eco { flex: 1 1 0%; }
+    #playback-bar #btn-play { flex: 1.7 1 0%; }
+
+    #playback-bar .timeline-control {
+        grid-column: 1;
+        width: 100%;
+        gap: 6px;
+    }
+
+    #playback-bar .volume-control {
+        grid-column: 2;
+        width: 100%;
+        gap: 5px;
+    }
+
+    #subsong-display {
+        margin-right: 0;
+        letter-spacing: 0;
+    }
+
+    /* 44px Touch-Target für Range-Slider mit sauber zentriertem Fader */
+    input[type="range"] {
+        width: 100%;
+        min-width: 0;
+        height: 44px;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+        width: 18px;
+        height: 26px;
+        margin-top: -9px;
+    }
+
+    input[type="range"]::-moz-range-thumb {
+        width: 18px;
+        height: 26px;
+    }
+
     .tab-btn,
     .core-control select,
+    .breadcrumb-button,
+    #track-search,
+    #btn-clear-track-search,
     #btn-toggle-archive,
     #btn-hud-info,
     #btn-hud-crossfeed,
     #btn-hud-toggle,
     #btn-eco-off,
     .fs-controls button,
-    #btn-fullscreen {
+    #btn-fullscreen,
+    .silicon-guide > summary {
         min-height: 44px;
     }
 
-    .tab-btn { padding: 10px 4px; }
-    .core-control select { padding-top: 8px; padding-bottom: 8px; }
-
-    input[type="range"] {
-        height: 44px;
-        background: transparent;
-        border: 0;
-        box-shadow: none;
+    #ui-zone {
+        display: flex;
+        flex-direction: column;
+        height: auto;
+        overflow: visible;
+        padding: 10px;
     }
 
-    input[type="range"]::-webkit-slider-runnable-track {
-        height: 8px;
-        background: var(--screen-bg);
-        border-top: 2px solid var(--chassis-dark);
-        border-bottom: 1px solid var(--chassis-light);
-        box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.9);
+    #player-panel, #museum-panel {
+        flex: none;
+        width: 100%;
     }
 
-    input[type="range"]::-webkit-slider-thumb {
-        margin-top: -13px;
+    .system-tabs { gap: 6px; margin-bottom: 10px; }
+    .system-tabs .tab-btn { padding: 6px 2px; }
+    .core-control { margin-bottom: 8px; }
+
+    .core-control select {
+        padding: 6px 30px 6px 8px;
+        background-position: right 7px center;
     }
 
-    input[type="range"]::-moz-range-track {
-        height: 8px;
-        background: var(--screen-bg);
-        border-top: 2px solid var(--chassis-dark);
-        border-bottom: 1px solid var(--chassis-light);
-        box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.9);
+    #library-controls { padding: 8px; }
+    .library-status-row { align-items: flex-start; gap: 6px; }
+
+    #tracklist-breadcrumb,
+    #tracklist-count,
+    .library-search-row > label {
+        font-size: var(--font-size-sm);
+    }
+
+    #track-search {
+        padding: 9px;
+        font-size: 16px; /* Verhindert iOS Auto-Zoom */
     }
 
     #tracklist {
@@ -2898,1102 +3331,107 @@ body.theme-atari .now-playing-next-row > span:first-child {
         display: flex;
         align-items: center;
         min-height: 44px;
+        padding: 10px 12px;
+        margin-bottom: 2px;
         overflow: visible;
         overflow-wrap: anywhere;
         text-overflow: clip;
         white-space: normal;
-    }
-
-    body.theme-c64 #tracklist li {
-        font-size: 12px !important;
-        line-height: 1.5;
+        line-height: 1.35;
     }
 
     body.theme-amiga #tracklist li,
     body.theme-atari #tracklist li {
-        font-size: 20px !important;
+        font-size: clamp(22px, 5.8vw, 26px);
         line-height: 1.25;
     }
 
-    .controls button,
-    body.theme-c64 #playback-bar .controls button,
-    body.theme-amiga #playback-bar .controls button,
-    body.theme-atari #playback-bar .controls button {
-        font-size: 12px !important;
-        letter-spacing: 0 !important;
-    }
+    .track-result-path { font-size: 0.78em; }
+    .museum-content { overflow-y: visible; }
+    .museum-content .terminal-grid { grid-template-columns: minmax(72px, auto) minmax(0, 1fr); }
 
-    .now-playing {
-        left: 12px;
-        right: 12px;
-        bottom: 12px;
-        width: auto;
-        max-width: none;
-        gap: 9px;
-        padding: 10px;
-    }
+    .silicon-chassis { height: 180px; }
+    .silicon-toolbar-status { order: 3; flex-basis: 100%; min-height: 24px; }
+    .silicon-readout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-    .now-playing-rail {
-        gap: 6px;
-        padding-right: 9px;
-        font-size: 12px;
+    #scroller-zone {
+        flex: none;
+        grid-template-rows: 44px 64px;
+        height: calc(108px + env(safe-area-inset-bottom));
+        min-height: calc(108px + env(safe-area-inset-bottom));
+        padding-bottom: env(safe-area-inset-bottom);
+        box-sizing: border-box;
     }
-
-    #now-playing-system,
-    #now-playing-detail {
-        font-size: 12px;
-    }
-
-    #now-playing-title {
-        font-size: 14px;
-    }
-
-    #visual-zone:fullscreen .now-playing,
-    #visual-zone:-webkit-full-screen .now-playing,
-    #visual-zone.pseudo-fullscreen .now-playing {
-        bottom: 76px;
-        width: auto;
-        max-width: none;
-    }
-
-    #visual-zone:fullscreen .now-playing-expanded,
-    #visual-zone:-webkit-full-screen .now-playing-expanded,
-    #visual-zone.pseudo-fullscreen .now-playing-expanded {
-        gap: 10px;
-        padding-top: 10px;
-    }
-
-    .now-playing-metadata {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px 12px;
-    }
-
-    .now-playing-meta-composer,
-    .now-playing-meta-format,
-    .now-playing-meta-hardware {
-        grid-column: span 2;
-    }
-
-    .now-playing-metadata dt,
-    .now-playing-next-row > span:first-child,
-    .now-playing-channel-label {
-        font-size: 12px;
-    }
-
-    .now-playing-metadata dd,
-    #now-playing-next {
-        font-size: 14px;
-    }
-
-    .now-playing-channels {
-        gap: 8px;
-    }
-
-    #now-playing-next {
-        overflow: visible;
-        overflow-wrap: anywhere;
-        text-overflow: clip;
-        white-space: normal;
-    }
+    #scroller-zone::after { inset: 44px 0 0; }
+    .scroller-toolbar { padding: 0 4px; }
+    .scroller-identity { display: none; }
+    .scroller-actions { margin-left: auto; gap: 0; }
+    .scroller-actions button { min-width: 44px; min-height: 44px; padding: 0 6px; }
+    #scroller-toggle { margin-left: 2px; }
 }
 
-@media (max-width: 480px) {
-    #playback-bar .controls {
-        display: grid !important;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+@media (max-width: 720px) {
+    .silicon-chassis:has(.paula-visualization) { height: 380px; }
+    .silicon-chassis:has(.paula-visualization) .silicon-die-wrapper {
+        justify-content: flex-start;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+    .silicon-chassis:has(.paula-visualization) .paula-visualization {
+        width: 800px;
+        min-width: 800px;
+        height: 355px;
+        max-height: none;
     }
 
-    #playback-bar #btn-prev,
-    #playback-bar #btn-next,
-    #playback-bar #btn-eco,
-    #playback-bar #btn-play {
-        flex: none !important;
+    .silicon-chassis:has(.ym-visualization) { height: 520px; }
+    .silicon-chassis:has(.ym-visualization) .silicon-die-wrapper {
+        justify-content: flex-start;
+        overflow-x: auto;
+        overflow-y: hidden;
     }
-
-    .now-playing {
-        grid-template-columns: minmax(0, 1fr);
-        gap: 5px;
-    }
-
-    .now-playing-rail {
-        min-height: 0;
-        padding-right: 0;
-        border-right: 0;
-        font-size: 12px;
-    }
-
-    #now-playing-detail { display: none; }
-    #now-playing-system { font-size: 12px; }
-    #now-playing-title { font-size: 13px; }
-}
-
-/* --- Mobile landscape: compact two-column workbench, vertical page flow --- */
-@media (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) and (orientation: landscape) {
-    body, html {
-        height: auto;
-        min-height: 100dvh;
-        overflow: auto !important;
-    }
-
-    #demo-container {
-        display: flex;
-        flex-direction: column;
-        height: auto;
-        min-height: 100dvh;
-        overflow: visible;
-    }
-
-    #visual-zone {
-        height: 180px;
-        min-height: 160px;
-    }
-
-    /* Kompaktes Logo im Mobile-Querformat */
-    #brand-logo {
-        top: 10px;
-        left: 12px;
-        gap: 7px;
-        padding: 4px 8px 4px 6px;
-        max-width: 210px;
-    }
-
-    .brand-emblem {
-        width: 24px;
-        height: 24px;
-    }
-
-    .brand-main {
-        font-size: 10.5px;
-    }
-
-    .brand-sub {
-        font-size: 6px;
-        letter-spacing: 2px;
-    }
-
-    #playback-bar {
-        position: relative !important;
-        display: grid !important;
-        grid-template-columns: minmax(0, 1fr) 160px;
-        align-items: center !important;
-        gap: 8px 12px !important;
-        padding: 8px 12px !important;
-    }
-
-    #playback-bar .controls {
-        display: flex !important;
-        grid-column: 1 / -1;
-        width: 100% !important;
-        margin: 0 !important;
-    }
-
-    #playback-bar .controls button {
-        flex: 1 1 0 !important;
-        min-width: 0 !important;
-        min-height: 44px;
-        font-size: 12px !important;
-    }
-
-    #playback-bar .timeline-control {
-        grid-column: 1;
-        width: 100% !important;
-        margin: 0 !important;
-    }
-
-    #playback-bar .volume-control {
-        grid-column: 2;
-        width: 100% !important;
-        margin: 0 !important;
-    }
-
-    input[type="range"] {
-        height: 44px;
-        background: transparent;
-        border: 0;
-        box-shadow: none;
-    }
-
-    input[type="range"]::-webkit-slider-runnable-track {
-        height: 8px;
-        background: var(--screen-bg);
-        border-top: 2px solid var(--chassis-dark);
-        border-bottom: 1px solid var(--chassis-light);
-    }
-
-    input[type="range"]::-webkit-slider-thumb { margin-top: -13px; }
-
-    input[type="range"]::-moz-range-track {
-        height: 8px;
-        background: var(--screen-bg);
-        border-top: 2px solid var(--chassis-dark);
-        border-bottom: 1px solid var(--chassis-light);
-    }
-
-    .tab-btn,
-    .core-control select,
-    #btn-fullscreen,
-    #btn-hud-info,
-    #btn-hud-crossfeed,
-    #btn-hud-toggle,
-    .fs-controls button {
-        min-height: 44px;
-    }
-
-    #ui-zone {
-        display: grid;
-        grid-template-columns: minmax(250px, 42%) minmax(0, 1fr);
-        height: auto;
-        overflow: visible;
-        padding: 12px;
-        gap: 12px;
-    }
-
-    #player-panel,
-    #museum-panel {
-        width: auto;
-        overflow: visible;
-    }
-
-    #tracklist { max-height: 280px; }
-
-    .silicon-chassis,
-    .silicon-chassis.sid-chassis,
-    .silicon-chassis:has(.paula-visualization),
-    .silicon-chassis:has(.ym-visualization) {
-        height: 230px;
-    }
-
-    .silicon-chassis:has(.paula-visualization) .paula-visualization,
     .silicon-chassis:has(.ym-visualization) .silicon-die-wrapper svg.ym-visualization {
-        width: 100%;
-        min-width: 0;
-        height: 100%;
+        width: 1240px;
+        min-width: 1240px;
+        height: 480px;
+        max-height: none;
     }
 
-    .now-playing {
-        right: auto;
-        bottom: 12px;
-        width: min(520px, calc(100% - 150px));
-        max-width: calc(100% - 150px);
-    }
-}
-
-@media (max-height: 600px) and (orientation: landscape) {
-    #visual-zone:fullscreen .now-playing,
-    #visual-zone:-webkit-full-screen .now-playing,
-    #visual-zone.pseudo-fullscreen .now-playing {
-        bottom: 68px;
-        width: min(680px, calc(100% - 24px));
-        max-width: calc(100% - 24px);
-        padding: 10px;
-    }
-
-    #visual-zone:fullscreen .now-playing-expanded,
-    #visual-zone:-webkit-full-screen .now-playing-expanded,
-    #visual-zone.pseudo-fullscreen .now-playing-expanded {
-        gap: 8px;
-        padding-top: 8px;
-    }
-
-    #visual-zone:fullscreen #now-playing-detail,
-    #visual-zone:-webkit-full-screen #now-playing-detail,
-    #visual-zone.pseudo-fullscreen #now-playing-detail {
-        display: none;
-    }
-
-    .now-playing-metadata {
-        gap: 8px 12px;
-    }
-
-    .now-playing-next-row {
-        padding-top: 8px;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-        scroll-behavior: auto !important;
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-    }
-}
-
-/* =========================================
-   18. PHASE 2: SEARCHABLE HARDWARE ARCHIVE
-   ========================================= */
-#library-controls {
-    flex: none;
-    margin-bottom: 10px;
-    padding: 8px 10px;
-    color: var(--panel-text);
-    background: rgba(0, 0, 0, 0.32);
-    border-top: 2px solid var(--chassis-dark);
-    border-left: 2px solid var(--chassis-dark);
-    border-bottom: 1px solid var(--chassis-light);
-    border-right: 1px solid var(--chassis-light);
-    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.65);
-}
-
-.library-status-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    min-width: 0;
-    margin-bottom: 7px;
-}
-
-#tracklist-breadcrumb {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    min-width: 0;
-    gap: 2px;
-    font-size: clamp(9px, 0.55vw, 11px);
-    line-height: 1.3;
-}
-
-.breadcrumb-button {
-    min-width: 0;
-    min-height: 24px;
-    padding: 2px 4px;
-    overflow-wrap: anywhere;
-    color: var(--panel-text);
-    background: transparent;
-    border: 0;
-    font-family: inherit;
-    font-size: inherit;
-    text-align: left;
-    cursor: pointer;
-}
-
-.breadcrumb-button:hover,
-.breadcrumb-button[aria-current="location"],
-.breadcrumb-current {
-    color: var(--highlight-color);
-}
-
-.breadcrumb-current {
-    padding: 2px 4px;
-}
-
-#tracklist-count {
-    flex: 0 0 auto;
-    color: var(--highlight-color);
-    font-size: clamp(9px, 0.5vw, 10px);
-    white-space: nowrap;
-}
-
-.library-search-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-}
-
-.library-search-row > label {
-    flex: 0 0 auto;
-    font-size: clamp(9px, 0.55vw, 11px);
-    font-weight: bold;
-}
-
-#track-search {
-    flex: 1 1 auto;
-    min-width: 0;
-    min-height: 34px;
-    padding: 6px 9px;
-    color: var(--highlight-color);
-    background: var(--screen-bg);
-    border: 2px solid var(--chassis-dark);
-    border-bottom: 1px solid var(--chassis-light);
-    border-radius: 0;
-    outline: none;
-    box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.9);
-    font-family: inherit;
-    font-size: clamp(10px, 0.65vw, 13px);
-    appearance: none;
-}
-
-#track-search::placeholder {
-    color: var(--panel-text);
-    opacity: 0.65;
-}
-
-#track-search::-webkit-search-cancel-button {
-    appearance: none;
-}
-
-#btn-clear-track-search {
-    flex: 0 0 auto;
-    min-height: 34px;
-    padding: 5px 8px;
-    color: var(--highlight-color);
-    background: var(--bg-color);
-    border-top: 1px solid var(--chassis-light);
-    border-left: 1px solid var(--chassis-light);
-    border-bottom: 2px solid var(--chassis-dark);
-    border-right: 2px solid var(--chassis-dark);
-    font-family: inherit;
-    font-size: 11px;
-    cursor: pointer;
-}
-
-#btn-clear-track-search:active {
-    transform: translateY(1px);
-    border-bottom-width: 1px;
-    border-right-width: 1px;
-}
-
-#tracklist li.tracklist-search-result {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 4px;
-    white-space: normal;
-}
-
-.track-result-title,
-.track-result-path {
-    display: block;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.track-result-path {
-    color: var(--panel-text);
-    font-size: 0.72em;
-    opacity: 0.78;
-}
-
-#tracklist li.selected-track .track-result-path {
-    color: currentColor;
-    opacity: 0.82;
-}
-
-#tracklist li.tracklist-empty {
-    padding: 22px 12px;
-    color: var(--panel-text);
-    text-align: center;
-    white-space: normal;
-    cursor: default;
-}
-
-#tracklist li.tracklist-empty:hover {
-    color: var(--panel-text);
-    background: transparent;
-}
-
-@media (min-width: 1800px) and (min-height: 900px) {
-    #library-controls { padding: 10px 12px; }
-    .breadcrumb-button { min-height: 28px; }
-    #track-search { min-height: 40px; }
-}
-
-@media (max-width: 800px) {
-    .breadcrumb-button,
-    #track-search,
-    #btn-clear-track-search {
-        min-height: 44px;
-    }
-
-    #library-controls { padding: 8px; }
-
-    .library-status-row {
-        align-items: flex-start;
-        gap: 6px;
-    }
-
-    #tracklist-breadcrumb,
-    #tracklist-count,
-    .library-search-row > label {
-        font-size: 12px;
-    }
-
-    #track-search {
-        padding: 9px;
-        font-size: 16px;
-    }
-
-    #btn-clear-track-search {
-        padding: 8px 10px;
-        font-size: 12px;
-    }
-
-    .track-result-path { font-size: 12px; }
-}
-
-@media (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) and (orientation: landscape) {
-    .breadcrumb-button,
-    #track-search,
-    #btn-clear-track-search {
-        min-height: 44px;
-    }
-
-    #track-search { font-size: 16px; }
-    #tracklist-breadcrumb,
-    #tracklist-count,
-    .library-search-row > label { font-size: 12px; }
-}
-
-/* =========================================
-   19. PHASE 3: READABLE LIVING SILICON LAB
-   ========================================= */
-.living-silicon-toolbar {
-    flex-wrap: wrap;
-    gap: 8px 12px;
-}
-
-.living-silicon-toolbar .museum-toolbar-title {
-    flex: 1 1 260px;
-    min-width: 0;
-    line-height: 1.55;
-}
-
-.silicon-toolbar-status {
-    display: inline-flex;
-    flex: 0 0 auto;
-    align-items: center;
-    gap: 7px;
-    color: var(--panel-text);
-    font-size: 10px;
-    font-weight: bold;
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-}
-
-.silicon-status-led {
-    width: 8px;
-    height: 8px;
-    flex: 0 0 8px;
-    background: currentColor;
-    border: 1px solid var(--chassis-light);
-    box-shadow: 0 0 7px currentColor;
-}
-
-#silicon-playback-status[data-state="playing"] {
-    color: var(--bus-active-color);
-}
-
-#silicon-playback-status[data-state="loading"] {
-    color: var(--highlight-color);
-}
-
-#silicon-playback-status[data-state="error"] {
-    color: var(--status-error);
-}
-
-#living-silicon-container .silicon-die-wrapper {
-    transition: opacity var(--state-transition);
-}
-
-#living-silicon-container[data-playback-state="paused"] .silicon-die-wrapper {
-    opacity: 0.68;
-}
-
-#living-silicon-container[data-playback-state="error"] .silicon-chassis {
-    border-color: var(--status-error);
-}
-
-.silicon-guide {
-    margin-top: 8px;
-    color: var(--text-color);
-    background: rgba(0, 0, 0, 0.32);
-    border-top: 2px solid var(--chassis-dark);
-    border-left: 2px solid var(--chassis-dark);
-    border-bottom: 1px solid var(--chassis-light);
-    border-right: 1px solid var(--chassis-light);
-    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.65);
-}
-
-.silicon-guide > summary {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-height: 36px;
-    padding: 8px 12px;
-    color: var(--highlight-color);
-    font-size: 10px;
-    font-weight: bold;
-    line-height: 1.5;
-    cursor: pointer;
-    list-style: none;
-}
-
-.silicon-guide > summary::-webkit-details-marker {
-    display: none;
-}
-
-.silicon-guide > summary > span {
-    margin-left: auto;
-    color: var(--panel-text);
-    font-size: 0.85em;
-    white-space: nowrap;
-}
-
-.silicon-guide[open] > summary {
-    border-bottom: 1px dashed var(--chassis-light);
-}
-
-.silicon-guide-content {
-    padding: 14px 12px 12px;
-}
-
-.silicon-signal-flow {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    margin: 0 0 12px;
-    padding: 0;
-    list-style: none;
-}
-
-.silicon-signal-flow li {
-    display: flex;
-    align-items: center;
-    padding: 6px 8px;
-    color: var(--highlight-color);
-    background: var(--screen-bg);
-    border: 1px solid var(--chassis-dark);
-    font-size: 9px;
-    line-height: 1.4;
-    white-space: nowrap;
-}
-
-.silicon-signal-flow li:not(:last-child)::after {
-    content: '>';
-    margin-left: 12px;
-    color: var(--panel-text);
-}
-
-.silicon-guide-copy {
-    max-width: 72ch;
-    margin: 0 0 12px;
-    color: var(--text-color);
-    font-family: 'VT323', monospace;
-    font-size: 21px;
-    line-height: 1.4;
-}
-
-.silicon-readout {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 1px;
-    margin: 0;
-    background: var(--chassis-dark);
-    border: 1px solid var(--chassis-dark);
-}
-
-.silicon-readout > div {
-    min-width: 0;
-    padding: 9px 10px;
-    background: var(--screen-bg);
-}
-
-.silicon-readout dt {
-    margin-bottom: 6px;
-    color: var(--panel-text);
-    font-size: 8px;
-    line-height: 1.4;
-}
-
-.silicon-readout dd {
-    margin: 0;
-    overflow-wrap: anywhere;
-    color: var(--highlight-color);
-    font-size: 10px;
-    font-variant-numeric: tabular-nums;
-    line-height: 1.5;
-}
-
-.silicon-guide-note {
-    margin: 10px 0 0;
-    color: var(--panel-text);
-    font-family: 'VT323', monospace;
-    font-size: 18px;
-    line-height: 1.35;
-}
-
-/* Museum copy stays terminal-styled, but long-form text is now genuinely readable. */
-.museum-content .terminal-card {
-    padding: clamp(12px, 1.2vw, 20px);
-}
-
-.museum-content .terminal-card-header {
-    line-height: 1.6;
-}
-
-.museum-content h3 {
-    margin: 0 0 14px;
-    overflow-wrap: anywhere;
-    color: var(--highlight-color);
-    font-size: clamp(11px, 0.8vw, 15px);
-    line-height: 1.65;
-}
-
-.museum-content p {
-    max-width: 72ch;
-    margin-bottom: 14px;
-    font-family: 'VT323', monospace;
-    font-size: clamp(21px, 1.25vw, 25px);
-    line-height: 1.45;
-}
-
-.museum-content p:last-child {
-    margin-bottom: 0;
-}
-
-.museum-content strong {
-    color: var(--highlight-color);
-    font-weight: bold;
-}
-
-.museum-content code {
-    overflow-wrap: anywhere;
-    color: var(--highlight-color);
-    font-family: 'VT323', monospace;
-    font-size: 0.95em;
-}
-
-.museum-content a {
-    overflow-wrap: anywhere;
-    color: var(--highlight-color);
-    text-decoration: underline;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 4px;
-}
-
-.museum-content a:hover {
-    color: var(--text-color);
-    text-decoration-thickness: 2px;
-}
-
-.museum-content a:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 3px;
-}
-
-.museum-content .museum-sources {
-    margin-top: 18px;
-    padding-top: 12px;
-    border-top: 1px dashed var(--chassis-light);
-}
-
-.museum-content .terminal-grid {
-    font-size: clamp(8px, 0.55vw, 11px);
-}
-
-.museum-content .terminal-grid .val {
-    min-width: 0;
-    overflow-wrap: anywhere;
-    font-variant-numeric: tabular-nums;
-}
-
-@media (min-width: 801px) {
-    #living-silicon-container > .silicon-chassis {
-        height: clamp(170px, 20vh, 260px);
-    }
-
-    #museum-panel > .museum-toolbar {
-        flex-shrink: 0;
-    }
-
-    #living-silicon-container:has(.silicon-guide[open]) {
-        flex: 0 1 auto;
-        min-height: 0;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-    }
-
-    #living-silicon-container:has(.silicon-guide[open]) > .silicon-chassis {
-        display: none;
-    }
-
-    #museum-panel:has(.silicon-guide[open]) .museum-content {
-        flex: 1 0 48px;
-    }
-}
-
-@media (max-width: 800px) {
-    .silicon-toolbar-status {
-        order: 3;
-        flex-basis: 100%;
-        min-height: 24px;
-        font-size: 12px;
-    }
-
-    .silicon-guide > summary {
-        min-height: 44px;
-        font-size: 11px;
-    }
-
-    .silicon-readout {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .silicon-readout dt {
-        font-size: 9px;
-    }
-
-    .silicon-readout dd {
-        font-size: 11px;
-    }
-
-    .silicon-guide-copy {
-        font-size: 22px;
-    }
-
-    .museum-content .terminal-grid {
-        grid-template-columns: minmax(72px, auto) minmax(0, 1fr);
-        font-size: 10px;
-    }
-}
-
-@media (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) and (orientation: landscape) {
-    .silicon-guide > summary,
-    #btn-toggle-archive {
-        min-height: 44px;
-    }
-
-    .silicon-readout {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 720px) and (max-height: 600px) and (orientation: landscape) {
-    /* Preserve both SID instrument rows; a shorter chassis would overlap the guide. */
-    #living-silicon-container > .silicon-chassis.sid-chassis {
+    .silicon-chassis.sid-chassis {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: 180px 142px;
         height: 352px;
+        gap: 8px;
     }
+
+    .sid-activity {
+        width: min(100%, 260px);
+        height: 142px;
+        justify-self: center;
+        padding: 8px 0 0;
+        border-left: 0;
+        border-top: 1px solid #222222;
+    }
+
+    .sid-activity svg { max-height: 134px; }
 }
 
-
-/* =========================================
-   20. PHASE 4: DEMOSCENE STAGE CONTROL
-   ========================================= */
-html:has(#visual-zone.pseudo-fullscreen),
-body:has(#visual-zone.pseudo-fullscreen) {
-    overflow: hidden !important;
-}
-
-#stage-mode-status {
-    display: inline-flex;
-    flex: 0 0 auto;
-    align-items: center;
-    gap: 7px;
-    min-height: 32px;
-    padding: 6px 9px;
-    color: var(--highlight-color);
-    background: rgba(0, 0, 0, 0.82);
-    border: 1px solid var(--chassis-light);
-    font-family: var(--font-main);
-    font-size: 9px;
-    font-weight: bold;
-    letter-spacing: 0.7px;
-    line-height: 1.2;
-    white-space: nowrap;
-}
-
-.stage-mode-led {
-    width: 7px;
-    height: 7px;
-    flex: 0 0 7px;
-    background: currentColor;
-    box-shadow: 0 0 7px currentColor;
-}
-
-#stage-mode-status[data-mode="pure-audio"] {
-    color: var(--bus-active-color);
-}
-
-#stage-mode-status[data-mode="windowed"] {
-    color: var(--text-color);
-}
-
-#fs-ui-bar {
-    flex-wrap: wrap;
-    opacity: 0.82;
-}
-
-.fs-controls button,
-#btn-fullscreen {
-    min-height: 44px;
-}
-
-#fs-ui-bar:focus-within {
-    opacity: 1;
-}
-
-#fs-playback-controls,
-.fs-track-copy {
-    min-width: 0;
-}
-
-.fs-track-copy {
-    display: grid;
-    gap: 5px;
-    text-align: right;
-}
-
-#fs-playback-status {
-    color: var(--text-color);
-    font-family: var(--font-main);
-    font-size: 9px;
-    font-weight: bold;
-    letter-spacing: 0.8px;
-    line-height: 1.2;
-}
-
-#fs-playback-status[data-state="playing"] {
-    color: var(--bus-active-color);
-}
-
-#fs-playback-status[data-state="loading"] {
-    color: var(--highlight-color);
-}
-
-#fs-playback-status[data-state="error"] {
-    color: var(--status-error);
-}
-
-#visual-zone:fullscreen #fs-ui-bar,
-#visual-zone:-webkit-full-screen #fs-ui-bar,
-#visual-zone.pseudo-fullscreen #fs-ui-bar {
-    left: calc(15px + env(safe-area-inset-left));
-    right: calc(15px + env(safe-area-inset-right));
-    bottom: calc(15px + env(safe-area-inset-bottom));
-    justify-content: flex-end;
-    gap: 12px;
-}
-
-#visual-zone:fullscreen #stage-mode-status,
-#visual-zone:-webkit-full-screen #stage-mode-status,
-#visual-zone.pseudo-fullscreen #stage-mode-status {
-    margin-right: auto;
-}
-
-#visual-zone:fullscreen .fs-track-info,
-#visual-zone:-webkit-full-screen .fs-track-info,
-#visual-zone.pseudo-fullscreen .fs-track-info {
-    display: block;
-    max-width: min(34vw, 420px);
-}
-
-#btn-hud-info:focus-visible,
-#btn-hud-crossfeed:focus-visible,
-#btn-hud-toggle:focus-visible,
-#btn-eco-off:focus-visible,
-.fs-controls button:focus-visible,
-#btn-fullscreen:focus-visible {
-    outline: 2px solid var(--highlight-color);
-    outline-offset: 3px;
-}
-
-.eco-box {
-    box-sizing: border-box;
-    width: min(560px, calc(100% - 32px));
-    max-height: calc(100% - 32px);
-    padding: clamp(18px, 4vw, 34px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-}
-
-.eco-kicker,
-.eco-shortcut {
-    color: var(--text-color);
-    font-family: var(--font-main);
-    font-size: 10px;
-    letter-spacing: 1.2px;
-    line-height: 1.4;
-}
-
-.eco-box h2 {
-    margin: 0;
-    font-size: clamp(15px, 3vw, 24px);
-    line-height: 1.5;
-}
-
-.eco-now-playing {
-    display: grid;
-    width: 100%;
-    gap: 9px;
-    padding: 14px;
-    color: var(--highlight-color);
-    background: rgba(0, 0, 0, 0.42);
-    border-top: 1px solid var(--chassis-light);
-    border-bottom: 1px solid var(--chassis-dark);
-}
-
-#eco-playback-state {
-    justify-self: center;
-    color: var(--text-color);
-    font-size: 11px;
-    font-weight: bold;
-    letter-spacing: 1px;
-}
-
-#eco-playback-state[data-state="playing"] {
-    color: var(--bus-active-color);
-}
-
-#eco-playback-state[data-state="loading"] {
-    color: var(--highlight-color);
-}
-
-#eco-playback-state[data-state="error"] {
-    color: var(--status-error);
-}
-
-#eco-track-title {
-    overflow-wrap: anywhere;
-    font-size: clamp(13px, 2.5vw, 18px);
-    line-height: 1.5;
-}
-
-.eco-box p {
-    max-width: 48ch;
-    margin: 0;
-    line-height: 1.6;
-}
-
-.eco-box .eco-wake-lock {
-    color: var(--highlight-color);
-}
-
-#btn-eco-off {
-    flex: 0 0 auto;
-    min-width: 150px;
-    min-height: 44px;
-    margin-top: 8px;
-}
-
+/* Mobile Eco-Mode & Fullscreen Stage Dock */
 @media (max-width: 800px), (max-height: 600px) {
     body.eco-mode #visual-zone {
         height: 100dvh;
         min-height: 100dvh;
     }
 
-    #btn-eco-off {
-        min-height: 44px;
-    }
-
-    .eco-box {
-        gap: 8px;
-        padding: 14px;
-    }
-
     #eco-overlay {
         padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
-        box-sizing: border-box;
     }
 
     .eco-box {
         width: 100%;
         max-height: 100%;
+        gap: 8px;
+        padding: 14px;
     }
 
     #visual-zone:fullscreen #fs-ui-bar,
@@ -4038,278 +3476,136 @@ body:has(#visual-zone.pseudo-fullscreen) {
         justify-content: flex-end;
     }
 
-    #stage-mode-status {
-        min-height: 44px;
-        font-size: 10px;
-    }
-
-    #visual-zone:fullscreen .now-playing,
-    #visual-zone:-webkit-full-screen .now-playing,
-    #visual-zone.pseudo-fullscreen .now-playing {
-        bottom: calc(154px + env(safe-area-inset-bottom));
-    }
+    #stage-mode-status { min-height: 44px; }
 }
 
-@media (max-width: 480px) {
-    #visual-zone:fullscreen .now-playing,
-    #visual-zone:-webkit-full-screen .now-playing,
-    #visual-zone.pseudo-fullscreen .now-playing {
-        bottom: calc(242px + env(safe-area-inset-bottom));
-    }
-
-    .eco-box {
-        gap: 10px;
-        padding: 16px;
-    }
-
-    .eco-box p {
-        font-size: 12px;
-    }
-
-    .eco-now-playing {
-        padding: 10px;
-    }
-}
-
-@media (max-width: 480px) and (max-height: 720px) {
-    #visual-zone:fullscreen .now-playing,
-    #visual-zone:-webkit-full-screen .now-playing,
-    #visual-zone.pseudo-fullscreen .now-playing {
-        bottom: calc(200px + env(safe-area-inset-bottom));
-        gap: 6px;
-        padding: 8px;
-    }
-
-    #visual-zone:fullscreen .now-playing-rail,
-    #visual-zone:-webkit-full-screen .now-playing-rail,
-    #visual-zone.pseudo-fullscreen .now-playing-rail {
-        display: none;
-    }
-
-    #visual-zone:fullscreen .now-playing-expanded,
-    #visual-zone:-webkit-full-screen .now-playing-expanded,
-    #visual-zone.pseudo-fullscreen .now-playing-expanded {
-        gap: 6px;
-        padding-top: 6px;
-    }
-
-    .now-playing-metadata {
-        gap: 6px 8px;
-    }
-
-    .now-playing-meta-composer {
-        grid-column: 1;
-        grid-row: 1;
-    }
-
-    .now-playing-metadata > div:nth-child(2) {
-        grid-column: 2;
-        grid-row: 1;
-    }
-
-    .now-playing-metadata > div:nth-child(3) {
-        grid-column: 1;
-        grid-row: 2;
-    }
-
-    .now-playing-meta-format {
-        grid-column: 1 / span 2;
-        grid-row: 3;
-    }
-
-    .now-playing-metadata > div:nth-child(5) {
-        grid-column: 2;
-        grid-row: 2;
-    }
-
-    .now-playing-meta-hardware {
-        grid-column: 1 / span 2;
-        grid-row: 4;
-    }
-
-    .now-playing-metadata dd,
-    body.theme-amiga .now-playing-metadata dd,
-    body.theme-atari .now-playing-metadata dd,
-    #now-playing-next,
-    body.theme-amiga #now-playing-next,
-    body.theme-atari #now-playing-next {
-        font-size: 12px;
-        line-height: 1.25;
-    }
-
-    .now-playing-next-row {
-        gap: 8px;
-        padding-top: 6px;
-    }
-}
-
-
-/* =========================================
-   21. IPHONE STAGE & COMPACT MOBILE TRANSPORT
-   ========================================= */
-@media (max-width: 800px) {
-    #visual-zone {
-        --stage-safe-top: env(safe-area-inset-top, 0px);
-        --stage-safe-right: env(safe-area-inset-right, 0px);
-        --stage-safe-left: env(safe-area-inset-left, 0px);
-    }
-
-    /* Keep the complete windowed stage below the sensor housing. */
-    #demo-container {
-        padding-left: env(safe-area-inset-left, 0px);
-        padding-right: env(safe-area-inset-right, 0px);
-    }
-
-    #demo-container > #visual-zone:not(.pseudo-fullscreen):not(:fullscreen):not(:-webkit-full-screen) {
-        margin-top: var(--stage-safe-top);
-    }
-
-    /* One transport row, with timeline and volume sharing the second row. */
-    #playback-bar {
-        display: grid !important;
-        grid-template-columns: minmax(0, 1fr) minmax(88px, 0.32fr);
-        align-items: center !important;
-        gap: 6px 10px !important;
-        padding: 8px 10px !important;
-    }
-
-    #playback-bar .controls {
-        display: flex !important;
-        grid-column: 1 / -1;
-        gap: 4px !important;
-        margin: 0 !important;
-    }
-
-    #playback-bar .controls button {
-        min-height: 40px;
-        padding: 6px 0 !important;
-        font-size: clamp(6px, 2.05vw, 8px) !important;
-    }
-
-    #playback-bar #btn-prev,
-    #playback-bar #btn-next,
-    #playback-bar #btn-eco {
-        flex: 1 1 0 !important;
-    }
-
-    #playback-bar #btn-play {
-        flex: 1.6 1 0 !important;
-    }
-
-    body.theme-c64 #playback-bar .controls button {
-        font-size: clamp(6px, 2.05vw, 8px) !important;
-    }
-
-    body.theme-amiga #playback-bar .controls button,
-    body.theme-atari #playback-bar .controls button {
-        padding: 4px 0 !important;
-        font-size: clamp(11px, 3.6vw, 15px) !important;
-    }
-
-    #playback-bar .timeline-control {
-        grid-column: 1;
-        min-width: 0;
-        gap: 6px;
-        margin: 0 !important;
-    }
-
-    #playback-bar .volume-control {
-        grid-column: 2;
-        min-width: 0;
-        gap: 5px;
-        margin: 0 !important;
-    }
-
-    #playback-bar input[type="range"] {
-        width: 100%;
-        min-width: 0;
-        height: 32px;
-    }
-
-    #playback-bar input[type="range"]::-webkit-slider-thumb {
-        width: 16px;
-        height: 24px;
-        margin-top: -8px;
-    }
-
-    #playback-bar input[type="range"]::-moz-range-thumb {
-        width: 16px;
-        height: 24px;
-    }
-
-    #subsong-display {
-        margin-right: 0;
-        letter-spacing: 0;
-    }
-
-    .system-tabs {
-        gap: 6px;
-        margin-bottom: 10px;
-    }
-
-    .system-tabs .tab-btn {
-        min-height: 36px;
-        padding: 6px 2px;
-    }
-
-    .core-control {
-        margin-bottom: 8px;
-    }
-
-    .core-control select {
-        min-height: 36px;
-        padding: 6px 30px 6px 8px;
-        background-position: right 7px center;
-    }
-
-    /* Native and iOS pseudo fullscreen respect every device cutout. */
-    #visual-zone:fullscreen #brand-logo,
-    #visual-zone:-webkit-full-screen #brand-logo,
-    #visual-zone.pseudo-fullscreen #brand-logo {
-        top: calc(12px + var(--stage-safe-top));
-        left: calc(12px + var(--stage-safe-left));
-    }
-
-    #visual-zone:fullscreen #chip-hud,
-    #visual-zone:-webkit-full-screen #chip-hud,
-    #visual-zone.pseudo-fullscreen #chip-hud {
-        top: calc(10px + var(--stage-safe-top));
-        right: calc(10px + var(--stage-safe-right));
-    }
-}
-
-/* =========================================
-   22. MOBILE STICKY TRACK TRANSPORT
-   ========================================= */
-@media (max-width: 800px), (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) and (orientation: landscape) {
-    /* Sticky must follow the document scroll, not a landscape body scroller. */
+/* Mobile Landscape Workbench */
+@media (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) and (orientation: landscape) {
     body, html {
+        height: auto;
+        min-height: 100dvh;
         overflow: visible !important;
     }
 
-    #visual-zone.lab-mode-expanded {
-        z-index: 101;
+    #demo-container {
+        display: flex;
+        flex-direction: column;
+        height: auto;
+        min-height: 100dvh;
+        overflow: visible;
     }
 
-    /* Keep previous/play/next reachable while museum and silicon content scroll. */
+    #visual-zone {
+        height: 180px;
+        min-height: 160px;
+    }
+
+    #visual-zone.lab-mode-expanded { z-index: 101; }
+
+    #brand-logo {
+        top: 10px;
+        left: 12px;
+        gap: 7px;
+        padding: 4px 8px 4px 6px;
+        max-width: 210px;
+    }
+    .brand-emblem { width: 24px; height: 24px; }
+    .brand-main { font-size: 10.5px; }
+    .brand-sub { font-size: 6px; letter-spacing: 2px; }
+
     #playback-bar {
-        position: sticky !important;
+        position: sticky;
         top: env(safe-area-inset-top, 0px);
         z-index: 40;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 160px;
+        align-items: center;
+        gap: 8px 12px;
+        padding: 8px 12px;
+    }
+
+    #playback-bar .controls {
+        display: flex;
+        grid-column: 1 / -1;
+        width: 100%;
+        margin: 0;
+    }
+
+    #playback-bar .controls button {
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 44px;
+        font-size: var(--font-size-sm);
+    }
+
+    #playback-bar .timeline-control { grid-column: 1; width: 100%; margin: 0; }
+    #playback-bar .volume-control { grid-column: 2; width: 100%; margin: 0; }
+
+    input[type="range"] { height: 44px; }
+    input[type="range"]::-webkit-slider-thumb { margin-top: -11px; }
+
+    .tab-btn,
+    .core-control select,
+    #btn-fullscreen,
+    #btn-hud-info,
+    #btn-hud-crossfeed,
+    #btn-hud-toggle,
+    .fs-controls button,
+    .silicon-guide > summary,
+    #btn-toggle-archive,
+    .breadcrumb-button,
+    #track-search,
+    #btn-clear-track-search {
+        min-height: 44px;
+    }
+
+    #track-search { font-size: 16px; }
+
+    #ui-zone {
+        display: grid;
+        grid-template-columns: minmax(250px, 42%) minmax(0, 1fr);
+        height: auto;
+        overflow: visible;
+        padding: 12px;
+        gap: 12px;
+    }
+
+    #player-panel,
+    #museum-panel {
+        width: auto;
+        overflow: visible;
+    }
+
+    #tracklist { max-height: 280px; }
+
+    .silicon-chassis,
+    .silicon-chassis.sid-chassis,
+    .silicon-chassis:has(.paula-visualization),
+    .silicon-chassis:has(.ym-visualization) {
+        height: 230px;
+    }
+
+    .silicon-chassis:has(.paula-visualization) .paula-visualization,
+    .silicon-chassis:has(.ym-visualization) .silicon-die-wrapper svg.ym-visualization {
+        width: 100%;
+        min-width: 0;
+        height: 100%;
+    }
+
+    .silicon-readout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) and (max-height: 600px) and (orientation: landscape) {
+    #living-silicon-container > .silicon-chassis.sid-chassis {
+        height: 352px;
     }
 }
 
-/* =========================================
-   23. MOBILE STAGE CLARITY
-   ========================================= */
+/* Mobile Stage Clarity (Hoch + Quer) */
 @media (max-width: 800px),
        (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) and (orientation: landscape) {
-    /* The detailed Now Playing label is a desktop-only stage overlay. */
-    .now-playing {
-        display: none;
-    }
+    .now-playing { display: none; }
 
-    /* Keep the logo independent from every transient-overlay fade. */
     #visual-zone.user-inactive #brand-logo,
     #visual-zone.user-inactive:fullscreen #brand-logo,
     #visual-zone.user-inactive:-webkit-full-screen #brand-logo,
@@ -4318,7 +3614,6 @@ body:has(#visual-zone.pseudo-fullscreen) {
         pointer-events: auto;
     }
 
-    /* Two calm rows: stage/exit above, transport below. */
     #visual-zone:fullscreen #fs-ui-bar,
     #visual-zone:-webkit-full-screen #fs-ui-bar,
     #visual-zone.pseudo-fullscreen #fs-ui-bar {
@@ -4377,7 +3672,7 @@ body:has(#visual-zone.pseudo-fullscreen) {
         width: 100%;
         min-width: 0;
         min-height: 44px;
-        padding: 6px 4px !important;
+        padding: 6px 4px;
         white-space: nowrap;
     }
 
@@ -4390,7 +3685,7 @@ body:has(#visual-zone.pseudo-fullscreen) {
     body.theme-c64 #visual-zone:fullscreen #fs-playback-controls .fs-controls button,
     body.theme-c64 #visual-zone:-webkit-full-screen #fs-playback-controls .fs-controls button,
     body.theme-c64 #visual-zone.pseudo-fullscreen #fs-playback-controls .fs-controls button {
-        font-size: clamp(7px, 2.4vw, 10px) !important;
+        font-size: clamp(8px, 2.5vw, 10px);
         letter-spacing: 0;
     }
 
@@ -4400,19 +3695,17 @@ body:has(#visual-zone.pseudo-fullscreen) {
     body.theme-atari #visual-zone:fullscreen #fs-playback-controls .fs-controls button,
     body.theme-atari #visual-zone:-webkit-full-screen #fs-playback-controls .fs-controls button,
     body.theme-atari #visual-zone.pseudo-fullscreen #fs-playback-controls .fs-controls button {
-        font-size: clamp(10px, 3vw, 14px) !important;
+        font-size: clamp(13px, 3.4vw, 16px);
         letter-spacing: 0;
     }
 }
 
 @media (max-width: 480px) and (orientation: portrait) {
-    /* Stack narrow portrait stages instead of letting logo, HUD and exit overlap. */
     #demo-container > #visual-zone:not(.pseudo-fullscreen):not(:fullscreen):not(:-webkit-full-screen) {
         height: clamp(240px, 38dvh, 300px);
         min-height: 240px;
     }
 
-    /* Auf kleinen Portrait-Smartphones bleibt das Logo flach (ca. 38px hoch) über dem HUD (top: 62px) */
     #visual-zone #brand-logo {
         top: 10px;
         left: 10px;
@@ -4421,27 +3714,32 @@ body:has(#visual-zone.pseudo-fullscreen) {
         max-width: calc(100vw - 20px);
     }
 
-    #visual-zone .brand-emblem {
-        width: 24px;
-        height: 24px;
-    }
+    #visual-zone .brand-emblem { width: 24px; height: 24px; }
+    #visual-zone .brand-main { font-size: 10px; }
+    #visual-zone .brand-sub { font-size: 6px; letter-spacing: 2px; }
 
-    #visual-zone .brand-main {
-        font-size: 10px;
-    }
-
-    #visual-zone .brand-sub {
-        font-size: 6px;
-        letter-spacing: 2px;
-    }
-
-    #visual-zone #chip-hud {
-        top: 62px;
-    }
+    #visual-zone #chip-hud { top: 62px; }
 
     #visual-zone:fullscreen #chip-hud,
     #visual-zone:-webkit-full-screen #chip-hud,
     #visual-zone.pseudo-fullscreen #chip-hud {
         top: calc(62px + var(--stage-safe-top));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    .sid-meter-segment,
+    .sid-meter-gate,
+    .sid-meter-digi {
+        transition: none !important;
     }
 }
