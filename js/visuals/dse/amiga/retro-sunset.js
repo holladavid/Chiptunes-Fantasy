@@ -57,14 +57,15 @@ const DUSK_BANDS_RGB = Object.freeze([
     [153, 102, 119], [153, 102, 119], [170, 119, 136], [170, 119, 136]
 ]);
 
+// Seamless tiled mountain ranges (positive base height eliminates 0px horizon gaps)
 const MOUNTAINS_BG = Object.freeze([
-    { x: 0, y: 0 }, { x: 15, y: 15 }, { x: 25, y: 4 }, { x: 38, y: 24 },
-    { x: 52, y: 8 }, { x: 68, y: 28 }, { x: 82, y: 6 }, { x: 100, y: 0 }
+    { x: 0, y: 6 }, { x: 15, y: 15 }, { x: 25, y: 6 }, { x: 38, y: 24 },
+    { x: 52, y: 8 }, { x: 68, y: 28 }, { x: 82, y: 6 }, { x: 100, y: 6 }
 ]);
 
 const MOUNTAINS_FG = Object.freeze([
-    { x: 0, y: 0 }, { x: 20, y: 8 }, { x: 35, y: 16 }, { x: 50, y: 6 },
-    { x: 65, y: 18 }, { x: 78, y: 4 }, { x: 90, y: 12 }, { x: 100, y: 0 }
+    { x: 0, y: 6 }, { x: 20, y: 9 }, { x: 35, y: 16 }, { x: 50, y: 6 },
+    { x: 65, y: 18 }, { x: 78, y: 6 }, { x: 90, y: 12 }, { x: 100, y: 6 }
 ]);
 
 // Cloud puff offsets relative to base size
@@ -230,7 +231,7 @@ export class AmigaRetroSunset {
 
         // Discrete beat-driven state
         this.beatCounter = 0;
-        this.lastBeatCount = 0;
+        this.lastBeatCount = -1;
         this.horizonParity = 0;
         this.flarePulseAge = 10.0;
         this.flarePeak = 0.0;
@@ -322,11 +323,14 @@ export class AmigaRetroSunset {
         const tSmooth = (1 - Math.cos(u * Math.PI)) * 0.5;
         const hPct = p1.y + (p2.y - p1.y) * tSmooth;
 
-        return Math.floor(horizon * heightScale * (hPct / 100));
+        const minMh = horizon >= 12 ? 2 : (horizon >= 4 ? 1 : 0);
+        return Math.max(minMh, Math.floor(horizon * heightScale * (hPct / 100)));
     }
 
     _drawMountainRange(ctx, w, horizon, periodW, points, colorHex, scrollNorm, heightScale, outlineHex) {
         const sOff = scrollNorm * periodW;
+        const minMh = horizon >= 12 ? 2 : (horizon >= 4 ? 1 : 0);
+
         for (let x = 0; x < w; x++) {
             let vx = (x + sOff) % periodW;
             if (vx < 0) vx += periodW;
@@ -347,7 +351,7 @@ export class AmigaRetroSunset {
             const tSmooth = (1 - Math.cos(u * Math.PI)) * 0.5;
             const hPct = p1.y + (p2.y - p1.y) * tSmooth;
 
-            let mh = Math.floor(horizon * heightScale * (hPct / 100));
+            let mh = Math.max(minMh, Math.floor(horizon * heightScale * (hPct / 100)));
             if (mh <= 0) continue;
 
             let drawY = horizon - mh;
@@ -361,7 +365,7 @@ export class AmigaRetroSunset {
             ctx.fillStyle = colorHex;
             ctx.fillRect(x, drawY, 1, drawH);
 
-            if (outlineHex && drawY < horizon) {
+            if (outlineHex && drawH >= 2 && drawY < horizon) {
                 ctx.fillStyle = outlineHex;
                 ctx.fillRect(x, drawY, 1, 1);
             }
@@ -417,7 +421,8 @@ export class AmigaRetroSunset {
             const vis = (y - skyActiveTop + 1) / bandPx;
             const bayerRow = ((y >> 1) & 3) * 4;
             for (let x = 0; x < w; x += stepX) {
-                if (BAYER_4X4[bayerRow + ((x >> 2) & 3)] >= vis * 16) {
+                const bayerX = Math.floor(x / stepX) & 3;
+                if (BAYER_4X4[bayerRow + bayerX] >= vis * 16) {
                     const bw = Math.min(stepX, w - x);
                     const bh = Math.min(stepY, topEnd - y);
                     if (bw > 0 && bh > 0) ctx.fillRect(x, y, bw, bh);
@@ -430,7 +435,8 @@ export class AmigaRetroSunset {
             const vis = (floorActiveBottom - y) / bandPx;
             const bayerRow = ((y >> 1) & 3) * 4;
             for (let x = 0; x < w; x += stepX) {
-                if (BAYER_4X4[bayerRow + ((x >> 2) & 3)] >= vis * 16) {
+                const bayerX = Math.floor(x / stepX) & 3;
+                if (BAYER_4X4[bayerRow + bayerX] >= vis * 16) {
                     const bw = Math.min(stepX, w - x);
                     const bh = Math.min(stepY, floorActiveBottom - y);
                     if (bw > 0 && bh > 0) ctx.fillRect(x, y, bw, bh);
@@ -465,6 +471,14 @@ export class AmigaRetroSunset {
             this.lastT = safeT;
             this.lastState = 'idle';
             this.stateAge = 0;
+            this.smoothedSpeed = 1.0;
+            this.afterglowMix = 0.0;
+            this.flarePulseAge = 10.0;
+            this.flarePeak = 0.0;
+            this.fishActive = false;
+            this.birdActive[0] = false;
+            this.birdActive[1] = false;
+            this.birdActive[2] = false;
             return;
         }
 
@@ -489,7 +503,6 @@ export class AmigaRetroSunset {
         // ---------------------------------------------------------
         const safeMetrics = metrics || {};
         const energy = clamp01(safeMetrics.energy ?? 0.35);
-        const pulse = clamp01(safeMetrics.pulse ?? 0);
         const tension = clamp01(safeMetrics.tensionPct ?? 0.3);
         const isClimaxLocked = Boolean(safeMetrics.isClimaxLocked);
 
@@ -513,7 +526,6 @@ export class AmigaRetroSunset {
         const chBass = readChannel(smooth, 0, energy);
         const chMid = readChannel(smooth, 1, energy * 0.9);
         const chHigh = readChannel(smooth, 2, energy * 0.75);
-        const chExtra = readChannel(smooth, 3, 0);
 
         // ---------------------------------------------------------
         // Discrete Beat Events (strictly gated on beatStarted)
@@ -543,7 +555,10 @@ export class AmigaRetroSunset {
                         this.fishStartFrac = 0.20 + this._nextRandom() * 0.58;
                         this.fishDepthFrac = 0.25 + this._nextRandom() * 0.50;
                     }
-                    if (incomingCount % 24 === 0 && !this.birdActive[0]) {
+                    if (
+                        incomingCount % 24 === 0 &&
+                        !(this.birdActive[0] || this.birdActive[1] || this.birdActive[2])
+                    ) {
                         const baseNormY = 0.45 + this._nextRandom() * 0.15;
                         this.birdActive[0] = true; this.birdX[0] = 1.04; this.birdYNorm[0] = baseNormY;
                         this.birdActive[1] = true; this.birdX[1] = 1.11; this.birdYNorm[1] = Math.max(0.15, baseNormY - 0.08);
@@ -574,6 +589,7 @@ export class AmigaRetroSunset {
             targetAfterglow = 1.0;
         } else if (state === 'stopping') {
             targetSpeed = 0.45;
+            targetAfterglow = this.afterglowMix;
         }
 
         this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * Math.min(1.0, dt * 4.0);
@@ -642,7 +658,9 @@ export class AmigaRetroSunset {
         const bandH = horizon / bandCount;
         for (let i = 0; i < bandCount; i++) {
             const startY = Math.floor(i * bandH);
-            const endY = Math.min(horizon, Math.floor((i + 1) * bandH));
+            const endY = (i === bandCount - 1)
+                ? horizon
+                : Math.min(horizon, Math.floor((i + 1) * bandH));
             const drawH = endY - startY;
             if (drawH <= 0) continue;
 
@@ -712,7 +730,7 @@ export class AmigaRetroSunset {
 
             const yNorm = dy / sunR;
             if (rasterSlitsActive && yNorm > -0.15) {
-                if ((yLine + this.beatCounter * 2) % 6 === 0) continue;
+                if ((((yLine >> 1) + this.beatCounter) % 3 + 3) % 3 === 0) continue;
             }
 
             const dx = Math.round(Math.sqrt(Math.max(0, sunRadiusSq - dy * dy)));
@@ -864,15 +882,7 @@ export class AmigaRetroSunset {
         }
 
         // ---------------------------------------------------------
-        // LAYER 9: COPPER HORIZON SHIMMER BEAM (aligned at y = horizon)
-        // ---------------------------------------------------------
-        const horShimX = sx - Math.floor(sunR * (0.65 + 0.15 * beatImpulse)) + hShift + (chExtra > 0.5 ? 1 : 0);
-        const horShimW = Math.floor(sunR * (1.3 + 0.3 * beatImpulse));
-        ctx.fillStyle = cSunYellow;
-        fillClippedRect(ctx, horShimX, horizon, horShimW, 1, w, h, horizon, h);
-
-        // ---------------------------------------------------------
-        // LAYER 10: LEAPING FISH (deterministic & clipped to water)
+        // LAYER 9: LEAPING FISH (deterministic & clipped to water)
         // ---------------------------------------------------------
         if (this.fishActive) {
             this.fishT += dt * 1.8;
@@ -904,7 +914,7 @@ export class AmigaRetroSunset {
         }
 
         // ---------------------------------------------------------
-        // LAYER 11: BAYER 4x4 POWER CURTAIN (starting / stopping)
+        // LAYER 10: BAYER 4x4 POWER CURTAIN (starting / stopping)
         // ---------------------------------------------------------
         if (revealRatio < 1.0) {
             this._drawPowerCurtain(ctx, w, h, horizon, revealRatio);
