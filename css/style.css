@@ -2401,14 +2401,12 @@ body.eco-mode #brand-logo::after {
 
 #visual-zone.user-inactive #fs-ui-bar,
 #visual-zone.user-inactive #chip-hud.collapsed,
-#visual-zone.user-inactive .now-playing {
+#visual-zone.user-inactive .now-playing,
+#visual-zone.user-inactive:fullscreen #brand-logo,
+#visual-zone.user-inactive:-webkit-full-screen #brand-logo,
+#visual-zone.user-inactive.pseudo-fullscreen #brand-logo {
     opacity: 0;
     pointer-events: none;
-}
-
-#visual-zone.user-inactive #fs-ui-bar:focus-within {
-    opacity: 1;
-    pointer-events: auto;
 }
 
 #visual-zone.user-inactive .now-playing {
@@ -4112,10 +4110,7 @@ body:has(#visual-zone:fullscreen) {
        (max-width: 1024px) and (max-height: 580px) and (orientation: landscape) {
     .now-playing { display: none; }
 
-    #visual-zone.user-inactive #brand-logo,
-    #visual-zone.user-inactive:fullscreen #brand-logo,
-    #visual-zone.user-inactive:-webkit-full-screen #brand-logo,
-    #visual-zone.user-inactive.pseudo-fullscreen #brand-logo {
+    #visual-zone.user-inactive:not(:fullscreen):not(:-webkit-full-screen):not(.pseudo-fullscreen) #brand-logo {
         opacity: 1;
         pointer-events: auto;
     }
@@ -4130,6 +4125,11 @@ body:has(#visual-zone:fullscreen) {
         left: calc(10px + env(safe-area-inset-left));
         right: calc(10px + env(safe-area-inset-right));
         bottom: calc(10px + env(safe-area-inset-bottom));
+    }
+
+    #visual-zone:not(.user-inactive):fullscreen #fs-ui-bar,
+    #visual-zone:not(.user-inactive):-webkit-full-screen #fs-ui-bar,
+    #visual-zone:not(.user-inactive).pseudo-fullscreen #fs-ui-bar {
         opacity: 1;
     }
 
