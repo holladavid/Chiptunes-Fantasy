@@ -4,10 +4,19 @@
 // 100% DOM-free 9-bit Shifter palette rendering via pure fillRect:
 // Dithered sky & clouds, clipped mountains, beat-pulsing sun,
 // shimmering shoreline reflection, stone path, shrines, Torii gate
-// with glowing Kanji, sculpted Bonsai tree & Zen afterglow.
+// with glowing Kanji, sculpted Bonsai tree, IK+ Sprite Karateka /
+// Kaempferin choreography synced to Tension & Beats, & Zen afterglow.
 // =========================================================
 
 import { quantizeAtari9Bit, rgbToHex } from '../../utils/hardware-constraints.js';
+import {
+    IK_SPRITE_FRAMES,
+    resolveFighterPalette,
+    drawGroundShadow,
+    drawCompiledSprite,
+    drawFighterTrailingDetail,
+    drawStrikeSparks
+} from './ik-fighter-sprites.js';
 
 const TWO_PI = Math.PI * 2;
 const TRANSITION_DURATION = 1.15;
@@ -48,6 +57,170 @@ const CIRCLE_HALF_WIDTHS = (() => {
     return Object.freeze(tables);
 })();
 
+// =========================================================
+// IK+ CHOREOGRAPHY MOVE CATALOG (50 Hz PAL-ALIGNED TIMINGS)
+// =========================================================
+const MOVES = Object.freeze({
+    IDLE: Object.freeze({
+        tier: 0,
+        air: false,
+        canCancelAt: 0.0,
+        peakHeight: 0,
+        dxTotal: 0,
+        frames: ['IDLE_0'],
+        durations: [0.20]
+    }),
+    STEP_FORWARD: Object.freeze({
+        tier: 0,
+        air: false,
+        canCancelAt: 0.25,
+        peakHeight: 0,
+        dxTotal: 12,
+        frames: ['STEP_PASS', 'STEP_REACH', 'IDLE_2'],
+        durations: [0.08, 0.10, 0.06]
+    }),
+    GLIDE_ADVANCE: Object.freeze({
+        tier: 0,
+        air: false,
+        canCancelAt: 0.35,
+        peakHeight: 0,
+        dxTotal: 18,
+        frames: ['STEP_PASS', 'STEP_REACH', 'STEP_PASS', 'IDLE_0'],
+        durations: [0.08, 0.10, 0.08, 0.06]
+    }),
+    BOW_OPEN: Object.freeze({
+        tier: 0,
+        air: false,
+        canCancelAt: 0.70,
+        peakHeight: 0,
+        dxTotal: 0,
+        frames: ['BOW_READY', 'BOW_DEEP', 'BOW_READY', 'IDLE_0'],
+        durations: [0.18, 0.34, 0.16, 0.12]
+    }),
+    BOW_CLOSE: Object.freeze({
+        tier: 0,
+        air: false,
+        canCancelAt: 1.0,
+        peakHeight: 0,
+        dxTotal: 0,
+        frames: ['BOW_READY', 'BOW_DEEP', 'BOW_READY'],
+        durations: [0.20, 0.50, 0.40]
+    }),
+    JAB: Object.freeze({
+        tier: 1,
+        air: false,
+        canCancelAt: 0.50,
+        peakHeight: 0,
+        dxTotal: 4,
+        frames: ['JAB_CHAMBER', 'JAB_EXTEND', 'JAB_CHAMBER'],
+        durations: [0.06, 0.12, 0.06]
+    }),
+    PARRY_HIGH: Object.freeze({
+        tier: 1,
+        air: false,
+        canCancelAt: 0.45,
+        peakHeight: 0,
+        dxTotal: 0,
+        frames: ['BLOCK_HIGH', 'IDLE_2'],
+        durations: [0.16, 0.08]
+    }),
+    PARRY_LOW: Object.freeze({
+        tier: 1,
+        air: false,
+        canCancelAt: 0.45,
+        peakHeight: 0,
+        dxTotal: 0,
+        frames: ['BLOCK_LOW', 'IDLE_1'],
+        durations: [0.16, 0.08]
+    }),
+    FRONT_KICK: Object.freeze({
+        tier: 1,
+        air: false,
+        canCancelAt: 0.55,
+        peakHeight: 0,
+        dxTotal: 4,
+        frames: ['KICK_CHAMBER', 'FRONT_KICK', 'KICK_CHAMBER'],
+        durations: [0.06, 0.14, 0.06]
+    }),
+    ROUNDHOUSE: Object.freeze({
+        tier: 2,
+        air: false,
+        canCancelAt: 0.58,
+        peakHeight: 0,
+        dxTotal: 8,
+        frames: ['KICK_CHAMBER', 'ROUNDHOUSE_KICK', 'KICK_CHAMBER', 'IDLE_0'],
+        durations: [0.06, 0.18, 0.08, 0.06]
+    }),
+    LOW_SWEEP: Object.freeze({
+        tier: 2,
+        air: false,
+        canCancelAt: 0.62,
+        peakHeight: 0,
+        dxTotal: 9,
+        frames: ['CROUCH_PREP', 'SWEEP_DROP', 'SWEEP_EXTEND', 'SWEEP_DROP'],
+        durations: [0.06, 0.06, 0.18, 0.08]
+    }),
+    LUNGE_PUNCH: Object.freeze({
+        tier: 2,
+        air: false,
+        canCancelAt: 0.58,
+        peakHeight: 0,
+        dxTotal: 11,
+        frames: ['STEP_PASS', 'JAB_CHAMBER', 'LUNGE_PUNCH', 'STEP_REACH'],
+        durations: [0.06, 0.04, 0.18, 0.08]
+    }),
+    HIGH_KICK: Object.freeze({
+        tier: 3,
+        air: false,
+        canCancelAt: 0.65,
+        peakHeight: 0,
+        dxTotal: 5,
+        frames: ['KICK_CHAMBER', 'HIGH_KICK_RISE', 'HIGH_KICK', 'HIGH_KICK_RISE', 'KICK_CHAMBER'],
+        durations: [0.06, 0.06, 0.20, 0.06, 0.06]
+    }),
+    FLYING_KICK: Object.freeze({
+        tier: 3,
+        air: true,
+        canCancelAt: 0.86,
+        peakHeight: 15,
+        dxTotal: 20,
+        frames: ['CROUCH_PREP', 'JUMP_LAUNCH', 'FLYING_KICK', 'JUMP_LAUNCH', 'CROUCH_PREP'],
+        durations: [0.06, 0.08, 0.24, 0.06, 0.06]
+    }),
+    SPLIT_KICK: Object.freeze({
+        tier: 3,
+        air: true,
+        canCancelAt: 0.86,
+        peakHeight: 16,
+        dxTotal: 0,
+        frames: ['CROUCH_PREP', 'JUMP_LAUNCH', 'SPLIT_KICK', 'JUMP_LAUNCH', 'CROUCH_PREP'],
+        durations: [0.06, 0.08, 0.24, 0.06, 0.06]
+    }),
+    BACKFLIP: Object.freeze({
+        tier: 3,
+        air: true,
+        canCancelAt: 0.88,
+        peakHeight: 17,
+        dxTotal: -17,
+        frames: ['CROUCH_PREP', 'BACKFLIP_1', 'BACKFLIP_2', 'BACKFLIP_3', 'BACKFLIP_4', 'CROUCH_PREP'],
+        durations: [0.06, 0.08, 0.08, 0.10, 0.08, 0.06]
+    })
+});
+
+// Precompute total move durations once
+const MOVE_TOTAL_DURATIONS = (() => {
+    const map = {};
+    const names = Object.keys(MOVES);
+    for (let i = 0; i < names.length; i++) {
+        const name = names[i];
+        const durs = MOVES[name].durations;
+        let sum = 0;
+        for (let j = 0; j < durs.length; j++) sum += durs[j];
+        map[name] = sum;
+    }
+    return Object.freeze(map);
+})();
+
 function toAtariHex(r, g, b) {
     const r3 = r <= 0 ? 0 : (r >= 252 ? 7 : Math.round(r / 36));
     const g3 = g <= 0 ? 0 : (g >= 252 ? 7 : Math.round(g / 36));
@@ -71,6 +244,21 @@ function mixHex(rgbA, rgbB, t) {
 function readChannel(arr, idx, fallback) {
     if (!arr || idx >= arr.length) return fallback;
     return clamp01(arr[idx]);
+}
+
+function easeOutQuad(t) {
+    const u = 1.0 - t;
+    return 1.0 - u * u;
+}
+
+function avalancheHash32(x) {
+    let h = x | 0;
+    h ^= h >>> 16;
+    h = Math.imul(h, 0x85ebca6b);
+    h ^= h >>> 13;
+    h = Math.imul(h, 0xc2b2ae35);
+    h ^= h >>> 16;
+    return h >>> 0;
 }
 
 function fillClippedRect(ctx, x, y, rw, rh, bufW, bufH, minY = 0, maxY = bufH) {
@@ -228,6 +416,7 @@ export class AtariRetroSunset {
 
         // Instance-owned deterministic Xorshift32 PRNG (zero Math.random!)
         this.prngState = 0x494B2B53; // 'IK+S'
+        this.appearanceCount = 0;
 
         // Normalized drifting cloud states
         this.clouds = [
@@ -236,7 +425,7 @@ export class AtariRetroSunset {
             { y: 0.38, normX: 0.22, r: 0.042, speed: -0.013 }
         ];
 
-        // Deterministic Bonsai foliage pads (flatter cushions, sunlit tops / shaded bottoms)
+        // Deterministic Bonsai foliage pads
         this.treeLeaves = [];
         for (let c = 0; c < LEAF_CLUSTERS.length; c++) {
             const cl = LEAF_CLUSTERS[c];
@@ -247,9 +436,9 @@ export class AtariRetroSunset {
                 const roll = this._nextRandom();
                 let colType;
                 if (sinA < -0.2) {
-                    colType = roll > 0.45 ? 1 : 0; // Top: sunlit yellow-gold & spring green
+                    colType = roll > 0.45 ? 1 : 0;
                 } else if (sinA > 0.35) {
-                    colType = roll > 0.35 ? 2 : 0; // Underside: deeper warm orange & green shadow
+                    colType = roll > 0.35 ? 2 : 0;
                 } else {
                     colType = roll > 0.60 ? 0 : (roll > 0.30 ? 1 : 2);
                 }
@@ -272,6 +461,25 @@ export class AtariRetroSunset {
             vy: 0.09,
             phase: 0
         }));
+
+        // IK+ Sprite Fighter State (normalized courtyard position + choreography)
+        this.fighter = {
+            style: null,          // 'karateka' | 'kaempferin' (rolled per fade-in)
+            xNorm: 0.0,           // [-1..1] inside dynamic courtyard roam span
+            facing: 1,            // +1 right, -1 left
+            moveName: 'IDLE',
+            moveElapsed: 0,
+            moveDuration: 0.20,
+            jumpY: 0,
+            timeSinceBeat: 2.0,
+            idlePhase: 0,
+            trailPhase: 0,
+            sparkAge: 1.0,
+            sparkFrameName: 'IDLE_0',
+            moveSeq: 0,
+            afterglowSettled: false,
+            paletteTable: new Array(19).fill('')
+        };
     }
 
     _nextRandom() {
@@ -281,6 +489,214 @@ export class AtariRetroSunset {
         x ^= x << 5;
         this.prngState = x;
         return (x >>> 0) / 4294967296;
+    }
+
+    _rollFighterOnFadeIn(safeT, beatCount, isStarting) {
+        this.appearanceCount++;
+        const prngRoll = Math.floor(this._nextRandom() * 0x7fffffff);
+        const tickSeed = Math.round(safeT * 50) | 0;
+        const mixed = avalancheHash32(prngRoll ^ tickSeed ^ (beatCount | 0) ^ (this.appearanceCount * 0x9e3779b9));
+        const f = this.fighter;
+        f.style = (mixed & 1) === 0 ? 'karateka' : 'kaempferin';
+        f.xNorm = 0.0;
+        f.facing = ((mixed >>> 1) & 1) === 0 ? 1 : -1;
+        f.jumpY = 0;
+        f.timeSinceBeat = 2.0;
+        f.sparkAge = 1.0;
+        f.afterglowSettled = false;
+        f.moveSeq = 0;
+        if (isStarting) {
+            this._startFighterMove('BOW_OPEN');
+        } else {
+            this._startFighterMove('IDLE');
+        }
+    }
+
+    _startFighterMove(moveName) {
+        const f = this.fighter;
+        f.moveName = moveName;
+        f.moveElapsed = 0;
+        f.moveDuration = MOVE_TOTAL_DURATIONS[moveName] || 0.20;
+    }
+
+    _chooseFighterMove(state, beatLevel, beatCount, tension) {
+        const f = this.fighter;
+        const isFemale = f.style === 'kaempferin';
+        f.moveSeq++;
+
+        // Traverse full courtyard width before steering cleanly back inward
+        if (f.xNorm > 0.80) f.facing = -1;
+        else if (f.xNorm < -0.80) f.facing = 1;
+        else if (beatCount > 0 && (beatCount % 8) === 0) {
+            f.facing = -f.facing;
+        }
+
+        const roll = this._nextRandom();
+
+        if (beatLevel >= 3) {
+            if (state === 'climax' || (state === 'buildup' && tension > 0.45)) {
+                const canBackflip = (f.facing > 0 && f.xNorm > -0.60) || (f.facing < 0 && f.xNorm < 0.60);
+                if (canBackflip && roll < (isFemale ? 0.30 : 0.24)) {
+                    return 'BACKFLIP';
+                }
+                if (roll < (isFemale ? 0.58 : 0.46)) {
+                    return 'SPLIT_KICK';
+                }
+                if (roll < 0.84) {
+                    return 'FLYING_KICK';
+                }
+                return 'HIGH_KICK';
+            }
+            if (beatCount > 0 && (beatCount % 4) === 0 && roll < 0.42) {
+                return 'SPLIT_KICK';
+            }
+            return roll < 0.72 ? 'HIGH_KICK' : 'ROUNDHOUSE';
+        }
+
+        if (beatLevel === 2) {
+            if (state === 'climax' && roll < 0.22) {
+                return 'FLYING_KICK';
+            }
+            if (roll < (isFemale ? 0.44 : 0.32)) {
+                return 'ROUNDHOUSE';
+            }
+            if (roll < 0.68) {
+                return 'LOW_SWEEP';
+            }
+            return 'LUNGE_PUNCH';
+        }
+
+        // Tier 1 (SOFT) — mixes compact strikes with lively courtyard footwork
+        if (state === 'buildup' || state === 'climax') {
+            if (roll < 0.30) return 'FRONT_KICK';
+            if (roll < 0.56) return 'JAB';
+            if (roll < 0.82) return 'GLIDE_ADVANCE';
+            return (f.moveSeq & 1) === 0 ? 'PARRY_HIGH' : 'PARRY_LOW';
+        }
+        if (roll < 0.28) return 'JAB';
+        if (roll < 0.56) return 'FRONT_KICK';
+        if (roll < 0.78) return 'STEP_FORWARD';
+        return (f.moveSeq & 1) === 0 ? 'PARRY_HIGH' : 'PARRY_LOW';
+    }
+
+    _updateFighterChoreography(dt, state, beatStarted, beatCount, beatLevel, beatImpulse, tension, energy, ymBass, ymMid, ymHigh, roamRadius) {
+        const f = this.fighter;
+        f.timeSinceBeat = Math.min(10.0, f.timeSinceBeat + dt);
+        f.sparkAge = Math.min(1.0, f.sparkAge + dt);
+        f.trailPhase = (f.trailPhase + dt * (5.5 + tension * 4.5 + ymHigh * 5.0 + beatImpulse * 6.0)) % TWO_PI;
+
+        const speedScale = state === 'afterglow' ? 0.65 : (state === 'climax' ? 1.18 : (state === 'buildup' ? 1.08 : 0.96));
+        const activeMove = MOVES[f.moveName] || MOVES.IDLE;
+        const prevProgress = f.moveDuration > 0 ? clamp01(f.moveElapsed / f.moveDuration) : 1.0;
+
+        // 1. State-specific macro overrides
+        if (state === 'stopping') {
+            if (f.jumpY <= 0.1 && f.moveName !== 'BOW_CLOSE') {
+                this._startFighterMove('BOW_CLOSE');
+            }
+        } else if (state === 'afterglow') {
+            if (f.jumpY <= 0.1 && !f.afterglowSettled && f.moveName !== 'BOW_CLOSE' && f.moveName !== 'IDLE') {
+                this._startFighterMove('BOW_CLOSE');
+                f.afterglowSettled = true;
+            } else if (f.moveName === 'BOW_CLOSE' && prevProgress >= 1.0) {
+                this._startFighterMove('IDLE');
+            }
+        } else if (beatStarted && state !== 'starting') {
+            // 2. Strict Beat-Triggered Move Selection & IK+ Input Canceling
+            f.timeSinceBeat = 0;
+            const allowOverride =
+                f.moveName === 'IDLE' ||
+                f.moveName === 'STEP_FORWARD' ||
+                f.moveName === 'GLIDE_ADVANCE' ||
+                f.moveName === 'BOW_OPEN' ||
+                (!activeMove.air && prevProgress >= activeMove.canCancelAt) ||
+                (activeMove.air && prevProgress >= 0.86);
+
+            if (allowOverride) {
+                const nextMove = this._chooseFighterMove(state, beatLevel, beatCount, tension);
+                this._startFighterMove(nextMove);
+                if (beatLevel >= 3 && (state === 'buildup' || state === 'climax')) {
+                    f.sparkAge = 0;
+                    const chosen = MOVES[nextMove];
+                    const midIdx = Math.min(chosen.frames.length - 1, Math.floor(chosen.frames.length * 0.5));
+                    f.sparkFrameName = chosen.frames[midIdx];
+                }
+            }
+        } else if (
+            state !== 'starting' &&
+            f.moveName === 'IDLE' &&
+            f.timeSinceBeat > 0.68 &&
+            roamRadius > 14
+        ) {
+            // Active martial-arts footwork roaming across the courtyard between beats
+            if (f.xNorm > 0.78) f.facing = -1;
+            else if (f.xNorm < -0.78) f.facing = 1;
+            this._startFighterMove(state === 'playing' ? 'STEP_FORWARD' : 'GLIDE_ADVANCE');
+            f.timeSinceBeat = 0.22;
+        }
+
+        // 3. Advance active move timeline with smooth ease-out root motion
+        const curMove = MOVES[f.moveName] || MOVES.IDLE;
+        f.moveElapsed += dt * speedScale;
+        const progress = f.moveDuration > 0 ? clamp01(f.moveElapsed / f.moveDuration) : 1.0;
+
+        if (curMove.dxTotal !== 0 && roamRadius > 2) {
+            const deltaEase = Math.max(0, easeOutQuad(progress) - easeOutQuad(prevProgress));
+            const dxWorld = curMove.dxTotal * deltaEase * f.facing;
+            const normStep = dxWorld / Math.max(16, roamRadius);
+            f.xNorm = Math.max(-0.95, Math.min(0.95, f.xNorm + normStep));
+        }
+
+        // Parabolic vertical jump arc for airborne moves
+        if (curMove.air) {
+            const airT = clamp01((progress - 0.12) / 0.76);
+            f.jumpY = Math.sin(airT * Math.PI) * curMove.peakHeight;
+        } else {
+            f.jumpY = Math.max(0, f.jumpY - dt * 60);
+        }
+
+        if (progress >= 1.0 && f.moveName !== 'IDLE') {
+            if (f.moveName === 'BOW_CLOSE' && (state === 'stopping' || state === 'afterglow')) {
+                f.moveElapsed = f.moveDuration;
+            } else {
+                this._startFighterMove('IDLE');
+                f.jumpY = 0;
+            }
+        }
+
+        // 4. Resolve current pose frame key
+        if (f.moveName !== 'IDLE') {
+            const durs = curMove.durations;
+            let acc = 0;
+            let frameKey = curMove.frames[curMove.frames.length - 1];
+            for (let i = 0; i < durs.length; i++) {
+                acc += durs[i];
+                if (f.moveElapsed <= acc) {
+                    frameKey = curMove.frames[i];
+                    break;
+                }
+            }
+            return frameKey;
+        }
+
+        // 5. Continuous Beatless Kata & Martial Arts Rhythm Bounce
+        const bounceRate = state === 'afterglow' ? 1.8 : (3.4 + energy * 3.0 + ymBass * 2.2);
+        f.idlePhase = (f.idlePhase + dt * bounceRate) % TWO_PI;
+
+        if (state === 'afterglow') {
+            return Math.sin(f.idlePhase) > 0.15 ? 'ZEN_KATA_B' : 'ZEN_KATA_A';
+        }
+
+        if (f.timeSinceBeat > 1.35 && state !== 'stopping') {
+            const kataCycle = (this.internalT * (0.65 + energy * 0.45)) % 4.0;
+            if (kataCycle > 2.6 && ymMid > 0.25) return 'ZEN_KATA_B';
+            if (kataCycle > 1.8) return 'ZEN_KATA_A';
+        }
+
+        const bounce = Math.sin(f.idlePhase);
+        if (bounce < -0.35) return 'IDLE_1';
+        if (bounce > 0.45 && (ymBass > 0.35 || beatImpulse > 0.2)) return 'IDLE_2';
+        return 'IDLE_0';
     }
 
     _spawnPetals(count) {
@@ -300,8 +716,8 @@ export class AtariRetroSunset {
     }
 
     resize() {
-        // Clouds, shrines, Torii and Bonsai scale proportionally from width/height;
-        // time phases and petals persist cleanly across rotations.
+        // Clouds, shrines, Torii, Bonsai and fighter xNorm scale proportionally;
+        // character identity, phases and choreography persist cleanly across rotations.
     }
 
     _drawDitheredBand(ctx, w, yStart, yEnd, col1, col2, horizon) {
@@ -390,6 +806,7 @@ export class AtariRetroSunset {
             this.lastT = safeT;
             this.lastState = 'idle';
             this.stateAge = 0;
+            this.fighter.style = null;
             return;
         }
 
@@ -398,6 +815,7 @@ export class AtariRetroSunset {
         if (!Number.isFinite(dt) || dt < 0) dt = 0.02;
         else if (dt > 0.1) dt = 0.1;
 
+        const prevState = this.lastState;
         if (this.lastState !== state) {
             this.lastState = state;
             this.stateAge = 0;
@@ -436,9 +854,21 @@ export class AtariRetroSunset {
         const ymHigh = readChannel(smooth, 2, energy * 0.7);
 
         // ---------------------------------------------------------
+        // Roll Fighter Archetype ONCE per Fade-In
+        // ---------------------------------------------------------
+        const enteringStage = (state === 'starting' && (prevState === 'idle' || prevState === 'stopping'));
+        if (enteringStage || this.fighter.style === null) {
+            this._rollFighterOnFadeIn(safeT, safeMetrics.beatCount || 0, state === 'starting');
+        }
+
+        // ---------------------------------------------------------
         // Discrete Beat Events (strictly gated on beatStarted)
         // ---------------------------------------------------------
+        let acceptedBeat = false;
+        let acceptedBeatCount = this.lastBeatCount;
+        let acceptedLevel = beatLevel;
         const allowPetals = (state === 'buildup' || state === 'climax');
+
         if (beatStarted) {
             const incomingCount = Number.isFinite(safeMetrics.beatCount)
                 ? Math.floor(safeMetrics.beatCount)
@@ -447,13 +877,19 @@ export class AtariRetroSunset {
             if (incomingCount !== this.lastBeatCount || !Number.isFinite(safeMetrics.beatCount)) {
                 this.lastBeatCount = incomingCount;
                 this.beatParity = incomingCount & 1;
+                acceptedBeat = true;
+                acceptedBeatCount = incomingCount;
 
                 this.waterWaveAge = 0;
                 const levelWeight = beatLevel >= 3 ? 1.0 : (beatLevel === 2 ? 0.65 : (beatLevel === 1 ? 0.35 : 0.0));
                 this.waterWavePeak = Math.max(beatStrength, levelWeight);
 
+                if (acceptedLevel <= 0 && beatStrength > 0) {
+                    acceptedLevel = beatStrength >= (2 / 3) ? 3 : (beatStrength >= (1 / 3) ? 2 : 1);
+                }
+
                 if (allowPetals) {
-                    this._spawnPetals(beatLevel >= 3 ? 3 : 1);
+                    this._spawnPetals(acceptedLevel >= 3 ? 3 : 1);
                 }
             }
         }
@@ -784,7 +1220,7 @@ export class AtariRetroSunset {
         fillClippedRect(ctx, cx - 2, toriiTop, 4, Math.max(3, Math.floor(minDim * 0.06)), w, h);
 
         // ---------------------------------------------------------
-        // 9. THE SCULPTED BONSAI TREE & FALLING PETALS
+        // 9. THE SCULPTED BONSAI TREE
         // ---------------------------------------------------------
         const treeScale = Math.min(minDim, w * 0.78);
         const trunkBaseX = Math.min(w - Math.max(8, Math.floor(treeScale * 0.22)), Math.floor(w * 0.85));
@@ -793,7 +1229,6 @@ export class AtariRetroSunset {
         const trunkH = Math.max(1, trunkBaseY - trunkTopY);
         const crownBaseX = trunkBaseX;
 
-        // Curved, tapered Bonsai boughs ending tucked neatly beneath each leaf cushion
         const joinY = Math.min(trunkBaseY, trunkTopY + Math.max(2, Math.floor(treeScale * 0.06)));
         const joinDepth = (joinY - trunkTopY) / trunkH;
         const joinX = Math.floor(trunkBaseX + Math.sin(joinDepth * 3.5) * Math.floor(treeScale * 0.05));
@@ -806,7 +1241,6 @@ export class AtariRetroSunset {
             const midX = Math.floor((joinX + endX) * 0.5 + bendSign * treeScale * 0.02);
             const midY = Math.floor((joinY + endY) * 0.5 + treeScale * 0.03);
 
-            // Lower thicker bough (3px) + bark highlight
             ctx.fillStyle = cTreeTrunk;
             drawClippedLine(ctx, joinX, joinY, midX, midY, w, h);
             drawClippedLine(ctx, joinX, joinY + 1, midX, midY + 1, w, h);
@@ -814,13 +1248,11 @@ export class AtariRetroSunset {
             ctx.fillStyle = cToriiHigh;
             drawClippedLine(ctx, joinX, joinY - 1, midX, midY - 1, w, h);
 
-            // Upper tapered twig (2px) tucking cleanly under leaf pad
             ctx.fillStyle = cTreeTrunk;
             drawClippedLine(ctx, midX, midY, endX, endY, w, h);
             drawClippedLine(ctx, midX, midY + 1, endX, endY + 1, w, h);
         }
 
-        // Gnarled trunk drawn cleanly over branch junctions
         for (let y = trunkTopY; y <= trunkBaseY; y++) {
             const depth = (y - trunkTopY) / trunkH;
             const tw = Math.max(2, Math.floor(treeScale * 0.04) + Math.pow(depth, 2) * Math.floor(treeScale * 0.09));
@@ -835,7 +1267,6 @@ export class AtariRetroSunset {
             }
         }
 
-        // Foliage pads drawn on top of branch tips
         const leafSizeScale = Math.max(0.5, Math.min(1.0, minDim / 180));
         const rustleGain = (1.0 + beatImpulse * 2.2 + ymHigh * 1.2) * (1.0 - 0.7 * ag);
         for (let i = 0; i < this.treeLeaves.length; i++) {
@@ -848,7 +1279,90 @@ export class AtariRetroSunset {
             fillClippedCircle(ctx, lx, ly, lr, cLeafCols[leaf.colType], w, h);
         }
 
-        // Drifting petals spawned on buildup/climax beats
+        // ---------------------------------------------------------
+        // 9B. IK+ SPRITE KARATEKA / KAEMPFERIN CHOREOGRAPHY
+        // ---------------------------------------------------------
+        const spriteScale = (w >= 84 && h >= 140)
+            ? 1.0
+            : Math.max(0.25, Math.min(1.0, w / 84, h / 140));
+
+        const groundY = Math.min(h - 3, Math.floor(shoreY + pathZoneH * 0.68));
+        const groundDepth = (groundY - horizon) / hMinusHorizon;
+        const pathWAtGround = pathTopW + groundDepth * (pathBottomW - pathTopW);
+        const bonsaiClearance = Math.max(10, trunkBaseX - cx - Math.floor(18 * spriteScale));
+        const roamRadius = Math.max(4, Math.min(pathWAtGround * 0.43, bonsaiClearance, w * 0.39));
+
+        const frameKey = this._updateFighterChoreography(
+            dt,
+            state,
+            acceptedBeat,
+            acceptedBeatCount,
+            acceptedLevel,
+            beatImpulse,
+            tension,
+            energy,
+            ymBass,
+            ymMid,
+            ymHigh,
+            roamRadius
+        );
+
+        const activeFrame = IK_SPRITE_FRAMES[frameKey] || IK_SPRITE_FRAMES.IDLE_0;
+        const f = this.fighter;
+
+        const isStriking =
+            f.moveName === 'JAB' ||
+            f.moveName === 'LUNGE_PUNCH' ||
+            f.moveName === 'FRONT_KICK' ||
+            f.moveName === 'ROUNDHOUSE' ||
+            f.moveName === 'HIGH_KICK' ||
+            f.moveName === 'LOW_SWEEP' ||
+            f.moveName === 'FLYING_KICK';
+        const strikeNudge = isStriking ? (beatImpulse * 2.0 * spriteScale * f.facing) : 0;
+
+        const fighterScreenX = Math.floor(cx + f.xNorm * roamRadius + strikeNudge);
+        const fighterAnchorY = Math.floor(groundY - f.jumpY * spriteScale);
+
+        resolveFighterPalette(f.paletteTable, f.style, ag);
+
+        drawGroundShadow(ctx, fighterScreenX, groundY, f.jumpY, spriteScale, w, h, shoreY, cStoneLine, cStoneDark);
+
+        drawCompiledSprite(ctx, activeFrame, f.paletteTable, fighterScreenX, fighterAnchorY, f.facing, spriteScale, w, h);
+        drawFighterTrailingDetail(
+            ctx,
+            f.style,
+            activeFrame,
+            f.paletteTable,
+            fighterScreenX,
+            fighterAnchorY,
+            f.facing,
+            spriteScale,
+            f.trailPhase,
+            (beatImpulse + ymHigh * 0.6 + (f.jumpY > 0 ? 0.5 : 0)) * (1.0 - 0.7 * ag),
+            w,
+            h
+        );
+
+        if (f.sparkAge < 0.10) {
+            const sparkFrame = IK_SPRITE_FRAMES[f.sparkFrameName] || activeFrame;
+            drawStrikeSparks(
+                ctx,
+                sparkFrame,
+                fighterScreenX,
+                fighterAnchorY,
+                f.facing,
+                spriteScale,
+                f.sparkAge,
+                cCloudW,
+                cSun,
+                w,
+                h
+            );
+        }
+
+        // ---------------------------------------------------------
+        // 9C. FOREGROUND FALLING PETALS (PASSING IN FRONT OF FIGHTER)
+        // ---------------------------------------------------------
         for (let i = 0; i < this.petals.length; i++) {
             const p = this.petals[i];
             if (!p.active) continue;
