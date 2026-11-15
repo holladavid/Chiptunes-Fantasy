@@ -46,7 +46,7 @@ render(ctx, width, height, t, state, stateTime, metrics)
 - `stateTime` ist die Zeit im aktuellen Übergang. Sie wird nicht zwischen allen musikalischen Zuständen zurückgesetzt.
 - `metrics` enthält die vom StageManager aufbereiteten Musik- und Systeminformationen.
 
-Ein optionales `resize(width, height)` darf vorbereitende Arbeit übernehmen. Der DSE MUSS Größenänderungen auch dann korrekt behandeln, wenn seine Geometrie erst im nächsten `render()` angepasst wird. Es darf nicht vorausgesetzt werden, dass vor jedem Größenwechsel eine neue Instanz entsteht.
+Ein optionales `resize(width, height)` darf vorbereitende Arbeit übernehmen. `SceneDJ.resize(...)` übergibt dabei Retro-Buffer-Dimensionen (bei systemexklusiven DSEs die des jeweiligen Zielsystems, bei universellen DSEs die des aktuell aktiven Systems). Der DSE MUSS Größenänderungen auch dann korrekt behandeln, wenn sich System oder Größe erst im nächsten `render()` ändern. Es darf nicht vorausgesetzt werden, dass vor jedem Größenwechsel eine neue Instanz entsteht.
 
 ### 2.3 Eingangs- und Zeitschutz
 
@@ -69,7 +69,7 @@ Zusätzlich gilt:
 
 ### 2.4 PAL-Tick und Caching
 
-Der StageManager cached die Ausgabe pro PAL-Tick sowie nach Zustands- und Systemwechseln. Neue DSE-Bildzustände entstehen daher mit 50 Hz, auch wenn die Anwendung selbst mit einer höheren Bildwiederholrate läuft.
+Der StageManager cached die Ausgabe pro PAL-Tick sowie nach Zustands-, Größen- und Systemwechseln (und nach expliziter Cache-Invalidierung bzw. `starting`-Neustarts). Neue DSE-Bildzustände entstehen daher regulär mit 50 Hz, auch wenn die Anwendung selbst mit 60, 120 oder 144 Hz läuft. Fällt ein `beatStarted`-Ereignis auf einen gecachten PAL-Frame, puffert der `StageManager` das Ereignis samt Peak-Werten pro DSE-Cache und liefert es beim nächsten gerenderten PAL-Tick exakt einmal nach. Für `idle`-DSEs überspringt der `StageManager` Simulation, Offscreen-Buffer-Allokation und Blitting vollständig.
 
 Daraus folgt:
 
@@ -106,7 +106,7 @@ Ein DSE SOLL nicht ausschließlich lauter und heller werden. Ein guter Effekt ve
 | `metrics.rawEnergyState` | Grober energetischer Zustand; nur verwenden, wenn diese Unterscheidung wirklich benötigt wird. |
 | `metrics.tensionPct` | Kontinuierliche Tension von 0 bis 1. Für Zielwerte und Verläufe, nicht als alleiniger Beat-Ersatz. |
 | `metrics.isClimaxLocked` | Kennzeichnet einen gehaltenen Climax. Nicht jeder DSE muss darauf separat reagieren. |
-| `metrics.climaxTimer`, `metrics.climaxHoldTime` | Informationen über Climax-Dauer und Haltezeit. |
+| `metrics.climaxTimer`, `metrics.climaxHoldTime` | Informationen über Climax-Laufzeit und Gesamthaltezeit. `climaxHoldTime` stammt von aktiven sichtbaren `managed`-DSEs (ohne `isVoid`/`oneshot`) und wird vom `TensionManager` 50/50 auf `climax` (`climaxTimer` bis `0.5 × climaxHoldTime`) und `afterglow` aufgeteilt. |
 | `metrics.system` | `c64`, `amiga` oder `atari`; bestimmt Auflösung, Palette und systemspezifische Gestaltung. |
 | `metrics.regs` | Optionale Chip-/Registerinformationen für bewusst systemspezifische Effekte. Vor Verwendung Verfügbarkeit und Semantik prüfen. |
 
@@ -129,7 +129,7 @@ beatImpulse[0] = beatEnvelope[0] * beatStrength;
 
 Beim akzeptierten Beat ist die Hüllkurve `1`, daher entspricht der Anfangsimpuls genau `beatStrength`. Während des Abklingens bleiben Stärke und Level erhalten, während `beatImpulse` mit der Hüllkurve abnimmt.
 
-Der StageManager begrenzt eingehende Werte auf ihren gültigen Bereich. Fehlt `beatStrength` in einem alten Metrics-Objekt, wird ein vorhandener Beat als Vollschlag interpretiert. Fehlt `beatImpulse`, stellt ein wiederverwendeter `Float32Array(1)`-Puffer `beatEnvelope × beatStrength` bereit. Diese Kompatibilität darf keine neuen Arrays im Renderloop erzeugen.
+`TrackMonitor`, `TensionManager`, `StageManager` und `SetlistManager` begrenzen `dt` defensiv (maximal `0.1 s`, keine negativen/`NaN`-Zeitschritte); `TrackMonitor` nutzt exponentielle Glättung und begrenzt Kanalpegel auf `[0, 1]`. Der `StageManager` begrenzt eingehende Beat-Werte auf ihren gültigen Bereich, interpretiert fehlende `beatStrength` bei vorhandenem Beat als Vollschlag und stellt über wiederverwendete `Float32Array(1)`-Puffer kompatible Fallback- und Nachlieferungs-Werte bereit, ohne neue Arrays im Renderloop zu erzeugen.
 
 ### 3.3 Exakte Beats statt Hüllkurven-Retrigger
 
@@ -430,9 +430,10 @@ Es gibt keinen separaten `presenter`-Layer. Der TrackPresenter ist ein `overlay`
 
 ### 6.3 Lifecycles und Dauer
 
-- `managed`: regulärer, vom SetlistManager verwalteter DSE. `duration` ist die früheste Wechselzeit, keine garantierte absolute Lebensdauer.
+- `managed`: regulärer, vom SetlistManager verwalteter DSE. `duration` ist die früheste Wechselzeit, keine garantierte absolute Lebensdauer. Neue Swaps werden nur in `playing` und `buildup` ausgelöst (laufende `climax`- und `afterglow`-Phasen werden nicht unterbrochen); `maxInstances` gilt sowohl bei initialer Füllung als auch beim Swap.
+- **Sequenzielle vs. simultane Layer-Übergänge:** Auf transparenten Layern (`foreground`, `overlay`) laufen ausgehender (`stopping`) und eingehender (`starting`) DSE simultan. Auf opaken Layern (`background`, `floor`) wartet ein eingehender sichtbarer (`!isVoid`) DSE, bis der ausgehende sichtbare DSE seine `stopping`-Phase vollständig beendet hat, damit Ausblendungen nicht sofort übermalt werden (bei Beteiligung eines `isVoid`-DSEs wird direkt überblendet).
 - `permanent`: dauerhaft aktiver DSE; sparsam und nur für bewusst permanente Ebenen verwenden.
-- `oneshot`: zeitlich begrenzter Einmaleffekt. `duration` ist die absolute Lebensdauer vor dem Übergang in `stopping`.
+- `oneshot`: zeitlich begrenzter Einmaleffekt. `duration` zählt ausschließlich im aktiv laufenden Onstage-Zustand (nicht während `starting`, `stopping` oder `idle`) vor dem Übergang in `stopping`. Nach dem Ausblenden im `idle`-Zustand wird der `oneshot` sauber aus `activeDSEs` entfernt; ein bereits vor Spielbeginn ausgelöster Presenter startet automatisch beim ersten `isPlaying`-Frame.
 
 One-Shots MÜSSEN mehrfach startbar sein, ohne alte Trackdaten, Zeitstempel, `_markedForRemoval`-ähnliche interne Zustände oder Rendering-Artefakte unkontrolliert mitzunehmen. Sie dürfen erst nach ihrer definierten Lebensdauer und dem Stopping-Übergang entfernt werden.
 
@@ -512,27 +513,13 @@ Für einen neuen oder wesentlich veränderten DSE sind mindestens erforderlich:
 
 Der DSE-Baseline-Harness stellt dafür `makeMetrics(...)` und `runBeatIntensity(...)` bereit. Die festen Vergleichsstärken `GRADED_BEAT_STRENGTHS` sind `soft = 0.20`, `medium = 0.50` und `hard = 0.90`. Für exakte Onset-Frames ist ein Still mit `warmup: 0` sinnvoll; bei DSEs mit eigenem Einzug ist zusätzlich eine Sequenz mit separatem Warmup zu prüfen.
 
-Die fokussierte Gesamtsuite für das graduelle Beat-System umfasst:
-
-```sh
-Zusätzlich zur universellen Suite decken die systemspezifischen Suites das v1.6.0-Overhaul ab:
+Die fokussierte Engine- und Universal-Suite für das graduelle Beat-System und den DJ-Lifecycle umfasst:
 
 ```sh
 node --test \
-  test/kefrens-checkerboard.test.mjs \
-  test/paula-silicon-bg.test.mjs \
-  test/retro-sunset.test.mjs \
-  test/chunky-plasma.test.mjs \
-  test/c64-retro-sunset.test.mjs \
-  test/sid-silicon-bg.test.mjs \
-  test/c64-vector-star.test.mjs \
-  test/atari-dot-torus.test.mjs \
-  test/atari-bobs.test.mjs \
-  test/atari-retro-sunset.test.mjs \
-  test/atari-wireframe-morph.test.mjs \
-  test/ym-silicon-bg.test.mjs
   test/graded-beat-detection.test.mjs \
   test/graded-beat-routing.test.mjs \
+  test/dj-engine-lifecycle.test.mjs \
   test/starfield.test.mjs \
   test/copperbars.test.mjs \
   test/track-presenter.test.mjs \
@@ -540,7 +527,28 @@ node --test \
   test/void-element.test.mjs
 ```
 
-Ein Fake-Canvas für Unit-Tests SOLL zusätzlich zu fehlendem fillText()/measureText() strikte Integer-, Bounds- (0 <= x, x + w <= width, 0 <= y, y + h <= height) und Palettenprüfungen erzwingen sowie globalAlpha, save()/clip() und getImageData() verweigern bzw. markieren. DSEs SOLLEN idealerweise ohne globales document in Node testbar sein.
+Zusätzlich decken die systemspezifischen Suites das v1.6.0-Overhaul ab:
+
+```sh
+node --test \
+  test/kefrens-checkerboard.test.mjs \
+  test/paula-silicon-bg.test.mjs \
+  test/retro-sunset.test.mjs \
+  test/amiga-castle-fireworks.test.mjs \
+  test/chunky-plasma.test.mjs \
+  test/c64-retro-sunset.test.mjs \
+  test/sid-silicon-bg.test.mjs \
+  test/c64-vector-star.test.mjs \
+  test/c64-castle-fireworks.test.mjs \
+  test/atari-dot-torus.test.mjs \
+  test/atari-bobs.test.mjs \
+  test/atari-retro-sunset.test.mjs \
+  test/atari-wireframe-morph.test.mjs \
+  test/ym-silicon-bg.test.mjs \
+  test/atari-enchanted-castle.test.mjs
+```
+
+Ein Fake-Canvas für Unit-Tests SOLL zusätzlich zu fehlendem `fillText()`/`measureText()` strikte Integer-, Bounds- (`0 <= x`, `x + w <= width`, `0 <= y`, `y + h <= height`) und Palettenprüfungen erzwingen sowie `globalAlpha`, `save()`/`clip()` und `getImageData()` verweigern bzw. markieren. DSEs SOLLEN idealerweise ohne globales `document` in Node testbar sein; für `StageManager`-Tests steht dafür optional `new StageManager({ createCanvas })` bereit.
 
 ### 9.2 Visuelle Nachweise
 
@@ -626,8 +634,8 @@ Ein neuer DSE ist erst abnahmebereit, wenn alle zutreffenden Punkte erfüllt sin
 Bei Detailfragen haben die aktuellen Implementierungen Vorrang vor älteren Konzepttexten:
 
 - `js/visuals/scene-dj.js` — Signalfluss und Retro-Canvas-Ausgabe
-- `js/visuals/dj/stage-manager.js` — Instanzen, Metriken, Zustände und PAL-Tick-Caching
-- `js/visuals/dj/setlist-manager.js` — Auswahl, Layerfüllung und Dauer
+- `js/visuals/dj/stage-manager.js` — Instanzen, Metriken, Zustände, PAL-Tick-Caching und >50-Hz-Beat-Latching
+- `js/visuals/dj/setlist-manager.js` — Auswahl, Layerfüllung, sequenzielle Layer-Übergänge und Dauer
 - `js/visuals/dj/track-monitor.js` — Energie, Hüllkurven und Beat-Events
 - `js/visuals/dj/tension-manager.js` — Tension und Makrozustände
 - `js/visuals/dse/registry.js` — Registry-Builder und gültige Metadaten
