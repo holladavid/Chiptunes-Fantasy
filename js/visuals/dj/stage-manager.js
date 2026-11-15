@@ -1,9 +1,13 @@
-// === js/visuals/dj/stage-manager.js ===
 import { getBeatLevel } from './track-monitor.js';
 
 const TRANSITION_TIME = 1.5;
 const PAL_FRAME_RATE = 50;
+const MAX_DT = 0.1;
 const Z_ORDER = { 'background': 0, 'floor': 1, 'foreground': 2, 'overlay': 3 };
+
+function sanitizeDt(dt) {
+    return Number.isFinite(dt) && dt > 0.0 ? Math.min(dt, MAX_DT) : 0.0;
+}
 
 export class StageManager {
     constructor() {
@@ -12,6 +16,16 @@ export class StageManager {
         // Einmaliger Puffer fuer alte Metriken ohne beatImpulse. Der Renderloop
         // erzeugt dadurch auch im Kompatibilitaetsfall keine neuen Arrays.
         this.legacyBeatImpulse = new Float32Array(1);
+        // Einmalige Puffer fuer Beats, die auf einem gecachten PAL-Tick lagen
+        // (z.B. 60/120/144 Hz) und am naechsten PAL-Tick nachgeliefert werden.
+        this.latchedBeatEnvelope = new Float32Array(1);
+        this.latchedBeatImpulse = new Float32Array(1);
+        this.latchedPulse = new Float32Array(1);
+    }
+
+    clearPendingBeat(dse) {
+        const cache = this.frameCaches.get(dse);
+        if (cache) cache.hasPendingBeat = false;
     }
 
     sortZOrder() {
@@ -30,28 +44,29 @@ export class StageManager {
                 dse.state = 'idle';
                 dse.stateTime = 0.0;
                 dse._markedForRemoval = false;
+                this.clearPendingBeat(dse);
                 this.activeDSEs.splice(i, 1);
             }
         }
     }
 
     updateCrossfades(macroState, dt) {
+        const safeDt = sanitizeDt(dt);
+
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
             let dse = this.activeDSEs[i];
-            
+
             // --- DIAGNOSTISCHER DIAG-HARD-KILL (Debugging) ---
-            // Wenn ein Element während der HMR (Hot Module Replacement) oder im Live-Betrieb
-            // auf "disabled()" geschaltet wird, weichen wir das weiche Ausfaden auf und
-            // reißen das Element im aktuellen Frame sofort geräuschlos vom Monitor.
             if (dse.metadata.isDisabled) {
                 dse.state = 'idle';
                 dse.stateTime = 0.0;
                 dse._markedForRemoval = false;
+                this.clearPendingBeat(dse);
                 this.activeDSEs.splice(i, 1);
                 continue;
             }
 
-            dse.stateTime += dt;
+            dse.stateTime += safeDt;
 
             let transitionTime = dse.metadata.lifecycle === 'oneshot' ? 1.0 : TRANSITION_TIME;
 
@@ -62,36 +77,38 @@ export class StageManager {
             }
 
             if (dse._markedForRemoval) {
-                if (dse.state !== 'stopping') { 
-                    dse.state = 'stopping'; 
-                    dse.stateTime = 0.0; 
+                if (dse.state !== 'stopping') {
+                    dse.state = 'stopping';
+                    dse.stateTime = 0.0;
                 } else if (dse.stateTime >= transitionTime) {
-                    dse.state = 'idle'; 
-                    dse.stateTime = 0.0; 
+                    dse.state = 'idle';
+                    dse.stateTime = 0.0;
                     dse._markedForRemoval = false;
-                    this.activeDSEs.splice(i, 1); 
+                    this.clearPendingBeat(dse);
+                    this.activeDSEs.splice(i, 1);
                 }
-                continue; 
+                continue;
             }
 
             if (macroState === 'idle') {
-                if (dse.state !== 'idle' && dse.state !== 'stopping') { 
-                    dse.state = 'stopping'; 
-                    dse.stateTime = 0.0; 
-                } else if (dse.state === 'stopping' && dse.stateTime >= transitionTime) { 
-                    dse.state = 'idle'; 
-                    dse.stateTime = 0.0; 
+                if (dse.state !== 'idle' && dse.state !== 'stopping') {
+                    dse.state = 'stopping';
+                    dse.stateTime = 0.0;
+                } else if (dse.state === 'stopping' && dse.stateTime >= transitionTime) {
+                    dse.state = 'idle';
+                    dse.stateTime = 0.0;
+                    this.clearPendingBeat(dse);
                 }
             } else {
-                if (dse.state === 'idle' || dse.state === 'stopping') { 
-                    dse.state = 'starting'; 
-                    dse.stateTime = dse.state === 'stopping' ? Math.max(0.0, transitionTime - dse.stateTime) : 0.0; 
-                } else if (dse.state === 'starting' && dse.stateTime >= transitionTime) { 
-                    dse.state = macroState; 
-                    dse.stateTime = 0.0; 
+                if (dse.state === 'idle' || dse.state === 'stopping') {
+                    dse.state = 'starting';
+                    dse.stateTime = dse.state === 'stopping' ? Math.max(0.0, transitionTime - dse.stateTime) : 0.0;
+                } else if (dse.state === 'starting' && dse.stateTime >= transitionTime) {
+                    dse.state = macroState;
+                    dse.stateTime = 0.0;
                 } else if (dse.state === 'playing' || dse.state === 'buildup' || dse.state === 'climax' || dse.state === 'afterglow') {
-                    if (dse.state !== macroState) { 
-                        dse.state = macroState; 
+                    if (dse.state !== macroState) {
+                        dse.state = macroState;
                     }
                 }
             }
@@ -99,42 +116,57 @@ export class StageManager {
     }
 
     renderAll(ctx, width, height, t, dynamics, info, metricsWrapper) {
+        if (width <= 0 || height <= 0 || !Number.isFinite(width / height) || !Number.isFinite(t)) {
+            return;
+        }
+
+        const system = info ? info.system : undefined;
+        const liveBeatStarted = Boolean(dynamics.beatStarted);
+        const liveBeatCount = dynamics.beatCount;
+
         metricsWrapper.energy = dynamics.masterEnergy;
         metricsWrapper.pulse = dynamics.transientPulse;
         metricsWrapper.beat = dynamics.beatEnvelope;
-        // Exakte Ereignisse ergaenzen die abklingende Beat-Huelle: DSEs koennen
-        // damit Patternwechsel einmal pro Beat statt per Schwellenwert ausloesen.
-        metricsWrapper.beatStarted = dynamics.beatStarted;
-        metricsWrapper.beatCount = dynamics.beatCount;
+        metricsWrapper.beatStarted = liveBeatStarted;
+        metricsWrapper.beatCount = liveBeatCount;
 
         const envelope = dynamics.beatEnvelope && Number.isFinite(dynamics.beatEnvelope[0])
             ? Math.max(0.0, Math.min(1.0, dynamics.beatEnvelope[0]))
             : 0.0;
-        // Vor graduellen Beats war jeder akzeptierte Schlag ein Vollschlag.
-        // Dieser Fallback haelt alte Harness- und Test-Metriken kompatibel.
         const strength = Number.isFinite(dynamics.beatStrength)
             ? Math.max(0.0, Math.min(1.0, dynamics.beatStrength))
-            : (envelope > 0.0 || dynamics.beatStarted ? 1.0 : 0.0);
-        metricsWrapper.beatStrength = strength;
-        metricsWrapper.beatLevel = Number.isInteger(dynamics.beatLevel)
+            : (envelope > 0.0 || liveBeatStarted ? 1.0 : 0.0);
+        const beatLevel = Number.isInteger(dynamics.beatLevel)
             && dynamics.beatLevel >= 0 && dynamics.beatLevel <= 3
             ? dynamics.beatLevel
             : getBeatLevel(strength);
 
+        metricsWrapper.beatStrength = strength;
+        metricsWrapper.beatLevel = beatLevel;
+
+        let liveBeatImpulse;
         if (dynamics.beatImpulse && Number.isFinite(dynamics.beatImpulse[0])) {
-            metricsWrapper.beatImpulse = dynamics.beatImpulse;
+            liveBeatImpulse = dynamics.beatImpulse;
         } else {
             this.legacyBeatImpulse[0] = envelope * strength;
-            metricsWrapper.beatImpulse = this.legacyBeatImpulse;
+            liveBeatImpulse = this.legacyBeatImpulse;
         }
+        metricsWrapper.beatImpulse = liveBeatImpulse;
+
+        const liveImpulseValue = Number.isFinite(liveBeatImpulse[0])
+            ? Math.max(0.0, Math.min(1.0, liveBeatImpulse[0]))
+            : 0.0;
+        const livePulseValue = dynamics.transientPulse && Number.isFinite(dynamics.transientPulse[0])
+            ? Math.max(0.0, Math.min(1.0, dynamics.transientPulse[0]))
+            : 0.0;
 
         metricsWrapper.smooth = dynamics.channelSmooth;
         metricsWrapper.rawEnergyState = dynamics.rawEnergyState;
-        metricsWrapper.system = info.system;
+        metricsWrapper.system = system;
 
         const palTick = Math.floor(t * PAL_FRAME_RATE + 1e-7);
         for (let i = 0; i < this.activeDSEs.length; i++) {
-            let dse = this.activeDSEs[i];
+            const dse = this.activeDSEs[i];
             let cache = this.frameCaches.get(dse);
             if (!cache) {
                 const canvas = document.createElement('canvas');
@@ -154,16 +186,56 @@ export class StageManager {
                 cache.tick = null;
             }
 
-            // Nur die DSE-Bildberechnung wird auf PAL 50 Hz begrenzt. DJ-Logik,
-            // Beat-Analyse und Zustandswechsel behalten ihre volle Zeitaufloesung.
-            if (cache.tick !== palTick || cache.state !== dse.state || cache.system !== info.system) {
+            if (dse.state === 'idle') {
+                cache.hasPendingBeat = false;
+            }
+
+            const needsRender = cache.tick !== palTick || cache.state !== dse.state || cache.system !== system;
+
+            if (needsRender) {
+                const useLatchedBeat = !liveBeatStarted && Boolean(cache.hasPendingBeat) && dse.state !== 'idle';
+                if (useLatchedBeat) {
+                    this.latchedBeatEnvelope[0] = Math.max(envelope, cache.pendingBeatEnvelope);
+                    this.latchedBeatImpulse[0] = Math.max(liveImpulseValue, cache.pendingBeatImpulse);
+                    this.latchedPulse[0] = Math.max(livePulseValue, cache.pendingPulse);
+
+                    metricsWrapper.beatStarted = true;
+                    metricsWrapper.beatCount = cache.pendingBeatCount;
+                    metricsWrapper.beatStrength = cache.pendingBeatStrength;
+                    metricsWrapper.beatLevel = cache.pendingBeatLevel;
+                    metricsWrapper.beat = this.latchedBeatEnvelope;
+                    metricsWrapper.beatImpulse = this.latchedBeatImpulse;
+                    metricsWrapper.pulse = this.latchedPulse;
+                }
+
+                cache.hasPendingBeat = false;
+
                 cache.ctx.clearRect(0, 0, width, height);
                 cache.ctx.globalAlpha = 1.0;
                 cache.ctx.imageSmoothingEnabled = false;
                 dse.render(cache.ctx, width, height, t, dse.state, dse.stateTime, metricsWrapper);
+
+                if (useLatchedBeat) {
+                    metricsWrapper.beatStarted = liveBeatStarted;
+                    metricsWrapper.beatCount = liveBeatCount;
+                    metricsWrapper.beatStrength = strength;
+                    metricsWrapper.beatLevel = beatLevel;
+                    metricsWrapper.beat = dynamics.beatEnvelope;
+                    metricsWrapper.beatImpulse = liveBeatImpulse;
+                    metricsWrapper.pulse = dynamics.transientPulse;
+                }
+
                 cache.tick = palTick;
                 cache.state = dse.state;
-                cache.system = info.system;
+                cache.system = system;
+            } else if (liveBeatStarted && dse.state !== 'idle') {
+                cache.hasPendingBeat = true;
+                cache.pendingBeatCount = Number.isFinite(liveBeatCount) ? liveBeatCount : 0;
+                cache.pendingBeatStrength = strength;
+                cache.pendingBeatLevel = beatLevel;
+                cache.pendingBeatEnvelope = envelope;
+                cache.pendingBeatImpulse = liveImpulseValue;
+                cache.pendingPulse = livePulseValue;
             }
 
             // Transparenter Layer-Cache: Die Z-Order und die vom Scene DJ

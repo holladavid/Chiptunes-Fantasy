@@ -188,3 +188,26 @@ test('reset and pause clear graded beat state', () => {
     assert.equal(paused.beatLevel, BEAT_LEVEL.NONE);
     assert.equal(paused.beatImpulse[0], 0);
 });
+
+test('channel smoothing stays bounded in [0, 1] across large or invalid dt', () => {
+    const monitor = createMonitor('c64');
+
+    // Großer Frame-Sprung (dt = 0.5s) darf channelSmooth nicht > 1.0 ueberschiessen lassen
+    monitor.update(Float32Array.from([1.0, 0.5, 0.0, 0.0]), 0.5, null);
+    for (let i = 0; i < 3; i++) {
+        assert.ok(monitor.dynamics.channelSmooth[i] >= 0 && monitor.dynamics.channelSmooth[i] <= 1);
+    }
+
+    // Großer Abfall darf channelSmooth nicht < 0 druecken
+    monitor.update(Float32Array.from([0.0, 0.0, 0.0, 0.0]), 0.5, null);
+    for (let i = 0; i < 3; i++) {
+        assert.ok(monitor.dynamics.channelSmooth[i] >= 0 && monitor.dynamics.channelSmooth[i] <= 1);
+    }
+
+    // Negatives oder NaN dt darf Beat-Huellkurve nicht verstaerken
+    monitor.update(Float32Array.from([1.0, 0.0, 0.0, 0.0]), 1 / 60, null);
+    monitor.update(Float32Array.from([0.0, 0.0, 0.0, 0.0]), -0.5, null);
+    assert.ok(monitor.dynamics.beatEnvelope[0] >= 0 && monitor.dynamics.beatEnvelope[0] <= 1);
+    monitor.update(Float32Array.from([0.0, 0.0, 0.0, 0.0]), Number.NaN, null);
+    assert.ok(Number.isFinite(monitor.dynamics.beatEnvelope[0]));
+});

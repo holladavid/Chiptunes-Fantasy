@@ -136,6 +136,8 @@ export class SetlistManager {
     }
 
     manageSwaps(stageManager, info, macroState, dt, beatStarted = false) {
+        const safeDt = Number.isFinite(dt) && dt > 0.0 ? Math.min(dt, 0.1) : 0.0;
+
         // --- PRÜFUNG AUF EXKLUSIVES TEST-ELEMENT ---
         const hasExclusive = this.registeredDSEs.some(d =>
             d.metadata.isExclusive &&
@@ -171,7 +173,7 @@ export class SetlistManager {
         }
 
         for (let [dse, pending] of this.pendingSwaps) {
-            pending.wait += dt;
+            pending.wait += safeDt;
             if (!beatStarted && pending.wait < SWAP_BEATLESS_TIMEOUT) continue;
 
             let otherVisibleCount = stageManager.activeDSEs.filter(d =>

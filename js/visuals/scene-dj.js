@@ -11,7 +11,7 @@ export class SceneDJ {
         this.tension = new TensionManager();
         this.setlist = new SetlistManager();
         this.stage = new StageManager();
-        this.lastTime = 0;
+        this.lastTime = null;
 
         this.metricsWrapper = {
             tensionPct: 0.0,
@@ -50,14 +50,14 @@ export class SceneDJ {
 
     // FIX: chipRegs Argument am Ende hinzugefügt
     render(ctx, width, height, t, channelVolumes, isPlaying, sessionId, trackMetadata, chipRegs) {
-        
-        // --- SCHUTZSCHALTUNG 1: Abfangen von 0px, NaN oder Infinity Viewports ---
-        if (width <= 0 || height <= 0 || !isFinite(width / height)) return;
 
-        let dt = 0.016; 
-        if (this.lastTime !== 0) { 
-            dt = t - this.lastTime; 
-            if (dt > 0.1) dt = 0.016; 
+        // --- SCHUTZSCHALTUNG 1: Abfangen von 0px, NaN oder Infinity Viewports & Zeit ---
+        if (width <= 0 || height <= 0 || !Number.isFinite(width / height) || !Number.isFinite(t)) return;
+
+        let dt = 0.016;
+        if (this.lastTime !== null) {
+            dt = t - this.lastTime;
+            if (!Number.isFinite(dt) || dt < 0.0 || dt > 0.1) dt = 0.016;
         }
         this.lastTime = t;
 

@@ -11,10 +11,15 @@ const BUILDUP_THRESHOLD = 0.55;
 const BUILDUP_HOLD_TIME = 3.5;
 const FULL_BOARD_BUILDUP_HOLD_TIME = 1.5;
 const FULL_BOARD_SPEED_BOOST = 1.3;
+const MAX_DT = 0.1;
 export const TENSION_MAX = 20.0;
 
 function clamp01(value) {
-    return Math.max(0.0, Math.min(1.0, value));
+    return Number.isFinite(value) ? Math.max(0.0, Math.min(1.0, value)) : 0.0;
+}
+
+function sanitizeDt(dt) {
+    return Number.isFinite(dt) && dt > 0.0 ? Math.min(dt, MAX_DT) : 0.0;
 }
 
 export class TensionManager {
@@ -25,7 +30,7 @@ export class TensionManager {
         this.currentClimaxHoldTime = 10.0;
         this.macroState = 'idle';
         this.energyStateTimer = 0.0;
-        
+
         // Demo-Director Metriken (Zero Allocation Speicher)
         this.lastRegs = new Uint8Array(32);
         this.hasRegisterSnapshot = false;
@@ -40,7 +45,7 @@ export class TensionManager {
         this.isClimaxLocked = false;
         this.energyStateTimer = 0.0;
         this.macroState = 'idle';
-        
+
         this.freshness = 0.0;
         this.lastEnergy = 0.0;
         this.afterglowTimer = 0.0;
@@ -49,9 +54,10 @@ export class TensionManager {
     }
 
     update(dynamics, info, stageManager, dt, chipRegs) {
-        this.energyStateTimer += dt;
-        
-        const energy = dynamics.masterEnergy[0];
+        const safeDt = sanitizeDt(dt);
+        this.energyStateTimer += safeDt;
+
+        const energy = clamp01(dynamics && dynamics.masterEnergy ? dynamics.masterEnergy[0] : 0.0);
         // 1. Momentum: Steigt die Energie gerade abrupt an?
         const momentum = Math.max(0.0, energy - this.lastEnergy) * 10.0;
         this.lastEnergy = energy;
@@ -68,43 +74,43 @@ export class TensionManager {
                 for (let i = 0; i < 32; i++) this.lastRegs[i] = chipRegs[i];
                 this.hasRegisterSnapshot = true;
             } else {
-            if (info.system === 'c64') {
-                // SID Events
-                for (let v = 0; v < 3; v++) {
-                    let ctrl = chipRegs[v * 7 + 4];
-                    let lastCtrl = this.lastRegs[v * 7 + 4];
-                    if ((ctrl & 1) && !(lastCtrl & 1)) freshnessSpike += 0.15; // Gate On
-                    if ((ctrl & 0xF0) !== (lastCtrl & 0xF0)) freshnessSpike += 0.25; // Waveform Wechsel
-                }
-                let cut = (chipRegs[21] & 7) | (chipRegs[22] << 3);
-                let lastCut = (this.lastRegs[21] & 7) | (this.lastRegs[22] << 3);
-                if (Math.abs(cut - lastCut) > 200) freshnessSpike += 0.2; // Filter-Fahrt
-                
-            } else if (info.system === 'amiga') {
-                // Paula Events (Kalibriert: Gesunder Mittelweg gegen Sättigung)
-                for (let c = 0; c < 4; c++) {
-                    let offset = c * 7;
-                    let vol = chipRegs[offset + 6];
-                    let lastVol = this.lastRegs[offset + 6];
-                    let per = (chipRegs[offset + 4] << 8) | chipRegs[offset + 5];
-                    let lastPer = (this.lastRegs[offset + 4] << 8) | this.lastRegs[offset + 5];
+                if (info.system === 'c64') {
+                    // SID Events
+                    for (let v = 0; v < 3; v++) {
+                        let ctrl = chipRegs[v * 7 + 4];
+                        let lastCtrl = this.lastRegs[v * 7 + 4];
+                        if ((ctrl & 1) && !(lastCtrl & 1)) freshnessSpike += 0.15; // Gate On
+                        if ((ctrl & 0xF0) !== (lastCtrl & 0xF0)) freshnessSpike += 0.25; // Waveform Wechsel
+                    }
+                    let cut = (chipRegs[21] & 7) | (chipRegs[22] << 3);
+                    let lastCut = (this.lastRegs[21] & 7) | (this.lastRegs[22] << 3);
+                    if (Math.abs(cut - lastCut) > 200) freshnessSpike += 0.2; // Filter-Fahrt
 
-                    if (vol > lastVol + 12) freshnessSpike += 0.10; // Ausgewogene Trigger-Schwelle
-                    if (vol > 0 && per !== lastPer && Math.abs(per - lastPer) > 12) freshnessSpike += 0.05; 
-                }
-                
-            } else if (info.system === 'atari') {
-                // YM Events
-                if (chipRegs[13] !== this.lastRegs[13] && chipRegs[13] !== 255) freshnessSpike += 0.4; // Hardware Env
-                if ((chipRegs[7] & 0x38) !== (this.lastRegs[7] & 0x38)) freshnessSpike += 0.3; // Noise Toggle
-                if (chipRegs[14] !== this.lastRegs[14] && chipRegs[14] > 0) freshnessSpike += 0.3; // Digidrum 1
-                if (chipRegs[15] !== this.lastRegs[15] && chipRegs[15] > 0) freshnessSpike += 0.3; // Digidrum 2
-            }
+                } else if (info.system === 'amiga') {
+                    // Paula Events (Kalibriert: Gesunder Mittelweg gegen Sättigung)
+                    for (let c = 0; c < 4; c++) {
+                        let offset = c * 7;
+                        let vol = chipRegs[offset + 6];
+                        let lastVol = this.lastRegs[offset + 6];
+                        let per = (chipRegs[offset + 4] << 8) | chipRegs[offset + 5];
+                        let lastPer = (this.lastRegs[offset + 4] << 8) | this.lastRegs[offset + 5];
 
-            // Register-Zustand sichern
-            for(let i = 0; i < 32; i++) {
-                this.lastRegs[i] = chipRegs[i];
-            }
+                        if (vol > lastVol + 12) freshnessSpike += 0.10; // Ausgewogene Trigger-Schwelle
+                        if (vol > 0 && per !== lastPer && Math.abs(per - lastPer) > 12) freshnessSpike += 0.05;
+                    }
+
+                } else if (info.system === 'atari') {
+                    // YM Events
+                    if (chipRegs[13] !== this.lastRegs[13] && chipRegs[13] !== 255) freshnessSpike += 0.4; // Hardware Env
+                    if ((chipRegs[7] & 0x38) !== (this.lastRegs[7] & 0x38)) freshnessSpike += 0.3; // Noise Toggle
+                    if (chipRegs[14] !== this.lastRegs[14] && chipRegs[14] > 0) freshnessSpike += 0.3; // Digidrum 1
+                    if (chipRegs[15] !== this.lastRegs[15] && chipRegs[15] > 0) freshnessSpike += 0.3; // Digidrum 2
+                }
+
+                // Register-Zustand sichern
+                for (let i = 0; i < 32; i++) {
+                    this.lastRegs[i] = chipRegs[i];
+                }
             }
         } else {
             this.hasRegisterSnapshot = false;
@@ -116,12 +122,12 @@ export class TensionManager {
 
         // Freshness akkumulieren und abbauen
         this.freshness = Math.min(1.0, this.freshness + freshnessSpike);
-        this.freshness = Math.max(0.0, this.freshness - (dt * decaySpeed));
+        this.freshness = Math.max(0.0, this.freshness - (safeDt * decaySpeed));
 
         let targetState = this.macroState;
 
         if (!info.isPlaying) {
-            this.tension = Math.max(0.0, this.tension - (dt * 15.0));
+            this.tension = Math.max(0.0, this.tension - (safeDt * 15.0));
             this.isClimaxLocked = false;
             this.afterglowTimer = 0.0;
             targetState = 'idle';
@@ -145,10 +151,10 @@ export class TensionManager {
             if (this.macroState === 'afterglow') {
                 // AFTERGLOW PHASE (Der Abkühlungs-Glow):
                 // Die Tension fällt linear mit dem Afterglow-Timer ab
-                this.afterglowTimer -= dt;
-                
+                this.afterglowTimer -= safeDt;
+
                 this.tension = TENSION_MAX * Math.max(0.0, this.afterglowTimer / halfHold);
-                
+
                 if (this.afterglowTimer <= 0) {
                     this.tension = 0.0;
                     targetState = 'playing';
@@ -157,34 +163,35 @@ export class TensionManager {
             } else if (this.isClimaxLocked) {
                 // CLIMAX PHASE (Die eigentliche Explosion):
                 // Nutzt exakt 50% der climaxHoldTime für die Action
-                this.climaxTimer += dt;
+                this.climaxTimer += safeDt;
                 this.tension = TENSION_MAX; // Bleibt auf Vollanschlag
 
                 if (this.climaxTimer >= halfHold) {
                     this.isClimaxLocked = false;
                     this.freshness = 0.0; // Kaltstart für die Erholungsphase
                     targetState = 'afterglow';
-                    
+
                     // Die verbleibenden 50% der climaxHoldTime wandern in den Afterglow-Timer!
-                    this.afterglowTimer = halfHold; 
+                    this.afterglowTimer = halfHold;
                 }
             } else {
                 // BUILDUP PHASE: 40% Energy + 40% Momentum + 20% Novelty
                 let power = (energy * 0.4) + (momentum * 0.4) + (this.freshness * 0.2);
-                
+
                 // Visual Intensity Multiplikator: Ohne Freshness (Novelty) verhungert der Pegelaufbau
                 let visualIntensity = power * (0.3 + this.freshness * 0.7);
 
                 // Full Board bedeutet: Der schwaechste echte Kanal ist laut und die
                 // Beat-Huelle ist aktiv. Nur dann beschleunigen Aufbau und Staffelung.
                 const channelCount = info.system === 'amiga' ? 4 : 3;
+                const channelSmooth = dynamics ? dynamics.channelSmooth : null;
                 let weakestChannel = 1.0;
                 for (let i = 0; i < channelCount; i++) {
-                    weakestChannel = Math.min(weakestChannel, clamp01(dynamics.channelSmooth[i] || 0.0));
+                    weakestChannel = Math.min(weakestChannel, clamp01(channelSmooth ? channelSmooth[i] : 0.0));
                 }
                 const channelDrive = clamp01((weakestChannel - 0.35) / 0.45);
                 const loudnessDrive = clamp01((energy - 0.55) / 0.30);
-                const beatDrive = clamp01(dynamics.beatEnvelope[0] || 0.0);
+                const beatDrive = clamp01(dynamics && dynamics.beatEnvelope ? dynamics.beatEnvelope[0] : 0.0);
                 const fullBoardDrive = channelDrive * loudnessDrive * (0.35 + beatDrive * 0.65);
 
                 // Moderate Passagen sammeln langsamer; volle Kanal- und Beat-Energie
@@ -197,7 +204,7 @@ export class TensionManager {
                 // Tor-Sperre für den eigentlichen Tension-Anstieg
                 if (energy > 0.25) {
                     this.tension = Math.min(TENSION_MAX,
-                        this.tension + visualIntensity * accumulationSpeed * dt * 4.0);
+                        this.tension + visualIntensity * accumulationSpeed * safeDt * 4.0);
 
                     const buildupHoldTime = BUILDUP_HOLD_TIME -
                         fullBoardDrive * (BUILDUP_HOLD_TIME - FULL_BOARD_BUILDUP_HOLD_TIME);
@@ -225,8 +232,8 @@ export class TensionManager {
                     }
                 } else {
                     // Song ist leise -> Tension baut sich sachte ab, aber wir bleiben aktiv im 'playing'-Zustand!
-                    this.tension = Math.max(0.0, this.tension - (dt * 3.0));
-                    
+                    this.tension = Math.max(0.0, this.tension - (safeDt * 3.0));
+
                     // Sicherstellen, dass wir im 'playing'-Zustand bleiben oder dorthin zurückwechseln
                     if (this.macroState === 'buildup' && this.energyStateTimer > MIN_BUILDUP_TIME) {
                         targetState = 'playing';
