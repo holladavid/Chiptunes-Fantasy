@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.6.1)
+# 💾 CHIPTUNES FANTASY (v1.6.2)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -15,6 +15,26 @@ But memory paints the past grander than it actually was. **This is our Fantasy.*
 Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with ruthless historical accuracy (strict hardware palettes, true bit-banged integer math, zero anti-aliasing). Our `Scene-DJ` then acts as the ultimate virtual orchestrator, taking these isolated, period-accurate effects and layering them into a breathtaking, synchronized demoscene experience that feels *exactly* like our childhood memories.
 
 ---
+
+## 🚀 v1.6.2 Release Highlights
+
+Version 1.6.2 delivers a major **Atari ST showcase update**: the Fantasy **`ym-bladerunner` DSP core** advances to **v2.5 ("Director's Cut")**, **`AtariEnchantedCastle`** receives a dense Winter-Gothic pixel-art overhaul with full DSE-rules compliance, **`AtariRetroSunset`** gains beat-choreographed **IK+ martial-arts sprites**, and fullscreen UI inactivity handling plus repository governance are refined. Exact/reference emulation cores (SID, Paula, YM2149 Exact) and the 214-track curated library remain unchanged.
+
+### Atari ST YM2149F "Blade Runner" Core v2.5 (Director's Cut)
+
+- **True Yamaha CS-80 voice architecture (`CS80Voice` × 3):** Replaces `MoogFilter` with fast Padé-[3/2] **Zero-Delay Feedback (TPT) SVFs (`ZDFFilter`)** featuring soft cubic bandpass saturation, dual-rank detuned PWM/sawtooth VCOs with Nyquist roll-off, ~9 ms legato ribbon glide (preserving fast arpeggios and tracker slides 1:1), per-frame retrigger/arpeggio detection, 12 dB HPF + 12 dB resonant LPF, and authentic **post-VCF pure Sine addition**.
+- **32-step hardware envelope & YM6 MFP-timer FX (`decodeSlotFx`):** Adds 32-step `YM_DAC` envelope interpolation, clean silencing for expired one-shot envelopes (`envStoppedZero`), PolyBLEP buzzer edge anti-aliasing, and MFP-clocked decoding for **YM6 Digidrum rates (2.5–32 kHz)**, **Atari SID-Voice** modulation, and **TAO Sync-Buzzer** phase resets, alongside a 1.5 ms anti-click Digidrum crossfade and start-flag snare-roll support.
+- **Sample-rate-independent stereo space pipeline:** Adds polynomial equal-power panning (`fastSinHalfPi`), a mono-compatible **True-Stereo Dimension-D BBD Chorus**, a flutter-modulated **Tape Multi-Tap Delay**, a **19 ms pre-delay + 2× Allpass + 4-channel quadrature-modulated Lexicon 224 FDN Reverb**, asymmetric tape saturation, signed block-peak visual telemetry, and live `SET_PARAMS` support.
+
+### Atari ST DSE Upgrades (`AtariEnchantedCastle`, `AtariRetroSunset` & `ik-fighter-sprites.js`)
+
+- **`AtariEnchantedCastle` (`background`):** Reimagined in strict 16-color, 9-bit Atari ST Shifter pixels as a snow-clad Carpathian/Dolomite Vampire Fortress inspired by *Tanz der Vampire* and Caspar David Friedrich (`FLOOR_HORIZON_RATIO = 0.55`). Replaces DOM-dependent fades and `globalAlpha` with a native **4×4 Bayer ordered-dither curtain** and Shifter sky seams, adds pre-baked ridge/couloir, ashlar masonry, and spruce-tuft LUTs, Bayer-dithered cylindrical towers, multi-volume fortress architecture, an 80-flake 3-layer snowfall pool, valley spruce groves, snow-fence/hollow-way/bridge and hunter silhouettes, YM channel (`smooth[0..2]`) reactivity, and 2.5 s `afterglow` Blood-Moon cooling.
+- **`AtariRetroSunset` + `ik-fighter-sprites.js` (`background`):** Adds a 100% DOM-free 9-bit Shifter sprite catalog (`IK_SPRITE_FRAMES`) compiling 29 hand-crafted IK+ martial-arts keyframes into zero-allocation RLE horizontal spans (`drawCompiledSprite`). Rolls per-fade-in between **`karateka`** (white Gi & red Hachimaki) and **`kaempferin`** (sleeveless Gi, crimson wraps/obi, indigo trousers & animated ponytail) with 50 Hz PAL-aligned strikes, beat canceling (`canCancelAt`), parabolic jumps, strike sparks, opening/closing bows, Zen katas, and foreground petals passing in front of the fighter.
+
+### Fullscreen Inactivity UI, Mobile Landscape & Governance
+
+- **Auto-hide consistency & fullscreen wakeups (`css/style.css`, `js/app.js`, `index.html`):** Fades `#brand-logo` during fullscreen inactivity alongside `#fs-ui-bar` and `.now-playing`, removes the `#fs-ui-bar:focus-within` lock so retained button focus does not pin the bar open, keeps `#brand-logo` visible in windowed mobile landscape (`<= 1024×580`) while respecting fullscreen auto-hide, evaluates `isFS` inside the idle timeout callback, wakes UI overlays on `touchmove` and `fullscreenchange`/`webkitfullscreenchange`, and updates the boot screen header to `V1.6.2`.
+- **Contributor governance:** Adds a Contributor Covenant v2.0 `CODE_OF_CONDUCT.md`.
 
 ## 🚀 v1.6.1 Release Highlights
 
