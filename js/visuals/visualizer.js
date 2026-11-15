@@ -48,7 +48,9 @@ export function initVisuals(stateGetters, callbacks) {
         wireSiliconDJ();
         const sys = document.body.classList.contains('theme-atari') ? 'atari' : (document.body.classList.contains('theme-amiga') ? 'amiga' : 'c64');
         dss.forceSystemChange(sys);
-        dss.resize(canvas.width, canvas.height); // Skalierung für neue DSEs wiederherstellen
+        if (canvas.width > 0 && canvas.height > 0) {
+            dss.resize(canvas.width, canvas.height); // Skalierung für neue DSEs wiederherstellen
+        }
     });
 
     // Core UI (Vom DJ unabhängig)
@@ -100,39 +102,56 @@ export function initVisuals(stateGetters, callbacks) {
     function resizeCanvas() {
         const clientWidth = canvas.clientWidth;
         const clientHeight = canvas.clientHeight;
+        if (clientWidth <= 0 || clientHeight <= 0) {
+            if (canvas.width !== 0 || canvas.height !== 0) {
+                canvas.width = 0;
+                canvas.height = 0;
+            }
+            return;
+        }
+
+        // Native HiDPI-Skalierung (gedeckelt auf 1..2x und max. 1920px Breite)
+        const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2);
+        const targetWidth = Math.round(clientWidth * dpr);
+        const targetHeight = Math.round(clientHeight * dpr);
         const maxResolutionWidth = 1920;
         let scale = 1.0;
-        
-        if (clientWidth > maxResolutionWidth) {
-            scale = maxResolutionWidth / clientWidth;
+
+        if (targetWidth > maxResolutionWidth) {
+            scale = maxResolutionWidth / targetWidth;
         }
-        
-        const newWidth = Math.floor(clientWidth * scale);
-        const newHeight = Math.floor(clientHeight * scale);
-        
+
+        const newWidth = Math.max(1, Math.floor(targetWidth * scale));
+        const newHeight = Math.max(1, Math.floor(targetHeight * scale));
+
         if (canvas.width !== newWidth || canvas.height !== newHeight) {
-            canvas.width = newWidth; 
+            canvas.width = newWidth;
             canvas.height = newHeight;
-            osc.resize(newWidth, newHeight); 
+            osc.resize(newWidth, newHeight);
             dss.resize(newWidth, newHeight); // Resize ans DSE-Ökosystem leiten
             crtMask.resize(newWidth, newHeight);
         }
     }
-    
+
     // Initialer Resize (Nachdem dss deklariert wurde!)
     resizeCanvas();
+    if (typeof ResizeObserver === 'function') {
+        const resizeObserver = new ResizeObserver(resizeCanvas);
+        resizeObserver.observe(canvas);
+    }
     window.addEventListener('resize', resizeCanvas);
-    
-    const startTime = performance.now();
-    let hudCounter = 0; 
+    document.addEventListener('fullscreenchange', resizeCanvas);
+    document.addEventListener('webkitfullscreenchange', resizeCanvas);
 
-let lastDrawTime = performance.now();
+    const startTime = performance.now();
+    let hudCounter = 0;
+    let lastDrawTime = performance.now();
 
     function draw() {
         if (stateGetters.getEcoMode()) {
-            callbacks.updateTimelineUI(); 
+            callbacks.updateTimelineUI();
             requestAnimationFrame(draw);
-            return; 
+            return;
         }
 
         const now = performance.now();
@@ -144,11 +163,11 @@ let lastDrawTime = performance.now();
             return;
         }
 
-        const t = (now - startTime) * 0.001; 
+        const t = (now - startTime) * 0.001;
         let dt = (now - lastDrawTime) * 0.001;
-        if (dt > 0.1) dt = 0.016; // FPS-Drop Protection
+        if (!Number.isFinite(dt) || dt < 0 || dt > 0.1) dt = 0.016; // FPS-Drop & Clock-Skew Protection
         lastDrawTime = now;
-        
+
         ctx.fillStyle = '#000000'; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
