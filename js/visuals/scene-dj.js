@@ -6,11 +6,15 @@ import { StageManager } from './dj/stage-manager.js';
 import { SYSTEM_RESOLUTIONS } from './utils/hardware-constraints.js';
 
 export class SceneDJ {
-    constructor() {
+    constructor(options = {}) {
+        const createCanvas = typeof options.createCanvas === 'function'
+            ? options.createCanvas
+            : () => document.createElement('canvas');
+
         this.monitor = new TrackMonitor();
         this.tension = new TensionManager();
         this.setlist = new SetlistManager();
-        this.stage = new StageManager();
+        this.stage = new StageManager({ createCanvas });
         this.lastTime = null;
         this.pendingPresenterMetadata = null;
 
@@ -22,7 +26,7 @@ export class SceneDJ {
         };
 
         // --- RETRO BLITTER BUFFER ---
-        this.retroCanvas = document.createElement('canvas');
+        this.retroCanvas = createCanvas();
         this.retroCtx = this.retroCanvas.getContext('2d', { alpha: false });
     }
 

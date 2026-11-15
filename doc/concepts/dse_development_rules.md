@@ -90,6 +90,8 @@ Tension und Zustand steuern beispielsweise Geschwindigkeit, Amplitude, Anzahl ak
 
 Ein DSE SOLL nicht ausschließlich lauter und heller werden. Ein guter Effekt verändert sein Verhalten erkennbar zwischen ruhigem Spiel, Aufbau, Höhepunkt und Nachklang.
 
+Ebenso DARF sich kein DSE für Grundbewegung oder sichtbare Variation ausschließlich auf `beatStarted` verlassen: Auch bei ruhigen oder perkussionslosen Tracks ohne erkannte Beats MUSS der Effekt über `t`, `energy` und `smooth[c]` lebendig bleiben.
+
 ### 3.2 Verfügbare Metriken
 
 | Metrik | Bedeutung und vorgesehene Verwendung |
@@ -162,6 +164,7 @@ Regeln:
 - `beatLevel` darf zusammen mit `beatStarted` eine soft-, medium- oder hard-Variante auswählen. Der während des Abklingens erhaltene Levelwert allein ist kein neues Ereignis.
 - `beatStrength` beschreibt die Impulsgröße, nicht die Dauerlautstärke und nicht die Tension.
 - Ein Beat-Test MUSS auch mehrere Frames mit aktiver Hüllkurve, aber ohne neues `beatStarted`, enthalten.
+- **Strobe-Schutz:** Wegen des Beat-Cooldowns von `0.15 s` sind bis zu ~6,7 Beats/s möglich. Vollflächige Hochkontrast-Blitze (z. B. Weiß/Schwarz-Wipes im Beat-Takt) sind im Webkontext nicht zulässig; Beat-Akzente SOLLEN lokal begrenzt oder über abgestufte Paletten-/Formwechsel umgesetzt werden.
 
 ### 3.4 Kanalzuordnung
 
@@ -263,6 +266,7 @@ Regeln:
 - Hartcodierte Farbtabellen bereits korrekt quantisiert anlegen.
 - Berechnete Farben vor dem Zeichnen quantisieren beziehungsweise auf die C64-Palette abbilden.
 - Die Abnahme erfolgt an den tatsächlich gerenderten Pixeln, nicht nur an den Farbangaben im Quelltext.
+- Neben dem Farbraum ist auch das historische Farbbudget zu achten: Auf Atari ST soll eine Szene im Kern mit maximal 16 Grundfarben pro Bild (zzgl. gezielter Scanline-/Timer-B-Raster-Splits) auskommen; auf Amiga soll eine bewusste OCS-Subpalette (typisch 16–32 Farben zzgl. Copper-Zeilenwechseln) statt willkürlicher Echtfarb-Verläufe genutzt werden.
 - Keine Schatten, Browser-Filter, Antialiasing-Kanten oder Textausgabe, die unerlaubte Zwischenfarben erzeugen.
 - Nicht versuchen, Paletteverletzungen nachträglich durch eine undokumentierte Ausnahmeregel zu verstecken.
 - Bei Atari ST beträgt der maximale quantisierte Kanalwert `252` (`7 × 36`, `#fcfcfc`) und nicht `255` (`#ffffff`). Auch Weiß-Highlights müssen über `quantizeAtari9Bit(...)` erzeugt werden.
@@ -426,7 +430,10 @@ Metadatenbewusst wählen:
 | `overlay` | 3 | Präsentation, Einblendungen und vorderste Bildelemente |
 
 Es gibt keinen separaten `presenter`-Layer. Der TrackPresenter ist ein `overlay`-DSE mit `oneshot`-Lifecycle.
+
 **Horizont-Vertrag (`background` + `floor`):** Kombinierbare `floor`-DSEs (wie `KefrensCheckerboard`) beginnen ab `horizon = Math.floor(height * 0.55)` und lassen den Bereich `0 .. horizon - 1` vollständig unberührt. System-Hintergründe (`RetroSunset`, `PaulaSiliconBg`, `CastleFireworks`, `EnchantedCastle`) platzieren Himmel und Haupt-Silhouetten oberhalb dieser Linie, damit ein aktiver `floor`-DSE nur den unteren Vordergrund übernimmt.
+
+**Kontrast-Vertrag (`background` + `foreground`/`overlay`):** `foreground`- und `overlay`-DSEs müssen auch vor hellen, vollflächigen oder stark bewegten `background`-DSEs (z. B. `ChunkyPlasma` oder `RetroSunset`) lesbar bleiben. Wichtige Formen, Sprites und Bitmap-Schriften SOLLEN sich über klare Kontrast-Ramps, dunkle Outlines oder Schattenrahmen abheben.
 
 ### 6.3 Lifecycles und Dauer
 
@@ -520,6 +527,7 @@ node --test \
   test/graded-beat-detection.test.mjs \
   test/graded-beat-routing.test.mjs \
   test/dj-engine-lifecycle.test.mjs \
+  test/scene-dj-integration.test.mjs \
   test/starfield.test.mjs \
   test/copperbars.test.mjs \
   test/track-presenter.test.mjs \
@@ -548,7 +556,7 @@ node --test \
   test/atari-enchanted-castle.test.mjs
 ```
 
-Ein Fake-Canvas für Unit-Tests SOLL zusätzlich zu fehlendem `fillText()`/`measureText()` strikte Integer-, Bounds- (`0 <= x`, `x + w <= width`, `0 <= y`, `y + h <= height`) und Palettenprüfungen erzwingen sowie `globalAlpha`, `save()`/`clip()` und `getImageData()` verweigern bzw. markieren. DSEs SOLLEN idealerweise ohne globales `document` in Node testbar sein; für `StageManager`-Tests steht dafür optional `new StageManager({ createCanvas })` bereit.
+Ein Fake-Canvas für Unit-Tests SOLL zusätzlich zu fehlendem `fillText()`/`measureText()` strikte Integer-, Bounds- (`0 <= x`, `x + w <= width`, `0 <= y`, `y + h <= height`) und Palettenprüfungen erzwingen sowie `globalAlpha`, `save()`/`clip()` und `getImageData()` verweigern bzw. markieren. DSEs SOLLEN idealerweise ohne globales `document` in Node testbar sein; für Engine-Tests stehen dafür optional `new SceneDJ({ createCanvas })` und `new StageManager({ createCanvas })` bereit.
 
 ### 9.2 Visuelle Nachweise
 
@@ -575,6 +583,7 @@ Der isolierte Harness prüft nicht automatisch das Zusammenspiel mehrerer Layer.
 - Vollbild betreten und verlassen.
 - Mobile Ausrichtung wechseln.
 - Trackwechsel und One-Shot-Neustart prüfen, sofern relevant.
+- Sicherstellen, dass der physische Ausgabe-Canvas im Host-DOM `image-rendering: pixelated` nutzt, damit Nearest-Neighbor-Skalierung auf HiDPI-Displays scharf bleibt.
 - Browserkonsole auf Fehler und neue Warnungen prüfen.
 
 ## 10. Empfohlener Implementierungsablauf
