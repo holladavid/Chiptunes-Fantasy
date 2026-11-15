@@ -11,9 +11,12 @@ function sanitizeDt(dt) {
 }
 
 export class StageManager {
-    constructor() {
+    constructor(options = {}) {
         this.activeDSEs = [];
         this.frameCaches = new WeakMap();
+        this.createCanvas = typeof options.createCanvas === 'function'
+            ? options.createCanvas
+            : () => document.createElement('canvas');
         // Einmaliger Puffer fuer alte Metriken ohne beatImpulse. Der Renderloop
         // erzeugt dadurch auch im Kompatibilitaetsfall keine neuen Arrays.
         this.legacyBeatImpulse = new Float32Array(1);
@@ -27,6 +30,14 @@ export class StageManager {
     clearPendingBeat(dse) {
         const cache = this.frameCaches.get(dse);
         if (cache) cache.hasPendingBeat = false;
+    }
+
+    invalidateCache(dse) {
+        const cache = this.frameCaches.get(dse);
+        if (cache) {
+            cache.tick = null;
+            cache.hasPendingBeat = false;
+        }
     }
 
     sortZOrder() {
@@ -190,9 +201,18 @@ export class StageManager {
         const palTick = Math.floor(t * PAL_FRAME_RATE + 1e-7);
         for (let i = 0; i < this.activeDSEs.length; i++) {
             const dse = this.activeDSEs[i];
+            if (dse.state === 'idle') {
+                const existingCache = this.frameCaches.get(dse);
+                if (existingCache) {
+                    existingCache.hasPendingBeat = false;
+                    existingCache.state = 'idle';
+                }
+                continue;
+            }
+
             let cache = this.frameCaches.get(dse);
             if (!cache) {
-                const canvas = document.createElement('canvas');
+                const canvas = this.createCanvas();
                 cache = {
                     canvas,
                     ctx: canvas.getContext('2d'),
@@ -209,14 +229,18 @@ export class StageManager {
                 cache.tick = null;
             }
 
-            if (dse.state === 'idle') {
-                cache.hasPendingBeat = false;
-            }
+            const restartedStarting = dse.state === 'starting'
+                && Number.isFinite(dse.stateTime)
+                && Number.isFinite(cache.lastStateTime)
+                && dse.stateTime < cache.lastStateTime;
 
-            const needsRender = cache.tick !== palTick || cache.state !== dse.state || cache.system !== system;
+            const needsRender = restartedStarting
+                || cache.tick !== palTick
+                || cache.state !== dse.state
+                || cache.system !== system;
 
             if (needsRender) {
-                const useLatchedBeat = !liveBeatStarted && Boolean(cache.hasPendingBeat) && dse.state !== 'idle';
+                const useLatchedBeat = !liveBeatStarted && Boolean(cache.hasPendingBeat);
                 if (useLatchedBeat) {
                     this.latchedBeatEnvelope[0] = Math.max(envelope, cache.pendingBeatEnvelope);
                     this.latchedBeatImpulse[0] = Math.max(liveImpulseValue, cache.pendingBeatImpulse);
@@ -251,7 +275,8 @@ export class StageManager {
                 cache.tick = palTick;
                 cache.state = dse.state;
                 cache.system = system;
-            } else if (liveBeatStarted && dse.state !== 'idle') {
+                cache.lastStateTime = dse.stateTime;
+            } else if (liveBeatStarted) {
                 cache.hasPendingBeat = true;
                 cache.pendingBeatCount = Number.isFinite(liveBeatCount) ? liveBeatCount : 0;
                 cache.pendingBeatStrength = strength;

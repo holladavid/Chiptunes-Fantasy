@@ -97,6 +97,13 @@ export class SceneDJ {
                 this.pendingPresenterMetadata = null;
             }
 
+            if (didWakeUp) {
+                if (typeof this.setlist.clearQueuedTransitions === 'function') {
+                    this.setlist.clearQueuedTransitions();
+                }
+                this.setlist.fillEmptyLayers(this.stage, this.monitor.info, 'starting');
+            }
+
             this.setlist.manageSwaps(
                 this.stage,
                 this.monitor.info,
@@ -104,7 +111,6 @@ export class SceneDJ {
                 dt,
                 this.monitor.dynamics.beatStarted
             );
-            if (didWakeUp) this.setlist.fillEmptyLayers(this.stage, this.monitor.info, 'starting');
         }
 
         // 4. Bühne aktualisieren
