@@ -7,6 +7,16 @@
 // =========================================================
 
 const SWAP_BEATLESS_TIMEOUT = 2.0;
+const MAX_DT = 0.1;
+
+function sanitizeDt(dt) {
+    return Number.isFinite(dt) && dt > 0.0 ? Math.min(dt, MAX_DT) : 0.0;
+}
+
+function getBaseWeight(dse) {
+    const w = dse && dse.metadata ? dse.metadata.weight : undefined;
+    return Number.isFinite(w) ? w : 10.0;
+}
 
 export class SetlistManager {
     constructor() {
@@ -20,16 +30,16 @@ export class SetlistManager {
         dse.state = 'idle';
         dse.stateTime = 0.0;
         dse._markedForRemoval = false;
-        dse.currentWeight = dse.metadata.weight || 10.0;
+        dse.currentWeight = getBaseWeight(dse);
         this.registeredDSEs.push(dse);
     }
 
     applyFatigue(selectedDse) {
         selectedDse.currentWeight = 0.1; // Erschöpfung!
-        
+
         for (let d of this.registeredDSEs) {
             if (d !== selectedDse && d.metadata.layer === selectedDse.metadata.layer) {
-                let baseWeight = d.metadata.weight || 10.0;
+                let baseWeight = getBaseWeight(d);
                 d.currentWeight = Math.min(baseWeight, d.currentWeight + (baseWeight * 0.5));
             }
         }
@@ -41,7 +51,7 @@ export class SetlistManager {
 
         let totalWeight = 0.0;
         for (let c of candidates) totalWeight += c.currentWeight;
-        
+
         const roll = Math.random() * totalWeight;
         let runningSum = 0.0;
         for (let c of candidates) {
@@ -63,20 +73,20 @@ export class SetlistManager {
         }
 
         const layers = ['background', 'floor', 'foreground', 'overlay'];
-        
+
         // --- PRÜFUNG AUF EXKLUSIVES TEST-ELEMENT ---
-        const hasExclusive = this.registeredDSEs.some(d => 
-            d.metadata.isExclusive && 
-            !d.metadata.isDisabled && 
+        const hasExclusive = this.registeredDSEs.some(d =>
+            d.metadata.isExclusive &&
+            !d.metadata.isDisabled &&
             (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
         );
 
         for (let layer of layers) {
             if (!layerFilled[layer]) {
-                
-                let visibleCount = stageManager.activeDSEs.filter(d => 
-                    !d._markedForRemoval && 
-                    d.metadata.lifecycle === 'managed' && 
+
+                let visibleCount = stageManager.activeDSEs.filter(d =>
+                    !d._markedForRemoval &&
+                    d.metadata.lifecycle === 'managed' &&
                     !d.metadata.isVoid
                 ).length;
 
@@ -91,23 +101,23 @@ export class SetlistManager {
 
                     if (alt.state !== 'idle' || alt._markedForRemoval) return false;
                     if (alt.metadata.layer !== layer) return false;
-                    if (alt.metadata.lifecycle === 'oneshot') return false; 
+                    if (alt.metadata.lifecycle === 'oneshot') return false;
                     if (!alt.metadata.systems.includes(info.system) && !alt.metadata.systems.includes('all')) return false;
                     if ((activeInstanceCount[alt.metadata.name] || 0) >= alt.metadata.maxInstances) return false;
                     if (alt.metadata.isVoid && visibleCount === 0) return false;
 
                     return true;
                 });
-                
+
                 if (candidates.length > 0) {
                     let chosen = this.selectWeightedDSE(candidates);
-                    this.applyFatigue(chosen); 
-                    
+                    this.applyFatigue(chosen);
+
                     chosen.state = initialState;
                     chosen.stateTime = 0.0;
                     chosen._markedForRemoval = false;
                     stageManager.activeDSEs.push(chosen);
-                    
+
                     activeInstanceCount[chosen.metadata.name] = (activeInstanceCount[chosen.metadata.name] || 0) + 1;
                 }
             }
@@ -120,23 +130,24 @@ export class SetlistManager {
 
         for (let i = stageManager.activeDSEs.length - 1; i >= 0; i--) {
             let dse = stageManager.activeDSEs[i];
-            if (dse.metadata.lifecycle === 'permanent' && dse.metadata.systems.includes('all')) continue; 
-            
             if (!dse.metadata.systems.includes(info.system) && !dse.metadata.systems.includes('all')) {
                 dse.state = 'idle';
+                dse.stateTime = 0.0;
+                dse._markedForRemoval = false;
+                if (typeof stageManager.clearPendingBeat === 'function') {
+                    stageManager.clearPendingBeat(dse);
+                }
                 stageManager.activeDSEs.splice(i, 1);
             }
         }
-        
+
         for (let d of this.registeredDSEs) {
-            d.currentWeight = d.metadata.weight || 10.0;
+            d.currentWeight = getBaseWeight(d);
         }
-        
-        this.fillEmptyLayers(stageManager, info, 'idle');
     }
 
     manageSwaps(stageManager, info, macroState, dt, beatStarted = false) {
-        const safeDt = Number.isFinite(dt) && dt > 0.0 ? Math.min(dt, 0.1) : 0.0;
+        const safeDt = sanitizeDt(dt);
 
         // --- PRÜFUNG AUF EXKLUSIVES TEST-ELEMENT ---
         const hasExclusive = this.registeredDSEs.some(d =>
@@ -147,8 +158,6 @@ export class SetlistManager {
         const swappableStates = ['playing', 'buildup', 'climax', 'afterglow'];
         const canSwap = dse => dse.metadata.lifecycle === 'managed' && swappableStates.includes(dse.state);
 
-        // Entfernte oder bereits ausblendende DSEs duerfen keine Warteschleife
-        // mit alten Wechselwuenschen hinterlassen.
         for (let [dse] of this.pendingSwaps) {
             if (!stageManager.activeDSEs.includes(dse) || dse._markedForRemoval || !canSwap(dse)) {
                 this.pendingSwaps.delete(dse);
@@ -165,8 +174,6 @@ export class SetlistManager {
                 continue;
             }
 
-            // Die Dauer ist weiterhin das frueheste Wechseldatum. Der tatsaechliche
-            // Crossfade startet aber erst auf einem Beat (oder nach der Fallback-Frist).
             if (canSwap(dse) && dse.stateTime >= dse.metadata.duration && !this.pendingSwaps.has(dse)) {
                 this.pendingSwaps.set(dse, { wait: 0.0 });
             }
@@ -220,16 +227,15 @@ export class SetlistManager {
     }
 
     triggerPresenter(stageManager, info, trackMetadata) {
-        let candidates = this.registeredDSEs.filter(d => 
-            // Diagnose-Ausschluss
-            !d.metadata.isDisabled && 
+        let candidates = this.registeredDSEs.filter(d =>
+            !d.metadata.isDisabled &&
             d.metadata.lifecycle === 'oneshot' &&
             (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
         );
 
         if (candidates.length > 0) {
-            let presenter = candidates[0]; 
-            
+            let presenter = candidates[0];
+
             if (typeof presenter.setTrackInfo === 'function') {
                 presenter.setTrackInfo(trackMetadata);
             } else {

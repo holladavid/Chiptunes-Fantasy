@@ -1,3 +1,4 @@
+// === js/visuals/dj/stage-manager.js ===
 import { getBeatLevel } from './track-monitor.js';
 
 const TRANSITION_TIME = 1.5;
@@ -33,14 +34,27 @@ export class StageManager {
     }
 
     getMaxClimaxHoldTime() {
-        if (this.activeDSEs.length === 0) return 10.0;
-        return Math.max(...this.activeDSEs.map(d => d.metadata.climaxHold || 10.0));
+        let maxHold = 0.0;
+        let hasCandidate = false;
+        for (let i = 0; i < this.activeDSEs.length; i++) {
+            const dse = this.activeDSEs[i];
+            const meta = dse && dse.metadata;
+            if (!meta) continue;
+            if (dse._markedForRemoval || dse.state === 'idle' || dse.state === 'stopping') continue;
+            if (meta.isVoid || meta.lifecycle === 'oneshot' || meta.lifecycle === 'permanent') continue;
+            if (Number.isFinite(meta.climaxHold) && meta.climaxHold > 0.0) {
+                maxHold = Math.max(maxHold, meta.climaxHold);
+                hasCandidate = true;
+            }
+        }
+        return hasCandidate ? maxHold : 10.0;
     }
 
     clearNonPermanentDSEs() {
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
-            let dse = this.activeDSEs[i];
-            if (dse.metadata.lifecycle === 'managed') {
+            const dse = this.activeDSEs[i];
+            const lifecycle = dse.metadata ? dse.metadata.lifecycle : 'managed';
+            if (lifecycle === 'managed' || (lifecycle === 'oneshot' && (dse.state === 'idle' || dse.state === 'stopping'))) {
                 dse.state = 'idle';
                 dse.stateTime = 0.0;
                 dse._markedForRemoval = false;
@@ -54,10 +68,11 @@ export class StageManager {
         const safeDt = sanitizeDt(dt);
 
         for (let i = this.activeDSEs.length - 1; i >= 0; i--) {
-            let dse = this.activeDSEs[i];
+            const dse = this.activeDSEs[i];
+            const meta = dse.metadata || {};
 
             // --- DIAGNOSTISCHER DIAG-HARD-KILL (Debugging) ---
-            if (dse.metadata.isDisabled) {
+            if (meta.isDisabled) {
                 dse.state = 'idle';
                 dse.stateTime = 0.0;
                 dse._markedForRemoval = false;
@@ -68,10 +83,12 @@ export class StageManager {
 
             dse.stateTime += safeDt;
 
-            let transitionTime = dse.metadata.lifecycle === 'oneshot' ? 1.0 : TRANSITION_TIME;
+            const isOneshot = meta.lifecycle === 'oneshot';
+            const transitionTime = isOneshot ? 1.0 : TRANSITION_TIME;
+            const isActiveOnstage = dse.state !== 'idle' && dse.state !== 'starting' && dse.state !== 'stopping';
 
-            if (dse.metadata.lifecycle === 'oneshot' && !dse._markedForRemoval) {
-                if (dse.stateTime >= dse.metadata.duration) {
+            if (isOneshot && !dse._markedForRemoval && macroState !== 'idle' && isActiveOnstage) {
+                if (dse.stateTime >= meta.duration) {
                     dse._markedForRemoval = true;
                 }
             }
@@ -98,6 +115,12 @@ export class StageManager {
                     dse.state = 'idle';
                     dse.stateTime = 0.0;
                     this.clearPendingBeat(dse);
+                    if (isOneshot) {
+                        this.activeDSEs.splice(i, 1);
+                    }
+                } else if (dse.state === 'idle' && isOneshot) {
+                    this.clearPendingBeat(dse);
+                    this.activeDSEs.splice(i, 1);
                 }
             } else {
                 if (dse.state === 'idle' || dse.state === 'stopping') {
@@ -238,8 +261,6 @@ export class StageManager {
                 cache.pendingPulse = livePulseValue;
             }
 
-            // Transparenter Layer-Cache: Die Z-Order und die vom Scene DJ
-            // erlaubte Mischung mehrerer DSEs bleiben unveraendert erhalten.
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(cache.canvas, 0, 0);
         }

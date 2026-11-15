@@ -12,6 +12,8 @@ const BUILDUP_HOLD_TIME = 3.5;
 const FULL_BOARD_BUILDUP_HOLD_TIME = 1.5;
 const FULL_BOARD_SPEED_BOOST = 1.3;
 const MAX_DT = 0.1;
+const MIN_RATE_DT = 1.0 / 240.0;
+const MOMENTUM_MAX = 2.0;
 export const TENSION_MAX = 20.0;
 
 function clamp01(value) {
@@ -58,8 +60,11 @@ export class TensionManager {
         this.energyStateTimer += safeDt;
 
         const energy = clamp01(dynamics && dynamics.masterEnergy ? dynamics.masterEnergy[0] : 0.0);
-        // 1. Momentum: Steigt die Energie gerade abrupt an?
-        const momentum = Math.max(0.0, energy - this.lastEnergy) * 10.0;
+        // 1. Momentum: FPS-unabhaengige Anstiegsrate der Energie (kalibriert auf 60-Hz-Basis)
+        const energyRate = safeDt > 0.0
+            ? Math.max(0.0, energy - this.lastEnergy) / Math.max(safeDt, MIN_RATE_DT)
+            : 0.0;
+        const momentum = Math.min(MOMENTUM_MAX, energyRate * (10.0 / 60.0));
         this.lastEnergy = energy;
 
         let freshnessSpike = 0.0;
@@ -100,7 +105,19 @@ export class TensionManager {
                     }
 
                 } else if (info.system === 'atari') {
-                    // YM Events
+                    // YM Events: Hardware-Effekte plus melodische/rhythmische Kanalwechsel
+                    for (let v = 0; v < 3; v++) {
+                        const vol = chipRegs[8 + v] & 15;
+                        const lastVol = this.lastRegs[8 + v] & 15;
+                        const isEnv = (chipRegs[8 + v] & 16) !== 0;
+                        const tonePer = chipRegs[v * 2] | ((chipRegs[v * 2 + 1] & 0x0F) << 8);
+                        const lastTonePer = this.lastRegs[v * 2] | ((this.lastRegs[v * 2 + 1] & 0x0F) << 8);
+
+                        if (!isEnv && vol > lastVol + 2) freshnessSpike += 0.10;
+                        if ((vol > 0 || isEnv) && tonePer > 0 && Math.abs(tonePer - lastTonePer) > 8) {
+                            freshnessSpike += 0.05;
+                        }
+                    }
                     if (chipRegs[13] !== this.lastRegs[13] && chipRegs[13] !== 255) freshnessSpike += 0.4; // Hardware Env
                     if ((chipRegs[7] & 0x38) !== (this.lastRegs[7] & 0x38)) freshnessSpike += 0.3; // Noise Toggle
                     if (chipRegs[14] !== this.lastRegs[14] && chipRegs[14] > 0) freshnessSpike += 0.3; // Digidrum 1
@@ -134,8 +151,6 @@ export class TensionManager {
         } else {
             // =========================================================
             // ANTI-BLACKOUT: SOFORTIGES ERWACHEN AUS DEM IDLE-SCHLAF
-            // Wenn der Track läuft, MUSS das System sofort auf 'playing' 
-            // wechseln, völlig egal wie leise das Intro des Liedes ist!
             // =========================================================
             if (this.macroState === 'idle') {
                 targetState = 'playing';
@@ -149,8 +164,6 @@ export class TensionManager {
             let halfHold = refHold * 0.5; // Die unbestechliche 50/50 Halbwertszeit
 
             if (this.macroState === 'afterglow') {
-                // AFTERGLOW PHASE (Der Abkühlungs-Glow):
-                // Die Tension fällt linear mit dem Afterglow-Timer ab
                 this.afterglowTimer -= safeDt;
 
                 this.tension = TENSION_MAX * Math.max(0.0, this.afterglowTimer / halfHold);
@@ -161,28 +174,19 @@ export class TensionManager {
                     this.energyStateTimer = 0.0;
                 }
             } else if (this.isClimaxLocked) {
-                // CLIMAX PHASE (Die eigentliche Explosion):
-                // Nutzt exakt 50% der climaxHoldTime für die Action
                 this.climaxTimer += safeDt;
-                this.tension = TENSION_MAX; // Bleibt auf Vollanschlag
+                this.tension = TENSION_MAX;
 
                 if (this.climaxTimer >= halfHold) {
                     this.isClimaxLocked = false;
-                    this.freshness = 0.0; // Kaltstart für die Erholungsphase
+                    this.freshness = 0.0;
                     targetState = 'afterglow';
-
-                    // Die verbleibenden 50% der climaxHoldTime wandern in den Afterglow-Timer!
                     this.afterglowTimer = halfHold;
                 }
             } else {
-                // BUILDUP PHASE: 40% Energy + 40% Momentum + 20% Novelty
                 let power = (energy * 0.4) + (momentum * 0.4) + (this.freshness * 0.2);
-
-                // Visual Intensity Multiplikator: Ohne Freshness (Novelty) verhungert der Pegelaufbau
                 let visualIntensity = power * (0.3 + this.freshness * 0.7);
 
-                // Full Board bedeutet: Der schwaechste echte Kanal ist laut und die
-                // Beat-Huelle ist aktiv. Nur dann beschleunigen Aufbau und Staffelung.
                 const channelCount = info.system === 'amiga' ? 4 : 3;
                 const channelSmooth = dynamics ? dynamics.channelSmooth : null;
                 let weakestChannel = 1.0;
@@ -194,14 +198,11 @@ export class TensionManager {
                 const beatDrive = clamp01(dynamics && dynamics.beatEnvelope ? dynamics.beatEnvelope[0] : 0.0);
                 const fullBoardDrive = channelDrive * loudnessDrive * (0.35 + beatDrive * 0.65);
 
-                // Moderate Passagen sammeln langsamer; volle Kanal- und Beat-Energie
-                // darf den Overdrive weiterhin deutlich schneller erreichen.
                 let accumulationSpeed = 0.65;
                 if (info.system === 'c64') accumulationSpeed = 0.40;
                 else if (info.system === 'amiga') accumulationSpeed = 0.30;
                 accumulationSpeed *= 1.0 + fullBoardDrive * FULL_BOARD_SPEED_BOOST;
 
-                // Tor-Sperre für den eigentlichen Tension-Anstieg
                 if (energy > 0.25) {
                     this.tension = Math.min(TENSION_MAX,
                         this.tension + visualIntensity * accumulationSpeed * safeDt * 4.0);
@@ -224,18 +225,17 @@ export class TensionManager {
                     } else if (this.macroState === 'buildup' &&
                                this.tension < TENSION_MAX * 0.45 &&
                                this.energyStateTimer > MIN_BUILDUP_TIME) {
-                        // Hysterese: Erst unter 45% zurueck zu playing, damit
-                        // ein Pegel um die 55%-Grenze nicht flattert.
                         targetState = 'playing';
                     } else if (this.macroState !== 'playing' && this.macroState !== 'buildup') {
                         targetState = 'playing';
                     }
                 } else {
-                    // Song ist leise -> Tension baut sich sachte ab, aber wir bleiben aktiv im 'playing'-Zustand!
+                    // Song ist leise -> Tension baut sich sachte ab, aber Buildup-Hysterese (45%) bleibt intakt
                     this.tension = Math.max(0.0, this.tension - (safeDt * 3.0));
 
-                    // Sicherstellen, dass wir im 'playing'-Zustand bleiben oder dorthin zurückwechseln
-                    if (this.macroState === 'buildup' && this.energyStateTimer > MIN_BUILDUP_TIME) {
+                    if (this.macroState === 'buildup' &&
+                        this.tension < TENSION_MAX * 0.45 &&
+                        this.energyStateTimer > MIN_BUILDUP_TIME) {
                         targetState = 'playing';
                     } else if (this.macroState === 'idle') {
                         targetState = 'playing';
