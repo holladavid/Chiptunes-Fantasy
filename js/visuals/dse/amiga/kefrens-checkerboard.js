@@ -2,9 +2,9 @@
 // =========================================================
 // DEMO-SCENE-ELEMENT: KEFRENS 3D CHECKERBOARD FLOOR
 // Amiga OCS/ECS Copper perspective plane with 12-bit Z-shading,
-// specular sun-track reflection, Copper line-scroll curves,
-// traveling Z-shockwaves and floor-scoped Bayer dither fades.
-// Horizon aligned with RetroSunset via 1-pixel projection shift.
+// background-independent roaming Copper disco hotspots, Copper
+// line-scroll curves, traveling Z-shockwaves & floor Bayer fades.
+// Horizon aligned at floor(height * 0.55).
 // =========================================================
 
 import { quantizeAmiga12Bit, rgbToHex } from '../../utils/hardware-constraints.js';
@@ -44,7 +44,7 @@ const COPPER_PALETTES = Object.freeze([
         horizon: Object.freeze([102, 221, 255]),
         grid: Object.freeze([68, 187, 255])
     }),
-    // 1: Desert Dream Copper (violet/magenta + warm amber horizon for RetroSunset)
+    // 1: Desert Dream Copper (violet/magenta + warm amber horizon)
     Object.freeze({
         c1: Object.freeze([204, 68, 170]),
         c2: Object.freeze([51, 17, 68]),
@@ -95,6 +95,25 @@ function lerp(a, b, t) {
     return a + (b - a) * t;
 }
 
+function tileGlintHash(u, v, tick) {
+    let h = (Math.imul(u | 0, 374761393) + Math.imul(v | 0, 668265263) + Math.imul(tick | 0, 1442695041)) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+function computeSpotHex(r, g, b, horR, horG, horB, spotBoost, depth) {
+    const spotMul = 1.0 + spotBoost * 0.50;
+    const spotAdd = 38 * spotBoost * (0.45 + 0.55 * depth);
+    const mixR = horR * 0.00392;
+    const mixG = horG * 0.00392;
+    const mixB = horB * 0.00392;
+    return toAmigaHex(
+        r * spotMul + spotAdd * (0.45 + 0.55 * mixR),
+        g * spotMul + spotAdd * (0.45 + 0.55 * mixG),
+        b * spotMul + spotAdd * (0.45 + 0.55 * mixB)
+    );
+}
+
 export class KefrensCheckerboard {
     constructor() {
         this.name = 'Kefrens Checkerboard';
@@ -108,6 +127,8 @@ export class KefrensCheckerboard {
         this.scrollTiles = 0;
         this.swayPhase = 0;
         this.curvePhase = 0;
+        this.spotPhase = 0.0;
+        this.spotPhase2 = 2.1;
         this.smoothedSpeed = 1.0;
         this.smoothedSway = 0.0;
         this.smoothedCurve = 0.0;
@@ -118,29 +139,17 @@ export class KefrensCheckerboard {
         this.prevPaletteIndex = 0;
         this.paletteBlend = 1.0;
         this.patternIndex = 0; // 0: Classic, 1: Beveled, 2: Cyber Grid, 3: Racing Check
-        this.lastBeatCount = 0;
+        this.lastBeatCount = -1;
         this.beatDirection = 1;
 
         // Traveling Z-shockwave triggered on beatStarted
         this.zWaveAge = 10.0;
         this.zWavePeak = 0.0;
 
-        // Instance-owned deterministic PRNG (Xorshift32) for subtle micro-glints
-        this.prngState = 0x4B454652; // 'KEFR'
-
         // Instance-owned geometry LUT (invalidated on height/horizon change)
         this.cachedHeight = -1;
         this.cachedFloorHeight = -1;
         this.depthCache = new Float32Array(0);
-    }
-
-    _nextRandom() {
-        let x = this.prngState | 0;
-        x ^= x << 13;
-        x ^= x >>> 17;
-        x ^= x << 5;
-        this.prngState = x;
-        return (x >>> 0) / 4294967296;
     }
 
     _ensureDepthCache(height, horizon, floorHeight) {
@@ -199,6 +208,14 @@ export class KefrensCheckerboard {
             this.lastT = safeT;
             this.lastState = 'idle';
             this.stateAge = 0;
+            this.smoothedSpeed = 1.0;
+            this.smoothedSway = 0.0;
+            this.smoothedCurve = 0.0;
+            this.afterglowMix = 0.0;
+            this.paletteBlend = 1.0;
+            this.zWaveAge = 10.0;
+            this.zWavePeak = 0.0;
+            this.lastBeatCount = -1;
             return;
         }
 
@@ -278,7 +295,6 @@ export class KefrensCheckerboard {
                         if (state === 'buildup' || state === 'climax') {
                             this.patternIndex = (this.patternIndex + 1) % 4;
                         } else if (state === 'playing') {
-                            // Calm states alternate cleanly between Classic & Beveled Slabs
                             this.patternIndex = (this.patternIndex + 1) % 2;
                         }
                     }
@@ -318,15 +334,17 @@ export class KefrensCheckerboard {
             targetCurve = 0.35 + tension * 0.55;
             beatBounceGain = 0.36;
             if (tension > 0.55 && activePattern === 0) {
-                activePattern = 1; // Promote to Beveled Slabs as buildup intensifies
+                activePattern = 1;
             }
         } else if (state === 'climax') {
             targetSpeed = 2.35 + tension * 0.95 + (isClimaxLocked ? 0.25 : 0);
             targetSway = 0.85 + tension * 0.35;
             targetCurve = 0.85 + tension * 0.40;
             beatBounceGain = 0.44;
+            if (activePattern === 0) {
+                activePattern = 1;
+            }
         } else if (state === 'afterglow') {
-            // Preserve current pattern and phases; decelerate and cool down smoothly
             targetSpeed = 0.35;
             targetSway = 0.06;
             targetCurve = 0.0;
@@ -336,6 +354,7 @@ export class KefrensCheckerboard {
             targetSpeed = 0.45;
             targetSway = 0.05;
             targetCurve = 0.0;
+            targetAfterglow = this.afterglowMix;
             beatBounceGain = 0.10;
         }
 
@@ -344,7 +363,6 @@ export class KefrensCheckerboard {
         this.smoothedCurve += (targetCurve - this.smoothedCurve) * Math.min(1.0, dt * 2.5);
         this.afterglowMix += (targetAfterglow - this.afterglowMix) * Math.min(1.0, dt * 2.2);
 
-        // Continuous speed punch from beatImpulse (clearly differentiates soft/medium/hard)
         const speedBoost = beatImpulse * (state === 'climax' ? 1.15 : (state === 'afterglow' ? 0.15 : 0.65));
         const effectiveSpeed = Math.max(0.1, this.smoothedSpeed + speedBoost);
 
@@ -352,6 +370,11 @@ export class KefrensCheckerboard {
         this.scrollTiles = (this.scrollTiles + dt * effectiveSpeed * 2.6) % SCROLL_PERIOD_TILES;
         this.swayPhase = (this.swayPhase + dt * (0.75 + 0.35 * this.smoothedSpeed)) % TWO_PI;
         this.curvePhase = (this.curvePhase + dt * (0.55 + 0.45 * this.smoothedCurve + chExtra * 0.35)) % TWO_PI;
+
+        const spotSpeed = (0.45 + 0.55 * this.smoothedSpeed + 0.25 * this.smoothedCurve) * (1.0 - 0.55 * this.afterglowMix);
+        this.spotPhase = (this.spotPhase + dt * spotSpeed) % TWO_PI;
+        this.spotPhase2 = (this.spotPhase2 - dt * spotSpeed * 1.28) % TWO_PI;
+        if (this.spotPhase2 < 0) this.spotPhase2 += TWO_PI;
 
         // ---------------------------------------------------------
         // Floor-Only Transition Progress (no alpha, no getImageData)
@@ -377,11 +400,9 @@ export class KefrensCheckerboard {
         const fov = Math.max(16, minDim * 0.55);
         const baseCamH = Math.max(8, floorHeight * 0.26);
 
-        // Safe bounded camera dip driven immediately by beatImpulse[0]
         const camDip = Math.min(0.42, beatImpulse * beatBounceGain);
         const camH = Math.max(4.0, baseCamH * (1.0 - camDip));
 
-        // Tile dimensions scale with minDim so portrait doesn't blow up and ultrawide stays crisp
         const tileW = Math.max(4.0, minDim * 0.05);
         const tileH = tileW;
 
@@ -430,17 +451,27 @@ export class KefrensCheckerboard {
         const gridG = lerp(activeGridG, AFTERGLOW_PALETTE.grid[1], ag);
         const gridB = lerp(activeGridB, AFTERGLOW_PALETTE.grid[2], ag);
 
-        // Specular sun-track center aligned near RetroSunset horizon center
-        const sunCenterX = (w * 0.5) + swayBase * 0.25;
-        const sunIntensity = (0.28 + 0.52 * chMid + 0.35 * beatImpulse) * (1.0 - 0.55 * ag);
+        // Background-independent roaming Copper disco hotspots
+        const spot1CenterX = w * (0.5 + Math.sin(this.spotPhase) * 0.34) + swayBase * 0.15;
+        const spot1Depth = 0.52 + Math.sin(this.spotPhase * 2.0 + 0.6) * 0.26;
+        const spot2Mix = state === 'climax'
+            ? 1.0
+            : (state === 'buildup' ? clamp01((tension - 0.45) / 0.35) : 0.0);
+        const spot2CenterX = w * (0.5 + Math.sin(this.spotPhase2) * 0.36) - swayBase * 0.12;
+        const spot2Depth = 0.48 + Math.cos(this.spotPhase2 * 2.0 + 1.1) * 0.25;
+
+        const spotIntensity = (0.36 + 0.50 * chMid + 0.42 * beatImpulse) * (1.0 - 0.58 * ag);
+        const spotDepthRadius = 0.34 + 0.08 * beatImpulse;
 
         // Traveling Copper Z-shockwave parameters
         const zWaveActive = this.zWaveAge < 1.05 && this.zWavePeak > 0.01;
         const zWaveCenter = this.zWaveAge / 0.85;
         const zWaveAmp = zWaveActive ? this.zWavePeak * (1.0 - 0.55 * ag) * (1.0 - this.zWaveAge * 0.7) : 0.0;
 
-        // Deterministic micro-glint trigger for high percussion channel in climax
+        // Deterministic tile-locked micro-glint trigger for high percussion channel
         const glintChance = (state === 'climax' ? 0.12 : 0.04) * chHigh * (1.0 - ag);
+        const glintTick = Math.floor(this.swayPhase * 4);
+        const glintHex = toAmigaHex(horR * 1.1, horG * 1.1, horB * 1.1);
 
         // ---------------------------------------------------------
         // Scanline Perspective Rendering (y = horizon .. h - 1)
@@ -512,21 +543,18 @@ export class KefrensCheckerboard {
             let isGridRow = false;
 
             if (activePattern === 1) {
-                // Beveled Marble Slabs: bright front edge + dark mortar seam
                 if (vFrac < 0.11) {
                     rowLift = 26 * (0.5 + 0.5 * chHigh);
                 } else if (vFrac > 0.91) {
                     rowScale = 0.52;
                 }
             } else if (activePattern === 2) {
-                // Amiga Cyber/Tron Grid
                 if (vFrac < 0.10) {
                     isGridRow = true;
                 } else {
                     rowScale = 0.85;
                 }
             } else if (activePattern === 3) {
-                // Racing Dual-Check: highlighted front lip + subtle row alternation
                 if (vFrac < 0.08) {
                     rowLift = 20;
                 } else if ((vPhase & 1) !== 0) {
@@ -534,10 +562,32 @@ export class KefrensCheckerboard {
                 }
             }
 
-            // Specular Sun-Track cone half-width on this scanline
-            const sunHalfW = Math.max(6, minDim * (0.10 + 0.13 * depth) * (0.75 + 0.45 * chMid + 0.30 * beatImpulse));
-            const sunLeft = Math.min(w, Math.max(0, Math.floor(sunCenterX - sunHalfW)));
-            const sunRight = Math.min(w, Math.max(0, Math.ceil(sunCenterX + sunHalfW)));
+            // Roaming Disco Hotspot spans on this scanline
+            const d1 = (depth - spot1Depth) / spotDepthRadius;
+            const gain1 = (d1 > -1.0 && d1 < 1.0) ? (1.0 - d1 * d1) : 0.0;
+            let s1Left = 0;
+            let s1Right = 0;
+            if (gain1 > 0.01) {
+                const halfW1 = Math.max(4, minDim * (0.09 + 0.14 * depth) * Math.sqrt(gain1) * (0.82 + 0.30 * chMid + 0.28 * beatImpulse));
+                s1Left = Math.min(w, Math.max(0, Math.floor(spot1CenterX - halfW1)));
+                s1Right = Math.min(w, Math.max(0, Math.ceil(spot1CenterX + halfW1)));
+            }
+
+            let gain2 = 0.0;
+            let s2Left = 0;
+            let s2Right = 0;
+            if (spot2Mix > 0.01) {
+                const d2 = (depth - spot2Depth) / spotDepthRadius;
+                gain2 = (d2 > -1.0 && d2 < 1.0) ? (1.0 - d2 * d2) * spot2Mix : 0.0;
+                if (gain2 > 0.01) {
+                    const halfW2 = Math.max(4, minDim * (0.08 + 0.13 * depth) * Math.sqrt(gain2) * (0.82 + 0.30 * chMid + 0.28 * beatImpulse));
+                    s2Left = Math.min(w, Math.max(0, Math.floor(spot2CenterX - halfW2)));
+                    s2Right = Math.min(w, Math.max(0, Math.ceil(spot2CenterX + halfW2)));
+                }
+            }
+
+            const hasSpot1 = s1Right > s1Left;
+            const hasSpot2 = s2Right > s2Left;
 
             // Ordered-dither frontier band for starting / stopping
             if (ditherStep > 0) {
@@ -546,7 +596,8 @@ export class KefrensCheckerboard {
                 const step = Math.max(2, Math.floor(minDim * 0.03));
                 ctx.fillStyle = toAmigaHex(horR * 0.7, horG * 0.7, horB * 0.7);
                 for (let bx = 0; bx < w; bx += step) {
-                    if (BAYER_4X4[bayerRow + ((bx >> 2) & 3)] >= thresh) {
+                    const bayerX = Math.floor(bx / step) & 3;
+                    if (BAYER_4X4[bayerRow + bayerX] >= thresh) {
                         const bw = Math.min(step, w - bx);
                         if (bw > 0) {
                             ctx.fillRect(bx, drawY, bw, 1);
@@ -564,7 +615,7 @@ export class KefrensCheckerboard {
                 continue;
             }
 
-            // Horizon Moire zone: Scanline-interlaced Copper dither + centered Sun-Track glow
+            // Horizon Moire zone: Scanline-interlaced Copper dither + Disco Hotspot glow
             if (deltaScreenX < 2.2) {
                 const parity = (rowIdx + vPhase) & 1;
                 const mixWeight = parity === 0 ? 0.36 : 0.64;
@@ -572,31 +623,29 @@ export class KefrensCheckerboard {
                 const baseG = (c1G * mixWeight + c2G * (1.0 - mixWeight)) * lum;
                 const baseB = (c1B * mixWeight + c2B * (1.0 - mixWeight)) * lum;
 
-                const darkHex = toAmigaHex(baseR, baseG, baseB);
-                if (sunRight > sunLeft) {
-                    if (sunLeft > 0) {
-                        ctx.fillStyle = darkHex;
-                        ctx.fillRect(0, drawY, sunLeft, 1);
+                ctx.fillStyle = toAmigaHex(baseR, baseG, baseB);
+                ctx.fillRect(0, drawY, w, 1);
+
+                if (hasSpot1) {
+                    ctx.fillStyle = computeSpotHex(baseR, baseG, baseB, horR, horG, horB, spotIntensity * gain1, depth);
+                    ctx.fillRect(s1Left, drawY, s1Right - s1Left, 1);
+                }
+                if (hasSpot2) {
+                    ctx.fillStyle = computeSpotHex(baseR, baseG, baseB, horR, horG, horB, spotIntensity * gain2, depth);
+                    ctx.fillRect(s2Left, drawY, s2Right - s2Left, 1);
+                }
+                if (hasSpot1 && hasSpot2) {
+                    const oL = Math.max(s1Left, s2Left);
+                    const oR = Math.min(s1Right, s2Right);
+                    if (oR > oL) {
+                        ctx.fillStyle = computeSpotHex(baseR, baseG, baseB, horR, horG, horB, spotIntensity * Math.min(1.5, gain1 + gain2), depth);
+                        ctx.fillRect(oL, drawY, oR - oL, 1);
                     }
-                    const specBoost = 1.0 + sunIntensity * 0.85;
-                    ctx.fillStyle = toAmigaHex(
-                        baseR * specBoost + horR * 0.15 * sunIntensity,
-                        baseG * specBoost + horG * 0.15 * sunIntensity,
-                        baseB * specBoost + horB * 0.15 * sunIntensity
-                    );
-                    ctx.fillRect(sunLeft, drawY, sunRight - sunLeft, 1);
-                    if (sunRight < w) {
-                        ctx.fillStyle = darkHex;
-                        ctx.fillRect(sunRight, drawY, w - sunRight, 1);
-                    }
-                } else {
-                    ctx.fillStyle = darkHex;
-                    ctx.fillRect(0, drawY, w, 1);
                 }
                 continue;
             }
 
-            // Precompute the scanline's base & specular-boosted Amiga 12-bit hex colors
+            // Precompute the scanline's base & hotspot-boosted Amiga 12-bit hex colors
             const r1 = c1R * lum * rowScale + rowLift;
             const g1 = c1G * lum * rowScale + rowLift;
             const b1 = c1B * lum * rowScale + rowLift;
@@ -608,10 +657,16 @@ export class KefrensCheckerboard {
             const hex1 = toAmigaHex(r1, g1, b1);
             const hex2 = toAmigaHex(r2, g2, b2);
 
-            const specMul = 1.0 + sunIntensity * 0.55;
-            const specAdd = 22 * sunIntensity * depth;
-            const hex1Spec = toAmigaHex(r1 * specMul + specAdd, g1 * specMul + specAdd * 0.9, b1 * specMul + specAdd * 0.7);
-            const hex2Spec = toAmigaHex(r2 * specMul + specAdd * 0.6, g2 * specMul + specAdd * 0.5, b2 * specMul + specAdd * 0.4);
+            const hex1S1 = hasSpot1 ? computeSpotHex(r1, g1, b1, horR, horG, horB, spotIntensity * gain1, depth) : hex1;
+            const hex2S1 = hasSpot1 ? computeSpotHex(r2, g2, b2, horR, horG, horB, spotIntensity * gain1 * 0.75, depth) : hex2;
+
+            const hex1S2 = hasSpot2 ? computeSpotHex(r1, g1, b1, horR, horG, horB, spotIntensity * gain2, depth) : hex1;
+            const hex2S2 = hasSpot2 ? computeSpotHex(r2, g2, b2, horR, horG, horB, spotIntensity * gain2 * 0.75, depth) : hex2;
+
+            const hasOverlap = hasSpot1 && hasSpot2 && s1Right > s2Left && s2Right > s1Left;
+            const dualGain = hasOverlap ? Math.min(1.5, gain1 + gain2) : 0;
+            const hex1Dual = hasOverlap ? computeSpotHex(r1, g1, b1, horR, horG, horB, spotIntensity * dualGain, depth) : hex1;
+            const hex2Dual = hasOverlap ? computeSpotHex(r2, g2, b2, horR, horG, horB, spotIntensity * dualGain * 0.75, depth) : hex2;
 
             const vertGridHex = activePattern === 2
                 ? toAmigaHex(gridR * lum * 1.15, gridG * lum * 1.15, gridB * lum * 1.15)
@@ -650,24 +705,29 @@ export class KefrensCheckerboard {
                 }
 
                 const segMid = screenX + drawW * 0.5;
-                const inSunCone = segMid >= sunLeft && segMid <= sunRight;
+                const in1 = hasSpot1 && segMid >= s1Left && segMid <= s1Right;
+                const in2 = hasSpot2 && segMid >= s2Left && segMid <= s2Right;
                 const isTileA = activePattern === 3
                     ? (((uPhase + vPhase + ((vPhase >> 1) & 1)) & 1) === 0)
                     : (((uPhase + vPhase) & 1) === 0);
 
-                if (isTileA) {
-                    ctx.fillStyle = inSunCone ? hex1Spec : hex1;
+                if (in1 && in2) {
+                    ctx.fillStyle = isTileA ? hex1Dual : hex2Dual;
+                } else if (in1) {
+                    ctx.fillStyle = isTileA ? hex1S1 : hex2S1;
+                } else if (in2) {
+                    ctx.fillStyle = isTileA ? hex1S2 : hex2S2;
                 } else {
-                    ctx.fillStyle = inSunCone ? hex2Spec : hex2;
+                    ctx.fillStyle = isTileA ? hex1 : hex2;
                 }
                 ctx.fillRect(screenX, drawY, drawW, 1);
 
-                // Optional deterministic percussion sparkle / vertical Cyber Grid seam
+                // Optional deterministic tile-locked sparkle / vertical Cyber Grid seam
                 if (vertGridHex !== null && drawW >= 5 && screenX > 0) {
                     ctx.fillStyle = vertGridHex;
                     ctx.fillRect(screenX, drawY, 1, 1);
-                } else if (glintChance > 0.02 && isTileA && drawW >= 8 && this._nextRandom() < glintChance * depth) {
-                    ctx.fillStyle = toAmigaHex(horR * 1.1, horG * 1.1, horB * 1.1);
+                } else if (glintChance > 0.02 && isTileA && drawW >= 8 && tileGlintHash(uPhase, vPhase, glintTick) < glintChance * depth) {
+                    ctx.fillStyle = glintHex;
                     ctx.fillRect(screenX, drawY, Math.min(2, drawW), 1);
                 }
 
