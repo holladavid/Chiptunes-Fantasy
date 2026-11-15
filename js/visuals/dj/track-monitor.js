@@ -84,6 +84,10 @@ export class TrackMonitor {
     }
 
     update(channelVolumes, dt, chipRegs) {
+        const safeDt = Number.isFinite(dt) && dt > 0.0 ? Math.min(dt, 0.1) : 0.0;
+        const attackAlpha = 1.0 - Math.exp(-20.0 * safeDt);
+        const decayAlpha = 1.0 - Math.exp(-6.0 * safeDt);
+
         this.dynamics.beatStarted = false;
         let totalEnergy = 0.0;
         let analogMaxPulse = 0.0;
@@ -93,14 +97,16 @@ export class TrackMonitor {
         // Nur physische Kanaele einrechnen: Der vierte C64-Speicherplatz enthaelt
         // die SID-Schreibrate, keinen Audiopegel, und darf keine Phantomenergie liefern.
         for (let i = 0; i < numActiveChannels; i++) {
-            let rawVol = channelVolumes[i] || 0.0;
-            let smooth = this.dynamics.channelSmooth;
+            const raw = channelVolumes ? channelVolumes[i] : 0.0;
+            const rawVol = Number.isFinite(raw) ? clamp01(raw) : 0.0;
+            const smooth = this.dynamics.channelSmooth;
 
-            let instantPulse = Math.max(0.0, rawVol - smooth[i]);
+            const instantPulse = Math.max(0.0, rawVol - smooth[i]);
             if (instantPulse > analogMaxPulse) analogMaxPulse = instantPulse;
 
-            if (rawVol > smooth[i]) smooth[i] += (rawVol - smooth[i]) * (dt * 20.0);
-            else smooth[i] += (rawVol - smooth[i]) * (dt * 6.0);
+            if (rawVol > smooth[i]) smooth[i] += (rawVol - smooth[i]) * attackAlpha;
+            else smooth[i] += (rawVol - smooth[i]) * decayAlpha;
+            smooth[i] = clamp01(smooth[i]);
 
             totalEnergy += smooth[i];
         }
@@ -275,7 +281,7 @@ export class TrackMonitor {
         // Beide Quellen durchlaufen denselben Cooldown, damit ein Frame nicht
         // mehrere unterschiedlich starke DSE-Impulse ausloesen kann. Mehrere
         // Register desselben Schlags werden per Maximum statt Addition gebündelt.
-        this.dynamics.beatCooldown = Math.max(0.0, this.dynamics.beatCooldown - dt);
+        this.dynamics.beatCooldown = Math.max(0.0, this.dynamics.beatCooldown - safeDt);
         const beatRequested = hardwareBeatStrength > 0.0 || isAnalogBeat;
         const beatAccepted = beatRequested && this.dynamics.beatCooldown <= 0.0;
 
@@ -294,7 +300,7 @@ export class TrackMonitor {
             this.dynamics.beatCooldown = 0.15;
         } else {
             this.dynamics.transientPulse[0] = analogMaxPulse;
-            this.dynamics.beatEnvelope[0] *= Math.exp(-dt * 15.0);
+            this.dynamics.beatEnvelope[0] *= Math.exp(-safeDt * 15.0);
         }
         this.dynamics.beatImpulse[0] = this.dynamics.beatEnvelope[0] * this.dynamics.beatStrength;
 

@@ -272,7 +272,7 @@ export function updateChipHUD(stateGetters) {
                 
             let overrideStyle = overrideState === 1 ? 'display:block;' : 'display:none;';
 
-            matrix.innerHTML = `
+matrix.innerHTML = `
                 <div class="atari-analyzer-grid">
                     <div>
                         ${makeAmigaChannelRow(0, 'L')}
@@ -281,8 +281,7 @@ export function updateChipHUD(stateGetters) {
                     </div>
                     <div>
                         ${makeAmigaChannelRow(3, 'L')}
-                    </div>
-                    <div class="hud-channel" style="margin-top: 15px;">
+                        <div class="hud-channel">
                             <h4>[ PAULA 8364 & FILTERS ]</h4>
                             <div class="hud-row">
                                 <label>Clock</label>
@@ -305,7 +304,7 @@ export function updateChipHUD(stateGetters) {
                                 <span class="hud-text-sel" style="flex-grow: 1;">6dB (4.4kHz)</span>
                             </div>
                         </div>
-                        </div>
+                    </div>
                 </div>
             `;
             resetHUD();

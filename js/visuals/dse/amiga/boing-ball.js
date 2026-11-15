@@ -3,9 +3,8 @@
 // DEMO-SCENE-ELEMENT: AMIGA BOING BALL (Foreground DSE)
 // Transparent foreground layer with 100% Amiga 12-bit LUTs,
 // zero-GC render loop, perspective pole-accurate sphere mesh,
-// silhouette contour, raster-interlaced ghost trails, and
-// full musical synchronization (tension, beatLevel 1-3,
-// beatImpulse, smooth[0..2], and macro states).
+// clipped silhouette contour, raster-interlaced ghost trails,
+// pure checkerboard dither shadow, and full musical sync.
 // =========================================================
 
 import {
@@ -18,7 +17,7 @@ import {
 const LAT_BANDS = 14;
 const LON_BANDS = 16;
 const NUM_FACES = LAT_BANDS * LON_BANDS;
-const SHADE_STEPS = 32;
+const SHADE_STEPS = 12;
 const MAX_TRAILS = 4;
 const TRAIL_SAMPLE_INTERVAL = 0.04; // 2 PAL ticks (25 Hz)
 const SPHERE_Z_OFFSET = 3.5;
@@ -61,10 +60,7 @@ const PALETTE = Object.freeze({
     black: qHex(0, 0, 0),
     white: qHex(255, 255, 255),
     shadow: qHex(0, 0, 0),
-    reflSoft: qHex(125, 0, 18),
-    reflMed: qHex(188, 0, 18),
-    reflHard: qHex(255, 34, 17),
-    reflGold: qHex(255, 204, 68),
+    tinyDot: qHex(255, 34, 17),
     ghostRed: Object.freeze([qHex(68, 0, 24), qHex(102, 0, 24), qHex(145, 0, 22)]),
     ghostWhite: Object.freeze([qHex(48, 56, 108), qHex(74, 88, 140), qHex(108, 126, 175)])
 });
@@ -75,6 +71,121 @@ function macroFallbackTension(state) {
     if (state === 'afterglow') return 0.22;
     if (state === 'starting') return 0.35;
     return 0.42;
+}
+
+function allPointsInBounds(pts, w, h) {
+    for (let i = 0; i < pts.length; i++) {
+        const p = pts[i];
+        if (p.x < 0 || p.x >= w || p.y < 0 || p.y >= h) return false;
+    }
+    return true;
+}
+
+function fillClippedPolygon(ctx, pts, colorHex, w, h) {
+    let minY = h;
+    let maxY = -1;
+    const n = pts.length;
+    for (let i = 0; i < n; i++) {
+        const py = pts[i].y;
+        if (py < minY) minY = py;
+        if (py > maxY) maxY = py;
+    }
+    const yStart = Math.max(0, Math.floor(minY));
+    const yEnd = Math.min(h - 1, Math.floor(maxY));
+    if (yStart > yEnd) return;
+
+    ctx.fillStyle = colorHex;
+    for (let y = yStart; y <= yEnd; y++) {
+        let xMin = Infinity;
+        let xMax = -Infinity;
+        let hits = 0;
+        for (let i = 0; i < n; i++) {
+            const a = pts[i];
+            const b = pts[(i + 1) % n];
+            const y0 = a.y;
+            const y1 = b.y;
+            if ((y0 <= y && y1 >= y) || (y1 <= y && y0 >= y)) {
+                if (y0 === y1) {
+                    const lo = a.x < b.x ? a.x : b.x;
+                    const hi = a.x > b.x ? a.x : b.x;
+                    if (lo < xMin) xMin = lo;
+                    if (hi > xMax) xMax = hi;
+                } else {
+                    const ix = a.x + ((y - y0) * (b.x - a.x)) / (y1 - y0);
+                    if (ix < xMin) xMin = ix;
+                    if (ix > xMax) xMax = ix;
+                }
+                hits++;
+            }
+        }
+        if (hits > 0) {
+            const x0 = Math.max(0, Math.round(xMin));
+            const x1 = Math.min(w - 1, Math.round(xMax));
+            if (x1 >= x0) {
+                ctx.fillRect(x0, y, x1 - x0 + 1, 1);
+            }
+        }
+    }
+}
+
+function drawClippedLine(ctx, x0, y0, x1, y1, colorHex, w, h) {
+    const maxX = w - 1;
+    const maxY = h - 1;
+    if (maxX < 0 || maxY < 0) return;
+
+    let t0 = 0;
+    let t1 = 1;
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+
+    const clipTest = (p, q) => {
+        if (p === 0) return q >= 0;
+        const r = q / p;
+        if (p < 0) {
+            if (r > t1) return false;
+            if (r > t0) t0 = r;
+        } else {
+            if (r < t0) return false;
+            if (r < t1) t1 = r;
+        }
+        return true;
+    };
+
+    if (
+        !clipTest(-dx, x0) ||
+        !clipTest(dx, maxX - x0) ||
+        !clipTest(-dy, y0) ||
+        !clipTest(dy, maxY - y0)
+    ) {
+        return;
+    }
+
+    let cx0 = clamp(Math.round(x0 + t0 * dx), 0, maxX);
+    let cy0 = clamp(Math.round(y0 + t0 * dy), 0, maxY);
+    let cx1 = clamp(Math.round(x0 + t1 * dx), 0, maxX);
+    let cy1 = clamp(Math.round(y0 + t1 * dy), 0, maxY);
+
+    const adx = Math.abs(cx1 - cx0);
+    const ady = Math.abs(cy1 - cy0);
+    const sx = cx0 < cx1 ? 1 : -1;
+    const sy = cy0 < cy1 ? 1 : -1;
+    let err = adx - ady;
+    const maxSteps = adx + ady + 2;
+
+    ctx.fillStyle = colorHex;
+    for (let step = 0; step < maxSteps; step++) {
+        ctx.fillRect(cx0, cy0, 1, 1);
+        if (cx0 === cx1 && cy0 === cy1) break;
+        const e2 = err * 2;
+        if (e2 > -ady) {
+            err -= ady;
+            cx0 += sx;
+        }
+        if (e2 < adx) {
+            err += adx;
+            cy0 += sy;
+        }
+    }
 }
 
 export class AmigaBoingBall {
@@ -163,8 +274,6 @@ export class AmigaBoingBall {
         this.lastBeatEvent = false;
         this.beatPulse = 0;
         this.beatPop = 0;
-        this.floorFlash = 0;
-        this.floorFlashLevel = 1;
         this.rotKick = 0;
         this.bounceTimer = 0;
         this.shakeTimer = 0;
@@ -176,9 +285,10 @@ export class AmigaBoingBall {
     }
 
     resetTransients() {
+        this.lastBeatCount = -1;
+        this.lastBeatEvent = false;
         this.beatPulse = 0;
         this.beatPop = 0;
-        this.floorFlash = 0;
         this.rotKick = 0;
         this.bounceTimer = 0;
         this.shakeTimer = 0;
@@ -224,8 +334,15 @@ export class AmigaBoingBall {
     }
 
     render(ctx, width, height, t, state, stateTime, metrics) {
-        if (!Number.isFinite(width) || !Number.isFinite(height) ||
+        if (!ctx || !Number.isFinite(width) || !Number.isFinite(height) ||
             width <= 0 || height <= 0 || !Number.isFinite(width / height)) {
+            this.lastT = Number.isFinite(t) ? t : this.lastT;
+            return;
+        }
+
+        const w = Math.floor(width);
+        const h = Math.floor(height);
+        if (w <= 0 || h <= 0) {
             this.lastT = Number.isFinite(t) ? t : this.lastT;
             return;
         }
@@ -235,10 +352,14 @@ export class AmigaBoingBall {
             this.lastT = time;
             this.lastState = 'idle';
             this.stateAge = 0;
+            this.afterglowMix = 0.0;
+            this.smoothedSpeed = 1.0;
+            this.resetTransients();
             return;
         }
 
-        const dt = this.hasRendered ? clamp(time - this.lastT, 0, 0.1) : 0.02;
+        const wasRendered = this.hasRendered;
+        const dt = wasRendered ? clamp(time - this.lastT, 0, 0.1) : 0.02;
         this.lastT = time;
         this.hasRendered = true;
 
@@ -262,7 +383,6 @@ export class AmigaBoingBall {
 
         const smoothArr = metrics?.smooth;
         const hasSmooth = Array.isArray(smoothArr) || ArrayBuffer.isView(smoothArr);
-        const chBass = hasSmooth && Number.isFinite(smoothArr[0]) ? clamp(smoothArr[0], 0, 1) : 0;
         const chMid = hasSmooth && Number.isFinite(smoothArr[1]) ? clamp(smoothArr[1], 0, 1) : 0;
         const chHigh = hasSmooth && Number.isFinite(smoothArr[2]) ? clamp(smoothArr[2], 0, 1) : 0;
 
@@ -274,7 +394,6 @@ export class AmigaBoingBall {
         // Zeitbasiertes Abklingen aller Impulse
         this.beatPulse = Math.max(0, this.beatPulse - dt * 3.2);
         this.beatPop = Math.max(0, this.beatPop - dt * 5.2);
-        this.floorFlash = Math.max(0, this.floorFlash - dt * 4.2);
         this.rotKick = Math.max(0, this.rotKick - dt * 4.0);
         this.bounceTimer = Math.max(0, this.bounceTimer - dt);
         this.shakeTimer = Math.max(0, this.shakeTimer - dt);
@@ -307,8 +426,6 @@ export class AmigaBoingBall {
 
                 this.beatPulse = Math.max(this.beatPulse, strength);
                 this.beatPop = Math.max(this.beatPop, level === 3 ? 1.0 : (level === 2 ? 0.52 : 0.18));
-                this.floorFlash = Math.max(this.floorFlash, level === 3 ? 1.0 : (level === 2 ? 0.58 : 0.24));
-                this.floorFlashLevel = level;
                 this.rotKick = Math.max(this.rotKick, level === 3 ? 2.6 : (level === 2 ? 1.25 : 0.45));
 
                 if (state !== 'afterglow' && state !== 'stopping') {
@@ -327,17 +444,19 @@ export class AmigaBoingBall {
         // =========================================================
         // 2. MAKROZUSTÄNDE, TRANSITIONS & PALETTEN-STEUERUNG
         // =========================================================
+        const transitionAge = (!wasRendered && Number.isFinite(stateTime))
+            ? Math.max(0, stateTime)
+            : this.stateAge;
+
         let visibility = 1.0;
         let dropFrac = 0.0;
 
         if (state === 'starting') {
-            const tt = Number.isFinite(stateTime) ? Math.max(0, stateTime) : this.stateAge;
-            visibility = clamp(tt / 1.5, 0, 1);
+            visibility = clamp((transitionAge + 0.05) / 1.5, 0, 1);
             const easeOut = 1 - Math.pow(1 - visibility, 2);
             dropFrac = -(1 - easeOut) * 0.55;
         } else if (state === 'stopping') {
-            const tt = Number.isFinite(stateTime) ? Math.max(0, stateTime) : this.stateAge;
-            visibility = clamp(1 - tt / 1.5, 0, 1);
+            visibility = clamp(1 - transitionAge / 1.5, 0, 1);
         }
 
         let targetSpeed = 0.85 + this.tension * 0.45;
@@ -357,6 +476,7 @@ export class AmigaBoingBall {
         } else if (state === 'stopping') {
             targetSpeed = 0.55;
             targetBounceFrac = 0.18 * visibility;
+            targetAfterglow = this.afterglowMix;
         }
 
         this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * Math.min(1, dt * 4.0);
@@ -372,15 +492,15 @@ export class AmigaBoingBall {
         // =========================================================
         // 3. KOORDINATEN, RESPONSIVE PHYSIK & SQUASH/STRETCH
         // =========================================================
-        const minDim = Math.min(width, height);
-        const cx = Math.floor(width * 0.5);
-        const horizon = Math.floor(height * 0.90);
+        const minDim = Math.min(w, h);
+        const cx = Math.floor(w * 0.5);
+        const horizon = Math.floor(h * 0.90);
 
         // Minimal-Fallback für winzige Test-Canvases (< 8px)
         if (minDim < 8) {
-            const dotX = clamp(cx, 0, width - 1);
-            const dotY = clamp(Math.floor(height * 0.5), 0, height - 1);
-            ctx.fillStyle = PALETTE.reflHard;
+            const dotX = clamp(cx, 0, w - 1);
+            const dotY = clamp(Math.floor(h * 0.5), 0, h - 1);
+            ctx.fillStyle = PALETTE.tinyDot;
             ctx.fillRect(dotX, dotY, 1, 1);
             return;
         }
@@ -394,7 +514,7 @@ export class AmigaBoingBall {
         const projRadius = fov * SPHERE_PROJ_SCALE;
 
         // Horizontale Bewegung an Seitenverhältnis angleichen (flüssig in Porträt & Ultrawide)
-        const aspectNorm = clamp(Math.sqrt(minDim / Math.max(1, width)), 0.55, 1.30);
+        const aspectNorm = clamp(Math.sqrt(minDim / Math.max(1, w)), 0.55, 1.30);
         const speedX = 0.27 * this.smoothedSpeed * aspectNorm;
         this.moveXPhase = (this.moveXPhase + dt * speedX) % 2.0;
 
@@ -419,7 +539,7 @@ export class AmigaBoingBall {
 
         const u = 2.0 * this.moveYPhase - 1.0;
         const parabolicArc = 1.0 - u * u;
-        const safeBounceFrac = Math.min(targetBounceFrac, Math.max(0.05, (horizon - baseRadius * 2.3 - 2) / height));
+        const safeBounceFrac = Math.min(targetBounceFrac, Math.max(0.05, (horizon - baseRadius * 2.3 - 2) / h));
         const bounceFrac = parabolicArc * safeBounceFrac;
 
         // Elastisches Squash & Stretch (Aufprall + Beat-Volumenimpuls)
@@ -428,7 +548,7 @@ export class AmigaBoingBall {
         const scaleY = 1.0 - totalSquash * 0.85;
 
         const maxBallExtentX = projRadius * 1.20;
-        const maxAmplitude = Math.max(0, width * 0.5 - maxBallExtentX - 1);
+        const maxAmplitude = Math.max(0, w * 0.5 - maxBallExtentX - 1);
         const moveX = xNorm * maxAmplitude;
 
         // Rotation mit Beat-Kick
@@ -446,9 +566,9 @@ export class AmigaBoingBall {
         }
 
         const finalCx = cx + shakeX;
-        const finalHorizon = clamp(horizon + shakeY, 1, height - 1);
+        const finalHorizon = clamp(horizon + shakeY, 1, h - 1);
         const ballCenterX = Math.round(finalCx + moveX);
-        const ballCenterY = Math.round(finalHorizon - projRadius * scaleY - bounceFrac * height + dropFrac * height);
+        const ballCenterY = Math.round(finalHorizon - projRadius * scaleY - bounceFrac * h + dropFrac * h);
 
         // =========================================================
         // 4. RETRO GHOST TRAILS (Climax / High-Tension Buildup / Afterglow-Fade)
@@ -482,62 +602,21 @@ export class AmigaBoingBall {
                 if (!ghost.active) continue;
 
                 const gx = Math.round(finalCx + ghost.xNorm * maxAmplitude);
-                const gy = Math.round(finalHorizon - baseRadius * ghost.scaleY - ghost.bounceFrac * height);
+                const gy = Math.round(finalHorizon - baseRadius * ghost.scaleY - ghost.bounceFrac * h);
                 const grX = Math.max(2, Math.round(baseRadius * ghost.scaleX));
                 const grY = Math.max(2, Math.round(baseRadius * ghost.scaleY));
                 const tier = clamp(MAX_TRAILS - 1 - g, 0, 2);
-                this.drawGhostSphere(ctx, width, height, gx, gy, grX, grY, ghost.rotY, tier);
+                this.drawGhostSphere(ctx, w, h, gx, gy, grX, grY, ghost.rotY, tier);
             }
         }
 
         // =========================================================
-        // 5. SCHATTEN & BEAT-LEVEL BODEN-REFLEX (100 % Integer-Raster)
+        // 5. REINER CHECKERBOARD-DITHER-SCHATTEN (100 % Integer-Raster)
         // =========================================================
         const shadowX = Math.round(finalCx + moveX);
         const shadowY = finalHorizon;
         const bayerThreshold = Math.ceil(visibility * 16);
 
-        // Boden-Schockwelle / Reflexion (sofort am Onset nach beatLevel unterscheidbar)
-        const reflPower = Math.max(this.floorFlash, this.bounceTimer > 0 ? 0.80 : 0, chBass * 0.42);
-        if (reflPower > 0.08 && visibility > 0.25) {
-            const lvl = this.bounceTimer > 0 ? Math.max(2, this.floorFlashLevel) : this.floorFlashLevel;
-            const halfW = Math.max(
-                2,
-                Math.round(baseRadius * (lvl === 3 ? 1.15 : (lvl === 2 ? 0.80 : 0.46)) * (0.75 + 0.25 * reflPower))
-            );
-            const bandH = Math.max(1, Math.round(height * (lvl === 3 ? 0.022 : (lvl === 2 ? 0.014 : 0.008))));
-            const reflTop = clamp(shadowY + 1, 0, height - 1);
-            const drawH = Math.min(bandH, height - reflTop);
-            const reflLeft = clamp(shadowX - halfW, 0, width - 1);
-            const reflRight = clamp(shadowX + halfW, 0, width);
-            const drawW = reflRight - reflLeft;
-
-            if (drawW > 0 && drawH > 0) {
-                ctx.fillStyle = lvl === 3 ? PALETTE.reflHard : (lvl === 2 ? PALETTE.reflMed : PALETTE.reflSoft);
-                ctx.fillRect(reflLeft, reflTop, drawW, drawH);
-
-                if (lvl === 3 && drawW >= 6) {
-                    const coreHalf = Math.max(2, Math.floor(halfW * 0.52));
-                    const coreLeft = clamp(shadowX - coreHalf, 0, width - 1);
-                    const coreW = clamp(shadowX + coreHalf, 0, width) - coreLeft;
-                    if (coreW > 0) {
-                        ctx.fillStyle = PALETTE.reflGold;
-                        ctx.fillRect(coreLeft, reflTop, coreW, Math.max(1, Math.floor(drawH * 0.55)));
-                    }
-                    if (this.floorFlash > 0.55) {
-                        const sparkHalf = Math.max(1, Math.floor(halfW * 0.22));
-                        const sparkLeft = clamp(shadowX - sparkHalf, 0, width - 1);
-                        const sparkW = clamp(shadowX + sparkHalf, 0, width) - sparkLeft;
-                        if (sparkW > 0) {
-                            ctx.fillStyle = PALETTE.white;
-                            ctx.fillRect(sparkLeft, reflTop, sparkW, 1);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Dither-Schatten
         const heightAtten = clamp(1.0 - bounceFrac * 1.5, 0.35, 1.0);
         const shadowW = Math.max(1, Math.round(baseRadius * 1.18 * scaleX * heightAtten));
         const shadowH = Math.max(1, Math.round(baseRadius * 0.27 * heightAtten));
@@ -545,12 +624,12 @@ export class AmigaBoingBall {
 
         for (let dy = -shadowH; dy <= shadowH; dy++) {
             const sy = shadowY + dy;
-            if (sy < 0 || sy >= height) continue;
+            if (sy < 0 || sy >= h) continue;
 
             const span = Math.floor(shadowW * Math.sqrt(Math.max(0, 1 - (dy * dy) / (shadowH * shadowH))));
             for (let dx = -span; dx <= span; dx++) {
                 const sx = shadowX + dx;
-                if (sx < 0 || sx >= width) continue;
+                if (sx < 0 || sx >= w) continue;
                 if (((sx + sy) & 1) !== 0) continue;
                 if (bayerThreshold < 16 && BAYER_4X4[((sy & 3) << 2) | (sx & 3)] >= bayerThreshold) continue;
                 ctx.fillRect(sx, sy, 1, 1);
@@ -692,9 +771,11 @@ export class AmigaBoingBall {
             f.dot = dotLight;
         }
 
-        // Specular Highlight auf Reinweiß (inkl. Nachbar-Aufhellung bei Hard-Beat)
+        // Specular Highlight (im Afterglow abgekühlt)
         if (specFaceIdx !== -1 && maxDot > specThreshold) {
-            this.facesToDraw[specFaceIdx].hex = PALETTE.white;
+            this.facesToDraw[specFaceIdx].hex = this.afterglowMix > 0.5
+                ? COLOR_LUT.coolWhite[SHADE_STEPS - 1]
+                : PALETTE.white;
         }
 
         // In-Place-Insertion-Sort absteigend nach Z (0 Bytes Allokation)
@@ -710,27 +791,21 @@ export class AmigaBoingBall {
         }
 
         // =========================================================
-        // 8. POLYGONE & 1px-SILHOUETTE RENDERN
+        // 8. POLYGONE & GECLIPPTE 1px-SILHOUETTE RENDERN
         // =========================================================
         for (let i = 0; i < activeFaces; i++) {
             const face = this.facesToDraw[i];
             const idxs = face.idxs;
-            if (face.lat === 0) {
-                this.tri[0] = this.projected[idxs[0]];
-                this.tri[1] = this.projected[idxs[2]];
-                this.tri[2] = this.projected[idxs[3]];
-                fillAliasedPolygon(ctx, this.tri, face.hex);
-            } else if (face.lat === LAT_BANDS - 1) {
-                this.tri[0] = this.projected[idxs[0]];
-                this.tri[1] = this.projected[idxs[1]];
-                this.tri[2] = this.projected[idxs[2]];
-                fillAliasedPolygon(ctx, this.tri, face.hex);
+            const poly = (face.lat === 0)
+                ? (this.tri[0] = this.projected[idxs[0]], this.tri[1] = this.projected[idxs[2]], this.tri[2] = this.projected[idxs[3]], this.tri)
+                : (face.lat === LAT_BANDS - 1)
+                    ? (this.tri[0] = this.projected[idxs[0]], this.tri[1] = this.projected[idxs[1]], this.tri[2] = this.projected[idxs[2]], this.tri)
+                    : (this.quad[0] = this.projected[idxs[0]], this.quad[1] = this.projected[idxs[1]], this.quad[2] = this.projected[idxs[2]], this.quad[3] = this.projected[idxs[3]], this.quad);
+
+            if (allPointsInBounds(poly, w, h)) {
+                fillAliasedPolygon(ctx, poly, face.hex);
             } else {
-                this.quad[0] = this.projected[idxs[0]];
-                this.quad[1] = this.projected[idxs[1]];
-                this.quad[2] = this.projected[idxs[2]];
-                this.quad[3] = this.projected[idxs[3]];
-                fillAliasedPolygon(ctx, this.quad, face.hex);
+                fillClippedPolygon(ctx, poly, face.hex, w, h);
             }
         }
 
@@ -744,24 +819,40 @@ export class AmigaBoingBall {
             if (lat > 0 && this.faceVisible[(lat - 1) * LON_BANDS + lon] === 0) {
                 const a = this.projected[idxs[0]];
                 const b = this.projected[idxs[1]];
-                drawAliasedLine(ctx, a.x, a.y, b.x, b.y, PALETTE.black);
+                if (a.x >= 0 && a.x < w && a.y >= 0 && a.y < h && b.x >= 0 && b.x < w && b.y >= 0 && b.y < h) {
+                    drawAliasedLine(ctx, a.x, a.y, b.x, b.y, PALETTE.black);
+                } else {
+                    drawClippedLine(ctx, a.x, a.y, b.x, b.y, PALETTE.black, w, h);
+                }
             }
             const rightLon = (lon + 1) % LON_BANDS;
             if (this.faceVisible[lat * LON_BANDS + rightLon] === 0) {
                 const a = this.projected[idxs[1]];
                 const b = this.projected[idxs[2]];
-                drawAliasedLine(ctx, a.x, a.y, b.x, b.y, PALETTE.black);
+                if (a.x >= 0 && a.x < w && a.y >= 0 && a.y < h && b.x >= 0 && b.x < w && b.y >= 0 && b.y < h) {
+                    drawAliasedLine(ctx, a.x, a.y, b.x, b.y, PALETTE.black);
+                } else {
+                    drawClippedLine(ctx, a.x, a.y, b.x, b.y, PALETTE.black, w, h);
+                }
             }
             if (lat < LAT_BANDS - 1 && this.faceVisible[(lat + 1) * LON_BANDS + lon] === 0) {
                 const a = this.projected[idxs[2]];
                 const b = this.projected[idxs[3]];
-                drawAliasedLine(ctx, a.x, a.y, b.x, b.y, PALETTE.black);
+                if (a.x >= 0 && a.x < w && a.y >= 0 && a.y < h && b.x >= 0 && b.x < w && b.y >= 0 && b.y < h) {
+                    drawAliasedLine(ctx, a.x, a.y, b.x, b.y, PALETTE.black);
+                } else {
+                    drawClippedLine(ctx, a.x, a.y, b.x, b.y, PALETTE.black, w, h);
+                }
             }
             const leftLon = (lon - 1 + LON_BANDS) % LON_BANDS;
             if (this.faceVisible[lat * LON_BANDS + leftLon] === 0) {
                 const a = this.projected[idxs[3]];
                 const b = this.projected[idxs[0]];
-                drawAliasedLine(ctx, a.x, a.y, b.x, b.y, PALETTE.black);
+                if (a.x >= 0 && a.x < w && a.y >= 0 && a.y < h && b.x >= 0 && b.x < w && b.y >= 0 && b.y < h) {
+                    drawAliasedLine(ctx, a.x, a.y, b.x, b.y, PALETTE.black);
+                } else {
+                    drawClippedLine(ctx, a.x, a.y, b.x, b.y, PALETTE.black, w, h);
+                }
             }
         }
     }

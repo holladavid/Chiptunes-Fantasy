@@ -3,8 +3,8 @@
 // DEMO-SCENE-ELEMENT: AMIGA RETRO SUNSET
 // Pure 12-bit OCS Copper sky, dual parallax clouds, aspect-stable
 // tiled parallax mountains with rim-lighting, beat-reactive Copper
-// sun with climax raster slits, clipped seagulls, horizon-masked
-// shimmering water, leaping fish & blue-hour afterglow.
+// sun with climax raster slits, clipped seagulls, 1px 1/z Copper
+// water with mountain mirror, scattered glints, fish & blue-hour afterglow.
 // Horizon aligned with KefrensCheckerboard at floor(height * 0.55).
 // =========================================================
 
@@ -57,14 +57,15 @@ const DUSK_BANDS_RGB = Object.freeze([
     [153, 102, 119], [153, 102, 119], [170, 119, 136], [170, 119, 136]
 ]);
 
+// Seamless tiled mountain ranges (positive base height eliminates 0px horizon gaps)
 const MOUNTAINS_BG = Object.freeze([
-    { x: 0, y: 0 }, { x: 15, y: 15 }, { x: 25, y: 4 }, { x: 38, y: 24 },
-    { x: 52, y: 8 }, { x: 68, y: 28 }, { x: 82, y: 6 }, { x: 100, y: 0 }
+    { x: 0, y: 6 }, { x: 15, y: 15 }, { x: 25, y: 6 }, { x: 38, y: 24 },
+    { x: 52, y: 8 }, { x: 68, y: 28 }, { x: 82, y: 6 }, { x: 100, y: 6 }
 ]);
 
 const MOUNTAINS_FG = Object.freeze([
-    { x: 0, y: 0 }, { x: 20, y: 8 }, { x: 35, y: 16 }, { x: 50, y: 6 },
-    { x: 65, y: 18 }, { x: 78, y: 4 }, { x: 90, y: 12 }, { x: 100, y: 0 }
+    { x: 0, y: 6 }, { x: 20, y: 9 }, { x: 35, y: 16 }, { x: 50, y: 6 },
+    { x: 65, y: 18 }, { x: 78, y: 6 }, { x: 90, y: 12 }, { x: 100, y: 6 }
 ]);
 
 // Cloud puff offsets relative to base size
@@ -230,7 +231,7 @@ export class AmigaRetroSunset {
 
         // Discrete beat-driven state
         this.beatCounter = 0;
-        this.lastBeatCount = 0;
+        this.lastBeatCount = -1;
         this.horizonParity = 0;
         this.flarePulseAge = 10.0;
         this.flarePeak = 0.0;
@@ -250,12 +251,14 @@ export class AmigaRetroSunset {
         // Instance-owned deterministic Xorshift32 PRNG (zero Math.random!)
         this.prngState = 0x53554E53; // 'SUNS'
 
-        // Height-dependent water LUT cache
+        // Height-dependent 1/z water LUT & per-frame mountain mask cache
         this.cachedWaterHeight = -1;
         this.cachedWaterHorizon = -1;
         this.waterLineCount = 0;
         this.waterDepths = new Float32Array(0);
-        this.waterStripes = new Uint8Array(0);
+        this.waterInvZ = new Float32Array(0);
+        this.mountainProfile = new Uint16Array(0);
+        this.maxMountainH = 0;
     }
 
     _nextRandom() {
@@ -275,20 +278,18 @@ export class AmigaRetroSunset {
         this.cachedWaterHorizon = horizon;
 
         const floorHeight = Math.max(1, height - horizon);
-        const numLines = Math.ceil(floorHeight / 2);
-        this.waterLineCount = numLines;
+        this.waterLineCount = floorHeight;
 
-        if (this.waterDepths.length < numLines) {
-            this.waterDepths = new Float32Array(numLines);
-            this.waterStripes = new Uint8Array(numLines);
+        if (this.waterDepths.length < floorHeight) {
+            this.waterDepths = new Float32Array(floorHeight);
+            this.waterInvZ = new Float32Array(floorHeight);
         }
 
         const invFloor = 1.0 / floorHeight;
-        for (let i = 0; i < numLines; i++) {
-            const y = horizon + i * 2;
-            const depth = clamp01((y - horizon) * invFloor);
-            this.waterDepths[i] = depth;
-            this.waterStripes[i] = (depth > 0.6 && ((Math.floor(y / 4) % 3) === 0)) ? 1 : 0;
+        for (let row = 0; row < floorHeight; row++) {
+            const depth = clamp01(row * invFloor);
+            this.waterDepths[row] = depth;
+            this.waterInvZ[row] = 1.0 / (depth + 0.085);
         }
     }
 
@@ -296,37 +297,19 @@ export class AmigaRetroSunset {
         if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
             return;
         }
+        const w = Math.floor(width);
         const h = Math.floor(height);
         const horizon = Math.min(h - 1, Math.max(1, Math.floor(h * 0.55)));
         this._ensureWaterCache(h, horizon);
-    }
-
-    _getMountainHeightAt(periodW, horizon, points, scrollNorm, heightScale, x) {
-        const sOff = scrollNorm * periodW;
-        let vx = (x + sOff) % periodW;
-        if (vx < 0) vx += periodW;
-        const pct = (vx / periodW) * 100;
-
-        let p1 = null;
-        let p2 = null;
-        for (let i = 0; i < points.length - 1; i++) {
-            if (pct >= points[i].x && pct <= points[i + 1].x) {
-                p1 = points[i];
-                p2 = points[i + 1];
-                break;
-            }
+        if (this.mountainProfile.length < w) {
+            this.mountainProfile = new Uint16Array(w);
         }
-        if (!p1 || !p2 || p2.x === p1.x) return 0;
-
-        const u = (pct - p1.x) / (p2.x - p1.x);
-        const tSmooth = (1 - Math.cos(u * Math.PI)) * 0.5;
-        const hPct = p1.y + (p2.y - p1.y) * tSmooth;
-
-        return Math.floor(horizon * heightScale * (hPct / 100));
     }
 
     _drawMountainRange(ctx, w, horizon, periodW, points, colorHex, scrollNorm, heightScale, outlineHex) {
         const sOff = scrollNorm * periodW;
+        const minMh = horizon >= 12 ? 2 : (horizon >= 4 ? 1 : 0);
+
         for (let x = 0; x < w; x++) {
             let vx = (x + sOff) % periodW;
             if (vx < 0) vx += periodW;
@@ -347,7 +330,7 @@ export class AmigaRetroSunset {
             const tSmooth = (1 - Math.cos(u * Math.PI)) * 0.5;
             const hPct = p1.y + (p2.y - p1.y) * tSmooth;
 
-            let mh = Math.floor(horizon * heightScale * (hPct / 100));
+            let mh = Math.max(minMh, Math.floor(horizon * heightScale * (hPct / 100)));
             if (mh <= 0) continue;
 
             let drawY = horizon - mh;
@@ -358,13 +341,48 @@ export class AmigaRetroSunset {
             const drawH = Math.min(mh, horizon - drawY);
             if (drawH <= 0) continue;
 
+            if (drawH > this.mountainProfile[x]) {
+                this.mountainProfile[x] = drawH;
+            }
+            if (drawH > this.maxMountainH) {
+                this.maxMountainH = drawH;
+            }
+
             ctx.fillStyle = colorHex;
             ctx.fillRect(x, drawY, 1, drawH);
 
-            if (outlineHex && drawY < horizon) {
+            if (outlineHex && drawH >= 2 && drawY < horizon) {
                 ctx.fillStyle = outlineHex;
                 ctx.fillRect(x, drawY, 1, 1);
             }
+        }
+    }
+
+    _fillWaterMaskedSpan(ctx, xStart, xEnd, y, checkMountMask, mountWobble, w, mirrorH) {
+        let x0 = Math.floor(xStart);
+        let x1 = Math.floor(xEnd);
+        if (x0 < 0) x0 = 0;
+        if (x1 > w) x1 = w;
+        if (!(x1 > x0)) return;
+
+        if (!checkMountMask) {
+            ctx.fillRect(x0, y, x1 - x0, 1);
+            return;
+        }
+
+        let runStart = -1;
+        for (let x = x0; x < x1; x++) {
+            const mx = x + mountWobble;
+            const sampleX = mx < 0 ? 0 : (mx >= w ? w - 1 : mx);
+            if (mirrorH >= this.mountainProfile[sampleX]) {
+                if (runStart < 0) runStart = x;
+            } else if (runStart >= 0) {
+                ctx.fillRect(runStart, y, x - runStart, 1);
+                runStart = -1;
+            }
+        }
+        if (runStart >= 0) {
+            ctx.fillRect(runStart, y, x1 - runStart, 1);
         }
     }
 
@@ -417,7 +435,8 @@ export class AmigaRetroSunset {
             const vis = (y - skyActiveTop + 1) / bandPx;
             const bayerRow = ((y >> 1) & 3) * 4;
             for (let x = 0; x < w; x += stepX) {
-                if (BAYER_4X4[bayerRow + ((x >> 2) & 3)] >= vis * 16) {
+                const bayerX = Math.floor(x / stepX) & 3;
+                if (BAYER_4X4[bayerRow + bayerX] >= vis * 16) {
                     const bw = Math.min(stepX, w - x);
                     const bh = Math.min(stepY, topEnd - y);
                     if (bw > 0 && bh > 0) ctx.fillRect(x, y, bw, bh);
@@ -430,7 +449,8 @@ export class AmigaRetroSunset {
             const vis = (floorActiveBottom - y) / bandPx;
             const bayerRow = ((y >> 1) & 3) * 4;
             for (let x = 0; x < w; x += stepX) {
-                if (BAYER_4X4[bayerRow + ((x >> 2) & 3)] >= vis * 16) {
+                const bayerX = Math.floor(x / stepX) & 3;
+                if (BAYER_4X4[bayerRow + bayerX] >= vis * 16) {
                     const bw = Math.min(stepX, w - x);
                     const bh = Math.min(stepY, floorActiveBottom - y);
                     if (bw > 0 && bh > 0) ctx.fillRect(x, y, bw, bh);
@@ -465,6 +485,14 @@ export class AmigaRetroSunset {
             this.lastT = safeT;
             this.lastState = 'idle';
             this.stateAge = 0;
+            this.smoothedSpeed = 1.0;
+            this.afterglowMix = 0.0;
+            this.flarePulseAge = 10.0;
+            this.flarePeak = 0.0;
+            this.fishActive = false;
+            this.birdActive[0] = false;
+            this.birdActive[1] = false;
+            this.birdActive[2] = false;
             return;
         }
 
@@ -489,7 +517,6 @@ export class AmigaRetroSunset {
         // ---------------------------------------------------------
         const safeMetrics = metrics || {};
         const energy = clamp01(safeMetrics.energy ?? 0.35);
-        const pulse = clamp01(safeMetrics.pulse ?? 0);
         const tension = clamp01(safeMetrics.tensionPct ?? 0.3);
         const isClimaxLocked = Boolean(safeMetrics.isClimaxLocked);
 
@@ -513,7 +540,6 @@ export class AmigaRetroSunset {
         const chBass = readChannel(smooth, 0, energy);
         const chMid = readChannel(smooth, 1, energy * 0.9);
         const chHigh = readChannel(smooth, 2, energy * 0.75);
-        const chExtra = readChannel(smooth, 3, 0);
 
         // ---------------------------------------------------------
         // Discrete Beat Events (strictly gated on beatStarted)
@@ -543,7 +569,10 @@ export class AmigaRetroSunset {
                         this.fishStartFrac = 0.20 + this._nextRandom() * 0.58;
                         this.fishDepthFrac = 0.25 + this._nextRandom() * 0.50;
                     }
-                    if (incomingCount % 24 === 0 && !this.birdActive[0]) {
+                    if (
+                        incomingCount % 24 === 0 &&
+                        !(this.birdActive[0] || this.birdActive[1] || this.birdActive[2])
+                    ) {
                         const baseNormY = 0.45 + this._nextRandom() * 0.15;
                         this.birdActive[0] = true; this.birdX[0] = 1.04; this.birdYNorm[0] = baseNormY;
                         this.birdActive[1] = true; this.birdX[1] = 1.11; this.birdYNorm[1] = Math.max(0.15, baseNormY - 0.08);
@@ -574,6 +603,7 @@ export class AmigaRetroSunset {
             targetAfterglow = 1.0;
         } else if (state === 'stopping') {
             targetSpeed = 0.45;
+            targetAfterglow = this.afterglowMix;
         }
 
         this.smoothedSpeed += (targetSpeed - this.smoothedSpeed) * Math.min(1.0, dt * 4.0);
@@ -608,6 +638,11 @@ export class AmigaRetroSunset {
 
         const minDim = Math.min(w, h);
         this._ensureWaterCache(h, horizon);
+        if (this.mountainProfile.length < w) {
+            this.mountainProfile = new Uint16Array(w);
+        }
+        this.mountainProfile.fill(0, 0, w);
+        this.maxMountainH = 0;
 
         // ---------------------------------------------------------
         // Dynamic 12-Bit OCS Palette (Tension + Beats + Afterglow)
@@ -631,8 +666,9 @@ export class AmigaRetroSunset {
 
         const cLensCore = cSunCore;
         const cLensRing = toAmigaHex(lerp(255, 153, ag), lerp(170, 119, ag), lerp(0, 136, ag));
-        const cWaterBase = toAmigaHex(0, 0, lerp(34, 17, ag));
-        const cWaterStripe = toAmigaHex(0, 17, lerp(51, 34, ag));
+        const cWaterMountMirror = toAmigaHex(lerp(34, 17, ag), 0, lerp(51, 34, ag));
+        const cReflCrimson = toAmigaHex(lerp(187, 85, ag), lerp(34, 17, ag), lerp(0, 68, ag));
+        const cReflDeep = toAmigaHex(lerp(136, 68, ag), lerp(17, 17, ag), lerp(17, 68, ag));
         const cWaterRefl = cSunOrange;
 
         // ---------------------------------------------------------
@@ -642,7 +678,9 @@ export class AmigaRetroSunset {
         const bandH = horizon / bandCount;
         for (let i = 0; i < bandCount; i++) {
             const startY = Math.floor(i * bandH);
-            const endY = Math.min(horizon, Math.floor((i + 1) * bandH));
+            const endY = (i === bandCount - 1)
+                ? horizon
+                : Math.min(horizon, Math.floor((i + 1) * bandH));
             const drawH = endY - startY;
             if (drawH <= 0) continue;
 
@@ -712,7 +750,7 @@ export class AmigaRetroSunset {
 
             const yNorm = dy / sunR;
             if (rasterSlitsActive && yNorm > -0.15) {
-                if ((yLine + this.beatCounter * 2) % 6 === 0) continue;
+                if ((((yLine >> 1) + this.beatCounter) % 3 + 3) % 3 === 0) continue;
             }
 
             const dx = Math.round(Math.sqrt(Math.max(0, sunRadiusSq - dy * dy)));
@@ -782,97 +820,145 @@ export class AmigaRetroSunset {
         }
 
         // ---------------------------------------------------------
-        // LAYER 8: SHIMMERING WATER (Horizon-Masked & Odd-Height Safe)
+        // LAYER 8: 1PX 1/Z COPPER WATER & MIRRORED SUNSET REFLECTION
         // ---------------------------------------------------------
-        ctx.fillStyle = cWaterBase;
-        ctx.fillRect(0, horizon, w, floorHeight);
-
-        const h1 = this._getMountainHeightAt(periodW, horizon, MOUNTAINS_BG, this.bgScrollNorm, 0.38, sx);
-        const h2 = this._getMountainHeightAt(periodW, horizon, MOUNTAINS_FG, this.fgScrollNorm, 0.25, sx);
-        const highestMountH = Math.max(h1, h2);
-        const reflectionStart = Math.max(4, Math.floor(highestMountH * 0.25) + 1);
-        const reflDenom = Math.max(1, h - (horizon + reflectionStart));
-
-        const shimmerMod = 1.0 + 0.35 * beatImpulse + 0.20 * chBass;
+        const shimmerMod = 1.0 + 0.28 * beatImpulse + 0.16 * chBass;
         const hShift = this.horizonParity === 0 ? 1 : 0;
+        const maxMountH = this.maxMountainH;
+        const discDepthLimit = 0.62;
+        const bgGain = 1.0 - 0.30 * ag;
 
-        for (let i = 0; i < this.waterLineCount; i++) {
-            const y = horizon + i * 2;
-            const stripH = Math.min(2, h - y);
-            if (stripH <= 0) break;
+        for (let row = 0; row < floorHeight; row++) {
+            const y = horizon + row;
+            const d = this.waterDepths[row];
+            const invZ = this.waterInvZ[row];
 
-            const d = this.waterDepths[i];
-            let baseHex;
-            if (this.waterStripes[i] === 1) {
-                baseHex = cWaterStripe;
+            const wave1 = Math.sin(invZ * 5.2 + this.waterT * 3.1);
+            const wave2 = Math.sin(invZ * 8.7 - this.waterT * 2.3 + d * 4.0);
+            const waveCrest = 0.62 * wave1 + 0.38 * wave2;
+
+            // 8a. Full-width 1px Copper twilight ocean gradient + subtle wave ripples
+            const crestLift = waveCrest > 0.32 ? 17 : 0;
+            const wg = (d < 0.35 ? 0 : (d < 0.72 ? 17 : 34)) * bgGain + (d > 0.38 && crestLift > 0 ? 17 : 0);
+            const wb = (34 + d * 51) * bgGain + crestLift;
+            ctx.fillStyle = toAmigaHex(0, wg, wb);
+            ctx.fillRect(0, y, w, 1);
+
+            // 8b. Rippled mountain reflection mask along the shoreline
+            const mirrorH = Math.floor(row * 0.72);
+            const checkMountMask = mirrorH <= maxMountH;
+            const mountWobble = checkMountMask
+                ? Math.round(Math.sin(row * 0.55 + this.waterT * 3.5) * (1.0 + row * 0.08))
+                : 0;
+
+            if (checkMountMask && row > 0 && waveCrest < 0.28) {
+                ctx.fillStyle = cWaterMountMirror;
+                let runStart = -1;
+                for (let x = 0; x < w; x++) {
+                    const mx = x + mountWobble;
+                    const sampleX = mx < 0 ? 0 : (mx >= w ? w - 1 : mx);
+                    if (mirrorH < this.mountainProfile[sampleX]) {
+                        if (runStart < 0) runStart = x;
+                    } else if (runStart >= 0) {
+                        ctx.fillRect(runStart, y, x - runStart, 1);
+                        runStart = -1;
+                    }
+                }
+                if (runStart >= 0) {
+                    ctx.fillRect(runStart, y, w - runStart, 1);
+                }
+            }
+
+            if (row < 2) continue;
+
+            // 8c. Sun reflection: mirrored solar disc tapering into broken glitter path
+            const sway = Math.round(
+                Math.sin(invZ * 3.8 + this.waterT * 2.6) * (1.2 + d * 8.5) +
+                Math.sin(row * 0.45 - this.waterT * 4.2) * (0.6 + d * 3.5)
+            );
+            const rowCenter = sx + sway + (row & 1 ? 0 : hShift);
+
+            const discChord = d < discDepthLimit
+                ? Math.sqrt(Math.max(0, 1.0 - (d / discDepthLimit) * (d / discDepthLimit)))
+                : 0.0;
+            const glitterBase = Math.max(0.16, 0.72 * (1.0 - d * 0.78));
+            const waveSpread = 0.76 + 0.36 * waveCrest;
+            const halfW = sunR * (0.58 * discChord + 0.42 * glitterBase) * waveSpread * shimmerMod;
+            if (halfW < 1.5) continue;
+
+            const fadeOut = 1.0 - Math.max(0, (d - 0.78) / 0.22);
+            const crestThreshold = -0.34 - 0.14 * beatImpulse + (1.0 - fadeOut) * 0.45;
+            if (waveCrest < crestThreshold) continue;
+
+            // Warm Copper glow (splits into separated wave segments in mid/foreground)
+            ctx.fillStyle = d < 0.32
+                ? cSunOrange
+                : (d < 0.68 ? (waveCrest > 0.15 ? cSunOrange : cReflCrimson) : cReflDeep);
+
+            const splitFactor = Math.sin(invZ * 11.4 + this.waterT * 2.4 + row * 0.25);
+            if (d > 0.22 && splitFactor < -0.15) {
+                const gapHalf = Math.max(1.5, halfW * (0.18 + 0.18 * (-splitFactor)));
+                const shiftA = Math.sin(invZ * 7.1 - this.waterT * 3.0) * halfW * 0.18;
+                this._fillWaterMaskedSpan(
+                    ctx, rowCenter - halfW + shiftA, rowCenter - gapHalf + shiftA,
+                    y, checkMountMask, mountWobble, w, mirrorH
+                );
+                this._fillWaterMaskedSpan(
+                    ctx, rowCenter + gapHalf + shiftA, rowCenter + halfW + shiftA,
+                    y, checkMountMask, mountWobble, w, mirrorH
+                );
             } else {
-                const wg = (d < 0.5 ? 17 * (d * 2) : 17 + 17 * ((d - 0.5) * 2)) * (1.0 - 0.35 * ag);
-                const wb = (d < 0.5 ? 34 + 34 * (d * 2) : 68 + 34 * ((d - 0.5) * 2)) * (1.0 - 0.25 * ag);
-                baseHex = toAmigaHex(0, wg, wb);
-            }
-
-            if (y < horizon + reflectionStart) {
-                ctx.fillStyle = cWaterStripe;
-                ctx.fillRect(0, y, w, stripH);
-                continue;
-            }
-
-            const relativeY = y - (horizon + reflectionStart);
-            const depth = clamp01(relativeY / reflDenom);
-
-            let waveWidth = (2.0 + (depth * depth) * (minDim * 0.34 * shimmerMod)) * (1.0 - 0.30 * ag);
-            const fade = Math.min(1.0, relativeY / 12.0);
-            waveWidth *= fade;
-
-            const rawSway = Math.sin((y * 0.05) + (this.waterT * 2.0));
-            const swayAmount = 1.0 + (depth * depth) * 12.0;
-            const sway = Math.floor(rawSway * swayAmount);
-            const shimmer = Math.sin((y * 0.45) + (this.waterT * 8.0));
-
-            ctx.fillStyle = baseHex;
-            ctx.fillRect(0, y, w, stripH);
-
-            if (shimmer < -0.65 || waveWidth < 1.0) {
-                continue;
-            }
-
-            const lx = sx - (waveWidth * 0.5) + sway + hShift;
-            const shading = Math.max(0.15, 1.0 - d * 0.72) * (1.0 + 0.25 * beatImpulse);
-
-            let refHex;
-            if (relativeY < 4) {
-                refHex = cSunCore;
-            } else if (relativeY < 10) {
-                refHex = cSunYellow;
-            } else {
-                refHex = toAmigaHex(
-                    lerp(255, 136, ag) * shading,
-                    lerp(119, 85, ag) * shading,
-                    lerp(0, 119, ag) * shading
+                const asym = Math.sin(invZ * 6.3 + this.waterT * 2.8) * halfW * 0.14;
+                this._fillWaterMaskedSpan(
+                    ctx, rowCenter - halfW + asym, rowCenter + halfW + asym * 0.6,
+                    y, checkMountMask, mountWobble, w, mirrorH
                 );
             }
 
-            ctx.fillStyle = refHex;
-            fillClippedRect(ctx, lx, y, waveWidth, stripH, w, h, horizon, h);
+            // Golden wave ribbons (offset & split to avoid solid block look)
+            if (waveCrest > -0.08 - 0.10 * beatImpulse) {
+                ctx.fillStyle = (d < 0.28 || waveCrest > 0.35) ? cSunYellow : cSunOrange;
+                const ribbonW = halfW * (0.42 + 0.24 * Math.max(0, waveCrest));
+                const ribbonShift = Math.sin(invZ * 6.4 + this.waterT * 3.9 + row * 0.35) * (halfW * 0.28);
 
-            const coreShimmer = Math.sin((y * 0.9) + (this.waterT * 12.0));
-            if (coreShimmer > (0.1 - 0.25 * chHigh) && relativeY >= 4) {
-                const coreW = waveWidth * 0.28 * (1.0 - depth * 0.45);
-                ctx.fillStyle = cSunCore;
-                fillClippedRect(ctx, sx - (coreW * 0.5) + sway * 0.5 + hShift, y, coreW, stripH, w, h, horizon, h);
+                if (d > 0.15 && wave2 < 0.2) {
+                    const segW = Math.max(2, ribbonW * 0.45);
+                    this._fillWaterMaskedSpan(
+                        ctx, rowCenter - ribbonW * 0.85 + ribbonShift, rowCenter - ribbonW * 0.85 + ribbonShift + segW,
+                        y, checkMountMask, mountWobble, w, mirrorH
+                    );
+                    this._fillWaterMaskedSpan(
+                        ctx, rowCenter + ribbonW * 0.25 + ribbonShift * 0.5, rowCenter + ribbonW * 0.25 + ribbonShift * 0.5 + segW * 0.85,
+                        y, checkMountMask, mountWobble, w, mirrorH
+                    );
+                } else {
+                    this._fillWaterMaskedSpan(
+                        ctx, rowCenter - ribbonW * 0.5 + ribbonShift, rowCenter + ribbonW * 0.5 + ribbonShift,
+                        y, checkMountMask, mountWobble, w, mirrorH
+                    );
+                }
+            }
+
+            // Scattered specular Copper sparkles on sharpest crests (no centered divider)
+            const sparkleGate = waveCrest + 0.18 * beatImpulse + 0.14 * chHigh;
+            if (sparkleGate > 0.28) {
+                ctx.fillStyle = (sparkleGate > 0.56 || d < 0.18) ? cSunCore : cSunYellow;
+                const glintCount = (sparkleGate > 0.65 && d < 0.65) ? 3 : 2;
+                const spreadRange = Math.max(3, halfW * 0.72);
+                for (let g = 0; g < glintCount; g++) {
+                    const hashPhase = invZ * (17.3 + g * 11.4) + row * (1.91 - g * 0.73) + this.waterT * (4.1 + g * 1.7);
+                    const gx = rowCenter + Math.sin(hashPhase) * spreadRange;
+                    const gw = 2 + Math.floor((0.5 + 0.5 * Math.cos(hashPhase * 1.7)) * (4.5 - d * 2.0 + 2.0 * beatImpulse));
+                    this._fillWaterMaskedSpan(
+                        ctx, gx - gw * 0.5, gx + gw * 0.5,
+                        y, checkMountMask, mountWobble, w, mirrorH
+                    );
+                }
             }
         }
 
         // ---------------------------------------------------------
-        // LAYER 9: COPPER HORIZON SHIMMER BEAM (aligned at y = horizon)
-        // ---------------------------------------------------------
-        const horShimX = sx - Math.floor(sunR * (0.65 + 0.15 * beatImpulse)) + hShift + (chExtra > 0.5 ? 1 : 0);
-        const horShimW = Math.floor(sunR * (1.3 + 0.3 * beatImpulse));
-        ctx.fillStyle = cSunYellow;
-        fillClippedRect(ctx, horShimX, horizon, horShimW, 1, w, h, horizon, h);
-
-        // ---------------------------------------------------------
-        // LAYER 10: LEAPING FISH (deterministic & clipped to water)
+        // LAYER 9: LEAPING FISH (deterministic & clipped to water)
         // ---------------------------------------------------------
         if (this.fishActive) {
             this.fishT += dt * 1.8;
@@ -904,7 +990,7 @@ export class AmigaRetroSunset {
         }
 
         // ---------------------------------------------------------
-        // LAYER 11: BAYER 4x4 POWER CURTAIN (starting / stopping)
+        // LAYER 10: BAYER 4x4 POWER CURTAIN (starting / stopping)
         // ---------------------------------------------------------
         if (revealRatio < 1.0) {
             this._drawPowerCurtain(ctx, w, h, horizon, revealRatio);

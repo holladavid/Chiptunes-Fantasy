@@ -7,11 +7,39 @@
 // =========================================================
 
 const SWAP_BEATLESS_TIMEOUT = 2.0;
+const MAX_DT = 0.1;
+const OPAQUE_LAYERS = new Set(['background', 'floor']);
+
+function sanitizeDt(dt) {
+    return Number.isFinite(dt) && dt > 0.0 ? Math.min(dt, MAX_DT) : 0.0;
+}
+
+function getBaseWeight(dse) {
+    const w = dse && dse.metadata ? dse.metadata.weight : undefined;
+    return Number.isFinite(w) ? w : 10.0;
+}
+
+function getMaxInstances(dse) {
+    const m = dse && dse.metadata ? dse.metadata.maxInstances : undefined;
+    return Number.isFinite(m) ? m : 1;
+}
 
 export class SetlistManager {
     constructor() {
         this.registeredDSEs = [];
         this.pendingSwaps = new Map();
+        this.queuedTransitions = new Map();
+    }
+
+    clearQueuedTransitions() {
+        this.queuedTransitions.clear();
+    }
+
+    isQueuedIncoming(dse) {
+        for (let entry of this.queuedTransitions.values()) {
+            if (entry.incoming === dse) return true;
+        }
+        return false;
     }
 
     registerDSE(dse) {
@@ -20,16 +48,16 @@ export class SetlistManager {
         dse.state = 'idle';
         dse.stateTime = 0.0;
         dse._markedForRemoval = false;
-        dse.currentWeight = dse.metadata.weight || 10.0;
+        dse.currentWeight = getBaseWeight(dse);
         this.registeredDSEs.push(dse);
     }
 
     applyFatigue(selectedDse) {
         selectedDse.currentWeight = 0.1; // Erschöpfung!
-        
+
         for (let d of this.registeredDSEs) {
             if (d !== selectedDse && d.metadata.layer === selectedDse.metadata.layer) {
-                let baseWeight = d.metadata.weight || 10.0;
+                let baseWeight = getBaseWeight(d);
                 d.currentWeight = Math.min(baseWeight, d.currentWeight + (baseWeight * 0.5));
             }
         }
@@ -41,7 +69,7 @@ export class SetlistManager {
 
         let totalWeight = 0.0;
         for (let c of candidates) totalWeight += c.currentWeight;
-        
+
         const roll = Math.random() * totalWeight;
         let runningSum = 0.0;
         for (let c of candidates) {
@@ -62,21 +90,31 @@ export class SetlistManager {
             }
         }
 
+        for (let [layer, entry] of this.queuedTransitions) {
+            if (stageManager.activeDSEs.includes(entry.outgoing)) {
+                layerFilled[layer] = true;
+                const inc = entry.incoming;
+                activeInstanceCount[inc.metadata.name] = (activeInstanceCount[inc.metadata.name] || 0) + 1;
+            } else {
+                this.queuedTransitions.delete(layer);
+            }
+        }
+
         const layers = ['background', 'floor', 'foreground', 'overlay'];
-        
+
         // --- PRÜFUNG AUF EXKLUSIVES TEST-ELEMENT ---
-        const hasExclusive = this.registeredDSEs.some(d => 
-            d.metadata.isExclusive && 
-            !d.metadata.isDisabled && 
+        const hasExclusive = this.registeredDSEs.some(d =>
+            d.metadata.isExclusive &&
+            !d.metadata.isDisabled &&
             (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
         );
 
         for (let layer of layers) {
             if (!layerFilled[layer]) {
-                
-                let visibleCount = stageManager.activeDSEs.filter(d => 
-                    !d._markedForRemoval && 
-                    d.metadata.lifecycle === 'managed' && 
+
+                let visibleCount = stageManager.activeDSEs.filter(d =>
+                    !d._markedForRemoval &&
+                    d.metadata.lifecycle === 'managed' &&
                     !d.metadata.isVoid
                 ).length;
 
@@ -90,24 +128,28 @@ export class SetlistManager {
                     }
 
                     if (alt.state !== 'idle' || alt._markedForRemoval) return false;
+                    if (this.isQueuedIncoming(alt)) return false;
                     if (alt.metadata.layer !== layer) return false;
-                    if (alt.metadata.lifecycle === 'oneshot') return false; 
+                    if (alt.metadata.lifecycle === 'oneshot') return false;
                     if (!alt.metadata.systems.includes(info.system) && !alt.metadata.systems.includes('all')) return false;
-                    if ((activeInstanceCount[alt.metadata.name] || 0) >= alt.metadata.maxInstances) return false;
+                    if ((activeInstanceCount[alt.metadata.name] || 0) >= getMaxInstances(alt)) return false;
                     if (alt.metadata.isVoid && visibleCount === 0) return false;
 
                     return true;
                 });
-                
+
                 if (candidates.length > 0) {
                     let chosen = this.selectWeightedDSE(candidates);
-                    this.applyFatigue(chosen); 
-                    
+                    this.applyFatigue(chosen);
+
                     chosen.state = initialState;
                     chosen.stateTime = 0.0;
                     chosen._markedForRemoval = false;
+                    if (typeof stageManager.invalidateCache === 'function') {
+                        stageManager.invalidateCache(chosen);
+                    }
                     stageManager.activeDSEs.push(chosen);
-                    
+
                     activeInstanceCount[chosen.metadata.name] = (activeInstanceCount[chosen.metadata.name] || 0) + 1;
                 }
             }
@@ -117,36 +159,65 @@ export class SetlistManager {
 
     forceSystemChange(stageManager, info) {
         this.pendingSwaps.clear();
+        this.queuedTransitions.clear();
 
         for (let i = stageManager.activeDSEs.length - 1; i >= 0; i--) {
             let dse = stageManager.activeDSEs[i];
-            if (dse.metadata.lifecycle === 'permanent' && dse.metadata.systems.includes('all')) continue; 
-            
             if (!dse.metadata.systems.includes(info.system) && !dse.metadata.systems.includes('all')) {
                 dse.state = 'idle';
+                dse.stateTime = 0.0;
+                dse._markedForRemoval = false;
+                if (typeof stageManager.clearPendingBeat === 'function') {
+                    stageManager.clearPendingBeat(dse);
+                }
                 stageManager.activeDSEs.splice(i, 1);
             }
         }
-        
+
         for (let d of this.registeredDSEs) {
-            d.currentWeight = d.metadata.weight || 10.0;
+            d.currentWeight = getBaseWeight(d);
         }
-        
-        this.fillEmptyLayers(stageManager, info, 'idle');
     }
 
     manageSwaps(stageManager, info, macroState, dt, beatStarted = false) {
+        const safeDt = sanitizeDt(dt);
+
         // --- PRÜFUNG AUF EXKLUSIVES TEST-ELEMENT ---
         const hasExclusive = this.registeredDSEs.some(d =>
             d.metadata.isExclusive &&
             !d.metadata.isDisabled &&
             (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
         );
-        const swappableStates = ['playing', 'buildup', 'climax', 'afterglow'];
+
+        // 1. Vorgemerkte sequenzielle Uebergaenge auf opaken Layern freigeben,
+        // sobald der ausgehende DSE vollstaendig ausgeblendet wurde.
+        for (let [layer, entry] of this.queuedTransitions) {
+            if (stageManager.activeDSEs.includes(entry.outgoing)) continue;
+
+            this.queuedTransitions.delete(layer);
+            const incoming = entry.incoming;
+            const validSystem = incoming.metadata.systems.includes(info.system) || incoming.metadata.systems.includes('all');
+            const blockedByExclusive = hasExclusive && incoming.metadata.lifecycle === 'managed' && !incoming.metadata.isExclusive;
+            const layerAlreadyOccupied = stageManager.activeDSEs.some(
+                active => active.metadata.layer === layer && !active._markedForRemoval
+            );
+
+            if (!incoming.metadata.isDisabled && !blockedByExclusive && validSystem && incoming.state === 'idle' && !layerAlreadyOccupied) {
+                incoming.state = 'starting';
+                incoming.stateTime = 0.0;
+                incoming._markedForRemoval = false;
+                if (typeof stageManager.invalidateCache === 'function') {
+                    stageManager.invalidateCache(incoming);
+                }
+                stageManager.activeDSEs.push(incoming);
+                stageManager.sortZOrder();
+            }
+        }
+
+        // Swaps bewusst nur in playing/buildup, damit Climax & Afterglow nicht abgeschnitten werden.
+        const swappableStates = ['playing', 'buildup'];
         const canSwap = dse => dse.metadata.lifecycle === 'managed' && swappableStates.includes(dse.state);
 
-        // Entfernte oder bereits ausblendende DSEs duerfen keine Warteschleife
-        // mit alten Wechselwuenschen hinterlassen.
         for (let [dse] of this.pendingSwaps) {
             if (!stageManager.activeDSEs.includes(dse) || dse._markedForRemoval || !canSwap(dse)) {
                 this.pendingSwaps.delete(dse);
@@ -163,15 +234,13 @@ export class SetlistManager {
                 continue;
             }
 
-            // Die Dauer ist weiterhin das frueheste Wechseldatum. Der tatsaechliche
-            // Crossfade startet aber erst auf einem Beat (oder nach der Fallback-Frist).
             if (canSwap(dse) && dse.stateTime >= dse.metadata.duration && !this.pendingSwaps.has(dse)) {
                 this.pendingSwaps.set(dse, { wait: 0.0 });
             }
         }
 
         for (let [dse, pending] of this.pendingSwaps) {
-            pending.wait += dt;
+            pending.wait += safeDt;
             if (!beatStarted && pending.wait < SWAP_BEATLESS_TIMEOUT) continue;
 
             let otherVisibleCount = stageManager.activeDSEs.filter(d =>
@@ -181,14 +250,26 @@ export class SetlistManager {
                 !d.metadata.isVoid
             ).length;
 
+            let activeInstanceCount = {};
+            for (let active of stageManager.activeDSEs) {
+                if (active !== dse && !active._markedForRemoval) {
+                    activeInstanceCount[active.metadata.name] = (activeInstanceCount[active.metadata.name] || 0) + 1;
+                }
+            }
+            for (let entry of this.queuedTransitions.values()) {
+                activeInstanceCount[entry.incoming.metadata.name] = (activeInstanceCount[entry.incoming.metadata.name] || 0) + 1;
+            }
+
             let candidates = this.registeredDSEs.filter(alt => {
                 if (alt.metadata.isDisabled) return false;
                 if (hasExclusive && alt.metadata.lifecycle === 'managed' && !alt.metadata.isExclusive) return false;
                 if (alt._markedForRemoval) return false;
                 if (alt.state !== 'idle' && alt !== dse) return false;
+                if (this.isQueuedIncoming(alt)) return false;
                 if (alt.metadata.layer !== dse.metadata.layer) return false;
                 if (alt.metadata.lifecycle !== 'managed') return false;
                 if (!alt.metadata.systems.includes(info.system) && !alt.metadata.systems.includes('all')) return false;
+                if ((activeInstanceCount[alt.metadata.name] || 0) >= getMaxInstances(alt)) return false;
                 if (alt.metadata.isVoid && otherVisibleCount === 0) return false;
                 return true;
             });
@@ -205,29 +286,40 @@ export class SetlistManager {
                 dse.stateTime = 0.0;
                 this.applyFatigue(dse);
             } else {
+                const layer = dse.metadata.layer;
+                const sequentialOpaqueSwap = OPAQUE_LAYERS.has(layer)
+                    && !dse.metadata.isVoid
+                    && !chosen.metadata.isVoid;
+
                 dse._markedForRemoval = true;
                 this.applyFatigue(chosen);
 
-                chosen.state = 'starting';
-                chosen.stateTime = 0.0;
-                chosen._markedForRemoval = false;
-                stageManager.activeDSEs.push(chosen);
-                stageManager.sortZOrder();
+                if (sequentialOpaqueSwap) {
+                    this.queuedTransitions.set(layer, { outgoing: dse, incoming: chosen });
+                } else {
+                    chosen.state = 'starting';
+                    chosen.stateTime = 0.0;
+                    chosen._markedForRemoval = false;
+                    if (typeof stageManager.invalidateCache === 'function') {
+                        stageManager.invalidateCache(chosen);
+                    }
+                    stageManager.activeDSEs.push(chosen);
+                    stageManager.sortZOrder();
+                }
             }
         }
     }
 
     triggerPresenter(stageManager, info, trackMetadata) {
-        let candidates = this.registeredDSEs.filter(d => 
-            // Diagnose-Ausschluss
-            !d.metadata.isDisabled && 
+        let candidates = this.registeredDSEs.filter(d =>
+            !d.metadata.isDisabled &&
             d.metadata.lifecycle === 'oneshot' &&
             (d.metadata.systems.includes(info.system) || d.metadata.systems.includes('all'))
         );
 
         if (candidates.length > 0) {
-            let presenter = candidates[0]; 
-            
+            let presenter = candidates[0];
+
             if (typeof presenter.setTrackInfo === 'function') {
                 presenter.setTrackInfo(trackMetadata);
             } else {
@@ -235,14 +327,13 @@ export class SetlistManager {
             }
 
             let idx = stageManager.activeDSEs.indexOf(presenter);
-            if (idx !== -1) {
-                presenter.state = 'starting';
-                presenter.stateTime = 0.0;
-                presenter._markedForRemoval = false;
-            } else {
-                presenter.state = 'starting';
-                presenter.stateTime = 0.0;
-                presenter._markedForRemoval = false;
+            presenter.state = 'starting';
+            presenter.stateTime = 0.0;
+            presenter._markedForRemoval = false;
+            if (typeof stageManager.invalidateCache === 'function') {
+                stageManager.invalidateCache(presenter);
+            }
+            if (idx === -1) {
                 stageManager.activeDSEs.push(presenter);
                 stageManager.sortZOrder();
             }

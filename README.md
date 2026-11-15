@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.6.0)
+# 💾 CHIPTUNES FANTASY (v1.6.1)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -14,6 +14,35 @@ A real Commodore 64, Amiga 500, or Atari ST could *never* execute a cycle-exact 
 But memory paints the past grander than it actually was. **This is our Fantasy.**
 Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with ruthless historical accuracy (strict hardware palettes, true bit-banged integer math, zero anti-aliasing). Our `Scene-DJ` then acts as the ultimate virtual orchestrator, taking these isolated, period-accurate effects and layering them into a breathtaking, synchronized demoscene experience that feels *exactly* like our childhood memories.
 
+---
+
+## 🚀 v1.6.1 Release Highlights
+
+Version 1.6.1 refines the **responsive UI & fullscreen stage cockpit**, hardens the **Scene-DJ engine's 50 Hz PAL timing and layer lifecycle**, and polishes three **Amiga DSEs** alongside nearest-neighbor HiDPI canvas scaling. Audio synthesis engines and the 214-track curated library remain unchanged.
+
+### Responsive UI, Fullscreen Cockpit & Canvas Rendering
+
+- **Harmonized CSS tokens & layout repairs:** Unified theme typography tokens (`--font-size-xs/sm/base/title/prose/grid`) across C64, Amiga, and Atari ST, repaired the `#player-panel` `.system-tabs` markup in `index.html` and an unclosed wrapper in Amiga `hud-debugger.js`, refined C64/Atari CRT contrast, and fixed the Amiga active-tab rainbow indicator without breaking hardware bevels.
+- **Desktop, widescreen & mobile stage containment:** Restricted the 3-column Command Deck to true widescreen (`>= 2200px`) while preserving a balanced 2-column layout up to `2199px`, positioned open `.silicon-guide` panels alongside `.silicon-chassis` (`1300px–2199px`), constrained mobile HUD drawers and eco overlays inside `#visual-zone`, and separated mobile landscape (`<= 1024×580`) rules with `env(safe-area-inset-*)` support.
+- **Unified fullscreen cockpit & timeline scrubbing:** Standardized the toggle to `[ FULL ]` / `[ EXIT ]`, prevented duplicate desktop track text while adding compact title (with `[SUB x/y]` subsong display), status, timer, and `#fs-progress-bar` scrubbing in mobile fullscreen, enabled pointer scrubbing on `#now-playing-progress` (`NowPlayingConsole.bindSeek`) for seekable Amiga/Atari tracks, and removed `#visual-zone` bottom border / Safari C64 theme bleed in fullscreen.
+- **Crisp nearest-neighbor scaling & resize observation:** Prioritized `image-rendering: pixelated` in `css/style.css` and wired `ResizeObserver` plus `fullscreenchange` listeners in `js/visuals/visualizer.js` with `0px` and `dt` guards so layout shifts and pseudo-fullscreen always resize the canvas, oscilloscope, `SceneDJ`, and CRT mask cleanly.
+
+### Scene-DJ Engine Timing, Lifecycle & Headless Testing
+
+- **>50 Hz PAL beat latching & bounded smoothing:** `StageManager` now latches missed `beatStarted` triggers and peak onset metrics per DSE cache on 60/120/144 Hz displays and delivers them once on the next rendered PAL tick; `TrackMonitor` uses clamped `[0, 1]` exponential smoothing and defensive `dt` clamping runs across all DJ managers.
+- **Sequential opaque transitions & lifecycle accuracy:** `SetlistManager` sequences outgoing/incoming `background` and `floor` swaps so fade-outs finish cleanly before replacement scenes start, defers managed swaps during `climax` and `afterglow`, enforces `maxInstances` during swaps, and avoids pre-filling `idle` slots on `forceSystemChange()`.
+- **Idle-skip, oneshot cleanup, tension & Atari novelty:** `StageManager` skips rendering and offscreen allocation for `idle` DSEs, invalidates caches on re-triggered starts, removes finished `oneshot` presenters after onstage `duration`, filters `getMaxClimaxHoldTime()` to active visible `managed` DSEs, normalizes `TensionManager` momentum to `dt` with preserved `buildup` hysteresis, and adds Atari YM2149 tone/volume novelty detection. `SceneDJ` passes system retro dimensions on `resize()` and defers `TrackPresenter` activation until playback starts.
+- **Headless verification & documentation sync:** Added `createCanvas` injection to `SceneDJ` and `StageManager` alongside `test/dj-engine-lifecycle.test.mjs`, `test/scene-dj-integration.test.mjs`, expanded beat tests, and updated [DSE development rules](doc/concepts/dse_development_rules.md).
+
+### Amiga OCS DSE Refinements
+
+- **`AmigaRetroSunset`:** Replaced the unmasked horizon beam and widening road-like water cone with `1 px` `1/z` perspective Copper scanlines, Copper-wobbled shoreline mountain reflections, and split crimson/gold wave glints; closed `0 px` mountain tile seams, fixed even-radius climax solar slits, preserved afterglow colors during `stopping`, and guarded trailing seagull, last sky-band, and `idle` edge cases.
+- **`AmigaBoingBall`:** Removed the rectangular red/gold floor flash box beneath the dithered checkerboard shadow, added hard `[0..w, 0..h]` polygon/edge clipping, hardened `starting`/`stopping` transition timing and `idle` resets, reduced shading steps to `12`, and cooled afterglow specular facets.
+- **`KefrensCheckerboard`:** Decoupled the floor highlight from `RetroSunset` with background-independent roaming Copper disco hotspots (single in calm play, dual crossing spots in `buildup`/`climax`) tinted from each active Copper palette, preserved afterglow cooling during `stopping`, fixed non-4px Bayer frontier stepping, and replaced per-segment PRNG glints with a tile-locked spatial hash.
+
+---
+
+## 🚀 v1.6.0 Release Highlights
 ---
 # 💾 CHIPTUNES FANTASY (v1.6.0)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**

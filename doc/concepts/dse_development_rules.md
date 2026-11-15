@@ -46,7 +46,7 @@ render(ctx, width, height, t, state, stateTime, metrics)
 - `stateTime` ist die Zeit im aktuellen Übergang. Sie wird nicht zwischen allen musikalischen Zuständen zurückgesetzt.
 - `metrics` enthält die vom StageManager aufbereiteten Musik- und Systeminformationen.
 
-Ein optionales `resize(width, height)` darf vorbereitende Arbeit übernehmen. Der DSE MUSS Größenänderungen auch dann korrekt behandeln, wenn seine Geometrie erst im nächsten `render()` angepasst wird. Es darf nicht vorausgesetzt werden, dass vor jedem Größenwechsel eine neue Instanz entsteht.
+Ein optionales `resize(width, height)` darf vorbereitende Arbeit übernehmen. `SceneDJ.resize(...)` übergibt dabei Retro-Buffer-Dimensionen (bei systemexklusiven DSEs die des jeweiligen Zielsystems, bei universellen DSEs die des aktuell aktiven Systems). Der DSE MUSS Größenänderungen auch dann korrekt behandeln, wenn sich System oder Größe erst im nächsten `render()` ändern. Es darf nicht vorausgesetzt werden, dass vor jedem Größenwechsel eine neue Instanz entsteht.
 
 ### 2.3 Eingangs- und Zeitschutz
 
@@ -69,7 +69,7 @@ Zusätzlich gilt:
 
 ### 2.4 PAL-Tick und Caching
 
-Der StageManager cached die Ausgabe pro PAL-Tick sowie nach Zustands- und Systemwechseln. Neue DSE-Bildzustände entstehen daher mit 50 Hz, auch wenn die Anwendung selbst mit einer höheren Bildwiederholrate läuft.
+Der StageManager cached die Ausgabe pro PAL-Tick sowie nach Zustands-, Größen- und Systemwechseln (und nach expliziter Cache-Invalidierung bzw. `starting`-Neustarts). Neue DSE-Bildzustände entstehen daher regulär mit 50 Hz, auch wenn die Anwendung selbst mit 60, 120 oder 144 Hz läuft. Fällt ein `beatStarted`-Ereignis auf einen gecachten PAL-Frame, puffert der `StageManager` das Ereignis samt Peak-Werten pro DSE-Cache und liefert es beim nächsten gerenderten PAL-Tick exakt einmal nach. Für `idle`-DSEs überspringt der `StageManager` Simulation, Offscreen-Buffer-Allokation und Blitting vollständig.
 
 Daraus folgt:
 
@@ -90,6 +90,8 @@ Tension und Zustand steuern beispielsweise Geschwindigkeit, Amplitude, Anzahl ak
 
 Ein DSE SOLL nicht ausschließlich lauter und heller werden. Ein guter Effekt verändert sein Verhalten erkennbar zwischen ruhigem Spiel, Aufbau, Höhepunkt und Nachklang.
 
+Ebenso DARF sich kein DSE für Grundbewegung oder sichtbare Variation ausschließlich auf `beatStarted` verlassen: Auch bei ruhigen oder perkussionslosen Tracks ohne erkannte Beats MUSS der Effekt über `t`, `energy` und `smooth[c]` lebendig bleiben.
+
 ### 3.2 Verfügbare Metriken
 
 | Metrik | Bedeutung und vorgesehene Verwendung |
@@ -106,7 +108,7 @@ Ein DSE SOLL nicht ausschließlich lauter und heller werden. Ein guter Effekt ve
 | `metrics.rawEnergyState` | Grober energetischer Zustand; nur verwenden, wenn diese Unterscheidung wirklich benötigt wird. |
 | `metrics.tensionPct` | Kontinuierliche Tension von 0 bis 1. Für Zielwerte und Verläufe, nicht als alleiniger Beat-Ersatz. |
 | `metrics.isClimaxLocked` | Kennzeichnet einen gehaltenen Climax. Nicht jeder DSE muss darauf separat reagieren. |
-| `metrics.climaxTimer`, `metrics.climaxHoldTime` | Informationen über Climax-Dauer und Haltezeit. |
+| `metrics.climaxTimer`, `metrics.climaxHoldTime` | Informationen über Climax-Laufzeit und Gesamthaltezeit. `climaxHoldTime` stammt von aktiven sichtbaren `managed`-DSEs (ohne `isVoid`/`oneshot`) und wird vom `TensionManager` 50/50 auf `climax` (`climaxTimer` bis `0.5 × climaxHoldTime`) und `afterglow` aufgeteilt. |
 | `metrics.system` | `c64`, `amiga` oder `atari`; bestimmt Auflösung, Palette und systemspezifische Gestaltung. |
 | `metrics.regs` | Optionale Chip-/Registerinformationen für bewusst systemspezifische Effekte. Vor Verwendung Verfügbarkeit und Semantik prüfen. |
 
@@ -129,7 +131,7 @@ beatImpulse[0] = beatEnvelope[0] * beatStrength;
 
 Beim akzeptierten Beat ist die Hüllkurve `1`, daher entspricht der Anfangsimpuls genau `beatStrength`. Während des Abklingens bleiben Stärke und Level erhalten, während `beatImpulse` mit der Hüllkurve abnimmt.
 
-Der StageManager begrenzt eingehende Werte auf ihren gültigen Bereich. Fehlt `beatStrength` in einem alten Metrics-Objekt, wird ein vorhandener Beat als Vollschlag interpretiert. Fehlt `beatImpulse`, stellt ein wiederverwendeter `Float32Array(1)`-Puffer `beatEnvelope × beatStrength` bereit. Diese Kompatibilität darf keine neuen Arrays im Renderloop erzeugen.
+`TrackMonitor`, `TensionManager`, `StageManager` und `SetlistManager` begrenzen `dt` defensiv (maximal `0.1 s`, keine negativen/`NaN`-Zeitschritte); `TrackMonitor` nutzt exponentielle Glättung und begrenzt Kanalpegel auf `[0, 1]`. Der `StageManager` begrenzt eingehende Beat-Werte auf ihren gültigen Bereich, interpretiert fehlende `beatStrength` bei vorhandenem Beat als Vollschlag und stellt über wiederverwendete `Float32Array(1)`-Puffer kompatible Fallback- und Nachlieferungs-Werte bereit, ohne neue Arrays im Renderloop zu erzeugen.
 
 ### 3.3 Exakte Beats statt Hüllkurven-Retrigger
 
@@ -162,6 +164,7 @@ Regeln:
 - `beatLevel` darf zusammen mit `beatStarted` eine soft-, medium- oder hard-Variante auswählen. Der während des Abklingens erhaltene Levelwert allein ist kein neues Ereignis.
 - `beatStrength` beschreibt die Impulsgröße, nicht die Dauerlautstärke und nicht die Tension.
 - Ein Beat-Test MUSS auch mehrere Frames mit aktiver Hüllkurve, aber ohne neues `beatStarted`, enthalten.
+- **Strobe-Schutz:** Wegen des Beat-Cooldowns von `0.15 s` sind bis zu ~6,7 Beats/s möglich. Vollflächige Hochkontrast-Blitze (z. B. Weiß/Schwarz-Wipes im Beat-Takt) sind im Webkontext nicht zulässig; Beat-Akzente SOLLEN lokal begrenzt oder über abgestufte Paletten-/Formwechsel umgesetzt werden.
 
 ### 3.4 Kanalzuordnung
 
@@ -200,14 +203,32 @@ Der Übergang in `afterglow` SOLL die letzte Formation und Objektpositionen übe
 | DSE | Kontinuierliche Reaktion auf `beatImpulse[0]` | Diskrete Ereignisse und Sonderregeln |
 | --- | --- | --- |
 | `Starfield` | Gewichteter Warp-Schub; C64-Rasterwobble, Amiga-Nebel-/Helligkeitsakzente und ganzzahliger Atari-Größenkick | Pattern und Paletten nur bei `beatStarted`/`beatCount` |
-| `C64CastleFireworks` | VIC-II-Paletten-Nachtszene mit pixelgerasterter Burg und Vordergrund ab einer festen Horizontlinie | Himmel-Feuerwerk nur auf `beatStarted`; Kadenz und Burst-Größe folgen Makrozustand und Beat-Stärke |
-| `AmigaCastleFireworks` | Gestufte OCS-Nachtpalette, Copper-Raster, proportionale Burg und begrenzte Feuerwerksmuster | Burst-Zündung nur auf dedupliziertem `beatStarted`; Dichte und Choreografie folgen Makrozustand und Tension |
 | `Copperbars` | Vertikaler Nudge, Climax-Interferenz und abgestufter Core-Punch | Formationen und Copperlists nur am exakten vierten Beat |
 | `TrackPresenter` | Systemgerechte Panel-Bewegung; zusätzlicher horizontaler Bitmap-Titel-Nudge im Climax | Layoutwechsel nur am exakten vierten Beat; One-Shot-Verhalten bleibt unverändert |
 | `LimitBar` | C64-Rasterstärke, Amiga-Sweep-Größe sowie Atari-Funkenanzahl und -länge; Impulssteuerung des Climax-Strobes | Bleibt über `.disabled()` deaktiviert und wird nur isoliert getestet |
 | `VoidElement` | Absichtlich keine; der Platzhalter liest keine Musikmetriken und zeichnet nichts | Alle drei Registry-Einträge bleiben `isVoid()` |
 
 Alle sichtbaren universellen DSEs verwenden bei fehlendem `beatImpulse` weiterhin die begrenzte `beat[0]`-Hüllkurve als Fallback. Eine abklingende Hüllkurve oder ein erhaltener `beatLevel` darf bei ihnen keine Pattern-, Paletten-, Formations-, Richtungs- oder Layoutwechsel erneut auslösen.
+
+### 3.7 Systemspezifische DSEs: Umsetzungsstand (v1.6.0)
+
+| System | DSE | Reaktion auf `beatImpulse[0]`, Makrozustand & Kanäle | Besonderheiten & Nachweise |
+| --- | --- | --- | --- |
+| Amiga | `KefrensCheckerboard` | Copper-Kurven, Z-Schockwellen, `camH`-Dip und 4 Paletten/Pattern-Familien | Floor ab `horizon = 0.55 * height`; 12-Bit LUT; Bayer-Floor-Curtain (`test/kefrens-checkerboard.test.mjs`) |
+| Amiga | `PaulaSiliconBg` | 4 L-R-R-L DMA-Säulen, 3D-Busspuren, Z-Welle, Oktant-Moiré und Copper-Himmel | DOM-frei ohne Offscreen-Canvas/Global-Cache (`test/paula-silicon-bg.test.mjs`) |
+| Amiga | `AmigaRetroSunset` | Sonnenpuls, Berg-Rimlight, Wasser-Shimmer, Climax-Slits; 16./24.-Beat-Fisch/Möwen | Kachelnde Berge, 2 Wolken, Xorshift32, Blue-Hour-Afterglow (`test/retro-sunset.test.mjs`) |
+| Amiga | `AmigaCastleFireworks` | Gestufte OCS-Nachtpalette, Copper-Raster, Burg & Feuerwerk nach Tension/Beat | Burst-Zündung nur auf dedupliziertem `beatStarted` (`test/amiga-castle-fireworks.test.mjs`) |
+| C64 | `ChunkyPlasma` | 4 VIC-II-Ramps, 4 Plasmafamilien, Zoom-Bounce, PETSCII-Subblock-Dither (`smooth[0..2]`) | Wiederverwendbare Zeilenpuffer, Bayer-Night-Afterglow (`test/chunky-plasma.test.mjs`) |
+| C64 | `C64RetroSunset` | Sonnenradius, Kegelbreite, Glanztiefe, Sky-Dither-Säume, 1px-Heat-Haze (`smooth[0..2]`) | Rein zeitbasiert ohne `frameCounter`, Xorshift32 `$D016`-Wasser (`test/c64-retro-sunset.test.mjs`) |
+| C64 | `SidSiliconBg` | 3 SID-Oszillatoren + VCF-Kamm, Bus-Elektronen nach `beatLevel`, ADSR-Schutz | Adaptives Landscape-/Portrait-Layout, Fallback ohne `regs` (`test/sid-silicon-bg.test.mjs`) |
+| C64 | `C64VectorStar` | FOV-/Spitzen-Kick, 4 Raster-Paletten, 4 Modi inkl. 2-Step-Ghost-Trails (`smooth[0..2]`) | `0.06s`-6510-Stutter auf `dt`, geclippt, geometrisches Starting/Stopping (`test/c64-vector-star.test.mjs`) |
+| C64 | `C64CastleFireworks` | VIC-II-Nachtszene mit Burg, Vordergrund & Beat-Feuerwerk | Bursts nur auf `beatStarted` (`test/c64-castle-fireworks.test.mjs`) |
+| Atari | `AtariDotTorus` | Scale-Kick, 4 Shifter-Paletten, 4 Morph-Modi, 1×1/2×2-Tiefenpass (`smooth[0..2]`) | Symmetrische 3-Achsen-Float-Phasen für 50 Hz PAL (`test/atari-dot-torus.test.mjs`) |
+| Atari | `AtariBobs` | Radius-/Warp-Schub, Ketten-Highlight-Welle, 3D-Bob-Größe (`smooth[0..2]`) | DOM-freie Scanline-Kreis-LUT, symmetrische 4-Quadranten-Spiegelung (`test/atari-bobs.test.mjs`) |
+| Atari | `AtariRetroSunset` | Sonnenpuls, Wasserwelle, Torii-Kanji, Bonsai-Rascheln & fallende Blütenblätter | DOM-frei, geclippte Kurven-Bonsai-Äste, Zen-Afterglow (`test/atari-retro-sunset.test.mjs`) |
+| Atari | `WireframeMorph` | Morph-Schub, 4 Themes, 2-Pass-Z-Depth, Ghost-Trails & Dual-Shell-Kern (`smooth[0..2]`) | Kalibriertes FOV + geclippte Bresenham-Kanten (`test/atari-wireframe-morph.test.mjs`) |
+| Atari | `YmSiliconBg` | 3 Rechteck-Oszillatoren, Log-DAC-Schockwelle, LFSR-Regen & Timer-B-Scanline-Tears | Ohne `getImageData`/`putImageData` & ohne Weiß-Wipe, Dual-Layout (`test/ym-silicon-bg.test.mjs`) |
+| Atari | `AtariEnchantedCastle` | 9-Bit-Shifter-Sturmszene mit Burg & gradierten Blitz-/Magie-Effekten | Maximal 16 Farben, begrenzte Pools (`test/atari-enchanted-castle.test.mjs`) |
 
 ## 4. Historischer Stil und Hardwaregrenzen
 
@@ -245,8 +266,10 @@ Regeln:
 - Hartcodierte Farbtabellen bereits korrekt quantisiert anlegen.
 - Berechnete Farben vor dem Zeichnen quantisieren beziehungsweise auf die C64-Palette abbilden.
 - Die Abnahme erfolgt an den tatsächlich gerenderten Pixeln, nicht nur an den Farbangaben im Quelltext.
+- Neben dem Farbraum ist auch das historische Farbbudget zu achten: Auf Atari ST soll eine Szene im Kern mit maximal 16 Grundfarben pro Bild (zzgl. gezielter Scanline-/Timer-B-Raster-Splits) auskommen; auf Amiga soll eine bewusste OCS-Subpalette (typisch 16–32 Farben zzgl. Copper-Zeilenwechseln) statt willkürlicher Echtfarb-Verläufe genutzt werden.
 - Keine Schatten, Browser-Filter, Antialiasing-Kanten oder Textausgabe, die unerlaubte Zwischenfarben erzeugen.
 - Nicht versuchen, Paletteverletzungen nachträglich durch eine undokumentierte Ausnahmeregel zu verstecken.
+- Bei Atari ST beträgt der maximale quantisierte Kanalwert `252` (`7 × 36`, `#fcfcfc`) und nicht `255` (`#ffffff`). Auch Weiß-Highlights müssen über `quantizeAtari9Bit(...)` erzeugt werden.
 
 ### 4.3 Integer-Raster und Geometrie
 
@@ -267,6 +290,7 @@ Geeignete Helfer sind unter anderem:
 - `fillAliasedPolygon(...)`
 
 Historische Bewegung entsteht durch diskrete Raster-, Paletten- und Formwechsel, nicht durch moderne weiche Partikeleffekte.
+Die Helfer in `hardware-constraints.js` clippen Koordinaten nicht automatisch auf den Retro-Buffer. Jeder DSE MUSS sicherstellen, dass Linien, Kreise und Sprites am Bildrand hart auf `[0..width, 0..height]` (bzw. auf layer-spezifische Grenzen wie `y < horizon`) beschnitten werden und keine negativen Koordinaten oder Überläufe an `fillRect()` übergeben.
 
 ### 4.4 Kein Alpha-Blending
 
@@ -279,6 +303,10 @@ Geeignete Alternativen:
 - Raster-/Scanline-Muster einsetzen.
 - `applyOrderedDitherFade(...)` für deterministische Ordered-Dither-Übergänge verwenden.
 - Trails durch begrenzte, opake Nachzeichnungen oder persistente Palettenstufen erzeugen.
+Für Ein- und Ausblendungen gilt zusätzlich die Layer-Trennung:
+- Vollflächige `#000000`-Ordered-Dither-Vorhänge (über `applyOrderedDitherFade(...)` oder native Bayer-4×4-`fillRect`-Muster) sind **nur** für `background`-DSEs (und bei `floor`-DSEs ausschließlich unterhalb der Horizontlinie) zulässig.
+- `foreground`- und `overlay`-DSEs DÜRFEN in `starting`/`stopping` keinen schwarzen Vollbild-Dither über den Hintergrund legen, sondern müssen über eigene Geometrie, Schrittweise-Sichtbarkeit oder Objektanzahl ein- und ausblenden.
+- Hinweis zu `applyOrderedDitherFade(...)`: Der Helfer nutzt intern `document.createElement('canvas')` und `createPattern(...)`. Für DSEs, die ohne DOM in Node getestet werden, ist ein natives Bayer-4×4-`fillRect`-Verfahren vorzuziehen (oder ein entsprechender DOM-freier Test-Fallback nötig).
 
 ### 4.5 Text und Typografie
 
@@ -366,6 +394,7 @@ Für jede System-/DSE-Kombination sind mindestens repräsentative Stills in Port
 
 ### 6.1 Registrierung
 
+Alle DSEs werden **zentral** im Array `dseRegistry` in `js/visuals/dse/registry.js` über den lokalen Builder `RegisterDSE(...)` registriert. Einzelne DSE-Module exportieren ausschließlich ihre Klasse (`export class MyDse`) und importieren `registry.js` **nicht** selbst (Vermeidung zirkulärer Imports und `SyntaxError`).
 Jeder DSE wird über `RegisterDSE(...)` mit expliziten Metadaten registriert. Beispiel:
 
 ```javascript
@@ -402,11 +431,16 @@ Metadatenbewusst wählen:
 
 Es gibt keinen separaten `presenter`-Layer. Der TrackPresenter ist ein `overlay`-DSE mit `oneshot`-Lifecycle.
 
+**Horizont-Vertrag (`background` + `floor`):** Kombinierbare `floor`-DSEs (wie `KefrensCheckerboard`) beginnen ab `horizon = Math.floor(height * 0.55)` und lassen den Bereich `0 .. horizon - 1` vollständig unberührt. System-Hintergründe (`RetroSunset`, `PaulaSiliconBg`, `CastleFireworks`, `EnchantedCastle`) platzieren Himmel und Haupt-Silhouetten oberhalb dieser Linie, damit ein aktiver `floor`-DSE nur den unteren Vordergrund übernimmt.
+
+**Kontrast-Vertrag (`background` + `foreground`/`overlay`):** `foreground`- und `overlay`-DSEs müssen auch vor hellen, vollflächigen oder stark bewegten `background`-DSEs (z. B. `ChunkyPlasma` oder `RetroSunset`) lesbar bleiben. Wichtige Formen, Sprites und Bitmap-Schriften SOLLEN sich über klare Kontrast-Ramps, dunkle Outlines oder Schattenrahmen abheben.
+
 ### 6.3 Lifecycles und Dauer
 
-- `managed`: regulärer, vom SetlistManager verwalteter DSE. `duration` ist die früheste Wechselzeit, keine garantierte absolute Lebensdauer.
+- `managed`: regulärer, vom SetlistManager verwalteter DSE. `duration` ist die früheste Wechselzeit, keine garantierte absolute Lebensdauer. Neue Swaps werden nur in `playing` und `buildup` ausgelöst (laufende `climax`- und `afterglow`-Phasen werden nicht unterbrochen); `maxInstances` gilt sowohl bei initialer Füllung als auch beim Swap.
+- **Sequenzielle vs. simultane Layer-Übergänge:** Auf transparenten Layern (`foreground`, `overlay`) laufen ausgehender (`stopping`) und eingehender (`starting`) DSE simultan. Auf opaken Layern (`background`, `floor`) wartet ein eingehender sichtbarer (`!isVoid`) DSE, bis der ausgehende sichtbare DSE seine `stopping`-Phase vollständig beendet hat, damit Ausblendungen nicht sofort übermalt werden (bei Beteiligung eines `isVoid`-DSEs wird direkt überblendet).
 - `permanent`: dauerhaft aktiver DSE; sparsam und nur für bewusst permanente Ebenen verwenden.
-- `oneshot`: zeitlich begrenzter Einmaleffekt. `duration` ist die absolute Lebensdauer vor dem Übergang in `stopping`.
+- `oneshot`: zeitlich begrenzter Einmaleffekt. `duration` zählt ausschließlich im aktiv laufenden Onstage-Zustand (nicht während `starting`, `stopping` oder `idle`) vor dem Übergang in `stopping`. Nach dem Ausblenden im `idle`-Zustand wird der `oneshot` sauber aus `activeDSEs` entfernt; ein bereits vor Spielbeginn ausgelöster Presenter startet automatisch beim ersten `isPlaying`-Frame.
 
 One-Shots MÜSSEN mehrfach startbar sein, ohne alte Trackdaten, Zeitstempel, `_markedForRemoval`-ähnliche interne Zustände oder Rendering-Artefakte unkontrolliert mitzunehmen. Sie dürfen erst nach ihrer definierten Lebensdauer und dem Stopping-Übergang entfernt werden.
 
@@ -486,12 +520,14 @@ Für einen neuen oder wesentlich veränderten DSE sind mindestens erforderlich:
 
 Der DSE-Baseline-Harness stellt dafür `makeMetrics(...)` und `runBeatIntensity(...)` bereit. Die festen Vergleichsstärken `GRADED_BEAT_STRENGTHS` sind `soft = 0.20`, `medium = 0.50` und `hard = 0.90`. Für exakte Onset-Frames ist ein Still mit `warmup: 0` sinnvoll; bei DSEs mit eigenem Einzug ist zusätzlich eine Sequenz mit separatem Warmup zu prüfen.
 
-Die fokussierte Gesamtsuite für das graduelle Beat-System umfasst:
+Die fokussierte Engine- und Universal-Suite für das graduelle Beat-System und den DJ-Lifecycle umfasst:
 
 ```sh
 node --test \
   test/graded-beat-detection.test.mjs \
   test/graded-beat-routing.test.mjs \
+  test/dj-engine-lifecycle.test.mjs \
+  test/scene-dj-integration.test.mjs \
   test/starfield.test.mjs \
   test/copperbars.test.mjs \
   test/track-presenter.test.mjs \
@@ -499,7 +535,28 @@ node --test \
   test/void-element.test.mjs
 ```
 
-Ein Fake-Canvas für Unit-Tests SOLL absichtlich keine verbotenen Funktionen wie `fillText()` oder `measureText()` anbieten. Dadurch fallen verbotene APIs sofort auf.
+Zusätzlich decken die systemspezifischen Suites das v1.6.0-Overhaul ab:
+
+```sh
+node --test \
+  test/kefrens-checkerboard.test.mjs \
+  test/paula-silicon-bg.test.mjs \
+  test/retro-sunset.test.mjs \
+  test/amiga-castle-fireworks.test.mjs \
+  test/chunky-plasma.test.mjs \
+  test/c64-retro-sunset.test.mjs \
+  test/sid-silicon-bg.test.mjs \
+  test/c64-vector-star.test.mjs \
+  test/c64-castle-fireworks.test.mjs \
+  test/atari-dot-torus.test.mjs \
+  test/atari-bobs.test.mjs \
+  test/atari-retro-sunset.test.mjs \
+  test/atari-wireframe-morph.test.mjs \
+  test/ym-silicon-bg.test.mjs \
+  test/atari-enchanted-castle.test.mjs
+```
+
+Ein Fake-Canvas für Unit-Tests SOLL zusätzlich zu fehlendem `fillText()`/`measureText()` strikte Integer-, Bounds- (`0 <= x`, `x + w <= width`, `0 <= y`, `y + h <= height`) und Palettenprüfungen erzwingen sowie `globalAlpha`, `save()`/`clip()` und `getImageData()` verweigern bzw. markieren. DSEs SOLLEN idealerweise ohne globales `document` in Node testbar sein; für Engine-Tests stehen dafür optional `new SceneDJ({ createCanvas })` und `new StageManager({ createCanvas })` bereit.
 
 ### 9.2 Visuelle Nachweise
 
@@ -526,6 +583,7 @@ Der isolierte Harness prüft nicht automatisch das Zusammenspiel mehrerer Layer.
 - Vollbild betreten und verlassen.
 - Mobile Ausrichtung wechseln.
 - Trackwechsel und One-Shot-Neustart prüfen, sofern relevant.
+- Sicherstellen, dass der physische Ausgabe-Canvas im Host-DOM `image-rendering: pixelated` nutzt, damit Nearest-Neighbor-Skalierung auf HiDPI-Displays scharf bleibt.
 - Browserkonsole auf Fehler und neue Warnungen prüfen.
 
 ## 10. Empfohlener Implementierungsablauf
@@ -585,8 +643,8 @@ Ein neuer DSE ist erst abnahmebereit, wenn alle zutreffenden Punkte erfüllt sin
 Bei Detailfragen haben die aktuellen Implementierungen Vorrang vor älteren Konzepttexten:
 
 - `js/visuals/scene-dj.js` — Signalfluss und Retro-Canvas-Ausgabe
-- `js/visuals/dj/stage-manager.js` — Instanzen, Metriken, Zustände und PAL-Tick-Caching
-- `js/visuals/dj/setlist-manager.js` — Auswahl, Layerfüllung und Dauer
+- `js/visuals/dj/stage-manager.js` — Instanzen, Metriken, Zustände, PAL-Tick-Caching und >50-Hz-Beat-Latching
+- `js/visuals/dj/setlist-manager.js` — Auswahl, Layerfüllung, sequenzielle Layer-Übergänge und Dauer
 - `js/visuals/dj/track-monitor.js` — Energie, Hüllkurven und Beat-Events
 - `js/visuals/dj/tension-manager.js` — Tension und Makrozustände
 - `js/visuals/dse/registry.js` — Registry-Builder und gültige Metadaten

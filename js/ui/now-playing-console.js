@@ -83,11 +83,42 @@ export class NowPlayingConsole {
             this.fields[name] = document.getElementById(`now-playing-${name}`);
         }
         this.progress = document.getElementById('now-playing-progress-fill');
+        this.progressBar = document.getElementById('now-playing-progress');
         this.channels = [...document.querySelectorAll('.now-playing-channel[data-channel-index]')];
         this.lastLiveUpdate = 0;
         this.lastTime = '';
         this.lastProgress = -1;
         this.lastLevels = new Array(this.channels.length).fill(-1);
+        this.seekHandler = null;
+
+        if (this.progressBar) {
+            let scrubbing = false;
+            const seekAtEvent = (e) => {
+                if (!this.seekHandler || this.progressBar.dataset.seekable !== 'true') return;
+                const rect = this.progressBar.getBoundingClientRect();
+                if (rect.width <= 0) return;
+                const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+                this.seekHandler(ratio);
+            };
+            this.progressBar.addEventListener('pointerdown', (e) => {
+                if (!this.seekHandler || this.progressBar.dataset.seekable !== 'true') return;
+                e.stopPropagation();
+                scrubbing = true;
+                this.progressBar.setPointerCapture?.(e.pointerId);
+                seekAtEvent(e);
+            });
+            this.progressBar.addEventListener('pointermove', (e) => {
+                if (!scrubbing) return;
+                seekAtEvent(e);
+            });
+            const endScrub = () => { scrubbing = false; };
+            this.progressBar.addEventListener('pointerup', endScrub);
+            this.progressBar.addEventListener('pointercancel', endScrub);
+        }
+    }
+
+    bindSeek(handler) {
+        this.seekHandler = typeof handler === 'function' ? handler : null;
     }
 
     setField(name, value) {
@@ -113,10 +144,15 @@ export class NowPlayingConsole {
         });
     }
 
-    updateLive({ currentTime = '00:00', totalTime = '00:00', progress = 0, levels = [], playing = false }, force = false) {
+    updateLive({ currentTime = '00:00', totalTime = '00:00', progress = 0, levels = [], playing = false, seekable = false }, force = false) {
         const now = performance.now();
         if (!force && now - this.lastLiveUpdate < 66) return;
         this.lastLiveUpdate = now;
+
+        const nextSeekable = String(Boolean(seekable));
+        if (this.progressBar && this.progressBar.dataset.seekable !== nextSeekable) {
+            this.progressBar.dataset.seekable = nextSeekable;
+        }
 
         const time = `${currentTime} / ${totalTime}`;
         if (time !== this.lastTime) {
