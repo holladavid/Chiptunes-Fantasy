@@ -474,7 +474,7 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
 
     process(inputs, outputs) {
         const outL = outputs[0][0];
-        const outR = outputs[0].length > 1 ? outputs[0][1] : outputs[0][0];
+        const outR = outputs[0].length > 1 ? outputs[0][1] : null;
         let visualValue = 0;
 
         for (let i = 0; i < outL.length; i++) {
@@ -571,8 +571,12 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
             let satL = Math.tanh(dcL * 0.95) * 0.78 * this.fadeVol;
             let satR = Math.tanh(dcR * 0.95) * 0.78 * this.fadeVol;
 
-            outL[i] = satL;
-            outR[i] = satR;
+            if (outR) {
+                outL[i] = satL;
+                outR[i] = satR;
+            } else {
+                outL[i] = (satL + satR) * 0.5;
+            }
             if (i === 0) visualValue = (satL + satR) * 0.5;
         }
 

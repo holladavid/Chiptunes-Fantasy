@@ -57,7 +57,7 @@ class MasterDSPProcessor extends AudioWorkletProcessor {
         const inL = input[0];
         const inR = input.length > 1 ? input[1] : input[0];
         const outL = output[0];
-        const outR = output.length > 1 ? output[1] : output[0];
+        const outR = output.length > 1 ? output[1] : null;
         const len = inL.length;
 
         for (let i = 0; i < len; i++) {
@@ -115,8 +115,14 @@ class MasterDSPProcessor extends AudioWorkletProcessor {
                 this.currentGain += this.releaseAlpha * (1.0 - this.currentGain);
             }
 
-            outL[i] = delayedL * this.currentGain;
-            outR[i] = delayedR * this.currentGain;
+            const finalL = delayedL * this.currentGain;
+            const finalR = delayedR * this.currentGain;
+            if (outR) {
+                outL[i] = finalL;
+                outR[i] = finalR;
+            } else {
+                outL[i] = (finalL + finalR) * 0.5;
+            }
         }
 
         return true;

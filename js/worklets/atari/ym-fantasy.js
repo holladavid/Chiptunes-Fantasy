@@ -71,7 +71,8 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
     }
 
     process(inputs, outputs) {
-        const outL = outputs[0][0]; const outR = outputs[0][1] || outputs[0][0]; 
+        const outL = outputs[0][0];
+        const outR = outputs[0].length > 1 ? outputs[0][1] : null;
         let currentVisualValue = 0;
 
         if (this.delayTime === 0) this.delayTime = Math.floor(sampleRate * 0.375);
@@ -336,9 +337,12 @@ class YMFantasyProcessor extends AudioWorkletProcessor {
             let dcL = this.dcBlockL.process(finalL);
             let dcR = this.dcBlockR.process(finalR);
 
-            outL[i] = dcL;
-            if (outR) outR[i] = dcR;
-            if (i === 0) currentVisualValue = (dcL + dcR) / 2.0;
+            if (outR) {
+                outL[i] = dcL;
+                outR[i] = dcR;
+            } else {
+                outL[i] = (dcL + dcR) * 0.5;
+            }            if (i === 0) currentVisualValue = (dcL + dcR) / 2.0;
         }
 
         // Taktgenaue Visualisierungs-Ausgabe

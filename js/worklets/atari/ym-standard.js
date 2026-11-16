@@ -94,8 +94,8 @@ class YMProcessor extends AudioWorkletProcessor {
     }
 
     process(inputs, outputs) {
-        const channelLeft = outputs[0][0];  
-        const channelRight = outputs[0][1] || outputs[0][0]; 
+        const channelLeft = outputs[0][0];
+        const channelRight = outputs[0].length > 1 ? outputs[0][1] : null;
         let currentVisualValue = 0;
 
         for (let i = 0; i < channelLeft.length; i++) {
