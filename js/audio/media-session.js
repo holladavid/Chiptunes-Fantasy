@@ -52,12 +52,15 @@ export class MediaSessionController {
     setMetadata(title, artist, album, artwork) {
         if (!this.mediaSession || !this.Metadata) return;
         try {
-            this.mediaSession.metadata = new this.Metadata({
+            const metadataInit = {
                 title: title || 'Chiptunes Fantasy',
                 artist: artist || '',
-                album: album || 'Chiptunes Fantasy',
-                artwork
-            });
+                album: album || 'Chiptunes Fantasy'
+            };
+            if (Array.isArray(artwork)) {
+                metadataInit.artwork = artwork;
+            }
+            this.mediaSession.metadata = new this.Metadata(metadataInit);
         } catch {
             // Metadata must never prevent actual audio playback.
         }
@@ -77,21 +80,38 @@ export class MediaSessionController {
         if (!this.mediaSession || nextSeekable === this.seekable) return;
         this.seekable = nextSeekable;
 
-        this.setActionHandler('seekbackward', nextSeekable ? details => {
-            const offset = Number.isFinite(details?.seekOffset)
-                ? details.seekOffset
-                : DEFAULT_SEEK_OFFSET_SECONDS;
-            this.onSeekBackward?.(offset);
-        } : null);
-        this.setActionHandler('seekforward', nextSeekable ? details => {
-            const offset = Number.isFinite(details?.seekOffset)
-                ? details.seekOffset
-                : DEFAULT_SEEK_OFFSET_SECONDS;
-            this.onSeekForward?.(offset);
-        } : null);
-        this.setActionHandler('seekto', nextSeekable ? details => {
-            if (Number.isFinite(details?.seekTime)) this.onSeekTo?.(details.seekTime);
-        } : null);
+        this.setActionHandler(
+            'seekbackward',
+            nextSeekable && typeof this.onSeekBackward === 'function'
+                ? details => {
+                    const offset = Number.isFinite(details?.seekOffset) && details.seekOffset > 0
+                        ? details.seekOffset
+                        : DEFAULT_SEEK_OFFSET_SECONDS;
+                    this.onSeekBackward(offset);
+                }
+                : null
+        );
+        this.setActionHandler(
+            'seekforward',
+            nextSeekable && typeof this.onSeekForward === 'function'
+                ? details => {
+                    const offset = Number.isFinite(details?.seekOffset) && details.seekOffset > 0
+                        ? details.seekOffset
+                        : DEFAULT_SEEK_OFFSET_SECONDS;
+                    this.onSeekForward(offset);
+                }
+                : null
+        );
+        this.setActionHandler(
+            'seekto',
+            nextSeekable && typeof this.onSeekTo === 'function'
+                ? details => {
+                    if (Number.isFinite(details?.seekTime)) {
+                        this.onSeekTo(Math.max(0, details.seekTime));
+                    }
+                }
+                : null
+        );
     }
 
     updatePosition(duration, position, force = false) {
@@ -121,6 +141,17 @@ export class MediaSessionController {
         this.setSeekable(false);
         this.setPlaybackState('none');
         if (this.mediaSession) {
+            if (typeof this.mediaSession.setPositionState === 'function') {
+                try {
+                    this.mediaSession.setPositionState(null);
+                } catch {
+                    try {
+                        this.mediaSession.setPositionState({});
+                    } catch {
+                        // Keep reset best-effort on partial Media Session implementations.
+                    }
+                }
+            }
             try {
                 this.mediaSession.metadata = null;
             } catch {
@@ -131,4 +162,42 @@ export class MediaSessionController {
         this.lastDuration = -1;
         this.lastPosition = -1;
     }
+
+    destroy() {
+        this.clear();
+        for (const action of ['play', 'pause', 'stop', 'nexttrack', 'previoustrack']) {
+            this.setActionHandler(action, null);
+        }
+    }
+}
+
+export const DEFAULT_PLAYER_RATE = 50;
+
+export function getPlayerRate(track) {
+    const rate = track?.metadata?.playerRate;
+    return Number.isFinite(rate) && rate > 0 ? rate : DEFAULT_PLAYER_RATE;
+}
+
+export function framesToSeconds(frames, track) {
+    if (!Number.isFinite(frames) || frames <= 0) return 0;
+    return frames / getPlayerRate(track);
+}
+
+export function secondsToFrames(seconds, track) {
+    if (!Number.isFinite(seconds) || seconds <= 0) return 0;
+    return Math.floor((seconds * getPlayerRate(track)) + 1e-9);
+}
+
+export function formatFrameTime(frames, track) {
+    if (!Number.isFinite(frames) || frames <= 0) return '00:00';
+    const totalSeconds = Math.floor(framesToSeconds(frames, track));
+    const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+    const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+    return `${minutes}:${seconds}`;
+}
+
+export function isStoredLoopTransition(previousFrame, currentFrame, track) {
+    const loopFrame = track?.metadata?.loopFrame;
+    return Number.isInteger(loopFrame) && loopFrame >= 0 && loopFrame < track.length &&
+        currentFrame === loopFrame && previousFrame > currentFrame && previousFrame >= track.length - 2;
 }

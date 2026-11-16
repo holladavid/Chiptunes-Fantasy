@@ -58,6 +58,25 @@ let channelVolumes = new Float32Array(4);
 let playRequestToken = 0; // NEU: Async Race Condition Schutz
 let playbackSessionId = 0; // NEU: Unidirectional State Sync für den Scene-DJ
 
+let loadedAmigaSamples = null;
+let lastSidTemperature = 55;
+let hasBooted = false;
+
+function uploadAmigaSamples(paulaNode, samples) {
+    if (!paulaNode) return;
+    paulaNode.port.postMessage({ type: 'CLEAR_SAMPLES' });
+    if (!samples) return;
+    for (const sampleName in samples) {
+        if (Object.prototype.hasOwnProperty.call(samples, sampleName)) {
+            paulaNode.port.postMessage({
+                type: 'UPLOAD_SAMPLE',
+                name: sampleName,
+                data: samples[sampleName]
+            });
+        }
+    }
+}
+
 const mediaSessionArtwork = [{
     src: new URL('./assets/media-session-cover.png', window.location.href).href,
     sizes: '512x512',
@@ -306,20 +325,23 @@ function initApp() {
 
     const bootScreen = document.getElementById("boot-screen");
     bootScreen.addEventListener("click", async () => {
+        if (hasBooted) return;
+        hasBooted = true;
+
         const demoContainer = document.getElementById("demo-container");
         if (!demoContainer) return;
 
         bootScreen.classList.add("hidden");
         demoContainer.classList.remove("hidden");
-        
-        await initAudioEngine();
-        
+
         try {
+            await initAudioEngine();
             await loadEmuCore('atari', workletRegistry.atari[0], handleWorkletMessage);
             await loadEmuCore('c64', workletRegistry.c64[0], handleWorkletMessage);
             await loadEmuCore('amiga', workletRegistry.amiga[0], handleWorkletMessage);
         } catch (err) {
-            console.error("[CRITICAL] Cores konnten nicht geladen werden:", err);
+            console.error("[CRITICAL] Audio/Cores konnten nicht geladen werden:", err);
+            setPlaybackState('error', 'AUDIO ENGINE INIT FAILED');
         }
 
         initVisuals({
@@ -409,8 +431,7 @@ function initApp() {
             });
 
             // setTheme triggert nun automatisch siliconVisualizer.setSystem('c64')
-            setTheme('theme-c64');
-            
+            setTheme('theme-c64', true);            
         });
 
         // INTERAKTIVER STEREO BLEND BUTTON
@@ -445,19 +466,20 @@ function updateTimelineUI() {
 }
 
 const progressSlider = document.getElementById('progress-slider');
-progressSlider.addEventListener('mousedown', () => { isUserDragging = true; });
-progressSlider.addEventListener('mouseup', () => { isUserDragging = false; });
-progressSlider.addEventListener('touchstart', () => { isUserDragging = true; });
-progressSlider.addEventListener('touchend', () => { isUserDragging = false; });
+const endProgressSliderDrag = () => { isUserDragging = false; };
+progressSlider.addEventListener('pointerdown', () => { isUserDragging = true; });
+window.addEventListener('pointerup', endProgressSliderDrag);
+window.addEventListener('pointercancel', endProgressSliderDrag);
 
 progressSlider.addEventListener('input', (e) => {
     if (trackData.length === 0) return;
     const targetPercent = parseFloat(e.target.value);
-    const targetFrame = Math.floor((targetPercent / 100) * trackData.length);
+    const targetFrame = Math.min(Math.max(Math.floor((targetPercent / 100) * trackData.length), 0), Math.max(0, trackData.length - 1));
     document.getElementById('time-current').innerText = formatTime(targetFrame);
 });
 
 progressSlider.addEventListener('change', (e) => {
+    isUserDragging = false;
     const targetPercent = parseFloat(e.target.value);
     seekToFrame(Math.floor((targetPercent / 100) * trackData.length));
 });
@@ -469,7 +491,8 @@ function canSeekActiveTrack() {
 function seekToFrame(targetFrame) {
     if (!canSeekActiveTrack() || !Number.isFinite(targetFrame)) return false;
 
-    const clampedFrame = Math.min(Math.max(Math.floor(targetFrame), 0), trackData.length);
+    const maxFrame = Math.max(0, trackData.length - 1);
+    const clampedFrame = Math.min(Math.max(Math.floor(targetFrame), 0), maxFrame);
     const node = activeSystem === 'amiga' ? getPaulaNode() : getYmNode();
     if (!node) return false;
 
@@ -502,6 +525,25 @@ function handleWorkletMessage(e) {
         console.log(e.data.msg);
         return;
     }
+    if (!isPlaying) {
+            channelVolumes.fill(0);
+        } else {
+            for (let channel = 0; channel < channelVolumes.length; channel++) {
+                channelVolumes[channel] = view[34 + channel];
+            }
+        }
+
+        if (systemId === 0) {
+            const tempVal = Math.round(view[33]);
+            if (Number.isFinite(tempVal) && tempVal >= 15 && tempVal <= 75) {
+                lastSidTemperature = tempVal;
+            }
+            currentChipRegs[29] = tempVal;
+            sidRegisterWriteRate = view[37] || 0;
+            for (let voice = 0; voice < 3; voice++) {
+                currentChipRegs[30 + voice] = view[38 + voice] || 0;
+            }
+        }
 
     if (e.data && e.data.constructor && e.data.constructor.name === 'Float32Array') {
         const view = e.data;
@@ -684,6 +726,7 @@ function syncMediaSessionTrack(selectedSong) {
 }
 
 function changeC64Subsong(subsongId) {
+    if (!isPlaying) resumePlayback();
     const sidNode = getSidNode();
     if (activeSystem === 'c64' && trackData && trackData.isSidFile && sidNode) { 
         playbackSessionId++; // NEU: Informiert das Rendering-System über einen Wechsel
@@ -714,7 +757,11 @@ function changeC64Subsong(subsongId) {
             fsUI.updateTrack(`${meta.name.toUpperCase()} [SUB ${subsongId}/${meta.songs}]`);
         }
         currentTrackTitle = meta.name || currentTrackTitle;
-        setPlaybackState('playing', `SUB ${subsongId}/${meta.songs} · ${getActiveCoreName()}`);
+        setPlaybackState(
+            isPlaying ? 'playing' : 'paused',
+            isPlaying ? `SUB ${subsongId}/${meta.songs} · ${getActiveCoreName()}` : 'POSITION PRESERVED · BUS STANDBY'
+        );
+        
         syncMediaSessionTrack(trackRegistry[activeSystem][currentTrackIndex]);
     }    
 
@@ -748,7 +795,10 @@ function startPlayback() {
     } else if (isC64) {
         if (sidNode) {
             if (trackData.isSidFile) {
-                sidNode.port.postMessage(trackData); 
+                sidNode.port.postMessage({
+                    ...trackData,
+                    startSong: currentSubsongIndex || trackData.startSong || 1
+                });
             } else {
                 sidNode.port.postMessage({ type: 'PLAY_TRACK', track: trackData });
             }
@@ -910,6 +960,7 @@ async function setTheme(themeName, isBootSequence = false) {
     // GHOST-TRACK WIPES (RAM Löschen)
     // ---------------------------------------------------------
     trackData = [];
+    loadedAmigaSamples = null;
     currentTrackIndex = -1;
     loadedTrackIndex = -1;
     currentTrackTitle = '';
@@ -953,6 +1004,8 @@ async function setTheme(themeName, isBootSequence = false) {
         document.body.classList.remove('system-transitioning');
         isTransitioning = false;
     }
+
+    playRequestToken++; // Erhöht den Token, um alte Play-Requests zu verwerfen
 }
 // === js/app.js (Auszug) ===
 
@@ -1144,6 +1197,9 @@ function renderTracklist(system, options = {}) {
 }
 
 async function selectAndPlayTrack(index, system, options = {}) {
+
+    if (isTransitioning) return;
+
     lastTrackChangeTime = performance.now();
 
     // =========================================================
@@ -1152,12 +1208,7 @@ async function selectAndPlayTrack(index, system, options = {}) {
     playRequestToken++;
     const myToken = playRequestToken;
 
-    // --- FIX: ZEILE ENTFERNT ---
-    // playbackSessionId++; (DIESE ZEILE LÖSCHEN!)
-
-    if (getAudioContext() && getAudioContext().state === 'suspended') {
-        resumeAudioContext().catch(e => console.log("AudioContext resume blockiert:", e));
-    }
+    resumeAudioContext().catch(e => console.log("AudioContext resume blockiert:", e));
 
     const songs = trackRegistry[system]; 
 
@@ -1228,22 +1279,14 @@ async function selectAndPlayTrack(index, system, options = {}) {
                 }
                 
                 if (isAmigaSystem) {
-                    trackData.isAmigaFile = true; 
-                    
-                    const paulaNode = getPaulaNode();
-                    if (parsedFile.samples && paulaNode) {
-                        for (let sampleName in parsedFile.samples) {
-                            paulaNode.port.postMessage({
-                                type: 'UPLOAD_SAMPLE',
-                                name: sampleName,
-                                data: parsedFile.samples[sampleName]
-                            });
-                        }
-                    }
+                    trackData.isAmigaFile = true;
+                    loadedAmigaSamples = parsedFile.samples || null;
+                    uploadAmigaSamples(getPaulaNode(), loadedAmigaSamples);
                     currentSubsongIndex = isHipcTrack(parsedFile)
                         ? (parsedFile.selectedSong || 0) + 1
                         : 1;
                 } else {
+                    loadedAmigaSamples = null;
                     currentSubsongIndex = 1;
                     trackData.isYmFile = true;
                 }
@@ -1334,6 +1377,7 @@ async function selectAndPlayTrack(index, system, options = {}) {
             
         } catch (err) {
             if (myToken !== playRequestToken) return;
+            loadedAmigaSamples = null;
             console.error('[TRACK LOAD]', err);
             trackData = [];
             loadedTrackIndex = -1;
@@ -1381,6 +1425,8 @@ async function selectAndPlayTrack(index, system, options = {}) {
         `;
         currentScrollerText = "+++ NOW PLAYING: " + selectedSong.title + " +++";
         trackData = selectedSong.generator();
+        loadedAmigaSamples = null;
+        playbackSessionId++;
         loadedTrackIndex = index;
         document.getElementById('progress-slider').disabled = !canSeekActiveTrack();
         syncMediaSessionTrack(selectedSong);
@@ -1546,6 +1592,7 @@ async function disableEcoMode() {
 }
 
 function requestPlay() {
+    if (!isPlaying) resumePlayback();
     if (isPlaying || playbackState === 'loading' || !getAudioContext()) return;
     resumeAudioContext().catch(e => console.log(e));
     if (trackData.length === 0) {
@@ -1594,6 +1641,7 @@ function requestNextTrack() {
 }
 
 function requestPreviousTrack() {
+    if (!isPlaying) resumePlayback();
     if (!getAudioContext()) return;
     resumeAudioContext().catch(e => console.log(e));
     if (activeSystem === 'c64' && trackData && trackData.isSidFile) {
@@ -1716,16 +1764,50 @@ document.getElementById('btn-hud-toggle').addEventListener('click', (event) => {
 });
 
 document.getElementById('core-selector').addEventListener('change', async (e) => {
-    stopPlayback();
+    if (isTransitioning) return;
+
+    const targetSystem = activeSystem;
     const coreIndex = e.target.value;
-    const coreConfig = workletRegistry[activeSystem][coreIndex];
+    const coreConfig = workletRegistry[targetSystem]?.[coreIndex];
+    if (!coreConfig) return;
+
+    const myToken = ++playRequestToken;
+    stopPlayback();
     updateLivingSiliconTitle();
     updateNowPlayingSystem();
     setPlaybackState(trackData.length > 0 ? 'loading' : 'idle', 'RE-WIRING DSP PIPELINE');
-    document.getElementById('hud-content') ? document.getElementById('hud-content').innerText = "RE-WIRING DSP..." : null;
-    await loadEmuCore(activeSystem, coreConfig, handleWorkletMessage);
-    if (trackData.length > 0) startPlayback();
-    else setPlaybackState('idle');
+    const hudContent = document.getElementById('hud-content');
+    if (hudContent) hudContent.innerText = "RE-WIRING DSP...";
+
+    try {
+        await loadEmuCore(targetSystem, coreConfig, handleWorkletMessage);
+        if (myToken !== playRequestToken || targetSystem !== activeSystem) return;
+
+        if (targetSystem === 'amiga' && loadedAmigaSamples) {
+            uploadAmigaSamples(getPaulaNode(), loadedAmigaSamples);
+        } else if (targetSystem === 'c64') {
+            const sidNode = getSidNode();
+            if (sidNode) {
+                sidNode.port.postMessage({ type: 'SET_TEMPERATURE', value: lastSidTemperature });
+            }
+        }
+
+        if (trackData.length > 0) {
+            lastKnownFrame = 0;
+            previousFrame = 0;
+            playbackSessionId++;
+            document.getElementById('time-current').innerText = '00:00';
+            document.getElementById('progress-slider').value = 0;
+            updateNowPlayingLive(true);
+            startPlayback();
+        } else {
+            setPlaybackState('idle');
+        }
+    } catch (err) {
+        if (myToken !== playRequestToken || targetSystem !== activeSystem) return;
+        console.error('[CORE SWITCH]', err);
+        setPlaybackState('error', 'DSP CORE RE-WIRE FAILED');
+    }
 });
 
 document.getElementById('btn-eco').addEventListener('click', async () => {
