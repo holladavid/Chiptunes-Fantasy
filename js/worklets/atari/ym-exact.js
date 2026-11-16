@@ -38,24 +38,26 @@ class YMExactProcessor extends AudioWorkletProcessor {
         });
         this.analogOut = new AtariAnalogFilter(sampleRate);
         this.fadeVol = 0.0;
+        this.fadeStep = 1.0 / Math.max(1, Math.round(0.010 * sampleRate)); // 10ms Anti-Click Ramp
 
         this.port.onmessage = (event) => {
             const msg = event.data;
             if (msg.type === 'PLAY_TRACK') {
                 this.core.reset();
-                this.trackData = msg.track;
+                this.trackData = Array.isArray(msg.track) ? msg.track : null;
+                const trackLen = this.trackData ? this.trackData.length : 0;
                 this.digidrums = msg.digidrums || [];
                 this.currentFrame = 0;
                 this.playerRate = Number.isFinite(msg.playerRate) && msg.playerRate > 0 ? msg.playerRate : 50;
-                this.loopFrame = Number.isInteger(msg.loopFrame) && msg.loopFrame >= 0 && msg.loopFrame < this.trackData.length
+                this.loopFrame = Number.isInteger(msg.loopFrame) && msg.loopFrame >= 0 && msg.loopFrame < trackLen
                     ? msg.loopFrame
                     : 0;
                 this.sampleCounter = 0;
                 this.effects.reset();
                 this.resampler.reset();
-                this.isPlaying = true;
+                this.isPlaying = trackLen > 0;
 
-                this.fadeVol = 0;
+                this.fadeVol = 0.0;
                 this.volA = 0;
                 this.volB = 0;
                 this.volC = 0;
@@ -63,11 +65,15 @@ class YMExactProcessor extends AudioWorkletProcessor {
             } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
             } else if (msg.type === 'RESUME_TRACK') {
-                this.isPlaying = true;
+                this.isPlaying = !!(this.trackData && this.trackData.length > 0);
             } else if (msg.type === 'SEEK_TRACK') {
-                if (this.trackData) {
-                    this.currentFrame = msg.frame % this.trackData.length;
+                if (this.trackData && this.trackData.length > 0) {
+                    const len = this.trackData.length;
+                    const target = Number.isFinite(msg.frame) ? Math.trunc(msg.frame) : 0;
+                    this.currentFrame = ((target % len) + len) % len;
+                    this.sampleCounter = 0;
                     this.effects.reset();
+                    this.resampler.reset();
                 }
             }
         };
@@ -79,33 +85,35 @@ class YMExactProcessor extends AudioWorkletProcessor {
         let currentVisualValue = 0;
 
         for (let i = 0; i < outL.length; i++) {
-
-            if (this.isPlaying) this.fadeVol = Math.min(1.0, this.fadeVol + 0.002);
-            else this.fadeVol = Math.max(0.0, this.fadeVol - 0.002);
+            if (this.isPlaying) this.fadeVol = Math.min(1.0, this.fadeVol + this.fadeStep);
+            else this.fadeVol = Math.max(0.0, this.fadeVol - this.fadeStep);
 
             if (this.fadeVol === 0.0) {
-                let idleSample = this.analogOut.process(0);
-                outL[i] = idleSample; if (outR) outR[i] = idleSample;
+                const idleSample = this.analogOut.process(0);
+                outL[i] = idleSample;
+                if (outR) outR[i] = idleSample;
                 continue;
             }
 
             let decimationSum = 0;
 
-            if (this.isPlaying && this.trackData && this.trackData.length > 0) {
+            if (this.trackData && this.trackData.length > 0) {
                 const cyclesToRun = this.resampler.beginSample();
 
                 this.sampleCounter--;
                 if (this.sampleCounter <= 0) {
                     this.sampleCounter += sampleRate / this.playerRate;
 
-                    let frame = this.trackData[this.currentFrame];
-                    for (let r = 0; r < 16; r++) {
-                        this.core.writeRegister(r, frame[r]);
-                    }
+                    const frame = this.trackData[this.currentFrame];
+                    if (frame) {
+                        for (let r = 0; r < 16; r++) {
+                            this.core.writeRegister(r, frame[r]);
+                        }
 
-                    this.effects.applyFrame(frame, this.digidrums);
-                    if (this.effects.digidrumStartMask !== 0) {
-                        this.port.postMessage({ type: 'DEBUG', msg: 'YM6 Digidrum' });
+                        this.effects.applyFrame(frame, this.digidrums);
+                        if (this.effects.digidrumStartMask !== 0) {
+                            this.port.postMessage({ type: 'DEBUG', msg: 'YM6 Digidrum' });
+                        }
                     }
 
                     this.currentFrame++;
@@ -126,7 +134,7 @@ class YMExactProcessor extends AudioWorkletProcessor {
                 decimationSum = this.resampler.process();
             }
 
-            let finalSample = this.analogOut.process(decimationSum) * this.fadeVol;
+            const finalSample = this.analogOut.process(decimationSum) * this.fadeVol;
 
             outL[i] = finalSample;
             if (outR) outR[i] = finalSample;

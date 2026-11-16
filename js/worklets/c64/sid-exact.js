@@ -19,7 +19,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         super();
         this.clock = 985248; // PAL Master Clock (Hz)
         this.sid = new SIDChip();
-        
+
         this.sid.useJfetSaturation = true;
         this.cpu = new CPU6502(this.sid);
         this.c64Output = new C64AnalogFilter(sampleRate, 0.0);
@@ -28,24 +28,31 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.loadAddr = 0;
         this.initAddress = 0;
         this.playAddress = 0;
-        this.playSpeedCycles = 19656; 
+        this.playSpeedCycles = 19656;
         this.songSpeedFlags = 0;
-        
+
         this.isPlaying = false;
-        this.fadeVol = 0.0; 
-        
-        this.vblankTimer = 19656; 
+        this.wasPlaying = false;
+        this.fadeVol = 0.0;
+        this.fadeStep = 1.0 / Math.max(1, Math.round(0.010 * sampleRate)); // 10ms Anti-Click Ramp
+
+        this.vblankTimer = 19656;
         this.currentFrame = 0;
+        this.maxFrames = 7500;
         this.displayClockAccumulator = 0;
         this.hostPlayPending = false;
-        
+
         this.temperature = 55.0;
         this.cpuCyclesRemaining = 0;
-        
+
         this.visualView = new Float32Array(41);
+        this.visCounter = 0;
+        this.visSamplesAccum = 0;
+        this.wasAudible = false;
 
         this.resampler = new SidResampler(this.clock, sampleRate);
 
+        this.diagEnabled = false;
         this.diagCycles = 0;
         this.diagInstructions = 0;
         this.diagTimer = 0.0;
@@ -54,10 +61,15 @@ class SIDProcessor extends AudioWorkletProcessor {
 
         this.port.onmessage = (e) => {
             const msg = e.data;
-            
+
             if (msg.type === 'SET_TEMPERATURE') {
                 this.temperature = Math.min(75, Math.max(15, msg.value));
-                this.sid.temperature = this.temperature; 
+                this.sid.temperature = this.temperature;
+                return;
+            }
+
+            if (msg.type === 'SET_DIAGNOSTICS') {
+                this.diagEnabled = !!msg.enabled;
                 return;
             }
 
@@ -68,20 +80,22 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.loadAddr = msg.loadAddress;
                 this.initAddress = msg.initAddress;
                 this.playAddress = msg.playAddress;
-                this.songSpeedFlags = msg.speed; 
+                this.songSpeedFlags = msg.speed;
 
                 this.sid = new SIDChip();
                 this.sid.useJfetSaturation = true;
-                this.sid.temperature = this.temperature; 
+                this.sid.temperature = this.temperature;
                 this.cpu = new CPU6502(this.sid);
 
                 this.runSubsongInit(msg.startSong > 0 ? msg.startSong - 1 : 0, msg.length || 7500);
+                this.fadeVol = 0.0;
                 this.isPlaying = true;
             } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
             } else if (msg.type === 'RESUME_TRACK') {
-                this.isPlaying = true;
+                this.isPlaying = !!this.prgCode;
             } else if (msg.type === 'CHANGE_SUBSONG') {
+                if (!this.prgCode) return;
                 this.c64Output = new C64AnalogFilter(sampleRate, 0.0);
 
                 this.sid = new SIDChip();
@@ -90,6 +104,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpu.sid = this.sid;
 
                 this.runSubsongInit(msg.frame > 0 ? msg.frame - 1 : 0, msg.length || 7500);
+                this.fadeVol = 0.0;
             }
         };
     }
@@ -99,28 +114,28 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.cpu.reset(this.loadAddr, this.prgCode, this.initAddress, this.playAddress);
 
         this.cpu.a = songIndex;
-        this.cpu.x = songIndex; 
+        this.cpu.x = songIndex;
         this.cpu.y = 0;
-        
-        this.cpu.push(0xFF); 
-        this.cpu.push(0xDF); 
+
+        this.cpu.push(0xFF);
+        this.cpu.push(0xDF);
         this.cpu.pc = this.initAddress;
         this.cpuCyclesRemaining = 0;
 
         // Run init until RTS to $FFE0, or until a continuous CLI foreground loop is established
-        let initSafety = 250000; 
+        let initSafety = 250000;
         while ((this.cpu.pc < 0xFFE0 || this.cpu.pc > 0xFFE3) && initSafety > 0) {
             initSafety--;
             this.cpu.clockHardware(1);
             this.sid.clock();
-            
+
             if (this.cpuCyclesRemaining === 2) this.cpu.pollInterrupts();
 
             if (this.cpu.rdy && this.cpuCyclesRemaining <= 0) {
                 if (this.cpu.nmiAccepted) {
                     this.cpu.nmiAccepted = false;
                     this.cpu.triggerHardwareNmi();
-                    this.cpuCyclesRemaining = 7 - 1; 
+                    this.cpuCyclesRemaining = 7 - 1;
                 } else if (this.cpu.irqAccepted) {
                     this.cpu.irqAccepted = false;
                     this.cpu.triggerHardwareIrq();
@@ -132,17 +147,17 @@ class SIDProcessor extends AudioWorkletProcessor {
                 this.cpuCyclesRemaining = this.cpu.advanceCycle(this.cpuCyclesRemaining);
             }
         }
-        
+
         // Only force PC to $FFE0 if init returned normally or hit $0000;
         // preserve PC if init deliberately entered an active foreground sample loop!
         if ((this.cpu.pc >= 0xFFE0 && this.cpu.pc <= 0xFFE3) || this.cpu.pc === 0x0000) {
-            this.cpu.pc = 0xFFE0; 
-            this.cpu.p &= ~0x04;  
+            this.cpu.pc = 0xFFE0;
+            this.cpu.p &= ~0x04;
         }
 
         this.useCiaTimer = ((this.songSpeedFlags >> Math.min(31, songIndex)) & 1) !== 0;
         if (this.useCiaTimer) {
-            this.cpu.cia1CtrlA |= 0x01; 
+            this.cpu.cia1CtrlA |= 0x01;
         }
 
         this.playSpeedCycles = 19656;
@@ -151,7 +166,7 @@ class SIDProcessor extends AudioWorkletProcessor {
         this.resampler.reset();
         this.currentFrame = 0;
         this.displayClockAccumulator = 0;
-        this.maxFrames = maxFrames;
+        this.maxFrames = (Number.isFinite(maxFrames) && maxFrames > 0) ? maxFrames : 7500;
         this.hostPlayPending = false;
     }
 
@@ -161,25 +176,25 @@ class SIDProcessor extends AudioWorkletProcessor {
         let visualValue = 0;
 
         for (let i = 0; i < outL.length; i++) {
-            
             if (this.isPlaying) {
-                this.fadeVol = Math.min(1.0, this.fadeVol + 0.002);
+                this.fadeVol = Math.min(1.0, this.fadeVol + this.fadeStep);
             } else {
-                this.fadeVol = Math.max(0.0, this.fadeVol - 0.002);
+                this.fadeVol = Math.max(0.0, this.fadeVol - this.fadeStep);
             }
 
             if (this.fadeVol === 0.0) {
-                outL[i] = 0; if (outR) outR[i] = 0;
-                continue; 
+                outL[i] = 0;
+                if (outR) outR[i] = 0;
+                continue;
             }
-            
+
             const cyclesToRun = this.resampler.beginSample();
 
             // 1MHz PAL Lockstep Cycling
             for (let c = 0; c < cyclesToRun; c++) {
-                this.diagCycles++; 
-                
-                this.cpu.clockHardware(1); 
+                this.diagCycles++;
+
+                this.cpu.clockHardware(1);
                 this.sid.clock();
 
                 // UI time is always 50Hz, independently of the PSID play-call rate.
@@ -188,7 +203,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                     this.displayClockAccumulator -= this.clock;
                     this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                 }
-                
+
                 this.resampler.write(this.sid.outputSample);
 
                 if (this.playAddress === 0) {
@@ -229,7 +244,7 @@ class SIDProcessor extends AudioWorkletProcessor {
                             this.cpu.push(0xDF); // RTS returns to $FFE0 (CLI + JMP $FFE0)
                             this.cpu.p |= 0x04;  // Enter Play with SEI (I=1), matching real C64 IRQ entry!
                             this.cpu.pc = this.playAddress;
-                            this.cpuCyclesRemaining = 6 - 1; 
+                            this.cpuCyclesRemaining = 6 - 1;
                             this.diagInstructions++;
                         } else if (this.hostPlayPending && canInterruptForeground) {
                             // Re-Entrant 50Hz Play Interrupt over active Foreground Digi Loop (Martin Galway's Arkanoid!)
@@ -244,11 +259,11 @@ class SIDProcessor extends AudioWorkletProcessor {
                         } else if (this.cpu.nmiAccepted) {
                             this.cpu.nmiAccepted = false;
                             this.cpu.triggerHardwareNmi();
-                            this.cpuCyclesRemaining = 7 - 1; 
+                            this.cpuCyclesRemaining = 7 - 1;
                         } else if (this.cpu.irqAccepted) {
                             this.cpu.irqAccepted = false;
                             this.cpu.triggerHardwareIrq();
-                            this.cpuCyclesRemaining = 7 - 1; 
+                            this.cpuCyclesRemaining = 7 - 1;
                         } else {
                             this.cpuCyclesRemaining = this.cpu.beginInstruction();
                             this.diagInstructions++;
@@ -258,68 +273,73 @@ class SIDProcessor extends AudioWorkletProcessor {
                     }
                 }
             }
-            
+
             const decimatedSample = this.resampler.process();
 
             // Motherboard 16kHz LP + 16Hz C13 AC-Coupling
-            let analogSample = this.c64Output.process(decimatedSample);
+            const analogSample = this.c64Output.process(decimatedSample);
 
-            // Master Gain Staging
+            // Master Gain Staging (C1-stetiges Soft-Clipping ab ±0.95)
             let normalized = analogSample * 0.42;
-            if (normalized > 0.95 || normalized < -0.95) {
-                normalized = Math.tanh(normalized);
+            if (normalized > 0.95) {
+                normalized = 0.95 + 0.05 * Math.tanh((normalized - 0.95) / 0.05);
+            } else if (normalized < -0.95) {
+                normalized = -0.95 + 0.05 * Math.tanh((normalized + 0.95) / 0.05);
             }
 
-            let finalSample = normalized * this.fadeVol;
+            const finalSample = normalized * this.fadeVol;
 
             outL[i] = finalSample;
             if (outR) outR[i] = finalSample;
             if (i === 0) visualValue = finalSample;
         }
 
-        // Diagnostik (1x pro Sekunde)
-        this.diagTimer += outL.length / sampleRate;
-        if (this.diagTimer >= 1.0) {
-            this.diagTimer -= 1.0;
-            
-            let digiRate = this.sid.d418Writes;
-            this.sid.d418Writes = 0;
-            
-            let activeRegs = Array.from(this.sid.regs).map(r => r.toString(16).toUpperCase().padStart(2, '0')).join(' ');
-            
-            let runtimeMsg = `--- [LAB-RUNTIME DIAGNOSTICS] ---\n` +
-                             `[STATUS] Frame: ${this.currentFrame} | IsPlaying: ${this.isPlaying}\n` +
-                             `[CPU] PC: $${this.cpu.pc.toString(16).toUpperCase().padStart(4, '0')} | SP: $${this.cpu.sp.toString(16).toUpperCase().padStart(2, '0')} | P: $${this.cpu.p.toString(16).toUpperCase().padStart(2, '0')}\n` +
-                             `[CPU] Instructions/sec: ${this.diagInstructions} | Cycles/sec: ${this.diagCycles}\n` +
-                             `[IRQ] Pending: ${this.cpu.irqPending} | Accepted: ${this.cpu.irqAccepted} | Count/sec: ${this.diagIrqCount}\n` +
-                             `[NMI] Pending: ${this.cpu.nmiPending} | Accepted: ${this.cpu.nmiAccepted} | Count/sec: ${this.diagNmiCount}\n` +
-                             `[DIGI] $D418 Writes/sec: ${digiRate} Hz (Effective Sample Rate)\n` +
-                             `[VECTORS] $0314 (IRQ): $${this.cpu.ram[0x0314].toString(16).toUpperCase().padStart(2, '0')}${this.cpu.ram[0x0315].toString(16).toUpperCase().padStart(2, '0')}\n` +
-                             `[TIMERS] CIA1-TimerA: ${this.cpu.cia1TimerA} | Latch: ${this.cpu.cia1TimerALatch} | CtrlA: $${this.cpu.cia1CtrlA.toString(16).toUpperCase().padStart(2, '0')}\n` +
-                             `[TIMERS] VIC-Raster: ${this.cpu.rasterCounter} | Target: ${this.cpu.rasterIrqTarget} | Enabled: ${this.cpu.ram[0xD01A]}\n` +
-                             `[SID REGS] $D400: ${activeRegs}\n` +
-                             `---------------------------------`;
-            this.port.postMessage({ type: 'LAB_LOG', msg: runtimeMsg });
-            
-            this.diagCycles = 0;
-            this.diagInstructions = 0;
-            this.diagIrqCount = 0;
-            this.diagNmiCount = 0;
+        // Diagnostik (1x pro Sekunde, nur wenn explizit aktiviert)
+        if (this.diagEnabled && this.isPlaying) {
+            this.diagTimer += outL.length / sampleRate;
+            if (this.diagTimer >= 1.0) {
+                this.diagTimer -= 1.0;
+
+                const digiRate = this.sid.d418Writes;
+                this.sid.d418Writes = 0;
+
+                const activeRegs = Array.from(this.sid.regs).map(r => r.toString(16).toUpperCase().padStart(2, '0')).join(' ');
+
+                const runtimeMsg = `--- [LAB-RUNTIME DIAGNOSTICS] ---\n` +
+                                   `[STATUS] Frame: ${this.currentFrame} | IsPlaying: ${this.isPlaying}\n` +
+                                   `[CPU] PC: $${this.cpu.pc.toString(16).toUpperCase().padStart(4, '0')} | SP: $${this.cpu.sp.toString(16).toUpperCase().padStart(2, '0')} | P: $${this.cpu.p.toString(16).toUpperCase().padStart(2, '0')}\n` +
+                                   `[CPU] Instructions/sec: ${this.diagInstructions} | Cycles/sec: ${this.diagCycles}\n` +
+                                   `[IRQ] Pending: ${this.cpu.irqPending} | Accepted: ${this.cpu.irqAccepted} | Count/sec: ${this.diagIrqCount}\n` +
+                                   `[NMI] Pending: ${this.cpu.nmiPending} | Accepted: ${this.cpu.nmiAccepted} | Count/sec: ${this.diagNmiCount}\n` +
+                                   `[DIGI] $D418 Writes/sec: ${digiRate} Hz (Effective Sample Rate)\n` +
+                                   `[VECTORS] $0314 (IRQ): $${this.cpu.ram[0x0314].toString(16).toUpperCase().padStart(2, '0')}${this.cpu.ram[0x0315].toString(16).toUpperCase().padStart(2, '0')}\n` +
+                                   `[TIMERS] CIA1-TimerA: ${this.cpu.cia1TimerA} | Latch: ${this.cpu.cia1TimerALatch} | CtrlA: $${this.cpu.cia1CtrlA.toString(16).toUpperCase().padStart(2, '0')}\n` +
+                                   `[TIMERS] VIC-Raster: ${this.cpu.rasterCounter} | Target: ${this.cpu.rasterIrqTarget} | Enabled: ${this.cpu.ram[0xD01A]}\n` +
+                                   `[SID REGS] $D400: ${activeRegs}\n` +
+                                   `---------------------------------`;
+                this.port.postMessage({ type: 'LAB_LOG', msg: runtimeMsg });
+
+                this.diagCycles = 0;
+                this.diagInstructions = 0;
+                this.diagIrqCount = 0;
+                this.diagNmiCount = 0;
+            }
         }
 
-        this.visCounter = (this.visCounter || 0) + 1;
+        this.visSamplesAccum += outL.length;
+        this.visCounter++;
         if (this.visCounter % 4 === 0) {
-            let isAudible = Math.abs(visualValue) > 0.001;
-            if (isAudible || this.wasAudible) {
+            const isAudible = Math.abs(visualValue) > 0.001;
+            if (this.isPlaying || this.wasPlaying || isAudible || this.wasAudible) {
                 const view = this.visualView;
-                view[0] = 0; 
+                view[0] = 0;
                 view[1] = this.isPlaying ? 1 : 0;
                 view[2] = this.currentFrame;
                 view[3] = visualValue;
 
                 for (let r = 0; r < 29; r++) view[4 + r] = this.sid.regs[r];
-                 // Sub-Frame $D418 Digi & PlaySID DMA Telemetry for Living Silicon
-                let deltaDigi = Math.max(0, this.sid.d418Writes - (this.lastVisD418Writes || 0));
+                // Sub-Frame $D418 Digi & PlaySID DMA Telemetry for Living Silicon
+                const deltaDigi = Math.max(0, this.sid.d418Writes - (this.lastVisD418Writes || 0));
                 this.lastVisD418Writes = this.sid.d418Writes;
                 view[4 + 25] = Math.min(255, deltaDigi);
                 view[4 + 26] = this.cpu.psidSampleActive ? 1 : 0;
@@ -331,12 +351,15 @@ class SIDProcessor extends AudioWorkletProcessor {
                 const previousWriteTotal = this.lastVisRegisterWrites || 0;
                 const deltaWrites = writeTotal >= previousWriteTotal ? writeTotal - previousWriteTotal : writeTotal;
                 this.lastVisRegisterWrites = writeTotal;
-                view[37] = deltaWrites * sampleRate * 0.001953125; // 512 audio frames per packet
+                const packetDurationSec = this.visSamplesAccum / sampleRate;
+                view[37] = packetDurationSec > 0 ? (deltaWrites / packetDurationSec) : 0;
                 for (let v = 0; v < 3; v++) view[38 + v] = this.sid.voices[v].state;
 
                 this.port.postMessage(view);
             }
+            this.visSamplesAccum = 0;
             this.wasAudible = isAudible;
+            this.wasPlaying = this.isPlaying;
         }
         return true;
     }

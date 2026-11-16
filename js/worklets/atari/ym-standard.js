@@ -4,84 +4,105 @@
 // Fully Synced with Shared YMVisualizer I/O
 // =========================================================
 
-import { detectDigidrum } from '../lib/dsp-utils.js';
+import { DCBlocker, detectDigidrum } from '../lib/dsp-utils.js';
 import { YMVisualizer } from '../lib/ym-visualizer.js';
 
 const YM_DAC = [
-    0.0000, 0.0137, 0.0205, 0.0291, 0.0423, 0.0618, 0.0847, 0.1369, 
+    0.0000, 0.0137, 0.0205, 0.0291, 0.0423, 0.0618, 0.0847, 0.1369,
     0.1691, 0.2647, 0.3527, 0.4499, 0.5704, 0.6873, 0.8482, 1.0000
 ];
 
 class YMProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.clock = 2000000; 
-        this.regs = new Uint8Array(16); 
+        this.clock = 2000000;
+        this.regs = new Uint8Array(16);
         this.phaseA = 0; this.phaseB = 0; this.phaseC = 0;
         this.noiseLfsr = 1; this.noisePhase = 0; this.noiseOutput = 1;
         this.envPhase = 0.0;
-        
+
         this.incA = 0; this.incB = 0; this.incC = 0;
         this.incNoise = 0; this.incEnv = 0;
         this.toneA = false; this.toneB = false; this.toneC = false;
         this.noiseA = false; this.noiseB = false; this.noiseC = false;
-        
-        this.lastIn = 0; this.lastOut = 0;
+
+        this.dcBlock = new DCBlocker(sampleRate, 20.0);
 
         this.digidrums = [];
         this.currentDigidrum = null;
         this.digiPos = 0;
         this.lastDigiTrigger = 0;
-        
+
         this.trackData = null;
         this.currentFrame = 0;
+        this.playerRate = 50;
+        this.loopFrame = 0;
         this.sampleCounter = 0;
         this.isPlaying = false;
+        this.fadeVol = 0.0;
+        this.fadeStep = 1.0 / Math.max(1, Math.round(0.010 * sampleRate));
 
         this.volA = 0.0; this.volB = 0.0; this.volC = 0.0;
+        this.visualEnvelopeLevel = 0;
 
-        // Visualizer Schnittstelle instanziieren
         this.visualizer = new YMVisualizer(this.port);
-        
+
         this.port.onmessage = (event) => {
             const msg = event.data;
 
             if (msg.type === 'PLAY_TRACK') {
-                this.trackData = msg.track;
-                this.digidrums = msg.digidrums || []; 
+                this.regs.fill(0);
+                this.phaseA = 0; this.phaseB = 0; this.phaseC = 0;
+                this.noiseLfsr = 1; this.noisePhase = 0; this.noiseOutput = 1;
+                this.dcBlock.lastIn = 0; this.dcBlock.lastOut = 0;
+
+                this.trackData = Array.isArray(msg.track) ? msg.track : null;
+                const trackLen = this.trackData ? this.trackData.length : 0;
+                this.digidrums = msg.digidrums || [];
                 this.currentFrame = 0;
+                this.playerRate = Number.isFinite(msg.playerRate) && msg.playerRate > 0 ? msg.playerRate : 50;
+                this.loopFrame = Number.isInteger(msg.loopFrame) && msg.loopFrame >= 0 && msg.loopFrame < trackLen
+                    ? msg.loopFrame
+                    : 0;
                 this.sampleCounter = 0;
                 this.currentDigidrum = null;
                 this.lastDigiTrigger = 0;
                 this.envPhase = 0;
-                this.isPlaying = true;
-                this.updateInternals(); 
+                this.volA = 0.0; this.volB = 0.0; this.volC = 0.0;
+                this.visualEnvelopeLevel = 0;
+                this.fadeVol = 0.0;
+                this.isPlaying = trackLen > 0;
+                this.updateInternals();
             } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
             } else if (msg.type === 'RESUME_TRACK') {
-                this.isPlaying = true; 
+                this.isPlaying = !!(this.trackData && this.trackData.length > 0);
             } else if (msg.type === 'SEEK_TRACK') {
-                if (this.trackData) {
-                    this.currentFrame = msg.frame % this.trackData.length;
-                    this.currentDigidrum = null; 
+                if (this.trackData && this.trackData.length > 0) {
+                    const len = this.trackData.length;
+                    const target = Number.isFinite(msg.frame) ? Math.trunc(msg.frame) : 0;
+                    this.currentFrame = ((target % len) + len) % len;
+                    this.sampleCounter = 0;
+                    this.currentDigidrum = null;
+                    this.lastDigiTrigger = 0;
                 }
             }
         };
     }
 
     updateInternals() {
-        let pA = ((this.regs[1] & 0x0F) << 8) | this.regs[0];
-        let pB = ((this.regs[3] & 0x0F) << 8) | this.regs[2];
-        let pC = ((this.regs[5] & 0x0F) << 8) | this.regs[4];
-        
+        const pA = ((this.regs[1] & 0x0F) << 8) | this.regs[0];
+        const pB = ((this.regs[3] & 0x0F) << 8) | this.regs[2];
+        const pC = ((this.regs[5] & 0x0F) << 8) | this.regs[4];
+
         this.incA = pA === 0 ? 0 : (this.clock / (16 * pA)) / sampleRate;
         this.incB = pB === 0 ? 0 : (this.clock / (16 * pB)) / sampleRate;
         this.incC = pC === 0 ? 0 : (this.clock / (16 * pC)) / sampleRate;
 
-        let pN = this.regs[6] & 0x1F;
+        const pN = this.regs[6] & 0x1F;
         this.incNoise = (this.clock / (16 * (pN === 0 ? 1 : pN))) / sampleRate;
 
-        let pE = (this.regs[12] << 8) | this.regs[11];
+        const pE = (this.regs[12] << 8) | this.regs[11];
         this.incEnv = (this.clock / (256 * (pE === 0 ? 1 : pE))) / sampleRate;
 
         const mix = this.regs[7];
@@ -94,54 +115,61 @@ class YMProcessor extends AudioWorkletProcessor {
     }
 
     process(inputs, outputs) {
-        const channelLeft = outputs[0][0];  
-        const channelRight = outputs[0][1] || outputs[0][0]; 
+        const channelLeft = outputs[0][0];
+        const channelRight = outputs[0].length > 1 ? outputs[0][1] : null;
         let currentVisualValue = 0;
 
         for (let i = 0; i < channelLeft.length; i++) {
-            if (!this.isPlaying) {
-                channelLeft[i] = 0; if (channelRight) channelRight[i] = 0;
-                continue; 
+            if (this.isPlaying) this.fadeVol = Math.min(1.0, this.fadeVol + this.fadeStep);
+            else this.fadeVol = Math.max(0.0, this.fadeVol - this.fadeStep);
+
+            if (this.fadeVol === 0.0) {
+                channelLeft[i] = 0;
+                if (channelRight) channelRight[i] = 0;
+                continue;
             }
 
-            if (this.isPlaying && this.trackData) {
+            if (this.trackData && this.trackData.length > 0) {
                 this.sampleCounter--;
                 if (this.sampleCounter <= 0) {
                     const overshoot = -this.sampleCounter;
-                    this.sampleCounter += sampleRate / 50.0; 
-                    
-                    let frame = this.trackData[this.currentFrame];
-                    for(let r=0; r<16; r++) {
-                        if (r === 13) {
-                            if (frame[13] !== 0xFF) {
-                                this.regs[13] = frame[13];
-                                this.envPhase = overshoot * this.incEnv; 
-                            }
-                        } else {
-                            this.regs[r] = frame[r];
-                        }
-                    }
-                    
-                    let activeDigiTrigger = detectDigidrum(frame);
+                    this.sampleCounter += sampleRate / this.playerRate;
 
-                    if (activeDigiTrigger > 0 && activeDigiTrigger !== this.lastDigiTrigger) {
-                        if (this.digidrums[activeDigiTrigger - 1]) {
-                            this.currentDigidrum = this.digidrums[activeDigiTrigger - 1];
-                            this.digiPos = overshoot * (7812.5 / sampleRate);
-                            this.port.postMessage({ type: 'DEBUG', msg: 'Drum ' + activeDigiTrigger });
+                    const frame = this.trackData[this.currentFrame];
+                    if (frame) {
+                        for (let r = 0; r < 16; r++) {
+                            if (r === 13) {
+                                if (frame[13] !== 0xFF) {
+                                    this.regs[13] = frame[13];
+                                    this.envPhase = overshoot * this.incEnv;
+                                }
+                            } else {
+                                this.regs[r] = frame[r];
+                            }
                         }
+
+                        const activeDigiTrigger = detectDigidrum(frame);
+
+                        if (activeDigiTrigger > 0 && activeDigiTrigger !== this.lastDigiTrigger) {
+                            if (this.digidrums[activeDigiTrigger - 1]) {
+                                this.currentDigidrum = this.digidrums[activeDigiTrigger - 1];
+                                this.digiPos = overshoot * (7812.5 / sampleRate);
+                                this.port.postMessage({ type: 'DEBUG', msg: 'Drum ' + activeDigiTrigger });
+                            }
+                        }
+                        this.lastDigiTrigger = activeDigiTrigger;
+
+                        this.updateInternals();
                     }
-                    this.lastDigiTrigger = activeDigiTrigger;
-                    
-                    this.updateInternals();
-                    this.currentFrame = (this.currentFrame + 1) % this.trackData.length;
+                    this.currentFrame++;
+                    if (this.currentFrame >= this.trackData.length) this.currentFrame = this.loopFrame;
                 }
             }
-            
+
             this.phaseA = (this.phaseA + this.incA) % 1.0;
             this.phaseB = (this.phaseB + this.incB) % 1.0;
             this.phaseC = (this.phaseC + this.incC) % 1.0;
-            
+
             this.noisePhase += this.incNoise;
             if (this.noisePhase >= 1.0) {
                 this.noisePhase %= 1.0;
@@ -153,20 +181,19 @@ class YMProcessor extends AudioWorkletProcessor {
             let outA = this.toneA ? (this.phaseA < 0.5 ? 1.0 : -1.0) : 1.0;
             let outB = this.toneB ? (this.phaseB < 0.5 ? 1.0 : -1.0) : 1.0;
             let outC = this.toneC ? (this.phaseC < 0.5 ? 1.0 : -1.0) : 1.0;
-            
+
             if (this.noiseA) outA = (outA === 1.0 && this.noiseOutput === 1.0) ? 1.0 : -1.0;
             if (this.noiseB) outB = (outB === 1.0 && this.noiseOutput === 1.0) ? 1.0 : -1.0;
             if (this.noiseC) outC = (outC === 1.0 && this.noiseOutput === 1.0) ? 1.0 : -1.0;
 
             this.envPhase += this.incEnv;
-            let shape = this.regs[13] & 0x0F;
-            let cycles = Math.floor(this.envPhase);
-            let localPhase = this.envPhase - cycles;
+            const shape = this.regs[13] & 0x0F;
+            const cycles = Math.floor(this.envPhase);
+            const localPhase = this.envPhase - cycles;
             let envVolRaw = 0;
 
-            // === DIESE EXAKTEN VARIABLEN-DEKLARATIONEN FEHLTEN ZUVOR ===
-            let attack = (shape & 4) !== 0;
-            let cont = (shape & 8) !== 0;
+            const attack = (shape & 4) !== 0;
+            const cont = (shape & 8) !== 0;
             let alt = (shape & 2) !== 0;
             let hold = (shape & 1) !== 0;
 
@@ -176,37 +203,33 @@ class YMProcessor extends AudioWorkletProcessor {
             if (cycles > 0 && hold) {
                 envVolRaw = (alt ? (attack ? 0.0 : 1.0) : (attack ? 1.0 : 0.0));
             } else {
-                let flip = (cycles % 2 === 1) && alt;
-                let up = attack ? !flip : flip;
+                const flip = (cycles % 2 === 1) && alt;
+                const up = attack ? !flip : flip;
                 envVolRaw = up ? localPhase : (1.0 - localPhase);
             }
-            
-            let envVolIndex = Math.min(15, Math.max(0, Math.floor(envVolRaw * 15.99)));
+
+            const envVolIndex = Math.min(15, Math.max(0, Math.floor(envVolRaw * 15.99)));
             this.visualEnvelopeLevel = envVolIndex / 15;
 
-            let volA = (this.regs[8] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[8] & 0x0F];
-            let volB = (this.regs[9] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[9] & 0x0F];
-            let volC = (this.regs[10] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[10] & 0x0F];
+            const volA = (this.regs[8] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[8] & 0x0F];
+            const volB = (this.regs[9] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[9] & 0x0F];
+            const volC = (this.regs[10] & 0x10) ? YM_DAC[envVolIndex] : YM_DAC[this.regs[10] & 0x0F];
 
             this.volA = volA; this.volB = volB; this.volC = volC;
 
             let digiSample = 0;
             if (this.currentDigidrum) {
-                let posInt = Math.floor(this.digiPos);
+                const posInt = Math.floor(this.digiPos);
                 if (posInt >= 0 && posInt < this.currentDigidrum.length) {
                     digiSample = this.currentDigidrum[posInt] * 2.0;
-                    this.digiPos += 7812.5 / sampleRate; 
+                    this.digiPos += 7812.5 / sampleRate;
                 } else {
-                    this.currentDigidrum = null; 
+                    this.currentDigidrum = null;
                 }
             }
 
-            let rawOutput = ((outA * volA) + (outB * volB) + (outC * volC) + digiSample) / 4.0;
-
-            this.lastOut = rawOutput - this.lastIn + 0.995 * this.lastOut;
-            this.lastIn = rawOutput;
-            
-            let finalOutput = this.lastOut;
+            const rawOutput = ((outA * volA) + (outB * volB) + (outC * volC) + digiSample) / 4.0;
+            let finalOutput = this.dcBlock.process(rawOutput) * this.fadeVol;
 
             if (finalOutput > 1.0) finalOutput = 1.0;
             if (finalOutput < -1.0) finalOutput = -1.0;
@@ -217,7 +240,7 @@ class YMProcessor extends AudioWorkletProcessor {
         }
 
         this.visualizer.update(this.isPlaying, this.currentFrame, currentVisualValue, this.regs, this.volA, this.volB, this.volC, this.noiseOutput, this.visualEnvelopeLevel || 0);
-        return true; 
+        return true;
     }
 }
 

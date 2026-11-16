@@ -57,7 +57,7 @@ class StaticRCFilter {
         this.alpha = Math.exp(-2.0 * Math.PI * 4421.0 / sampleRate);
     }
     process(input) {
-        let out = (1.0 - this.alpha) * input + this.alpha * this.lastOut;
+        const out = (1.0 - this.alpha) * input + this.alpha * this.lastOut;
         this.lastOut = out;
         return out;
     }
@@ -86,7 +86,7 @@ class AmigaLEDFilter {
         this.y1 = 0; this.y2 = 0;
     }
     process(x) {
-        let y = this.b0 * x + this.b1 * this.x1 + this.b2 * this.x2 - this.a1 * this.y1 - this.a2 * this.y2;
+        const y = this.b0 * x + this.b1 * this.x1 + this.b2 * this.x2 - this.a1 * this.y1 - this.a2 * this.y2;
         this.x2 = this.x1; this.x1 = x;
         this.y2 = this.y1; this.y1 = y;
         return y;
@@ -138,11 +138,12 @@ class PaulaChannel {
         this.dataBuffer  = null;  // Zeiger auf das Chip-RAM Array
         this.curPtr      = 0;     // Aktueller Byte-Offset im Puffer
         this.curLen      = 0;     // Verbleibende Wörter bis zum Loop/Ende
-        
+
         // Agnus Loop-Reload Register
         this.loopPtr     = 0;     // Loop-Neustart Byte-Offset
         this.loopLen     = 0;     // Loop-Länge in Words
         this.isLooping   = false;
+        this.stopAfterLowByte = false;
 
         // Takt- und Demultiplexer-Zustand
         this.periodCounter = 428.0; // Zählt PAL-Takte herunter
@@ -197,6 +198,7 @@ class PaulaChannel {
         this.loopPtr = 0;
         this.loopLen = 0;
         this.isLooping = false;
+        this.stopAfterLowByte = false;
 
         this.periodCounter = 428.0;
         this.bytePhase = 0;
@@ -254,6 +256,7 @@ class PaulaChannel {
     enableDMA(dataBuffer = null, loopStartWords = 0, loopLengthWords = 0, startOffset = 0) {
         this.hw = false;
         this.dmaEnabled = true;
+        this.stopAfterLowByte = false;
         if (dataBuffer) this.dataBuffer = dataBuffer;
 
         const requestedOffset = Math.max(0, startOffset) & ~1;
@@ -273,7 +276,7 @@ class PaulaChannel {
         this.curLen = Math.max(1, this.audLen - (requestedOffset >> 1));
         this.periodCounter = this.audPer;
         this.bytePhase = 0;
-        
+
         if (loopLengthWords > 1) {
             this.loopPtr = (loopStartWords * 2) & ~1;
             this.loopLen = loopLengthWords;
@@ -299,6 +302,7 @@ class PaulaChannel {
 
     disableDMA() {
         this.dmaEnabled = false;
+        this.stopAfterLowByte = false;
         this.heldValue = 0;
         this.curLen = 0;
     }
@@ -325,6 +329,7 @@ class PaulaChannel {
     hwStartDMA() {
         this.hw = true;
         this.dmaEnabled = true;
+        this.stopAfterLowByte = false;
         this.dataBuffer = this.chipRam;
         this.isLooping = false;
         this.curPtr = this.audLc;
@@ -341,6 +346,7 @@ class PaulaChannel {
 
     hwStopDMA() {
         this.dmaEnabled = false;
+        this.stopAfterLowByte = false;
         this.heldValue = 0;
         this.curLen = 0;
     }
@@ -372,7 +378,7 @@ class PaulaChannel {
                 this.curPtr = this.loopPtr;
                 this.curLen = this.loopLen;
             } else {
-                this.dmaEnabled = false;
+                this.stopAfterLowByte = true;
                 this.nextWord = 0;
                 return;
             }
@@ -407,13 +413,20 @@ class PaulaChannel {
 
             if (this.bytePhase === 0) {
                 this.bytePhase = 1;
-                let rawLow = this.audDat & 0xFF;
+                const rawLow = this.audDat & 0xFF;
                 this.heldValue = rawLow > 127 ? rawLow - 256 : rawLow;
                 this.fetchNextWordBuffer();
             } else {
+                if (this.stopAfterLowByte) {
+                    this.stopAfterLowByte = false;
+                    this.dmaEnabled = false;
+                    this.heldValue = 0;
+                    this.curLen = 0;
+                    return 0;
+                }
                 this.bytePhase = 0;
                 this.audDat = this.nextWord;
-                let rawHigh = (this.audDat >> 8) & 0xFF;
+                const rawHigh = (this.audDat >> 8) & 0xFF;
                 this.heldValue = rawHigh > 127 ? rawHigh - 256 : rawHigh;
             }
         }
@@ -426,17 +439,20 @@ class PaulaProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
         this.clock = 3546895; // PAL Master Clock (Hz)
-        
+
         this.OVERSAMPLING = 4;
         this.internalRate = sampleRate * this.OVERSAMPLING; // 192 kHz
-        
+
         this.channels = [];
         for (let i = 0; i < 64; i++) {
             this.channels.push(new PaulaChannel(i));
         }
-        
-        this.samples = {}; 
+
+        this.samples = {};
         this.isPlaying = false;
+        this.wasPlaying = false;
+        this.wasAudible = false;
+        this.visCounter = 0;
         this.visualView = new Float32Array(40);
         // Optionaler, standardmäßig inaktiver Messabgriff für den Offline-Harness.
         // Stufen: 0 = Paula-Summe, 1 = ZOH/vor Analog, 2 = A500-Ausgang.
@@ -445,21 +461,21 @@ class PaulaProcessor extends AudioWorkletProcessor {
         this.isSequenced = false;
         this.seqType = 'MOD';
         this.linearFreq = false;
-        
+
         this.songLength = 0;
         this.orderTable = null;
         this.patterns = null;
         this.bpm = 125;
         this.speed = 6;
         this.globalVolume = 64;
-        this.numChannels = 4; 
-        
+        this.numChannels = 4;
+
         this.currentOrder = 0;
         this.currentRow = 0;
         this.currentTick = 0;
         this.samplesUntilNextTick = 0;
         this.sampleCounter = 0;
-        
+
         this.patternDelay = 0;
         this.breakPending = false;
         this.breakOrder = 0;
@@ -470,47 +486,50 @@ class PaulaProcessor extends AudioWorkletProcessor {
         // Lineare A500-Filterapproximation (192 kHz Domain)
         this.a500L = new A500ChannelFilter(this.internalRate);
         this.a500R = new A500ChannelFilter(this.internalRate);
-        
+
         this.trackLedFilterOn = true;
-        this.ledFilterOn = true; 
-        this.filterModeState = 0; 
-        
-        // 255-Tap Sinc-FIR Decimator
+        this.ledFilterOn = true;
+        this.filterModeState = 0;
+
+        // 255-Tap Sinc-FIR Decimator (Stopband sauber unterhalb 44,1-kHz-Nyquist)
         this.FIR_TAPS = 255;
         this.firKernel = new Float32Array(this.FIR_TAPS);
-        this.ringBufferL = new Float32Array(512); 
-        this.ringBufferR = new Float32Array(512); 
+        this.ringBufferL = new Float32Array(512);
+        this.ringBufferR = new Float32Array(512);
         this.ringIndex = 0;
-        
-        let fc = 22000.0 / this.internalRate; 
+
+        const fc = 20000.0 / this.internalRate;
         let sum = 0;
         for (let i = 0; i < this.FIR_TAPS; i++) {
-            let x = i - (this.FIR_TAPS - 1) / 2;
-            let sinc = (x === 0) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
-            let window = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / (this.FIR_TAPS - 1)) + 0.08 * Math.cos(4 * Math.PI * i / (this.FIR_TAPS - 1));
+            const x = i - (this.FIR_TAPS - 1) / 2;
+            const sinc = (x === 0) ? (2 * Math.PI * fc) : Math.sin(2 * Math.PI * fc * x) / x;
+            const window = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / (this.FIR_TAPS - 1)) + 0.08 * Math.cos(4 * Math.PI * i / (this.FIR_TAPS - 1));
             this.firKernel[i] = sinc * window;
             sum += this.firKernel[i];
         }
-        for (let i = 0; i < this.FIR_TAPS; i++) this.firKernel[i] /= sum; 
+        for (let i = 0; i < this.FIR_TAPS; i++) this.firKernel[i] /= sum;
 
         this.port.onmessage = (e) => {
             const msg = e.data;
-            if (msg.type === 'UPLOAD_SAMPLE') {
+            if (msg.type === 'CLEAR_SAMPLES') {
+                this.samples = {};
+            } else if (msg.type === 'UPLOAD_SAMPLE') {
                 if (msg.data && msg.data.data instanceof Int8Array) {
                     this.samples[msg.name] = msg.data;
                 }
             } else if (msg.type === 'PLAY_TRACK') {
                 const isHipc = msg.track && (msg.track.type === 'HIPC' || msg.track.type === 'COSO');
                 this.linearFreq = msg.track ? (msg.track.linearFreq || false) : false;
-                
+
                 this.filterModeState = isHipc ? 2 : 0;
-                this.trackLedFilterOn = !isHipc; 
-                this.ledFilterOn = !isHipc;      
+                this.trackLedFilterOn = !isHipc;
+                this.ledFilterOn = !isHipc;
 
                 // Ein neuer Titel beginnt mit demselben digitalen und analogen
                 // Zustand wie ein frisch instanziiertes Worklet. Koeffizienten,
                 // Filtermodus und die eigentliche DSP-Kette bleiben unverändert.
                 this.isPlaying = false;
+                this.wasPlaying = false;
                 this.a500L.reset();
                 this.a500R.reset();
                 this.ringBufferL.fill(0);
@@ -579,12 +598,11 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     this.isSequenced = false;
                     this.cosoVM = null;
                     this.trackData = msg.track;
-                    this.numChannels = 4; 
+                    this.numChannels = 4;
                     this.currentFrame = 0;
                     this.sampleCounter = 0;
                     this.isPlaying = true;
                 }
-
             } else if (msg.type === 'STOP_TRACK') {
                 // Pause freezes the complete emulation state. PLAY_TRACK already
                 // performs a full reset, so mutating DMA/volume here would only
@@ -593,35 +611,53 @@ class PaulaProcessor extends AudioWorkletProcessor {
             } else if (msg.type === 'RESUME_TRACK') {
                 this.isPlaying = true;
             } else if (msg.type === 'SEEK_TRACK') {
+                const targetFrame = Number.isFinite(msg.frame) ? Math.max(0, Math.trunc(msg.frame)) : 0;
+                for (let i = 0; i < 64; i++) this.channels[i].disableDMA();
+                this.samplesUntilNextTick = 0;
+                this.patternDelay = 0;
+                this.breakPending = false;
+
                 if (this.isSequenced) {
                     if (this.seqType === 'HIPC' || this.seqType === 'COSO') {
                         this.sampleCounter = 0;
                         // Echtes Spulen auf den Ziel-Tick (statt immer zum Songanfang zu springen)
-                        if (this.cosoVM) this.cosoVM.seekToTick(msg.frame);
-                    } else {
-                        const ticksPerOrder = 64 * this.speed;
-                        const targetOrder = Math.floor(msg.frame / ticksPerOrder);
-                        const remainingTicks = msg.frame % ticksPerOrder;
-                        
-                        this.currentOrder = targetOrder % this.songLength;
-                        this.currentRow = Math.floor(remainingTicks / this.speed) % 64;
-                        this.currentTick = remainingTicks % this.speed;
-                        this.patternDelay = 0;
-                        this.breakPending = false;
+                        if (this.cosoVM) this.cosoVM.seekToTick(targetFrame);
+                    } else if (this.songLength > 0 && this.orderTable && this.patterns) {
+                        const stepSpeed = Math.max(1, this.speed || 6);
+                        let totalTicks = 0;
+                        for (let o = 0; o < this.songLength; o++) {
+                            const pat = this.patterns[this.orderTable[o]];
+                            totalTicks += (pat?.numRows || 64) * stepSpeed;
+                        }
+                        let remaining = totalTicks > 0 ? (targetFrame % totalTicks) : 0;
+                        let order = 0;
+                        while (order < this.songLength) {
+                            const pat = this.patterns[this.orderTable[order]];
+                            const orderTicks = (pat?.numRows || 64) * stepSpeed;
+                            if (remaining < orderTicks) break;
+                            remaining -= orderTicks;
+                            order++;
+                        }
+                        this.currentOrder = order % this.songLength;
+                        const pat = this.patterns[this.orderTable[this.currentOrder]];
+                        const rows = pat?.numRows || 64;
+                        this.currentRow = Math.min(rows - 1, Math.floor(remaining / stepSpeed));
+                        this.currentTick = remaining % stepSpeed;
                     }
-                } else {
-                    if (this.trackData) this.currentFrame = msg.frame % this.trackData.length;
+                } else if (this.trackData && this.trackData.length > 0) {
+                    this.currentFrame = targetFrame % this.trackData.length;
                 }
             } else if (msg.type === 'CYCLE_FILTER') {
                 this.filterModeState = (this.filterModeState + 1) % 3;
-                if (this.filterModeState === 0) this.ledFilterOn = this.trackLedFilterOn; 
-                else if (this.filterModeState === 1) this.ledFilterOn = true; 
-                else if (this.filterModeState === 2) this.ledFilterOn = false; 
+                if (this.filterModeState === 0) this.ledFilterOn = this.trackLedFilterOn;
+                else if (this.filterModeState === 1) this.ledFilterOn = true;
+                else if (this.filterModeState === 2) this.ledFilterOn = false;
             }
         };
     }
 
     processTrackerTick(overshoot) {
+        if (this.songLength <= 0 || !this.orderTable || !this.patterns) return;
         if (this.currentOrder >= this.songLength) {
             this.currentOrder = 0;
         }
@@ -634,6 +670,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
         const numRows = patternObj.numRows;
         const rowOffset = this.currentRow * this.numChannels * 6;
         const linearXM = this.seqType === 'XM' && this.linearFreq;
+        const smpPrefix = this.seqType.toLowerCase();
 
         for (let ch = 0; ch < this.numChannels; ch++) {
             const cellOffset = rowOffset + (ch * 6);
@@ -647,7 +684,6 @@ class PaulaProcessor extends AudioWorkletProcessor {
             if (sample > 0) channel.activeSample = sample;
 
             const activeSample = channel.activeSample || 1;
-            const smpPrefix = this.seqType.toLowerCase();
             let currentSmpObj = this.samples[`${smpPrefix}_sample_${activeSample}`];
             if (!currentSmpObj) {
                 currentSmpObj = this.samples[`mod_sample_${activeSample}`] ||
@@ -663,10 +699,12 @@ class PaulaProcessor extends AudioWorkletProcessor {
             if (this.currentTick === 0) {
                 const hasNote = (period > 0 && period !== 97);
 
-                // Tremolo ist eine momentane Modulation. Die logische Kanal-
-                // lautstärke bleibt für Folgezeilen und Volume-Slides erhalten.
+                // Tremolo, Arpeggio und Vibrato sind momentane Modulationen:
+                // Auf Tick 0 werden Basis-Lautstärke und Basis-Periode wiederhergestellt.
                 channel.writeAUDxVOL(channel.trackVolume);
-                if (period === 97) setTrackerVolume(channel, 0);
+                if (channel.dmaEnabled && channel.basePeriod > 0) {
+                    channel.writeAUDxPER(channel.basePeriod);
+                }
 
                 if (effect === 0x09 && param > 0) channel.sampleOffset = param * 256;
 
@@ -715,6 +753,8 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     }
                 }
 
+                if (period === 97) setTrackerVolume(channel, 0);
+
                 if (volume !== 0xFF) {
                     if (this.seqType === 'XM' && volume >= 0xC0 && volume <= 0xCF) {
                         channel.pan = (volume - 0xC0) / 15.0;
@@ -749,7 +789,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                         channel.hasTremolo = true;
                         break;
                     case 0x08:
-                        if (this.seqType === 'XM') channel.pan = param / 255.0;
+                        if (this.seqType === 'XM') channel.pan = clamp(param / 255.0, 0, 1);
                         break;
                     case 0x0C:
                         setTrackerVolume(channel, param);
@@ -877,8 +917,10 @@ class PaulaProcessor extends AudioWorkletProcessor {
             this.currentTick = 0;
             this.patternDelay = 0;
             if (this.breakPending) {
-                this.currentOrder = this.breakOrder;
-                this.currentRow = this.breakRow;
+                this.currentOrder = this.songLength > 0 ? (this.breakOrder % this.songLength) : 0;
+                const nextPat = this.patterns[this.orderTable[this.currentOrder]];
+                const nextRows = nextPat ? nextPat.numRows : 64;
+                this.currentRow = (this.breakRow >= 0 && this.breakRow < nextRows) ? this.breakRow : 0;
                 this.breakPending = false;
             } else {
                 this.currentRow++;
@@ -891,19 +933,19 @@ class PaulaProcessor extends AudioWorkletProcessor {
     }
 
     process(inputs, outputs) {
-        const outL = outputs[0][0]; 
-        const outR = outputs[0].length > 1 ? outputs[0][1] : null; 
+        const outL = outputs[0][0];
+        const outR = outputs[0].length > 1 ? outputs[0][1] : null;
         let oscValue = 0;
 
-        let clockTicksPerSample = this.clock / this.internalRate;
+        const clockTicksPerSample = this.clock / this.internalRate;
         const CROSSTALK_BLEED = 0.035;
 
         for (let i = 0; i < outL.length; i++) {
             if (!this.isPlaying) {
                 outL[i] = 0; if (outR) outR[i] = 0;
-                continue; 
+                continue;
             }
-            
+
             if (this.isSequenced) {
                 if (this.seqType === 'HIPC' || this.seqType === 'COSO') {
                     this.sampleCounter--;
@@ -916,7 +958,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 } else {
                     this.samplesUntilNextTick--;
                     if (this.samplesUntilNextTick <= 0) {
-                        const overshoot = -this.samplesUntilNextTick; 
+                        const overshoot = -this.samplesUntilNextTick;
                         this.processTrackerTick(overshoot);
                         const samplesPerTick = (2.5 / this.bpm) * sampleRate;
                         this.samplesUntilNextTick += samplesPerTick;
@@ -933,18 +975,17 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 }
                 let rawL = 0;
                 let rawR = 0;
-                
+
                 for (let c = 0; c < this.numChannels; c++) {
                     const channel = this.channels[c];
-                    let smp = channel.step(clockTicksPerSample);
+                    const smp = channel.step(clockTicksPerSample);
                     if (smp !== 0) {
                         if (channel.pan >= 0) {
-                            // XM-Panning ist Tracker-Steuerung, kein Eingriff in
-                            // die nachfolgende A500-Crosstalk-/Analogstufe.
-                            rawL += smp * (1.0 - channel.pan) * 2.0;
-                            rawR += smp * channel.pan * 2.0;
+                            // XM-Panning mit konstanter Leistung (Headroom konsistent zu Paula L-R-R-L)
+                            rawL += smp * Math.cos(channel.pan * Math.PI * 0.5);
+                            rawR += smp * Math.sin(channel.pan * Math.PI * 0.5);
                         } else {
-                            let panMod = c % 4;
+                            const panMod = c % 4;
                             if (panMod === 0 || panMod === 3) rawL += smp;
                             else rawR += smp;
                         }
@@ -952,7 +993,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 }
 
                 if (this.numChannels > 4) {
-                    let mixAtten = Math.sqrt(4.0 / this.numChannels);
+                    const mixAtten = Math.sqrt(4.0 / this.numChannels);
                     rawL *= mixAtten;
                     rawR *= mixAtten;
                 }
@@ -962,9 +1003,9 @@ class PaulaProcessor extends AudioWorkletProcessor {
                     rawR *= globalGain;
                 }
                 if (this.diagnosticTap) this.diagnosticTap(0, rawL, rawR);
-                
-                let bleedL = rawL * (1.0 - CROSSTALK_BLEED) + rawR * CROSSTALK_BLEED;
-                let bleedR = rawR * (1.0 - CROSSTALK_BLEED) + rawL * CROSSTALK_BLEED;
+
+                const bleedL = rawL * (1.0 - CROSSTALK_BLEED) + rawR * CROSSTALK_BLEED;
+                const bleedR = rawR * (1.0 - CROSSTALK_BLEED) + rawL * CROSSTALK_BLEED;
                 if (this.diagnosticTap) this.diagnosticTap(1, bleedL, bleedR);
 
                 const filteredL = this.a500L.process(bleedL, this.ledFilterOn);
@@ -978,7 +1019,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
             let decL = 0;
             let decR = 0;
             let firIdx = (this.ringIndex - 1) & 511;
-            
+
             for (let k = 0; k < this.FIR_TAPS; k++) {
                 decL += this.ringBufferL[firIdx] * this.firKernel[k];
                 decR += this.ringBufferR[firIdx] * this.firKernel[k];
@@ -986,21 +1027,21 @@ class PaulaProcessor extends AudioWorkletProcessor {
             }
 
             outL[i] = decL * 0.7;
-            if (outR) outR[i] = decR * 0.7; 
-            else outL[i] += decR * 0.7;
-            if (this.diagnosticTap) this.diagnosticTap(2, outL[i], outR ? outR[i] : outL[i]); 
-            
+            if (outR) outR[i] = decR * 0.7;
+            else outL[i] = (decL + decR) * 0.35;
+            if (this.diagnosticTap) this.diagnosticTap(2, outL[i], outR ? outR[i] : outL[i]);
+
             if (i === 0) oscValue = (decL + decR) / 2.0;
         }
 
-        this.visCounter = (this.visCounter || 0) + 1;
+        this.visCounter++;
         if (this.visCounter % 4 === 0) {
-            let isAudible = Math.abs(oscValue) > 0.001;
-            if (isAudible || this.wasAudible) {
+            const isAudible = Math.abs(oscValue) > 0.001;
+            if (this.isPlaying || this.wasPlaying || isAudible || this.wasAudible) {
                 const view = this.visualView;
                 view[0] = 1; // Amiga
                 view[1] = this.isPlaying ? 1 : 0;
-                
+
                 let currentFrameVal = 0;
                 if (this.isSequenced) {
                     if (this.seqType === 'HIPC' || this.seqType === 'COSO') {
@@ -1014,21 +1055,21 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 view[2] = currentFrameVal;
                 view[3] = oscValue;
 
-                for(let c = 0; c < 4; c++) {
-                    let offset = c * 7;
-                    let ch = this.channels[c];
-                    
-                    let lc = ch.audLc || 0;
-                    view[4 + offset] = (lc >> 8) & 0xFF; 
-                    view[4 + offset + 1] = lc & 0xFF;       
-                    
-                    let len = ch.audLen || 0;
+                for (let c = 0; c < 4; c++) {
+                    const offset = c * 7;
+                    const ch = this.channels[c];
+
+                    const lc = ch.audLc || 0;
+                    view[4 + offset] = (lc >> 8) & 0xFF;
+                    view[4 + offset + 1] = lc & 0xFF;
+
+                    const len = ch.audLen || 0;
                     view[4 + offset + 2] = (len >> 8) & 0xFF;
                     view[4 + offset + 3] = len & 0xFF;
-                    
+
                     view[4 + offset + 4] = (ch.audPer >> 8) & 0xFF;
                     view[4 + offset + 5] = ch.audPer & 0xFF;
-                    
+
                     view[4 + offset + 6] = ch.audVol & 0xFF;
                 }
 
@@ -1036,7 +1077,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
 
                 let dmaMask = 0;
                 for (let c = 0; c < 4; c++) {
-                    let ch = this.channels[c];
+                    const ch = this.channels[c];
                     view[34 + c] = ch.dmaEnabled ? (ch.audVol / 64.0) : 0.0;
                     if (ch.dmaEnabled) dmaMask |= 1 << c;
                 }
@@ -1047,6 +1088,7 @@ class PaulaProcessor extends AudioWorkletProcessor {
                 this.port.postMessage(view);
             }
             this.wasAudible = isAudible;
+            this.wasPlaying = this.isPlaying;
         }
         return true;
     }
