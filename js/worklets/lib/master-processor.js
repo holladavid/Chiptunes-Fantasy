@@ -16,24 +16,22 @@ class MasterDSPProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
         this.crossfeedEnabled = false;
-
+// =========================================================
+        // 1. BAUER BINAURAL CROSSFEED (Complementary bs2b Topology)
+        // 700Hz Crossfeed LP (~227µs natürliche Gruppenlaufzeit)
+        // + 1000Hz Direct High-Shelf, -4.7dB Feed, 0dB DC Mono
         // =========================================================
-        // 1. BAUER BINAURAL CROSSFEED (bs2b Standard)
-        // =========================================================
-        // 250µs Inter-Aural Delay (~12 Samples @ 48kHz, ~24 @ 96kHz)
-        this.crossDelaySamples = Math.max(4, Math.round(0.00025 * sampleRate));
-        this.crossDelayLen = nextPow2(this.crossDelaySamples + 4);
-        this.crossDelayMask = this.crossDelayLen - 1;
-        this.crossDelayL = new Float32Array(this.crossDelayLen);
-        this.crossDelayR = new Float32Array(this.crossDelayLen);
-        this.crossDelayIdx = 0;
-
-        // 1-Pole Lowpass Filter (700 Hz)
-        const fc = 700.0;
-        this.crossAlpha = 1.0 - Math.exp(-2.0 * Math.PI * fc / sampleRate);
+        this.crossLpAlpha = 1.0 - Math.exp(-2.0 * Math.PI * 700.0 / sampleRate);
+        this.dirLpAlpha = 1.0 - Math.exp(-2.0 * Math.PI * 1000.0 / sampleRate);
+        this.dirLpL = 0.0;
+        this.dirLpR = 0.0;
         this.crossLpL = 0.0;
         this.crossLpR = 0.0;
-        this.crossFeedGain = 0.58; // -4.7 dB Crossfeed-Pegel
+
+        this.dirLowGain = 1.0 / 1.58;        // 0.6329
+        this.dirHighGain = 0.81;             // -1.83 dB Nahfeld-Höhendämpfung
+        this.crossFeedWeight = 0.58 / 1.58;  // 0.3671 (-4.73 dB gegenüber Direkt-Bass)
+
         this.crossfeedMix = 0.0;
         this.crossMixAlpha = 1.0 - Math.exp(-1.0 / (0.010 * sampleRate)); // 10ms Fade
 
@@ -68,11 +66,10 @@ class MasterDSPProcessor extends AudioWorkletProcessor {
             if (e.data && e.data.type === 'SET_CROSSFEED') {
                 const nextEnabled = !!e.data.enabled;
                 if (nextEnabled && !this.crossfeedEnabled) {
-                    this.crossDelayL.fill(0);
-                    this.crossDelayR.fill(0);
+                    this.dirLpL = 0.0;
+                    this.dirLpR = 0.0;
                     this.crossLpL = 0.0;
                     this.crossLpR = 0.0;
-                    this.crossDelayIdx = 0;
                 }
                 this.crossfeedEnabled = nextEnabled;
             }
@@ -107,23 +104,20 @@ class MasterDSPProcessor extends AudioWorkletProcessor {
             let procR = sR;
 
             if (this.crossfeedMix > 0.0) {
-                this.crossDelayL[this.crossDelayIdx] = sL;
-                this.crossDelayR[this.crossDelayIdx] = sR;
+                this.dirLpL += this.dirLpAlpha * (sL - this.dirLpL);
+                this.dirLpR += this.dirLpAlpha * (sR - this.dirLpR);
 
-                const readIdx = (this.crossDelayIdx - this.crossDelaySamples) & this.crossDelayMask;
-                const delL = this.crossDelayL[readIdx];
-                const delR = this.crossDelayR[readIdx];
+                this.crossLpL += this.crossLpAlpha * (sR - this.crossLpL);
+                this.crossLpR += this.crossLpAlpha * (sL - this.crossLpR);
 
-                this.crossLpL += this.crossAlpha * (delR - this.crossLpL);
-                this.crossLpR += this.crossAlpha * (delL - this.crossLpR);
+                const directL = this.dirLowGain * this.dirLpL + this.dirHighGain * (sL - this.dirLpL);
+                const directR = this.dirLowGain * this.dirLpR + this.dirHighGain * (sR - this.dirLpR);
 
-                const wetL = (sL + this.crossLpL * this.crossFeedGain) * 0.76;
-                const wetR = (sR + this.crossLpR * this.crossFeedGain) * 0.76;
+                const wetL = directL + this.crossFeedWeight * this.crossLpL;
+                const wetR = directR + this.crossFeedWeight * this.crossLpR;
 
                 procL = sL + (wetL - sL) * this.crossfeedMix;
                 procR = sR + (wetR - sR) * this.crossfeedMix;
-
-                this.crossDelayIdx = (this.crossDelayIdx + 1) & this.crossDelayMask;
             }
 
             // =========================================================
