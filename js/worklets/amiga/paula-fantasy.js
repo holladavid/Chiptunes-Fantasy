@@ -11,51 +11,69 @@ import { CosoVirtualMachine } from '../lib/coso-vm.js';
 
 class StudioStereoReverb {
     constructor(sampleRate) {
-        this.combLenL = [1116, 1188, 1277, 1356];
-        this.combLenR = [1139, 1211, 1300, 1379];
-        
+        const scale = sampleRate / 44100.0;
+        this.combLenL = [1116, 1188, 1277, 1356].map(l => Math.max(8, Math.round(l * scale)));
+        this.combLenR = [1139, 1211, 1300, 1379].map(l => Math.max(8, Math.round(l * scale)));
+
         this.combBufL = this.combLenL.map(len => new Float32Array(len));
         this.combBufR = this.combLenR.map(len => new Float32Array(len));
-        
+
         this.combIdxL = [0, 0, 0, 0];
         this.combIdxR = [0, 0, 0, 0];
-        
+
         this.combFiltL = [0, 0, 0, 0];
         this.combFiltR = [0, 0, 0, 0];
-        
+
         this.feedback = 0.76;
         this.damp = 0.28;
-        
-        this.apLenL = [225, 556];
-        this.apLenR = [248, 579];
-        
+
+        this.apLenL = [225, 556].map(l => Math.max(4, Math.round(l * scale)));
+        this.apLenR = [248, 579].map(l => Math.max(4, Math.round(l * scale)));
+
         this.apBufL = this.apLenL.map(len => new Float32Array(len));
         this.apBufR = this.apLenR.map(len => new Float32Array(len));
-        
+
         this.apIdxL = [0, 0];
         this.apIdxR = [0, 0];
-        
+
         this.apFeedback = 0.5;
         this.wetGain = 0.20;
     }
 
+    reset() {
+        for (let i = 0; i < 4; i++) {
+            this.combBufL[i].fill(0);
+            this.combBufR[i].fill(0);
+            this.combIdxL[i] = 0;
+            this.combIdxR[i] = 0;
+            this.combFiltL[i] = 0;
+            this.combFiltR[i] = 0;
+        }
+        for (let i = 0; i < 2; i++) {
+            this.apBufL[i].fill(0);
+            this.apBufR[i].fill(0);
+            this.apIdxL[i] = 0;
+            this.apIdxR[i] = 0;
+        }
+    }
+
     process(inL, inR) {
         let combSumL = 0, combSumR = 0;
-        
+
         for (let i = 0; i < 4; i++) {
-            let bufL = this.combBufL[i];
-            let idxL = this.combIdxL[i];
-            let outL = bufL[idxL];
-            
+            const bufL = this.combBufL[i];
+            const idxL = this.combIdxL[i];
+            const outL = bufL[idxL];
+
             this.combFiltL[i] = outL * (1.0 - this.damp) + this.combFiltL[i] * this.damp;
             bufL[idxL] = inL + this.combFiltL[i] * this.feedback;
             this.combIdxL[i] = (idxL + 1) % this.combLenL[i];
             combSumL += outL;
 
-            let bufR = this.combBufR[i];
-            let idxR = this.combIdxR[i];
-            let outR = bufR[idxR];
-            
+            const bufR = this.combBufR[i];
+            const idxR = this.combIdxR[i];
+            const outR = bufR[idxR];
+
             this.combFiltR[i] = outR * (1.0 - this.damp) + this.combFiltR[i] * this.damp;
             bufR[idxR] = inR + this.combFiltR[i] * this.feedback;
             this.combIdxR[i] = (idxR + 1) % this.combLenR[i];
@@ -64,20 +82,21 @@ class StudioStereoReverb {
 
         let diffL = combSumL * 0.25;
         let diffR = combSumR * 0.25;
+        const apOneMinusG2 = 1.0 - this.apFeedback * this.apFeedback;
 
         for (let i = 0; i < 2; i++) {
-            let bufL = this.apBufL[i];
-            let idxL = this.apIdxL[i];
-            let delayedL = bufL[idxL];
+            const bufL = this.apBufL[i];
+            const idxL = this.apIdxL[i];
+            const delayedL = bufL[idxL];
             bufL[idxL] = diffL + delayedL * this.apFeedback;
-            diffL = -diffL + delayedL * (1.0 - this.apFeedback * this.apFeedback);
+            diffL = -this.apFeedback * diffL + delayedL * apOneMinusG2;
             this.apIdxL[i] = (idxL + 1) % this.apLenL[i];
 
-            let bufR = this.apBufR[i];
-            let idxR = this.apIdxR[i];
-            let delayedR = bufR[idxR];
+            const bufR = this.apBufR[i];
+            const idxR = this.apIdxR[i];
+            const delayedR = bufR[idxR];
             bufR[idxR] = diffR + delayedR * this.apFeedback;
-            diffR = -diffR + delayedR * (1.0 - this.apFeedback * this.apFeedback);
+            diffR = -this.apFeedback * diffR + delayedR * apOneMinusG2;
             this.apIdxR[i] = (idxR + 1) % this.apLenR[i];
         }
 
@@ -87,15 +106,15 @@ class StudioStereoReverb {
 
 class PaulaFantasyChannel {
     constructor() {
-        this.vol = 0;       
-        this.per = 428;     
-        this.data = null;   
-        this.pointer = 0;   
-        this.length = 0;    
+        this.vol = 0;
+        this.per = 428;
+        this.data = null;
+        this.pointer = 0;
+        this.length = 0;
         this.repPointer = 0;
-        this.repLength = 0; 
-        this.phase = 0;     
-        this.activeSample = 1; 
+        this.repLength = 0;
+        this.phase = 0;
+        this.activeSample = 1;
 
         // DMA Hardware-Register Properties für COSO-VM
         this.audLc = 0x00020000;
@@ -108,19 +127,19 @@ class PaulaFantasyChannel {
         this.basePeriod = 428;
         this.currentNote = 0;
         this.targetNote = 0;
-        
+
         this.portamentoSpeed = 0;
         this.portamentoUpSpeed = 0;
         this.portamentoDownSpeed = 0;
         this.volSlideSpeed = 0;
         this.sampleOffset = 0;
-        
+
         this.pan = 0.5;
         this.vibratoSpeed = 0;
         this.vibratoDepth = 0;
         this.vibratoPhase = 0;
         this.hasVibrato = false;
-        
+
         this.lastPlayedSample = 0;
         this.patternLoopRow = 0;
         this.patternLoopCount = 0;
@@ -158,7 +177,7 @@ class PaulaFantasyChannel {
         if (dataBuffer) this.data = dataBuffer;
         this.pointer = 0;
         this.phase = 0;
-        
+
         const lenBytes = this.audLen * 2;
         this.length = (this.data && lenBytes <= this.data.length && lenBytes > 0) ? lenBytes : (this.data ? this.data.length : 0);
 
@@ -185,10 +204,10 @@ class PaulaFantasyChannel {
         this.pointer = 0;
         this.phase = 0;
         this.dmaEnabled = true;
-        
+
         loopStart &= ~1;
         loopLen &= ~1;
-        
+
         if (loopLen > 2) {
             if (loopStart >= data.length) loopStart = 0;
             if (loopStart + loopLen > data.length) loopLen = data.length - loopStart;
@@ -197,7 +216,7 @@ class PaulaFantasyChannel {
             this.repLength = loopLen;
         } else {
             this.length = data.length;
-            this.repPointer = -1; 
+            this.repPointer = -1;
             this.repLength = 0;
         }
     }
@@ -286,10 +305,10 @@ class PaulaFantasyChannel {
             this.phase -= 1.0;
             this.pointer++;
             this.length--;
-            
+
             if (this.length <= 0) {
                 if (this.repPointer === -1) {
-                    this.data = null; 
+                    this.data = null;
                     this.dmaEnabled = false;
                     return 0;
                 } else {
@@ -301,23 +320,23 @@ class PaulaFantasyChannel {
 
         if (!this.data) return 0;
 
-        let idx = Math.floor(this.pointer);
-        let mu = this.phase;
+        const idx = Math.floor(this.pointer);
+        const mu = this.phase;
 
-        let p0 = idx > 0 ? this.data[idx - 1] : this.data[idx];
-        let p1 = this.data[idx] || 0;
-        let p2 = (idx + 1 < this.data.length) ? this.data[idx + 1] : p1;
-        let p3 = (idx + 2 < this.data.length) ? this.data[idx + 2] : p2;
+        const p0 = idx > 0 ? this.data[idx - 1] : this.data[idx];
+        const p1 = this.data[idx] || 0;
+        const p2 = (idx + 1 < this.data.length) ? this.data[idx + 1] : p1;
+        const p3 = (idx + 2 < this.data.length) ? this.data[idx + 2] : p2;
 
-        let c0 = p1;
-        let c1 = 0.5 * (p2 - p0);
-        let c2 = p0 - 2.5 * p1 + 2.0 * p2 - 0.5 * p3;
-        let c3 = 0.5 * (p3 - p0) + 1.5 * (p1 - p2);
+        const c0 = p1;
+        const c1 = 0.5 * (p2 - p0);
+        const c2 = p0 - 2.5 * p1 + 2.0 * p2 - 0.5 * p3;
+        const c3 = 0.5 * (p3 - p0) + 1.5 * (p1 - p2);
 
-        let interpolated = ((c3 * mu + c2) * mu + c1) * mu + c0;
-        let vol6 = Math.round(this.vol); 
-        
-        return (interpolated * vol6) / 8128.0; 
+        const interpolated = ((c3 * mu + c2) * mu + c1) * mu + c0;
+        const vol6 = Math.round(this.vol);
+
+        return (interpolated * vol6) / 8128.0;
     }
 }
 
@@ -325,33 +344,36 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
         this.clock = 3546895; // PAL Master Clock
-        
+
         this.channels = [];
         for (let i = 0; i < 64; i++) {
             this.channels.push(new PaulaFantasyChannel());
         }
-        
-        this.samples = {}; 
+
+        this.samples = {};
         this.isPlaying = false;
+        this.wasPlaying = false;
+        this.wasAudible = false;
+        this.visCounter = 0;
         this.visualView = new Float32Array(40);
 
         this.isSequenced = false;
         this.seqType = 'MOD';
         this.linearFreq = false;
-        
+
         this.songLength = 0;
         this.orderTable = null;
         this.patterns = null;
         this.bpm = 125;
         this.speed = 6;
-        this.numChannels = 4; 
-        
+        this.numChannels = 4;
+
         this.currentOrder = 0;
         this.currentRow = 0;
         this.currentTick = 0;
         this.samplesUntilNextTick = 0;
         this.sampleCounter = 0;
-        
+
         this.patternDelay = 0;
         this.breakPending = false;
         this.breakOrder = 0;
@@ -360,14 +382,16 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
         this.cosoVM = null;
 
         this.reverb = new StudioStereoReverb(sampleRate);
-        
+
         const fcAir = 8000.0;
         this.alphaAir = 1.0 - Math.exp(-2.0 * Math.PI * fcAir / sampleRate);
         this.airLpL = 0.0; this.airLpR = 0.0;
 
         this.port.onmessage = (e) => {
             const msg = e.data;
-            if (msg.type === 'UPLOAD_SAMPLE') {
+            if (msg.type === 'CLEAR_SAMPLES') {
+                this.samples = {};
+            } else if (msg.type === 'UPLOAD_SAMPLE') {
                 if (msg.data && msg.data.data instanceof Int8Array) {
                     this.samples[msg.name] = msg.data;
                 }
@@ -375,41 +399,58 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                 const isHipc = msg.track && (msg.track.type === 'HIPC' || msg.track.type === 'COSO');
                 const isXM = msg.track && msg.track.type === 'XM';
                 this.linearFreq = msg.track ? (msg.track.linearFreq || false) : false;
-                
+
                 const hipcPannings = [0.25, 0.40, 0.60, 0.75, 0.30, 0.70, 0.50];
 
+                this.reverb.reset();
+                this.airLpL = 0.0;
+                this.airLpR = 0.0;
+                this.wasPlaying = false;
+                this.wasAudible = false;
+                this.visCounter = 0;
+                this.visualView.fill(0);
+
                 for (let i = 0; i < 64; i++) {
-                    this.channels[i].disableDMA();
-                    this.channels[i].pointer = 0;
-                    this.channels[i].length = 0;
-                    this.channels[i].repPointer = 0;
-                    this.channels[i].repLength = 0;
-                    this.channels[i].phase = 0;
-                    this.channels[i].activeSample = 1;
-                    
-                    this.channels[i].targetPeriod = 0;
-                    this.channels[i].basePeriod = 428;
-                    this.channels[i].currentNote = 0;
-                    this.channels[i].targetNote = 0;
-                    
-                    this.channels[i].portamentoSpeed = 0;
-                    this.channels[i].portamentoUpSpeed = 0;
-                    this.channels[i].portamentoDownSpeed = 0;
-                    this.channels[i].volSlideSpeed = 0;
-                    this.channels[i].sampleOffset = 0;
-                    
-                    this.channels[i].patternLoopRow = 0;
-                    this.channels[i].patternLoopCount = 0;
-                    this.channels[i].lastPlayedSample = 0;
-                    
-                    this.channels[i].pan = isHipc 
-                        ? hipcPannings[i % 7] 
-                        : (isXM ? 0.5 : [0.30, 0.45, 0.55, 0.70][i % 4]);                    
-                    
-                    this.channels[i].vibratoSpeed = 0;
-                    this.channels[i].vibratoDepth = 0;
-                    this.channels[i].vibratoPhase = 0;
-                    this.channels[i].hasVibrato = false;
+                    const ch = this.channels[i];
+                    ch.disableDMA();
+                    ch.hw = false;
+                    ch.chipRam = null;
+                    ch.prevByte = 0;
+                    ch.audLc = 0x00020000;
+                    ch.audLen = 16;
+                    ch.audPer = 428;
+                    ch.audVol = 0;
+                    ch.per = 428;
+                    ch.pointer = 0;
+                    ch.length = 0;
+                    ch.repPointer = 0;
+                    ch.repLength = 0;
+                    ch.phase = 0;
+                    ch.activeSample = 1;
+
+                    ch.targetPeriod = 0;
+                    ch.basePeriod = 428;
+                    ch.currentNote = 0;
+                    ch.targetNote = 0;
+
+                    ch.portamentoSpeed = 0;
+                    ch.portamentoUpSpeed = 0;
+                    ch.portamentoDownSpeed = 0;
+                    ch.volSlideSpeed = 0;
+                    ch.sampleOffset = 0;
+
+                    ch.patternLoopRow = 0;
+                    ch.patternLoopCount = 0;
+                    ch.lastPlayedSample = 0;
+
+                    ch.pan = isHipc
+                        ? hipcPannings[i % 7]
+                        : (isXM ? 0.5 : [0.30, 0.45, 0.55, 0.70][i % 4]);
+
+                    ch.vibratoSpeed = 0;
+                    ch.vibratoDepth = 0;
+                    ch.vibratoPhase = 0;
+                    ch.hasVibrato = false;
                 }
 
                 if (msg.track && msg.track.isSequenced) {
@@ -446,45 +487,61 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                     this.isSequenced = false;
                     this.cosoVM = null;
                     this.trackData = msg.track;
-                    this.numChannels = 4; 
+                    this.numChannels = 4;
                     this.currentFrame = 0;
                     this.sampleCounter = 0;
                     this.isPlaying = true;
                 }
             } else if (msg.type === 'STOP_TRACK') {
+                // Pause friert Kanal- und COSO-VM-Zustand unverändert für RESUME_TRACK ein.
                 this.isPlaying = false;
-                for (let i = 0; i < 64; i++) {
-                    this.channels[i].disableDMA();
-                }
             } else if (msg.type === 'RESUME_TRACK') {
                 this.isPlaying = true;
             } else if (msg.type === 'SEEK_TRACK') {
+                const targetFrame = Number.isFinite(msg.frame) ? Math.max(0, Math.trunc(msg.frame)) : 0;
+                for (let i = 0; i < 64; i++) this.channels[i].disableDMA();
+                this.samplesUntilNextTick = 0;
+                this.patternDelay = 0;
+                this.breakPending = false;
+
                 if (this.isSequenced) {
                     if (this.seqType === 'HIPC' || this.seqType === 'COSO') {
                         this.sampleCounter = 0;
                         // Echtes Spulen auf den Ziel-Tick (statt immer zum Songanfang zu springen)
-                        if (this.cosoVM) this.cosoVM.seekToTick(msg.frame);
-                    } else {
-                        const ticksPerOrder = 64 * this.speed;
-                        const targetOrder = Math.floor(msg.frame / ticksPerOrder);
-                        const remainingTicks = msg.frame % ticksPerOrder;
-                        
-                        this.currentOrder = targetOrder % this.songLength;
-                        this.currentRow = Math.floor(remainingTicks / this.speed) % 64;
-                        this.currentTick = remainingTicks % this.speed;
-                        this.patternDelay = 0;
-                        this.breakPending = false;
+                        if (this.cosoVM) this.cosoVM.seekToTick(targetFrame);
+                    } else if (this.songLength > 0 && this.orderTable && this.patterns) {
+                        const stepSpeed = Math.max(1, this.speed || 6);
+                        let totalTicks = 0;
+                        for (let o = 0; o < this.songLength; o++) {
+                            const pat = this.patterns[this.orderTable[o]];
+                            totalTicks += (pat?.numRows || 64) * stepSpeed;
+                        }
+                        let remaining = totalTicks > 0 ? (targetFrame % totalTicks) : 0;
+                        let order = 0;
+                        while (order < this.songLength) {
+                            const pat = this.patterns[this.orderTable[order]];
+                            const orderTicks = (pat?.numRows || 64) * stepSpeed;
+                            if (remaining < orderTicks) break;
+                            remaining -= orderTicks;
+                            order++;
+                        }
+                        this.currentOrder = order % this.songLength;
+                        const pat = this.patterns[this.orderTable[this.currentOrder]];
+                        const rows = pat?.numRows || 64;
+                        this.currentRow = Math.min(rows - 1, Math.floor(remaining / stepSpeed));
+                        this.currentTick = remaining % stepSpeed;
                     }
-                } else {
-                    if (this.trackData) this.currentFrame = msg.frame % this.trackData.length;
+                } else if (this.trackData && this.trackData.length > 0) {
+                    this.currentFrame = targetFrame % this.trackData.length;
                 }
             }
         };
     }
 
     processTrackerTick(overshoot) {
+        if (this.songLength <= 0 || !this.orderTable || !this.patterns) return;
         if (this.currentOrder >= this.songLength) {
-            this.currentOrder = 0; 
+            this.currentOrder = 0;
         }
 
         const patternIdx = this.orderTable[this.currentOrder];
@@ -495,6 +552,7 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
         const numRows = patternObj.numRows;
         const rowOffset = this.currentRow * this.numChannels * 6;
         const clockTicksPerSample = this.clock / sampleRate;
+        const smpPrefix = this.seqType.toLowerCase();
 
         for (let ch = 0; ch < this.numChannels; ch++) {
             const cellOffset = rowOffset + (ch * 6);
@@ -505,29 +563,31 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
             const param = pattern[cellOffset + 5];
 
             const channel = this.channels[ch];
-            
+
             if (sample > 0) {
                 channel.activeSample = sample;
             }
-            
+
             const activeSample = channel.activeSample || 1;
-            const smpPrefix = this.seqType.toLowerCase();
-            let smpName = `${smpPrefix}_sample_${activeSample}`;
+            const smpName = `${smpPrefix}_sample_${activeSample}`;
             let currentSmpObj = this.samples[smpName];
             if (!currentSmpObj) {
-                currentSmpObj = this.samples[`mod_sample_${activeSample}`] || 
-                                this.samples[`xm_sample_${activeSample}`] || 
-                                this.samples[`hipc_sample_${activeSample}`] || 
+                currentSmpObj = this.samples[`mod_sample_${activeSample}`] ||
+                                this.samples[`xm_sample_${activeSample}`] ||
+                                this.samples[`hipc_sample_${activeSample}`] ||
                                 this.samples[`dw_sample_${activeSample}`];
             }
 
             const isSampleChange = (sample > 0 && sample !== channel.lastPlayedSample);
-            const isPortamento = (effect === 0x03 || effect === 0x05) && (channel.data !== null) && 
+            const isPortamento = (effect === 0x03 || effect === 0x05) && (channel.data !== null) &&
                                  (this.seqType === 'XM' ? true : !isSampleChange);
 
             if (this.currentTick === 0) {
                 const hasNote = (period > 0 && period !== 97);
-                if (period === 97) channel.vol = 0;
+
+                if (channel.dmaEnabled && channel.basePeriod > 0) {
+                    channel.per = channel.basePeriod;
+                }
 
                 if (hasNote) {
                     let calculatedPeriod = period;
@@ -557,10 +617,18 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                     if (!isPortamento) {
                         channel.trigger(currentSmpObj.data, currentSmpObj.loopStart, currentSmpObj.loopLen);
                         channel.phase = overshoot * (clockTicksPerSample / channel.per);
-                        
+
                         if (effect === 0x09) {
                             if (param > 0) channel.sampleOffset = param * 256;
-                            channel.pointer = channel.sampleOffset & ~1;
+                            const offset = channel.sampleOffset & ~1;
+                            if (offset >= channel.length) {
+                                channel.dmaEnabled = false;
+                                channel.data = null;
+                                channel.length = 0;
+                            } else {
+                                channel.pointer = offset;
+                                channel.length -= offset;
+                            }
                         }
                     }
                     if (sample > 0) {
@@ -569,17 +637,19 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                 }
 
                 if (sample > 0 && currentSmpObj) {
-                    channel.vol = currentSmpObj.baseVolume; 
+                    channel.vol = currentSmpObj.baseVolume;
                     if (currentSmpObj.pan !== undefined) {
                         channel.pan = currentSmpObj.pan / 255.0;
                     }
                 }
 
+                if (period === 97) channel.vol = 0;
+
                 if (volume !== 0xFF) {
                     if (volume >= 0xC0 && volume <= 0xCF) {
                         channel.pan = (volume - 0xC0) / 15.0;
                     } else if (volume <= 64) {
-                        channel.vol = volume; 
+                        channel.vol = volume;
                     }
                 }
 
@@ -591,7 +661,7 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                     case 0x01: if (param > 0) channel.portamentoUpSpeed = param; break;
                     case 0x02: if (param > 0) channel.portamentoDownSpeed = param; break;
                     case 0x03: if (param > 0) channel.portamentoSpeed = param; break;
-                    case 0x04: 
+                    case 0x04:
                         if (param > 0) {
                             if ((param >> 4) > 0) channel.vibratoSpeed = (param >> 4) & 0x0F;
                             if ((param & 0x0F) > 0) channel.vibratoDepth = param & 0x0F;
@@ -599,58 +669,60 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                         channel.hasVibrato = true;
                         break;
                     case 0x05:
-                    case 0x0A: 
-                        if (param > 0) channel.volSlideSpeed = param; 
+                    case 0x0A:
+                        if (param > 0) channel.volSlideSpeed = param;
                         break;
-                    case 0x06: 
+                    case 0x06:
                         if (param > 0) channel.volSlideSpeed = param;
                         channel.hasVibrato = true;
                         break;
-                    case 0x08: 
+                    case 0x08:
                         channel.pan = param / 255.0;
                         break;
-                    case 0x0C: 
+                    case 0x0C:
                         channel.vol = param > 64 ? 64 : param;
                         break;
-                    case 0x0F: 
+                    case 0x0F:
                         if (param > 0) {
                             if (param < 32) this.speed = param;
                             else this.bpm = param;
                         }
                         break;
-                    case 0x0B: 
+                    case 0x0B:
                         this.breakOrder = param;
                         this.breakRow = 0;
                         this.breakPending = true;
                         break;
-                    case 0x0D: 
+                    case 0x0D:
                         this.breakOrder = this.currentOrder + 1;
                         this.breakRow = ((param >> 4) * 10) + (param & 0x0F);
                         this.breakPending = true;
                         break;
-                    case 0x0E:
+                    case 0x0E: {
                         const subEffect = param >> 4;
                         const subParam = param & 0x0F;
-                        if (subEffect === 0x08) { 
+                        if (subEffect === 0x08) {
                             channel.pan = subParam / 15.0;
-                        } else if (subEffect === 0x0A) { 
+                        } else if (subEffect === 0x0A) {
                             channel.vol = Math.min(64, channel.vol + subParam);
-                        } else if (subEffect === 0x0B) { 
+                        } else if (subEffect === 0x0B) {
                             channel.vol = Math.max(0, channel.vol - subParam);
-                        } else if (subEffect === 0x01) { 
+                        } else if (subEffect === 0x01) {
                             if (this.seqType === 'XM' && this.linearFreq) {
                                 channel.currentNote = Math.min(96, channel.currentNote + (subParam / 16.0));
                                 channel.per = Math.round(428.0 * Math.pow(2.0, (49 - channel.currentNote) / 12.0));
                             } else if (channel.per > 0) {
                                 channel.per = Math.max(113, channel.per - subParam);
                             }
-                        } else if (subEffect === 0x02) { 
+                            channel.basePeriod = channel.per;
+                        } else if (subEffect === 0x02) {
                             if (this.seqType === 'XM' && this.linearFreq) {
                                 channel.currentNote = Math.max(1, channel.currentNote - (subParam / 16.0));
                                 channel.per = Math.round(428.0 * Math.pow(2.0, (49 - channel.currentNote) / 12.0));
                             } else if (channel.per > 0) {
                                 channel.per = Math.min(856, channel.per + subParam);
                             }
+                            channel.basePeriod = channel.per;
                         } else if (subEffect === 0x0E) {
                             this.patternDelay = subParam;
                         } else if (subEffect === 0x06) {
@@ -667,38 +739,41 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                             }
                         }
                         break;
+                    }
                 }
             } else {
                 switch (effect) {
-                    case 0x00: 
+                    case 0x00:
                         if (param > 0 && channel.per > 0) {
                             const arpOffsets = [0, (param >> 4) & 0x0F, param & 0x0F];
                             const currentOffset = arpOffsets[this.currentTick % 3];
                             if (this.seqType === 'XM' && this.linearFreq) {
-                                const arpNote = channel.currentNote + currentOffset; 
+                                const arpNote = channel.currentNote + currentOffset;
                                 const clampedNote = Math.min(96, Math.max(1, arpNote));
                                 channel.per = Math.round(428.0 * Math.pow(2.0, (49 - clampedNote) / 12.0));
                             } else {
                                 const base = (period > 0 && period !== 97) ? period : channel.basePeriod;
-                                channel.per = base * Math.pow(0.9438, currentOffset);
+                                channel.per = base * Math.pow(2.0, -currentOffset / 12.0);
                             }
                         }
                         break;
-                    case 0x01: 
+                    case 0x01:
                         if (this.seqType === 'XM' && this.linearFreq) {
                             channel.currentNote = Math.min(96, channel.currentNote + (channel.portamentoUpSpeed / 16.0));
                             channel.per = Math.round(428.0 * Math.pow(2.0, (49 - channel.currentNote) / 12.0));
                         } else if (channel.per > 0) {
-                            channel.per = Math.max(113, channel.per - channel.portamentoUpSpeed); 
+                            channel.per = Math.max(113, channel.per - channel.portamentoUpSpeed);
                         }
+                        channel.basePeriod = channel.per;
                         break;
-                    case 0x02: 
+                    case 0x02:
                         if (this.seqType === 'XM' && this.linearFreq) {
                             channel.currentNote = Math.max(1, channel.currentNote - (channel.portamentoDownSpeed / 16.0));
                             channel.per = Math.round(428.0 * Math.pow(2.0, (49 - channel.currentNote) / 12.0));
                         } else if (channel.per > 0) {
-                            channel.per = Math.min(856, channel.per + channel.portamentoDownSpeed); 
+                            channel.per = Math.min(856, channel.per + channel.portamentoDownSpeed);
                         }
+                        channel.basePeriod = channel.per;
                         break;
                     case 0x03:
                     case 0x05:
@@ -712,6 +787,7 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                                 }
                                 const clampedNote = Math.min(96, Math.max(1, channel.currentNote));
                                 channel.per = Math.round(428.0 * Math.pow(2.0, (49 - clampedNote) / 12.0));
+                                channel.basePeriod = channel.per;
                             }
                         } else {
                             if (channel.targetPeriod > 0 && channel.per !== channel.targetPeriod) {
@@ -720,6 +796,7 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                                 } else {
                                     channel.per = Math.max(channel.targetPeriod, channel.per - channel.portamentoSpeed);
                                 }
+                                channel.basePeriod = channel.per;
                             }
                         }
                         if (effect === 0x05) {
@@ -729,8 +806,8 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                             else if (slideDown > 0) channel.vol = Math.max(0, channel.vol - slideDown);
                         }
                         break;
-                    case 0x04: 
-                    case 0x06: 
+                    case 0x04:
+                    case 0x06:
                         if (channel.hasVibrato) {
                             channel.vibratoPhase = (channel.vibratoPhase + channel.vibratoSpeed) & 63;
                             const vibSine = Math.sin(channel.vibratoPhase * (Math.PI / 32));
@@ -739,7 +816,7 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                                 const clampedNote = Math.min(96, Math.max(1, channel.currentNote + vibOffsetNotes));
                                 channel.per = Math.round(428.0 * Math.pow(2.0, (49 - clampedNote) / 12.0));
                             } else {
-                                const vibOffset = vibSine * channel.vibratoDepth * 2.5; 
+                                const vibOffset = vibSine * channel.vibratoDepth * 2.5;
                                 channel.per = Math.max(113, Math.min(856, Math.round(channel.basePeriod + vibOffset)));
                             }
                         }
@@ -750,12 +827,13 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                             else if (slideDown > 0) channel.vol = Math.max(0, channel.vol - slideDown);
                         }
                         break;
-                    case 0x0A: 
+                    case 0x0A: {
                         const slideUp = (channel.volSlideSpeed >> 4) & 0x0F;
                         const slideDown = channel.volSlideSpeed & 0x0F;
                         if (slideUp > 0) channel.vol = Math.min(64, channel.vol + slideUp);
                         else if (slideDown > 0) channel.vol = Math.max(0, channel.vol - slideDown);
                         break;
+                    }
                 }
             }
         }
@@ -765,8 +843,10 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
             this.currentTick = 0;
             this.patternDelay = 0;
             if (this.breakPending) {
-                this.currentOrder = this.breakOrder;
-                this.currentRow = this.breakRow;
+                this.currentOrder = this.songLength > 0 ? (this.breakOrder % this.songLength) : 0;
+                const nextPat = this.patterns[this.orderTable[this.currentOrder]];
+                const nextRows = nextPat ? nextPat.numRows : 64;
+                this.currentRow = (this.breakRow >= 0 && this.breakRow < nextRows) ? this.breakRow : 0;
                 this.breakPending = false;
             } else {
                 this.currentRow++;
@@ -779,18 +859,18 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
     }
 
     process(inputs, outputs) {
-        const outL = outputs[0][0]; 
-        const outR = outputs[0].length > 1 ? outputs[0][1] : null; 
+        const outL = outputs[0][0];
+        const outR = outputs[0].length > 1 ? outputs[0][1] : null;
         let oscValue = 0;
 
-        let clockTicksPerSample = this.clock / sampleRate;
+        const clockTicksPerSample = this.clock / sampleRate;
 
         for (let i = 0; i < outL.length; i++) {
             if (!this.isPlaying) {
                 outL[i] = 0; if (outR) outR[i] = 0;
-                continue; 
+                continue;
             }
-            
+
             if (this.isSequenced) {
                 if (this.seqType === 'HIPC' || this.seqType === 'COSO') {
                     this.sampleCounter--;
@@ -803,28 +883,28 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                 } else {
                     this.samplesUntilNextTick--;
                     if (this.samplesUntilNextTick <= 0) {
-                        const overshoot = -this.samplesUntilNextTick; 
+                        const overshoot = -this.samplesUntilNextTick;
                         this.processTrackerTick(overshoot);
                         const samplesPerTick = (2.5 / this.bpm) * sampleRate;
                         this.samplesUntilNextTick += samplesPerTick;
                     }
                 }
-            } else {
+            } else if (this.trackData && this.trackData.length > 0) {
                 this.sampleCounter--;
                 if (this.sampleCounter <= 0) {
                     this.sampleCounter += sampleRate / 50.0;
-                    let frame = this.trackData[this.currentFrame];
+                    const frame = this.trackData[this.currentFrame];
                     if (frame && frame.cmds) {
-                        for (let cmd of frame.cmds) {
+                        for (const cmd of frame.cmds) {
                             const ch = this.channels[cmd.ch];
                             if (cmd.smp) {
-                                let sampleObj = this.samples[cmd.smp];
+                                const sampleObj = this.samples[cmd.smp];
                                 if (sampleObj && sampleObj.data) {
                                     ch.trigger(sampleObj.data, sampleObj.loopStart, sampleObj.loopLen);
                                 }
                             }
                             if (cmd.per !== undefined) ch.per = cmd.per;
-                            if (cmd.vol !== undefined) ch.vol = cmd.vol; 
+                            if (cmd.vol !== undefined) ch.vol = cmd.vol;
                         }
                     }
                     this.currentFrame = (this.currentFrame + 1) % this.trackData.length;
@@ -833,18 +913,18 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
 
             // 14-Bit AHI Hermite Mixing & Spatial Staging
             let mixedL = 0, mixedR = 0;
-            
+
             for (let c = 0; c < this.numChannels; c++) {
-                let sampleVal = this.channels[c].step(clockTicksPerSample);
+                const sampleVal = this.channels[c].step(clockTicksPerSample);
                 if (sampleVal !== 0) {
                     const pan = this.channels[c].pan;
-                    mixedL += sampleVal * Math.cos(pan * Math.PI * 0.5); 
-                    mixedR += sampleVal * Math.sin(pan * Math.PI * 0.5); 
+                    mixedL += sampleVal * Math.cos(pan * Math.PI * 0.5);
+                    mixedR += sampleVal * Math.sin(pan * Math.PI * 0.5);
                 }
             }
-            
+
             if (this.numChannels > 4) {
-                let mixAtten = Math.sqrt(4.0 / this.numChannels);
+                const mixAtten = Math.sqrt(4.0 / this.numChannels);
                 mixedL *= mixAtten;
                 mixedR *= mixAtten;
             }
@@ -852,46 +932,50 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
             // Airband Presence Exciter (> 8 kHz)
             this.airLpL += this.alphaAir * (mixedL - this.airLpL);
             this.airLpR += this.alphaAir * (mixedR - this.airLpR);
-            let airHighL = mixedL - this.airLpL;
-            let airHighR = mixedR - this.airLpR;
+            const airHighL = mixedL - this.airLpL;
+            const airHighR = mixedR - this.airLpR;
 
-            let brightL = mixedL + airHighL * 0.35;
-            let brightR = mixedR + airHighR * 0.35;
+            const brightL = mixedL + airHighL * 0.35;
+            const brightR = mixedR + airHighR * 0.35;
 
             // Parametrischer Stereo-Reverb
-            let [revL, revR] = this.reverb.process(brightL, brightR);
-            
-            let studioL = brightL * 0.88 + revL;
-            let studioR = brightR * 0.88 + revR;
+            const [revL, revR] = this.reverb.process(brightL, brightR);
 
-            let finalL = Math.tanh(studioL * 1.05) * 0.92;
-            let finalR = Math.tanh(studioR * 1.05) * 0.92;
+            const studioL = brightL * 0.88 + revL;
+            const studioR = brightR * 0.88 + revR;
 
-            outL[i] = finalL;
-            if (outR) outR[i] = finalR; else outL[i] = (finalL + finalR) * 0.5;
-            
+            const finalL = Math.tanh(studioL * 1.05) * 0.92;
+            const finalR = Math.tanh(studioR * 1.05) * 0.92;
+
+            if (outR) {
+                outL[i] = finalL;
+                outR[i] = finalR;
+            } else {
+                outL[i] = (finalL + finalR) * 0.5;
+            }
+
             if (i === 0) oscValue = (finalL + finalR) * 0.5;
         }
 
-        this.visCounter = (this.visCounter || 0) + 1;
+        this.visCounter++;
         if (this.visCounter % 4 === 0) {
-            let isAudible = Math.abs(oscValue) > 0.001;
-            if (isAudible || this.wasAudible) {
+            const isAudible = Math.abs(oscValue) > 0.001;
+            if (this.isPlaying || this.wasPlaying || isAudible || this.wasAudible) {
                 const view = this.visualView;
                 view[0] = 1; // Amiga
                 view[1] = this.isPlaying ? 1 : 0;
-                view[2] = this.isSequenced 
+                view[2] = this.isSequenced
                     ? (this.seqType === 'HIPC' || this.seqType === 'COSO' ? (this.cosoVM ? this.cosoVM.position : 0) : (this.currentOrder * 64 * this.speed + this.currentRow * this.speed + this.currentTick))
                     : this.currentFrame;
                 view[3] = oscValue;
 
-                for(let c = 0; c < 4; c++) {
-                    let offset = c * 7;
-                    let ch = this.channels[c];
-                    let simulatedAddress = ch.audLc || (ch.data ? 0x00020000 + c * 0x4000 + Math.floor(ch.pointer) : 0);
-                    view[4 + offset] = (simulatedAddress >> 8) & 0xFF; 
-                    view[4 + offset + 1] = simulatedAddress & 0xFF;       
-                    let len = ch.audLen || (ch.data ? Math.floor(ch.data.length / 2) : 0);
+                for (let c = 0; c < 4; c++) {
+                    const offset = c * 7;
+                    const ch = this.channels[c];
+                    const simulatedAddress = ch.audLc || (ch.data ? 0x00020000 + c * 0x4000 + Math.floor(ch.pointer) : 0);
+                    view[4 + offset] = (simulatedAddress >> 8) & 0xFF;
+                    view[4 + offset + 1] = simulatedAddress & 0xFF;
+                    const len = ch.audLen || (ch.data ? Math.floor(ch.data.length / 2) : 0);
                     view[4 + offset + 2] = (len >> 8) & 0xFF;
                     view[4 + offset + 3] = len & 0xFF;
                     view[4 + offset + 4] = (ch.per >> 8) & 0xFF;
@@ -903,7 +987,7 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
 
                 let dmaMask = 0;
                 for (let c = 0; c < 4; c++) {
-                    let ch = this.channels[c];
+                    const ch = this.channels[c];
                     view[34 + c] = (ch.data || ch.dmaEnabled) ? (ch.vol / 64.0) : 0.0;
                     if (ch.dmaEnabled) dmaMask |= 1 << c;
                 }
@@ -914,6 +998,7 @@ class PaulaFantasyProcessor extends AudioWorkletProcessor {
                 this.port.postMessage(view);
             }
             this.wasAudible = isAudible;
+            this.wasPlaying = this.isPlaying;
         }
         return true;
     }

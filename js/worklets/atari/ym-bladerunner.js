@@ -385,8 +385,12 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
         this.regs = new Uint8Array(16);
         this.trackData = null;
         this.currentFrame = 0;
+        this.playerRate = 50;
+        this.loopFrame = 0;
         this.sampleCounter = 0.0;
         this.isPlaying = false;
+        this.fadeVol = 0.0;
+        this.fadeStep = 1.0 / Math.max(1, Math.round(0.010 * sr));
 
         this.voiceA = new CS80Voice(0, sr);
         this.voiceB = new CS80Voice(1, sr);
@@ -516,10 +520,16 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
         this.port.onmessage = (event) => {
             const msg = event.data;
             if (msg.type === 'PLAY_TRACK') {
-                this.trackData = msg.track;
+                this.regs.fill(0);
+                this.trackData = Array.isArray(msg.track) ? msg.track : null;
+                const trackLen = this.trackData ? this.trackData.length : 0;
                 this.digidrums = msg.digidrums || [];
                 if (msg.roles) this.stager.state = msg.roles;
                 this.currentFrame = 0;
+                this.playerRate = Number.isFinite(msg.playerRate) && msg.playerRate > 0 ? msg.playerRate : 50;
+                this.loopFrame = Number.isInteger(msg.loopFrame) && msg.loopFrame >= 0 && msg.loopFrame < trackLen
+                    ? msg.loopFrame
+                    : 0;
                 this.sampleCounter = 0.0;
                 this.currentDigidrum = null;
                 this.digiRate = 8000.0;
@@ -529,17 +539,24 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
                 this.currentDrumVoice = 0;
                 this.envPhase = 0.0;
                 this.sidechainEnv = 1.0;
+                this.volA = 0.0; this.volB = 0.0; this.volC = 0.0;
+                this.visualEnvelopeLevel = 0.0;
+                this.fadeVol = 0.0;
                 this.resetFxAndVoices(true);
-                this.isPlaying = true;
+                this.isPlaying = trackLen > 0;
             } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
             } else if (msg.type === 'RESUME_TRACK') {
-                this.isPlaying = true;
+                this.isPlaying = !!(this.trackData && this.trackData.length > 0);
             } else if (msg.type === 'SEEK_TRACK') {
                 if (this.trackData && this.trackData.length > 0) {
-                    this.currentFrame = msg.frame % this.trackData.length;
+                    const len = this.trackData.length;
+                    const target = Number.isFinite(msg.frame) ? Math.trunc(msg.frame) : 0;
+                    this.currentFrame = ((target % len) + len) % len;
+                    this.sampleCounter = 0.0;
                     this.currentDigidrum = null;
                     this.lastDigiTrigger = 0;
+                    this.currentDrumVoice = 0;
                     this.resetFxAndVoices(false);
                 }
             } else if (msg.type === 'SET_PARAMS') {
@@ -559,6 +576,11 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
         this.syncBuzzerPhase = 0.0;
         this.lastNoiseReg = -1;
         if (clearSpace) {
+            this.noiseLfsr = 1;
+            this.noisePhase = 0.0;
+            this.noiseOutput = 1.0;
+            this.noiseFilter.reset();
+            this.drumHp.reset();
             this.chorusBufL.fill(0);
             this.chorusBufR.fill(0);
             this.chorusLpL = 0; this.chorusLpR = 0;
@@ -628,19 +650,22 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
 
     process(inputs, outputs) {
         const outL = outputs[0][0];
-        const outR = outputs[0].length > 1 ? outputs[0][1] : outputs[0][0];
+        const outR = outputs[0].length > 1 ? outputs[0][1] : null;
         const sr = this.sr;
-        const framesPerSample = 50.0 / sr;
+        const framesPerSample = this.playerRate / sr;
         let currentVisualValue = 0.0;
 
         for (let i = 0; i < outL.length; i++) {
-            if (!this.isPlaying) {
+            if (this.isPlaying) this.fadeVol = Math.min(1.0, this.fadeVol + this.fadeStep);
+            else this.fadeVol = Math.max(0.0, this.fadeVol - this.fadeStep);
+
+            if (this.fadeVol === 0.0) {
                 outL[i] = 0.0;
-                if (outR !== outL) outR[i] = 0.0;
+                if (outR) outR[i] = 0.0;
                 continue;
             }
 
-            // 1. 50Hz-Register-Frame-Update + YM6 MFP-Timer-FX-Decoder
+            // 1. Register-Frame-Update + YM6 MFP-Timer-FX-Decoder
             if (this.trackData && this.trackData.length > 0) {
                 this.sampleCounter -= 1.0;
                 if (this.sampleCounter <= 0.0) {
@@ -726,7 +751,8 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
                     this.voiceB.onFrame(pB_f, (mix_f & 0x02) === 0, (mix_f & 0x10) === 0, drumMask === 2 ? 0 : this.regs[9]);
                     this.voiceC.onFrame(pC_f, (mix_f & 0x04) === 0, (mix_f & 0x20) === 0, drumMask === 3 ? 0 : this.regs[10]);
 
-                    this.currentFrame = (this.currentFrame + 1) % this.trackData.length;
+                    this.currentFrame++;
+                    if (this.currentFrame >= this.trackData.length) this.currentFrame = this.loopFrame;
                 }
             }
 
@@ -1036,11 +1062,15 @@ class YMBladeRunnerProcessor extends AudioWorkletProcessor {
             finalL *= 0.86;
             finalR *= 0.86;
 
-            const dcL = this.dcBlockL.process(finalL);
-            const dcR = this.dcBlockR.process(finalR);
+            const dcL = this.dcBlockL.process(finalL) * this.fadeVol;
+            const dcR = this.dcBlockR.process(finalR) * this.fadeVol;
 
-            outL[i] = dcL;
-            if (outR !== outL) outR[i] = dcR;
+            if (outR) {
+                outL[i] = dcL;
+                outR[i] = dcR;
+            } else {
+                outL[i] = (dcL + dcR) * 0.5;
+            }
 
             // Vorzeichenbehafteter Block-Peak statt Blind-Abtastung auf Sample 0
             const mono = (dcL + dcR) * 0.5;

@@ -13,7 +13,7 @@ import { DAC_LUT_8580, PWM_LUT, RATE_COUNTER_PERIOD } from '../lib/sid-luts.js';
 import { DCBlocker } from '../lib/dsp-utils.js';
 import { SidResampler } from '../lib/sid-resampler.js';
 
-const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_RELEASE = 2; 
+const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_RELEASE = 2;
 
 const VOLUME_DAC_8580 = new Float32Array([
     0.0000, 0.0667, 0.1333, 0.2000, 0.2667, 0.3333, 0.4000, 0.4667,
@@ -29,7 +29,7 @@ class SIDFantasyChip {
             this.voices.push({
                 freq: 0, pw: 2048, ctrl: 0, env: 0, phase: 0,
                 state: ENV_RELEASE, prevGate: false,
-                waveOut8Bit: 0x80, 
+                waveOut8Bit: 0x80,
                 busCharge: 0x80,
                 env8Bit: 0, lfsr: 0x7FFFFF,
                 rate_counter: 0, exponential_counter: 0, envelope_counter: 0,
@@ -44,18 +44,18 @@ class SIDFantasyChip {
         }
         this.cutoff = 30; this.resonance = 0; this.filterMode = 0x0F;
         this.masterVol = VOLUME_DAC_8580[15];
-        
+
         this.x1_L = 0.0; this.x2_L = 0.0;
         this.x1_R = 0.0; this.x2_R = 0.0;
 
         this.outputSampleL = 0;
         this.outputSampleR = 0;
-        
+
         this.activeCutoff = 30.0;
         this.q = 1.0;
-        
-        this.panL0 = 0.82; this.panR0 = 0.57; 
-        this.panL1 = 0.57; this.panR1 = 0.82; 
+
+        this.panL0 = 0.82; this.panR0 = 0.57;
+        this.panL1 = 0.57; this.panR1 = 0.82;
         this.panL2 = 0.707; this.panR2 = 0.707;
 
         this.lastVol = 1.0;
@@ -69,34 +69,34 @@ class SIDFantasyChip {
     }
 
     updateFilterParameters() {
-        let cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
-        let norm = cutoffReg / 2047.0;
+        const cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
+        const norm = cutoffReg / 2047.0;
         this.activeCutoff = 20.0 + Math.pow(norm, 1.25) * 19980.0;
 
-        let resReg = this.regs[23] >> 4;
-        let normRes = resReg / 15.0;
-        this.q = 1.414 - (normRes * 1.15); 
+        const resReg = this.regs[23] >> 4;
+        const normRes = resReg / 15.0;
+        this.q = 1.414 - (normRes * 1.15);
     }
 
     writeReg(reg, val) {
         if (reg >= 29) return;
         this.registerWrites++;
         this.regs[reg] = val;
-        
-        let vIdx = (reg / 7) | 0;
+
+        const vIdx = (reg / 7) | 0;
         if (vIdx < 3) {
-            let ch = this.voices[vIdx];
-            let base = vIdx * 7;
-            
-            ch.freq = this.regs[base] | (this.regs[base+1] << 8);
-            ch.pw = this.regs[base+2] | ((this.regs[base+3] & 15) << 8);
-            
-            let prevCtrl = ch.ctrl;
-            ch.ctrl = this.regs[base+4];
-            
-            let gate = (ch.ctrl & 1) !== 0;
-            let prevGate = (prevCtrl & 1) !== 0;
-            
+            const ch = this.voices[vIdx];
+            const base = vIdx * 7;
+
+            ch.freq = this.regs[base] | (this.regs[base + 1] << 8);
+            ch.pw = this.regs[base + 2] | ((this.regs[base + 3] & 15) << 8);
+
+            const prevCtrl = ch.ctrl;
+            ch.ctrl = this.regs[base + 4];
+
+            const gate = (ch.ctrl & 1) !== 0;
+            const prevGate = (prevCtrl & 1) !== 0;
+
             if (gate !== prevGate) {
                 ch.envDelay = 1;
                 ch.state = gate ? ENV_ATTACK : ENV_RELEASE;
@@ -108,14 +108,14 @@ class SIDFantasyChip {
             ch.prevGate = gate;
 
             if (ch.ctrl & 8) {
-                ch.phase = 0; 
+                ch.phase = 0;
                 ch.lfsr = 0x7FFFFF;
             }
 
-            if (reg === base + 5) { 
+            if (reg === base + 5) {
                 ch.attack_period = RATE_COUNTER_PERIOD[val >> 4];
                 ch.decay_period = RATE_COUNTER_PERIOD[val & 15];
-            } else if (reg === base + 6) { 
+            } else if (reg === base + 6) {
                 ch.sustain_level = (val >> 4) | ((val >> 4) << 4);
                 ch.release_period = RATE_COUNTER_PERIOD[val & 15];
             }
@@ -123,12 +123,12 @@ class SIDFantasyChip {
             this.updateFilterParameters();
         } else if (reg === 24) {
             this.filterMode = val;
-            this.d418Writes++; 
-            
-            let volIndex = val & 15;
-            let newVol = VOLUME_DAC_8580[volIndex];
-            
-            let delta = Math.abs(newVol - this.lastVol);
+            this.d418Writes++;
+
+            const volIndex = val & 15;
+            const newVol = VOLUME_DAC_8580[volIndex];
+
+            const delta = Math.abs(newVol - this.lastVol);
             if (delta > 0.15) {
                 this.drumTransientEnv = 1.0;
             }
@@ -138,7 +138,7 @@ class SIDFantasyChip {
     }
 
     clockEnvelopeOneCycle(v) {
-        let ch = this.voices[v];
+        const ch = this.voices[v];
         if (ch.envDelay > 0) { ch.envDelay--; return; }
 
         let ratePeriod = ch.release_period;
@@ -148,11 +148,11 @@ class SIDFantasyChip {
         ch.rate_counter++;
 
         if (ch.rate_counter >= ratePeriod) {
-            ch.rate_counter = 0; 
+            ch.rate_counter = 0;
 
             let expPeriod = 1;
             if (ch.state !== ENV_ATTACK) {
-                let envVal = ch.envelope_counter;
+                const envVal = ch.envelope_counter;
                 if (envVal >= 93) expPeriod = 1;
                 else if (envVal >= 54) expPeriod = 2;
                 else if (envVal >= 26) expPeriod = 4;
@@ -184,22 +184,22 @@ class SIDFantasyChip {
     clockOscillatorsOneCycle() {
         // Step 1: Advance all 3 phase accumulators and LFSRs in parallel
         for (let v = 0; v < 3; v++) {
-            let ch = this.voices[v];
+            const ch = this.voices[v];
             if ((ch.ctrl & 8) === 0) {
-                let oldAcc = ch.phase;
-                let newAcc = (oldAcc + ch.freq) & 0xFFFFFF;
+                const oldAcc = ch.phase;
+                const newAcc = (oldAcc + ch.freq) & 0xFFFFFF;
                 ch.msbRisingEdge = ((oldAcc & 0x800000) === 0) && ((newAcc & 0x800000) !== 0);
                 ch.phase = newAcc;
 
-                let oldStep = oldAcc & 0x080000;
-                let newStep = newAcc & 0x080000;
+                const oldStep = oldAcc & 0x080000;
+                const newStep = newAcc & 0x080000;
                 if (!oldStep && newStep) {
                     let bit = ((ch.lfsr >> 22) ^ (ch.lfsr >> 17)) & 1;
                     if ((ch.ctrl & 0x80) && (ch.ctrl & 0x70) !== 0) {
-                        let testPhase = (newAcc >> 12) & 0xFFF;
-                        let pwMapped = PWM_LUT[ch.pw & 0xFFF];
-                        let isPulseLow = (ch.ctrl & 0x40) && (testPhase >= pwMapped);
-                        if (isPulseLow || (ch.ctrl & 0x30)) bit = 0; 
+                        const testPhase = (newAcc >> 12) & 0xFFF;
+                        const pwMapped = PWM_LUT[ch.pw & 0xFFF];
+                        const isPulseLow = (ch.ctrl & 0x40) && (testPhase >= pwMapped);
+                        if (isPulseLow || (ch.ctrl & 0x30)) bit = 0;
                     }
                     ch.lfsr = ((ch.lfsr << 1) & 0x7FFFFF) | bit;
                 }
@@ -210,8 +210,8 @@ class SIDFantasyChip {
 
         // Step 2: Apply Hard-Sync symmetrically across all 3 voices
         for (let v = 0; v < 3; v++) {
-            let ch = this.voices[v];
-            let prevIdx = v === 0 ? 2 : v - 1;
+            const ch = this.voices[v];
+            const prevIdx = v === 0 ? 2 : v - 1;
             if ((ch.ctrl & 2) !== 0 && (ch.ctrl & 8) === 0 && this.voices[prevIdx].msbRisingEdge) {
                 ch.phase = 0;
             }
@@ -219,18 +219,18 @@ class SIDFantasyChip {
     }
 
     synthesizeVoiceOneCycle(v) {
-        let ch = this.voices[v];
-        let prevIdx = v === 0 ? 2 : v - 1;
-        let prevCh = this.voices[prevIdx];
-        let ownMSB = (ch.phase >> 23) & 1;
-        let prevMSB = (prevCh.phase >> 23) & 1;
-        let ringMSB = (ch.ctrl & 4) ? (ownMSB ^ prevMSB) : ownMSB;
+        const ch = this.voices[v];
+        const prevIdx = v === 0 ? 2 : v - 1;
+        const prevCh = this.voices[prevIdx];
+        const ownMSB = (ch.phase >> 23) & 1;
+        const prevMSB = (prevCh.phase >> 23) & 1;
+        const ringMSB = (ch.ctrl & 4) ? (ownMSB ^ prevMSB) : ownMSB;
 
-        let hasWave = (ch.ctrl & 0xF0) !== 0;
+        const hasWave = (ch.ctrl & 0xF0) !== 0;
         if (hasWave) {
-            let rawWave8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, ch.pw, ch.lfsr, ringMSB, ch.freq);
-            let waveMask = ch.ctrl & 0xF0;
-            let isCombined = (waveMask !== 0x10 && waveMask !== 0x20 && waveMask !== 0x40 && waveMask !== 0x80);
+            const rawWave8Bit = calculateWaveform8Bit(ch.ctrl, ch.phase, ch.pw, ch.lfsr, ringMSB, ch.freq);
+            const waveMask = ch.ctrl & 0xF0;
+            const isCombined = (waveMask !== 0x10 && waveMask !== 0x20 && waveMask !== 0x40 && waveMask !== 0x80);
 
             if (isCombined) {
                 ch.busCharge += 0.35 * (rawWave8Bit - ch.busCharge);
@@ -246,10 +246,10 @@ class SIDFantasyChip {
 
         ch.env8Bit = ch.envelope_counter;
 
-        let envDac = DAC_LUT_8580[ch.env8Bit];
-        let waveDac = DAC_LUT_8580[Math.floor(ch.waveOut8Bit)];
-        let waveOutFloat = (waveDac * 2.0) - 1.0;
-        
+        const envDac = DAC_LUT_8580[ch.env8Bit];
+        const waveDac = DAC_LUT_8580[Math.floor(ch.waveOut8Bit)];
+        const waveOutFloat = (waveDac * 2.0) - 1.0;
+
         return (waveOutFloat + 0.025) * envDac;
     }
 
@@ -260,13 +260,13 @@ class SIDFantasyChip {
 
         this.clockOscillatorsOneCycle();
 
-        let voice0 = this.synthesizeVoiceOneCycle(0);
-        let voice1 = this.synthesizeVoiceOneCycle(1);
-        let voice2 = this.synthesizeVoiceOneCycle(2);
+        const voice0 = this.synthesizeVoiceOneCycle(0);
+        const voice1 = this.synthesizeVoiceOneCycle(1);
+        const voice2 = this.synthesizeVoiceOneCycle(2);
 
-        let v0_L = voice0 * this.panL0; let v0_R = voice0 * this.panR0;
-        let v1_L = voice1 * this.panL1; let v1_R = voice1 * this.panR1;
-        let v2_L = voice2 * this.panL2; let v2_R = voice2 * this.panR2;
+        const v0_L = voice0 * this.panL0; const v0_R = voice0 * this.panR0;
+        const v1_L = voice1 * this.panL1; const v1_R = voice1 * this.panR1;
+        const v2_L = voice2 * this.panL2; const v2_R = voice2 * this.panR2;
 
         const isVoice3Off = (this.filterMode & 128) !== 0;
 
@@ -275,7 +275,7 @@ class SIDFantasyChip {
 
         if (this.regs[23] & 1) { filtSumL += v0_L; filtSumR += v0_R; } else { unfiltSumL += v0_L; unfiltSumR += v0_R; }
         if (this.regs[23] & 2) { filtSumL += v1_L; filtSumR += v1_R; } else { unfiltSumL += v1_L; unfiltSumR += v1_R; }
-        
+
         // Schematic-accurate 3OFF: only disconnects Voice 3 from the unfiltered path
         if (this.regs[23] & 4) {
             filtSumL += v2_L;
@@ -284,43 +284,43 @@ class SIDFantasyChip {
             unfiltSumL += v2_L;
             unfiltSumR += v2_R;
         } else {
-            let envDac3 = DAC_LUT_8580[this.voices[2].env8Bit];
-            let v3Leak = 0.08 * envDac3 * this.panL2;
+            const envDac3 = DAC_LUT_8580[this.voices[2].env8Bit];
+            const v3Leak = 0.08 * envDac3 * this.panL2;
             unfiltSumL += v3Leak;
             unfiltSumR += v3Leak;
         }
 
-        let subG = Math.tan((Math.PI * this.activeCutoff) / 1970496); 
-        let k = this.q;
-        let denom = 1.0 + subG * (subG + k);
-        
+        const subG = Math.tan((Math.PI * this.activeCutoff) / 1970496);
+        const k = this.q;
+        const denom = 1.0 + subG * (subG + k);
+
         let filterOutL = 0, filterOutR = 0;
 
         for (let sub = 0; sub < 2; sub++) {
-            let hpL = (filtSumL - this.x1_L * (subG + k) - this.x2_L) / denom;
-            let bpRawL = subG * hpL + this.x1_L;
-            let bpL = Math.tanh(bpRawL * 0.65) / 0.65;
-            let lpL = subG * bpL + this.x2_L;
+            const hpL = (filtSumL - this.x1_L * (subG + k) - this.x2_L) / denom;
+            const bpRawL = subG * hpL + this.x1_L;
+            const bpL = Math.tanh(bpRawL * 0.65) / 0.65;
+            const lpL = subG * bpL + this.x2_L;
 
             this.x1_L = 2.0 * bpL - this.x1_L;
             this.x2_L = 2.0 * lpL - this.x2_L;
 
-            let outLpL = (this.filterMode & 16) ? lpL : 0;
-            let outBpL = (this.filterMode & 32) ? bpL : 0;
+            const outLpL = (this.filterMode & 16) ? lpL : 0;
+            const outBpL = (this.filterMode & 32) ? bpL : 0;
             let outHpL = (this.filterMode & 64) ? hpL : 0;
             if ((this.filterMode & 80) === 80) outHpL = -outHpL * 0.95;
             filterOutL = outLpL + outBpL + outHpL;
 
-            let hpR = (filtSumR - this.x1_R * (subG + k) - this.x2_R) / denom;
-            let bpRawR = subG * hpR + this.x1_R;
-            let bpR = Math.tanh(bpRawR * 0.65) / 0.65;
-            let lpR = subG * bpR + this.x2_R;
+            const hpR = (filtSumR - this.x1_R * (subG + k) - this.x2_R) / denom;
+            const bpRawR = subG * hpR + this.x1_R;
+            const bpR = Math.tanh(bpRawR * 0.65) / 0.65;
+            const lpR = subG * bpR + this.x2_R;
 
             this.x1_R = 2.0 * bpR - this.x1_R;
             this.x2_R = 2.0 * lpR - this.x2_R;
 
-            let outLpR = (this.filterMode & 16) ? lpR : 0;
-            let outBpR = (this.filterMode & 32) ? bpR : 0;
+            const outLpR = (this.filterMode & 16) ? lpR : 0;
+            const outBpR = (this.filterMode & 32) ? bpR : 0;
             let outHpR = (this.filterMode & 64) ? hpR : 0;
             if ((this.filterMode & 80) === 80) outHpR = -outHpR * 0.95;
             filterOutR = outLpR + outBpR + outHpR;
@@ -329,21 +329,21 @@ class SIDFantasyChip {
         if (isNaN(this.x1_L) || isNaN(this.x2_L)) { this.x1_L = 0; this.x2_L = 0; filterOutL = 0; }
         if (isNaN(this.x1_R) || isNaN(this.x2_R)) { this.x1_R = 0; this.x2_R = 0; filterOutR = 0; }
 
-        let mixL = unfiltSumL + filterOutL;
-        let mixR = unfiltSumR + filterOutR;
+        const mixL = unfiltSumL + filterOutL;
+        const mixR = unfiltSumR + filterOutR;
 
         // 48Hz Digidrum Sub-Harmonic Exciter
         let drumPunch = 0;
         if (this.drumTransientEnv > 0.001) {
-            this.drumSubPhase = (this.drumSubPhase + (48.0 / 985248)) % 1.0; 
-            let subKick = Math.sin(this.drumSubPhase * Math.PI * 2) * this.drumTransientEnv * 0.45;
+            this.drumSubPhase = (this.drumSubPhase + (48.0 / 985248)) % 1.0;
+            const subKick = Math.sin(this.drumSubPhase * Math.PI * 2) * this.drumTransientEnv * 0.45;
             drumPunch = subKick;
-            this.drumTransientEnv *= 0.99988; 
+            this.drumTransientEnv *= 0.99988;
         }
 
-        let masterDc = 1.05; 
-        let vcaL = (Math.tanh((mixL + drumPunch) * 0.45) * 1.48 + masterDc) * this.masterVol;
-        let vcaR = (Math.tanh((mixR + drumPunch) * 0.45) * 1.48 + masterDc) * this.masterVol;
+        const masterDc = 1.05;
+        const vcaL = (Math.tanh((mixL + drumPunch) * 0.45) * 1.48 + masterDc) * this.masterVol;
+        const vcaR = (Math.tanh((mixR + drumPunch) * 0.45) * 1.48 + masterDc) * this.masterVol;
 
         this.outputSampleL = vcaL;
         this.outputSampleR = vcaR;
@@ -356,7 +356,7 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
         this.clock = 985248;
         this.sid = new SIDFantasyChip();
         this.cpu = new CPU6502(this.sid);
-        
+
         this.dcBlockL = new DCBlocker(sampleRate, 16.0);
         this.dcBlockR = new DCBlocker(sampleRate, 16.0);
 
@@ -364,21 +364,27 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
         this.loadAddr = 0;
         this.initAddress = 0;
         this.playAddress = 0;
-        this.playSpeedCycles = 19656; 
+        this.playSpeedCycles = 19656;
         this.songSpeedFlags = 0;
-        
+
         this.isPlaying = false;
+        this.wasPlaying = false;
         this.fadeVol = 0.0;
-        
-        this.vblankTimer = 19656; 
+        this.fadeStep = 1.0 / Math.max(1, Math.round(0.010 * sampleRate));
+
+        this.vblankTimer = 19656;
         this.currentFrame = 0;
+        this.maxFrames = 7500;
         this.displayClockAccumulator = 0;
         this.hostPlayPending = false;
-        
+
         this.temperature = 55.0;
         this.cpuCyclesRemaining = 0;
-        
+
         this.visualView = new Float32Array(41);
+        this.visCounter = 0;
+        this.visSamplesAccum = 0;
+        this.wasAudible = false;
 
         this.resampler = new SidResampler(this.clock, sampleRate, { channels: 2 });
 
@@ -390,28 +396,35 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
             }
 
             if (msg.isSidFile) {
+                this.dcBlockL.lastIn = 0; this.dcBlockL.lastOut = 0;
+                this.dcBlockR.lastIn = 0; this.dcBlockR.lastOut = 0;
 
                 this.prgCode = msg.c64Code;
                 this.loadAddr = msg.loadAddress;
                 this.initAddress = msg.initAddress;
                 this.playAddress = msg.playAddress;
-                this.songSpeedFlags = msg.speed; 
+                this.songSpeedFlags = msg.speed;
 
                 this.sid = new SIDFantasyChip();
                 this.cpu = new CPU6502(this.sid);
 
                 this.runSubsongInit(msg.startSong > 0 ? msg.startSong - 1 : 0, msg.length || 7500);
+                this.fadeVol = 0.0;
                 this.isPlaying = true;
             } else if (msg.type === 'STOP_TRACK') {
                 this.isPlaying = false;
             } else if (msg.type === 'RESUME_TRACK') {
-                this.isPlaying = true;
+                this.isPlaying = !!this.prgCode;
             } else if (msg.type === 'CHANGE_SUBSONG') {
+                if (!this.prgCode) return;
+                this.dcBlockL.lastIn = 0; this.dcBlockL.lastOut = 0;
+                this.dcBlockR.lastIn = 0; this.dcBlockR.lastOut = 0;
 
                 this.sid = new SIDFantasyChip();
                 this.cpu.sid = this.sid;
 
                 this.runSubsongInit(msg.frame > 0 ? msg.frame - 1 : 0, msg.length || 7500);
+                this.fadeVol = 0.0;
             }
         };
     }
@@ -419,29 +432,29 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
     runSubsongInit(songIndex, maxFrames) {
         songIndex &= 0xFF;
         this.cpu.reset(this.loadAddr, this.prgCode, this.initAddress, this.playAddress);
-        
+
         this.cpu.a = songIndex;
         this.cpu.x = songIndex;
         this.cpu.y = 0;
-        
-        this.cpu.push(0xFF); 
-        this.cpu.push(0xDF); 
+
+        this.cpu.push(0xFF);
+        this.cpu.push(0xDF);
         this.cpu.pc = this.initAddress;
         this.cpuCyclesRemaining = 0;
-        
+
         let initSafety = 250000;
         while ((this.cpu.pc < 0xFFE0 || this.cpu.pc > 0xFFE3) && initSafety > 0) {
             initSafety--;
             this.cpu.clockHardware(1);
             this.sid.clock();
-            
+
             if (this.cpuCyclesRemaining === 2) this.cpu.pollInterrupts();
 
             if (this.cpu.rdy && this.cpuCyclesRemaining <= 0) {
                 if (this.cpu.nmiAccepted) {
                     this.cpu.nmiAccepted = false;
                     this.cpu.triggerHardwareNmi();
-                    this.cpuCyclesRemaining = 7 - 1; 
+                    this.cpuCyclesRemaining = 7 - 1;
                 } else if (this.cpu.irqAccepted) {
                     this.cpu.irqAccepted = false;
                     this.cpu.triggerHardwareIrq();
@@ -455,12 +468,12 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
         }
 
         if ((this.cpu.pc >= 0xFFE0 && this.cpu.pc <= 0xFFE3) || this.cpu.pc === 0x0000) {
-            this.cpu.pc = 0xFFE0; 
+            this.cpu.pc = 0xFFE0;
             this.cpu.p &= ~0x04;
         }
-        
+
         this.useCiaTimer = ((this.songSpeedFlags >> Math.min(31, songIndex)) & 1) !== 0;
-        if (this.useCiaTimer) this.cpu.cia1CtrlA |= 0x01; 
+        if (this.useCiaTimer) this.cpu.cia1CtrlA |= 0x01;
 
         this.playSpeedCycles = 19656;
         this.vblankTimer = this.playSpeedCycles;
@@ -468,7 +481,7 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
         this.resampler.reset();
         this.currentFrame = 0;
         this.displayClockAccumulator = 0;
-        this.maxFrames = maxFrames;
+        this.maxFrames = (Number.isFinite(maxFrames) && maxFrames > 0) ? maxFrames : 7500;
         this.hostPlayPending = false;
     }
 
@@ -478,18 +491,19 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
         let visualValue = 0;
 
         for (let i = 0; i < outL.length; i++) {
-            if (this.isPlaying) this.fadeVol = Math.min(1.0, this.fadeVol + 0.002);
-            else this.fadeVol = Math.max(0.0, this.fadeVol - 0.002);
+            if (this.isPlaying) this.fadeVol = Math.min(1.0, this.fadeVol + this.fadeStep);
+            else this.fadeVol = Math.max(0.0, this.fadeVol - this.fadeStep);
 
             if (this.fadeVol === 0.0) {
-                outL[i] = 0; if (outR) outR[i] = 0;
-                continue; 
+                outL[i] = 0;
+                if (outR) outR[i] = 0;
+                continue;
             }
-            
+
             const cyclesToRun = this.resampler.beginSample();
 
             for (let c = 0; c < cyclesToRun; c++) {
-                this.cpu.clockHardware(1); 
+                this.cpu.clockHardware(1);
                 this.sid.clock();
 
                 // UI time is always 50Hz, independently of the PSID play-call rate.
@@ -498,7 +512,7 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                     this.displayClockAccumulator -= this.clock;
                     this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
                 }
-                
+
                 this.resampler.write(this.sid.outputSampleL, this.sid.outputSampleR);
 
                 if (this.playAddress === 0) {
@@ -532,10 +546,10 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                             this.hostPlayPending = false;
                             this.cpu.sp = 0xFF;
                             this.cpu.push(0xFF);
-                            this.cpu.push(0xDF); 
+                            this.cpu.push(0xDF);
                             this.cpu.p |= 0x04;
                             this.cpu.pc = this.playAddress;
-                            this.cpuCyclesRemaining = 6 - 1; 
+                            this.cpuCyclesRemaining = 6 - 1;
                         } else if (this.hostPlayPending && canInterruptForeground) {
                             this.hostPlayPending = false;
                             this.cpu.push(this.cpu.pc >> 8);
@@ -547,11 +561,11 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                         } else if (this.cpu.nmiAccepted) {
                             this.cpu.nmiAccepted = false;
                             this.cpu.triggerHardwareNmi();
-                            this.cpuCyclesRemaining = 7 - 1; 
+                            this.cpuCyclesRemaining = 7 - 1;
                         } else if (this.cpu.irqAccepted) {
                             this.cpu.irqAccepted = false;
                             this.cpu.triggerHardwareIrq();
-                            this.cpuCyclesRemaining = 7 - 1; 
+                            this.cpuCyclesRemaining = 7 - 1;
                         } else {
                             this.cpuCyclesRemaining = this.cpu.beginInstruction();
                         }
@@ -560,16 +574,16 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                     }
                 }
             }
-            
+
             this.resampler.processStereo();
             const decL = this.resampler.outputL;
             const decR = this.resampler.outputR;
 
-            let dcL = this.dcBlockL.process(decL);
-            let dcR = this.dcBlockR.process(decR);
+            const dcL = this.dcBlockL.process(decL);
+            const dcR = this.dcBlockR.process(decR);
 
-            let satL = Math.tanh(dcL * 0.95) * 0.78 * this.fadeVol;
-            let satR = Math.tanh(dcR * 0.95) * 0.78 * this.fadeVol;
+            const satL = Math.tanh(dcL * 0.95) * 0.78 * this.fadeVol;
+            const satR = Math.tanh(dcR * 0.95) * 0.78 * this.fadeVol;
 
             if (outR) {
                 outL[i] = satL;
@@ -580,10 +594,11 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
             if (i === 0) visualValue = (satL + satR) * 0.5;
         }
 
-        this.visCounter = (this.visCounter || 0) + 1;
+        this.visSamplesAccum += outL.length;
+        this.visCounter++;
         if (this.visCounter % 4 === 0) {
-            let isAudible = Math.abs(visualValue) > 0.001;
-            if (isAudible || this.wasAudible) {
+            const isAudible = Math.abs(visualValue) > 0.001;
+            if (this.isPlaying || this.wasPlaying || isAudible || this.wasAudible) {
                 const view = this.visualView;
                 view[0] = 0;
                 view[1] = this.isPlaying ? 1 : 0;
@@ -592,7 +607,7 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
 
                 for (let r = 0; r < 29; r++) view[4 + r] = this.sid.regs[r];
                 // Sub-Frame $D418 Digi & PlaySID DMA Telemetry for Living Silicon
-                let deltaDigi = Math.max(0, this.sid.d418Writes - (this.lastVisD418Writes || 0));
+                const deltaDigi = Math.max(0, this.sid.d418Writes - (this.lastVisD418Writes || 0));
                 this.lastVisD418Writes = this.sid.d418Writes;
                 view[4 + 25] = Math.min(255, deltaDigi);
                 view[4 + 26] = this.cpu.psidSampleActive ? 1 : 0;
@@ -604,12 +619,15 @@ class SIDFantasyProcessor extends AudioWorkletProcessor {
                 const previousWriteTotal = this.lastVisRegisterWrites || 0;
                 const deltaWrites = writeTotal >= previousWriteTotal ? writeTotal - previousWriteTotal : writeTotal;
                 this.lastVisRegisterWrites = writeTotal;
-                view[37] = deltaWrites * sampleRate * 0.001953125; // 512 audio frames per packet
+                const packetDurationSec = this.visSamplesAccum / sampleRate;
+                view[37] = packetDurationSec > 0 ? (deltaWrites / packetDurationSec) : 0;
                 for (let v = 0; v < 3; v++) view[38 + v] = this.sid.voices[v].state;
 
                 this.port.postMessage(view);
             }
+            this.visSamplesAccum = 0;
             this.wasAudible = isAudible;
+            this.wasPlaying = this.isPlaying;
         }
         return true;
     }
