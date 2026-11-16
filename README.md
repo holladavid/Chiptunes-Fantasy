@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.6.2)
+# 💾 CHIPTUNES FANTASY (v1.6.3)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -13,6 +13,29 @@ A real Commodore 64, Amiga 500, or Atari ST could *never* execute a cycle-exact 
 
 But memory paints the past grander than it actually was. **This is our Fantasy.**
 Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with ruthless historical accuracy (strict hardware palettes, true bit-banged integer math, zero anti-aliasing). Our `Scene-DJ` then acts as the ultimate virtual orchestrator, taking these isolated, period-accurate effects and layering them into a breathtaking, synchronized demoscene experience that feels *exactly* like our childhood memories.
+
+---
+
+## 🚀 v1.6.3 Release Highlights
+
+Version 1.6.3 completes the **"Blade Runner" trilogy** by introducing the new **C64 `sid-bladerunner` Core v1.1 ("Director's Cut")**, upgrades the **Master Bus DSP (`master-processor.js`)** with a true complementary bs2b Bauer crossfeed and an O(1) smoothed lookahead brickwall limiter, and delivers a cross-platform **audio engine, playback lifecycle, and worklet hardening pass** across C64, Amiga, and Atari ST.
+
+### C64 MOS 6581 / 8580 "Blade Runner" Core v1.1 (`sid-bladerunner`)
+
+- **1 MHz Lockstep + CS-80 Dual-Rank Voice Layer:** Combines the cycle-stepped 6502 CPU and Kaiser-Sinc stereo SID core (with 2× oversampled Tow-Thomas-accurate ZDF-SVF, physical LP+HP notch behavior, subtle `3OFF` AC crosstalk, live `$D41B/$D41C` updates, and `dcBaseline` start-jump cancellation preserving 100% of `$D418` digis) with three parallel **Yamaha CS-80** dual-rank PolyBLEP voices.
+- **6502 Bus-Settle Latch & `$D418` Onset Transient Designer:** Uses a 64-cycle register-settle latch and pure sample-domain timing to prevent torn 16-bit frequencies or false arpeggio detection, selective `$D417` per-voice filter coupling, soft `$11` triangle-flute scaling, and a density-filtered dual-envelope `$D418` onset detector (`74 → 45 Hz` sub-kick + 95 ms holdoff) that stays silent during sustained speech or sample playback.
+- **Studio Space & Zero-GC Performance:** Adds dynamic Hz/waveform voice staging, a bass-exempt **True-Stereo Dimension-D BBD Chorus**, fluttered **Multi-Tap Tape Delay**, a **19 ms pre-delay + prime-length 4-channel Lexicon 224 FDN** with orthogonal mono-compatible stereo taps (`cL · cR = 0`), a $C^\infty$-smooth bias-shifted master tape saturator, hoisted `Math.tan()` coefficients, and a monotonic Padé-[5/4] `fastTanh` core.
+- **Technical Deep Dive:** [SID Blade Runner DSP Architecture & Math](doc/books/SID-BLADERUNNER-DSP.md).
+
+### Master Bus DSP Stage Upgrade (`master-processor.js`)
+
+- **True Complementary bs2b Bauer Crossfeed:** Replaces the fixed-delay crossfeed with a complementary 700 Hz crossfeed low-pass + 1000 Hz direct high-shelf topology (`0 dB` DC mono sum, `-4.73 dB` cross-feed weight) and a click-free 10 ms toggle crossfade.
+- **Smoothed O(1) 1.0 ms Lookahead Brickwall Limiter:** Introduces a monotonic sliding-window minimum deque paired with 1.0 ms moving-average attack smoothing over the lookahead buffer (eliminating pre-transient gain steps), periodic sum-drift correction, and proper mono fold-down.
+
+### Cross-System Worklet, Engine Lifecycle & UI Hardening
+
+- **Worklet Transport, Sample-Rate Scaling & Effect Accuracy:** Standardizes 10 ms anti-click fade ramps across C64/Atari cores; adds `playerRate`, `loopFrame`, sample-rate-scaled delay/slew/filter coefficients, and full state resets across `ym-bladerunner`, `ym-exact`, `ym-fantasy`, and `ym-standard`; hardens `paula-exact` and `paula-fantasy` with `CLEAR_SAMPLES`, DMA low-byte tail completion (`stopAfterLowByte`), variable-pattern-length `SEEK_TRACK`, tick-0 `basePeriod` restoration, exact $2^{-n/12}$ arpeggio math, clamped `0x09` sample offsets, true Schroeder allpass diffusion, and pause-state preservation.
+- **Audio Engine, Media Session & UI Race Protection (`audio-controller.js`, `media-session.js`, `app.js`):** Adds full worklet/AudioContext teardown and per-system `coreLoadTokens` against async race conditions, iOS `'interrupted'` context resume, explicit stereo bus channel counts, Media Session cleanup (`destroy()`), shared `getPlayerRate`/frame-time utilities, double-boot protection, `playRequestToken` guards during core switching, Amiga sample & SID temperature restoration across core switches, and pointer-based timeline scrubbing.
 
 ---
 
@@ -35,6 +58,8 @@ Version 1.6.2 delivers a major **Atari ST showcase update**: the Fantasy **`ym-b
 
 - **Auto-hide consistency & fullscreen wakeups (`css/style.css`, `js/app.js`, `index.html`):** Fades `#brand-logo` during fullscreen inactivity alongside `#fs-ui-bar` and `.now-playing`, removes the `#fs-ui-bar:focus-within` lock so retained button focus does not pin the bar open, keeps `#brand-logo` visible in windowed mobile landscape (`<= 1024×580`) while respecting fullscreen auto-hide, evaluates `isFS` inside the idle timeout callback, wakes UI overlays on `touchmove` and `fullscreenchange`/`webkitfullscreenchange`, and updates the boot screen header to `V1.6.2`.
 - **Contributor governance:** Adds a Contributor Covenant v2.0 `CODE_OF_CONDUCT.md`.
+
+---
 
 ## 🚀 v1.6.1 Release Highlights
 
@@ -59,13 +84,6 @@ Version 1.6.1 refines the **responsive UI & fullscreen stage cockpit**, hardens 
 - **`AmigaRetroSunset`:** Replaced the unmasked horizon beam and widening road-like water cone with `1 px` `1/z` perspective Copper scanlines, Copper-wobbled shoreline mountain reflections, and split crimson/gold wave glints; closed `0 px` mountain tile seams, fixed even-radius climax solar slits, preserved afterglow colors during `stopping`, and guarded trailing seagull, last sky-band, and `idle` edge cases.
 - **`AmigaBoingBall`:** Removed the rectangular red/gold floor flash box beneath the dithered checkerboard shadow, added hard `[0..w, 0..h]` polygon/edge clipping, hardened `starting`/`stopping` transition timing and `idle` resets, reduced shading steps to `12`, and cooled afterglow specular facets.
 - **`KefrensCheckerboard`:** Decoupled the floor highlight from `RetroSunset` with background-independent roaming Copper disco hotspots (single in calm play, dual crossing spots in `buildup`/`climax`) tinted from each active Copper palette, preserved afterglow cooling during `stopping`, fixed non-4px Bayer frontier stepping, and replaced per-segment PRNG glints with a tile-locked spatial hash.
-
----
-
-## 🚀 v1.6.0 Release Highlights
----
-# 💾 CHIPTUNES FANTASY (v1.6.0)
-> **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
 
@@ -101,6 +119,8 @@ Version 1.6.0 delivers a comprehensive **DSE Overhaul** across **12 system-speci
 - **`AtariRetroSunset` (`background`):** Fixed undefined `cPathLight`/`cPathDark` stone-path colors, line-clipping endpoint doubling, and out-of-bounds Torii/shrine/water draws; sculpted curved tapered Bonsai boughs tucked beneath sunlit foliage cushions with drifting beat petals and Zen moonlit afterglow.
 - **`WireframeMorph` (`foreground`):** Calibrated projection scaling across narrow and wide viewports, added four Shifter themes, 2-pass Z-depth lines, opaque ghost trails, and an inner-cube dual-shell mode.
 - **`YmSiliconBg` (`background`):** Eliminated `getImageData()`/`putImageData()` tears and full-screen white strobes in favor of dual adaptive landscape/portrait YM2149F square-wave bays, Log-DAC Copper shockwaves, deterministic LFSR noise rain, and zero-readback Timer-B Sync-Buzzer scanline shifts.
+
+---
 
 ## 🚀 v1.5.10 Release Highlights
 
@@ -325,7 +345,7 @@ Our PAL-clock SID engine combines a documented digital core with independently m
 *   **Stateful 15-Bit ADSR:** Two-clock GATE pipeline, wrapping rate counter, exact period matching, linear Attack, and documented exponential divider thresholds preserve state-dependent timing. A resolved rising GATE restarts the rate phase and exponential divider; `TEST` does not, and Release preserves running counters. The zero-level hold also covers short GATE pulses that enter Release before Attack's first increment, preventing envelope underflow and non-finite output. The rising-GATE behavior is bounded to the original-recording calibration documented for *Wizball* Subsong 7.
 *   **Black-Box-Calibrated MOS 6581 R3 Filter & Mixer:** The two-substep ZDF solver uses cutoff and damping maps fitted through the public API of libresidfp revision `c1791383`—without importing its code or internal tables. The archived 639-point EXT-IN comparison currently measures 1.876dB median and 6.737dB p95 absolute response error. Additive LP/BP/HP routing, separate measured feedthrough, linear 16-step master volume and direct-path-only `3OFF` are regression-tested. This is reference-model agreement, not a real-chip capture or universal hardware-accuracy claim; see `doc/specs/emulation/c64/sid-filter-model.md`.
 *   **Measured Resampling & Output Coupling:** 256-phase interpolated Kaiser-Sinc resampling provides a measured 20kHz passband and at least 96dB stopband attenuation at 44.1/48kHz. The motherboard stage retains its parameterized 16kHz output low-pass and **16Hz** `C13` AC-coupling high-pass.
-*   **SID 6581/8580 "Chiptunes Fantasy Studio" Core:** Audiophile dual-channel engine featuring CSG 8580 linear R-2R DACs, 20kHz Studio Airband ZDF VCF, Constant-Power StereoSID dynamic voice staging, and a 48Hz digidrum sub-harmonic transient exciter. Phase 5 adds measured sample-rate-independent **16Hz stereo output coupling** (−0.448dB at 48Hz), with deterministic 20-second worklet comparisons archived for *Commando* and *Arkanoid*. The Exact renders remained byte-identical; external-model STFT agreement is diagnostic evidence, not real-hardware proof. See `doc/specs/emulation/c64/sid-fantasy-studio.md`.
+*   **SID 6581/8580 "Chiptunes Fantasy Studio" & "Blade Runner" Cores:** The **Fantasy Studio** core provides audiophile dual-channel playback with CSG 8580 linear R-2R DACs, 20kHz Studio Airband ZDF VCF, Constant-Power StereoSID dynamic voice staging, 16Hz stereo output coupling (−0.448dB at 48Hz), and a 48Hz digidrum sub-harmonic transient exciter (see `doc/specs/emulation/c64/sid-fantasy-studio.md`). The **Blade Runner v1.1 (Director's Cut)** core pairs the 1MHz lockstep stereo SID (with Tow-Thomas `-bp` / Notch accuracy, `dcBaseline` compensation, and Padé-[5/4] `fastTanh`) with a 3-voice Yamaha CS-80 dual-rank PolyBLEP layer, 64-cycle 6502 bus-settle latch, `$D418` onset transient designer, Dimension-D chorus, multi-tap tape delay, orthogonal mono-compatible Lexicon 224 FDN reverb, and $C^\infty$ tape saturation (see `doc/books/SID-BLADERUNNER-DSP.md`).
 
 ### 2. MOS Technology Paula 8364 / AHI (Amiga 500 & A1200)
 *   **Curated 73-Track Library:** Preserves all 45 existing entries and adds 24 game/demo classics plus four Giana Sisters conversions, with nested folders, researched museum texts, and hash-bound Modland provenance. The complete 35-HIPC/35-MOD/3-XM selection passes deterministic offline acceptance; see [Amiga track sources](doc/museum/amiga-track-sources.md).
@@ -347,8 +367,8 @@ Our PAL-clock SID engine combines a documented digital core with independently m
 ---
 
 ## 🎛️ Master Bus DSP Stage & Audiophile Headphone Acoustics
-*   **Bauer Binaural Crossfeed (bs2b 700Hz / 4.5dB @ 250µs delay):** Eliminates headphone listening fatigue on extreme hard-panned Amiga and StereoSID tracks. Off by default; toggleable via the `[ STEREO BLEND: ON/OFF ]` HUD button.
-*   **1.0ms Lookahead True-Peak Brickwall Limiter:** Seamlessly caps dynamic inter-sample peaks at $-0.35\text{ dBFS}$, guaranteeing 100% full $0\text{ dBFS}$ loudness with zero distortion and zero OS ducking on macOS CoreAudio and Windows WASAPI.
+*   **Complementary Bauer Binaural Crossfeed (bs2b 700 Hz LP / 1000 Hz Direct Shelf, -4.73 dB Feed):** Eliminates headphone listening fatigue on extreme hard-panned Amiga and StereoSID tracks with `0 dB` DC mono sum and a click-free 10 ms toggle crossfade. Off by default; toggleable via the `[ STEREO BLEND: ON/OFF ]` HUD button.
+*   **1.0ms Smoothed Lookahead Brickwall Limiter:** Uses an O(1) monotonic sliding-window minimum deque with 1.0 ms lookahead attack smoothing to cap peaks cleanly at $-0.35\text{ dBFS}$ with zero pre-transient step artifacts and zero OS ducking on macOS CoreAudio and Windows WASAPI.
 
 ---
 
