@@ -1,6 +1,6 @@
 // === js/worklets/c64/sid-bladerunner.js ===
 // =========================================================
-// MOS 6581 / 8580 "BLADE RUNNER" CORE v1.0 (Director's Cut)
+// MOS 6581 / 8580 "BLADE RUNNER" CORE v1.1 (Director's Cut)
 // 1MHz 6502 Lockstep + Kaiser-Sinc Stereo SID + CS-80 Dual-Rank
 // Voice Layer + Dimension-D Chorus + Tape Delay + Lexicon 224 FDN
 // =========================================================
@@ -14,6 +14,7 @@ import { SidResampler } from '../lib/sid-resampler.js';
 const TWO_PI = Math.PI * 2.0;
 const SID_CLOCK = 985248.0; // PAL Master Clock (Hz)
 const ENV_ATTACK = 0, ENV_DECAY = 1, ENV_RELEASE = 2;
+const MASTER_DC_BIAS = 1.05;
 
 const VOLUME_DAC_8580 = new Float32Array([
     0.0000, 0.0667, 0.1333, 0.2000, 0.2667, 0.3333, 0.4000, 0.4667,
@@ -26,11 +27,37 @@ function nextPow2(v) {
     return p;
 }
 
+function isPrime(n) {
+    if (n < 2) return false;
+    if ((n & 1) === 0) return n === 2;
+    for (let d = 3; d * d <= n; d += 2) {
+        if (n % d === 0) return false;
+    }
+    return true;
+}
+
+// Findet die nächste Primzahl >= n für garantierte Teilerfremdheit der FDN-Moden
+function nextPrime(n) {
+    let c = Math.max(2, n | 0);
+    if ((c & 1) === 0) c++;
+    while (!isPrime(c)) c += 2;
+    return c;
+}
+
 // Exakte, trig-freie Equal-Power-Pan-Kurve sin(u * PI/2) auf [0..1]
 function fastSinHalfPi(u) {
     const x = u < 0.0 ? 0.0 : (u > 1.0 ? 1.0 : u);
     const x2 = x * x;
     return x * (1.5707963 - x2 * (0.6459641 - 0.0751678 * x2));
+}
+
+// Streng monotone Padé-[5/4]-Approximation für tanh(x)
+// Fehler < 4e-8 für |x| <= 1, C0-exakter Übergang auf +-1.0 bei |x| = 3.6428
+function fastTanh(x) {
+    if (x >= 3.6428) return 1.0;
+    if (x <= -3.6428) return -1.0;
+    const x2 = x * x;
+    return x * (945.0 + x2 * (105.0 + x2)) / (945.0 + x2 * (420.0 + 15.0 * x2));
 }
 
 // =========================================================
@@ -131,7 +158,7 @@ class SIDDynamicStaging {
             const hasTone = (ctrl & 0x70) !== 0;
             const isNoise = (ctrl & 0x80) !== 0;
             const isFiltered = (sid.regs[23] & (1 << v)) !== 0;
-            const isActive = ch.envelope_counter > 0 && (hasTone || isNoise);
+            const isActive = ((ctrl & 1) !== 0 || ch.envelope_counter > 0) && (hasTone || isNoise);
 
             let targetPan = this.basePans[v];
             let targetSub = 0.0;
@@ -169,7 +196,6 @@ class SIDDynamicStaging {
 class SIDBladeRunnerChip {
     constructor() {
         this.regs = new Uint8Array(29);
-        this.regs[24] = 0x0F;
         this.voices = [];
         for (let i = 0; i < 3; i++) {
             this.voices.push({
@@ -185,28 +211,88 @@ class SIDBladeRunnerChip {
                 release_period: RATE_COUNTER_PERIOD[0],
                 msbRisingEdge: false,
                 envDelay: 0,
-                gateJustTriggered: false
+                gateJustTriggered: false,
+                settleTimer: 0,
+                settleMax: 0
             });
         }
-        this.filterMode = 0x0F;
-        this.masterVol = VOLUME_DAC_8580[15];
+
         this.temperature = 55.0;
-
-        this.x1_L = 0.0; this.x2_L = 0.0;
-        this.x1_R = 0.0; this.x2_R = 0.0;
-
-        this.outputSampleL = 0.0;
-        this.outputSampleR = 0.0;
-
-        this.activeCutoff = 30.0;
-        this.q = 1.0;
-
         this.panL0 = 0.80; this.panR0 = 0.60;
         this.panL1 = 0.60; this.panR1 = 0.80;
         this.panL2 = 0.707; this.panR2 = 0.707;
 
+        this.filterMode = 0x0F;
+        this.masterVol = VOLUME_DAC_8580[15];
+        this.dcBaseline = MASTER_DC_BIAS;
+        this.activeCutoff = 24.0;
+        this.q = 1.414;
+        this.subG = 0.0;
+        this.subGK = 1.414;
+        this.denomInv = 1.0;
+        this.otaDrive = 0.72;
+        this.invOtaDrive = 1.0 / 0.72;
+
+        this.x1_L = 0.0; this.x2_L = 0.0;
+        this.x1_R = 0.0; this.x2_R = 0.0;
+        this.outputSampleL = 0.0;
+        this.outputSampleR = 0.0;
+
         this.lastVol = 1.0;
-        this.drumTransient = 0.0;
+        this.cycleCount = 0;
+        this.lastVolWriteCycle = 0;
+        this.digiDensity = 0;
+        this.digiPeakDelta = 0.0;
+        this.d418Writes = 0;
+        this.registerWrites = 0;
+
+        this.reset();
+    }
+
+    reset() {
+        this.regs.fill(0);
+        this.regs[24] = 0x0F;
+
+        for (let i = 0; i < 3; i++) {
+            const ch = this.voices[i];
+            ch.freq = 0;
+            ch.pw = 2048;
+            ch.ctrl = 0;
+            ch.phase = 0;
+            ch.state = ENV_RELEASE;
+            ch.prevGate = false;
+            ch.waveOut8Bit = 0x80;
+            ch.busCharge = 0x80;
+            ch.env8Bit = 0;
+            ch.lfsr = 0x7FFFFF;
+            ch.rate_counter = 0;
+            ch.exponential_counter = 0;
+            ch.envelope_counter = 0;
+            ch.attack_period = RATE_COUNTER_PERIOD[0];
+            ch.decay_period = RATE_COUNTER_PERIOD[0];
+            ch.sustain_level = 0;
+            ch.release_period = RATE_COUNTER_PERIOD[0];
+            ch.msbRisingEdge = false;
+            ch.envDelay = 0;
+            ch.gateJustTriggered = false;
+            ch.settleTimer = 0;
+            ch.settleMax = 0;
+        }
+
+        this.filterMode = 0x0F;
+        this.masterVol = VOLUME_DAC_8580[15];
+        this.dcBaseline = MASTER_DC_BIAS * this.masterVol;
+
+        this.x1_L = 0.0; this.x2_L = 0.0;
+        this.x1_R = 0.0; this.x2_R = 0.0;
+        this.outputSampleL = 0.0;
+        this.outputSampleR = 0.0;
+
+        this.lastVol = 1.0;
+        this.cycleCount = 0;
+        this.lastVolWriteCycle = 0;
+        this.digiDensity = 0;
+        this.digiPeakDelta = 0.0;
         this.d418Writes = 0;
         this.registerWrites = 0;
 
@@ -216,12 +302,23 @@ class SIDBladeRunnerChip {
     updateFilterParameters() {
         const cutoffReg = (this.regs[21] & 7) | (this.regs[22] << 3);
         const norm = cutoffReg / 2047.0;
-        const thermalShift = (this.temperature - 55.0) * 14.0;
-        this.activeCutoff = Math.max(20.0, Math.min(20000.0, 22.0 + Math.pow(norm, 1.28) * 19500.0 + thermalShift));
+        const thermalShift = (this.temperature - 55.0) * 12.0;
+
+        // Authentische Hybrid-Kurve (MOS 8580/6581 Sweetspot):
+        // $000 -> ~24 Hz, $200 -> ~1.75 kHz, $400 -> ~4.95 kHz, $7FF -> ~14.2 kHz
+        this.activeCutoff = Math.max(22.0, Math.min(16500.0, 24.0 + Math.pow(norm, 1.52) * 14200.0 + thermalShift));
 
         const resReg = this.regs[23] >> 4;
         const normRes = resReg / 15.0;
-        this.q = 1.414 - (normRes * 1.15);
+        this.q = 1.414 - (normRes * 1.16);
+
+        // Vorberechnung für die 2x-Oversampling-ZDF-Schleife (spart 1M tan() + 4M Divs/s)
+        const subG = Math.tan((Math.PI * this.activeCutoff) / 1970496.0);
+        this.subG = subG;
+        this.subGK = subG + this.q;
+        this.denomInv = 1.0 / (1.0 + subG * this.subGK);
+        this.otaDrive = 0.62 + (this.temperature - 15.0) * 0.0025;
+        this.invOtaDrive = 1.0 / this.otaDrive;
     }
 
     writeReg(reg, val) {
@@ -233,12 +330,24 @@ class SIDBladeRunnerChip {
         if (vIdx < 3) {
             const ch = this.voices[vIdx];
             const base = vIdx * 7;
+            const offset = reg - base;
 
             ch.freq = this.regs[base] | (this.regs[base + 1] << 8);
             ch.pw = this.regs[base + 2] | ((this.regs[base + 3] & 15) << 8);
 
             const prevCtrl = ch.ctrl;
             ch.ctrl = this.regs[base + 4];
+
+            // 6502-Bus-Settle-Fenster (~64 Zyklen = 0.065ms) verhindert zerrissene
+            // 16-Bit-Frequenzen zwischen STA $D400, STA $D401 und STA $D404
+            if (offset === 0 || offset === 1 || offset === 4) {
+                if (ch.settleTimer === 0 && ch.settleMax === 0) {
+                    ch.settleTimer = 64;
+                    ch.settleMax = 128;
+                } else if (ch.settleMax > 0) {
+                    ch.settleTimer = ch.settleMax < 64 ? ch.settleMax : 64;
+                }
+            }
 
             const gate = (ch.ctrl & 1) !== 0;
             const prevGate = (prevCtrl & 1) !== 0;
@@ -259,10 +368,10 @@ class SIDBladeRunnerChip {
                 ch.lfsr = 0x7FFFFF;
             }
 
-            if (reg === base + 5) {
+            if (offset === 5) {
                 ch.attack_period = RATE_COUNTER_PERIOD[val >> 4];
                 ch.decay_period = RATE_COUNTER_PERIOD[val & 15];
-            } else if (reg === base + 6) {
+            } else if (offset === 6) {
                 ch.sustain_level = (val >> 4) | ((val >> 4) << 4);
                 ch.release_period = RATE_COUNTER_PERIOD[val & 15];
             }
@@ -274,11 +383,22 @@ class SIDBladeRunnerChip {
 
             const volIndex = val & 15;
             const newVol = VOLUME_DAC_8580[volIndex];
-
             const delta = Math.abs(newVol - this.lastVol);
-            if (delta > 0.14) {
-                this.drumTransient = Math.min(1.0, Math.max(this.drumTransient, delta * 1.4));
+
+            // Unterscheidet echte Audio-Rate-$D418-PCM-Streams (> ~400 Hz) von 50Hz-Fades
+            if (delta > 0.001) {
+                const dtCycles = (this.cycleCount - this.lastVolWriteCycle) >>> 0;
+                this.lastVolWriteCycle = this.cycleCount;
+                if (dtCycles < 2500) {
+                    if (this.digiDensity < 8) this.digiDensity++;
+                } else {
+                    this.digiDensity = 1;
+                }
+                if (this.digiDensity >= 3 && delta > 0.14) {
+                    if (delta > this.digiPeakDelta) this.digiPeakDelta = delta;
+                }
             }
+
             this.lastVol = newVol;
             this.masterVol = newVol;
         }
@@ -331,6 +451,9 @@ class SIDBladeRunnerChip {
     clockOscillatorsOneCycle() {
         for (let v = 0; v < 3; v++) {
             const ch = this.voices[v];
+            if (ch.settleTimer > 0) ch.settleTimer--;
+            if (ch.settleMax > 0) ch.settleMax--;
+
             if ((ch.ctrl & 8) === 0) {
                 const oldAcc = ch.phase;
                 const newAcc = (oldAcc + ch.freq) & 0xFFFFFF;
@@ -391,15 +514,24 @@ class SIDBladeRunnerChip {
 
         ch.env8Bit = ch.envelope_counter;
 
+        if (v === 2) {
+            // Hält $D41B (OSC3) & $D41C (ENV3) im Registerfile zyklusgenau aktuell
+            this.regs[27] = ch.waveOut8Bit & 0xFF;
+            this.regs[28] = ch.env8Bit;
+        }
+
         const envDac = DAC_LUT_8580[ch.env8Bit];
-        const waveDac = DAC_LUT_8580[Math.floor(ch.waveOut8Bit)];
+        const waveDac = DAC_LUT_8580[ch.waveOut8Bit | 0];
         const waveOutFloat = (waveDac * 2.0) - 1.0;
 
         return (waveOutFloat + 0.025) * envDac;
     }
 
     clock() {
-        for (let v = 0; v < 3; v++) this.clockEnvelopeOneCycle(v);
+        this.cycleCount = (this.cycleCount + 1) | 0;
+        this.clockEnvelopeOneCycle(0);
+        this.clockEnvelopeOneCycle(1);
+        this.clockEnvelopeOneCycle(2);
         this.clockOscillatorsOneCycle();
 
         const voice0 = this.synthesizeVoiceOneCycle(0);
@@ -410,74 +542,79 @@ class SIDBladeRunnerChip {
         const v1_L = voice1 * this.panL1; const v1_R = voice1 * this.panR1;
         const v2_L = voice2 * this.panL2; const v2_R = voice2 * this.panR2;
 
-        const isVoice3Off = (this.filterMode & 128) !== 0;
+        const filtBits = this.regs[23];
+        const fMode = this.filterMode;
+        const isVoice3Off = (fMode & 128) !== 0;
 
-        let filtSumL = 0, unfiltSumL = 0;
-        let filtSumR = 0, unfiltSumR = 0;
+        let filtSumL = 0.0, unfiltSumL = 0.0;
+        let filtSumR = 0.0, unfiltSumR = 0.0;
 
-        if (this.regs[23] & 1) { filtSumL += v0_L; filtSumR += v0_R; } else { unfiltSumL += v0_L; unfiltSumR += v0_R; }
-        if (this.regs[23] & 2) { filtSumL += v1_L; filtSumR += v1_R; } else { unfiltSumL += v1_L; unfiltSumR += v1_R; }
+        if (filtBits & 1) { filtSumL += v0_L; filtSumR += v0_R; } else { unfiltSumL += v0_L; unfiltSumR += v0_R; }
+        if (filtBits & 2) { filtSumL += v1_L; filtSumR += v1_R; } else { unfiltSumL += v1_L; unfiltSumR += v1_R; }
 
-        if (this.regs[23] & 4) {
+        if (filtBits & 4) {
             filtSumL += v2_L;
             filtSumR += v2_R;
         } else if (!isVoice3Off) {
             unfiltSumL += v2_L;
             unfiltSumR += v2_R;
         } else {
-            const envDac3 = DAC_LUT_8580[this.voices[2].env8Bit];
-            const v3Leak = 0.08 * envDac3 * this.panL2;
-            unfiltSumL += v3Leak;
-            unfiltSumR += v3Leak;
+            // Subtiles analoges AC-Übersprechen statt unipolarem Envelope-DC-Knacksen
+            const v3AcLeak = voice2 * 0.006;
+            unfiltSumL += v3AcLeak * this.panL2;
+            unfiltSumR += v3AcLeak * this.panR2;
         }
 
-        const subG = Math.tan((Math.PI * this.activeCutoff) / 1970496);
-        const k = this.q;
-        const denom = 1.0 + subG * (subG + k);
-        const otaDrive = 0.62 + (this.temperature - 15.0) * 0.0025;
+        const subG = this.subG;
+        const subGK = this.subGK;
+        const denomInv = this.denomInv;
+        const otaDrive = this.otaDrive;
+        const invOtaDrive = this.invOtaDrive;
 
-        let filterOutL = 0, filterOutR = 0;
+        // 2x Oversampled ZDF-SVF (ausgerollt: Summierung erst nach Sub-Step 2)
+        // Sub-Step 1
+        let hpL = (filtSumL - this.x1_L * subGK - this.x2_L) * denomInv;
+        let bpL = fastTanh((subG * hpL + this.x1_L) * otaDrive) * invOtaDrive;
+        let lpL = subG * bpL + this.x2_L;
+        this.x1_L = 2.0 * bpL - this.x1_L;
+        this.x2_L = 2.0 * lpL - this.x2_L;
 
-        for (let sub = 0; sub < 2; sub++) {
-            const hpL = (filtSumL - this.x1_L * (subG + k) - this.x2_L) / denom;
-            const bpRawL = subG * hpL + this.x1_L;
-            const bpL = Math.tanh(bpRawL * otaDrive) / otaDrive;
-            const lpL = subG * bpL + this.x2_L;
+        let hpR = (filtSumR - this.x1_R * subGK - this.x2_R) * denomInv;
+        let bpR = fastTanh((subG * hpR + this.x1_R) * otaDrive) * invOtaDrive;
+        let lpR = subG * bpR + this.x2_R;
+        this.x1_R = 2.0 * bpR - this.x1_R;
+        this.x2_R = 2.0 * lpR - this.x2_R;
 
-            this.x1_L = 2.0 * bpL - this.x1_L;
-            this.x2_L = 2.0 * lpL - this.x2_L;
+        // Sub-Step 2
+        hpL = (filtSumL - this.x1_L * subGK - this.x2_L) * denomInv;
+        bpL = fastTanh((subG * hpL + this.x1_L) * otaDrive) * invOtaDrive;
+        lpL = subG * bpL + this.x2_L;
+        this.x1_L = 2.0 * bpL - this.x1_L;
+        this.x2_L = 2.0 * lpL - this.x2_L;
 
-            const outLpL = (this.filterMode & 16) ? lpL : 0;
-            const outBpL = (this.filterMode & 32) ? bpL : 0;
-            let outHpL = (this.filterMode & 64) ? hpL : 0;
-            if ((this.filterMode & 80) === 80) outHpL = -outHpL * 0.95;
-            filterOutL = outLpL + outBpL + outHpL;
+        hpR = (filtSumR - this.x1_R * subGK - this.x2_R) * denomInv;
+        bpR = fastTanh((subG * hpR + this.x1_R) * otaDrive) * invOtaDrive;
+        lpR = subG * bpR + this.x2_R;
+        this.x1_R = 2.0 * bpR - this.x1_R;
+        this.x2_R = 2.0 * lpR - this.x2_R;
 
-            const hpR = (filtSumR - this.x1_R * (subG + k) - this.x2_R) / denom;
-            const bpRawR = subG * hpR + this.x1_R;
-            const bpR = Math.tanh(bpRawR * otaDrive) / otaDrive;
-            const lpR = subG * bpR + this.x2_R;
+        // Tow-Thomas MOS-Topologie: invertierter BP (-bp), echter TPT-Notch bei LP+HP ($5x)
+        let filterOutL = ((fMode & 16) ? lpL : 0.0) - ((fMode & 32) ? bpL : 0.0) + ((fMode & 64) ? hpL : 0.0);
+        let filterOutR = ((fMode & 16) ? lpR : 0.0) - ((fMode & 32) ? bpR : 0.0) + ((fMode & 64) ? hpR : 0.0);
 
-            this.x1_R = 2.0 * bpR - this.x1_R;
-            this.x2_R = 2.0 * lpR - this.x2_R;
-
-            const outLpR = (this.filterMode & 16) ? lpR : 0;
-            const outBpR = (this.filterMode & 32) ? bpR : 0;
-            let outHpR = (this.filterMode & 64) ? hpR : 0;
-            if ((this.filterMode & 80) === 80) outHpR = -outHpR * 0.95;
-            filterOutR = outLpR + outBpR + outHpR;
+        if (!Number.isFinite(this.x1_L) || !Number.isFinite(this.x2_L)) {
+            this.x1_L = 0.0; this.x2_L = 0.0; filterOutL = 0.0;
         }
-
-        if (isNaN(this.x1_L) || isNaN(this.x2_L)) { this.x1_L = 0; this.x2_L = 0; filterOutL = 0; }
-        if (isNaN(this.x1_R) || isNaN(this.x2_R)) { this.x1_R = 0; this.x2_R = 0; filterOutR = 0; }
+        if (!Number.isFinite(this.x1_R) || !Number.isFinite(this.x2_R)) {
+            this.x1_R = 0.0; this.x2_R = 0.0; filterOutR = 0.0;
+        }
 
         const mixL = unfiltSumL + filterOutL;
         const mixR = unfiltSumR + filterOutR;
 
-        // Bewahrt $D418-DC-Bias-Modulation für authentische C64-Digi-Drums
-        const masterDc = 1.05;
-        this.outputSampleL = (Math.tanh(mixL * 0.45) * 1.48 + masterDc) * this.masterVol;
-        this.outputSampleR = (Math.tanh(mixR * 0.45) * 1.48 + masterDc) * this.masterVol;
+        // Bewahrt 100% der $D418-PCM-Digis, eliminiert aber den +1.05-Einschalt-DC-Sprung
+        this.outputSampleL = (fastTanh(mixL * 0.45) * 1.48 + MASTER_DC_BIAS) * this.masterVol - this.dcBaseline;
+        this.outputSampleR = (fastTanh(mixR * 0.45) * 1.48 + MASTER_DC_BIAS) * this.masterVol - this.dcBaseline;
     }
 }
 
@@ -492,6 +629,7 @@ class CS80SidVoice {
 
         this.phase1 = (voiceIdx * 0.19) % 1.0;
         this.phase2 = (0.37 + voiceIdx * 0.23) % 1.0;
+        this.phaseSub = (voiceIdx * 0.11) % 1.0;
 
         this.lfoPwm = (voiceIdx * 0.33) % 1.0;
         this.lfoPwmInc = (0.27 + voiceIdx * 0.07) / sr;
@@ -513,7 +651,15 @@ class CS80SidVoice {
 
         this.prevActive = false;
         this.prevFreq = 0;
-        this.framesSinceNote = 100;
+        this.latchedFreq = 0;
+
+        // Reine Audio-Sample-Zeitbasis (immun gegen 50Hz-vs-CIA-Multispeed-Races)
+        this.arpWindowSamples = Math.round(0.105 * sr);
+        this.glideWindowSamples = Math.round(0.040 * sr);
+        this.arpDecayStartSamples = Math.round(0.120 * sr);
+        this.maxNoteAge = Math.round(10.0 * sr);
+        this.arpSampleDecay = Math.exp(Math.log(0.85) / (0.020 * sr));
+        this.samplesSinceNote = this.maxNoteAge;
         this.arpAmount = 0.0;
 
         this.atkSlow = 1.0 - Math.exp(-1.0 / (0.042 * sr));
@@ -521,7 +667,7 @@ class CS80SidVoice {
         this.decRate = 1.0 - Math.exp(-1.0 / (0.540 * sr));
         this.bloomDec = Math.exp(-1.0 / (0.024 * sr));
         this.vibRise = 1.0 - Math.exp(-1.0 / (0.260 * sr));
-        this.glideCoef = 1.0 - Math.exp(-1.0 / (0.008 * sr)); // ~8ms Ribbon-Legato
+        this.glideCoef = 1.0 - Math.exp(-1.0 / (0.008 * sr)); // ~8ms CS-80 Ribbon-Legato
 
         this.vcaAtk = 1.0 - Math.exp(-1.0 / (0.0018 * sr));
         this.vcaRel = 1.0 - Math.exp(-1.0 / (0.0180 * sr));
@@ -537,7 +683,8 @@ class CS80SidVoice {
         this.useGlide = false;
         this.prevActive = false;
         this.prevFreq = 0;
-        this.framesSinceNote = 100;
+        this.latchedFreq = 0;
+        this.samplesSinceNote = this.maxNoteAge;
         this.arpAmount = 0.0;
         if (clearFilters) {
             this.hpf.reset();
@@ -545,10 +692,22 @@ class CS80SidVoice {
         }
     }
 
-    onControlFrame(sidCh, mutedBy3Off) {
+    updateControl(sidCh, mutedBy3Off) {
+        if (this.samplesSinceNote < this.maxNoteAge) this.samplesSinceNote++;
+        if (this.samplesSinceNote > this.glideWindowSamples) this.useGlide = false;
+        if (this.samplesSinceNote > this.arpDecayStartSamples) this.arpAmount *= this.arpSampleDecay;
+
+        // Wartet das kurze 6502-Bus-Settle-Fenster ab, damit Lo-Byte, Hi-Byte und Gate atomar vorliegen
+        if (sidCh.settleTimer > 0) return;
+
+        const settledFreq = sidCh.freq;
+        this.latchedFreq = settledFreq;
+
         const ctrl = sidCh.ctrl;
         const hasTone = (ctrl & 0x70) !== 0;
-        const isActive = !mutedBy3Off && hasTone && ((ctrl & 8) === 0) && sidCh.freq > 0 && sidCh.envelope_counter > 0;
+        const gateOn = (ctrl & 1) !== 0;
+        const isActive = !mutedBy3Off && hasTone && ((ctrl & 8) === 0) && settledFreq > 0
+            && (gateOn || sidCh.envelope_counter > 0);
 
         let retrigger = sidCh.gateJustTriggered;
         sidCh.gateJustTriggered = false;
@@ -557,8 +716,8 @@ class CS80SidVoice {
         if (isActive) {
             if (!this.prevActive) {
                 retrigger = true;
-            } else if (sidCh.freq > 0 && this.prevFreq > 0) {
-                const relDiff = Math.abs(sidCh.freq - this.prevFreq) / this.prevFreq;
+            } else if (settledFreq > 0 && this.prevFreq > 0) {
+                const relDiff = Math.abs(settledFreq - this.prevFreq) / this.prevFreq;
                 if (relDiff > 0.035) {
                     retrigger = true;
                     pitchJump = true;
@@ -566,37 +725,35 @@ class CS80SidVoice {
             }
         }
 
-        if (retrigger && !mutedBy3Off) {
-            if (this.framesSinceNote <= 5) {
+        if (retrigger && !mutedBy3Off && settledFreq > 0) {
+            if (this.samplesSinceNote <= this.arpWindowSamples) {
                 this.arpAmount = Math.min(1.0, this.arpAmount + 0.42);
             } else {
                 this.arpAmount *= 0.40;
             }
 
             if (pitchJump && this.prevActive && this.arpAmount < 0.35) {
-                const ratio = sidCh.freq / this.prevFreq;
+                const ratio = settledFreq / this.prevFreq;
                 this.useGlide = (ratio > 0.48 && ratio < 2.08);
             } else {
                 this.useGlide = false;
             }
 
-            this.framesSinceNote = 0;
+            this.samplesSinceNote = 0;
             this.filterEnvAttack = true;
             if (this.arpAmount < 0.5) {
                 this.pitchBloom = this.useGlide ? 0.35 : 1.0;
                 this.vibratoGate *= 0.30;
             }
-        } else {
-            if (this.framesSinceNote < 200) this.framesSinceNote++;
-            if (this.framesSinceNote > 2) this.useGlide = false;
-            if (this.framesSinceNote > 6) this.arpAmount *= 0.85;
         }
 
         this.prevActive = isActive;
-        this.prevFreq = sidCh.freq;
+        if (settledFreq > 0) this.prevFreq = settledFreq;
     }
 
-    process(sidCh, mutedBy3Off, sidCutoffNorm, stageSub, smoothMasterVol, sidechainEnv, vibSin, thermalDrift) {
+    process(sidCh, mutedBy3Off, isFiltered, sidFilterMode, sidCutoffNorm, stageSub, smoothMasterVol, sidechainEnv, vibSin, thermalDrift) {
+        this.updateControl(sidCh, mutedBy3Off);
+
         const sr = this.sr;
         const ctrl = sidCh.ctrl;
         const waveMask = ctrl & 0xF0;
@@ -628,9 +785,11 @@ class CS80SidVoice {
         this.pitchBloom *= this.bloomDec;
         this.vibratoGate += (1.0 - this.vibratoGate) * this.vibRise;
 
+        const activeFreq = this.latchedFreq > 0 ? this.latchedFreq : sidCh.freq;
+
         // Bei Sync/RingMod/Combined-SID-Tricks tritt CS-80 zurück, damit die SID-Textur dominiert
         let layerWeight = 1.0;
-        if (mutedBy3Off || !hasTone || (ctrl & 8) !== 0 || sidCh.freq === 0) {
+        if (mutedBy3Off || !hasTone || (ctrl & 8) !== 0 || activeFreq === 0) {
             layerWeight = 0.0;
         } else if (isExoticSid) {
             layerWeight = 0.30;
@@ -641,7 +800,7 @@ class CS80SidVoice {
         const vcaSpeed = targetVolt > this.smoothVolt ? this.vcaAtk : this.vcaRel;
         this.smoothVolt += (targetVolt - this.smoothVolt) * vcaSpeed;
 
-        const targetInc = (sidCh.freq > 0) ? ((sidCh.freq * SID_CLOCK) / 16777216.0) / sr : 0.0;
+        const targetInc = (activeFreq > 0) ? ((activeFreq * SID_CLOCK) / 16777216.0) / sr : 0.0;
         if (targetInc <= 0.0) {
             this.currentInc = 0.0;
         } else if (this.currentInc <= 0.0 || !this.useGlide || stageSub > 0.45) {
@@ -650,6 +809,20 @@ class CS80SidVoice {
             this.currentInc += (targetInc - this.currentInc) * this.glideCoef;
         }
         const incBase = this.currentInc;
+
+        // Zero-Artifact Sleep-Fast-Path für stumme oder reine Noise-Kanäle (<-114 dBFS)
+        if (this.smoothVolt < 1e-5 && targetVolt === 0.0) {
+            const filterEnergy = Math.abs(this.hpf.ic1) + Math.abs(this.hpf.ic2)
+                               + Math.abs(this.lpf.ic1) + Math.abs(this.lpf.ic2);
+            if (filterEnergy < 1e-7) {
+                if (incBase > 0.0) {
+                    this.phase1 = (this.phase1 + incBase) % 1.0;
+                    this.phase2 = (this.phase2 + incBase) % 1.0;
+                    this.phaseSub = (this.phaseSub + incBase) % 1.0;
+                }
+                return 0.0;
+            }
+        }
 
         let nyquistGain = 1.0;
         if (incBase <= 0.0) nyquistGain = 0.0;
@@ -660,20 +833,22 @@ class CS80SidVoice {
         const vibDepth = (0.0003 + this.smoothVolt * 0.0030) * this.vibratoGate * (1.0 - this.arpAmount * 0.85);
         const pitchMod = 1.0 + wow + flutter + vibSin * vibDepth - this.pitchBloom * 0.0065 * (1.0 - stageSub * 0.65);
 
-        const detune = 1.0 + (0.00045 + (1.0 - stageSub) * (0.0020 + thermalDrift * 0.0008));
-        const inc1 = incBase * pitchMod;
-        const inc2 = inc1 * detune;
+        // Symmetrisches Dual-Rank-Detuning um das exakte 1MHz-SID-Pitchzentrum
+        const halfDetune = 0.00022 + (1.0 - stageSub) * (0.0010 + thermalDrift * 0.0004);
+        const incCenter = incBase * pitchMod;
+        const inc1 = incCenter * (1.0 - halfDetune);
+        const inc2 = incCenter * (1.0 + halfDetune);
 
-        if (inc1 > 0.0) {
+        if (incCenter > 0.0) {
             this.phase1 = (this.phase1 + inc1) % 1.0;
             this.phase2 = (this.phase2 + inc2) % 1.0;
+            this.phaseSub = (this.phaseSub + incCenter) % 1.0;
         }
 
         let vcfIn = 0.0;
         let postFilterSine = 0.0;
 
-        if (nyquistGain > 0.0 && this.smoothVolt > 0.0001) {
-            // Folgt dem programmierten SID-PWM + sanfter Dual-Rank-Analogdrift
+        if (nyquistGain > 0.0 && this.smoothVolt > 0.00001) {
             const sidPwNorm = Math.max(0.08, Math.min(0.92, sidCh.pw / 4095.0));
             const pwmDrift = Math.sin(this.lfoPwm * TWO_PI) * 0.08;
             const pwm1 = Math.max(0.05, Math.min(0.95, sidPwNorm + pwmDrift));
@@ -689,32 +864,40 @@ class CS80SidVoice {
                 - polyBLEP((this.phase2 - pwm2 + 1.0) % 1.0, inc2);
             const saw2 = (this.phase2 * 2.0 - 1.0) - polyBLEP(this.phase2, inc2);
 
+            const isPureTri = hasTri && !hasSaw && !hasPulse;
             const sawWeight = hasSaw ? 0.72 : (hasTri ? 0.25 : 0.42);
             const sqWeight = hasPulse ? 0.65 : (hasTri ? 0.15 : 0.30);
             const wNorm = 1.0 / (sawWeight + sqWeight);
 
+            // Bewahrt den samtigen Flöten-/Okarina-Charakter reiner SID-Dreieckswellen ($11)
+            const harmonicScale = isPureTri ? 0.36 : 1.0;
+
             const rank1 = (saw1 * sawWeight + sq1 * sqWeight) * wNorm;
             const rank2 = (saw2 * sawWeight + sq2 * sqWeight) * wNorm;
 
-            vcfIn = (rank1 * 0.54 + rank2 * 0.46) * (1.0 - stageSub * 0.32) * nyquistGain;
+            vcfIn = (rank1 * 0.54 + rank2 * 0.46) * harmonicScale * (1.0 - stageSub * 0.32) * nyquistGain;
             const triBody = hasTri ? 0.25 : 0.0;
-            postFilterSine = Math.sin(this.phase1 * TWO_PI) * (0.14 + triBody + stageSub * 0.62) * nyquistGain;
+            postFilterSine = Math.sin(this.phaseSub * TWO_PI) * (0.14 + triBody + stageSub * 0.62) * nyquistGain;
         }
 
         const v = this.smoothVolt;
         const sweep = v * (0.80 + 0.20 * v);
         const drive = 1.0 + sweep * (0.50 + thermalDrift * 0.20);
-        let sig = Math.tanh(vcfIn * drive) / drive;
+        let sig = fastTanh(vcfIn * drive) / drive;
 
-        // 1. CS-80 12dB High-Pass Filter
-        const hpCut = 26.0 + (1.0 - stageSub) * (36.0 + sweep * 78.0);
+        const isPureSidHp = isFiltered && ((sidFilterMode & 0x70) === 0x40);
+        const isSidLpOrBp = isFiltered && ((sidFilterMode & 0x30) !== 0);
+
+        // 1. CS-80 12dB High-Pass Filter (folgt optional reinem SID-Hochpass-Routing)
+        const hpSidBoost = isPureSidHp ? sidCutoffNorm * 1400.0 : 0.0;
+        const hpCut = 26.0 + (1.0 - stageSub) * (36.0 + sweep * 78.0) + hpSidBoost;
         const hpRes = 0.15 + (1.0 - stageSub) * 0.14;
         this.hpf.step(sig, hpCut, hpRes, sr);
         sig = this.hpf.hp;
 
-        // 2. CS-80 12dB Resonant Low-Pass Filter (kombiniert Hüllkurve + SID-Filter-Modulation)
+        // 2. CS-80 12dB Resonant Low-Pass Filter (ungefilterte Leads strahlen mit sidMod = 1.0!)
         const envMod = this.filterEnv * (1.0 - stageSub * 0.45);
-        const sidMod = 0.45 + 0.55 * sidCutoffNorm;
+        const sidMod = isSidLpOrBp ? (0.28 + 0.72 * sidCutoffNorm) : 1.0;
         const lpCut = (145.0 + sweep * (3800.0 - stageSub * 2600.0) + envMod * (3500.0 - stageSub * 2000.0)) * sidMod;
         const lpRes = Math.max(0.05, 0.28 + this.filterEnv * 0.14 - stageSub * 0.18);
         this.lpf.step(sig, lpCut, lpRes, sr);
@@ -757,7 +940,7 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
         this.isPlaying = false;
         this.wasPlaying = false;
         this.fadeVol = 0.0;
-        this.fadeStep = 1.0 / Math.max(1, Math.round(0.010 * sr)); // 10ms Anti-Click Ramp
+        this.fadeStep = 1.0 / Math.max(1, Math.round(0.004 * sr)); // 4ms knackfreie Rampe (bewahrt Frame-0-Drums)
 
         this.vblankTimer = 19656;
         this.currentFrame = 0;
@@ -767,17 +950,32 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
         this.temperature = 55.0;
         this.cpuCyclesRemaining = 0;
 
+        this.thermalDrift = 0.6667;
+        this.tapeDrive = 1.78;
+        this.tapeBias = 0.185;
+        this.tapeBiasComp = fastTanh(0.185);
+        this.updateThermalCache();
+
         this.smoothMasterVol = 1.0;
         this.masterVolCoef = 1.0 - Math.exp(-1.0 / (0.0025 * sr));
 
         this.lfoVibrato = 0.0;
         this.lfoVibratoInc = 5.4 / sr;
 
-        // Audio-Rate 48Hz $D418 Sub-Harmonic Kick Exciter & Sidechain
+        // Intelligenter $D418-Onset-Transienten-Detektor (verhindert 48Hz-Dauerton bei Speech/Samples)
+        this.digiFastEnv = 0.0;
+        this.digiSlowEnv = 0.0;
+        this.digiFastRel = Math.exp(-1.0 / (0.012 * sr));
+        this.digiSlowAtk = 1.0 - Math.exp(-1.0 / (0.022 * sr));
+        this.digiSlowRel = Math.exp(-1.0 / (0.110 * sr));
+        this.drumHoldoffMax = Math.round(0.095 * sr);
+        this.drumHoldoffSamples = 0;
+
         this.drumTransientEnv = 0.0;
-        this.drumTransientDecay = Math.exp(-1.0 / (0.085 * sr));
+        this.drumTransientDecay = Math.exp(-1.0 / (0.080 * sr));
+        this.drumPitchEnv = 0.0;
+        this.drumPitchDecay = Math.exp(-1.0 / (0.028 * sr));
         this.drumSubPhase = 0.0;
-        this.drumSubInc = 48.0 / sr;
         this.sidechainEnv = 1.0;
         this.sidechainRec = 1.0 - Math.exp(-1.0 / (0.014 * sr));
 
@@ -811,16 +1009,16 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
         this.delayLpCoef = 1.0 - Math.exp(-TWO_PI * 3100.0 / sr);
         this.delayHpAlpha = Math.exp(-TWO_PI * 140.0 / sr);
 
-        // LEXICON 224 CONCERT HALL: 19ms PRE-DELAY + 2x ALLPASS + 4x QUAD-MOD FDN
+        // LEXICON 224 CONCERT HALL: 19ms PRE-DELAY + 2x ALLPASS + 4x PRIME QUAD-MOD FDN
         this.preDelayLen = Math.max(16, Math.round(0.019 * sr));
         this.preDelayBufL = new Float32Array(this.preDelayLen);
         this.preDelayBufR = new Float32Array(this.preDelayLen);
         this.preDelayIdx = 0;
 
-        this.ap1LenL = Math.max(16, Math.round(0.0047 * sr));
-        this.ap1LenR = Math.max(16, Math.round(0.0053 * sr));
-        this.ap2LenL = Math.max(16, Math.round(0.0111 * sr));
-        this.ap2LenR = Math.max(16, Math.round(0.0123 * sr));
+        this.ap1LenL = nextPrime(Math.max(17, Math.round(0.0047 * sr)));
+        this.ap1LenR = nextPrime(Math.max(19, Math.round(0.0053 * sr)));
+        this.ap2LenL = nextPrime(Math.max(23, Math.round(0.0111 * sr)));
+        this.ap2LenR = nextPrime(Math.max(29, Math.round(0.0123 * sr)));
         this.ap1BufL = new Float32Array(this.ap1LenL);
         this.ap1BufR = new Float32Array(this.ap1LenR);
         this.ap2BufL = new Float32Array(this.ap2LenL);
@@ -828,11 +1026,25 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
         this.ap1IdxL = 0; this.ap1IdxR = 0;
         this.ap2IdxL = 0; this.ap2IdxR = 0;
 
+        this.fdnModPhase0 = 0.0;
+        this.fdnModPhase1 = 0.25;
+        this.fdnModInc0 = 0.37 / sr;
+        this.fdnModInc1 = 0.53 / sr;
+        this.fdnModDepth = 0.00035 * sr;
+        this.fdnModMargin = Math.ceil(this.fdnModDepth) + 4;
+
+        // Primzahl-Basisverzögerungen garantieren teilerfremde Raummoden bei jeder Sample-Rate
+        this.fdnBaseDelays = [
+            nextPrime(Math.max(67, Math.round(0.0317 * sr))),
+            nextPrime(Math.max(71, Math.round(0.0473 * sr))),
+            nextPrime(Math.max(73, Math.round(0.0683 * sr))),
+            nextPrime(Math.max(79, Math.round(0.0919 * sr)))
+        ];
         this.fdnLens = [
-            Math.max(64, Math.round(0.0317 * sr)),
-            Math.max(64, Math.round(0.0473 * sr)),
-            Math.max(64, Math.round(0.0683 * sr)),
-            Math.max(64, Math.round(0.0919 * sr))
+            this.fdnBaseDelays[0] + this.fdnModMargin,
+            this.fdnBaseDelays[1] + this.fdnModMargin,
+            this.fdnBaseDelays[2] + this.fdnModMargin,
+            this.fdnBaseDelays[3] + this.fdnModMargin
         ];
         this.fdnBufs = [
             new Float32Array(this.fdnLens[0]),
@@ -846,12 +1058,6 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
         this.fdnHpPrev = new Float32Array(4);
         this.fdnLpCoef = 1.0 - Math.exp(-TWO_PI * 4500.0 / sr);
         this.fdnHpAlpha = Math.exp(-TWO_PI * 95.0 / sr);
-        this.fdnModPhase0 = 0.0;
-        this.fdnModPhase1 = 0.25;
-        this.fdnModInc0 = 0.37 / sr;
-        this.fdnModInc1 = 0.53 / sr;
-        this.fdnModDepth = 0.00035 * sr;
-        this.fdnModMargin = Math.ceil(this.fdnModDepth) + 4;
 
         this.dcBlockOutL = new DCBlocker(sr, 18.0);
         this.dcBlockOutR = new DCBlocker(sr, 18.0);
@@ -875,6 +1081,7 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
                 this.temperature = Math.min(75, Math.max(15, msg.value));
                 this.sid.temperature = this.temperature;
                 this.sid.updateFilterParameters();
+                this.updateThermalCache();
                 return;
             }
             if (msg.type === 'SET_PARAMS') {
@@ -892,9 +1099,8 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
                 this.playAddress = msg.playAddress;
                 this.songSpeedFlags = msg.speed;
 
-                this.sid = new SIDBladeRunnerChip();
                 this.sid.temperature = this.temperature;
-                this.sid.updateFilterParameters();
+                this.sid.reset();
                 this.cpu = new CPU6502(this.sid);
 
                 this.resetFxAndVoices(true);
@@ -907,9 +1113,8 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
                 this.isPlaying = !!this.prgCode;
             } else if (msg.type === 'CHANGE_SUBSONG') {
                 if (!this.prgCode) return;
-                this.sid = new SIDBladeRunnerChip();
                 this.sid.temperature = this.temperature;
-                this.sid.updateFilterParameters();
+                this.sid.reset();
                 this.cpu.sid = this.sid;
 
                 this.resetFxAndVoices(true);
@@ -919,15 +1124,28 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
         };
     }
 
+    updateThermalCache() {
+        this.thermalDrift = (this.temperature - 15.0) / 60.0;
+        this.tapeDrive = 1.62 + this.thermalDrift * 0.24;
+        this.tapeBias = 0.165 + this.thermalDrift * 0.030;
+        this.tapeBiasComp = fastTanh(this.tapeBias);
+    }
+
     resetFxAndVoices(clearSpace) {
         this.stager.reset();
         this.voiceA.reset(clearSpace);
         this.voiceB.reset(clearSpace);
         this.voiceC.reset(clearSpace);
         this.smoothMasterVol = 1.0;
+
+        this.digiFastEnv = 0.0;
+        this.digiSlowEnv = 0.0;
+        this.drumHoldoffSamples = 0;
         this.drumTransientEnv = 0.0;
+        this.drumPitchEnv = 0.0;
         this.drumSubPhase = 0.0;
         this.sidechainEnv = 1.0;
+
         this.lastVisD418Writes = 0;
         this.lastVisRegisterWrites = 0;
 
@@ -1012,6 +1230,18 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
         this.playSpeedCycles = 19656;
         this.vblankTimer = this.playSpeedCycles;
 
+        // Bereinigt Init-Artefakte ($D418-Clear-Loops, DC-Sprung & Telemetrie-Spitzen)
+        this.sid.dcBaseline = MASTER_DC_BIAS * this.sid.masterVol;
+        this.sid.digiDensity = 0;
+        this.sid.digiPeakDelta = 0.0;
+        this.sid.d418Writes = 0;
+        this.sid.registerWrites = 0;
+        this.smoothMasterVol = this.sid.masterVol;
+        for (let v = 0; v < 3; v++) {
+            this.sid.voices[v].settleTimer = 0;
+            this.sid.voices[v].settleMax = 0;
+        }
+
         this.resampler.reset();
         this.currentFrame = 0;
         this.displayClockAccumulator = 0;
@@ -1033,7 +1263,6 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
         const frac = dOff - dInt;
         let rA = writeIdx - dInt;
         if (rA < 0) rA += len;
-        if (rA < 0 || rA >= len) rA = ((rA % len) + len) % len;
         let rB = rA - 1;
         if (rB < 0) rB += len;
         return buf[rA] + (buf[rB] - buf[rA]) * frac;
@@ -1043,7 +1272,13 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
         const outL = outputs[0][0];
         const outR = outputs[0].length > 1 ? outputs[0][1] : null;
         const sr = this.sr;
-        const thermalDrift = (this.temperature - 15.0) / 60.0; // 0.0 .. 1.0
+        const thermalDrift = this.thermalDrift;
+        const tapeDrive = this.tapeDrive;
+        const tapeBias = this.tapeBias;
+        const tapeBiasComp = this.tapeBiasComp;
+        const fdnFeedback = 0.412 + Math.min(0.5, this.reverbMix) * 0.064;
+        const revScale = this.reverbMix * 1.239;
+
         let visualValue = 0.0;
 
         for (let i = 0; i < outL.length; i++) {
@@ -1056,7 +1291,7 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
                 continue;
             }
 
-            // 1. 1MHz PAL Lockstep (6502 + SID + 50Hz UI-Zeit)
+            // 1. 1MHz PAL Lockstep (6502 + SID + 50Hz UI-Framezähler)
             const cyclesToRun = this.resampler.beginSample();
             for (let c = 0; c < cyclesToRun; c++) {
                 this.cpu.clockHardware(1);
@@ -1066,11 +1301,6 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
                 if (this.displayClockAccumulator >= this.clock) {
                     this.displayClockAccumulator -= this.clock;
                     this.currentFrame = (this.currentFrame + 1) % this.maxFrames;
-
-                    const v3Off = ((this.sid.regs[24] & 0x80) !== 0) && ((this.sid.regs[23] & 4) === 0);
-                    this.voiceA.onControlFrame(this.sid.voices[0], false);
-                    this.voiceB.onControlFrame(this.sid.voices[1], false);
-                    this.voiceC.onControlFrame(this.sid.voices[2], v3Off);
                 }
 
                 this.resampler.write(this.sid.outputSampleL, this.sid.outputSampleR);
@@ -1129,32 +1359,50 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
                 }
             }
 
-            // Sofortige Gate-On-Erkennung auch bei CIA-Multispeed > 50Hz
-            const v3Off = ((this.sid.regs[24] & 0x80) !== 0) && ((this.sid.regs[23] & 4) === 0);
-            if (this.sid.voices[0].gateJustTriggered) this.voiceA.onControlFrame(this.sid.voices[0], false);
-            if (this.sid.voices[1].gateJustTriggered) this.voiceB.onControlFrame(this.sid.voices[1], false);
-            if (this.sid.voices[2].gateJustTriggered) this.voiceC.onControlFrame(this.sid.voices[2], v3Off);
-
             // 2. Stereo SID Ausgang + DC-Blocker
             this.resampler.processStereo();
             const sidL = this.dcSidL.process(this.resampler.outputL) * 0.52;
             const sidR = this.dcSidR.process(this.resampler.outputR) * 0.52;
 
-            // 3. $D418 Digi-Transient -> 48Hz Sub-Kick Exciter & Sidechain Ducking
-            if (this.sid.drumTransient > 0.0) {
-                this.drumTransientEnv = Math.min(1.0, Math.max(this.drumTransientEnv, this.sid.drumTransient));
-                this.sidechainEnv = Math.min(this.sidechainEnv, 0.65);
-                this.sid.drumTransient = 0.0;
+            // 3. $D418 Onset-Transienten-Detektor -> Pitch-Kick (74Hz -> 45Hz) & Sidechain
+            const rawDigi = Math.min(1.0, this.sid.digiPeakDelta * 1.4);
+            this.sid.digiPeakDelta = 0.0;
+
+            if (rawDigi > this.digiFastEnv) {
+                this.digiFastEnv += (rawDigi - this.digiFastEnv) * 0.55;
+            } else {
+                this.digiFastEnv *= this.digiFastRel;
+            }
+
+            if (this.digiFastEnv > this.digiSlowEnv) {
+                this.digiSlowEnv += (this.digiFastEnv - this.digiSlowEnv) * this.digiSlowAtk;
+            } else {
+                this.digiSlowEnv *= this.digiSlowRel;
+            }
+
+            if (this.drumHoldoffSamples > 0) this.drumHoldoffSamples--;
+
+            const digiOnset = this.digiFastEnv - this.digiSlowEnv * 1.25;
+            if (digiOnset > 0.24 && this.drumHoldoffSamples === 0) {
+                const hitStrength = Math.min(1.0, digiOnset * 1.8);
+                this.drumTransientEnv = Math.max(this.drumTransientEnv, hitStrength);
+                this.drumPitchEnv = 1.0;
+                this.sidechainEnv = Math.min(this.sidechainEnv, 1.0 - hitStrength * 0.35);
+                this.drumHoldoffSamples = this.drumHoldoffMax;
+                this.digiSlowEnv = Math.max(this.digiSlowEnv, this.digiFastEnv * 0.85);
             }
             this.sidechainEnv += (1.0 - this.sidechainEnv) * this.sidechainRec;
 
             let subKick = 0.0;
             if (this.drumTransientEnv > 0.001) {
-                this.drumSubPhase = (this.drumSubPhase + this.drumSubInc) % 1.0;
+                const kickHz = 45.0 + this.drumPitchEnv * 29.0;
+                this.drumSubPhase = (this.drumSubPhase + kickHz / sr) % 1.0;
                 subKick = Math.sin(this.drumSubPhase * TWO_PI) * this.drumTransientEnv * 0.14;
                 this.drumTransientEnv *= this.drumTransientDecay;
+                this.drumPitchEnv *= this.drumPitchDecay;
             } else {
                 this.drumTransientEnv = 0.0;
+                this.drumPitchEnv = 0.0;
             }
 
             // 4. CS-80 3-Voice Analog Layer + Dynamisches Stereo-Staging
@@ -1169,11 +1417,25 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
             if (this.lfoVibrato >= 1.0) this.lfoVibrato -= 1.0;
             const vibSin = Math.sin(this.lfoVibrato * TWO_PI);
 
+            const filtRouting = this.sid.regs[23];
+            const sidFilterMode = this.sid.regs[24];
+            const v3Off = ((sidFilterMode & 0x80) !== 0) && ((filtRouting & 4) === 0);
             const sidCutoffNorm = ((this.sid.regs[21] & 7) | (this.sid.regs[22] << 3)) / 2047.0;
 
-            const sigA = this.voiceA.process(this.sid.voices[0], false, sidCutoffNorm, stageA.sub, this.smoothMasterVol, this.sidechainEnv, vibSin, thermalDrift) * this.cs80Mix;
-            const sigB = this.voiceB.process(this.sid.voices[1], false, sidCutoffNorm, stageB.sub, this.smoothMasterVol, this.sidechainEnv, vibSin, thermalDrift) * this.cs80Mix;
-            const sigC = this.voiceC.process(this.sid.voices[2], v3Off, sidCutoffNorm, stageC.sub, this.smoothMasterVol, this.sidechainEnv, vibSin, thermalDrift) * this.cs80Mix;
+            const sigA = this.voiceA.process(
+                this.sid.voices[0], false, (filtRouting & 1) !== 0, sidFilterMode,
+                sidCutoffNorm, stageA.sub, this.smoothMasterVol, this.sidechainEnv, vibSin, thermalDrift
+            ) * this.cs80Mix;
+
+            const sigB = this.voiceB.process(
+                this.sid.voices[1], false, (filtRouting & 2) !== 0, sidFilterMode,
+                sidCutoffNorm, stageB.sub, this.smoothMasterVol, this.sidechainEnv, vibSin, thermalDrift
+            ) * this.cs80Mix;
+
+            const sigC = this.voiceC.process(
+                this.sid.voices[2], v3Off, (filtRouting & 4) !== 0, sidFilterMode,
+                sidCutoffNorm, stageC.sub, this.smoothMasterVol, this.sidechainEnv, vibSin, thermalDrift
+            ) * this.cs80Mix;
 
             const epL_A = fastSinHalfPi(1.0 - stageA.pan), epR_A = fastSinHalfPi(stageA.pan);
             const epL_B = fastSinHalfPi(1.0 - stageB.pan), epR_B = fastSinHalfPi(stageB.pan);
@@ -1236,8 +1498,8 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
             this.delayHpR = this.delayHpAlpha * (this.delayHpR + this.delayLpR - this.delayHpPrevR);
             this.delayHpPrevR = this.delayLpR;
 
-            this.delayBufL[this.delayIdx] = Math.tanh(sendR * 0.45 + this.delayHpL * 0.48);
-            this.delayBufR[this.delayIdx] = Math.tanh(sendL * 0.45 + this.delayHpR * 0.48);
+            this.delayBufL[this.delayIdx] = fastTanh(sendR * 0.45 + this.delayHpL * 0.48);
+            this.delayBufR[this.delayIdx] = fastTanh(sendL * 0.45 + this.delayHpR * 0.48);
             this.delayIdx = (this.delayIdx + 1) & this.delayMask;
 
             // 19ms Lexicon Pre-Delay
@@ -1273,7 +1535,7 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
             diffR = ap2OutR - ap2InR * 0.45;
             if (++this.ap2IdxR >= this.ap2LenR) this.ap2IdxR = 0;
 
-            // 4x Quadrature-Modulated Hadamard FDN
+            // 4x Quadrature-Modulated Hadamard FDN (Primzahl-Verzögerungen)
             this.fdnModPhase0 += this.fdnModInc0;
             if (this.fdnModPhase0 >= 1.0) this.fdnModPhase0 -= 1.0;
             this.fdnModPhase1 += this.fdnModInc1;
@@ -1287,17 +1549,17 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
             const len2 = this.fdnLens[2], idx2 = this.fdnIdx[2], buf2 = this.fdnBufs[2];
             const len3 = this.fdnLens[3], idx3 = this.fdnIdx[3], buf3 = this.fdnBufs[3];
 
-            const y0 = this.readFdnModLinear(buf0, len0, idx0, len0 - this.fdnModMargin, modA);
-            const y1 = this.readFdnModLinear(buf1, len1, idx1, len1 - this.fdnModMargin, -modA * 0.85);
-            const y2 = this.readFdnModLinear(buf2, len2, idx2, len2 - this.fdnModMargin, modB);
-            const y3 = this.readFdnModLinear(buf3, len3, idx3, len3 - this.fdnModMargin, -modB * 0.85);
+            const y0 = this.readFdnModLinear(buf0, len0, idx0, this.fdnBaseDelays[0], modA);
+            const y1 = this.readFdnModLinear(buf1, len1, idx1, this.fdnBaseDelays[1], -modA * 0.85);
+            const y2 = this.readFdnModLinear(buf2, len2, idx2, this.fdnBaseDelays[2], modB);
+            const y3 = this.readFdnModLinear(buf3, len3, idx3, this.fdnBaseDelays[3], -modB * 0.85);
 
             const s0 = y0 + y1, s1 = y0 - y1;
             const s2 = y2 + y3, s3 = y2 - y3;
-            const m0 = (s0 + s2) * 0.415;
-            const m1 = (s1 + s3) * 0.415;
-            const m2 = (s0 - s2) * 0.415;
-            const m3 = (s1 - s3) * 0.415;
+            const m0 = (s0 + s2) * fdnFeedback;
+            const m1 = (s1 + s3) * fdnFeedback;
+            const m2 = (s0 - s2) * fdnFeedback;
+            const m3 = (s1 - s3) * fdnFeedback;
 
             const in0 = m0 + diffL, in1 = m1 + diffR, in2 = m2 + diffL, in3 = m3 - diffR;
 
@@ -1325,23 +1587,22 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
             buf3[idx3] = this.fdnDampHp[3];
             if (++this.fdnIdx[3] >= len3) this.fdnIdx[3] = 0;
 
-            const revWetL = (y0 - y1 + y2 - y3) * this.reverbMix;
-            const revWetR = (y0 + y1 - y2 - y3) * this.reverbMix;
+            // Orthogonale Stereo-Auskopplung (cL · cR = 0) OHNE Auslöschung von Linien in Mono!
+            const revWetL = (y0 + 0.55 * y1 + 0.55 * y2 - y3) * revScale;
+            const revWetR = (0.55 * y0 - y1 + y2 + 0.55 * y3) * revScale;
 
-            // 7. Master-Summe + Asymmetrische Tape-Sättigung + Ausgangs-DC-Blocker
+            // 7. Master-Summe + C-unendlich-glatte asymmetrische Tape-Sättigung + DC-Blocker
             let finalL = dryL + dimWetL * this.chorusMix + this.delayHpL * this.delayMix + revWetL;
             let finalR = dryR + dimWetR * this.chorusMix + this.delayHpR * this.delayMix + revWetR;
 
             if (!Number.isFinite(finalL)) finalL = 0.0;
             if (!Number.isFinite(finalR)) finalR = 0.0;
 
-            const tapePos = 1.45 + thermalDrift * 0.25;
-            const tapeNeg = 2.05 + thermalDrift * 0.30;
-            finalL = finalL > 0.0 ? Math.tanh(finalL * tapePos) : Math.tanh(finalL * tapeNeg) / 1.40;
-            finalR = finalR > 0.0 ? Math.tanh(finalR * tapePos) : Math.tanh(finalR * tapeNeg) / 1.40;
+            finalL = fastTanh(finalL * tapeDrive - tapeBias) + tapeBiasComp;
+            finalR = fastTanh(finalR * tapeDrive - tapeBias) + tapeBiasComp;
 
-            const outSampleL = this.dcBlockOutL.process(finalL * 0.80) * this.fadeVol;
-            const outSampleR = this.dcBlockOutR.process(finalR * 0.80) * this.fadeVol;
+            const outSampleL = this.dcBlockOutL.process(finalL * 0.76) * this.fadeVol;
+            const outSampleR = this.dcBlockOutR.process(finalR * 0.76) * this.fadeVol;
 
             if (outR) {
                 outL[i] = outSampleL;
@@ -1356,7 +1617,7 @@ class SIDBladeRunnerProcessor extends AudioWorkletProcessor {
             }
         }
 
-        // 8. Telemetrie & Living-Silicon-Ausgabe (kompatibel zu sid-exact/sid-fantasy)
+        // 8. Telemetrie & Living-Silicon-Ausgabe (100% kompatibel zu sid-exact/sid-fantasy)
         this.visSamplesAccum += outL.length;
         this.visCounter++;
         if (this.visCounter % 4 === 0) {
