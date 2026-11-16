@@ -12,6 +12,13 @@ export const workletRegistry = {
     ],
     c64: [
         { id: 'sid-exact', name: 'MOS 6581 (1MHz True Analog)', cpu: 4, file: 'js/worklets/c64/sid-exact.js', processor: 'sid-exact-processor' },
+        {
+            id: 'sid-bladerunner',
+            name: 'SID BLADE RUNNER',
+            file: 'js/worklets/c64/sid-bladerunner.js',
+            processor: 'sid-bladerunner-processor',
+            cpu: 4
+        },
         { id: 'sid-fantasy', name: 'SID 6581/8580 (Chiptunes Fantasy Studio)', cpu: 3, file: 'js/worklets/c64/sid-fantasy.js', processor: 'sid-fantasy-processor' }
     ],
     amiga: [

@@ -1009,15 +1009,33 @@ async function setTheme(themeName, isBootSequence = false) {
 }
 // === js/app.js (Auszug) ===
 
+const livingSiliconCoreTitles = {
+    // C64
+    'sid-exact-processor': 'MOS 6581 R3 EXACT',
+    'sid-fantasy-processor': 'SID FANTASY STUDIO',
+    'sid-bladerunner-processor': 'MOS 6581 · CS-80 BLADE RUNNER',
+    // Amiga
+    'paula-exact-processor': 'MOS 8364 PAULA EXACT',
+    'paula-fantasy-processor': 'PAULA AHI STUDIO',
+    // Atari ST
+    'ym-exact-processor': 'YM2149F CYCLE-EXACT',
+    'ym-processor': 'ATARI ST YM2149F',
+    'ym-fantasy-processor': 'YM2149F FANTASY STUDIO',
+    'ym-bladerunner-processor': 'YM2149F · CS-80 BLADE RUNNER'
+};
+
 function updateLivingSiliconTitle() {
-    let chipName = livingSiliconChipNames[activeSystem];
-    if (activeSystem === 'c64') {
-        const coreIndex = Number(document.getElementById('core-selector').value) || 0;
-        chipName = workletRegistry.c64[coreIndex].id === 'sid-fantasy'
-            ? 'SID FANTASY STUDIO'
-            : 'MOS 6581 R3 EXACT';
+    const coreIndex = Number(document.getElementById('core-selector')?.value) || 0;
+    const core = workletRegistry[activeSystem]?.[coreIndex];
+    const chipName =
+        livingSiliconCoreTitles[core?.processor] ||
+        core?.name ||
+        livingSiliconChipNames[activeSystem];
+
+    const titleEl = document.getElementById('living-silicon-title');
+    if (titleEl) {
+        titleEl.textContent = `> LIVING SILICON · ${chipName}`;
     }
-    document.getElementById('living-silicon-title').textContent = `> LIVING SILICON · ${chipName}`;
 }
 
 function renderCoreSelector(system) {
