@@ -541,6 +541,14 @@ function initApp() {
                 core: getActiveCoreName(),
                 loaded
             };
+        }, {
+            onOpenMuseum: () => {
+                setRightPanelMode('museum');
+                setMuseumTab(currentTrackMuseumData ? 'story' : 'hardware', { scrollToTop: true });
+                if (window.matchMedia('(max-width: 800px), (max-width: 1024px) and (max-height: 580px) and (orientation: landscape)').matches) {
+                    document.querySelector('.museum-archive-toolbar')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
         });
 
         // INTERAKTIVE SKEUOMORPHIC LED KOPPLUNG (AMIGA)
