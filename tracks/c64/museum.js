@@ -407,6 +407,6 @@ export const c64MuseumMetadata = {
     "tests/sid-emulation-test.sid": museumCustom(
         'CHIPTUNES FANTASY — SID EMULATION TEST SUITE',
         `Kein Spiel, keine Demo – sondern das Stethoskop für den Emulator: Diese speziell für <em>Chiptunes Fantasy</em> gebaute <strong>PSID-v2-Diagnosedatei</strong> macht auf einen Durchgang hör- und messbar, wie sauber ein Web-Audio- oder JavaScript-SID-Kern arbeitet.`,
-        `<strong>PSID v2 · 1 Subsong · 61 Sekunden Loop</strong>. Im Sekundentakt feuert die Testsuite 61 gezielte Register-Stresstests ab: 8 Wellenform-Kombinationen über 5 Frequenzstufen, 5 ADSR-Hüllkurven-Profile inklusive Release-Phase, Filter-Modi (Lowpass/Bandpass/Highpass) mit variierender Cutoff- und Resonanz-Steilheit sowie Zwei-Oszillator-Tests für <strong>Hard Sync</strong> und <strong>Ringmodulation</strong>.`
+        `<strong>PSID v2 · 1 Subsong · 91.72 Sekunden Loop</strong>. Im Sekundentakt feuert die Testsuite 61 gezielte Register-Stresstests ab: 8 Wellenform-Kombinationen über 5 Frequenzstufen, 5 ADSR-Hüllkurven-Profile inklusive Release-Phase, Filter-Modi (Lowpass/Bandpass/Highpass) mit variierender Cutoff- und Resonanz-Steilheit sowie Zwei-Oszillator-Tests für <strong>Hard Sync</strong> und <strong>Ringmodulation</strong>.`
     )
 };

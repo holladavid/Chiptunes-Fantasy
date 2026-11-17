@@ -3440,7 +3440,7 @@ body:has(#visual-zone:fullscreen) {
 }
 
 /* 2-Spalten-Desktop (inkl. 1440px, 1728px, 1900px, 1920px) */
-@media (min-width: 1200px) and (max-width: 1899) {
+@media (min-width: 1200px) and (max-width: 1899px) {
     #ui-zone {
         grid-template-columns: clamp(340px, 34%, 520px) minmax(0, 1fr);
         padding: 16px 20px;
@@ -3449,7 +3449,7 @@ body:has(#visual-zone:fullscreen) {
 }
 
 /* 2-Spalten-Dossier im Museum auf Standard-Desktops (nutzt die breite rechte Spalte) */
-@media (min-width: 1120px) and (max-width: 1899) {
+@media (min-width: 1120px) and (max-width: 1899px) {
     .museum-story-dossier,
     .museum-hardware-dossier {
         display: grid;
@@ -3477,7 +3477,7 @@ body:has(#visual-zone:fullscreen) {
 }
 
 /* Signal Guide in 2-Spalten-Desktop neben dem Chip statt darüber/darunter */
-@media (min-width: 1300px) and (max-width: 1899) {
+@media (min-width: 1300px) and (max-width: 1899px) {
     #living-silicon-container:has(.silicon-guide[open]) {
         display: grid;
         grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.85fr);
@@ -4471,7 +4471,7 @@ body:has(#visual-zone:fullscreen) {
         gap: 4px;
     }
     .scroller-actions button { min-width: 0; min-height: 40px; padding: 0 4px; }
-    
+
     #scroller-open-museum,
     #scroller-toggle { margin-left: 0; }
     .eco-box {
