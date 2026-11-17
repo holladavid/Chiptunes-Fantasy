@@ -200,7 +200,7 @@ export function initVisuals(stateGetters, callbacks) {
         // 2. LIVING SILICON UPDATE (Hardware Labor Monitor)
         // =========================================================
         const activeSilicon = document.getElementById('living-silicon-container');
-        if (activeSilicon && window.siliconVisualizerInstance) {
+        if (activeSilicon && window.siliconVisualizerInstance && !document.body.classList.contains('archive-expanded')) {
             const sidBusRate = stateGetters.getSidRegisterWriteRate ? stateGetters.getSidRegisterWriteRate() : 0;
             window.siliconVisualizerInstance.update(channelVolumes, chipRegs, t, sidBusRate);
         }

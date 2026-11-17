@@ -75,6 +75,158 @@ let loadedAmigaSamples = null;
 let lastSidTemperature = 55;
 let hasBooted = false;
 
+let activeMuseumTab = 'hardware'; // 'story' | 'hardware'
+let currentTrackMuseumData = null;
+
+let rightPanelMode = 'split'; // 'split' | 'museum' | 'chip'
+
+function updateMuseumScrollHint() {
+    const info = document.getElementById('info-text');
+    const hint = document.getElementById('museum-scroll-hint');
+    if (!info || !hint) return;
+
+    const hasOverflow = rightPanelMode === 'split'
+        && info.scrollHeight > info.clientHeight + 28
+        && (info.scrollTop + info.clientHeight) < (info.scrollHeight - 16);
+    hint.classList.toggle('hidden', !hasOverflow);
+}
+
+function setRightPanelMode(nextMode = 'split') {
+    const validMode = ['split', 'museum', 'chip'].includes(nextMode) ? nextMode : 'split';
+    rightPanelMode = validMode;
+    document.body.dataset.rightMode = validMode;
+    document.body.classList.toggle('archive-expanded', validMode === 'museum');
+    document.body.classList.toggle('chip-expanded', validMode === 'chip');
+
+    document.querySelectorAll('.workspace-mode-btn').forEach(btn => {
+        const isActive = btn.dataset.rightMode === validMode;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', String(isActive));
+    });
+
+    const expandBtn = document.getElementById('btn-museum-expand');
+    const expandBadge = document.getElementById('museum-expand-badge');
+    if (expandBtn) {
+        expandBtn.setAttribute('aria-pressed', String(validMode === 'museum'));
+    }
+    if (expandBadge) {
+        expandBadge.textContent = validMode === 'museum' ? '[ SPLIT ]' : '[ EXPAND ]';
+    }
+
+    requestAnimationFrame(updateMuseumScrollHint);
+}
+
+function renderMuseumContent(scrollToTop = true) {
+    const info = document.getElementById('info-text');
+    const storyBtn = document.getElementById('btn-museum-story');
+    const hardwareBtn = document.getElementById('btn-museum-hardware');
+    if (!info) return;
+
+    const isStory = activeMuseumTab === 'story';
+    if (storyBtn) {
+        storyBtn.classList.toggle('active', isStory);
+        storyBtn.setAttribute('aria-selected', String(isStory));
+    }
+    if (hardwareBtn) {
+        hardwareBtn.classList.toggle('active', !isStory);
+        hardwareBtn.setAttribute('aria-selected', String(!isStory));
+    }
+    info.setAttribute('aria-labelledby', isStory ? 'btn-museum-story' : 'btn-museum-hardware');
+
+    if (isStory) {
+        if (currentTrackMuseumData?.errorMessage) {
+            info.innerHTML = '';
+            const card = document.createElement('div');
+            card.className = 'terminal-card load-error-card';
+            const header = document.createElement('div');
+            header.className = 'terminal-card-header';
+            header.textContent = '> ROM INJECTION FAULT';
+            const message = document.createElement('p');
+            message.textContent = currentTrackMuseumData.errorMessage;
+            const hint = document.createElement('p');
+            hint.textContent = 'Retry with [ RETRY ROM ] or select another track from the archive.';
+            card.append(header, message, hint);
+            info.appendChild(card);
+        } else if (currentTrackMuseumData) {
+            const storyCardHTML = currentTrackMuseumData.composerInfo
+                ? `<div class="terminal-card museum-story-card">${currentTrackMuseumData.composerInfo}</div>`
+                : `<div class="terminal-card museum-story-card">
+                        <div class="terminal-card-header">&gt; ARCHIVE ENTRY</div>
+                        <p>Für diesen Track liegt noch kein kuratierter Museumstext vor.</p>
+                   </div>`;
+
+            const binaryCardHTML = currentTrackMuseumData.gridHTML
+                ? `<details class="terminal-card museum-binary-card" open>
+                        <summary class="terminal-card-header">&gt; BINARY ANALYSIS</summary>
+                        <div class="terminal-grid">${currentTrackMuseumData.gridHTML}</div>
+                   </details>`
+                : '';
+
+            info.innerHTML = `
+                <div class="museum-story-dossier">
+                    <div class="museum-story-main">
+                        ${storyCardHTML}
+                    </div>
+                    <aside class="museum-story-sidebar">
+                        ${binaryCardHTML}
+                        <div class="museum-crosslink-card">
+                            <span class="museum-crosslink-hint">CHIP ARCHITECTURE &amp; PHYSICS</span>
+                            <button type="button" class="museum-jump-btn" data-jump-museum-tab="hardware">
+                                [ HARDWARE DEEP DIVE &gt; ]
+                            </button>
+                        </div>
+                    </aside>
+                </div>
+            `;
+        } else {
+            info.innerHTML = `
+                <div class="terminal-card museum-standby-card">
+                    <div class="terminal-card-header">&gt; TRACK STORY · STANDBY</div>
+                    <p>Wähle links einen Track aus dem Archiv, um Komponisten-Anekdoten, Replay-Technik und Quellen zu öffnen.</p>
+                    <button type="button" class="museum-jump-btn" data-jump-museum-tab="hardware">
+                        [ HARDWARE DEEP DIVE ANZEIGEN &gt; ]
+                    </button>
+                </div>
+            `;
+        }
+    } else {
+        const systemText = (typeof systemDescriptions !== 'undefined' && systemDescriptions[activeSystem])
+            ? systemDescriptions[activeSystem]
+            : '<p style="color: var(--text-color);">[ NO ARCHIVE DATA ]</p>';
+
+        const standbyStrip = !currentTrackMuseumData
+            ? `<div class="museum-standby-strip">
+                    <span>&gt; SYSTEM READY · SELECT A TRACK FOR CURATED LINER NOTES</span>
+               </div>`
+            : `<div class="museum-standby-strip museum-standby-strip-track">
+                    <span>&gt; ACTIVE TRACK: ${currentTrackTitle || 'LOADED'}</span>
+                    <button type="button" class="museum-jump-btn" data-jump-museum-tab="story">[ &lt; BACK TO TRACK STORY ]</button>
+               </div>`;
+
+        info.innerHTML = `${standbyStrip}${systemText}`;
+    }
+
+    const scrollHint = document.createElement('div');
+    scrollHint.id = 'museum-scroll-hint';
+    scrollHint.className = 'museum-scroll-hint hidden';
+    const scrollHintBtn = document.createElement('button');
+    scrollHintBtn.type = 'button';
+    scrollHintBtn.className = 'museum-scroll-hint-btn';
+    scrollHintBtn.textContent = '[ ↓ FULL MUSEUM (A) ]';
+    scrollHintBtn.addEventListener('click', () => setRightPanelMode('museum'));
+    scrollHint.appendChild(scrollHintBtn);
+    info.appendChild(scrollHint);
+
+    if (scrollToTop) info.scrollTop = 0;
+    requestAnimationFrame(updateMuseumScrollHint);
+}
+
+function setMuseumTab(tabName, options = {}) {
+    const { scrollToTop = true } = options;
+    activeMuseumTab = tabName === 'story' ? 'story' : 'hardware';
+    renderMuseumContent(scrollToTop);
+}
+
 function uploadAmigaSamples(paulaNode, samples) {
     if (!paulaNode) return;
     paulaNode.port.postMessage({ type: 'CLEAR_SAMPLES' });
@@ -389,6 +541,14 @@ function initApp() {
                 core: getActiveCoreName(),
                 loaded
             };
+        }, {
+            onOpenMuseum: () => {
+                setRightPanelMode('museum');
+                setMuseumTab(currentTrackMuseumData ? 'story' : 'hardware', { scrollToTop: true });
+                if (window.matchMedia('(max-width: 800px), (max-width: 1024px) and (max-height: 580px) and (orientation: landscape)').matches) {
+                    document.querySelector('.museum-archive-toolbar')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
         });
 
         // INTERAKTIVE SKEUOMORPHIC LED KOPPLUNG (AMIGA)
@@ -410,6 +570,42 @@ function initApp() {
                 btnToggleArchive.setAttribute('aria-expanded', String(!isExpanded));
             });
         }
+
+// WORKSPACE-MODI (SPLIT / MUSEUM / CHIP) & MUSEUM SUB-TABS VERKABELN
+        document.querySelectorAll('.workspace-mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                setRightPanelMode(btn.dataset.rightMode);
+            });
+        });
+
+        const btnMuseumExpand = document.getElementById('btn-museum-expand');
+        if (btnMuseumExpand) {
+            btnMuseumExpand.addEventListener('click', () => {
+                setRightPanelMode(rightPanelMode === 'museum' ? 'split' : 'museum');
+            });
+        }
+
+        document.querySelectorAll('.museum-subtab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (rightPanelMode === 'chip') setRightPanelMode('split');
+                setMuseumTab(btn.dataset.museumTab, { scrollToTop: true });
+            });
+        });
+
+        const infoPanel = document.getElementById('info-text');
+        if (infoPanel) {
+            infoPanel.addEventListener('click', (event) => {
+                const jumpBtn = event.target.closest('[data-jump-museum-tab]');
+                if (!jumpBtn) return;
+                if (rightPanelMode === 'chip') setRightPanelMode('split');
+                setMuseumTab(jumpBtn.dataset.jumpMuseumTab, { scrollToTop: true });
+            });
+            infoPanel.addEventListener('scroll', updateMuseumScrollHint, { passive: true });
+        }
+
+        window.addEventListener('resize', updateMuseumScrollHint);
+        setRightPanelMode(rightPanelMode);
+
 
         // Event-Listener für das Cursor-Hiding binden
         if (visualZone) {
@@ -768,7 +964,7 @@ function changeHipcSubsong(subsongId) {
 
     // HIPC songs have independent division ranges, speed and length. Reuse the
     // normal loading path so both Paula cores construct a fresh VM for the song.
-    selectAndPlayTrack(currentTrackIndex, activeSystem, { song: subsongId - 1 });
+    selectAndPlayTrack(currentTrackIndex, activeSystem, { song: subsongId - 1, preserveMuseumTab: true });
 }
 
 function startPlayback() {
@@ -893,12 +1089,8 @@ async function setTheme(themeName, isBootSequence = false) {
     trackSearchQuery = '';
     const trackSearchInput = document.getElementById('track-search');
     if (trackSearchInput) trackSearchInput.value = '';
-    document.body.classList.remove('archive-expanded');
-    const btnToggleArchive = document.getElementById('btn-toggle-archive');
-    if (btnToggleArchive) {
-        btnToggleArchive.textContent = '[ HIDE CHIP ]';
-        btnToggleArchive.setAttribute('aria-expanded', 'true');
-    }
+    setRightPanelMode(rightPanelMode);
+
     updateLivingSiliconTitle();
 
     const tempContainer = document.getElementById('temp-control-container');
@@ -909,16 +1101,7 @@ async function setTheme(themeName, isBootSequence = false) {
 
     renderTracklist(activeSystem, { scrollToTop: true });
 
-    document.getElementById('info-text').innerHTML = `
-        <div class="terminal-card">
-            <div class="terminal-card-header">&gt; SYSTEM INITIALIZATION</div>
-            <div style="padding: 10px 0;">
-                <p style="color: var(--highlight-color); margin-bottom: 8px;">[ SYSTEM READY ]</p>
-                <p style="font-size: 0.9em; opacity: 0.8;">Please inject a ROM from the archive to initialize bus routing...</p>
-                <p class="blinking-cursor" style="margin-top: 15px;">_</p>
-            </div>
-        </div>
-    `;
+    currentTrackMuseumData = null;
 
     currentScrollerText = `+++ ${activeSystem.toUpperCase()} SYSTEM READY. AWAITING DATA INJECTION... +++`;
 
@@ -971,6 +1154,8 @@ async function setTheme(themeName, isBootSequence = false) {
     renderCoreSelector(activeSystem);
     updateLivingSiliconTitle();
     setPlaybackState('idle');
+
+    setMuseumTab('hardware', { scrollToTop: true });
 
     if (typeof siliconVisualizer !== 'undefined' && siliconVisualizer) {
         siliconVisualizer.setSystem(activeSystem);
@@ -1309,32 +1494,13 @@ async function selectAndPlayTrack(index, system, options = {}) {
                     ? `+++ BOOM! SUCCESSFULLY CRACKED OPEN BINARY PSID FILE +++ NOW PLAYING: ${meta.name.toUpperCase()} BY ${meta.author.toUpperCase()} +++ FORMAT: ${meta.type} +++ CRANK UP THE VOLUME AND LET THE ANALOG SID FILTERS SHINE +++ `
                     : `+++ BOOM! SUCCESSFULLY CRACKED OPEN BINARY FILE +++ NOW PLAYING: ${meta.name.toUpperCase()} BY ${meta.author.toUpperCase()} +++ COMMENT ALONG THE RIDE: ${meta.comment.toUpperCase() || "NO COMMENT"} +++ CRANK UP THE GAIN AND LET THE YM2149 MELT YOUR SPEAKERS +++ `);
 
-            const systemText = (typeof systemDescriptions !== 'undefined' && systemDescriptions[system])
-                ? systemDescriptions[system]
-                : '<p style="color: var(--text-color);">[ NO ARCHIVE DATA ]</p>';
+            currentTrackMuseumData = {
+                title: selectedSong.title,
+                composerInfo: selectedSong.composerInfo || '',
+                gridHTML
+            };
+            setMuseumTab(options.preserveMuseumTab ? activeMuseumTab : 'story', { scrollToTop: true });
 
-            document.getElementById('info-text').innerHTML = `
-                <div class="terminal-card">
-                    <div class="terminal-card-header">&gt; NOW PLAYING</div>
-                    <div style="font-size: 1.2em; padding: 5px 0;">${selectedSong.title}</div>
-                </div>
-
-                <details class="terminal-card" open>
-                    <summary class="terminal-card-header" style="cursor: pointer; outline: none;">&gt; BINARY ANALYSIS</summary>
-                    <div class="terminal-grid" style="margin-top: 10px;">
-                        ${gridHTML}
-                    </div>
-                </details>
-
-                ${selectedSong.composerInfo ? `
-                <div class="terminal-card">
-                    ${selectedSong.composerInfo}
-                </div>` : ''}
-
-                <div class="terminal-card" style="margin-top: 20px;">
-                    ${systemText}
-                </div>
-            `;
 
             playbackSessionId++;
             syncMediaSessionTrack(selectedSong);
@@ -1353,40 +1519,19 @@ async function selectAndPlayTrack(index, system, options = {}) {
             setPlaybackState('error', err.message || 'UNKNOWN BINARY FORMAT ERROR');
             currentScrollerText = "+++ ERROR LOADING FILE +++ BUS HALTED +++ RETRY OR SELECT ANOTHER TRACK +++";
 
-            const info = document.getElementById('info-text');
-            info.innerHTML = '';
-            const card = document.createElement('div');
-            card.className = 'terminal-card load-error-card';
-            const header = document.createElement('div');
-            header.className = 'terminal-card-header';
-            header.textContent = '> ROM INJECTION FAULT';
-            const message = document.createElement('p');
-            message.textContent = err.message || 'Unknown binary format error.';
-            const hint = document.createElement('p');
-            hint.textContent = 'Retry with [ RETRY ROM ] or select another track from the archive.';
-            card.append(header, message, hint);
-            info.appendChild(card);
-        }
+            currentTrackMuseumData = {
+                title: selectedSong.title,
+                errorMessage: err.message || 'Unknown binary format error.'
+            };
+            setMuseumTab('story', { scrollToTop: true });        }
     } else {
-        const systemText = (typeof systemDescriptions !== 'undefined' && systemDescriptions[system])
-            ? systemDescriptions[system]
-            : '<p style="color: var(--text-color);">[ Museumdatenarchiv geladen ]</p>';
+        currentTrackMuseumData = {
+            title: selectedSong.title,
+            composerInfo: selectedSong.composerInfo || '',
+            gridHTML: ''
+        };
+        setMuseumTab(options.preserveMuseumTab ? activeMuseumTab : 'story', { scrollToTop: true });
 
-        document.getElementById('info-text').innerHTML = `
-            <div class="terminal-card">
-                <div class="terminal-card-header">&gt; NOW PLAYING</div>
-                <div style="font-size: 1.2em; padding: 5px 0;">${selectedSong.title}</div>
-            </div>
-
-            ${selectedSong.composerInfo ? `
-            <div class="terminal-card">
-                ${selectedSong.composerInfo}
-            </div>` : ''}
-
-            <div class="terminal-card" style="margin-top: 20px;">
-                ${systemText}
-            </div>
-        `;
         currentScrollerText = "+++ NOW PLAYING: " + selectedSong.title + " +++";
         loadedAmigaSamples = null;
         trackData = selectedSong.generator();
@@ -1685,12 +1830,13 @@ document.addEventListener('keydown', event => {
         exitPseudoFullscreen(visualZone);
         return;
     }
-    if (!['f', 'm', 'l'].includes(key)) return;
+    if (!['f', 'm', 'l', 'a'].includes(key)) return;
 
     event.preventDefault();
     resetMouseIdleTimer();
     if (key === 'f') toggleFullscreen();
     else if (key === 'm') document.getElementById('btn-eco').click();
+    else if (key === 'a') setRightPanelMode(rightPanelMode === 'museum' ? 'split' : 'museum');
     else document.getElementById('btn-hud-toggle').click();
 });
 

@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Chiptunes">
     <meta name="google-site-verification" content="GW3br5S4NL_Z9wWu6CWmgNazUy-JhoJTVFoygF2Diyw" />
-    
+
     <!-- Opakes 180×180-PNG ohne eigene Rundung; iOS maskiert das Icon selbst -->
     <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
 
@@ -26,7 +26,7 @@
 
     <div id="boot-screen" role="button" tabindex="0" aria-label="Chiptunes Fantasy starten">
         <div class="boot-box">
-            <p class="boot-header">**** CHIPTUNES FANTASY V1.6.3 ****</p>
+            <p class="boot-header">**** CHIPTUNES FANTASY V1.6.4 ****</p>
             <p class="boot-subheader">64K RAM SYSTEM  38911 BASIC BYTES FREE</p>
             <div class="boot-logs">
                 <p>EMU CORES LOADED: OK</p>
@@ -300,21 +300,41 @@
 
             <!-- Rechte Spalte: Museum / Info -->
             <div id="museum-panel">
-                <div class="museum-toolbar living-silicon-toolbar">
+<div class="museum-toolbar living-silicon-toolbar">
                     <span class="museum-toolbar-title" id="living-silicon-title">&gt; LIVING SILICON · MOS 6581 SID</span>
                     <span class="silicon-toolbar-status" role="status" aria-live="polite">
                         <span class="silicon-status-led" aria-hidden="true"></span>
                         <span id="silicon-playback-status" data-state="idle">STANDBY</span>
                     </span>
-                    <button id="btn-toggle-archive" type="button" title="Living Silicon ein- oder ausblenden"
-                        aria-controls="living-silicon-container" aria-expanded="true">[ HIDE CHIP ]</button>
+                    <div class="workspace-mode-group" role="group" aria-label="Rechte Arbeitsbereich-Ansicht">
+                        <button type="button" class="workspace-mode-btn active" data-right-mode="split"
+                            aria-pressed="true" title="Living Silicon und Museum gleichzeitig anzeigen">[ SPLIT ]</button>
+                        <button type="button" class="workspace-mode-btn" data-right-mode="museum"
+                            aria-pressed="false" aria-keyshortcuts="A"
+                            title="Museum maximieren [A]">[ MUSEUM ]</button>
+                        <button type="button" class="workspace-mode-btn" data-right-mode="chip"
+                            aria-pressed="false" title="Living Silicon maximieren">[ CHIP ]</button>
+                    </div>
                 </div>
-                <div id="living-silicon-container"></div>                
-                <div class="museum-toolbar">
-                    <span class="museum-toolbar-title">&gt; DATABASE & ARCHIVE</span>
+                <div id="living-silicon-container"></div>
+                <div class="museum-toolbar museum-archive-toolbar">
+                    <button id="btn-museum-expand" type="button" class="museum-toolbar-title museum-archive-trigger"
+                        title="Museum vergrößern oder zurück in Split-Ansicht [A]"
+                        aria-pressed="false" aria-keyshortcuts="A">
+                        <span>&gt; DATABASE &amp; ARCHIVE</span>
+                        <span id="museum-expand-badge" class="museum-expand-badge">[ EXPAND ]</span>
+                    </button>
+                        <div class="museum-subtabs" role="tablist" aria-label="Museumsansicht wählen">
+                        <button id="btn-museum-story" type="button" class="museum-subtab-btn" role="tab"
+                            data-museum-tab="story" aria-selected="false" aria-controls="info-text"
+                            title="Track-Historie &amp; Binäranalyse">[ TRACK STORY ]</button>
+                        <button id="btn-museum-hardware" type="button" class="museum-subtab-btn active" role="tab"
+                            data-museum-tab="hardware" aria-selected="true" aria-controls="info-text"
+                            title="Hardware-Deep-Dive &amp; Chipspezifikationen">[ HARDWARE ]</button>
+                    </div>
                 </div>
                 
-                <div class="museum-content" id="info-text">
+                <div class="museum-content" id="info-text" role="tabpanel" aria-labelledby="btn-museum-hardware">
                     <p class="blinking-cursor">_</p>
                 </div>
             </div> <!-- Ende museum-panel -->
@@ -329,6 +349,8 @@
                     <button type="button" data-scroller-mode="track" aria-pressed="true" title="Songtitel und Komponist">TRACK</button>
                     <button type="button" data-scroller-mode="tech" aria-pressed="false" title="Format- und Hardwaredetails">TECH</button>
                     <button type="button" data-scroller-mode="story" aria-pressed="false" title="Hintergrund aus dem Museum">STORY</button>
+                    <button type="button" id="scroller-open-museum" aria-label="Passenden Eintrag im Museum öffnen"
+                        title="Vollständigen Museums-Eintrag öffnen [A]">MUSEUM ↗</button>
                     <button type="button" id="scroller-toggle" aria-pressed="false" aria-label="Lauftext anhalten" title="Lauftext anhalten">HOLD</button>
                 </div>
             </div>

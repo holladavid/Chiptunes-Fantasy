@@ -75,7 +75,7 @@ function truncateAtWord(text, maximum = 420) {
 
 function museumStory(html) {
     const text = htmlToPlainText(html).split(/Quellen\s*:/i)[0].trim();
-    const history = text.match(/Historie\s*:\s*(.*?)(?=Datei\s*&\s*Replay\s*:|$)/i)?.[1] || text;
+    const history = text.match(/Historie\s*:\s*(.*?)(?=(?:SID|Technik|YM2149|Datei)\s*&\s*Replay\s*:|$)/i)?.[1] || text;
     const sentences = history.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [history];
     return truncateAtWord(sentences.slice(0, 2).join(' ').trim());
 }
@@ -155,8 +155,7 @@ export function advanceScrollerOffset(offset, deltaSeconds, unitWidth, viewportW
     return next;
 }
 
-export function initScroller(getScrollerText, getEcoMode, getScrollerContext = () => ({})) {
-    const canvas = document.getElementById('scroller-canvas');
+export function initScroller(getScrollerText, getEcoMode, getScrollerContext = () => ({}), options = {}) {    const canvas = document.getElementById('scroller-canvas');
     const zone = document.getElementById('scroller-zone');
     if (!canvas || !zone) {
         console.warn('[SCROLLER] Canvas-Element #scroller-canvas nicht gefunden.');
@@ -166,6 +165,11 @@ export function initScroller(getScrollerText, getEcoMode, getScrollerContext = (
     const ctx = canvas.getContext('2d', { alpha: false });
     const modeButtons = [...zone.querySelectorAll('[data-scroller-mode]')];
     const toggle = document.getElementById('scroller-toggle');
+    const { onOpenMuseum = null } = options;
+    const openMuseumBtn = document.getElementById('scroller-open-museum');
+    openMuseumBtn?.addEventListener('click', () => {
+        if (typeof onOpenMuseum === 'function') onOpenMuseum(mode);
+    });
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     document.fonts?.addEventListener('loadingdone', () => baselineOffsets.clear());
     let dpr = window.devicePixelRatio || 1;
