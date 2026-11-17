@@ -78,6 +78,44 @@ let hasBooted = false;
 let activeMuseumTab = 'hardware'; // 'story' | 'hardware'
 let currentTrackMuseumData = null;
 
+let rightPanelMode = 'split'; // 'split' | 'museum' | 'chip'
+
+function updateMuseumScrollHint() {
+    const info = document.getElementById('info-text');
+    const hint = document.getElementById('museum-scroll-hint');
+    if (!info || !hint) return;
+
+    const hasOverflow = rightPanelMode === 'split'
+        && info.scrollHeight > info.clientHeight + 28
+        && (info.scrollTop + info.clientHeight) < (info.scrollHeight - 16);
+    hint.classList.toggle('hidden', !hasOverflow);
+}
+
+function setRightPanelMode(nextMode = 'split') {
+    const validMode = ['split', 'museum', 'chip'].includes(nextMode) ? nextMode : 'split';
+    rightPanelMode = validMode;
+    document.body.dataset.rightMode = validMode;
+    document.body.classList.toggle('archive-expanded', validMode === 'museum');
+    document.body.classList.toggle('chip-expanded', validMode === 'chip');
+
+    document.querySelectorAll('.workspace-mode-btn').forEach(btn => {
+        const isActive = btn.dataset.rightMode === validMode;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', String(isActive));
+    });
+
+    const expandBtn = document.getElementById('btn-museum-expand');
+    const expandBadge = document.getElementById('museum-expand-badge');
+    if (expandBtn) {
+        expandBtn.setAttribute('aria-pressed', String(validMode === 'museum'));
+    }
+    if (expandBadge) {
+        expandBadge.textContent = validMode === 'museum' ? '[ SPLIT ]' : '[ EXPAND ]';
+    }
+
+    requestAnimationFrame(updateMuseumScrollHint);
+}
+
 function renderMuseumContent(scrollToTop = true) {
     const info = document.getElementById('info-text');
     const storyBtn = document.getElementById('btn-museum-story');
@@ -168,7 +206,19 @@ function renderMuseumContent(scrollToTop = true) {
         info.innerHTML = `${standbyStrip}${systemText}`;
     }
 
+    const scrollHint = document.createElement('div');
+    scrollHint.id = 'museum-scroll-hint';
+    scrollHint.className = 'museum-scroll-hint hidden';
+    const scrollHintBtn = document.createElement('button');
+    scrollHintBtn.type = 'button';
+    scrollHintBtn.className = 'museum-scroll-hint-btn';
+    scrollHintBtn.textContent = '[ ↓ FULL MUSEUM (A) ]';
+    scrollHintBtn.addEventListener('click', () => setRightPanelMode('museum'));
+    scrollHint.appendChild(scrollHintBtn);
+    info.appendChild(scrollHint);
+
     if (scrollToTop) info.scrollTop = 0;
+    requestAnimationFrame(updateMuseumScrollHint);
 }
 
 function setMuseumTab(tabName, options = {}) {
@@ -513,9 +563,23 @@ function initApp() {
             });
         }
 
-        // MUSEUM SUB-TABS & CROSSLINK-BUTTONS VERKABELN
+// WORKSPACE-MODI (SPLIT / MUSEUM / CHIP) & MUSEUM SUB-TABS VERKABELN
+        document.querySelectorAll('.workspace-mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                setRightPanelMode(btn.dataset.rightMode);
+            });
+        });
+
+        const btnMuseumExpand = document.getElementById('btn-museum-expand');
+        if (btnMuseumExpand) {
+            btnMuseumExpand.addEventListener('click', () => {
+                setRightPanelMode(rightPanelMode === 'museum' ? 'split' : 'museum');
+            });
+        }
+
         document.querySelectorAll('.museum-subtab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
+                if (rightPanelMode === 'chip') setRightPanelMode('split');
                 setMuseumTab(btn.dataset.museumTab, { scrollToTop: true });
             });
         });
@@ -525,9 +589,15 @@ function initApp() {
             infoPanel.addEventListener('click', (event) => {
                 const jumpBtn = event.target.closest('[data-jump-museum-tab]');
                 if (!jumpBtn) return;
+                if (rightPanelMode === 'chip') setRightPanelMode('split');
                 setMuseumTab(jumpBtn.dataset.jumpMuseumTab, { scrollToTop: true });
             });
+            infoPanel.addEventListener('scroll', updateMuseumScrollHint, { passive: true });
         }
+
+        window.addEventListener('resize', updateMuseumScrollHint);
+        setRightPanelMode(rightPanelMode);
+
 
         // Event-Listener für das Cursor-Hiding binden
         if (visualZone) {
@@ -1011,12 +1081,8 @@ async function setTheme(themeName, isBootSequence = false) {
     trackSearchQuery = '';
     const trackSearchInput = document.getElementById('track-search');
     if (trackSearchInput) trackSearchInput.value = '';
-    document.body.classList.remove('archive-expanded');
-    const btnToggleArchive = document.getElementById('btn-toggle-archive');
-    if (btnToggleArchive) {
-        btnToggleArchive.textContent = '[ HIDE CHIP ]';
-        btnToggleArchive.setAttribute('aria-expanded', 'true');
-    }
+    setRightPanelMode(rightPanelMode);
+
     updateLivingSiliconTitle();
 
     const tempContainer = document.getElementById('temp-control-container');
@@ -1756,12 +1822,13 @@ document.addEventListener('keydown', event => {
         exitPseudoFullscreen(visualZone);
         return;
     }
-    if (!['f', 'm', 'l'].includes(key)) return;
+    if (!['f', 'm', 'l', 'a'].includes(key)) return;
 
     event.preventDefault();
     resetMouseIdleTimer();
     if (key === 'f') toggleFullscreen();
     else if (key === 'm') document.getElementById('btn-eco').click();
+    else if (key === 'a') setRightPanelMode(rightPanelMode === 'museum' ? 'split' : 'museum');
     else document.getElementById('btn-hud-toggle').click();
 });
 
