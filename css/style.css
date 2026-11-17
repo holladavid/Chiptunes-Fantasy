@@ -1276,6 +1276,90 @@ body.archive-expanded #living-silicon-container {
     overflow-wrap: anywhere;
 }
 
+/* Semantische Hardware-Dossier-Klassen (aus js/content/museum.js) */
+.museum-hardware-dossier {
+    display: block;
+    min-width: 0;
+}
+
+.museum-spec-card {
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    background: rgba(0, 0, 0, 0.34);
+    border: 1px solid var(--chassis-dark);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.museum-spec-title {
+    margin: 0 0 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px dashed var(--panel-text);
+    color: var(--highlight-color);
+    font-family: var(--font-main);
+    font-size: var(--font-size-sm);
+    font-weight: bold;
+    letter-spacing: 0.04em;
+    line-height: 1.35;
+}
+
+.museum-spec-grid {
+    display: grid;
+    grid-template-columns: minmax(98px, auto) minmax(0, 1fr);
+    gap: 5px 12px;
+    margin: 0;
+    font-family: var(--font-prose);
+    font-size: calc(var(--font-size-prose) * 0.92);
+    line-height: 1.32;
+}
+
+.museum-spec-grid dt {
+    color: var(--highlight-color);
+    font-weight: bold;
+}
+
+.museum-spec-grid dd {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--text-color);
+}
+
+.museum-essay {
+    border-left: 4px solid var(--text-color);
+    padding: 10px 15px;
+    margin-bottom: 14px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.museum-essay h3 {
+    margin: 24px 0 12px;
+}
+
+.museum-essay h3:first-child {
+    margin-top: 0;
+}
+
+.museum-essay h4 {
+    margin: 18px 0 6px;
+    color: var(--highlight-color);
+    font-family: var(--font-main);
+    font-size: var(--font-size-base);
+    line-height: 1.4;
+}
+
+.museum-essay ul {
+    max-width: 72ch;
+    margin: 0 0 14px 1.25em;
+    padding: 0;
+    font-family: var(--font-prose);
+    font-size: var(--font-size-prose);
+    line-height: 1.38;
+}
+
+.museum-essay li {
+    margin-bottom: 6px;
+}
+
 /* =========================================
    BRANDING LOGO (DEMOSCENE SOUNDCHIP CREST & COPPER LOCKUP)
    ========================================= */
