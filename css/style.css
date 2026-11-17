@@ -1360,6 +1360,147 @@ body.archive-expanded #living-silicon-container {
     margin-bottom: 6px;
 }
 
+/* Museum Sub-Tabs & Dossier Layout */
+.museum-archive-toolbar {
+    flex-wrap: wrap;
+    gap: 6px 12px;
+}
+
+.museum-subtabs {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.museum-subtab-btn,
+.museum-jump-btn {
+    background: var(--chassis-dark);
+    border: 1px solid var(--chassis-light);
+    color: var(--panel-text);
+    padding: 4px 9px;
+    cursor: pointer;
+    font-family: var(--font-main);
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    transition: background-color var(--state-transition), color var(--state-transition), border-color var(--state-transition);
+}
+
+.museum-subtab-btn:hover,
+.museum-jump-btn:hover {
+    color: var(--highlight-color);
+    border-color: var(--highlight-color);
+}
+
+.museum-subtab-btn.active {
+    background: var(--bg-color);
+    color: var(--highlight-color);
+    border-color: var(--bus-active-color);
+    box-shadow: inset 0 -2px 0 var(--bus-active-color);
+}
+
+.museum-subtab-btn:active,
+.museum-jump-btn:active {
+    transform: translateY(1px);
+}
+
+.museum-standby-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    margin-bottom: 12px;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.38);
+    border-left: 3px solid var(--bus-active-color);
+    color: var(--panel-text);
+    font-family: var(--font-main);
+    font-size: var(--font-size-xs);
+    line-height: 1.35;
+}
+
+.museum-standby-strip-track > span {
+    color: var(--highlight-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.museum-story-dossier {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+}
+
+.museum-story-main,
+.museum-story-sidebar {
+    min-width: 0;
+}
+
+.museum-story-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.museum-story-card,
+.museum-binary-card,
+.museum-standby-card {
+    margin-bottom: 0;
+    padding: clamp(10px, 1vw, 16px);
+}
+
+.museum-binary-card > summary {
+    cursor: pointer;
+    margin-bottom: 0;
+}
+
+.museum-binary-card[open] > summary {
+    margin-bottom: 10px;
+}
+
+.museum-crosslink-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.34);
+    border: 1px solid var(--chassis-dark);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.museum-crosslink-hint {
+    color: var(--panel-text);
+    font-family: var(--font-main);
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.04em;
+    line-height: 1.35;
+}
+
+/* System-spezifische Lesbarkeit im Museum (C64 vs Amiga vs Atari ST) */
+body.theme-c64 .museum-story-card h3,
+body.theme-c64 .museum-essay h3 {
+    font-size: clamp(10px, 0.78vw, 12.5px);
+    line-height: 1.38;
+    margin-bottom: 10px;
+}
+
+body.theme-amiga .museum-story-card p,
+body.theme-atari .museum-story-card p,
+body.theme-amiga .museum-essay p,
+body.theme-atari .museum-essay p {
+    line-height: 1.34;
+    margin-bottom: 10px;
+}
+
+.museum-story-card .museum-sources {
+    margin-top: 10px;
+    padding-top: 8px;
+}
+
 /* =========================================
    BRANDING LOGO (DEMOSCENE SOUNDCHIP CREST & COPPER LOCKUP)
    ========================================= */
@@ -3189,6 +3330,34 @@ body:has(#visual-zone:fullscreen) {
     }
 }
 
+/* 2-Spalten-Dossier im Museum auf Standard-Desktops (nutzt die breite rechte Spalte) */
+@media (min-width: 1120px) and (max-width: 2199px) {
+    .museum-story-dossier,
+    .museum-hardware-dossier {
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(245px, 0.85fr);
+        gap: 14px;
+        align-items: start;
+    }
+
+    .museum-hardware-dossier > .museum-essay {
+        grid-column: 1;
+        grid-row: 1;
+        margin-bottom: 0;
+    }
+
+    .museum-hardware-dossier > .museum-spec-card {
+        grid-column: 2;
+        grid-row: 1;
+        margin-bottom: 0;
+    }
+
+    .museum-story-sidebar .terminal-grid {
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 6px 10px;
+    }
+}
+
 /* Signal Guide in 2-Spalten-Desktop neben dem Chip statt darüber/darunter */
 @media (min-width: 1300px) and (max-width: 2199px) {
     #living-silicon-container:has(.silicon-guide[open]) {
@@ -3656,6 +3825,8 @@ body:has(#visual-zone:fullscreen) {
     #track-search,
     #btn-clear-track-search,
     #btn-toggle-archive,
+    .museum-subtab-btn,
+    .museum-jump-btn,
     #btn-eco-off,
     .fs-controls button,
     #btn-fullscreen,
@@ -4053,13 +4224,16 @@ body:has(#visual-zone:fullscreen) {
 
     .tab-btn,
     .core-control select,
-    #btn-fullscreen,
-    .fs-controls button,
-    .silicon-guide > summary,
-    #btn-toggle-archive,
     .breadcrumb-button,
     #track-search,
-    #btn-clear-track-search {
+    #btn-clear-track-search,
+    #btn-toggle-archive,
+    .museum-subtab-btn,
+    .museum-jump-btn,
+    #btn-eco-off,
+    .fs-controls button,
+    #btn-fullscreen,
+    .silicon-guide > summary {
         min-height: 44px;
     }
 

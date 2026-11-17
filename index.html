@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Chiptunes">
     <meta name="google-site-verification" content="GW3br5S4NL_Z9wWu6CWmgNazUy-JhoJTVFoygF2Diyw" />
-    
+
     <!-- Opakes 180×180-PNG ohne eigene Rundung; iOS maskiert das Icon selbst -->
     <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
 
@@ -309,12 +309,21 @@
                     <button id="btn-toggle-archive" type="button" title="Living Silicon ein- oder ausblenden"
                         aria-controls="living-silicon-container" aria-expanded="true">[ HIDE CHIP ]</button>
                 </div>
-                <div id="living-silicon-container"></div>                
-                <div class="museum-toolbar">
-                    <span class="museum-toolbar-title">&gt; DATABASE & ARCHIVE</span>
+                <div id="living-silicon-container"></div>      
+
+                <div class="museum-toolbar museum-archive-toolbar">
+                    <span class="museum-toolbar-title">&gt; DATABASE &amp; ARCHIVE</span>
+                    <div class="museum-subtabs" role="tablist" aria-label="Museumsansicht wählen">
+                        <button id="btn-museum-story" type="button" class="museum-subtab-btn" role="tab"
+                            data-museum-tab="story" aria-selected="false" aria-controls="info-text"
+                            title="Track-Historie &amp; Binäranalyse">[ TRACK STORY ]</button>
+                        <button id="btn-museum-hardware" type="button" class="museum-subtab-btn active" role="tab"
+                            data-museum-tab="hardware" aria-selected="true" aria-controls="info-text"
+                            title="Hardware-Deep-Dive &amp; Chipspezifikationen">[ HARDWARE ]</button>
+                    </div>
                 </div>
                 
-                <div class="museum-content" id="info-text">
+                <div class="museum-content" id="info-text" role="tabpanel" aria-labelledby="btn-museum-hardware">
                     <p class="blinking-cursor">_</p>
                 </div>
             </div> <!-- Ende museum-panel -->
