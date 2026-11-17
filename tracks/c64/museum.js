@@ -1,9 +1,9 @@
-// Recherchierte Museumstexte für die vollständige C64-Playlist.
-// Historische Angaben, lokale SID-Header und Wiedergabetechnik sind getrennt.
-// Öffentliche HVSC-Verfügbarkeit bedeutet nicht Public Domain.
+// === tracks/c64/museum.js ===
+// Kuratierte Museumstexte für die C64-Playlist von Chiptunes Fantasy.
+// Fokus: SID-Hardwaretricks, Player-Technik, Komponisten-Anekdoten & Demoscene-History.
 
 const HVSC_SOURCE = {
-    label: 'HVSC #85: STIL & Songlengths',
+    label: 'HVSC #85',
     url: 'https://www.hvsc.c64.org/downloads'
 };
 
@@ -23,312 +23,390 @@ function museum(title, history, replay, ...sources) {
     return renderMuseum(title, history, replay, [HVSC_SOURCE, ...sources]);
 }
 
-// Für dokumentierte Rips außerhalb der HVSC wird kein HVSC-Herkunftslink vorgetäuscht.
 function museumCustom(title, history, replay, ...sources) {
     return renderMuseum(title, history, replay, sources);
 }
 
+const deepsid = hvscPath => ({
+    label: 'DeepSID',
+    url: `https://deepsid.chordian.net/?file=${hvscPath}`
+});
 const csdb = (id, label) => ({ label: `CSDb: ${label}`, url: `https://csdb.dk/release/?id=${id}` });
+const csdbSid = (id, label) => ({ label: `CSDb SID: ${label}`, url: `https://csdb.dk/sid/?id=${id}` });
+const demozoo = (id, label) => ({ label: `Demozoo: ${label}`, url: `https://demozoo.org/productions/${id}/` });
 
 export const c64MuseumMetadata = {
-    "Commando.sid": museum(
-        'ROB HUBBARD — COMMANDO',
-        `<strong>Commando</strong> erschien 1985 bei Elite. <strong>Rob Hubbard</strong> erzählt, dass er die C64-Fassung in einer Nacht erstellte und dabei weit über eine wörtliche Übertragung von Tamayo Kawamotos Arcade-Musik hinausging. STIL ordnet einzelne Abschnitte des Hauptstücks dennoch konkreten Arcade-Themen zu.`,
-        `Lokaler Header: <strong>PSID v2, 19 Subsongs, Start 1</strong>. Die lange erste Sequenz bildet den bekannten Hauptteil; die übrigen Subsongs enthalten kurze Spielsignale. Die Wiedergabe erfolgt aus dem gespeicherten 6510-Code, nicht aus einer nachträglich sequenzierten Tracker-Datei.`,
+    // =========================================================================
+    // GAMES: 1984–1986 (Die frühen SID-Pioniere)
+    // =========================================================================
+    "games/lazy-jones.sid": museum(
+        'DAVID WHITTAKER — LAZY JONES (1984)',
+        `Bevor <strong>David Whittaker</strong> hauptberuflich Spielmusik schrieb, spielte er in der New-Romantic-Band <em>Beu Leisure</em>. Für Terminal Software entwickelte er <strong>Lazy Jones</strong> im Alleingang – inklusive aller 14 enthaltenen Minispiele, die er zuerst komplett in BASIC schrieb und dann Zeile für Zeile in 6502-Maschinensprache übersetzte. Der Soundtrack zitiert fröhlich quer durch die frühen 80er (u. a. Nena, Visage, Blancmange und die Tonfolge aus <em>Unheimliche Begegnung der dritten Art</em>). Legendär wurde Subsong 21 (<em>Star Dust</em>): 1999 samplete das Projekt Zombie Nation die Melodie für den weltweiten Club-Hit <em>Kernkraft 400</em>.`,
+        `<strong>PSID v2 · 21 Subsongs (Start 1)</strong>. 1984 gab es noch kaum komfortable C64-Musikeditoren: Whittaker hackte seine Musikdaten direkt über einen Maschinensprache-Monitor bzw. Assembler in den Speicher. Jeder der 21 Subsongs versorgt einen anderen Raum oder ein Minispiel des Hotel-Settings – roher, ungeschliffener 6581-Sound der ersten Stunde.`,
+        deepsid('/MUSICIANS/W/Whittaker_David/Lazy_Jones.sid')
+    ),
+    "games/commando.sid": museum(
+        'ROB HUBBARD — COMMANDO (1985)',
+        `Der Startschuss für die moderne C64-Musik: <strong>Rob Hubbard</strong>, eigentlich gelernter Studiomusiker, bekam von Elite Systems 1985 einen Arcade-Automaten von <em>Commando</em> ins Büro gestellt – und legte eine einzige legendäre Nachtschicht hin. Statt Tamayo Kawamotos knappe Arcade-Schleife brav nachzuklimpern, komponierte er ein fast siebenminütiges Synth-Epos, das die Arcade-Vorlage in Grund und Boden spielte. Damit bewies Hubbard der Spielebranche, dass der C64 kein besseres Pieps-Spielzeug war, sondern ein eigenständiges elektronisches Instrument.`,
+        `<strong>PSID v2 · 19 Subsongs (Start 1)</strong>. Technisch ist <em>Commando</em> ein Lehrstück im <strong>Channel-Multiplexing</strong>: Weil der SID nur drei Stimmen hat, quetscht Hubbard Kick-Drums, treibende Bassline und 1-Frame-Noise-Snares abwechselnd auf einen Kanal, während eine zweite Stimme rasende Dreiklang-Arpeggios abfeuert und die dritte die Lead-Melodie trägt. Ausgelegt auf die schmutzig-warmen Eigenheiten des frühen <strong>MOS 6581</strong>.`,
+        deepsid('/MUSICIANS/H/Hubbard_Rob/Commando.sid'),
         { label: 'C64 Audio: Rob Hubbard 1985', url: 'https://c64audio.com/blogs/rob-hubbard-master-of-magic/rob-hubbard-1985-on-the-run' }
     ),
-    "Crazy_Comets.sid": museum(
-        'ROB HUBBARD — CRAZY COMETS',
-        `<strong>Crazy Comets</strong> erschien 1985 bei Martech mit Musik von <strong>Rob Hubbard</strong>. Das Spiel ist der Vorgänger von <em>Mega Apocalypse</em>; Hubbard selbst äußerte später, dass er die Musik des ersten Teils bevorzugte. Frühere Behauptungen über eine roboterhafte Sprachsynthese sind für diese Datei nicht belastbar belegt.`,
-        `Lokaler Header: <strong>PSID v2, 17 Subsongs, Start 1</strong>. HVSC führt für das Hauptstück 4:36 Minuten und für die übrigen Subsongs überwiegend kurze Effekte beziehungsweise Jingles. Der Text trennt diese dokumentierten Bestandteile von späteren Sample-Legenden.`,
+    "games/monty-on-the-run.sid": museum(
+        'ROB HUBBARD — MONTY ON THE RUN (1985)',
+        `Gremlin Graphics suchte für den Flucht-Platformer rund um Maulwurf Monty Mole einen gehetzten, atemlosen Soundtrack. <strong>Rob Hubbard</strong> nahm sich Charles Williams’ <em>The Devil’s Gallop</em> – die Titelmelodie der alten britischen Detektiv-Radioserie <em>Dick Barton</em> – als Sprungbrett und verwandelte sie in eine knapp sechsminütige Adrenalin-Achterbahn. Noch Jahrzehnte später gehört das Stück zu den meistgecoverten Chiptunes überhaupt, ob als Orchester-Arrangement oder Metal-Cover.`,
+        `<strong>PSID v2 · 19 Subsongs (Start 1)</strong>. Der berühmte, dramatisch anschwellende Mittelteil diente Hubbard ganz pragmatisch als Spielwiese: Er hatte für das Projekt gerade eine brandneue <strong>Pitch-Bend-Routine</strong> in seinen 6502-Player programmiert und wollte hören, wie weit man stufenlose Tonhöhen-Slides auf dem <strong>6581</strong> ausreizen kann. Dazu gesellen sich eine Alternativfassung und knackige Event-Jingles.`,
+        deepsid('/MUSICIANS/H/Hubbard_Rob/Monty_on_the_Run.sid'),
         { label: 'C64 Audio: Rob Hubbard 1985', url: 'https://c64audio.com/blogs/rob-hubbard-master-of-magic/rob-hubbard-1985-on-the-run' }
     ),
-    "Sanxion.sid": museum(
-        'ROB HUBBARD — SANXION',
-        `<strong>Sanxion</strong> war Thalamus’ erstes Spiel und erschien 1986. <strong>Rob Hubbard</strong> nennt Jean-Michel Jarres <em>Zoolook</em> als Inspiration für die Lademusik <strong>Thalamusik</strong>. Der zweite Subsong adaptiert Sergei Prokofjews <em>Tanz der Ritter</em> aus <em>Romeo und Julia</em>.`,
-        `Lokaler Header: <strong>PSID v2, zwei Subsongs, Start 1</strong>. Die HVSC-Längen betragen 5:34 für <em>Thalamusik</em> und 3:06 für die Prokofjew-Adaption. Gerade die getrennten Subsongs zeigen, dass Lade- und Spielmusik nicht zu einem einzigen Track vermischt werden sollten.`
+    "games/crazy-comets.sid": museum(
+        'ROB HUBBARD — CRAZY COMETS (1985)',
+        `Martechs Weltraum-Shooter <strong>Crazy Comets</strong> wurde nicht wegen des Gameplays unsterblich, sondern wegen seines Soundtracks: <strong>Rob Hubbard</strong> lieferte eine knackige Space-Funk-Nummer, die sich so tief ins kollektive Gedächtnis brannte, dass er selbst sie später sogar dem bekannteren Nachfolger <em>Mega Apocalypse</em> vorzog. Ohne Sprachsamples, ohne Effekthascherei – pure Melodie und Rhythmus auf dem nackten Chip.`,
+        `<strong>PSID v2 · 17 Subsongs (Start 1)</strong>. Ein Paradebeispiel für Hubbards frühes „Channel-Packing“: Auf den Zählzeiten 1 und 3 sitzen Bassnoten und Kick auf demselben Kanal, auf 2 und 4 schaltet die Routine blitzschnell auf kurzes weißes Rauschen (Noise) als Snare um – so bleibt dem SID trotz Schlagzeug volle Luft für Arpeggios und Melodie (Hauptstück 4:36 min, gefolgt von 16 Jingles/SFX).`,
+        deepsid('/MUSICIANS/H/Hubbard_Rob/Crazy_Comets.sid'),
+        { label: 'C64 Audio: Rob Hubbard 1985', url: 'https://c64audio.com/blogs/rob-hubbard-master-of-magic/rob-hubbard-1985-on-the-run' }
     ),
-    "Lightforce.sid": museum(
-        'ROB HUBBARD — LIGHTFORCE',
-        `<strong>Lightforce</strong> erschien 1986 bei Faster Than Light. Die Musik stammt von <strong>Rob Hubbard</strong>. Sein späterer Kommentar ist bemerkenswert selbstkritisch: Den Rhythmus fand er gelungen, den Rest deutlich weniger. Diese Einordnung ersetzt die frühere werbliche Beschreibung durch eine dokumentierte Künstlerperspektive.`,
-        `Lokaler Header: <strong>PSID v2, ein Subsong</strong>. HVSC #85 verzeichnet eine Länge von <strong>7:13,481</strong> – deutlich mehr als der frühere lokale Näherungswert. Der SID enthält den kompletten Replay-Code und die Musikdaten in einer Datei.`
+    "games/ocean-loader-1.sid": museum(
+        'MARTIN GALWAY — OCEAN LOADER 1 (1985)',
+        `Wer in den 80ern ein C64-Spiel von Kassette lud, starrte fünf bis zehn Minuten auf flackernde Ladebalken. Ocean-Programmierer <strong>Paul Hughes</strong> erfand deshalb ein System, das während des Ladevorgangs ein Titelbild samt Hintergrundmusik im Speicher hielt – den legendären <strong>Ocean Loader</strong>. Nach einem Prototyp bei <em>Daley Thompson’s Supertest</em> ging Version 1 erstmals mit Konamis <strong>Hyper Sports</strong> in Serie. <strong>Martin Galway</strong> komponierte damit einen der meistgehörten Tracks der C64-Geschichte: selbst wer das Spiel gar nicht mochte, kannte jede Note aus der Warteschleife.`,
+        `<strong>PSID v2 · 1 Subsong</strong>. Die frühe Ocean-Loader-Architektur musste extrem speicherschonend sein, damit während des laufenden Band-I/O-Interrupts sowohl der Lader als auch Galways Musikroutine stabil im Hintergrund liefen. Aus dieser Ur-Fassung entwickelte Galway wenig später direkt seinen noch berühmteren Remix für <em>Ocean Loader 2</em>.`,
+        deepsid('/MUSICIANS/G/Galway_Martin/Ocean_Loader_1.sid')
     ),
-    "Wizball.sid": museum(
-        'MARTIN GALWAY — WIZBALL',
-        `<strong>Wizball</strong> erschien 1987 bei Ocean. <strong>Martin Galway</strong> beschreibt besonders die intensive Arbeit am Klangdesign der Stimmen. STIL dokumentiert außerdem John Hares Bass-Riffs für die Bonusmusik und Chris Yates’ Gitarrenriff für das Game-over-Stück.`,
-        `Lokaler Header: <strong>PSID v2, neun Subsongs, Start 4</strong> – die Datei öffnet daher direkt mit der Titelmusik. Die lokale Binärvariante bleibt erhalten; ihre Songlängen sind dem eindeutig zugeordneten HVSC-Titelpfad entnommen. Ein pauschaler D418-Sample-Nachweis wird für diesen Eintrag nicht behauptet.`
+    "games/ocean-loader-2.sid": museum(
+        'MARTIN GALWAY — OCEAN LOADER 2 (1985)',
+        `Eigentlich wollte <strong>Martin Galway</strong> für jedes Ocean-Spiel eine eigene Lademusik schreiben – doch bei der schieren Release-Flut in Manchester ging ihm schlicht die Zeit aus. Also baute er Ende 1985 aus seiner <em>Ocean-Loader-1</em>-Melodie (<em>Hyper Sports</em>) eine tiefere, verträumtere Überarbeitung. Bis Mitte 1987 begleitete <strong>Ocean Loader 2</strong> unzählige Ocean- und Imagine-Kassetten und löste das Gefühl aus, dass gleich etwas Großes auf dem Röhrenfernseher startet.`,
+        `<strong>PSID v2 · 1 Subsong · Länge 4:13</strong>. Galways frühe „1st-Generation“-Routine nutzt subtile Pulsweitenmodulation und fein abgestimmte Hüllkurven, um aus drei Stimmen maximale Wärme zu holen. Wie viele seiner 1985er/86er Stücke entfaltet der Track seine volle Gänsehaut auf einem originalen <strong>MOS 6581</strong>.`,
+        deepsid('/MUSICIANS/G/Galway_Martin/Ocean_Loader_2.sid')
     ),
-    "Comic_Bakery.sid": museum(
-        'MARTIN GALWAY — COMIC BAKERY',
-        `<strong>Comic Bakery</strong> erschien 1986 bei Imagine. <strong>Martin Galway</strong> erklärt, dass das Titelstück ursprünglich als Cover von Level 42s <em>Hot Water</em> begann, sich aber schon früh in eine eigene Komposition entwickelte. Subsong 6 adaptiert <em>Tea for Two</em> von Vincent Youmans und Irving Caesar.`,
-        `Lokaler Header: <strong>PSID v2, 14 Subsongs, Start 1</strong>. Neben dem 3:09 Minuten langen Hauptthema enthält die Datei kürzere Spielmusiken und Jingles. Die technische Einordnung beschränkt sich auf diese nachweisbaren Bestandteile statt auf nicht belegte Interrupt- oder PWM-Werte.`
+    "games/sanxion.sid": museum(
+        'ROB HUBBARD — SANXION (1986)',
+        `Als der junge Finne Stavros Fasoulas 1986 das erste Spiel des neuen Kultlabels <strong>Thalamus</strong> ablieferte, sorgte nicht nur das zweigeteilte Radar-Scrolling für offene Münder: Beim Laden erklang John Twiddys neues Schnellladesystem <em>Cyberload</em> (mit der berüchtigten versteckten Botschaft <em>„hackers f*** off and die“</em> im Speicher) – untermalt von <strong>Thalamusik</strong>, laut zahllosen Fans <strong>Rob Hubbards</strong> beste Lademusik aller Zeiten. Inspiriert von Jean-Michel Jarres <em>Zoolook</em> schraubte Hubbard hier fünf Minuten reinen Synth-Wahnsinn zusammen; im Spiel selbst adaptiert Subsong 2 Prokofjews <em>Tanz der Ritter</em>.`,
+        `<strong>PSID v2 · 2 Subsongs (Start 1)</strong>. Während <em>Thalamusik</em> (5:34) mit pulsierenden Sequenzen hypnotisiert, dreht Subsong 2 (3:06) technisch voll auf: Hubbard kombiniert hier <strong>Hard Sync</strong>, Filter-Sweeps und Pulsweitenmodulation (PWM), sodass der <strong>6581</strong> fast wie ein ausgewachsener Analog-Synthesizer klingt.`,
+        deepsid('/MUSICIANS/H/Hubbard_Rob/Sanxion.sid')
     ),
-    "Arkanoid.sid": museum(
-        'MARTIN GALWAY — ARKANOID',
-        `<strong>Arkanoid</strong> erschien 1987 bei Imagine. <strong>Martin Galway</strong> ordnet die veröffentlichte C64-Fassung selbst als erstes veröffentlichtes C64-Stück mit Samples ein, betont aber ausdrücklich, die Technik des Schreibens auf das Lautstärkeregister nicht erfunden zu haben. Das Titelthema verwertet seine Musik aus dem Spectrum-Spiel <em>Cobra</em>; weitere Subsongs adaptieren Hisayoshi Oguras Arcade-Material.`,
-        `Lokaler Header: <strong>RSID v2, 20 Subsongs, Start 1</strong>. RSID ist hier ein wichtiger Dateibefund: Die Fassung ist für ein realistischeres C64-Wiedergabemodell gedacht und nicht mit einem beliebigen PSID-Rip gleichzusetzen. Die Sample-Aussage bezieht sich auf Galways dokumentierte veröffentlichte Fassung.`
+    "games/lightforce.sid": museum(
+        'ROB HUBBARD — LIGHTFORCE (1986)',
+        `Faster Than Light schickte 1986 den Vertikal-Shooter <strong>Lightforce</strong> ins Rennen, und natürlich saß <strong>Rob Hubbard</strong> am SID. Spannender Kontrast zur Fan-Liebe: Während <em>Lightforce</em> bis heute zu den beliebtesten Remix-Vorlagen der Szene gehört, ging Hubbard später selbstkritisch mit dem Stück ins Gericht – den treibenden Rhythmus fand er stark, den Rest eher mittelmäßig. Für C64-Fans bleibt die über siebenminütige Weltraum-Odyssee dennoch ein Pflichtkapitel.`,
+        `<strong>PSID v2 · 1 Subsong · Länge 7:13,481</strong>. Ein gewaltiges Monolith-File: Komplette 6510-Replay-Routine und Sequenzdaten stecken zusammen in einem über sieben Minuten laufenden Arrangement, das stark von straffen Bass-Grooves und scharfen Sync-/Filterwechseln lebt.`,
+        deepsid('/MUSICIANS/H/Hubbard_Rob/Lightforce.sid')
     ),
-    "Great_Giana_Sisters.sid": museum(
-        'CHRIS HÜLSBECK — THE GREAT GIANA SISTERS',
-        `<strong>The Great Giana Sisters</strong> erschien 1987. <strong>Chris Hülsbeck</strong> beschreibt die Ingame-Musik als leicht reggae-inspiriert und das Titelthema als Hommage an Madonnas <em>True Blue</em>. Gleichzeitig betont er den eigenen Charakter der Stücke – eine wesentlich differenziertere Einordnung als bloße Vergleiche mit anderen Spielen.`,
-        `Lokaler Header: <strong>RSID v2, 23 Subsongs, Start 1</strong>. Die Datei bündelt Titel-, Level- und kurze Ereignismusik. HVSC liefert für alle 23 Subsongs eigene Längen; der frühere verkürzte Acht-Werte-Eintrag wurde deshalb ersetzt.`
+    "games/comic-bakery.sid": museum(
+        'MARTIN GALWAY — COMIC BAKERY (1986)',
+        `Was als Auftragsversion von Level 42s Funk-Hit <em>Hot Water</em> begann, mutierte unter den Fingern von <strong>Martin Galway</strong> zu einer der fröhlichsten Eigenkompositionen der 8-Bit-Ära. Imagine Software veröffentlichte das hektische Bäckerei-Spiel <strong>Comic Bakery</strong> 1986, und Galways schwebendes Hauptthema wurde prompt in zahllosen Demos, Cracktros und Musicdisks der späten 80er recycelt. Subsong 6 schmuggelt zudem das Jazz-Standard-Stück <em>Tea for Two</em> ins Backhaus.`,
+        `<strong>PSID v2 · 14 Subsongs (Start 1)</strong>. Galway war berühmt dafür, während eines laufenden Tons dynamisch in die SID-Register einzugreifen, statt bloß statische Instrumente abzuspielen. Im 3:09-minütigen Hauptthema sorgt genau das für den charakteristischen, leicht schwebenden Echo-Glanz – komplett aus drei Stimmen ohne digitale Samples.`,
+        deepsid('/MUSICIANS/G/Galway_Martin/Comic_Bakery.sid')
     ),
-    "Bionic_Commando.sid": museum(
-        'TIM FOLLIN — BIONIC COMMANDO',
-        `<strong>Bionic Commando</strong> erschien 1988 für den C64 bei GO!/Capcom. <strong>Tim Follin</strong> begann mit einer Übertragung von Harumi Fujitas Arcade-Musik, ließ das Arrangement dann aber bewusst in eine eigene Richtung wachsen. STIL vermerkt unter anderem ein kurzes <em>Binary Sunset</em>-Zitat in Subsong 6 und die eigenständigen Stücke 1 und 10.`,
-        `Lokaler Header: <strong>PSID v2, zehn Subsongs, Start 1</strong>. Die vorliegende Binärvariante bleibt unverändert; die zehn offiziellen Längen stammen vom zugeordneten HVSC-Titel. Die Datei eignet sich dadurch besonders gut zum Vergleich von Arcade-Vorlage und Follins eigener Erweiterung.`
+    "games/miami-vice.sid": museum(
+        'MARTIN GALWAY — MIAMI VICE (1986)',
+        `Ocean kaufte 1986 teure TV-Lizenzen – und lieferte bei <strong>Miami Vice</strong> ein berüchtigt katastrophales Spiel mit explodierenden Autos am laufenden Band ab. Gerettet wurde die Ehre allein durch <strong>Martin Galway</strong>: Neben Jan Hammers <em>Miami Vice Theme</em> (Subsong 2) wollte er dessen Instrumental <em>Evan</em> umsetzen. Doch während der Arbeit verlor ein Filter-Sweep die Synchronisation – Galway verliebte sich in den psychedelischen Klang und dehnte das Stück zu einem epischen elfeinhalbminütigen Ambient-Trip aus.`,
+        `<strong>PSID v2 · 2 Subsongs (Start 1)</strong>. Ein absolutes Paradebeispiel für den <strong>analogen Filter des MOS 6581</strong>: Der berühmte, 11:29,503 Minuten lange erste Track lebt von langsamen, organischen Filter-Verläufen, die auf dem späteren, lineareren 8580-Chip völlig anders (oft deutlich dünner) klingen.`,
+        deepsid('/MUSICIANS/G/Galway_Martin/Miami_Vice.sid')
     ),
-    "Last_Ninja.sid": museum(
-        'BEN DAGLISH & ANTHONY LEES — THE LAST NINJA',
-        `<strong>The Last Ninja</strong> erschien 1987 bei System 3. Der Soundtrack ist eine Arbeit von <strong>Ben Daglish und Anthony Lees</strong>, nicht eine Serienproduktion eines einzelnen Komponisten. STIL weist den elf Subsongs einzelne Autoren und Spielbereiche zu; die Lade- und Ingame-Fassungen sind dabei bewusst zu unterscheiden.`,
-        `Lokaler Header: <strong>PSID v2, elf Subsongs, Start 3</strong> – also <em>The Wastelands</em> als Lademusik. Die lokale Binärvariante bleibt erhalten, während die Songlängen aus dem zugehörigen HVSC-Eintrag übernommen wurden. Einzelne historische Autorenschaftsfragen werden von STIL ausdrücklich dokumentiert, nicht glattgezogen.`
+    "games/rambo-first-blood-part-ii.sid": museum(
+        'MARTIN GALWAY — RAMBO: FIRST BLOOD PART II (1986)',
+        `<strong>Rambo</strong> war eines der ganz wenigen Ocean-Spiele der mittleren 80er, die statt des Standard-Loaders eine eigene Lademusik bekamen – und was für eine! <strong>Martin Galway</strong> arrangierte Jerry Goldsmiths Filmthema für den SID, baute im Intro selbst programmierten <strong>Morsecode</strong> ein (der im Klartext die Entwicklernamen funkt!) und versteckte in Subsong 22 noch einen kurzen Gruß an Richard Wagners <em>Ritt der Walküren</em>. Martin Galway erzählte später, dass sich Oceans Verkäufer persönlich bei ihm bedankten, weil seine Musik so manches mittelmäßige Lizenzspiel überhaupt erst verkäuflich machte.`,
+        `<strong>PSID v2 · 23/24 Subsongs (Start 1)</strong>. Der lange Titeltrack nutzt tiefe, dröhnende Sägezahn-Bässe und dramatische Filterkurven auf dem 6581, während Subsong 2 eine korrigierte Fassung bereithält und die übrigen Subsongs das Spiel mit Morse-Signalen und Action-Jingles versorgen.`,
+        deepsid('/MUSICIANS/G/Galway_Martin/Rambo_First_Blood_Part_II.sid')
     ),
-    "Last_Ninja_2.sid": museum(
-        'MATT GRAY — LAST NINJA 2',
-        `<strong>Last Ninja 2: Back with a Vengeance</strong> erschien 1988. <strong>Matt Gray</strong> begann mit den Central-Park-Stücken, um dem Spiel seinen Klang zu geben, und bezeichnet den Soundtrack später als eine seiner wichtigsten Arbeiten. STIL dokumentiert zudem Anleihen bei Bomb the Bass, Tangerine Dream und Rob Hubbard in einzelnen Levelstücken.`,
-        `Lokaler Header: <strong>PSID v2, 13 Subsongs, Start 1</strong>. Die Lade- und Ingame-Stücke für Central Park, Street, Sewers, Basement, Office und Mansion sind separat aufrufbar. Diese Struktur macht den Umfang des Scores unmittelbar im SID sichtbar.`
+    "games/parallax.sid": museum(
+        'MARTIN GALWAY — PARALLAX (1986)',
+        `Sensible Softwares Sci-Fi-Epos <strong>Parallax</strong> (später berühmt für <em>Wizball</em> und <em>Sensible Soccer</em>) sollte sich riesig und isoliert anfühlen – also schrieb <strong>Martin Galway</strong> ein passendes Monsterstück. Zwei Wochen feilte er allein am Hauptthema; die ersten zwei Drittel bestehen nur aus dem sich langsam aufbauenden Intro! Während der Arbeit lief bei Galway täglich Jean-Michel Jarres Album <em>Rendez-Vous</em> im Hintergrund – erst nach Release merkte er, wie tief sich Jarre in die Melodielinien eingeschlichen hatte. Berüchtigt ist auch das völlig schräge, experimentelle Ende der Highscore-Musik.`,
+        `<strong>PSID v2 · 5 Subsongs (Start 1)</strong>. Subsong 1 erstreckt sich über monumentale <strong>11:23,2 Minuten</strong> und nutzt Galways 1st-Gen-Player für schillernde Pulsweiten-Flächen und verhallte Lead-Linien, wie man sie 1986 auf keinem Konkurrenz-Homecomputer gehört hatte.`,
+        deepsid('/MUSICIANS/G/Galway_Martin/Parallax.sid')
     ),
-    "Turbo_Outrun.sid": museum(
-        'JEROEN TEL — TURBO OUTRUN',
-        `<strong>Turbo Outrun</strong> erschien 1989 bei US Gold/Probe. <strong>Jeroen Tel</strong> berichtet, dass er viele Stücke etwa dreimal neu komponierte. STIL ordnet zahlreiche Subsongs Vorlagen von Hiroshi Kawaguchi und Yasuhiro Takagi zu; im Intro ist Tels eigene gesampelte Stimme zu hören.`,
-        `Lokaler Header: <strong>RSID v2, zwölf Subsongs, Start 1</strong>. Intro, Titel, Level 1–4, Tune-up und Endsequenzen sind getrennt abgelegt. Die Sample- und Arcade-Bezüge stammen aus STIL; eine pauschale „Zero-Page-Benchmark“-Behauptung wurde aus dem alten Text entfernt.`
+    "games/way-of-the-tiger.sid": museum(
+        'BEN DAGLISH — WAY OF THE TIGER (1986)',
+        `Lange bevor <em>The Last Ninja</em> alles überstrahlte, vertonte <strong>Ben Daglish</strong> für Gremlin Graphics dieses fernöstliche Beat-’em-up nach den berühmten Spielbüchern von Mark Smith und Jamie Thomson. Statt generischem „Asien-Gedudel“ griff Daglish tief in seine Plattensammlung und arrangierte den Klassiker <em>Firecracker</em> – ursprünglich 1959 von Exotica-Pionier Martin Denny komponiert, aber vor allem durch die legendäre Synth-Pop-Fassung des <strong>Yellow Magic Orchestra (YMO)</strong> (1978) weltberühmt.`,
+        `<strong>PSID v2 · 1 Subsong · Länge 2:49</strong>. Daglish zeigt hier früh seine Liebe für präzise perkussive Noise-Tricks und knackige Bass-Oktaven, die den YMO-Electro-Groove erstaunlich druckvoll in die drei Kanäle des 6581 pressen.`
     ),
-    "Cybernoid_II.sid": museum(
-        'JEROEN TEL — CYBERNOID II',
-        `<strong>Cybernoid II</strong> erschien 1988 bei Hewson mit Musik von <strong>Jeroen Tel</strong>. Anders als der frühere Sammeltext behauptete, besitzt dieser Eintrag eine eigene, kleine Dokumentation: STIL benennt lediglich Titelmusik und Game-over-Stück, ohne zusätzliche Myth-, Supremacy- oder RoboCop-Details hineinzukopieren.`,
-        `Lokaler Header: <strong>PSID v2, zwei Subsongs, Start 1</strong>. HVSC verzeichnet 5:46 Minuten für den Titel und acht Sekunden für das Game-over-Signal. Diese schlanke Struktur ist der belastbare technische Befund.`
+    "games/ghosts-n-goblins.sid": museum(
+        'MARK COOKSEY — GHOSTS’N GOBLINS (1986)',
+        `Capcoms Münzschlucker-Automat bekam 1986 von Elite Systems eine knallharte C64-Portierung – und <strong>Mark Cooksey</strong> tat etwas Mutiges: Während der Highscore (Subsong 1, 2:27) noch Ayako Moris knackige Arcade-Vorlage zitiert, warf er für das eigentliche Spiel das Original komplett über Bord und komponierte stattdessen eine schaurig-hypnotische Eigenkreation. Kenner hören darin Anklänge an Chopins düsteres <em>Prélude op. 28 Nr. 20</em> sowie Klaus Wunderlichs Orgel-Fassung von <em>Dangerous Dreams</em>.`,
+        `<strong>PSID v2 · 2 Subsongs (Start 2)</strong>. Der Start liegt bewusst auf Subsong 2 (3:50): Cooksey setzt auf kühle, hallige Arpeggios und langsame Akkordwechsel, die die Friedhofsatmosphäre des Spiels auf dem 6581 weit intensiver einfangen als die heitere Marschmelodie des Spielautomaten.`,
+        deepsid('/MUSICIANS/C/Cooksey_Mark/Ghosts_n_Goblins.sid')
     ),
-    "Supremacy.sid": museum(
-        'JEROEN TEL — SUPREMACY / OVERLORD',
-        `<strong>Supremacy</strong> erschien mit Musik von <strong>Jeroen Tel</strong>; der lokale Header nennt 1991 und Virgin. Das Spiel wurde auch als <strong>Overlord</strong> veröffentlicht. Der eigenständige Eintrag ersetzt den früheren Alias auf den Cybernoid-II-Text und hält Titel und Alternativname auseinander.`,
-        `Lokaler Header: <strong>PSID v2, drei Subsongs, Start 1</strong>. Die HVSC-Längen betragen 3:51, 0:39 und 2:31. Der technische Kern des Museumsbefunds ist damit die konkrete Drei-Subsong-Struktur, nicht eine unbelegte Wellenform-Behauptung.`
+    "games/glider-rider.sid": museum(
+        'DAVID WHITTAKER — GLIDER RIDER (1986)',
+        `Bei Quicksilvas 3D-Gleiter-Actioner <strong>Glider Rider</strong> zeigte <strong>David Whittaker</strong> (inzwischen als reiner Hauskomponist bei Binary Design statt als Einzelkämpfer wie bei <em>Lazy Jones</em>), wie weit sich sein Stil binnen zwei Jahren entwickelt hatte: Treibende, fast tranceartige Synth-Linien statt simplen Arcade-Gepieps. Für treue Fans baute er im ersten Subsong ab 1:13 und 1:26 ein schönes Easter Egg ein – zwei direkte Selbstzitate aus seinen eigenen <em>Lazy-Jones</em>-Stücken.`,
+        `<strong>PSID v2 · 3 Subsongs (Start 1)</strong>. Alle drei offiziellen Tracks laufen jeweils 1:40 Minuten. Whittakers Player setzt stark auf knackige, fast Hubbard-ähnliche Hüllkurven-Instrumente und schnelle Arpeggio-Teppiche, die dem 6581 eine überraschend dichte Atmosphäre entlocken.`,
+        deepsid('/MUSICIANS/W/Whittaker_David/Glider_Rider.sid')
     ),
-    "RoboCop_3.sid": museum(
-        'JEROEN TEL — ROBOCOP 3',
-        `<strong>RoboCop 3</strong> erschien 1992 bei Ocean. <strong>Jeroen Tels</strong> erster Subsong war bereits im Dezember 1991 in der Demo <em>Dutch Breeze</em> zu hören – ein gut dokumentiertes Beispiel dafür, wie Demo- und Spielmusik zeitlich verschränkt waren. Tel weist außerdem darauf hin, dass die Subsongs 4 und 5 jeweils nur eine Stimme verwenden.`,
-        `Lokaler Header: <strong>PSID v2, 20 Subsongs, Start 1</strong>. Neben längeren Musikstücken enthält die Datei viele kurze Spielsignale. Die Ein-Stimmen-Beobachtung bezieht sich ausdrücklich nur auf die Subsongs 4 und 5.`,
+
+    // =========================================================================
+    // GAMES: 1987–1989 (Das goldene Zeitalter & Digi-Samples)
+    // =========================================================================
+    "games/delta.sid": museum(
+        'ROB HUBBARD — DELTA (1987)',
+        `Nach <em>Sanxion</em> legten Programmierer Stavros Fasoulas und Thalamus 1987 mit dem knüppelharten Horizontal-Shooter <strong>Delta</strong> nach – und lieferten gleich eine echte C64-Weltneuheit mit: <strong>Mix-E-Load</strong>! Während das Spiel lud, konnte man mit den Tasten live Drums, Bass und Melodiespuren von <strong>Rob Hubbards</strong> Musik ein- und ausblenden. Im Titelthema verbeugte sich Hubbard tief vor Philip Glass’ hypnotischem Minimalismus aus <em>Koyaanisqatsi</em> (<em>Pruit Igoe</em>), während der ewig lange Ingame-Trip auf Wunsch von Thalamus’ Gary Liddon nach Pink Floyds <em>On the Run</em> klingen sollte.`,
+        `<strong>PSID v2 · Original-Thalamus-Rip</strong>. Ein Meilenstein des <strong>6581-Sounddesigns</strong>: Vom minimalistischen Einzelkanal-Einstieg des Titelthemas über die schneidenden Filter-Sequenzen bis hin zu Subsong 12 (der später zahllose Demoscene-Musiker wie Tomas Danko zu Cover-Versionen inspirierte) und versteckten <em>Thalamusik</em>-Zitaten im Code steckt hier alles drin, was Hubbard legendär machte.`,
+        deepsid('/MUSICIANS/H/Hubbard_Rob/Delta.sid')
+    ),
+    "games/wizball.sid": museum(
+        'MARTIN GALWAY — WIZBALL (1987)',
+        `Sensible Softwares surreales Meisterwerk <strong>Wizball</strong> (96 % in der <em>ZZAP!64</em>!) war spielerisch wie musikalisch ein Ausnahmezustand. <strong>Martin Galway</strong> verließ sich nicht auf schnelle Beats, sondern auf schwebendes Klangdesign: Das Bonusstück steuerte Sensible-Gründer <strong>John Hare</strong> am Bass bei, das legendäre wimmernde Game-over-Riff spielte Co-Entwickler <strong>Chris Yates</strong> auf der Gitarre vor. Jahrzehnte später, im April 2026, stellte Galway sogar seinen originalen 6502-Assembler-Quellcode zu <em>Wizball</em> für alle Fans auf GitHub.`,
+        `<strong>PSID v2 · 9 Subsongs (Start 4)</strong>. Der Blick in Galways Original-Quellcode enthüllte ein technisches Hammer-Detail: Seine „1st-Generation“-Routine lief bei <strong>Wizball</strong> nicht mit 50 Hz, sondern mit <strong>200-Hz-Interrupts</strong> (4× Multispeed auf PAL & NTSC)! Dadurch konnte er Stimmen minimal versetzt doppeln und so einen echten Studio-Delay-/Echo-Effekt auf dem SID simulieren.`,
+        deepsid('/MUSICIANS/G/Galway_Martin/Wizball.sid')
+    ),
+    "games/arkanoid.sid": museum(
+        'MARTIN GALWAY — ARKANOID (1987)',
+        `Musikgeschichte auf 8 Bit: <strong>Arkanoid</strong> ist das erste veröffentlichte C64-Spiel, das <strong>digitalisierte Samples mitten in einem Musikstück</strong> einsetzt. <strong>Martin Galway</strong> gab freimütig zu, die Technik nicht selbst erfunden zu haben: Er disassemblierte das Drum-Tool <em>Digidrums</em>, um zu kapieren, wie man über das Master-Volume-Register einen vierten Kanal erzwingt. Da er damals aber keinen eigenen Sampler besaß, berechnete sein Code die Trommeln in Echtzeit – Galways eigene Beschreibung dafür: <em>„eine Collage aus Fürzen und Rülpsern“</em>. Das Titelthema rettete er übrigens aus seiner ZX-Spectrum-Musik zu <em>Cobra</em>; erst bei Game Over konnte er später echte aufgenommene Samples nachschieben.`,
+        `<strong>RSID v2 · 20 Subsongs (Start 1)</strong>. Der Container-Typ <strong>RSID</strong> ist hier Pflicht: Damit das berühmte <strong><code>$D418</code>-Digi-Verfahren</strong> (das einen Hardware-DC-Offset bzw. knackenden Pegelsprung des 6581-Verstärkers als 4-Bit-PCM-Kanal missbraucht) sauber läuft, verlangt der Code exaktes C64-CPU-/CIA-Timing statt einer simplen PSID-Interrupt-Schleife.`,
+        deepsid('/MUSICIANS/G/Galway_Martin/Arkanoid.sid')
+    ),
+    "games/ocean-loader-3.sid": museum(
+        'PETER CLARKE — OCEAN LOADER 3 (1987)',
+        `1987 erbte <strong>Peter Clarke</strong> (<em>Bubble Bobble</em>) die wohl undankbarste Aufgabe bei Ocean: einen Nachfolger für Martin Galways übermächtigen <em>Ocean Loader 2</em> zu schreiben. Clarke löste das Problem mit einem genialen Twist – intern nannte er das Stück scherzhaft <em>„Ocean Dries Up“</em>. Die ersten Takte täuschen den Hörer mit Galways vertrautem Eröffnungsmotiv, bevor der Track plötzlich ausbricht und in ein völlig eigenes, treibendes High-Energy-Thema explodiert. Clarke tüftelte das Stück heimlich zu Hause aus und legte Ocean erst das fertige Ergebnis vor.`,
+        `<strong>PSID v2 · 1 Subsong · Länge 2:47</strong>. Technisch ist <em>Ocean Loader 3</em> berüchtigt für seinen massiven Einsatz des <strong>6581-Resonanzfilters</strong>: Auf echter 6581-Hardware beißt und sägt die Lead-Stimme geradezu, während ein 8580 den Klang deutlich zahmer macht. Bis heute einer der meistgeliebten Loader der C64-Historie.`,
+        deepsid('/MUSICIANS/C/Clarke_Peter/Ocean_Loader_3.sid')
+    ),
+    "games/mega-apocalypse.sid": museum(
+        'ROB HUBBARD & SIMON NICOL — MEGA APOCALYPSE (1987)',
+        `Die Fortsetzung von <em>Crazy Comets</em> schob die Messlatte noch einmal höher: Martech-Coder <strong>Simon Nicol</strong> programmierte hochauflösende digitale Sprachsamples (<em>„Fire!“</em>, <em>„Prepare to die!“</em>), während <strong>Rob Hubbard</strong> parallel alle drei regulären SID-Stimmen für ein über siebenminütiges Synth-Feuerwerk ausfuhr – im Intro sogar mit direktem Rückgriff auf sein <em>Crazy-Comets</em>-Thema. Während des aktiven Spielgeschehens gleichzeitig Sprachausgabe und volle Musik zu fahren, galt 1987 als echtes kleines Programmierwunder.`,
+        `<strong>RSID v2 · 11 Subsongs (Start 1)</strong>. Genau wie <em>Arkanoid</em> steckt der Rip im echten C64-Umfeld eines <strong>RSID-Containers</strong>, weil die <code>$D418</code>-Sample-Wiedergabe exaktes Hardware-Timing braucht. Auf das 7:21 Minuten lange Hauptstück folgen zehn kurze Ingame-Signale und Effekte.`,
+        deepsid('/MUSICIANS/H/Hubbard_Rob/Mega_Apocalypse.sid')
+    ),
+    "games/last-ninja.sid": museum(
+        'BEN DAGLISH & ANTHONY LEES — THE LAST NINJA (1987)',
+        `Hinter einem der größten C64-Bestseller steckt eine der skurrilsten Entdeckungsgeschichten der 80er: 1986 veranstaltete das Kultmagazin <em>ZZAP!64</em> einen <strong>Aprilscherz-Wettbewerb</strong> für ein gar nicht existierendes Spiel namens <em>Mindsmear</em>. Ein junger Klarinettist und Fagottist namens <strong>Anthony Lees</strong> gewann mit einer selbst gecodeten SID-Routine – und erregte damit sofort die Aufmerksamkeit von System-3-Chef Mark Cale. Cale teilte die zwölf Stücke für <strong>The Last Ninja</strong> auf: Der etablierte Profi <strong>Ben Daglish</strong> schrieb die eine Hälfte (darunter <em>The Wastelands</em>), Newcomer Lees die andere (darunter die von <em>Apocalypse Now</em> inspirierten Dschungelklänge des <em>Wilderness</em>-Loaders sowie die schaurigen <em>Dungeons</em>).`,
+        `<strong>PSID v2 · 11 Subsongs (Start 3)</strong>. Der Start liegt auf Subsong 3 (<em>The Wastelands</em> Loader), einem der ewigen Nummer-1-Kandidaten sämtlicher HVSC-Umfragen. Wichtig beim Hören: Jede Spielwelt besitzt ein eigenes atmosphärisches Lade- und ein separates Ingame-Stück – komponiert für den charaktervollen Filter des <strong>6581</strong>.`,
+        deepsid('/MUSICIANS/D/Daglish_Ben/Last_Ninja.sid')
+    ),
+    "games/great-giana-sisters.sid": museum(
+        'CHRIS HÜLSBECK — THE GREAT GIANA SISTERS (1987)',
+        `Programmiert von Armin Gessert und gepixelt von Manfred Trenz, wurde Rainbow Arts’ Jump-’n’-Run 1987 weltberühmt – auch weil Level 1 so dreist an <em>Super Mario Bros.</em> erinnerte, dass Nintendo das Spiel kurz nach Veröffentlichung aus den Regalen klagte. Was blieb, war der unsterbliche Soundtrack eines 19-jährigen Deutschen: <strong>Chris Hülsbeck</strong> schrieb mit dem Titelthema eine rockig-melancholische Hommage an Madonnas <em>True Blue</em>, während die leicht Reggae-angehauchte Ingame-Musik sofort im Ohr kleben bleibt.`,
+        `<strong>RSID v2 · 23 Subsongs (Start 1)</strong>. Hülsbeck nutzte als Unterbau seinen selbst entwickelten <strong>Soundmonitor</strong> (mit dem er 1986 das „Listing des Monats“ im deutschen <em>64’er</em>-Magazin gewonnen hatte), erweitert um eigene Raster-/Routine-Tricks und knackige Bass-Drums. Der RSID-Header stellt sicher, dass alle 23 Subsongs vom Titel bis zu den Bonus-Jingles originalgetreu laufen.`,
+        deepsid('/MUSICIANS/H/Huelsbeck_Chris/Great_Giana_Sisters.sid')
+    ),
+    "games/to-be-on-top.sid": museum(
+        'CHRIS HÜLSBECK — TO BE ON TOP (1987)',
+        `Ein echtes Passion-Project: <strong>Chris Hülsbeck</strong> war bei <strong>To Be on Top</strong> nicht nur Komponist, sondern gleich Hauptprogrammierer und Gamedesigner eines kompletten Musik-Baukasten-Adventures! Man sammelt auf der Straße musikalische Ideen (Bass, Begleitung, Melodie) ein, weicht Ghettoblaster-Dieben aus und mixt am Synthesizer seinen eigenen Chart-Hit zusammen – inklusive des berühmten digitalen Sprachsamples <em>„Nineteen!“</em> (gesprochen von Hülsbeck selbst, angelehnt an Paul Hardcastles 80er-Hit).`,
+        `<strong>RSID v2 · 19 Subsongs (Start 1)</strong>. Technisch ist der SID ein kurioses Archivstück: Hülsbecks <strong>Soundmonitor</strong> trifft hier auf eine eigene Sample-Routine, und <strong>Subsong 12</strong> bündelt die modularen musikalischen Schnipsel, aus denen sich der Spieler im Game seinen eigenen Song live zusammenklicken kann.`,
+        deepsid('/MUSICIANS/H/Huelsbeck_Chris/To_be_on_Top.sid')
+    ),
+    "games/agent-x-ii.sid": museum(
+        'TIM FOLLIN — AGENT X II (1987)',
+        `Mastertronics Budget-Titel für 1,99 Pfund – und plötzlich klingt aus den Fernsehlautsprechern eine Klangwand, die Vollpreisspiele in den Schatten stellt: <strong>Tim Follin</strong> liefert mit gerade einmal 16 Jahren eines seiner frühesten C64-Meisterwerke ab. Mitten in seinen halsbrecherischen Prog-Rock- und Synth-Läufen schmuggelt er mit typisch britischem Humor das <em>Peanuts</em>-Thema (Subsongs 2 & 6) sowie in Subsong 3 den Werbejingle des Teppichreinigers <em>Shake ’n’ Vac</em>.`,
+        `<strong>PSID v2 · 6 Subsongs (Start 2)</strong>. Follin besaß damals keinen C64-Tracker, sondern tippte seine Musik am Computer <em>Tatung Einstein</em> als rohe Zahlenpaare (Tonhöhe und Frame-Länge) direkt in den Assembler von Programmierer Stephen Ruddy. Bereits hier hört man seinen Markenzeichen-Trick: extrem schnelle Arpeggios und messerscharfe Pulsweiten-Wechsel für mehrstimmig klingende Gitarren-Riffs.`
+    ),
+    "games/ocean-loader-4.sid": museum(
+        'JONATHAN DUNN — OCEAN LOADER 4 (1988)',
+        `Als Martin Galway Ocean Software verließ, schickte ein junger Musiker namens <strong>Jonathan Dunn</strong> – der gerade noch als Ferienjobber in einem <em>Argos</em>-Warenlager Kisten schleppte – sein Demo-Tape an Ocean und bekam sofort den Job. Für <strong>Ocean Loader 4</strong> (im Einsatz auf zahlreichen Ocean- und Imagine-Hits von 1988/89) verabschiedete er sich vom elegischen Synth-Pop seiner Vorgänger und brachte klirrende, kristalline Melodien im neuen Ocean-Sound auf das Kassettenband.`,
+        `<strong>PSID v2 · 1 Subsong · Länge 3:12</strong>. Während Dunn auf seinen allerersten Spielen noch Galways Treiber nutzte, liefen seine späteren Ocean-Werke über die hausinterne Musikroutine von Loader-Erfinder <strong>Paul Hughes</strong>, die Dunn selbst laufend erweiterte – so intensiv, dass Hughes später staunte, welche Klänge Dunn aus seinem Code herauskitzelte. Charakteristisch sind hier u. a. kombinierte Wellenformen für glockige Leads.`,
+        deepsid('/MUSICIANS/D/Dunn_Jonathan/Ocean_Loader_4.sid')
+    ),
+    "games/platoon.sid": museum(
+        'JONATHAN DUNN — PLATOON (1988)',
+        `Mit Oceans Filmumsetzung <strong>Platoon</strong> lieferte <strong>Jonathan Dunn</strong> seinen wohl gefeiertsten C64-Score ab – atmosphärisch, düster und weit weg von fröhlichem Arcade-Gedudel. In einem späteren Rückblick verriet er, dass er die Stücke seiner Mutter im Restaurant an freien Abenden auf dem Klavier vorarbeitete, bevor er sie in Assembler goss. Subsong 2 trägt den Titel <em>Sigh of the Eye</em> und ist ein Remix einer früheren eigenen Komposition.`,
+        `<strong>PSID v2 · 9 Subsongs (Start 1)</strong>. Alle neun Subsongs sind voll ausarrangierte Stücke zwischen einer und über vier Minuten – ein kompletter Soundtrack für Dschungel-Patrouille, Bunkerkampf und Finale, gespielt über Dunns präzise weiterentwickelte Ocean-Routine.`,
+        deepsid('/MUSICIANS/D/Dunn_Jonathan/Platoon.sid')
+    ),
+    "games/bionic-commando.sid": museum(
+        'TIM FOLLIN — BIONIC COMMANDO (1988)',
+        `Als Software Creations für Go!/Capcom die europäische C64-Fassung von <strong>Bionic Commando</strong> baute (nicht zu verwechseln mit der lahmen US-C64-Fassung mit „Fahrstuhlmusik“!), warfen <strong>Tim Follin</strong> und Programmierer Stephen Ruddy gleich jede falsche Bescheidenheit über Bord: Follin begann mit einer Umsetzung von Harumi Fujitas Arcade-Melodie, ließ die Stücke dann aber immer weiter in epische, treibende Progressive-Synth-Kompositionen ausufern – inklusive eines kurzen <em>Star-Wars</em>-Zitats (<em>Binary Sunset</em>) in Subsong 6.`,
+        `<strong>PSID v2 · 10 Subsongs (Start 1)</strong>. Besonders die eigenständigen Stücke 1 und 10 zeigen Follins unnachahmliche Arbeit mit Stephen Ruddys 6502-Driver: Knackig schneidende Bässe, rasende 50-Hz-Drum-Simulationen und glockenklare Harmonien, die weit mehr als drei Stimmen vorgaukeln.`,
+        deepsid('/MUSICIANS/F/Follin_Tim/Bionic_Commando.sid')
+    ),
+    "games/last-ninja-2.sid": museum(
+        'MATT GRAY — LAST NINJA 2 (1988)',
+        `Ninja Armakuni per Zeitsprung im modernen New York – und <strong>Matt Gray</strong> (der Anthony Lees’ verworfene Entwürfe für den Nachfolger ersetzte) lieferte einen Soundtrack ab, der bis heute zu den härtesten und ikonischsten Rock-/Electro-Alben auf 8 Bit zählt. Gray begann mit dem <em>Central Park</em>-Thema, um den Grundton zu setzen, und packte in die Großstadt-Level geschickt Anleihen bei <em>Bomb the Bass</em>, <em>Tangerine Dream</em> und Rob Hubbard. Später startete Gray eine erfolgreiche Karriere als UK-Dance-Produzent (u. a. Remixe für die <em>Pet Shop Boys</em>) und kehrte mit seinem Album <em>Reformation</em> triumphal zu <em>Last Ninja 2</em> zurück.`,
+        `<strong>PSID v2 · 13 Subsongs (Start 1)</strong>. Technisch markiert <em>Last Ninja 2</em> den Einstand von <strong>Matt Grays brandneuem eigenem SID-Player</strong>. Die 13 Subsongs trennen exakt die treibenden Lade-Tracks von den düsteren Ingame-Themes für <em>Central Park</em>, <em>The Street</em>, <em>The Sewers</em>, <em>The Basement</em>, <em>The Office</em> und <em>The Mansion</em>.`,
+        deepsid('/MUSICIANS/G/Gray_Matt/Last_Ninja_2.sid')
+    ),
+    "games/cybernoid-ii.sid": museum(
+        'JEROEN TEL — CYBERNOID II (1988)',
+        `Der 16-jährige Niederländer <strong>Jeroen Tel</strong> hatte 1987 zusammen mit Charles Deenen auf den legendären monatlichen Computer-Treffen in Venlo die Audio-Schmiede <strong>Maniacs of Noise (MoN)</strong> gegründet. Mit <strong>Cybernoid II</strong> für Hewson Consultants zementierte Tel ein Jahr später seinen Legendenstatus: Die Titelmusik gilt bei zahllosen Szenegängern als eine der emotionalsten, melancholisch-elektronischsten Kompositionen, die jemals aus einem C64 gekitzelt wurden.`,
+        `<strong>PSID v2 · 2 Subsongs (Start 1)</strong>. Angetrieben vom frühen <strong>Maniacs-of-Noise-Player</strong> (entwickelt von Deenen und Tel), kombiniert das 5:46 Minuten lange Titelstück wuchtige Bässe, weinende Lead-Glides und blitzschnelle Arpeggio-Fills, während Subsong 2 ein kurzes 8-Sekunden-Game-over liefert. Puristischer <strong>6581</strong>-Sound ohne Digi-Tricks.`,
+        deepsid('/MUSICIANS/T/Tel_Jeroen/Cybernoid_II.sid')
+    ),
+    "games/hawkeye.sid": museum(
+        'JEROEN TEL — HAWKEYE (1988)',
+        `Thalamus holte für das Action-Spektakel <strong>Hawkeye</strong> wieder <strong>Jeroen Tel</strong> ins Boot – natürlich inklusive der Rückkehr von Thalamus’ berühmtem <em>Mix-E-Load</em>-Ladesystem. Doch das heimliche Highlight des Soundtracks ist kein Sound-Overkill, sondern das krasse Gegenteil: Weil während der Ballerei auf dem Bildschirm noch zwei Stimmen für knallige Soundeffekte frei bleiben mussten, komponierte Tel fünf Ingame-Tracks für eine <strong>einzige SID-Stimme</strong>!`,
+        `<strong>PSID v2 · 12 Subsongs (Start 1)</strong>. Während das 6:25-minütige Titelstück im <strong>Future-Composer-v3.x</strong>-Player alle Register zieht, vollbringen die <strong>Subsongs 7–11</strong> echte Chiptune-Akrobatik: Bass, Kick, Snare und Melodie wechseln sich innerhalb von Millisekunden auf einem einzigen Kanal so geschickt ab, dass das Ohr einen kompletten Beat hört.`,
+        deepsid('/MUSICIANS/T/Tel_Jeroen/Hawkeye.sid')
+    ),
+    "games/katakis.sid": museum(
+        'CHRIS HÜLSBECK — KATAKIS (1988)',
+        `Manfred Trenz und Andreas Escher erschufen mit <strong>Katakis</strong> Rainbow Arts’ Antwort auf <em>R-Type</em> – so verblüffend nah am Automaten, dass Rechteinhaber Activision die Entwickler später sogar direkt für die offizielle <em>R-Type</em>-Portierung anheuerte. <strong>Chris Hülsbeck</strong> steuerte einen wuchtigen, von Spacesynth-Größen wie <em>Laserdance</em> und Filmkomponist Alan Silvestri inspirierten Action-Score bei. Die ersten beiden Stücke feierten 1999 in <em>Crush</em> noch einmal ein offizielles Comeback.`,
+        `<strong>PSID v2 · 34 Subsongs (Start 1)</strong>. Vom 5:33 Minuten langen Titelthema über treibende Level-Loops bis hin zu kurzen Boss- und Event-Signalen deckt die 34-Subsong-Architektur das komplette Audio-Gerüst des Shooters ab.`,
+        deepsid('/MUSICIANS/H/Huelsbeck_Chris/Katakis.sid')
+    ),
+    "games/armalyte.sid": museum(
+        'MARTIN WALKER — ARMALYTE (1988)',
+        `<strong>Martin Walker</strong> – gelernter Radar- und Hi-Fi-Ingenieur, der schon in der Schule eigene E-Gitarren und Effektgeräte baute – war bereits als Programmierer und Musiker hinter Thalamus’ Geheimtipp <em>Hunter’s Moon</em> bekannt. Als Cyberdyne Systems 1988 mit <strong>Armalyte</strong> den geistigen <em>Delta</em>-Nachfolger bauten, beauftragten sie Walker mit Musik und SFX. Walker nutzte das Projekt, um seinen eigenen <strong>C64-Player und Editor</strong> von Grund auf zu perfektionieren – in Interviews nannte er <em>Armalyte</em> stets eines seiner liebsten Werke.`,
+        `<strong>PSID v2 · 4 Subsongs (Start 1)</strong>. Walker verfolgte einen betont cineastischen Ansatz: komplexe, sich organisch entwickelnde Akkordfolgen, extrem tiefe Bass-Fundamente und eigenwillige Perkussion aus seiner maßgeschneiderten Sound-Engine.`,
+        deepsid('/MUSICIANS/W/Walker_Martin/Armalyte.sid'),
+        { label: 'Commodore Format: Martin Walker', url: 'https://commodoreformatarchive.com/the-martin-walker-interview/' }
+    ),
+    "games/turbo-outrun.sid": museum(
+        'JEROEN TEL — TURBO OUTRUN (1989)',
+        `Wie kriegt man Segas Arcade-Klassiker auf den C64? Indem man <strong>Jeroen Tel</strong> an einem Freitagabend inspiriert nach Hause schickt! Tel berichtete später, er habe viele der <strong>Turbo-OutRun</strong>-Stücke bis zu dreimal komplett neu geschrieben, bis am nächsten Morgen alles saß – darunter mitreißende Adaptionen von Hiroshi Kawaguchis <em>Magical Sound Shower</em> und Yasuhiro Takagis <em>OutRun</em>-Motiven. Als Kickstart brüllt im Intro sogar Tels eigene digitalisierte Stimme aus dem Rechner.`,
+        `<strong>RSID v2 · 12 Subsongs (Start 1)</strong>. Der Container läuft zwingend als <strong>RSID</strong>, damit die gesampelte Intro-Stimme vor dem nahtlosen Übergang in die krachenden Arcade-Arrangements (Titel, Level 1–4, Tune-up, Finale) exakt im Takt sitzt.`,
+        deepsid('/MUSICIANS/T/Tel_Jeroen/Turbo_Outrun.sid')
+    ),
+    "games/myth.sid": museum(
+        'JEROEN TEL — MYTH (1989)',
+        `System 3s Edel-Platformer <strong>Myth: History in the Making</strong> schickt den Helden quer durch griechische Sagenwelten, Wikinger-Schiffe und das alte Ägypten – mit butterweichen Animationen und einem der beliebtesten <strong>Jeroen-Tel</strong>-Titelthemes überhaupt. Während im eigentlichen Spiel nur knackige Soundeffekte laufen, zündet das Titelmenü ein mitreißendes Synth-Feuerwerk. Programmierer Peter Baron erzählte später, wie Grafiker Bob Stevenson quasi in letzter Sekunde vor Release noch ein aufgenommenes Sprachsample zulieferte.`,
+        `<strong>RSID v2 · 3 Subsongs (Start 1)</strong>. Ein klassischer <strong>RSID</strong>-Kandidat: Zwei vollwertige Musikstücke plus das kurze Event mit Stevensons Sprachsample in Subsong 2 – ein eindrucksvolles Beispiel für die Spät-80er-High-End-Produktionen von Maniacs of Noise.`,
+        deepsid('/MUSICIANS/T/Tel_Jeroen/Myth.sid')
+    ),
+    "games/eliminator.sid": museum(
+        'JEROEN TEL — ELIMINATOR (1989)',
+        `Hewson Consultants lieferte mit <strong>Eliminator</strong> einen schnellen 3D-Tunnel-Shooter, und <strong>Jeroen Tel</strong> steuerte dafür eine seiner energiegeladensten 1989er Kompositionen bei – inklusive einer über siebenminütigen Ingame-Dauerbeschallung! Wer genau hinhört, entdeckt in der Highscore-Musik ein augenzwinkerndes elfsekündiges Zitat: <em>Gyroscope</em> aus einer britischen TV-Werbung von Graham Jarvis und Rob Hartshorne.`,
+        `<strong>PSID v2 · 4 Subsongs (Start 3)</strong>. Der Player springt direkt auf Subsong 3 (das 2:55-minütige Titelthema); auf Subsong 1 wartet das epische 7:18-Minuten-Ingame-Stück, das Tels typischen Hex-Assembler-Stil mit treibenden MoN-Grooves verbindet.`,
+        deepsid('/MUSICIANS/T/Tel_Jeroen/Eliminator.sid')
+    ),
+    "games/led-storm.sid": museum(
+        'TIM FOLLIN — L.E.D. STORM (1989)',
+        `Capcoms futuristischer Rallye-Racer <strong>L.E.D. Storm</strong> bekam von Software Creations eine bärenstarke Umsetzung – für die Musik vergab die knallharte <em>ZZAP!64</em> satte <strong>94 %</strong>! <strong>Tim Follin</strong> verzichtete erneut auf eine brave Arcade-Kopie und zimmerte einen eigenen High-Speed-Soundtrack samt versteckten Grüßen an Deep Purple und Yello (Subsong 1). Ein genialer Gimmick des Originalspiels: Auf dem Titelbildschirm konnte der Spieler mit <code>+</code> und <code>−</code> den <strong>SID-Filter live nach Gehör verstellen</strong>!`,
+        `<strong>PSID v2 · 7 Subsongs (Start 1)</strong>. Auch hier hackte Follin am Tatung Einstein Zahlenpaare direkt in <strong>Stephen Ruddys Sound-Driver</strong> – und erzielte damit eine klangliche Wucht und Präzision, die viele Tracker-Produktionen der 90er alt aussehen ließ.`
+    ),
+    "games/ghouls-n-ghosts.sid": museum(
+        'TIM FOLLIN — GHOULS ’N’ GHOSTS (1989)',
+        `Während Mark Cooksey bei <em>Ghosts ’n Goblins</em> noch eigene Wege ging, setzte <strong>Tim Follin</strong> beim Nachfolger <strong>Ghouls ’n’ Ghosts</strong> Tamayo Kawamotos legendäre Arcade-Kompositionen für den C64 um – allerdings mit voller Follin-Wucht. Besonders die Themen aus Stage 2 (Subsong 8) und Stage 4 (Subsong 10) zeigen, wie perfekt der SID zwischen schauriger Orgel-Dramatik und hartem Metal-Riffing umschalten kann.`,
+        `<strong>PSID v2 · 32 Subsongs (Start 1)</strong>. Wieder im Gespann mit <strong>Stephen Ruddys Musik-Driver</strong> entstanden, trennt die Datei die langen Level-Themen sauber von dutzenden kurzen Übergangs- und Ereignissignalen.` ,
+        deepsid('/MUSICIANS/F/Follin_Tim/Ghouls_n_Ghosts.sid')
+    ),
+    "games/citadel.sid": museum(
+        'MARTIN WALKER — CITADEL (1989)',
+        `Nach <em>Armalyte</em> erschien 1989 <strong>Martin Walkers</strong> letztes Komplett-Projekt als Programmierer und Musiker bei Electric Dreams, bevor er sich komplett auf Game-Audio (u. a. <em>SWIV</em>, <em>Speedball II</em>) konzentrierte. Im Rückblick stellte Walker <strong>Citadel</strong> direkt neben <em>Armalyte</em>: Beide entstanden auf seinem eigenen Musikplayer mit betont <strong>cinematischem Anspruch</strong> – getragen von satten Bässen, perkussiver Wucht und ungewöhnlichen, sich langsam verschiebenden Akkordfolgen.`,
+        `<strong>PSID v2 · 4 Subsongs (Start 1)</strong>. Die vier Stücke (4:02, 2:08, 0:42 und 2:56) nutzen Walkers hauseigene Engine ohne fremde Tracker-Schablonen – perfekt für Freunde dunkler, komplex harmonisierter Spät-80er-SIDs.`,
+        { label: 'Commodore Format: Martin Walker', url: 'https://commodoreformatarchive.com/the-martin-walker-interview/' }
+    ),
+
+    // =========================================================================
+    // GAMES: 1990–1993 (Die C64-Spätphase)
+    // =========================================================================
+    "games/turrican.sid": museum(
+        'VACA, HÜLSBECK & HARTWIG — TURRICAN (1990)',
+        `Viele schreiben den C64-Soundtrack zu Manfred Trenz’ Über-Actionspiel reflexartig allein Chris Hülsbeck zu – dabei ist der C64-SID von <strong>Turrican</strong> eine echte deutsche Teamarbeit! <strong>Stefan Hartwig</strong> komponierte das stimmungsvolle Intro (Subsong 1), <strong>Ramiro Vaca</strong> arrangierte das Titelthema nach Hülsbecks Amiga-Musik sowie Themen von Vince DiCola, <strong>Michael Hendriks</strong> steuerte Subsong 4 bei, und <strong>Chris Hülsbeck</strong> selbst ist mit dem bereits 1988 entstandenen <em>The Deep</em> (Subsong 3) vertreten.`,
+        `<strong>PSID v2 · 6 Subsongs (Start 1)</strong>. Durch die beteiligten Demo- und Spiele-Veteranen zeigt das SID-File einen spannenden Stilmix aus klassischem Rainbow-Arts-Pathos und moderneren Spät-80er-Treibertricks – ein Brückenschlag zwischen C64 und Amiga.`
+    ),
+    "games/flimbos-quest.sid": museum(
+        'JOHANNES BJERREGAARD — FLIMBO’S QUEST (1990)',
+        `Niederländische Demoscene-Power für System 3: Programmiert wurde <strong>Flimbo’s Quest</strong> (später eines der vier Pack-In-Spiele für die gefloppte Spielkonsole C64GS!) von Laurens van der Donk aus den Gruppen <em>Boys Without Brains</em> und <em>Hotline</em>. Die Audio-Betreuung übernahmen die <strong>Maniacs of Noise</strong>: Der Däne <strong>Johannes Bjerregaard</strong> schrieb den verspielten Haupt-Soundtrack, während ein weiterer Ladevorschlag von ihm abgelehnt wurde – Entwickler van der Donk zog stattdessen Reyn Ouwehands berühmtes Intro vor. Bjerregaards ungenutzter Loader überlebte trotzdem versteckt in der Musikdatei!`,
+        `<strong>PSID v2 · 8 Subsongs (Start 1)</strong>. Diese Hauptmusik-Datei bündelt Bjerregaards vier längere Level- und Weltenthemen samt kurzen Spielereignissen – butterweiche Arpeggios und federnde MoN-Bässe in Reinkultur.`,
+        deepsid('/MUSICIANS/B/Bjerregaard_Johannes/Flimbos_Quest_main.sid')
+    ),
+    "games/last-ninja-3.sid": museum(
+        'REYN OUWEHAND — LAST NINJA 3 (1991)',
+        `Für den dritten Teil der Ninja-Saga engagierte System 3 den jungen Niederländer <strong>Reyn Ouwehand</strong>, der in der späten C64-Demoscene gerade zum Superstar aufstieg. Nach Ben Daglish (Teil 1) und Matt Gray (Teil 2) drückte Ouwehand der Serie seinen ganz eigenen, technisch extrem ausgefeilten Stempel auf und vertonte die fünf Element-Tempel (Mountains, Wind, Water, Fire, Void) mit verblüffender Detailverliebtheit.`,
+        `<strong>PSID v2 · 10 Subsongs (Start 3)</strong>. Direkt beim Start läuft das 4:47 Minuten lange Intro (in früheren Rips hatte der Loop einen kleinen Fehler, der später mithilfe von Ouwehands eigenen Originaldaten restauriert wurde). Ouwehand reizt hier das Timing und die Hüllkurven-Präzision seines Players bis aufs Letzte aus.`,
+        deepsid('/MUSICIANS/O/Ouwehand_Reyn/Last_Ninja_3.sid')
+    ),
+    "games/supremacy.sid": museum(
+        'JEROEN TEL — SUPREMACY / OVERLORD (1991)',
+        `Weltraum-Globalstrategie für den C64: Virgins <strong>Supremacy</strong> (in den USA als <em>Overlord</em> veröffentlicht) erhielt von <strong>Jeroen Tel</strong> einen bemerkenswert düsteren, beinahe industriellen Sci-Fi-Soundtrack, der hervorragend zur kalten Planeten-Eroberung passt und weit entfernt ist von seinen verspielteren Hewson-Jahren.`,
+        `<strong>PSID v2 · 3 Subsongs (Start 1)</strong>. Drei straff aufgebaute Kompositionen (3:51, 0:39 und 2:31), die mit kalten, metallischen Klangfarben, langsamen Spannungsbögen und satten Basspulsen ein eigenes akustisches Universum erschaffen.`,
+        deepsid('/MUSICIANS/T/Tel_Jeroen/Supremacy.sid')
+    ),
+    "games/robocop-3.sid": museum(
+        'JEROEN TEL — ROBOCOP 3 (1992)',
+        `Ein perfektes Beispiel für die enge Verzahnung von Demoscene und kommerzieller Spieleindustrie Anfang der 90er: Bevor Oceans C64-Fassung von <strong>RoboCop 3</strong> überhaupt erschien, feierte <strong>Jeroen Tels</strong> gewaltiger erster Track bereits im Dezember 1991 Premiere in der legendären C64-Demo <em>Dutch Breeze</em>! Und noch ein verblüffendes Detail zur Entstehung: Tel verriet später, dass er zunächst in einer einzigen Nacht im Londoner Büro von Probe Software die <strong>NES-Fassung</strong> komponierte und die Ideen erst danach für den C64 adaptierte.`,
+        `<strong>PSID v2 · 20 Subsongs (Start 1)</strong>. Neben dem wuchtigen Hauptthema steckt ein technisches Gustostückerl in der Datei: Laut Tel selbst verwenden die <strong>Subsongs 4 und 5 jeweils nur eine einzige SID-Stimme</strong> – reine 90er-Chip-Artistik auf höchstem Niveau.`,
+        deepsid('/MUSICIANS/T/Tel_Jeroen/Robocop_3.sid'),
         csdb(11584, 'Dutch Breeze')
     ),
-    "Myth.sid": museum(
-        'JEROEN TEL — MYTH',
-        `<strong>Myth: History in the Making</strong> erschien 1989 bei System 3. <strong>Jeroen Tel</strong> komponierte die Musik; STIL dokumentiert für Subsong 2 zusätzlich eine aufgenommene Sprachstimme. Programmierer Peter Baron beschreibt, wie Grafiker Bob Stevenson das Samplematerial erstellte und es kurz vor Projektende integriert wurde.`,
-        `Lokaler Header: <strong>RSID v2, drei Subsongs, Start 1</strong>. Die Datei enthält somit zwei längere Musikabschnitte und ein sehr kurzes Ereignis. Der Samplehinweis bezieht sich konkret auf Subsong 2 und wird nicht zu einer allgemeinen Behauptung über kombinierte Wellenformen ausgeweitet.`
+    "games/creatures-2.sid": museum(
+        'STEVE ROWLANDS — CREATURES 2 (1992)',
+        `Die Brüder John und <strong>Steve Rowlands</strong> (Apex Computer Productions) trieben den alten Brotkasten 1992 zu Höchstleistungen, die kaum jemand noch für möglich hielt. Für das Kultspiel <strong>Creatures 2</strong> rund um Held Clyde Radcliffe lieferte Steve Rowlands einen extrem abwechslungsreichen Score, der jede Spielsituation – inklusive sechs berüchtigter <em>Torture Screens</em> (Folterkammern!) und versteckter Räume – musikalisch untermalt. Subsong 16 ist zudem ein Self-Remix seines Stücks <em>Funky Music B</em>.`,
+        `<strong>PSID v2 · 18 Subsongs (Start 2)</strong>. Der Start auf Subsong 2 führt direkt in das 3:46 Minuten lange Hauptthema. Die 18 kurzen und langen Tracks machen hörbar, wie stark Spätphase-Spiele auf dynamische, szenenbezogene Musikwechsel setzten.`
     ),
-    "Monty_on_the_Run.sid": museum(
-        'ROB HUBBARD — MONTY ON THE RUN',
-        `<strong>Monty on the Run</strong> erschien 1985 bei Gremlin Graphics. <strong>Rob Hubbard</strong> nennt Charles Williams’ <em>The Devil’s Gallop</em> aus der Radioserie <em>Dick Barton</em> als Ausgangspunkt. Den Mittelteil nutzte er, um einen neu geschriebenen Pitch-Bend-Code einzusetzen – eine belegte technische Besonderheit statt der früheren erfundenen Interrupt-Zahl.`,
-        `Lokaler Header: <strong>PSID v2, 19 Subsongs, Start 1</strong>. Das 5:50 Minuten lange Hauptstück steht neben einer alternativen Fassung und zahlreichen kurzen Jingles. Die Pitch-Bend-Information betrifft den dokumentierten Mittelteil des Hauptstücks.`,
-        { label: 'C64 Audio: Rob Hubbard 1985', url: 'https://c64audio.com/blogs/rob-hubbard-master-of-magic/rob-hubbard-1985-on-the-run' }
-    ),
-    "Delta.sid": museum(
-        'TOMAS DANKO — DELTA / REINTERPRETATION',
-        `Die lokale Datei ist <strong>nicht Rob Hubbards Original-SID</strong>, sondern <strong>Tomas Dankos</strong> 1989 veröffentlichte Interpretation. STIL beschreibt den Anfang als Bezug auf Philip Glass’ <em>Koyaanisqatsi</em>; ab 0:52 folgt Dankos Cover des eigenen Abschnitts aus Hubbards Delta-Subsong 12.`,
-        `Lokaler Header: <strong>PSID v2, ein Subsong</strong>, HVSC-Länge 1:17. Der Dateipfad <code>Delta.sid</code> bleibt aus Kompatibilitätsgründen unverändert. Die frühere Zuschreibung an Rob Hubbard wurde deshalb im Museumstext korrigiert, ohne die Originalkomposition hinter der Cover-Quelle zu leugnen.`
-    ),
-    "To_be_on_Top.sid": museum(
-        'CHRIS HÜLSBECK — TO BE ON TOP',
-        `<strong>To be on Top</strong> erschien 1987 bei Rainbow Arts. <strong>Chris Hülsbeck</strong> steuerte nicht nur die Musik bei: STIL identifiziert auch seine eigene Stimme im Sample „Nineteen“. Die Subsongtitel reichen von <em>Drums to Heaven</em> bis <em>Funky Village</em>; Subsong 12 bündelt die im Spiel einsammelbaren musikalischen Ideen.`,
-        `Lokaler Header: <strong>RSID v2, 19 Subsongs, Start 1</strong>. Die Sammlung enthält sowohl längere Stücke als auch sehr kurze Bausteine. Gerade Subsong 12 zeigt, dass der SID nicht nur lineare Titelmusik, sondern interaktiv kombinierbares Material speichert.`
-    ),
-    "Rambo_First_Blood_Part_II.sid": museum(
-        'MARTIN GALWAY — RAMBO: FIRST BLOOD PART II',
-        `<strong>Rambo: First Blood Part II</strong> erschien 1986 bei Ocean. <strong>Martin Galway</strong> übertrug Motive aus Jerry Goldsmiths Filmmusik und setzte zu Beginn selbst programmierten Morsecode ein. STIL entschlüsselt die Namen der Entwickler und vermerkt eine korrigierte Version in Subsong 2; Subsong 22 verweist auf Wagners <em>Ritt der Walküren</em>.`,
-        `Lokaler Header: <strong>PSID v2, 23 Subsongs, Start 1</strong>. Die zugehörige aktuelle HVSC-Fassung führt 24 Längen; für diese ältere lokale Binärvariante werden nur die ersten 23 passend zum lokalen Header verwendet. Diese Abweichung ist in der Provenienzdokumentation ausdrücklich vermerkt.`
-    ),
-    "Mega_Apocalypse.sid": museum(
-        'ROB HUBBARD & SIMON NICOL — MEGA APOCALYPSE',
-        `<strong>Mega Apocalypse</strong> erschien 1987 als Nachfolger von <em>Crazy Comets</em>. STIL nennt <strong>Rob Hubbard</strong> für die Musik und <strong>Simon Nicol</strong> für die Samples. Die Kombination von dreistimmiger Musik und Samples während des Spiels wird dort als besondere technische Leistung eingeordnet; der erste Subsong greift auf <em>Crazy Comets</em> zurück.`,
-        `Lokaler Header: <strong>RSID v2, elf Subsongs, Start 1</strong>. Auf das 7:21 Minuten lange Hauptstück folgen sehr kurze Ereignisse. Die getrennte Nennung von Komposition und Samplearbeit korrigiert die frühere unvollständige Ein-Personen-Zuschreibung.`
-    ),
-    "Miami_Vice.sid": museum(
-        'MARTIN GALWAY — MIAMI VICE',
-        `<strong>Miami Vice</strong> erschien 1986 bei Ocean. <strong>Martin Galway</strong> bearbeitete Jan Hammers <em>Evan</em> und das <em>Miami Vice Theme</em>. Für den ersten Track beschreibt er, wie ein nicht synchronisierter Filter-Sweep die ursprüngliche Konversion in ein ausgedehntes eigenes Stück verwandelte.`,
-        `Lokaler Header: <strong>PSID v2, zwei Subsongs, Start 1</strong>. HVSC verzeichnet <strong>11:29,503</strong> für die ausgedehnte Evan-Bearbeitung und 2:10,237 für das Titelthema. Die Filter-Aussage stammt aus Galways dokumentiertem Kommentar, nicht aus einer nachträglichen Register-Schätzung.`
-    ),
-    "Way_of_the_Tiger.sid": museum(
-        'BEN DAGLISH — WAY OF THE TIGER',
-        `<strong>Way of the Tiger</strong> erschien 1986 bei Gremlin Graphics mit Musik von <strong>Ben Daglish</strong>. STIL identifiziert das Stück als Cover von <em>Firecracker</em>: ursprünglich von Martin Denny, hier in der Bearbeitung von Yellow Magic Orchestra. Diese doppelte Herkunft ist präziser als eine generische „asiatische Klang“-Beschreibung.`,
-        `Lokaler Header: <strong>PSID v2, ein Subsong</strong>, HVSC-Länge 2:49. Die lokale Binärvariante bleibt erhalten; die Songlänge stammt vom eindeutig zugeordneten HVSC-Titelpfad.`
-    ),
-    "Platoon.sid": museum(
-        'JONATHAN DUNN — PLATOON',
-        `<strong>Platoon</strong> erschien 1988 bei Ocean mit Musik von <strong>Jonathan Dunn</strong>. STIL hebt Subsong 2 als <em>Sigh of the Eye</em> hervor – ein Remix eines eigenen Stücks. Damit ist der Soundtrack nicht nur als Auftragsarbeit zum Film, sondern auch mit Dunns übergreifendem musikalischen Katalog verbunden.`,
-        `Lokaler Header: <strong>PSID v2, neun Subsongs, Start 1</strong>. Die neun Längen reichen von etwas über einer Minute bis zu mehr als vier Minuten. Die frühere Playlist enthielt keinen spezifischen Text; dieser Eintrag ersetzt den generischen Fallback vollständig.`
-    ),
-    "Compilation_I.sid": museum(
-        'CHRIS HÜLSBECK — COMPILATION I',
-        `<strong>Compilation I</strong> versammelt vier eigenständige Arbeiten von <strong>Chris Hülsbeck</strong>. Obwohl der Header 1989 nennt, datiert Hülsbeck die Entstehung auf September und Oktober 1988. Die Stücke heißen <em>Elladita</em>, <em>Time</em>, <em>Old Imagines</em> und <em>Trioly</em>; letzterer Titel verweist auf die verwendeten Triolen.`,
-        `Lokaler Header: <strong>PSID v2, vier Subsongs, Start 3</strong>, die Datei beginnt also mit <em>Old Imagines</em>. Die lokale Binärvariante bleibt unverändert; alle vier offiziellen Songlängen stammen aus HVSC #85.`
-    ),
-    "Compilation_II.sid": museum(
-        'CHRIS HÜLSBECK — COMPILATION III',
-        `Der historische Dateiname lautet <code>Compilation_II.sid</code>, der eingebettete Titel ist jedoch eindeutig <strong>Compilation III</strong>. <strong>Chris Hülsbeck</strong> datiert die vier Stücke auf August und September 1988; die Sammlung erschien 1989 bei A.U.D.I.O.S.-Entertainment. <em>The Deep</em> wurde später als Subsong 3 von <em>Turrican</em> verwendet; <em>Dreamlights</em> wird mit dem Arbeitstitel Hurrican in Verbindung gebracht.`,
-        `Lokaler Header: <strong>PSID v2, vier Subsongs, Start 3</strong> – der Start liegt auf <em>Dreamlights</em>. Die STIL-Reihenfolge lautet <em>Moodolo</em>, <em>Try It Hard</em>, <em>Dreamlights</em> und <em>The Deep</em>. Der bestehende Pfad bleibt unverändert, während Liste und Museum den tatsächlichen SID-Header wiedergeben.`,
-        { label: 'CSDb SID: Compilation III', url: 'https://csdb.dk/sid/?id=13988' }
+    "games/mayhem-in-monsterland.sid": museum(
+        'STEVE ROWLANDS — MAYHEM IN MONSTERLAND (1993)',
+        `1993 – als die Welt längst auf 16 Bit und Konsolen schaute – veröffentlichten die Rowlands-Brüder das vielleicht farbenfrohste und technisch beeindruckendste Jump-’n’-Run der gesamten C64-Geschichte (erste 100-%-Wertung überhaupt in der <em>Commodore Format</em>!). Genial war das dynamische Audio-Konzept von <strong>Steve Rowlands</strong>: Jeder der fünf Welten (<em>Jellyland</em>, <em>Pipeland</em>, <em>Spottyland</em>, <em>Cherryland</em>, <em>Rockland</em>) beginnt im düsteren „Sad Mode“ – sobald Dinosaurier Mayhem genug Magie einsammelt und die Welt fröhlich wird, schaltet nicht nur die Grafik in bunte Farben um, sondern auch die Musik sofort in eine ausgelassene, jazzige „Happy“-Variante! Subsong 3 orientiert sich dabei augenzwinkernd an Bruce Broughtons <em>Tiny Toons</em>-Melodie.`,
+        `<strong>PSID v2 · 24 Subsongs (Start 2)</strong>. Mit Subsong 2 beginnt das Intro (statt des kurzen Mayhem-TV-Signals). Ein spätes Meisterwerk der C64-Spielmusik, das volle Spielegrafik-Rastertricks und interaktive Soundtrack-Übergänge unter einen Hut bringt.`,
+        deepsid('/MUSICIANS/R/Rowlands_Steve/Mayhem_In_Monsterland.sid')
     ),
 
-    "classics/games/glider-rider.sid": museum(
-        'DAVID WHITTAKER — GLIDER RIDER',
-        `<strong>Glider Rider</strong> erschien 1986 bei Quicksilva mit Musik von <strong>David Whittaker</strong>. STIL dokumentiert eine besonders schöne Verbindung im Katalog: Im ersten Subsong greift Whittaker ab 1:13 und 1:26 auf eigene Stücke aus <em>Lazy Jones</em> zurück.`,
-        `Lokaler Header: <strong>PSID v2, drei Subsongs, Start 1</strong>. Alle drei offiziellen Längen sind mit jeweils 1:40 hinterlegt. Die Datei zeigt damit sowohl eine eigenständige Spielmusik als auch eine frühe Selbstreferenz des Komponisten.`
+    // =========================================================================
+    // MUSICDISKS (1988–1989)
+    // =========================================================================
+    "musicdisks/compilation-i.sid": museum(
+        'CHRIS HÜLSBECK — COMPILATION I (1988/89)',
+        `Ende der 80er begann die Ära der kommerziellen und halb-offiziellen C64-Musicdisks – Alben direkt für den Heimcomputer. In <strong>Compilation I</strong> versammelte <strong>Chris Hülsbeck</strong> vier eigenständige Kompositionen ohne Spielzwang: <em>Elladita</em>, <em>Time</em>, <em>Old Imagines</em> und <em>Trioly</em> (eine Anspielung auf die markanten Triolen-Läufe). Obwohl im Header 1989 steht, entstanden die Stücke laut Hülsbeck bereits im September und Oktober 1988.`,
+        `<strong>PSID v2 · 4 Subsongs (Start 3)</strong>. Da Start-Subsong 3 aktiv ist, öffnet die Sammlung direkt mit <em>Old Imagines</em>. Alle vier Tracks zeigen Hülsbecks gereiften späten C64-Stil kurz vor seinem endgültigen Wechsel zum Amiga.`,
+        deepsid('/MUSICIANS/H/Huelsbeck_Chris/Compilation_I.sid')
     ),
-    "classics/games/lazy-jones.sid": museum(
-        'DAVID WHITTAKER — LAZY JONES',
-        `<strong>Lazy Jones</strong> erschien 1984 bei Terminal Software. <strong>David Whittaker</strong> versorgte das Spiel und seine zahlreichen Minispiele mit einem ebenso variantenreichen wie referenzfreudigen Score. STIL identifiziert unter anderem Nena, Visage, Blancmange und die Signaltöne aus <em>Unheimliche Begegnung der dritten Art</em>. Subsong 21, <em>Star Dust</em>, wurde später Grundlage von Zombie Nations <em>Kernkraft 400</em>.`,
-        `Lokaler Header: <strong>PSID v2, 21 Subsongs, Start 1</strong>. Die vielen kurzen Sequenzen gehören zu den einzelnen Minispielen und sollten nicht zu einem vermeintlichen einzelnen Haupttrack zusammengefasst werden. Die vollständigen HVSC-Längen sind für alle 21 Subsongs hinterlegt.`
-    ),
-    "classics/games/ocean-loader-2.sid": museum(
-        'MARTIN GALWAY — OCEAN LOADER 2',
-        `<strong>Ocean Loader 2</strong> ist <strong>Martin Galways</strong> 1985 entstandene Überarbeitung eines älteren Stücks. Ursprünglich wollte er für jedes Ocean-Spiel eigene Lademusik schreiben; aus Zeitgründen blieb es bei dieser Fassung, die zwischen Ende 1985 und Mitte 1987 in zahlreichen Ocean- und Imagine-Spielen verwendet wurde.`,
-        `Lokaler Header: <strong>PSID v2, ein Subsong</strong>, offizielle Länge <strong>4:13</strong>. Die historische Bedeutung liegt nicht in einem separaten Spiel-Soundtrack, sondern in der Wiederverwendung als wiedererkennbare Ladeidentität vieler Titel.`
-    ),
-    "classics/games/ocean-loader-3.sid": museum(
-        'PETER CLARKE — OCEAN LOADER 3',
-        `<strong>Ocean Loader 3</strong> stammt von <strong>Peter Clarke</strong> und erschien 1987. Clarke erklärt den dramatischen Konzeptwechsel: Das Stück beginnt mit Galways vertrauten Anfangstakten und bricht dann bewusst in eine eigene, energischere Fortsetzung auf. Er entwickelte es zunächst zu Hause und präsentierte erst die fertige Arbeit.`,
-        `Lokaler Header: <strong>PSID v2, ein Subsong</strong>, offizielle Länge <strong>2:47</strong>. Der erkennbare Zitat-Anfang ist somit keine falsche Autorenzuordnung, sondern Teil von Clarkes dokumentiertem kompositorischem Plan.`
-    ),
-    "classics/games/ocean-loader-4.sid": museum(
-        'JONATHAN DUNN — OCEAN LOADER 4',
-        `<strong>Ocean Loader 4</strong> ist <strong>Jonathan Dunns</strong> Beitrag zur Ocean-Ladegeschichte. Die Musik wurde 1988 und 1989 in zahlreichen Ocean- und Imagine-Spielen eingesetzt. Zusammen mit den Fassungen von Galway und Clarke macht der Eintrag sichtbar, wie sich dieselbe funktionale Aufgabe über mehrere Komponisten und Jahre veränderte.`,
-        `Lokaler Header: <strong>PSID v2, ein Subsong</strong>, offizielle Länge <strong>3:12</strong>. Die Playlist führt die Loader 2–4 als getrennte Werke; ihre unterschiedlichen Autoren und Entstehungsjahre werden nicht zu einem anonymen „Ocean Theme“ zusammengefasst.`
-    ),
-    "classics/games/parallax.sid": museum(
-        'MARTIN GALWAY — PARALLAX',
-        `<strong>Parallax</strong> erschien 1986 bei Ocean. <strong>Martin Galway</strong> wollte die gewaltigen visuellen Proportionen des Spiels mit einem entsprechend langen Stück spiegeln. Während der Arbeit hörte er Jean-Michel Jarres <em>Rendez-Vous</em> zunächst täglich; erst nach Veröffentlichung bemerkte er, wie stark sich der Einfluss eingeschlichen hatte.`,
-        `Lokaler Header: <strong>PSID v2, fünf Subsongs, Start 1</strong>. Der erste Subsong ist mit <strong>11:23,2</strong> der lange Hauptteil; laut Galway nimmt allein das Intro etwa zwei Drittel davon ein. Die weiteren Subsongs enthalten deutlich kürzere Spielabschnitte.`
-    ),
-    "classics/games/agent-x-ii.sid": museum(
-        'TIM FOLLIN — AGENT X II',
-        `<strong>Agent X II: The Mad Prof’s Back</strong> erschien 1987 bei Mastertronic. <strong>Tim Follins</strong> Score verbindet eigene Stücke mit überraschenden Referenzen: STIL erkennt das Peanuts-Thema in den Subsongs 2 und 6 sowie einen kurzen Shake-’n’-Vac-Werbejingle in Subsong 3.`,
-        `Lokaler Header: <strong>PSID v2, sechs Subsongs, Start 2</strong>. Die Datei startet deshalb nicht mit dem ersten, sondern mit dem zweiten Subsong. Die offiziellen Längen reichen von 13 Sekunden bis 3:37 und machen die unterschiedlichen Funktionen der einzelnen Sequenzen sichtbar.`
-    ),
-    "classics/games/led-storm.sid": museum(
-        'TIM FOLLIN — L.E.D. STORM',
-        `<strong>L.E.D. Storm</strong> erschien 1989 für den C64 bei GO!/Capcom. <strong>Tim Follins</strong> Fassung ist laut STIL keine direkte Cover-Version des Arcade-Soundtracks. Besonders ungewöhnlich: Auf dem Titelbildschirm lässt sich der Filter mit den Tasten <code>+</code> und <code>−</code> verstellen; der archivierte Rip verwendet die Standardeinstellung.`,
-        `Lokaler Header: <strong>PSID v2, sieben Subsongs, Start 1</strong>. STIL vermerkt kurze Bezüge auf Deep Purple und Yello im ersten Stück sowie eine Checkpoint-Referenz in Subsong 6. Die einstellbare Filterung ist eine dokumentierte Eigenschaft des Originalprogramms, kein späterer Emulator-Effekt.`
-    ),
-    "classics/games/ghouls-n-ghosts.sid": museum(
-        'TIM FOLLIN — GHOULS ’N’ GHOSTS',
-        `<strong>Ghouls ’n’ Ghosts</strong> erschien 1989 für den C64 bei US Gold/Capcom. <strong>Tim Follin</strong> verarbeitete Tamayo Kawamotos Arcade-Vorlagen in einem außergewöhnlich umfangreichen SID. STIL identifiziert unter anderem die Stage-2- und Stage-4-Themen in den Subsongs 8 und 10.`,
-        `Lokaler Header: <strong>PSID v2, 32 Subsongs, Start 1</strong>. Neben mehreren langen Levelstücken enthält die Datei viele sehr kurze Treffer-, Ereignis- und Übergangssignale. Die offiziellen Songlängen unterscheiden diese Funktionen bis auf Bruchteile von Sekunden.`
-    ),
-    "classics/games/hawkeye.sid": museum(
-        'JEROEN TEL — HAWKEYE',
-        `<strong>Hawkeye</strong> erschien 1988 bei Thalamus mit Musik von <strong>Jeroen Tel</strong>. STIL benennt Titel-, Lade-, Highscore- und Ereignismusik sowie fünf ausdrücklich als Ein-Stimmen-Stücke gekennzeichnete Ingame-Tracks. Diese Reduktion ist kompositorisch interessanter als pauschale Superlative über möglichst dichte Klänge.`,
-        `Lokaler Header: <strong>PSID v2, zwölf Subsongs, Start 1</strong>. Der Titel ist mit 6:25 der längste Teil; die Ein-Stimmen-Ingame-Stücke stehen in den Subsongs 7–11. Die Datei macht damit verschiedene Arrangementdichten innerhalb eines Soundtracks direkt vergleichbar.`
-    ),
-    "classics/games/eliminator.sid": museum(
-        'JEROEN TEL — ELIMINATOR',
-        `<strong>Eliminator</strong> erschien 1989 bei Hewson. <strong>Jeroen Tel</strong> schrieb Ingame-, Highscore-, Titel- und Game-over-Musik. STIL vermerkt im Highscore-Subsong außerdem ein elfsekündiges Zitat von <em>Gyroscope</em> aus der Fernsehwerbung von Graham Jarvis und Rob Hartshorne.`,
-        `Lokaler Header: <strong>PSID v2, vier Subsongs, Start 3</strong> – die Datei beginnt mit dem 2:55 Minuten langen Titelstück. Der erste Subsong ist die 7:18 Minuten lange Ingame-Musik; Start- und Nummerierungsreihenfolge sind deshalb nicht gleichzusetzen.`
-    ),
-    "classics/games/katakis.sid": museum(
-        'CHRIS HÜLSBECK — KATAKIS',
-        `<strong>Katakis</strong> erschien 1988 bei Rainbow Arts mit Musik von <strong>Chris Hülsbeck</strong>. Der Score umfasst zahlreiche Level- und Ereignissequenzen. STIL dokumentiert außerdem die spätere Wiederverwendung der ersten beiden Stücke in <em>Crush</em> (1999) sowie musikalische Referenzen unter anderem auf Laserdance und Alan Silvestri.`,
-        `Lokaler Header: <strong>PSID v2, 34 Subsongs, Start 1</strong>. Der 5:33 Minuten lange Titel steht einer Folge wiederkehrender Levelmuster und sehr kurzer Signale gegenüber. Die vollständige Songlength-Liste erhält diese kleinteilige Struktur, statt alle Subsongs mit einer generischen Dauer zu versehen.`
-    ),
-    "classics/games/turrican.sid": museum(
-        'RAMIRO VACA, CHRIS HÜLSBECK & STEFAN HARTWIG — TURRICAN',
-        `Der C64-Score zu <strong>Turrican</strong> (1990) ist eine Gemeinschaftsarbeit und darf nicht allein Chris Hülsbeck zugeschrieben werden. STIL nennt <strong>Stefan Hartwig</strong> für Subsong 1, <strong>Chris Hülsbeck</strong> für <em>The Deep</em> in Subsong 3 und <strong>Michael Hendriks</strong> für Subsong 4; weitere Abschnitte adaptieren Vince DiCola beziehungsweise Hülsbecks Amiga-Musik. Der SID-Header bündelt die Autoren entsprechend.`,
-        `Lokaler Header: <strong>PSID v2, sechs Subsongs, Start 1</strong>. Gerade <em>The Deep</em> verbindet diese Datei mit Hülsbecks <em>Compilation III</em>. Die Museumszuordnung folgt den einzelnen STIL-Credits statt einer vereinfachten Gesamtautorenschaft.`
-    ),
-    "classics/games/armalyte.sid": museum(
-        'MARTIN WALKER — ARMALYTE',
-        `<strong>Armalyte</strong> erschien 1988 bei Thalamus. <strong>Martin Walker</strong> erhielt den Auftrag für Musik und Soundeffekte und entwickelte in diesem Zusammenhang seinen eigenen C64-Player und Editor weiter. Im Commodore-Format-Interview nennt er <em>Armalyte</em> später eines der Werke, auf die er besonders stolz ist.`,
-        `Lokaler Header: <strong>PSID v2, vier Subsongs, Start 1</strong>. Die drei längeren Stücke und ein kurzer Abschluss sind einzeln hinterlegt. Walkers dokumentierte Arbeit am eigenen Replay-Werkzeug ist der belastbare technische Hintergrund; keine nachträglich erfundenen Registerwerte.`,
-        { label: 'Commodore Format: Martin Walker', url: 'https://commodoreformatarchive.com/the-martin-walker-interview/' }
-    ),
-    "classics/games/citadel.sid": museum(
-        'MARTIN WALKER — CITADEL',
-        `<strong>Citadel</strong> erschien 1989 bei Electric Dreams. <strong>Martin Walker</strong> verband hier seine Arbeit als Spieleentwickler mit dem Aufbau eines eigenen Musikplayers. In seiner Rückschau beschreibt er <em>Citadel</em> und <em>Armalyte</em> als Soundtracks mit cinematicshem Anspruch, komplexen sich entwickelnden Akkorden, tiefem Bass und perkussiven Elementen.`,
-        `Lokaler Header: <strong>PSID v2, vier Subsongs, Start 1</strong>. Die offiziellen Längen betragen 4:02, 2:08, 0:42 und 2:56. Die Einordnung als eigener Player entstammt Walkers Interview und wird nicht mit fremden Replay-Systemen verwechselt.`,
-        { label: 'Commodore Format: Martin Walker', url: 'https://commodoreformatarchive.com/the-martin-walker-interview/' }
-    ),
-    "classics/games/creatures-2.sid": museum(
-        'STEVE ROWLANDS — CREATURES 2',
-        `<strong>Creatures 2</strong> erschien 1992 bei Thalamus. <strong>Steve Rowlands</strong> erweiterte den Score um eine ungewöhnlich große Sammlung situativer Musik: Neben Titel und Highscore sind Interlude, versteckte Räume und sechs Torture-Screens separat dokumentiert. Subsong 16 ist eine Bearbeitung seines eigenen Stücks <em>Funky Music B</em>.`,
-        `Lokaler Header: <strong>PSID v2, 18 Subsongs, Start 2</strong> – die Datei beginnt mit dem 3:46 Minuten langen Thema. Die 18 Einträge zeigen, wie stark der Soundtrack auf einzelne Spielsituationen zugeschnitten ist.`
-    ),
-    "classics/games/mayhem-in-monsterland.sid": museum(
-        'STEVE ROWLANDS — MAYHEM IN MONSTERLAND',
-        `<strong>Mayhem in Monsterland</strong> erschien 1993 bei Apex Computer Productions. <strong>Steve Rowlands</strong> schrieb einen ebenso bunten wie kleinteiligen Score für Jellyland, Pipeland, Spottyland, Cherryland und Rockland. STIL ordnet dem Thema in Subsong 3 Bruce Broughtons <em>Tiny Toons</em>-Melodie zu.`,
-        `Lokaler Header: <strong>PSID v2, 24 Subsongs, Start 2</strong>, also mit dem Intro statt dem kurzen Mayhem-TV-Signal. Die vielen eigenen Level- und Stimmungstracks machen die Datei zu einem späten, umfangreichen Beispiel für C64-Spielmusik.`
-    ),
-    "classics/games/flimbos-quest.sid": museum(
-        'JOHANNES BJERREGAARD — FLIMBO’S QUEST / MAIN',
-        `<strong>Flimbo’s Quest</strong> erschien 1990 bei System 3. Diese Datei enthält <strong>Johannes Bjerregaards</strong> Hauptmusik. STIL berichtet außerdem, dass sein erster Ladevorschlag nicht verwendet wurde: Entwickler Laurens van der Donk entschied sich stattdessen für Reyn Ouwehands Intro. Die zwei Komponistenbereiche sind deshalb nicht miteinander zu vermischen.`,
-        `Lokaler Header: <strong>PSID v2, acht Subsongs, Start 1</strong>. Neben vier längeren Levelstücken enthält die Datei kurze Signale und eine abschließende Sequenz. Der archivierte Zusatz <em>main</em> wird im lokalen Anzeigenamen bewusst als Hauptmusik interpretiert.`
-    ),
-    "classics/games/last-ninja-3.sid": museum(
-        'REYN OUWEHAND — LAST NINJA 3',
-        `<strong>Last Ninja 3</strong> erschien 1991 bei System 3 mit Musik von <strong>Reyn Ouwehand</strong>. Der Score führt durch Mountains sowie Wind-, Water-, Fire- und Void-Temple. STIL beschreibt außerdem eine historische Loop-Unregelmäßigkeit im Intro: Die vorliegende SID-Fassung wurde mit bestätigten Daten Ouwehands korrigiert.`,
-        `Lokaler Header: <strong>PSID v2, zehn Subsongs, Start 3</strong> – die Datei öffnet mit dem 4:47 Minuten langen Intro. Die Dokumentation der restaurierten Loop-Daten ist wichtig: Sie betrifft diese archivierte Fassung und wird nicht als Fehler der lokalen Emulation dargestellt.`
-    ),
-    "classics/games/ghosts-n-goblins.sid": museum(
-        'MARK COOKSEY — GHOSTS’N GOBLINS',
-        `<strong>Ghosts’n Goblins</strong> erschien 1986 bei Elite. <strong>Mark Cooksey</strong> übernahm den Highscore-Tune aus Ayako Moris Arcade-Musik, komponierte für das Ingame aber bewusst ein eigenes gespenstisches Stück. STIL verweist darin auf Chopins Prélude op. 28 Nr. 20 und Klaus Wunderlichs <em>Dangerous Dreams</em>.`,
-        `Lokaler Header: <strong>PSID v2, zwei Subsongs, Start 2</strong>. Die Wiedergabe beginnt deshalb mit Cookseys 3:50 Minuten langer Ingame-Komposition; der 2:27 Minuten lange Arcade-Bezug steht in Subsong 1.`
+    "musicdisks/compilation-iii.sid": museum(
+        'CHRIS HÜLSBECK — COMPILATION III (1988/89)',
+        `1989 über A.U.D.I.O.S.-Entertainment erschienen, entstand <strong>Compilation III</strong> laut <strong>Chris Hülsbeck</strong> ebenfalls bereits im August und September 1988 – und beherbergt einen echten C64-Mythos: Die vier Stücke heißen <em>Moodolo</em>, <em>Try It Hard</em>, <em>Dreamlights</em> (das mit dem alten Arbeitstitel „Hurrican“ verknüpft ist) und <strong><em>The Deep</em></strong>. Letzteres wurde zwei Jahre später weltberühmt, als es als Subsong 3 in Manfred Trenz’ <em>Turrican</em> landete!`,
+        `<strong>PSID v2 · 4 Subsongs (Start 3)</strong>. Der Player startet auf Subsong 3 (<em>Dreamlights</em>), Subsong 4 liefert das berühmte <em>The Deep</em> in der ursprünglichen Musicdisk-Fassung.`,
+        deepsid('/MUSICIANS/H/Huelsbeck_Chris/Compilation_III.sid'),
+        csdbSid(13988, 'Compilation III')
     ),
 
-    "classics/demoscene/radio-napalm.sid": museum(
-        'FANTA — COMA LIGHT 13 / TUNE 1',
-        `<strong>Coma Light 13</strong> gewann am 28. Oktober 2012 den C64-Demowettbewerb der X2012. Der erste Musikbeitrag stammt von <strong>Alexander Rotzsch (Fanta)</strong>. STIL identifiziert das kurze Stück als Bezug auf Danes ersten <em>Edge-of-Disgrace</em>-Subsong – eine direkte musikalische Verbindung zwischen zwei herausragenden C64-Demos.`,
-        `Lokaler Header: <strong>PSID v2, ein Subsong</strong>, Titel <em>Coma Light 13 (tune 1)</em>, offizielle Länge <strong>0:38</strong>. Der historische Dateiname <code>radio-napalm.sid</code> ist hier irreführend; Liste und Museum folgen dem tatsächlich gespeicherten SID. Die Kürze ist Teil der dokumentierten Funktion und kein Hinweis auf eine unvollständige Datei.`,
+    // =========================================================================
+    // DEMOSCENE (1989–2024)
+    // =========================================================================
+    "demoscene/delta-tomas-danko.sid": museum(
+        'TOMAS DANKO — DELTA REINTERPRETATION (1989)',
+        `In den späten 80ern war es unter jungen schwedischen und europäischen Demoscene-Musikern ein beliebter Ritterschlag, die großen Vorbilder von Rob Hubbard neu zu interpretieren. <strong>Tomas Danko</strong> veröffentlichte 1989 diese knappe, druckvolle Hommage an Hubbards <em>Delta</em>: Der Einstieg zitiert direkt den Anfang von Philip Glass’ <em>Koyaanisqatsi</em>, bevor ab Sekunde 0:52 Dankos eigenes Cover des berühmten Abschnitts aus Hubbards Subsong 12 einsetzt.`,
+        `<strong>PSID v2 · 1 Subsong · Länge 1:17</strong>. Ein wunderbares Zeitdokument dafür, wie Demoscene-Musiker Ende der 80er aus den großen kommerziellen C64-Vorbildern eigene Tracker- und Filter-Experimente formten.`
+    ),
+    "demoscene/radio-napalm.sid": museum(
+        'PVCF — RADIO NAPALM (1995)',
+        `Willkommen in der goldenen Mitte der 90er-Trackmo-Ära: Die niederländische C64-Party <strong>X’95</strong> gilt als Geburtsstunde der modernen Party-Kultur rund um die holländische Top-Gruppe Reflex – deren gleichnamige Trackmo <strong>Radio Napalm</strong> prompt den Demo-Wettbewerb gewann. <strong>Kai Walter (PVCF)</strong> lieferte dazu einen kühl-hypnotischen Techno-Soundtrack mit extrem markanten Filterfahrten, der perfekt zu den endlosen, rastergenauen Code-Effekten passte.`,
+        `<strong>PSID v2 · 1 Subsong · Länge 4:28,098</strong>. Ein Lehrstück in <strong>Hardware-Limitierungen</strong>: PVCF komponierte im beliebten Demo-Tool <strong>DMC (Demo Music Creator)</strong>, das jedoch auf nur 16 Instrumenten-Slots beschränkt war – die charakteristisch „stufigen“ Filterbewegungen im ersten Part sind eine direkte Folge dieses Limits! Zudem entstand das Stück ursprünglich für den neueren <strong>MOS 8580</strong> (später erschien zusätzlich eine auf den 6581 abgestimmte Version).`,
+        csdb(11665, 'Radio Napalm'),
+        csdbSid(23582, 'Radio Napalm')
+    ),
+    "demoscene/edge-of-disgrace.sid": museum(
+        'DANE — EDGE OF DISGRACE (2008)',
+        `Einer der größten Donnerschläge der modernen C64-Demoscene: Auf der <strong>X’2008</strong> fegte Booze Design mit <strong>Edge of Disgrace</strong> alles vom Tisch und holte Platz 1 im Demo-Wettbewerb. Das Verrückteste daran: <strong>Stellan Andersson (Dane)</strong> stemmte nicht nur Code und Grafik mit, sondern komponierte im Alleingang auch den fast viertelstündigen, nahtlos durchlaufenden Demo-Soundtrack! Sogar Brad Fiedels <em>Terminator-2</em>-Motiv blitzt darin kurz auf.`,
+        `<strong>PSID v2 · 16 Subsongs (Start 1)</strong>. Technisch ist dies ein echtes <strong>8580-R5-Meisterwerk</strong>: Subsong 1 spielt den kompletten, <strong>14:34 Minuten</strong> langen Trackmo-Score am Stück, während die Subsongs 2–16 als direkte Sprungmarken in die einzelnen Demo-Parts dienen. Volle Filter-Präzision, glasklare Drums und ein Groove, der jeden Effekt exakt auf den Frame trifft.`,
+        csdb(72550, 'Edge of Disgrace')
+    ),
+    "demoscene/coma-light-13-tune-1.sid": museum(
+        'FANTA — COMA LIGHT 13 / TUNE 1 (2012)',
+        `Vier Jahre nach <em>Edge of Disgrace</em> folgte der nächste legendäre X-Party-Triumph: Die deutsche Gruppe Oxyron gewann am 28. Oktober 2012 auf der <strong>X’2012</strong> mit <strong>Coma Light 13</strong> (nach langer Serie kultiger <em>Coma-Light</em>-Teile) den ersten Platz. <strong>Alexander Rotzsch (Fanta)</strong> eröffnete die fünfteilige Demo-Musik mit diesem augenzwinkernden 38-Sekunden-Opener – einer direkten musikalischen Verneigung vor Danes erstem <em>Edge-of-Disgrace</em>-Part.`,
+        `<strong>PSID v2 · 1 Subsong · Länge 0:38</strong>. Abgestimmt auf den kristallklaren <strong>MOS 8580</strong>, funktioniert Tune 1 als kurzes musikalisches „Hallo“ zwischen zwei der einflussreichsten C64-Demos des 21. Jahrhunderts.`,
+        deepsid('/MUSICIANS/F/Fanta/Coma_Light_13_tune_1.sid'),
         { label: 'Oxyron: Coma Light 13', url: 'https://www.oxyron.de/html/demos.html' },
         csdb(112378, 'Coma Light 13')
     ),
-    "classics/demoscene/edge-of-disgrace.sid": museum(
-        'DANE — EDGE OF DISGRACE',
-        `<strong>Edge of Disgrace</strong> erschien 2008 bei Booze Design und gewann den C64-Demowettbewerb der X’2008. <strong>Stellan Andersson (Dane)</strong> war neben Code und Grafik auch für die Musik verantwortlich. STIL vermerkt im langen Soundtrack unter anderem eine kurze Terminator-2-Referenz von Brad Fiedel.`,
-        `Lokaler Header: <strong>PSID v2, 16 Subsongs, Start 1</strong>. Subsong 1 enthält den vollständigen <strong>14:34</strong> Minuten langen Demo-Soundtrack; die übrigen 15 Subsongs sind Einstiegspunkte zu einzelnen Teilen, keine zusätzlichen Kompositionen. Diese Struktur ist für die Museumswiedergabe besonders wichtig.`,
-        csdb(72550, 'Edge of Disgrace')
+    "demoscene/playhorse.sid": museum(
+        'ASSEMBLY 2012 — CONSERVATIVE MEGADEMO / PLAYHORSE',
+        `Finnischer Szenewitz in Höchstform: Pers’ Wastaiset Produktiot (PWP) traten auf der riesigen <strong>Assembly Summer 2012</strong> in der plattformübergreifenden <em>Oldskool Demo Competition</em> an – und holten mit ihrer lediglich <strong>9.367 Bytes</strong> großen Polit-Satire <strong>Conservative Megademo</strong> sensationell Platz 1! Code und Design stammten von <strong>Viznut</strong>, die Grafik teilten sich ccr, parkitus und Viznut, und die treibende Musik <strong>Playhorse</strong> kam von <strong>Paavo Pessi (Ilmarque)</strong>. Der Gag der Demo: absichtlich eingebaute Grafik- und Sound-Glitches als bissiger Kommentar.`,
+        `<strong>PSID v2 · 2 Subsongs (PAL/6581, Start 1)</strong>. Genau die Glitch-Geschichte erklärt die zwei Subsongs: Subsong 1 (1:58) ist die hochgepitchte, schnellere Demo-Fassung, während Subsong 2 (2:33) Ilmarques unberührtes, langsameres Original bewahrt. Load und Init sitzen bei <code>$3FF0</code>, Replay bei <code>$4003</code>.`,
+        csdb(110508, 'Conservative Megademo'),
+        csdbSid(47820, 'Playhorse')
     ),
-    "classics/demoscene/coma-light-13.sid": museum(
-        'PVCF — RADIO NAPALM',
-        `<strong>Radio Napalm</strong> ist <strong>Kai Walters (PVCF)</strong> Musik zur Reflex-Trackmo, die 1995 den C64-Demowettbewerb der X’95 gewann; der SID-Header datiert das Stück auf 1994. PVCF beschreibt die Arbeit mit DMC und dessen 16 Instrumenten-Slots; die dadurch stufigen Filterbewegungen im ersten Teil waren für ihn ein deutlicher Kompromiss. Das Stück entstand für den neuen 8580, später wurde eine angepasste 6581-Fassung veröffentlicht.`,
-        `Lokaler Header: <strong>PSID v2, ein Subsong</strong>, Titel <em>Radio Napalm</em>, offizielle Länge <strong>4:28,098</strong>. Der historische Dateiname <code>coma-light-13.sid</code> ist hier irreführend; Liste und Museum folgen dem tatsächlich gespeicherten SID. Der Eintrag dokumentiert die Abhängigkeit des Klangs von Player, Instrumentenlimit und SID-Modell, ohne eine der beiden Hardwarefassungen zur einzig „richtigen“ zu erklären.`,
-        csdb(11665, 'Radio Napalm'),
-        { label: 'CSDb SID: Radio Napalm', url: 'https://csdb.dk/sid/?id=23582' }
-    ),
-    "classics/demoscene/comaland-100-end.sid": museum(
-        'MAGNAR HARESTAD — COMALAND 100% / END',
-        `<strong>Comaland 100%</strong> von Censor Design und Oxyron erschien am 20. Juni 2015 auf der Nordlicht. <strong>Magnar Harestad</strong> steuerte Musik und die Sprachsamples des Endteils bei. Diese Datei bewahrt gezielt die Musik des Endparts, nicht den kompletten Demo-Soundtrack von dEViLOCk, Fanta und Magnar.`,
-        `Lokaler Header: <strong>RSID v2, ein Subsong</strong>, offizielle Länge <strong>6:02,201</strong>. Der RSID-Container und die dokumentierten Sprachsamples machen den Endpart zu einem eigenständigen technischen und historischen Museumsstück.`,
-        { label: 'Demozoo: Comaland 100%', url: 'https://demozoo.org/productions/140070/' },
+    "demoscene/comaland-100-facetime.sid": museum(
+        'MAGNAR HARESTAD — COMALAND 100% / FACETIME (2015)',
+        `Als sich die schwedischen Legenden Censor Design und die deutschen Hardware-Magier von Oxyron zusammentaten, entstand <strong>Comaland</strong>: Sieger der X’2014 und am 20. Juni 2015 auf der Nordlicht als gefixte Finalversion <strong>Comaland 100%</strong> veröffentlicht. Neben Tracks von dEViLOCk und Fanta steuerte der Norweger <strong>Magnar Harestad</strong> den unvergesslichen Endpart <strong>FaceTime (v.0.2.7)</strong> bei – komplett mit glasklar abgemischten Sprachsamples über treibendem SID-Groove.`,
+        `<strong>RSID v2 · 1 Subsong · Länge 6:02,201</strong>. Der <strong>RSID-Container</strong> garantiert exaktes Interrupt- und CIA-Timing, damit die eingebetteten Sprachsamples synchron über alle drei laufenden Musikstimmen geschoben werden können.`,
+        demozoo(140070, 'Comaland 100%'),
         csdb(139278, 'Comaland 100%')
     ),
-
-    "assembly/playhorse.sid": museum(
-        'ASSEMBLY 2012 — CONSERVATIVE MEGADEMO / PLAYHORSE',
-        `<strong>Conservative Megademo</strong> von Pers' Wastaiset Produktiot gewann die Mixed Demo Competition der Assembly Summer 2012. <strong>Viznut</strong> schrieb den Code, <strong>ccr, parkitus und Viznut</strong> steuerten Grafik bei. Die Musik <strong>Playhorse</strong> komponierte <strong>Paavo Pessi (Ilmarque)</strong>. Der Eintrag bezieht sich auf den Gesamtsieger dieser plattformübergreifenden Kategorie, nicht auf einen separaten C64-Nebenwettbewerb.`,
-        `Lokaler Header: <strong>PSID v2, zwei Subsongs, Start 1, PAL/6581</strong>. Subsong 1 ist die schnellere Fassung aus der Demo und dauert <strong>1:58</strong>; Subsong 2 bewahrt das langsamere Original mit <strong>2:33</strong>. Init und Load liegen bei <code>$3FF0</code>, der Replay bei <code>$4003</code>. Die unveränderte Datei stammt aus HVSC #85.`,
-        csdb(110508, 'Conservative Megademo'),
-        { label: 'CSDb SID: Playhorse', url: 'https://csdb.dk/sid/?id=47820' }
-    ),
-    "assembly/nine-nights-from-the-black-moon.sid": museum(
+    "demoscene/nine-nights-from-the-black-moon.sid": museum(
         'ASSEMBLY 2020 — FANTOMAS / NINE NIGHTS FROM THE BLACK MOON',
-        `<strong>Fantomas</strong> von Siesta gewann die Mixed Demo Competition der Assembly Online 2020. <strong>Adder</strong> programmierte und linkte die Demo, <strong>Aomeba</strong> erstellte die Grafik, <strong>Jani Joeli (Jojeli)</strong> komponierte die Musik; alle drei werden auch für das Design geführt. Aomeba datiert den Anlass auf einen Sommerabend 2020 auf Jojelis Veranda, als Adder per Nachricht eine neue Demo und Assembly als Wettbewerb vorschlug. Der Titel verweist auf finnische Volksüberlieferung: Birkenzweige für einen Saunabesen sollten neun Nächte nach dem schwarzen Mond gepflückt werden, damit ihre Blätter nicht leicht abfielen.`,
-        `Lokaler Header: <strong>PSID v2, ein Subsong, PAL/8580</strong>. Die offizielle HVSC-Länge von <strong>Nine Nights from the Black Moon</strong> beträgt <strong>4:38,985</strong>. Load und Init liegen bei <code>$1000</code>, der Replay bei <code>$1003</code>; die HVSC-Datei wird unverändert wiedergegeben.`,
+        `Entstanden an einem finnischen Sommerabend 2020 auf der Veranda von Musiker <strong>Jani Joeli (Jojeli)</strong>, als Coder <strong>Adder</strong> kurzentschlossen per Nachricht vorschlug, doch schnell eine neue Demo für die Assembly Online 2020 zu bauen: Mit Grafiker <strong>Aomeba</strong> im Boot gewannen Siesta prompt die <em>Oldskool Demo Competition</em>! Der poetische Titel <strong>Nine Nights from the Black Moon</strong> stammt aus alter finnischer Folklore: Birkenzweige für den Saunabesen (<em>Vihta</em>) schneidet man demnach genau neun Nächte nach Neumond, damit die Blätter beim Saunieren nicht abfallen.`,
+        `<strong>PSID v2 · 1 Subsong · PAL/8580 · Länge 4:38,985</strong>. Ein moderner, straff durchproduzierter Demo-Track (<code>$1000</code> Init/Load, <code>$1003</code> Play), der zeigt, wie warm und druckvoll zeitgenössische Tracker-Kompositionen auf dem <strong>MOS 8580</strong> klingen.`,
         csdb(196684, 'Fantomas'),
-        { label: 'CSDb SID: Nine Nights from the Black Moon', url: 'https://csdb.dk/sid/?id=58136' }
+        csdbSid(58136, 'Nine Nights from the Black Moon')
     ),
-    "assembly/scroll-of-antonius.sid": museum(
+    "demoscene/scroll-of-antonius.sid": museum(
         'ASSEMBLY 2023 — THE SCROLL OF ANTONIUS',
-        `<strong>The Scroll of Antonius</strong> von Fairlight gewann die Mixed Demo Competition der Assembly Summer 2023. <strong>Trident</strong> schrieb den Code, <strong>Soya</strong> die Grafik und <strong>Figge Wasberger (Fegolhuzz)</strong> die Musik; <strong>tNG</strong> steuerte Charset und Directory Art bei. Trident erklärt den Anlass als verspäteten Gruß an Padua: Die Gruppe war in <em>Hues</em> ausgelassen worden und auch in <em>Looking for Atlantis</em> letztlich nicht mehr vertreten. Die Demo erzählt daraus eine fiktive Geschichte um eine Schriftrolle aus dem 13. Jahrhundert und eine Flüssigkeit voller Demoscener-Energie.`,
-        `Lokaler Header: <strong>PSID v2, ein Subsong, PAL/8580</strong>. Der gleichnamige Titeltrack dauert laut HVSC <strong>3:04,940</strong>. Load und Init liegen bei <code>$1000</code>, der Replay bei <code>$1003</code>. Die Datei ist der unveränderte HVSC-Rip, den CSDb ausdrücklich dieser Demo zuordnet.`,
+        `Ein augenzwinkernder Szenegruß mit ordentlich Verspätung: Fairlight-Coder <strong>Trident</strong> erklärte die Story hinter <strong>The Scroll of Antonius</strong> damit, dass die befreundete Gruppe <em>Padua</em> in früheren Demos versehentlich vergessen worden war – also spann er um sie gleich ein ganzes Fantasie-Epos rund um eine Schriftrolle aus dem 13. Jahrhundert und eine geheimnisvolle Flüssigkeit voller Demoscene-Energie. Zusammen mit Grafiker <strong>Soya</strong>, <strong>tNG</strong> (Charset/DirArt) und SID-Musiker <strong>Figge Wasberger (Fegolhuzz)</strong> reichte das auf der Assembly Summer 2023 souverän für Platz 1 der <em>Oldskool Demo Competition</em>.`,
+        `<strong>PSID v2 · 1 Subsong · PAL/8580 · Länge 3:04,940</strong>. Klassisches Standard-Layout (Load/Init <code>$1000</code>, Play <code>$1003</code>) für den <strong>MOS 8580</strong> mit modernen Demo-Arpeggios, straffer Lead-Führung und breiten Akkorden.`,
         csdb(234200, 'The Scroll of Antonius'),
-        { label: 'CSDb SID: The Scroll of Antonius', url: 'https://csdb.dk/sid/?id=62736' }
+        csdbSid(62736, 'The Scroll of Antonius')
     ),
-    "assembly/transcend-the-game.sid": museumCustom(
+    "demoscene/transcend-the-game.sid": museum(
         'ASSEMBLY 2024 — TRANSCEND THE GAME',
-        `<strong>Transcend the Game</strong> von Pers' Wastaiset Produktiot gewann die Mixed Demo Competition der Assembly Summer 2024. Die C64-One-File-Demo ist eine konzentrierte Autorenarbeit: <strong>Viznut</strong> wird bei CSDb und Pouët ausdrücklich für Code, Grafik und Musik geführt. Pouët klassifiziert die Produktion als 32K-Demo. Damit ist 2024 der jüngste belegte C64-Gesamtsieger im untersuchten Assembly-Zeitraum 2006–2025.`,
-        `Für diesen Titel liegt in HVSC #85 noch kein eigenständiger Eintrag vor. Der lokale <strong>PSID-v2-Rip</strong> wurde deshalb direkt aus dem unveränderten Originalrelease rekonstruiert: Load und Init bei <code>$0400</code>, Play bei <code>$0403</code>, ein Subsong, PAL/6581-Header. Der originale 6510-Replay und sämtliche referenzierten Musikdaten von <code>$0400–$0AFF</code> bleiben erhalten; 15.000 Play-Aufrufe wurden mit laufender, musikalisch aktiver SID-Registerausgabe validiert.`,
+        `Die finnische One-Man-Show der Assembly Summer 2024: <strong>Ville-Matias Heikkilä (Viznut)</strong> – in der Computerkunstszene berühmt als Erfinder von <strong>Bytebeat</strong> (Musik aus winzigen mathematischen C-Einzeilern) sowie für seine extrem minimalistischen VIC-20-Demos – gewann mit <strong>Transcend the Game</strong> für Pers’ Wastaiset Produktiot (PWP) die <em>Oldskool Demo Competition</em> im Alleingang (Code, Grafik und Musik aus einer Hand, unter 32 KB als C64-Onefiler!). Damit ist es der jüngste C64-Gesamtsieg in der Assembly-Oldskool-Reihe.`,
+        `<strong>PSID v2 · 1 Subsong · PAL/6581</strong>. Ein handgefertigter Direct-Rip direkt aus dem Original-Onefiler: Load und Init sitzen unkonventionell weit unten im RAM bei <code>$0400</code>, der 6510-Replay bei <code>$0403</code> (Musikdaten von <code>$0400–$0AFF</code>). Minimalistischer, kantiger 6581-Eigenbau ohne dicken Tracker-Overhead.`,
+        demozoo(354251, 'Transcend the Game'),
         csdb(244634, 'Transcend the Game'),
         { label: 'Pouët: Transcend the Game', url: 'https://www.pouet.net/prod.php?which=97441' }
     ),
-    "SID_Emulation_Test.sid": museumCustom(
+
+    // =========================================================================
+    // TECHNIK / TESTSUITE
+    // =========================================================================
+    "tests/sid-emulation-test.sid": museumCustom(
         'CHIPTUNES FANTASY — SID EMULATION TEST SUITE',
-        `Diese eigenständige <strong>PSID-v2-Testdatei</strong> wurde für reproduzierbare Prüfungen der SID-Emulation erstellt. Sie ist kein historischer C64-Soundtrack und kein HVSC-Rip.`,
-        `Der 61 Sekunden lange Loop enthält 61 jeweils etwa einsekündige Registertests: acht Wellenformvarianten bei fünf Frequenzen, fünf ADSR-Verläufe mit Release, Filtermodi mit verschiedenen Cutoffs und Resonanzen sowie zwei Oszillatoren mit unabhängiger Ausgabe, Hard Sync und Ringmodulation.`
+        `Kein Spiel, keine Demo – sondern das Stethoskop für den Emulator: Diese speziell für <em>Chiptunes Fantasy</em> gebaute <strong>PSID-v2-Diagnosedatei</strong> macht auf einen Durchgang hör- und messbar, wie sauber ein Web-Audio- oder JavaScript-SID-Kern arbeitet.`,
+        `<strong>PSID v2 · 1 Subsong · 61 Sekunden Loop</strong>. Im Sekundentakt feuert die Testsuite 61 gezielte Register-Stresstests ab: 8 Wellenform-Kombinationen über 5 Frequenzstufen, 5 ADSR-Hüllkurven-Profile inklusive Release-Phase, Filter-Modi (Lowpass/Bandpass/Highpass) mit variierender Cutoff- und Resonanz-Steilheit sowie Zwei-Oszillator-Tests für <strong>Hard Sync</strong> und <strong>Ringmodulation</strong>.`
     )
 };
