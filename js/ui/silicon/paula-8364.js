@@ -1,12 +1,12 @@
 // === js/ui/silicon/paula-8364.js ===
 // =========================================================
-// MOS 8364 (PAULA) & AMIGA 500 BOARD LIVING SILICON VISUALIZER
-// Zero-Allocation, Zero-Clipping, Schematic-Grade Routing:
+// MOS 8364 (PAULA) & AMIGA 500 BOARD LIVING SILICON VISUALIZER (v1.6.0)
+// Zero-Allocation, Zero-Clipping, Hardware-Pinout-Exact Routing:
 // - 4x Agnus/Paula DMA Channels with Live 6-Bit Volume Bars & Register Readout
-// - Dual 14-Bit Multiplying DACs (8x6 Bit) with Live 4x-Host-Rate ZOH Scope
-// - On-Die DMA/Clock Control Core (3.55MHz PAL, DMACON D0-D3 LEDs, 2-Byte FIFO)
-// - Linear A500 Approximation: 4.421kHz Static RC + 3.5% Bleed
-// - Left/Right 3.09kHz 12dB Butterworth LED Filters with Live Response Curves
+// - Dual 14-Bit Multiplying DACs (8x6 Bit) with Frame-Rate-Independent 4x ZOH Scope
+// - On-Die DMA/Clock Control Core (3.55MHz PAL CCK Pin 28, DMAL Pin 12, DMACON D0-D3)
+// - Authentic Audio Pins: Pin 31 (AUDA Left) & Pin 30 (AUDB Right)
+// - Linear A500 Approximation: 4.421kHz Static RC + 3.5% Bleed + 3.09kHz LED Filters
 // =========================================================
 
 import { BaseChip } from './base-chip.js';
@@ -23,8 +23,14 @@ export class Paula8364 extends BaseChip {
         super(container);
         this.lastFilterState = -99;
         this.lastOverrideState = -99;
+        this.lastDmaMask = -1;
+        this.lastVolWidths = new Int16Array([-1, -1, -1, -1]);
+        this.lastFiltBarL = -1;
+        this.lastFiltBarR = -1;
+        this.lastFifoText = '';
         this.zohPhaseL = 0.0;
         this.zohPhaseR = 0.0;
+        this.lastT = 0.0;
     }
 
     generatePaulaPins() {
@@ -39,9 +45,10 @@ export class Paula8364 extends BaseChip {
             const x = startX + i * spacing + (spacing - pinWidth) / 2;
             const topPin = 48 - i;
             const bottomPin = i + 1;
+            const isAudioPin = topPin === 30 || topPin === 31;
             pins += `<rect class="silicon-pin pin-paula-${topPin}" x="${x}" y="8" width="${pinWidth}" height="19" rx="1" />`;
             pins += `<rect class="silicon-pin pin-paula-${bottomPin}" x="${x}" y="225" width="${pinWidth}" height="19" rx="1" />`;
-            pins += `<text class="paula-pin-number${topPin === 32 || topPin === 33 ? ' paula-audio-pin' : ''}" x="${x + pinWidth / 2}" y="33" text-anchor="middle">${topPin}</text>`;
+            pins += `<text class="paula-pin-number${isAudioPin ? ' paula-audio-pin' : ''}" x="${x + pinWidth / 2}" y="33" text-anchor="middle">${topPin}</text>`;
             pins += `<text class="paula-pin-number" x="${x + pinWidth / 2}" y="222" text-anchor="middle">${bottomPin}</text>`;
         }
 
@@ -61,6 +68,7 @@ export class Paula8364 extends BaseChip {
             volTexts: CHANNELS.map(({ index }) => q(`.paula-vol-txt-${index}`)),
             paths: CHANNELS.map(({ index }) => q(`.sig-path-${index}`)),
             dmaLeds: [q('.paula-dmacon-0'), q('.paula-dmacon-1'), q('.paula-dmacon-2'), q('.paula-dmacon-3')],
+            dmaLedTexts: [q('.paula-dmacon-txt-0'), q('.paula-dmacon-txt-1'), q('.paula-dmacon-txt-2'), q('.paula-dmacon-txt-3')],
 
             mixL: q('.paula-mix-l'),
             mixR: q('.paula-mix-r'),
@@ -71,8 +79,8 @@ export class Paula8364 extends BaseChip {
 
             sigDacL: q('.sig-dac-l'),
             sigDacR: q('.sig-dac-r'),
-            sigOutL: q('.sig-path-out-l'),
-            sigOutR: q('.sig-path-out-r'),
+            sigRcaL: q('.sig-rca-l'),
+            sigRcaR: q('.sig-rca-r'),
 
             rcStage: q('.paula-rc-stage'),
             filtL: q('.paula-filt-l'),
@@ -83,11 +91,21 @@ export class Paula8364 extends BaseChip {
             filtBarR: q('.paula-filt-bar-r'),
             filterStatus: q('.paula-filter-status'),
 
-            pinOutL: q('.pin-paula-32'),
-            pinOutR: q('.pin-paula-33'),
-            pinClk: q('.pin-paula-6'),
-            pinDmaL: q('.pin-paula-15')
+            // Authentic MOS 8364 DIP-48 Audio, Clock & DMAL Pins
+            pinOutL: q('.pin-paula-31'),
+            pinOutR: q('.pin-paula-30'),
+            pinClk: q('.pin-paula-28'),
+            pinDmaL: q('.pin-paula-12')
         };
+
+        this.lastFilterState = -99;
+        this.lastOverrideState = -99;
+        this.lastDmaMask = -1;
+        this.lastVolWidths.fill(-1);
+        this.lastFiltBarL = -1;
+        this.lastFiltBarR = -1;
+        this.lastFifoText = '';
+        this.lastT = 0.0;
 
         if (this.cache.diagLbls && this.cache.diagLbls.length >= 4) {
             this.cache.diagLbls[0].textContent = 'PAL CLK';
@@ -95,18 +113,22 @@ export class Paula8364 extends BaseChip {
             this.cache.diagLbls[2].textContent = 'ZOH DAC';
             this.cache.diagLbls[3].textContent = 'LED FILT';
         }
+        if (this.cache.diagVals && this.cache.diagVals.length >= 1) {
+            this.cache.diagVals[0].textContent = '3.55 MHz';
+        }
     }
 
     buildZohStaircasePath(x0, yMid, width, maxAmp, level, phase) {
         const steps = 8;
         const stepW = width / steps;
         const amp = Math.max(1.0, Math.min(maxAmp, level * maxAmp));
+        const active = level > 0.02;
         let d = '';
         for (let s = 0; s < steps; s++) {
             const xStart = Math.round(x0 + s * stepW);
             const xEnd = Math.round(x0 + (s + 1) * stepW);
             const sampleQuant = Math.round(Math.sin(phase + s * 0.85) * 3.0) / 3.0;
-            const y = Math.round(yMid - (level > 0.02 ? sampleQuant * amp : 0));
+            const y = Math.round(yMid - (active ? sampleQuant * amp : 0));
             if (s === 0) {
                 d += `M ${xStart} ${y} L ${xEnd} ${y}`;
             } else {
@@ -116,16 +138,25 @@ export class Paula8364 extends BaseChip {
         return d;
     }
 
+    setBlockOpacity(el, value) {
+        if (!el) return;
+        const quant = Math.round(Math.max(0, Math.min(1, value)) * 20);
+        if (el._paulaOp === quant) return;
+        el._paulaOp = quant;
+        el.style.opacity = (0.35 + (quant / 20) * 0.65).toFixed(2);
+    }
+
     update(vols, regs, t = 0) {
         if (!regs) return;
 
+        const dt = this.lastT === 0 ? 0.016 : Math.max(0.001, Math.min(0.1, t - this.lastT));
+        this.lastT = t;
+
         const levels = [vols[0] || 0, vols[1] || 0, vols[2] || 0, vols[3] || 0];
         const rawMask = regs[31] || regs[28] || 0;
-        const setGlow = (el, value) => {
-            if (el) el.style.opacity = 0.35 + Math.min(1, value) * 0.65;
-        };
 
         let activeChannelCount = 0;
+        let dmaMask = 0;
         let avgPeriodL = 428;
         let avgPeriodR = 428;
 
@@ -140,7 +171,10 @@ export class Paula8364 extends BaseChip {
 
             // Fallback-safe DMA detection (works via explicit mask OR active register/level state)
             const dmaActive = ((rawMask & (1 << index)) !== 0) || (level > 0.005) || (length > 0 && volume > 0 && period > 0);
-            if (dmaActive) activeChannelCount++;
+            if (dmaActive) {
+                activeChannelCount++;
+                dmaMask |= (1 << index);
+            }
 
             if (output === 'L' && period > 0) avgPeriodL = period;
             if (output === 'R' && period > 0) avgPeriodR = period;
@@ -160,62 +194,77 @@ export class Paula8364 extends BaseChip {
                     this.cache.registers[i].textContent = regTxt;
                 }
             }
-            if (this.cache.volBars[i]) {
-                const barW = Math.round((volume / 64.0) * 130);
-                this.cache.volBars[i].setAttribute('width', barW);
-            }
-            if (this.cache.volTexts[i]) {
-                const vTxt = `V:${volume.toString().padStart(2, '0')}`;
-                if (this.cache.volTexts[i].textContent !== vTxt) {
-                    this.cache.volTexts[i].textContent = vTxt;
-                }
-            }
-            if (this.cache.dmaLeds[index]) {
-                this.cache.dmaLeds[index].style.fill = dmaActive ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+
+            const barW = Math.round((volume / 64.0) * 130);
+            if (this.lastVolWidths[i] !== barW) {
+                this.lastVolWidths[i] = barW;
+                if (this.cache.volBars[i]) this.cache.volBars[i].setAttribute('width', barW);
+                if (this.cache.volTexts[i]) this.cache.volTexts[i].textContent = `V:${volume.toString().padStart(2, '0')}`;
             }
 
-            setGlow(this.cache.channels[i], dmaActive ? Math.max(level, 0.35) : 0);
+            this.setBlockOpacity(this.cache.channels[i], dmaActive ? Math.max(level, 0.35) : 0);
             this.updateBusFlow(this.cache.paths[i], level);
+        }
+
+        if (this.lastDmaMask !== dmaMask) {
+            this.lastDmaMask = dmaMask;
+            for (let ch = 0; ch < 4; ch++) {
+                const active = (dmaMask & (1 << ch)) !== 0;
+                if (this.cache.dmaLeds[ch]) {
+                    this.cache.dmaLeds[ch].style.fill = active ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+                }
+                if (this.cache.dmaLedTexts[ch]) {
+                    this.cache.dmaLedTexts[ch].style.fill = active ? 'var(--screen-bg)' : 'var(--panel-text)';
+                }
+            }
         }
 
         const outL = Math.min(1.0, (levels[0] + levels[3]) * 0.65);
         const outR = Math.min(1.0, (levels[1] + levels[2]) * 0.65);
         const totalOut = Math.max(outL, outR);
 
-        setGlow(this.cache.mixL, outL);
-        setGlow(this.cache.mixR, outR);
-        setGlow(this.cache.coreBlock, activeChannelCount > 0 ? 0.55 + totalOut * 0.45 : 0.25);
+        this.setBlockOpacity(this.cache.mixL, outL);
+        this.setBlockOpacity(this.cache.mixR, outR);
+        this.setBlockOpacity(this.cache.coreBlock, activeChannelCount > 0 ? 0.35 + totalOut * 0.65 : 0);
 
-        if (this.cache.fifoStatus) {
-            const fifoTxt = activeChannelCount > 0 ? `FIFO ${activeChannelCount}CH FETCH` : 'FIFO STANDBY';
-            if (this.cache.fifoStatus.textContent !== fifoTxt) {
-                this.cache.fifoStatus.textContent = fifoTxt;
+        const fifoTxt = activeChannelCount > 0 ? `FIFO ${activeChannelCount}CH FETCH` : 'FIFO STANDBY';
+        if (this.lastFifoText !== fifoTxt) {
+            this.lastFifoText = fifoTxt;
+            if (this.cache.fifoStatus) this.cache.fifoStatus.textContent = fifoTxt;
+        }
+
+        // Update live frame-rate-independent ZOH scopes centered in Left & Right MDACs
+        const dtScale = dt * 60.0;
+        this.zohPhaseL = (this.zohPhaseL + (outL > 0.02 ? (600.0 / Math.max(113, avgPeriodL)) * dtScale : 0)) % (Math.PI * 2);
+        this.zohPhaseR = (this.zohPhaseR + (outR > 0.02 ? (600.0 / Math.max(113, avgPeriodR)) * dtScale : 0)) % (Math.PI * 2);
+
+        if (this.cache.zohPathL) {
+            const zohL = this.buildZohStaircasePath(260, 105, 92, 9.5, outL, this.zohPhaseL);
+            if (this.cache.zohPathL._lastD !== zohL) {
+                this.cache.zohPathL._lastD = zohL;
+                this.cache.zohPathL.setAttribute('d', zohL);
+            }
+        }
+        if (this.cache.zohPathR) {
+            const zohR = this.buildZohStaircasePath(260, 182, 92, 9.5, outR, this.zohPhaseR);
+            if (this.cache.zohPathR._lastD !== zohR) {
+                this.cache.zohPathR._lastD = zohR;
+                this.cache.zohPathR.setAttribute('d', zohR);
             }
         }
 
-        // Update live four-times-host-rate ZOH scopes inside Left & Right MDACs
-        this.zohPhaseL = (this.zohPhaseL + (outL > 0.02 ? (600.0 / Math.max(113, avgPeriodL)) : 0)) % (Math.PI * 2);
-        this.zohPhaseR = (this.zohPhaseR + (outR > 0.02 ? (600.0 / Math.max(113, avgPeriodR)) : 0)) % (Math.PI * 2);
-
-        if (this.cache.zohPathL) {
-            this.cache.zohPathL.setAttribute('d', this.buildZohStaircasePath(260, 108, 92, 9.5, outL, this.zohPhaseL));
-        }
-        if (this.cache.zohPathR) {
-            this.cache.zohPathR.setAttribute('d', this.buildZohStaircasePath(260, 184, 92, 9.5, outR, this.zohPhaseR));
-        }
-
-        // Bus & Pin Glows
+        // Bus & Authentic DIP-48 Pin Glows
         this.updateBusFlow(this.cache.sigDacL, outL);
         this.updateBusFlow(this.cache.sigDacR, outR);
-        this.updateBusFlow(this.cache.sigOutL, outL);
-        this.updateBusFlow(this.cache.sigOutR, outR);
+        this.updateBusFlow(this.cache.sigRcaL, outL);
+        this.updateBusFlow(this.cache.sigRcaR, outR);
         this.updatePinGlow(this.cache.pinOutL, outL);
         this.updatePinGlow(this.cache.pinOutR, outR);
         this.updatePinGlow(this.cache.pinClk, 0.45 + 0.35 * Math.sin(t * 20.0));
         this.updatePinGlow(this.cache.pinDmaL, activeChannelCount > 0 ? 0.85 : 0.0);
 
         // External Amiga 500 Motherboard Filter Stage
-        setGlow(this.cache.rcStage, totalOut);
+        this.setBlockOpacity(this.cache.rcStage, totalOut);
 
         const filterState = regs[29];
         const overrideState = regs[30] || 0;
@@ -244,14 +293,28 @@ export class Paula8364 extends BaseChip {
             if (this.cache.filtCurveR) this.cache.filtCurveR.setAttribute('d', curveR);
         }
 
-        if (this.cache.filtBarL) this.cache.filtBarL.setAttribute('width', Math.round(outL * 96));
-        if (this.cache.filtBarR) this.cache.filtBarR.setAttribute('width', Math.round(outR * 96));
+        const filtW_L = Math.round(outL * 96);
+        if (this.lastFiltBarL !== filtW_L) {
+            this.lastFiltBarL = filtW_L;
+            if (this.cache.filtBarL) this.cache.filtBarL.setAttribute('width', filtW_L);
+        }
+        const filtW_R = Math.round(outR * 96);
+        if (this.lastFiltBarR !== filtW_R) {
+            this.lastFiltBarR = filtW_R;
+            if (this.cache.filtBarR) this.cache.filtBarR.setAttribute('width', filtW_R);
+        }
 
         for (const [filter, level] of [[this.cache.filtL, outL], [this.cache.filtR, outR]]) {
             if (!filter) continue;
-            filter.style.opacity = filterOn ? 0.45 + level * 0.55 : 0.30 + level * 0.40;
-            filter.style.filter = filterOn && level > 0.1
-                ? `drop-shadow(0 0 ${level * 6}px var(--bus-active-color))`
+            const quant = Math.round(level * 15);
+            const filterKey = (filterOn ? 32 : 0) | quant;
+            if (filter._filtKey === filterKey) continue;
+            filter._filtKey = filterKey;
+
+            const normLvl = quant / 15;
+            filter.style.opacity = filterOn ? (0.45 + normLvl * 0.55).toFixed(2) : (0.30 + normLvl * 0.40).toFixed(2);
+            filter.style.filter = filterOn && normLvl > 0.1
+                ? `drop-shadow(0 0 ${(normLvl * 6).toFixed(1)}px var(--bus-active-color))`
                 : 'none';
         }
 
@@ -270,7 +333,7 @@ export class Paula8364 extends BaseChip {
         return `
             <svg class="paula-visualization" viewBox="0 -42 800 305" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="paula-title paula-description">
                 <title id="paula-title">MOS 8364 Paula &amp; Amiga 500 Audio Signalfluss</title>
-                <desc id="paula-description">Vier Agnus/Paula DMA-Kanäle speisen zwei 14-Bit Multiplying DACs mit Zero-Order Hold auf der vierfachen Host-Abtastrate. Über Pin 32 und Pin 33 gelangt das Stereosignal in die lineare A500-Filterapproximation (4.421 kHz RC-Tiefpass und schaltbares 3.09 kHz Butterworth LED-Filter).</desc>
+                <desc id="paula-description">Vier Agnus/Paula DMA-Kanäle speisen zwei 14-Bit Multiplying DACs mit Zero-Order Hold auf der vierfachen Host-Abtastrate. Über Pin 31 (AUDA) und Pin 30 (AUDB) gelangt das Stereosignal in die lineare A500-Filterapproximation (4.421 kHz RC-Tiefpass und schaltbares 3.09 kHz Butterworth LED-Filter).</desc>
                 <defs>
                     <marker id="paula-arrow" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
                         <path d="M 0 0 L 5 2.5 L 0 5 Z" fill="var(--bus-active-color)" />
@@ -387,32 +450,31 @@ export class Paula8364 extends BaseChip {
                     <!-- DMACON Active Channel Gate Matrix -->
                     <text x="427" y="128" class="paula-channel-registers" fill="var(--text-color)" text-anchor="middle">DMACON GATES</text>
                     <rect class="paula-dmacon-0" x="386" y="134" width="16" height="10" rx="1" fill="var(--chassis-dark)" stroke="var(--text-color)" stroke-width="0.6" />
-                    <text x="394" y="141" class="paula-pin-number" fill="var(--screen-bg)" text-anchor="middle">D0</text>
+                    <text x="394" y="141" class="paula-pin-number paula-dmacon-txt-0" text-anchor="middle">D0</text>
                     <rect class="paula-dmacon-1" x="408" y="134" width="16" height="10" rx="1" fill="var(--chassis-dark)" stroke="var(--text-color)" stroke-width="0.6" />
-                    <text x="416" y="141" class="paula-pin-number" fill="var(--screen-bg)" text-anchor="middle">D1</text>
+                    <text x="416" y="141" class="paula-pin-number paula-dmacon-txt-1" text-anchor="middle">D1</text>
                     <rect class="paula-dmacon-2" x="430" y="134" width="16" height="10" rx="1" fill="var(--chassis-dark)" stroke="var(--text-color)" stroke-width="0.6" />
-                    <text x="438" y="141" class="paula-pin-number" fill="var(--screen-bg)" text-anchor="middle">D2</text>
+                    <text x="438" y="141" class="paula-pin-number paula-dmacon-txt-2" text-anchor="middle">D2</text>
                     <rect class="paula-dmacon-3" x="452" y="134" width="16" height="10" rx="1" fill="var(--chassis-dark)" stroke="var(--text-color)" stroke-width="0.6" />
-                    <text x="460" y="141" class="paula-pin-number" fill="var(--screen-bg)" text-anchor="middle">D3</text>
+                    <text x="460" y="141" class="paula-pin-number paula-dmacon-txt-3" text-anchor="middle">D3</text>
 
                     <!-- 16-Bit AUDxDAT Demux Status -->
                     <rect x="383" y="154" width="88" height="42" rx="1" fill="var(--chassis-dark)" stroke="var(--text-color)" stroke-width="0.6" />
                     <text x="427" y="166" class="paula-channel-registers" fill="var(--text-color)" text-anchor="middle">AUDxDAT DEMUX</text>
-                    <text x="427" y="178" class="paula-channel-state" fill="var(--highlight-color)" text-anchor="middle">16B -&gt; HI/LO 8B</text>
+                    <text x="427" y="178" class="paula-channel-state" fill="var(--highlight-color)" text-anchor="middle">16B-&gt;HI/LO 8B</text>
                     <text x="427" y="190" class="paula-channel-registers paula-fifo-status" fill="var(--text-color)" text-anchor="middle">FIFO STANDBY</text>
                 </g>
 
                 <!-- =========================================================
-                     5. SCHEMATIC-GRADE PIN 32 & PIN 33 ROUTING TO AMIGA BOARD
-                     Uses clean PCB corridors & 4px schematic jumper arcs!
+                     5. UNCROSSED SCHEMATIC ROUTING TO PIN 31 (AUDA L) & PIN 30 (AUDB R)
                      ========================================================= -->
-                <!-- LEFT: MDAC L (344.375, 61) -> Pin 32 (344.375, 8) -> Board RC (558, 74) & Board Left LED Filter (558, 126) -->
-                <path class="silicon-bus-wire" d="M 344.375 61 L 344.375 8 L 344.375 -14 L 528 -14 L 528 74 L 558 74 M 528 74 L 528 126 L 558 126" marker-end="url(#paula-arrow)" />
-                <path class="silicon-bus-packet sig-dac-l sig-path-out-l" d="M 344.375 61 L 344.375 8 L 344.375 -14 L 528 -14 L 528 126 L 558 126" />
+                <!-- LEFT: MDAC L (360, 77) -> Corridor x=363.125 -> Pin 31 (363.125, 8) -> Board RC & Left LED Filter -->
+                <path class="silicon-bus-wire" d="M 360 77 L 363.125 77 L 363.125 8 L 363.125 -14 L 528 -14 L 528 74 L 558 74 M 528 74 L 528 126 L 558 126" marker-end="url(#paula-arrow)" />
+                <path class="silicon-bus-packet sig-dac-l" d="M 360 77 L 363.125 77 L 363.125 8 L 363.125 -14 L 528 -14 L 528 126 L 558 126" />
 
-                <!-- RIGHT: MDAC R (360, 171) -> Corridor x=368 -> y=53 (Jumper Arc over 344.375) -> Pin 33 (325.625, 8) -> Board Right LED Filter (558, 180) -->
-                <path class="silicon-bus-wire" d="M 360 171 L 368 171 L 368 53 L 348.375 53 A 4 4 0 0 0 340.375 53 L 325.625 53 L 325.625 8 L 325.625 -28 L 512 -28 L 512 180 L 558 180" marker-end="url(#paula-arrow)" />
-                <path class="silicon-bus-packet sig-dac-r sig-path-out-r" d="M 360 171 L 368 171 L 368 53 L 348.375 53 A 4 4 0 0 0 340.375 53 L 325.625 53 L 325.625 8 L 325.625 -28 L 512 -28 L 512 180 L 558 180" />
+                <!-- RIGHT: MDAC R (360, 171) -> Corridor x=369 -> y=54 -> Pin 30 (381.875, 8) -> Board Right LED Filter -->
+                <path class="silicon-bus-wire" d="M 360 171 L 369 171 L 369 54 L 381.875 54 L 381.875 8 L 381.875 -28 L 512 -28 L 512 180 L 558 180" marker-end="url(#paula-arrow)" />
+                <path class="silicon-bus-packet sig-dac-r" d="M 360 171 L 369 171 L 369 54 L 381.875 54 L 381.875 8 L 381.875 -28 L 512 -28 L 512 180 L 558 180" />
 
                 <!-- =========================================================
                      6. EXTERNAL AMIGA 500 MOTHERBOARD ANALOG STAGE
@@ -431,7 +493,7 @@ export class Paula8364 extends BaseChip {
                 <g class="paula-filt-l" style="opacity:0.35">
                     <rect x="558" y="102" width="216" height="48" rx="3" fill="none" stroke="var(--text-color)" stroke-dasharray="4 2" />
                     <text x="568" y="116" class="paula-stage-title" fill="var(--text-color)">LED FILTER · LEFT</text>
-                    <text x="568" y="129" class="paula-stage-caption" fill="var(--text-color)">PIN 32 · AUDL · 12dB</text>
+                    <text x="568" y="129" class="paula-stage-caption" fill="var(--text-color)">PIN 31 · AUDA (L) · 12dB</text>
                     <rect x="568" y="137" width="96" height="5" fill="var(--chassis-dark)" />
                     <rect class="paula-filt-bar-l" x="568" y="137" width="0" height="5" fill="var(--highlight-color)" />
                     <!-- Mini Filter Response Curve Window -->
@@ -443,7 +505,7 @@ export class Paula8364 extends BaseChip {
                 <g class="paula-filt-r" style="opacity:0.35">
                     <rect x="558" y="156" width="216" height="48" rx="3" fill="none" stroke="var(--text-color)" stroke-dasharray="4 2" />
                     <text x="568" y="170" class="paula-stage-title" fill="var(--text-color)">LED FILTER · RIGHT</text>
-                    <text x="568" y="183" class="paula-stage-caption" fill="var(--text-color)">PIN 33 · AUDR · 12dB</text>
+                    <text x="568" y="183" class="paula-stage-caption" fill="var(--text-color)">PIN 30 · AUDB (R) · 12dB</text>
                     <rect x="568" y="191" width="96" height="5" fill="var(--chassis-dark)" />
                     <rect class="paula-filt-bar-r" x="568" y="191" width="0" height="5" fill="var(--highlight-color)" />
                     <!-- Mini Filter Response Curve Window -->
@@ -453,7 +515,9 @@ export class Paula8364 extends BaseChip {
 
                 <!-- Clean RCA Output Arrows Exiting Right Edge of Filter Stages -->
                 <path class="silicon-bus-wire" d="M 774 126 L 794 126" marker-end="url(#paula-arrow)" />
+                <path class="silicon-bus-packet sig-rca-l" d="M 774 126 L 794 126" />
                 <path class="silicon-bus-wire" d="M 774 180 L 794 180" marker-end="url(#paula-arrow)" />
+                <path class="silicon-bus-packet sig-rca-r" d="M 774 180 L 794 180" />
 
                 <text x="667" y="226" class="paula-filter-status" fill="var(--highlight-color)" text-anchor="middle">LED FILTER: ACTIVE 3.09kHz</text>
             </svg>

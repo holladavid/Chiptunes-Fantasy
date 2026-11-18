@@ -288,6 +288,8 @@ function updateNowPlayingSystem() {
 }
 
 function updateNowPlayingLive(force = false) {
+    if (!force && !isVisualFullscreen()) return;
+
     const totalFrames = trackData.length || 0;
     const currentTime = totalFrames > 0 ? formatTime(lastKnownFrame) : '00:00';
     const totalTime = totalFrames > 0 ? formatTime(totalFrames) : '00:00';
@@ -1636,6 +1638,7 @@ function handleFullscreenChange() {
     syncStageModeUI();
     resetMouseIdleTimer();
     if (isNativeFS && !wasNativeFullscreen) {
+        updateNowPlayingLive(true);
         focusControl(document.getElementById('btn-fullscreen'));
     } else if (!isNativeFS && wasNativeFullscreen) {
         if (!focusControl(fullscreenReturnFocus)) focusControl(document.getElementById('btn-fullscreen'));
@@ -1707,8 +1710,10 @@ function requestPlay() {
             selectAndPlayTrack(currentTrackIndex, activeSystem);
             return;
         }
+        const tracks = trackRegistry[activeSystem] || [];
         const [firstVisibleTrack] = getVisibleTrackEntries();
-        if (firstVisibleTrack) selectAndPlayTrack(firstVisibleTrack.index, activeSystem);
+        const targetIndex = firstVisibleTrack ? firstVisibleTrack.index : (tracks.length > 0 ? 0 : -1);
+        if (targetIndex >= 0) selectAndPlayTrack(targetIndex, activeSystem);
     } else {
         resumePlayback();
     }
@@ -1741,11 +1746,10 @@ function requestNextTrack() {
             return;
         }
     }
-    const visibleTracks = getVisibleTrackEntries();
-    if (visibleTracks.length === 0) return;
-    const currentPosition = visibleTracks.findIndex(entry => entry.index === currentTrackIndex);
-    const nextPosition = currentPosition === -1 ? 0 : (currentPosition + 1) % visibleTracks.length;
-    selectAndPlayTrack(visibleTracks[nextPosition].index, activeSystem);
+    const tracks = trackRegistry[activeSystem] || [];
+    if (tracks.length === 0) return;
+    const nextIndex = currentTrackIndex < 0 ? 0 : (currentTrackIndex + 1) % tracks.length;
+    selectAndPlayTrack(nextIndex, activeSystem);
 }
 
 function requestPreviousTrack() {
@@ -1762,13 +1766,12 @@ function requestPreviousTrack() {
         changeHipcSubsong(currentSubsongIndex - 1);
         return;
     }
-    const visibleTracks = getVisibleTrackEntries();
-    if (visibleTracks.length === 0) return;
-    const currentPosition = visibleTracks.findIndex(entry => entry.index === currentTrackIndex);
-    const previousPosition = currentPosition === -1
-        ? visibleTracks.length - 1
-        : (currentPosition - 1 + visibleTracks.length) % visibleTracks.length;
-    selectAndPlayTrack(visibleTracks[previousPosition].index, activeSystem);
+    const tracks = trackRegistry[activeSystem] || [];
+    if (tracks.length === 0) return;
+    const previousIndex = currentTrackIndex < 0
+        ? tracks.length - 1
+        : (currentTrackIndex - 1 + tracks.length) % tracks.length;
+    selectAndPlayTrack(previousIndex, activeSystem);
 }
 
 document.getElementById('btn-play').addEventListener('click', requestPlayPause);
