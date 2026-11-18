@@ -1,8 +1,8 @@
 // === js/visuals/components/fft-analyzer.js ===
 // =========================================================
 // REAL-TIME FFT SPECTRUM ANALYZER COMPONENT
-// Exact sub-bin logarithmic interpolation, VFD/CRT phosphor
-// anode segments, decaying phosphor trails & peak reticles.
+// Exact sub-bin logarithmic interpolation, row-batched VFD/CRT
+// phosphor anode segments, decaying phosphor trails & peak reticles.
 // =========================================================
 
 const SAMPLE_INTERVAL = 1 / 30;
@@ -70,9 +70,10 @@ export class FftAnalyzer {
         this.trails = new Float32Array(this.barCount);
         this.peaks = new Float32Array(this.barCount);
         this.peakHoldSeconds = new Float32Array(this.barCount);
+        this.activeSegs = new Uint8Array(this.barCount);
+        this.trailSegs = new Uint8Array(this.barCount);
         this.barX = new Int32Array(this.barCount);
         this.barWidths = new Int32Array(this.barCount);
-        this.binRanges = new Int32Array(this.barCount + 1);
         this.exactBinRanges = new Float32Array(this.barCount + 1);
 
         this.dataArray = null;
@@ -111,12 +112,10 @@ export class FftAnalyzer {
         const ratio = maxFreq / MIN_FREQUENCY;
         const maxBinIndex = analyser.frequencyBinCount - 1;
 
-        // Exakte gebrochene Bin-Grenzen für echte logarithmische Skalierung (kein Bass-Treppeneffekt)
+        // Exakte gebrochene Bin-Grenzen (ab Bin 1, damit DC-Offset in Bin 0 außen vor bleibt)
         for (let i = 0; i <= this.barCount; i++) {
             const freq = MIN_FREQUENCY * Math.pow(ratio, i / this.barCount);
-            const exactBin = clamp(freq / hzPerBin, 0.5, maxBinIndex);
-            this.exactBinRanges[i] = exactBin;
-            this.binRanges[i] = Math.floor(exactBin);
+            this.exactBinRanges[i] = clamp(freq / hzPerBin, 1.0, maxBinIndex);
         }
     }
 
@@ -168,7 +167,7 @@ export class FftAnalyzer {
         const ctx = this.staticGridCtx;
         const width = this.width;
         const height = this.height;
-        const topY = this.baseY - this.maxBarHeight;
+        const topY = Math.max(0, this.baseY - this.maxBarHeight);
         ctx.clearRect(0, 0, width, height);
 
         // Unbeleuchtete VFD-Anoden-Matrix mit feinem Kathoden-Innenpunkt
@@ -240,22 +239,23 @@ export class FftAnalyzer {
         ctx.fillRect(0, topY, 1, this.maxBarHeight);
         ctx.fillRect(width - 1, topY, 1, this.maxBarHeight);
 
-        if (system === 'amiga') {
-            ctx.fillStyle = rgba(this.palette.mid, 0.4);
+        // Sauber über dem Spektrum ohne Kollision mit den Frequenz-Labels
+        if (system === 'amiga' && topY >= 4) {
+            ctx.fillStyle = rgba(this.palette.mid, 0.42);
             for (let x = 0; x < width; x += 16) {
-                ctx.fillRect(x, this.baseY + 8, 8, 1);
+                ctx.fillRect(x, topY - 3, 8, 1);
             }
         }
     }
 
-    // Kubische Catmull-Rom-Abtastung zwischen benachbarten FFT-Bins
+    // Kubische Catmull-Rom-Abtastung zwischen benachbarten FFT-Bins (ab Bin 1)
     sampleSubBin(binPos) {
         const data = this.dataArray;
         const maxIdx = data.length - 1;
-        const i1 = clamp(Math.floor(binPos), 0, maxIdx);
+        const i1 = clamp(Math.floor(binPos), 1, maxIdx);
         const frac = binPos - i1;
 
-        const i0 = Math.max(0, i1 - 1);
+        const i0 = Math.max(1, i1 - 1);
         const i2 = Math.min(maxIdx, i1 + 1);
         const i3 = Math.min(maxIdx, i1 + 2);
 
@@ -288,7 +288,7 @@ export class FftAnalyzer {
 
             let sum = 0;
             let maximum = 0;
-            const steps = Math.max(3, Math.ceil(span * 1.5));
+            const steps = Math.min(24, Math.max(3, Math.ceil(span * 1.5)));
 
             for (let s = 0; s <= steps; s++) {
                 const pos = startBin + (span * s) / steps;
@@ -321,10 +321,15 @@ export class FftAnalyzer {
         this.configureAnalyser(analyser, audioCtx);
 
         const dt = Number.isFinite(deltaTime) ? Math.max(0, Math.min(0.1, deltaTime)) : 1 / 60;
-        this.sampleAccumulator += dt;
-        if (this.sampleAccumulator >= SAMPLE_INTERVAL) {
-            this.sampleAccumulator %= SAMPLE_INTERVAL;
-            this.sampleSpectrum(analyser, isPlaying);
+        if (!isPlaying) {
+            this.targets.fill(0);
+            this.sampleAccumulator = 0;
+        } else {
+            this.sampleAccumulator += dt;
+            if (this.sampleAccumulator >= SAMPLE_INTERVAL) {
+                this.sampleAccumulator %= SAMPLE_INTERVAL;
+                this.sampleSpectrum(analyser, true);
+            }
         }
 
         const attackBlend = 1 - Math.exp(-30 * dt);
@@ -332,7 +337,7 @@ export class FftAnalyzer {
         const trailDecayBlend = 1 - Math.exp(-4.2 * dt);
         const peakFallSpeed = this.maxBarHeight * 0.55;
 
-        const gridTop = this.baseY - this.maxBarHeight;
+        const gridTop = Math.max(0, this.baseY - this.maxBarHeight - (resolvedSystem === 'amiga' ? 4 : 0));
         const gridHeight = height - gridTop;
 
         ctx.save();
@@ -342,12 +347,16 @@ export class FftAnalyzer {
             0, gridTop, width, gridHeight
         );
 
+        let maxActiveSeg = 0;
+        const peakThreshold = this.segmentStep * 0.5;
+        let hasAnyPeak = false;
+
+        // 1. Pegel, Afterglow-Spuren & Peak-Hold pro Balken aktualisieren
         for (let i = 0; i < this.barCount; i++) {
             const target = this.targets[i];
             const blend = target > this.levels[i] ? attackBlend : releaseBlend;
             this.levels[i] += (target - this.levels[i]) * blend;
 
-            // Phosphor-Nachleuchtspur (VFD-Afterglow bei schnellen Pegelabfällen)
             if (this.levels[i] >= this.trails[i]) {
                 this.trails[i] = this.levels[i];
             } else {
@@ -366,23 +375,26 @@ export class FftAnalyzer {
                 this.peaks[i] = Math.max(barHeight, this.peaks[i] - peakFallSpeed * dt);
             }
 
-            const activeSegments = Math.min(
-                this.maxSegments,
-                Math.round(barHeight / this.segmentStep)
-            );
-            const trailSegments = Math.min(
-                this.maxSegments,
-                Math.round(trailHeight / this.segmentStep)
-            );
+            if (this.peaks[i] > peakThreshold) hasAnyPeak = true;
 
+            const aSeg = Math.min(this.maxSegments, Math.round(barHeight / this.segmentStep));
+            const tSeg = Math.min(this.maxSegments, Math.round(trailHeight / this.segmentStep));
+            this.activeSegs[i] = aSeg;
+            this.trailSegs[i] = tSeg;
+            if (aSeg > maxActiveSeg) maxActiveSeg = aSeg;
+        }
+
+        // 2. Abklingende Phosphor-Geistersegmente & vertikaler Balken-Halo
+        for (let i = 0; i < this.barCount; i++) {
+            const aSeg = this.activeSegs[i];
+            const tSeg = this.trailSegs[i];
             const x = this.barX[i];
             const barWidth = this.barWidths[i];
 
-            // 1. Abklingende Phosphor-Geistersegmente oberhalb des aktuellen Balkens
-            if (trailSegments > activeSegments) {
-                const span = Math.max(1, trailSegments - activeSegments);
-                for (let segment = activeSegments; segment < trailSegments; segment++) {
-                    const fade = 1 - (segment - activeSegments) / span;
+            if (tSeg > aSeg) {
+                const span = Math.max(1, tSeg - aSeg);
+                for (let segment = aSeg; segment < tSeg; segment++) {
+                    const fade = 1 - (segment - aSeg) / span;
                     const y = this.baseY - (segment + 1) * this.segmentHeight - segment * this.segmentGap;
                     ctx.fillStyle = this.segmentColors[segment];
                     ctx.globalAlpha = fade * 0.28;
@@ -390,53 +402,72 @@ export class FftAnalyzer {
                 }
             }
 
-            // 2. Sanfter vertikaler Phosphor-Halo hinter stark ausgesteuerten Balken
-            if (activeSegments > 1) {
-                const topSegY = this.baseY - activeSegments * this.segmentStep + this.segmentGap;
+            if (aSeg > 1) {
+                const topSegY = this.baseY - aSeg * this.segmentStep + this.segmentGap;
                 const litHeight = this.baseY - topSegY;
-                ctx.fillStyle = this.segmentColors[Math.min(this.maxSegments - 1, activeSegments - 1)];
+                ctx.fillStyle = this.segmentColors[aSeg - 1];
                 ctx.globalAlpha = 0.12;
                 ctx.fillRect(x - 1, topSegY - 1, barWidth + 2, litHeight + 2);
             }
+        }
 
-            // 3. Aktive VFD-/Phosphor-Segmente mit heißem Innen-Filament
-            for (let segment = 0; segment < activeSegments; segment++) {
-                const y = this.baseY - (segment + 1) * this.segmentHeight - segment * this.segmentGap;
-                ctx.globalAlpha = 1;
-                ctx.fillStyle = this.segmentColors[segment];
-                ctx.fillRect(x, y, barWidth, this.segmentHeight);
+        // 3. Aktive VFD-Segmente & heiße Innen-Filamente (zeilenweise gebatcht)
+        const drawCores = this.segmentHeight >= 3;
+        const coreH = Math.max(1, this.segmentHeight - 2);
+        ctx.globalAlpha = 1;
 
-                // Heißes inneres Kathoden-Leuchtzentrum
-                if (barWidth >= 3 && this.segmentHeight >= 3) {
-                    ctx.fillStyle = this.segmentCoreColors[segment];
-                    ctx.fillRect(x + 1, y + 1, barWidth - 2, Math.max(1, this.segmentHeight - 2));
+        for (let segment = 0; segment < maxActiveSeg; segment++) {
+            const y = this.baseY - (segment + 1) * this.segmentHeight - segment * this.segmentGap;
+
+            ctx.fillStyle = this.segmentColors[segment];
+            for (let i = 0; i < this.barCount; i++) {
+                if (this.activeSegs[i] > segment) {
+                    ctx.fillRect(this.barX[i], y, this.barWidths[i], this.segmentHeight);
                 }
             }
 
-            // 4. Weißglühende Oberkante auf dem obersten aktiven Segment
-            if (activeSegments > 0) {
-                const capY = this.baseY - activeSegments * this.segmentStep + this.segmentGap;
-                ctx.globalAlpha = 0.92;
-                ctx.fillStyle = this.segmentCoreColors[activeSegments - 1];
-                ctx.fillRect(x, capY, barWidth, 1);
+            if (drawCores) {
+                ctx.fillStyle = this.segmentCoreColors[segment];
+                for (let i = 0; i < this.barCount; i++) {
+                    if (this.activeSegs[i] > segment && this.barWidths[i] >= 3) {
+                        ctx.fillRect(this.barX[i] + 1, y + 1, this.barWidths[i] - 2, coreH);
+                    }
+                }
             }
+        }
 
-            // 5. Peak-Hold-Indikator mit Phosphor-Korona
-            if (this.peaks[i] > this.segmentStep * 0.5) {
+        // 4. Weißglühende Oberkante auf dem obersten aktiven Segment
+        ctx.globalAlpha = 0.92;
+        for (let i = 0; i < this.barCount; i++) {
+            const aSeg = this.activeSegs[i];
+            if (aSeg === 0) continue;
+            const capY = this.baseY - aSeg * this.segmentStep + this.segmentGap;
+            ctx.fillStyle = this.segmentCoreColors[aSeg - 1];
+            ctx.fillRect(this.barX[i], capY, this.barWidths[i], 1);
+        }
+
+        // 5. Peak-Hold-Indikatoren mit Phosphor-Korona (in 2 globalen Batches)
+        if (hasAnyPeak) {
+            ctx.globalAlpha = 0.28;
+            ctx.fillStyle = this.palette.high;
+            for (let i = 0; i < this.barCount; i++) {
+                if (this.peaks[i] <= peakThreshold) continue;
                 const snappedPeak = Math.round(this.peaks[i] / this.segmentStep) * this.segmentStep;
                 const peakY = this.baseY - snappedPeak - 1;
+                ctx.fillRect(this.barX[i] - 1, peakY - 1, this.barWidths[i] + 2, 4);
+            }
 
-                // Äußerer Peak-Glow
-                ctx.globalAlpha = 0.28;
-                ctx.fillStyle = this.palette.high;
-                ctx.fillRect(x - 1, peakY - 1, barWidth + 2, 4);
-
-                // Scharfer Peak-Kern
-                ctx.globalAlpha = 1;
-                ctx.fillStyle = this.palette.peak;
-                ctx.fillRect(x, peakY, barWidth, 2);
-                if (barWidth >= 5) {
-                    ctx.fillRect(x + 1, peakY - 1, barWidth - 2, 1);
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = this.palette.peak;
+            for (let i = 0; i < this.barCount; i++) {
+                if (this.peaks[i] <= peakThreshold) continue;
+                const snappedPeak = Math.round(this.peaks[i] / this.segmentStep) * this.segmentStep;
+                const peakY = this.baseY - snappedPeak - 1;
+                const bw = this.barWidths[i];
+                const x = this.barX[i];
+                ctx.fillRect(x, peakY, bw, 2);
+                if (bw >= 5) {
+                    ctx.fillRect(x + 1, peakY - 1, bw - 2, 1);
                 }
             }
         }
