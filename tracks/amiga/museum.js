@@ -4,7 +4,9 @@
 
 function museum(title, history, replay, ...sources) {
     const links = sources
-        .map(source => `<a href="${source.url}" target="_blank" rel="noopener noreferrer">${source.label}</a>`)
+        .map(source => source.url
+            ? `<a href="${source.url}" target="_blank" rel="noopener noreferrer">${source.label}</a>`
+            : `<span>${source.label}</span>`)
         .join(' · ');
     return `
         <h3>[ MUSEUM: ${title} ]</h3>
@@ -27,7 +29,7 @@ export const amigaMuseumMetadata = {
     // =========================================================================
     "games/giana-sisters/title-screen.mod": museum(
         'THOMAS LOPATIC / CHRIS HÜLSBECK — GIANA SISTERS / TITLE SCREEN (1988)',
-        `Auf dem C64 machte Chris Hülsbeck <strong>The Great Giana Sisters</strong> 1987 unsterblich – als Time Warp und Rainbow Arts ein Jahr später die Amiga-Fassung veröffentlichten, saß jedoch nicht Hülsbeck selbst an den Reglern: <strong>Thomas Lopatic</strong> setzte Hülsbecks Themen für den Amiga um. Dabei nutzte Lopatic keinen Tracker, sondern seinen eigenen <strong>Beathoven Synthesizer</strong> (über den später u. a. auch sein Klassiker <em>Katakis</em> auf dem Amiga lief).`,
+        `Auf dem C64 machte Chris Hülsbeck <strong>The Great Giana Sisters</strong> 1987 unsterblich – als Time Warp und Rainbow Arts ein Jahr später die Amiga-Fassung veröffentlichten, saß jedoch nicht Hülsbeck selbst an den Reglern: <strong>Thomas Lopatic</strong> setzte Hülsbecks Themen für den Amiga um. Dabei nutzte Lopatic keinen klassischen Sample-Tracker, sondern seinen eigenen, extrem diskettensparenden <strong>Beathoven Synthesizer</strong> (über den später u. a. auch sein Amiga-Score zu <em>Katakis</em> lief), der Wellenformen und Hüllkurven direkt per Software formte.`,
         `<strong>4-Kanal-ProTracker-MOD (Konversion) · 25 Orders · 23 Patterns · 8 Samples</strong>. Da der Original-Beathoven-Code nur mit eigener Replay-Engine läuft, liegt hier eine späte ProTracker-Konvertierung vor. Alle vier Giana-Dateien tragen exakt dieselbe 64.922-Byte-Samplebank im Bauch, um die synthetischen Beathoven-Klangfarben sauber über Paula abzuspielen.`,
         exotica('The_Great_Giana_Sisters', 'The Great Giana Sisters'),
         { label: 'Amiga Paradise: Stückliste', url: 'https://www.amigaparadise.com/card.php?id=1092' },
@@ -42,14 +44,14 @@ export const amigaMuseumMetadata = {
     ),
     "games/giana-sisters/ingame-1-ground.mod": museum(
         'THOMAS LOPATIC / CHRIS HÜLSBECK — GIANA SISTERS / IN-GAME 1 GROUND (1988)',
-        `Das unvergessliche Oberwelt-Thema von <strong>The Great Giana Sisters</strong>: Während Hülsbeck am C64 noch mit Arpeggios und SID-Pulswellen trippelte, verleiht <strong>Thomas Lopatics</strong> Amiga-Bearbeitung (1988) der Reggae-angehauchten Melodie durch gesampelte Bass- und Synth-Instrumente ein völlig eigenes, luftiges 16-Bit-Flair – komplett anders als die späteren Atari-ST-YM-Fassungen.`,
+        `Das unvergessliche Oberwelt-Thema von <strong>The Great Giana Sisters</strong>: Während Hülsbeck am C64 noch mit Arpeggios und SID-Pulswellen trippelte, verleiht <strong>Thomas Lopatics</strong> Amiga-Bearbeitung (1988) der Reggae-angehauchten Melodie durch synthetisch aufbereitete Bass- und Lead-Instrumente ein völlig eigenes, luftiges 16-Bit-Flair – komplett anders als die späteren Atari-ST-YM-Fassungen.`,
         `<strong>4-Kanal-ProTracker-MOD · 12 Orders · 12 Patterns · 8 Samples (78.294 Bytes)</strong>. Zwölf knackig durchlaufende Patterns auf vier diskreten 8-Bit-Paula-Kanälen – das ideale Vergleichsstück, um den C64-SID direkt gegen den frühen Amiga-Sound antreten zu lassen.`,
         exotica('The_Great_Giana_Sisters', 'The Great Giana Sisters'),
         { label: 'Amiga Paradise: Ground BGM', url: 'https://www.amigaparadise.com/card.php?id=1092' }
     ),
     "games/giana-sisters/ingame-2-cave.mod": museum(
         'THOMAS LOPATIC / CHRIS HÜLSBECK — GIANA SISTERS / IN-GAME 2 CAVE (1988)',
-        `Sobald Armin und Maria in die dunklen Untergrund-Level abtauchen, wechselt der Soundtrack zur treibenden <strong>Cave BGM</strong>. Erneut arrangiert <strong>Thomas Lopatic</strong> Hülsbecks düster-rockige Bassfigur von 1987 für seinen Beathoven-Synthesizer auf dem Amiga.`,
+        `Sobald Giana und Maria in die dunklen Untergrund-Level abtauchen, wechselt der Soundtrack zur treibenden <strong>Cave BGM</strong>. Erneut arrangiert <strong>Thomas Lopatic</strong> Hülsbecks düster-rockige Bassfigur von 1987 für seinen Beathoven-Synthesizer auf dem Amiga.`,
         `<strong>4-Kanal-ProTracker-MOD · 17 Orders · 13 Patterns · 8 Samples (79.318 Bytes)</strong>. Die Orderliste springt am Ende sauber auf vier bereits gespielte Patterns zurück – ein klassischer Endlos-Loop für endlose Höhlenpassagen.`,
         exotica('The_Great_Giana_Sisters', 'The Great Giana Sisters'),
         { label: 'Amiga Paradise: Cave BGM', url: 'https://www.amigaparadise.com/card.php?id=1092' }
@@ -60,13 +62,13 @@ export const amigaMuseumMetadata = {
     // =========================================================================
     "games/blood-money-title.mod": museum(
         'RAY NORRISH — BLOOD MONEY TITLE (1989)',
-        `Bevor DMA Design Jahre später <em>Lemmings</em> und <em>Grand Theft Auto</em> erfand, sorgte 1989 ihr gnadenloser Sci-Fi-Shooter <strong>Blood Money</strong> (bei Psygnosis) für Kinnladen-Alarm: schon beim Booten schmetterte das Intro digitalisierte Breakbeats, markante Voice-Samples (<em>„Blood Money!“</em>) und fette Synth-Riffs aus dem Fernseher! Viele Fans verwechselten den Komponisten wegen der Soundeffekte mit David Whittaker – dabei stammt der mitreißende Titeltrack vom Musiker <strong>Ray Norrish</strong> (Whittaker lieferte die Ingame-SFX).`,
-        `<strong>4-Kanal-MOD · 31 Orders · 15 Patterns · 15 Samples</strong>. Ein Lehrbuchbeispiel für die frühe Psygnosis-Wucht von 1989: harte, druckvolle 8-Bit-Drum-Loops treffen auf kompakte 15 Patterns, die über cleveres Order-Sequencing volle Titel-Länge gewinnen.`,
+        `Bevor DMA Design Jahre später <em>Lemmings</em> und <em>Grand Theft Auto</em> erfand, sorgte 1989 ihr gnadenloser Sci-Fi-Shooter <strong>Blood Money</strong> (bei Psygnosis) für Kinnladen-Alarm: Schon beim Booten schmetterte das Intro digitalisierte Breakbeats, markante Voice-Samples (<em>„Blood Money!“</em>) und fette Synth-Riffs aus dem Fernseher! Viele Fans verwechselten den Komponisten wegen der Soundeffekte mit David Whittaker – dabei stammt der mitreißende Titeltrack vom Musiker <strong>Ray Norrish</strong> (Whittaker lieferte die Ingame-SFX).`,
+        `<strong>4-Kanal-MOD · 31 Orders · 15 Patterns · 15 Samples</strong>. Ein Lehrbuchbeispiel für die frühe Psygnosis-Wucht von 1989: Harte, druckvolle 8-Bit-Drum-Loops treffen auf kompakte 15 Patterns, die über cleveres Order-Sequencing volle Titel-Länge gewinnen.`,
         { label: 'MobyGames: Blood Money', url: 'https://www.mobygames.com/game/6173/blood-money/' }
     ),
     "games/shadow-of-the-beast-title.mod": museum(
         'DAVID WHITTAKER / JOGEIR LILJEDAHL — SHADOW OF THE BEAST (1989)',
-        `Reflections’ Parallax-Wunder <strong>Shadow of the Beast</strong> definierte 1989 die grafische und akustische Messlatte des Amiga: <strong>David Whittaker</strong> setzte erstmals im großen Stil auf atmosphärisch klingende Korg-M1-Samples statt reiner Synth-Piepserei und schuf eine weltfremde, melancholische Klangwelt. Da Whittakers Original-Treiber in einem eigenen Format (<code>.dw</code>) steckt, bewahrt diese Playlist die liebevolle <strong>4-Kanal-MOD-Rekonstruktion</strong> des norwegischen Tracker-Stars <strong>Jogeir Liljedahl</strong> (Sampletexte: <code>by jogeir liljedahl</code> / <code>original: d.whittaker</code>).`,
+        `Reflections’ 12-Ebenen-Parallax-Wunder <strong>Shadow of the Beast</strong> definierte 1989 die grafische und akustische Messlatte des Amiga: <strong>David Whittaker</strong> setzte erstmals im großen Stil auf atmosphärische <strong>Korg-M1</strong>-Samples statt reiner Synth-Piepserei und schuf eine weltfremde, melancholische Klangwelt. Da Whittakers Original-Treiber in einem eigenen Format (<code>.dw</code>) steckt, bewahrt diese Playlist die liebevolle <strong>4-Kanal-MOD-Rekonstruktion</strong> des norwegischen Tracker-Stars <strong>Jogeir Liljedahl</strong> (Sampletexte: <code>by jogeir liljedahl</code> / <code>original: d.whittaker</code>).`,
         `<strong>4-Kanal-ProTracker-MOD (<code>M.K.</code>) · 15 Orders · 14 Patterns · nur 3 Samples (56.838 Bytes)</strong>. Verblüffend minimalistisch: Mit gerade einmal drei genutzten Samples fängt Liljedahl die ganze mystische Weite von Whittakers Intro auf Standard-Paula-Hardware ein.`,
         { label: 'Wikipedia: Shadow of the Beast', url: 'https://en.wikipedia.org/wiki/Shadow_of_the_Beast_(1989_video_game)' },
         { label: 'Modland: Originaldatei', url: 'https://modland.com/pub/modules/Protracker/Jogeir%20Liljedahl/beast-title.mod' }
@@ -77,7 +79,7 @@ export const amigaMuseumMetadata = {
     // =========================================================================
     "games/dragonflight/titletune.hipc": museum(
         'JOCHEN HIPPEL — DRAGONFLIGHT / TITLETUNE (1990)',
-        `Mit dem ambitionierten Rollenspiel <strong>Dragonflight</strong> legte das junge deutsche Kultstudio <strong>Thalion</strong> (gegründet u. a. von Ex-The-Exceptions-Legende Erik Simon und Holger Flöttmann in Gütersloh) 1990 sein erstes echtes Mammutwerk auf dem Amiga vor. Mit an Bord: <strong>Jochen Hippel</strong> alias <strong>Mad Max</strong>, einer der berühmtesten Atari-ST-Chip-Zauberer aller Zeiten – und enger Freund wie Rivale von Chris Hülsbeck. Für Dragonflights gewaltiges Titelthema ließ Hippel alle Sparsamkeit fallen und spendierte ein episches, über 177 KB schweres Sample-Arrangement.`,
+        `Mit dem ambitionierten Rollenspiel <strong>Dragonflight</strong> legte das junge deutsche Kultstudio <strong>Thalion</strong> (gegründet u. a. von Ex-The-Exceptions-Legende Erik Simon und Holger Flöttmann in Gütersloh, mit Amiga-Coding u. a. von Tim Moss) 1990 sein erstes echtes Mammutwerk auf dem Amiga vor. Mit an Bord: <strong>Jochen Hippel</strong> alias <strong>Mad Max</strong>, einer der berühmtesten Atari-ST-Chip-Zauberer aller Zeiten – und enger Freund wie Rivale von Chris Hülsbeck. Für Dragonflights gewaltiges Titelthema ließ Hippel alle Sparsamkeit fallen und spendierte ein episches, über 177 KB schweres Sample-Arrangement.`,
         `<strong>HIPPEL-COSO (<code>.hipc</code>) · 1 Song · 13 Instrumente · 23 Timbres · 94 Monopatterns · 177.402 Bytes PCM</strong>. Hippel übertrug Hülsbecks TFMX-Idee in sein eigenes Format <strong>COSO (COmpressed SOng)</strong>: Pattern-, Timbre- und Instrumenten-Tabellen werden mit PAL-CIA-Timing separat verarbeitet, sodass lange Kompositionen winzig bleiben – hier gepaart mit 10 fetten Titel-Samples.`,
         hol(412, 'Dragonflight'),
         exotica('Jochen_Hippel', 'Jochen Hippel')
@@ -124,15 +126,15 @@ export const amigaMuseumMetadata = {
     // =========================================================================
     "games/wings-of-death/title.hip": museum(
         'JOCHEN HIPPEL — WINGS OF DEATH / TITLE (1990)',
-        `Als Eclipse Software und Thalion 1990 den furiosen Vertikal-Shooter <strong>Wings of Death</strong> entwickelten, stellte Producer Marc Rosocha seinem Komponisten eine klare Ansage: <em>„Bitte mach eine Titelmusik, die mindestens 200 KB groß ist!“</em> <strong>Jochen Hippel</strong> nahm die Herausforderung wörtlich, feuerte fette digitalisierte Sprach- und Orchester-Samples in den Speicher und lieferte eine der wuchtigsten Titelhymnen des Jahres 1990 ab.`,
+        `Als Eclipse Software und Thalion 1990 den furiosen Vertikal-Shooter <strong>Wings of Death</strong> entwickelten, stellte Programmierer und Producer <strong>Marc Rosocha</strong> seinem Komponisten eine klare Ansage: <em>„Bitte mach eine Titelmusik, die mindestens 200 KB groß ist!“</em> <strong>Jochen Hippel</strong> nahm die Herausforderung wörtlich, feuerte fette digitalisierte Sprach- und Orchester-Samples in den Speicher und lieferte eine der wuchtigsten Titelhymnen des Jahres 1990 ab.`,
         `<strong>HIPPEL-HIP68K (<code>.hip</code>) · 3 Songs · 39 Instrumente · 48 Timbres · 153 Patterns · 132 Divisions</strong>. Anders als die Levelmusiken läuft das Titelstück nicht als reines COSO-Datenpaket, sondern als <strong>eigenständiger 68000-Maschinencode-Replay</strong> mit Raster-Timing – erkennbar am gewaltigen Instrumentenpark und den satten Titel-Samples.`,
         { label: 'VGMPF: Wings of Death (Amiga)', url: 'https://vgmpf.com/Wiki/index.php?title=Wings_of_Death_(AMI)' },
         exotica('Jochen_Hippel', 'Jochen Hippel')
     ),
     "games/wings-of-death/level-1.hipc": museum(
         'JOCHEN HIPPEL — WINGS OF DEATH / LEVEL 1: OVER THE TREES (1990)',
-        `Der Startschuss über die Wälder von <strong>Wings of Death</strong>: Während das Spiel butterweich bei 50 Frames scrollte (programmiert von Michael Bittner, während Hippel parallel gleich noch für die Soundeffekte zuständig war), trieb <strong>Over the Trees</strong> die Action mit messerscharfen Synth-Leads voran. Berühmt wurde übrigens auch Hippels eigene Atari-ST-Fassung – dort sogar mit software-gemischten Digi-Drums auf dem alten YM-Chip!`,
-        `<strong>HIPPEL-COSO (4 logische Voices) · 2 Songs · 22 Instrumente · 12 Timbres · 89 Patterns · 172 Divisions</strong>. Alle sieben Leveldateien zapfen gemeinsam eine extrem kompakte Bibliothek aus 34 Samples (nur 13.308 Bytes!) an – damit während des Dauerfeuers auf Paula noch Luft für Explosionen bleibt.`,
+        `Der Startschuss über die Wälder von <strong>Wings of Death</strong>: Während das Spiel unter <strong>Marc Rosochas</strong> 68000-Engine butterweich bei 50 Frames über Erik Simons Grafiken scrollte (und Hippel parallel auch die Soundeffekte beisteuerte), trieb <strong>Over the Trees</strong> die Action mit messerscharfen Synth-Leads voran. Berühmt wurde ebenso Hippels eigene Atari-ST-Fassung – dort sogar mit MFP-Timer-Digidrums auf dem alten YM-Chip!`,
+        `<strong>HIPPEL-COSO (4 logische Voices) · 2 Songs · 22 Instrumente · 12 Timbres · 89 Patterns · 172 Divisions</strong>. Alle sieben Leveldateien zapfen gemeinsam eine extrem kompakte Bibliothek aus 34 Samples (nur 13.308 Bytes!) an – damit während des Dauerfeuers auf Paula noch genug Chip-RAM für Sprachsamples und Explosionen bleibt.`,
         { label: 'VGMPF: Wings of Death (Amiga)', url: 'https://vgmpf.com/Wiki/index.php?title=Wings_of_Death_(AMI)' }
     ),
     "games/wings-of-death/level-2.hipc": museum(
@@ -197,7 +199,7 @@ export const amigaMuseumMetadata = {
     ),
     "games/lemmings.mod": museum(
         'TIM WRIGHT & BRIAN JOHNSTON — LEMMINGS (1991)',
-        `Eine der besten Rettungsgeschichten der Spielemusik: Ursprünglich hatte Scott Johnstons jüngerer Bruder <strong>Brian Johnston</strong> die Musik für DMA Designs Überraschungshit <strong>Lemmings</strong> programmiert – vollgepackt mit urheberrechtlich geschützten Song-Samples! Kurz vor Release schrillten bei Psygnosis die Anwalts-Alarmglocken. In höchster Eile heuerte man Hauskomponist <strong>Tim Wright</strong> (später berühmt als <em>CoLD SToRAGE</em>) an, der binnen kürzester Zeit einen bunten, lizenzfreien Mix aus eigenen Melodien, Volksliedern (<em>How Much Is That Doggie in the Window</em>) und Klassik (Mozart, Rossini, Chopin) zusammenschraubte.`,
+        `Eine der besten Rettungsgeschichten der Spielemusik: Ursprünglich hatte Scott Johnstons jüngerer Bruder <strong>Brian Johnston</strong> die Musik für DMA Designs Überraschungshit <strong>Lemmings</strong> programmiert – vollgepackt mit urheberrechtlich geschützten Song-Samples! Kurz vor Release schrillten bei Psygnosis die Anwalts-Alarmglocken. In höchster Eile heuerte man Hauskomponist <strong>Tim Wright</strong> (später berühmt als <em>CoLD SToRAGE</em>) an, der binnen kürzester Zeit einen bunten, lizenzfreien Mix aus eigenen Melodien, Volksliedern (<em>How Much Is That Doggie in the Window</em>) und Klassik (Mozart, Rossini, Chopin, Wagner, Offenbach) zusammenschraubte.`,
         `<strong>4-Kanal-MOD (<code>M.K.</code>) · 77 Orders · 64 Patterns · 14 Samples (152.808 Bytes)</strong>. Mit 77 Orders und 64 Patterns ist dieses einzige Modul ein gewaltiges Medley, das durch einen schmalen Satz von 14 vielseitig einsetzbaren Instrumenten-Samples erstaunlich leichtfüßig bleibt.`,
         exotica('Lemmings', 'Lemmings'),
         { label: 'Wikipedia: Lemmings', url: 'https://en.wikipedia.org/wiki/Lemmings_(video_game)' },
@@ -206,7 +208,7 @@ export const amigaMuseumMetadata = {
     "games/another-world-intro.mod": museum(
         'JEAN-FRANÇOIS FREITAS — ANOTHER WORLD INTRO (1991)',
         `Éric Chahis filmisches Meisterwerk <strong>Another World</strong> (1991) kam fast völlig ohne Text aus – getragen allein von Vektor-Animationen und <strong>Jean-François Freitas’</strong> spartanischer, Gänsehaut-erzeugender Synthesizer-Musik. Vom sanften Labor-Einstieg über den drohenden Blitzschlag bis zur fremdartigen Welt hinter dem Partikelbeschleuniger sitzt jede einzelne Note wie im Kino.`,
-        `<strong>4-Kanal-MOD (<code>M.K.</code>) · 14 Orders · 14 Patterns · 6 Samples (85.760 Bytes)</strong>. Besonderheit der Archivdatei: Delphine Software verwendete im Originalspiel ein eigenes SoundFX-Format – diese saubere ProTracker-Konversion erstellte Gabriele Priarone laut Modulnotiz am 14. September 1997 von Hand.`,
+        `<strong>4-Kanal-MOD (<code>M.K.</code>) · 14 Orders · 14 Patterns · 6 Samples (85.760 Bytes)</strong>. Besonderheit der Archivdatei: Delphine Software verwendete im Originalspiel ein eigenes <strong>SoundFX</strong>-Format – diese saubere ProTracker-Konversion erstellte Gabriele Priarone laut Modulnotiz am 14. September 1997 von Hand.`,
         { label: 'Wikipedia: Another World', url: 'https://en.wikipedia.org/wiki/Another_World_(video_game)' },
         { label: 'Discogs: Another World OST', url: 'https://www.discogs.com/release/10834621-Jean-Fran%C3%A7ois-Freitas-Another-World-Official-Soundtrack' }
     ),
@@ -230,15 +232,15 @@ export const amigaMuseumMetadata = {
     // =========================================================================
     "games/agony-intro.mod": museum(
         'TIM WRIGHT — AGONY INTRO (1992)',
-        `Einer der wildesten Musik-Krimis der 90er! Für Psygnosis’ traumhaft schönes Eulen-Shoot-’em-up <strong>Agony</strong> schrieb <strong>Tim Wright</strong> (Modulnotiz: <code>written 16/09/91</code>) ein melancholisches Piano-Titelstück. Doch Programmierer/Artist <strong>Franck Sauer</strong> tauschte die Pianosamples aus – und wegen Paulas unterer Tonhöhengrenze musste eine ganze Passage <strong>um eine Oktave verschoben</strong> werden! Genau diese leicht abgewandelte Amiga-Version erlangte traurige Berühmtheit, als die norwegische Black-Metal-Band <strong>Dimmu Borgir</strong> sie 1996 auf ihrem Album <em>Stormblåst</em> Note für Note als <em>„Sorgens Kammer“</em> klaute (und bei der Neuauflage 2005 komplett entfernen musste).`,
+        `Einer der wildesten Musik-Krimis der 90er! Für Psygnosis’ traumhaft schönes Eulen-Shoot-’em-up <strong>Agony</strong> (Engine von Yves Grolet / Art &amp; Magic) schrieb <strong>Tim Wright</strong> (Modulnotiz: <code>written 16/09/91</code>) ein melancholisches Piano-Titelstück. Doch Artist/Co-Entwickler <strong>Franck Sauer</strong> tauschte die Pianosamples aus – und wegen des engen <strong>3-Oktaven-Rasters von ProTracker</strong> (<code>C-1</code> bis <code>B-3</code>, Perioden <code>856–113</code>) musste eine ganze Passage <strong>um eine Oktave verschoben</strong> werden! Genau diese leicht abgewandelte Amiga-Fassung erlangte traurige Berühmtheit, als die norwegische Black-Metal-Band <strong>Dimmu Borgir</strong> sie 1996 auf ihrem Album <em>Stormblåst</em> Note für Note als <em>„Sorgens Kammer“</em> klaute (und bei der Neuauflage 2005 komplett entfernen musste).`,
         `<strong>4-Kanal-MOD · 41 Orders · 17 Patterns · nur 4 Samples</strong>. Kaum zu glauben, wie viel Dramatik Wright aus gerade einmal vier Samples (inklusive des geschichtsträchtigen Klaviers und Streicherteppichs) auf den Amiga zaubert.`,
         exotica('Agony', 'Agony'),
-        { label: 'Franck Sauer: Agony Story', url: 'https://www.francksauer.com/index.php/games?view=article&amp;id=10:agony&amp;catid=15:published-games' },
+        { label: 'Franck Sauer: Agony Story', url: 'https://www.francksauer.com/index.php/games?view=article&id=10:agony&catid=15:published-games' },
         { label: 'Wikipedia: Agony', url: 'https://en.wikipedia.org/wiki/Agony_(video_game)' }
     ),
     "games/amberstar/city-walk.hipc": museum(
         'JOCHEN HIPPEL — AMBERSTAR / CITY WALK (1992)',
-        `Mit dem Mammut-Rollenspiel <strong>Amberstar</strong> schuf Thalion 1992 den direkten Vorgänger zu <em>Ambermoon</em> und <em>Albion</em> – ein gewaltiges Fantasy-Epos (gebaut in nur zwölf Monaten von einem Kernteam rund um Karsten Köper, Jurie Horneman und Erik Simon). Für die geschäftigen Städte von Lyramion lieferte <strong>Jochen Hippel</strong> mit <strong>City Walk</strong> ein einladendes, beschwingtes Bummellied.`,
+        `Mit dem Mammut-Rollenspiel <strong>Amberstar</strong> schuf Thalion 1992 den direkten Vorgänger zu <em>Ambermoon</em> und <em>Albion</em> – ein gewaltiges Fantasy-Epos, gebaut in nur zwölf Monaten von einem Kernteam rund um Karsten Köper, Jurie Horneman, Michael Bittner (3D-Dungeons/Intro) und Erik Simon. Für die geschäftigen Städte von Lyramion lieferte <strong>Jochen Hippel</strong> mit <strong>City Walk</strong> ein einladendes, beschwingtes Bummellied.`,
         `<strong>HIPPEL-COSO (<code>envSpec</code>) · 8 Instrumente · 13 Timbres · 34 Monopatterns · 38 Divisions</strong>. Genialer Speicher-Trick des gesamten 19-teiligen <em>Amberstar</em>-Soundtracks: Alle Stücke greifen gemeinsam auf eine einzige <strong>57.576 Bytes große Samplebank (<code>hipc.samp</code>)</strong> zu, sodass Hippel fast zwanzig völlig eigenständige Kompositionen auf Diskette unterbringen konnte.`,
         exotica('Amberstar', 'Amberstar'),
         hol(3257, 'Amberstar')
@@ -372,7 +374,7 @@ export const amigaMuseumMetadata = {
     "games/dune-wormsign.mod": museum(
         'STÉPHANE PICQ — DUNE / WORMSIGN (1992)',
         `Cryo Interactives bildgewaltige Romanverfilmung von <strong>Dune</strong> (1992) trug <strong>Stéphane Picqs</strong> hypnotische, orientalisch-elektronische Klangwelten im Herzen – ein Score, den Picq (zusammen mit Beiträgen von Philippe Ulrich) kurz darauf sogar als eigenes Studio-Album <em>Dune – Spice Opera</em> herausbrachte! Während die PC-Fassung stark auf AdLib Gold und Roland MT-32 setzte, belegt dieses Amiga-Modul eindrucksvoll, wie wuchtig der Sandplanet über vier 8-Bit-Paula-Stimmen klingt.`,
-        `<strong>4-Kanal-MOD (<code>FLT4</code>) · 26 Orders · 25 Patterns · 11 Samples (148.686 Bytes)</strong>. Eingebetteter Titel: <code>WORMSIGN</code>. Die Signatur <code>FLT4</code> stammt ursprünglich aus dem frühen Amiga-Tracker <em>StarTrekker</em> und markiert hier ein sauberes Vierkanal-Layout.`,
+        `<strong>4-Kanal-MOD (<code>FLT4</code>) · 26 Orders · 25 Patterns · 11 Samples (148.686 Bytes)</strong>. Eingebetteter Titel: <code>WORMSIGN</code>. Die Signatur <code>FLT4</code> stammt ursprünglich aus dem frühen Amiga-Tracker <em>StarTrekker</em> und markiert hier ein sauberes Vierkanal-DMA-Layout (funktional identisch zu <code>M.K.</code>).`,
         { label: 'VGMPF: Dune', url: 'https://vgmpf.com/Wiki/index.php/Dune_(DOS)' }
     ),
     "games/pinball-dreams-beatbox.mod": museum(
@@ -439,13 +441,13 @@ export const amigaMuseumMetadata = {
     "demoscene/red-sector-theme.mod": museum(
         '4-MAT / ANARCHY — RED SECTOR THEME (1990)',
         `Wenn der Brite Matthew Simmonds alias <strong>4-Mat</strong> Anfang der 90er in die Tasten griff, blieb kein Tracker-Auge trocken. Dieses Stück – datiert auf den <strong>5. Juli 1990</strong> – erschien unter gleich mehreren Namen in den größten Amiga-Produktionen seiner Zeit: in Anarchys Demo <em>Phantasmagoria</em> ebenso wie als <em>Electric Revenge</em> und <em>Shockwave</em> auf der Kult-Musicdisk <em>Captured Imagination</em>, bevor es in der Szene endgültig als <strong>Red Sector Theme</strong> legendär wurde.`,
-        `<strong>4-Kanal-MOD (<code>M.K.</code>) · 50 Orders · 33 Patterns · 12 Samples (214.418 Bytes)</strong>. 4-Mats Markenzeichen: extrem treibende Arpeggio-Läufe (eine tiefe Verneigung vor dem C64-SID!) kombiniert mit druckvollen, sauberen Amiga-Drums auf nur 12 genutzten Samples.`,
+        `<strong>4-Kanal-MOD (<code>M.K.</code>) · 50 Orders · 33 Patterns · 12 Samples (214.418 Bytes)</strong>. 4-Mats Markenzeichen: extrem treibende Arpeggio-Läufe per ProTracker-Effekt <code>0xy</code> (eine tiefe Verneigung vor dem C64-SID!) kombiniert mit druckvollen, sauberen Amiga-Drums auf nur 12 genutzten Samples.`,
         exotica('Red_Sector_Theme', 'Red Sector Theme'),
         demozooMusic(46142, 'Red Sector Theme')
     ),
     "demoscene/macrocosm.mod": museum(
         'FIREFOX / PHENOMENA — MACROCOSM (1990)',
-        `Wettbewerbs-Gold von 1990: Mit <strong>Macrocosm</strong> holte der schwedische Kult-Musiker <strong>Firefox</strong> (von der Top-Gruppe <em>Phenomena</em>, bekannt durch Mega-Demos wie <em>Enigma</em>; Kataloge nennen im Umfeld teils auch Tip) den 1. Platz bei der Musik-Competition der <strong>Amiga Halloween Conference 1990</strong>.`,
+        `Wettbewerbs-Gold von 1990: Mit <strong>Macrocosm</strong> holte der schwedische Kult-Musiker <strong>Firefox</strong> (Joakim Falk von der Top-Gruppe <em>Phenomena</em>, bekannt durch Mega-Demos wie <em>Enigma</em>; Kataloge nennen im Umfeld teils auch Tip) den 1. Platz bei der Musik-Competition der <strong>Amiga Halloween Conference 1990</strong>.`,
         `<strong>4-Kanal-MOD (<code>M.K.</code>) · 32 Orders · 26 Patterns · 27 Samples (165.658 Bytes)</strong>. Mit 27 aktiv genutzten Samples füllt Firefox fast das komplette ProTracker-Instrumentenrad aus, um in 26 Patterns ein dichtes, party-erprobtes Gewinnerstück auf die Hallen-PA zu drücken.`,
         demozooMusic(69710, 'Macrocosm'),
         janeway(15194, 'Macrocosm')
@@ -466,7 +468,7 @@ export const amigaMuseumMetadata = {
     "demoscene/elysium.mod": museum(
         'JESTER / SANITY — ELYSIUM (1991)',
         `Eines der unangefochtenen Kronjuwelen der gesamten Amiga-Demoscene! Am <strong>28. April 1991</strong> (weit vor späteren Sanity-Wundern wie <em>Arte</em> oder <em>World of Commodore</em>) erschien die legendäre Demo <strong>Elysium</strong> der deutschen Ausnahmegruppe Sanity – untermalt von diesem träumerischen, vorwärtsstrebenden Track von <strong>Jester</strong> (Volker Tripp).`,
-        `<strong>4-Kanal-MOD (<code>M.K.</code>) · 29 Orders · 23 Patterns · 16 Samples</strong>. Ein technischer Leckerbissen für Paula-Puristen gleich im allerersten Pattern: Der ProTracker-Befehl <strong><code>E01</code></strong>! Auf dem Amiga 500 war der feste analoge Tiefpassfilter direkt an die grüne <strong>Power-LED</strong> gekoppelt – erst durch <code>E01</code> schaltet sich die LED und damit der dumpfe Filter ab, sodass Jesters schillernde Akkord-Samples völlig kristallklar glänzen können.`,
+        `<strong>4-Kanal-MOD (<code>M.K.</code>) · 29 Orders · 23 Patterns · 16 Samples</strong>. Ein technischer Leckerbissen für Paula-Puristen gleich im allerersten Pattern: Der ProTracker-Befehl <strong><code>E01</code></strong>! Während der permanente 4,42-kHz-RC-Tiefpass immer aktiv bleibt, schaltet <code>E01</code> über CIA-A (<code>$BFE001</code> Bit 1) das schaltbare <strong>3,09-kHz-Butterworth-Filter</strong> ab und dimmt die Power-LED – so glänzen Jesters Akkord-Samples völlig ungedämpft und kristallklar.`,
         exotica('Elysium', 'Elysium'),
         demozooMusic(19935, 'Elysium'),
         pouet(1505, 'Elysium')
@@ -483,7 +485,7 @@ export const amigaMuseumMetadata = {
         `Ein Stück finnische Demo-Geschichte von der allerersten <strong>Assembly 1992</strong> (dem Beginn einer der größten Demopartys der Welt)! Mit <strong>Towards Immortality</strong> (im Modul fertiggestellt am <strong>16. Juli 1992</strong>) stürmte <strong>Groo</strong> (The Black Robes) direkt aufs Treppchen und holte einen sensationellen <strong>2. Platz</strong> im Musikwettbewerb.`,
         `<strong>4-Kanal-MOD (<code>M.K.</code>) · 40 Orders · 37 Patterns · 19 Samples</strong>. 37 Patterns auf 40 Orders ohne nennenswerte Lückenfüller: Groo verwebt hier melancholische Melodiebögen mit klassischen 92er-Break-Elementen zu einem echten Party-Favoriten.`,
         demozooMusic(6410, 'Towards Immortality'),
-        { label: 'Pouët: Assembly 1992 Results', url: 'https://www.pouet.net/party_results.php?which=7&amp;when=1992' }
+        { label: 'Pouët: Assembly 1992 Results', url: 'https://www.pouet.net/party_results.php?which=7&when=1992' }
     ),
     "demoscene/sanctuary.mod": museum(
         'MOBY — SANCTUARY / IMPACT16 (1992)',
@@ -495,7 +497,7 @@ export const amigaMuseumMetadata = {
     "demoscene/guitar-slinger.mod": museum(
         'JOGEIR LILJEDAHL — GUITAR SLINGER (1993)',
         `Der Titel sagt alles: Norwegens bekanntester ProTracker-Meister <strong>Jogeir Liljedahl</strong> (<em>Noiseless</em>, Modulsignatur <code>(c) 1992/93 noiseless</code>) holte mit <strong>Guitar Slinger</strong> 1993 den <strong>1. Platz</strong> auf der Party <em>Rendezvous 1993</em>! Damals staunte die gesamte Szene ungläubig, wie authentisch gezupfte und verzerrte E-Gitarren aus einem 4-Kanal-Heimcomputer klingen können.`,
-        `<strong>4-Kanal-MOD (<code>M.K.</code>) · 41 Orders · 41 Patterns · 31 Samples (406.354 Bytes)</strong>. Fast jeder der 31 möglichen ProTracker-Slots ist gefüllt mit exakt getimten Gitarren-Slides, Obertönen und Bass-Phrasen: Keine Zauberei eines 32-Stimmen-Synths, sondern pures Sample-Handwerk und virtuoses 4-Kanal-Pitch-Bending auf Paula.`,
+        `<strong>4-Kanal-MOD (<code>M.K.</code>) · 41 Orders · 41 Patterns · 31 Samples (406.354 Bytes)</strong>. Fast jeder der 31 möglichen ProTracker-Slots ist gefüllt mit exakt geschnittenen Gitarren-Artikulationen, gedämpften Anschlägen, Obertönen und feinem Pitch-Bending (<code>3xx</code> Tone-Portamento &amp; <code>4xy</code> Vibrato) auf Paula.`,
         janeway(47991, 'Guitar Slinger')
     ),
     "demoscene/trans-atlantic.mod": museum(
@@ -506,20 +508,20 @@ export const amigaMuseumMetadata = {
     ),
     "demoscene/acid-injection.mod": museum(
         'NUKE / OPTIK — ACID INJECTION (1993)',
-        `Ein herrliches Stück nächtliche Tracker-Romantik, direkt im Modul für die Nachwelt konserviert: <strong>Nuke / Optik</strong> verewigte in den Sampletexten von <strong>Acid Injection</strong> exakt wann der letzte Ton saß – <code>On 12-28-93</code> und <code>FiNiShEd At 2:50am</code>! Treibender Acid-Rave zwischen Weihnachten und Neujahr 1993.`,
+        `Ein herrliches Stück nächtliche Tracker-Romantik, direkt im Modul für die Nachwelt konserviert: <strong>Nuke / Optik</strong> verewigte in den Sampletexten von <strong>Acid Injection</strong> exakt, wann der letzte Ton saß – <code>On 12-28-93</code> und <code>FiNiShEd At 2:50am</code>! Treibender Acid-Rave zwischen Weihnachten und Neujahr 1993.`,
         `<strong>4-Kanal-MOD (<code>M.K.</code>) · 32 Orders · 25 Patterns · 8 Samples (113.646 Bytes)</strong>. Reduziert auf acht präzise Rave- und 303-artige Samples, befeuert das Stück 25 straffe Patterns voller Tempo und roher Acid-Energie.`,
-        { label: 'Demozoo: Acid Injection Index', url: 'https://demozoo.org/music/?order=title&amp;dir=desc&amp;platform=&amp;production_type=&amp;page=2636' }
+        { label: 'Demozoo: Acid Injection Index', url: 'https://demozoo.org/music/?order=title&dir=desc&platform=&production_type=&page=2636' }
     ),
     "demoscene/phantazia.mod": museum(
         'QUAZAR — PHANTAZIA.2 (1995)',
         `Als 1995 immer mehr Musiker auf PC-Mehrspur-Tracker abwanderten, zog <strong>Quazar</strong> noch einmal einen glanzvollen Schlussstrich unter die klassische 4-Kanal-Ära: Eine Notiz direkt im Modul bezeichnet <strong>Phantazia.2</strong> ausdrücklich als letztes Amiga-MOD des Autors und unterstreicht stolz <code>only 4 channels</code>.`,
         `<strong>4-Kanal-MOD (<code>M.K.</code>) · 50 Orders · 44 Patterns · 30 Samples (429.748 Bytes)</strong>. Mit fast 430 KB (davon über 383 KB schwelgerische Sampledaten) das wuchtigste 4-Kanal-Modul dieser Sammlung – ein Abgesang auf den Amiga, der sich vor keinem 16-Kanal-PC-Tracker verstecken muss.`,
-        { label: 'Archivbefund: Modulnotiz „phantazia.2 (only 4 channels)“', url: '#top' }
+        { label: 'Archivbefund: Modulnotiz „phantazia.2 (only 4 channels)“' }
     ),
     "demoscene/carillon.mod": museum(
         'DIZZY / CARILLON & CYBERIAD — CARILLON (1996)',
         `Die ultimative Demonstration finnischer Minimalismus-Kunst: Am <strong>2. April 1996</strong> veröffentlichte <strong>Dizzy</strong> (Mitgründer der bekannten Gruppe <em>Carillon &amp; Cyberiad</em>) dieses Modul, das auf dem Aminet schlicht als <strong>12-KB-Archiv</strong> landete – ein ganzes, glockenhelles Musikstück auf dem kleinsten denkbaren Raum!`,
-        `<strong>4-Kanal-MOD (<code>M.K.</code>) · 2 Orders · 2 Patterns · genau 1 Sample (27.708 Bytes)</strong>. Kein Parser-Bug, sondern pure Absicht: Aus einem <strong>einzigen</strong> 24-KB-Sample zaubert Dizzy auf vier Paula-Kanälen Akkorde, Bass, Echo und Melodie in nur zwei Patterns – das kleinste Wunder der gesamten Amiga-Liste.`,
+        `<strong>4-Kanal-MOD (<code>M.K.</code>) · 2 Orders · 2 Patterns · genau 1 Sample (27.708 Bytes)</strong>. Kein Parser-Bug, sondern pure ProTracker-Akrobatik: Über den Effektbefehl <strong><code>9xx</code> (Sample Offset)</strong> und gezielte Loop-Ausschnitte springt Dizzy mitten in das einzige 24-KB-Sample hinein – und zaubert so Bass, Glocken, Akkorde und Echo gleichzeitig aus vier Paula-Kanälen!`,
         { label: 'Aminet: Carillon', url: 'https://aminet.net/package/mods/dizzy/Carillon' }
     ),
 
@@ -536,7 +538,7 @@ export const amigaMuseumMetadata = {
     ),
     "tracker-xm/turrican-2-title.xm": museum(
         'CHRIS HÜLSBECK — TURRICAN II TITLE (XM-COVER)',
-        `<strong>Turrican II: The Final Fight</strong> (Factor 5 / Rainbow Arts, 1991) gilt als Gipfel der Amiga-Spielemusik: <strong>Chris Hülsbeck</strong> schuf ein unsterbliches Hauptthema – und sprengte dafür scheinbar das 4-Kanal-Limit des Amiga! Mit seiner <strong>TFMX-7-Voice-Engine</strong> (technisch inspiriert von Jochen Hippels Software-Mixer) rechnete die 68000-CPU vier virtuelle Stimmen in Echtzeit auf einen einzigen Paula-Kanal zusammen, sodass drei weitere Kanäle frei für fette Drums, Bässe und Melodien blieben.`,
+        `<strong>Turrican II: The Final Fight</strong> (Factor 5 / Rainbow Arts, 1991) gilt als Gipfel der Amiga-Spielemusik: <strong>Chris Hülsbeck</strong> schuf ein unsterbliches Hauptthema – und sprengte dafür scheinbar das 4-Kanal-Limit des Amiga! Mit seiner <strong>TFMX-7-Voice-Engine</strong> (technisch inspiriert von Jochen Hippels Software-Mixer) rechnete die 68000-CPU bis zu vier virtuelle Stimmen (ca. 11–14 kHz) in Echtzeit auf einen einzigen Paula-DMA-Kanal zusammen, sodass drei volle Hardware-Kanäle frei für fette Drums, Bässe und Melodien blieben.`,
         `<strong>FastTracker-XM (16 Spuren) · 86 Orders · 73 Patterns · 12 Samples</strong>. Da das native TFMX-Original (<code>mdat</code> + <code>smpl</code>) einen eigenen 68000-Mixer verlangt, konserviert dieser Track eine sorgfältig arrangierte 16-Kanal-XM-Adaption, die den legendären 7-Stimmen-Druck über unseren XM-Sequencer hörbar macht.`,
         exotica('Turrican_II_-_The_Final_Fight', 'Turrican II'),
         exotica('TFMX', 'TFMX')
@@ -544,7 +546,7 @@ export const amigaMuseumMetadata = {
     "tracker-xm/deadlock.xm": museum(
         'ELWOOD — DEAD LOCK (1995)',
         `Mitte der 90er verlagerte sich das Zentrum der Tracker-Szene vom Amiga auf den PC mit Gravis Ultrasound, SoundBlaster und dem schwedischen Kult-Tool <strong>FastTracker 2</strong> (entwickelt von Triton). Der Finne Jussi-Matti Salmela alias <strong>Elwood</strong> komponierte 1995 mit <strong>Dead Lock</strong> eines der berühmtesten Aushängeschilder dieser neuen XM-Ära – bis heute eines der meistzitierten Referenzstücke der gesamten <code>.xm</code>-Geschichte.`,
-        `<strong>FastTracker-XM (24 Spuren) · 76 Orders · 59 Patterns · 32 Samples</strong>. Kein Amiga-MOD, sondern ein reiner MS-DOS-Mehrkanal-Klassiker: Glasklare 16-Bit-Samples, Volumehüllkurven und bis zu 24 parallel laufende Spuren markieren genau den historischen Moment, in dem das Tracker-Erbe des Amiga auf dem PC explodierte.`,
+        `<strong>FastTracker-XM (24 Spuren) · 76 Orders · 59 Patterns · 32 Samples</strong>. Kein Amiga-MOD, sondern ein reiner MS-DOS-Mehrkanal-Klassiker: Glasklare 16-Bit-Samples, definierbare Volume-/Panning-Hüllkurven und bis zu 24 parallel laufende Spuren markieren genau den historischen Moment, in dem das Tracker-Erbe des Amiga auf dem PC explodierte.`,
         exotica('Dead_Lock', 'Dead Lock'),
         demozooMusic(51819, 'Dead Lock'),
         { label: 'Wikipedia: FastTracker 2', url: 'https://en.wikipedia.org/wiki/FastTracker_2' }
