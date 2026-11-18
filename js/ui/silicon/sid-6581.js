@@ -1,12 +1,11 @@
-// === js/ui/silicon/sid-6581.js ===
 // =========================================================
-// MOS 6581 / CSG 8580 (SID) LIVING SILICON DIE VISUALIZER (v1.5.0)
+// MOS 6581 / CSG 8580 (SID) LIVING SILICON DIE VISUALIZER (v1.6.0)
 // Preallocated meter state and dirty-checked, hardware-synchronized telemetry:
 // - 3x 24-Bit Oscillators with Live 12-Bit PWM Bar, TEST-Bit & NMOS Wire-AND Badge
 // - Inter-Voice Cross-Modulation Pathways (Hard-Sync & XOR Ring-Modulation)
 // - 3x Dynamic 15-Bit ADSR Envelope Graphs with Live Phase/Level Tracer Dot
 // - Filter Routing Multiplexer ($D417) + Schematic-Accurate 3OFF ($D418 Bit 7) Switch
-// - 2MHz ZDF Multimode VCF with Live Morphing Frequency Response Curve (LP/BP/HP/NOTCH)
+// - 2MHz ZDF Multimode VCF with Log-Aligned Morphing Frequency Response Curve
 // - 4-Bit Multiplying Master VCA with $D418 Galway Digi & PlaySID DMA Detector
 // - Full DIP-28 Pinout Activity (CAP1/2, PHI2, /CS, A0-A4, D0-D7, AUDIO OUT)
 // =========================================================
@@ -15,6 +14,8 @@ import { BaseChip } from './base-chip.js';
 import { SidMeter } from './sid-meter.js';
 
 const ADSR_BASE_Y = new Uint8Array([60, 95, 130]);
+const LOG_MIN_HZ = Math.log(30.0);
+const LOG_SPAN_HZ = Math.log(6200.0 / 30.0);
 
 export class Sid6581 extends BaseChip {
     constructor(container) {
@@ -22,9 +23,24 @@ export class Sid6581 extends BaseChip {
         // Zero-Allocation State Caches for Dirty-Checking & Bus Diffing
         this.lastRegs = new Uint8Array(32);
         this.lastAdsrPacked = new Int32Array([-1, -1, -1]);
+        this.lastCtrlRegs = new Int16Array([-1, -1, -1]);
+        this.lastPwPacked = new Int16Array([-1, -1, -1]);
         this.lastFilterGraphHash = -1;
+        this.lastFilterModeBits = -1;
+        this.lastRouteBits = -1;
+        this.lastResReg = -1;
+        this.lastMasterVol = -1;
+        this.last3Off = -1;
+        this.lastDigiVisual = -1;
+
+        this.prevGate = new Uint8Array(3);
+        this.releaseStart = new Float32Array([0.5, 0.5, 0.5]);
+
         this.digiHoldTimer = 0.0;
         this.digiModeType = 0; // 0 = IDLE, 1 = $D418 DIGI, 2 = PLAYSID DMA
+        this.busHoldTimer = 0.0;
+        this.lastBusAddr = 0;
+        this.lastBusData = 0;
         this.lastT = 0.0;
         this.meter = new SidMeter();
     }
@@ -106,6 +122,18 @@ export class Sid6581 extends BaseChip {
             pinVdd: q('.pin-top-28')
         };
 
+        // Reset dirty caches on fresh mount
+        this.lastAdsrPacked.fill(-1);
+        this.lastCtrlRegs.fill(-1);
+        this.lastPwPacked.fill(-1);
+        this.lastFilterGraphHash = -1;
+        this.lastFilterModeBits = -1;
+        this.lastRouteBits = -1;
+        this.lastResReg = -1;
+        this.lastMasterVol = -1;
+        this.last3Off = -1;
+        this.lastDigiVisual = -1;
+
         // Configure side diagnostic labels for C64 Hardware Lab
         if (this.cache.diagLbls && this.cache.diagLbls.length >= 4) {
             this.cache.diagLbls[0].textContent = 'PAL CLK';
@@ -123,7 +151,7 @@ export class Sid6581 extends BaseChip {
         const s = (sr >> 4) & 15;
         const r = sr & 15;
 
-        // Geometry inside 44x15 ADSR graph window
+        // Geometry inside 44x14 ADSR graph window
         const w = 44;
         const h = 14;
         const bottomY = baseY + h;
@@ -147,30 +175,36 @@ export class Sid6581 extends BaseChip {
             }
         }
 
-        // Compute live Tracer Dot position & Envelope Phase label
+        // Track falling gate edge for smooth Release tracing even when Sustain = 0
+        if (this.prevGate[vIdx] && !gate) {
+            this.releaseStart[vIdx] = Math.max(0.06, envNorm);
+        } else if (gate && envNorm > this.releaseStart[vIdx]) {
+            this.releaseStart[vIdx] = envNorm;
+        }
+        this.prevGate[vIdx] = gate ? 1 : 0;
+
         let dotX = baseX;
-        let dotY = bottomY - Math.round(envNorm * h);
+        const dotY = Math.max(baseY, Math.min(bottomY, bottomY - Math.round(envNorm * h)));
         let stateStr = 'IDLE';
         const susNorm = s / 15.0;
 
         if (!gate && envNorm <= 0.005) {
             stateStr = 'IDLE';
-        } else if (envState === 0) {
-            dotX = Math.round(baseX + envNorm * (xA - baseX));
-            stateStr = 'ATK';
-        } else if (envState === 1) {
-            if (envNorm > susNorm + 0.01) {
-                const decProgress = 1.0 - ((envNorm - susNorm) / Math.max(0.01, 1.0 - susNorm));
-                dotX = Math.round(xA + Math.max(0, Math.min(1, decProgress)) * (xD - xA));
-                stateStr = 'DEC';
-            } else {
-                dotX = Math.round((xD + xS) * 0.5);
-                stateStr = 'SUS';
-            }
-        } else if (envNorm > 0.005) {
-            const relProgress = 1.0 - Math.min(1.0, envNorm / Math.max(0.05, susNorm || 0.5));
+        } else if (!gate || envState >= 2) {
+            const relBase = Math.max(0.06, this.releaseStart[vIdx] || susNorm || 0.5);
+            const relProgress = 1.0 - Math.min(1.0, envNorm / relBase);
             dotX = Math.round(xS + Math.max(0, Math.min(1, relProgress)) * (xR - xS));
             stateStr = 'REL';
+        } else if (envState === 0) {
+            dotX = Math.round(baseX + Math.min(1, envNorm) * (xA - baseX));
+            stateStr = 'ATK';
+        } else if (envNorm > susNorm + 0.015) {
+            const decProgress = 1.0 - ((envNorm - susNorm) / Math.max(0.01, 1.0 - susNorm));
+            dotX = Math.round(xA + Math.max(0, Math.min(1, decProgress)) * (xD - xA));
+            stateStr = 'DEC';
+        } else {
+            dotX = Math.round((xD + xS) * 0.5);
+            stateStr = 'SUS';
         }
 
         const dotEl = this.cache[`adsrDot${vIdx + 1}`];
@@ -184,15 +218,11 @@ export class Sid6581 extends BaseChip {
         if (stEl && stEl.textContent !== stateStr) {
             stEl.textContent = stateStr;
         }
-
-        const gateEl = this.cache[`gateLed${vIdx + 1}`];
-        if (gateEl) {
-            gateEl.style.fill = gate ? 'var(--highlight-color)' : 'var(--chassis-dark)';
-        }
     }
 
-    updateFilterResponseCurve(cutoffReg, resReg, fMode) {
-        const hash = (cutoffReg << 8) | (resReg << 4) | (fMode >> 4);
+    updateFilterResponseCurve(fhz, resReg, fMode) {
+        const freqBucket = Math.min(1023, Math.round(fhz / 8));
+        const hash = (freqBucket << 8) | (resReg << 4) | (fMode >> 4);
         if (this.lastFilterGraphHash === hash) return;
         this.lastFilterGraphHash = hash;
 
@@ -208,9 +238,10 @@ export class Sid6581 extends BaseChip {
         const bottomY = gy + gh - 2;
         const midY = gy + 18;
 
-        const normCut = cutoffReg / 2047.0;
-        const cutX = Math.round(gx + 6 + normCut * (gw - 12));
-        const resPeak = Math.round((resReg / 15.0) * 13);
+        // Align visual X position logarithmically with actual 6581 S-curve Hz readout
+        const normLog = Math.max(0, Math.min(1, (Math.log(Math.max(30, fhz)) - LOG_MIN_HZ) / LOG_SPAN_HZ));
+        const cutX = Math.round(gx + 6 + normLog * (gw - 12));
+        const resPeak = Math.round((resReg / 15.0) * 14);
         const peakY = Math.max(gy + 2, midY - resPeak);
 
         if (cutLineEl) {
@@ -224,28 +255,28 @@ export class Sid6581 extends BaseChip {
 
         let d = '';
         if (!hasLP && !hasBP && !hasHP) {
-            // Filter disabled: flat baseline
             d = `M ${gx} ${bottomY} L ${gx + gw} ${bottomY}`;
-        } else if (hasLP && hasHP && !hasBP) {
-            // NOTCH (LP + HP Phase Inversion)
-            const nLeft = Math.max(gx + 2, cutX - 8);
-            const nRight = Math.min(gx + gw - 2, cutX + 8);
-            d = `M ${gx} ${midY} L ${nLeft} ${midY} L ${cutX} ${bottomY} L ${nRight} ${midY} L ${gx + gw} ${midY}`;
-        } else if (hasLP && !hasHP) {
-            // LOWPASS (with optional BP boost)
-            const kneeX = Math.max(gx + 2, cutX - 6);
-            const dropX = Math.min(gx + gw, cutX + 14);
-            d = `M ${gx} ${midY} L ${kneeX} ${midY} L ${cutX} ${peakY} L ${dropX} ${bottomY} L ${gx + gw} ${bottomY}`;
-        } else if (hasHP && !hasLP) {
-            // HIGHPASS
-            const riseX = Math.max(gx, cutX - 14);
-            const kneeX = Math.min(gx + gw - 2, cutX + 6);
-            d = `M ${gx} ${bottomY} L ${riseX} ${bottomY} L ${cutX} ${peakY} L ${kneeX} ${midY} L ${gx + gw} ${midY}`;
+        } else if (hasLP && hasHP) {
+            // NOTCH (LP + HP, optionally with BP resonance accent)
+            const notchHalfW = Math.max(4, Math.round(13 - (resReg / 15.0) * 8));
+            const nLeft = Math.max(gx + 2, cutX - notchHalfW);
+            const nRight = Math.min(gx + gw - 2, cutX + notchHalfW);
+            const dipY = hasBP ? Math.round((midY + bottomY) * 0.5) : bottomY;
+            d = `M ${gx} ${midY} L ${nLeft} ${midY} Q ${cutX} ${dipY} ${nRight} ${midY} L ${gx + gw} ${midY}`;
+        } else if (hasLP) {
+            const kneeX = Math.max(gx + 2, cutX - 10);
+            const dropX = Math.min(gx + gw, cutX + 16);
+            d = `M ${gx} ${midY} L ${kneeX} ${midY} Q ${cutX} ${peakY - (hasBP ? 2 : 0)} ${dropX} ${bottomY} L ${gx + gw} ${bottomY}`;
+        } else if (hasHP) {
+            const riseX = Math.max(gx, cutX - 16);
+            const kneeX = Math.min(gx + gw - 2, cutX + 10);
+            d = `M ${gx} ${bottomY} L ${riseX} ${bottomY} Q ${cutX} ${peakY - (hasBP ? 2 : 0)} ${kneeX} ${midY} L ${gx + gw} ${midY}`;
         } else {
-            // BANDPASS
-            const leftX = Math.max(gx, cutX - 14);
-            const rightX = Math.min(gx + gw, cutX + 14);
-            d = `M ${gx} ${bottomY} L ${leftX} ${bottomY} L ${cutX} ${peakY} L ${rightX} ${bottomY} L ${gx + gw} ${bottomY}`;
+            // Pure BANDPASS
+            const halfW = Math.max(7, Math.round(18 - (resReg / 15.0) * 8));
+            const leftX = Math.max(gx, cutX - halfW);
+            const rightX = Math.min(gx + gw, cutX + halfW);
+            d = `M ${gx} ${bottomY} L ${leftX} ${bottomY} Q ${cutX} ${Math.max(gy + 1, peakY - 4)} ${rightX} ${bottomY} L ${gx + gw} ${bottomY}`;
         }
 
         pathEl.setAttribute('d', d);
@@ -262,18 +293,28 @@ export class Sid6581 extends BaseChip {
         const totalV = (v0 + v1 + v2) / 3.0;
 
         // =========================================================
-        // 1. DETECT CPU BUS REGISTER WRITES (FOR PIN & DIGI TELEMETRY)
+        // 1. DETECT CPU BUS REGISTER WRITES (HOLD FOR 60/120Hz DISPLAYS)
         // =========================================================
-        let lastWrittenReg = -1;
-        let lastWrittenVal = 0;
-        let volChanged = (regs[24] & 0x0F) !== (this.lastRegs[24] & 0x0F);
+        let frameWrittenReg = -1;
+        let frameWrittenVal = 0;
+        const volChanged = (regs[24] & 0x0F) !== (this.lastRegs[24] & 0x0F);
 
         for (let r = 0; r < 25; r++) {
             if (regs[r] !== this.lastRegs[r]) {
-                lastWrittenReg = r;
-                lastWrittenVal = regs[r];
+                frameWrittenReg = r;
+                frameWrittenVal = regs[r];
                 this.lastRegs[r] = regs[r];
             }
+        }
+
+        if (frameWrittenReg >= 0) {
+            this.lastBusAddr = frameWrittenReg;
+            this.lastBusData = frameWrittenVal;
+            this.busHoldTimer = 0.045;
+        } else if (registerWriteRate > 0.01) {
+            this.busHoldTimer = Math.max(this.busHoldTimer, 0.035);
+        } else if (this.busHoldTimer > 0) {
+            this.busHoldTimer = Math.max(0.0, this.busHoldTimer - dt);
         }
 
         const subFrameDigiWrites = regs[25] || 0;
@@ -307,8 +348,6 @@ export class Sid6581 extends BaseChip {
             const isSync = (ctrl & 2) !== 0;
             const isRing = (ctrl & 4) !== 0;
             const isGate = (ctrl & 1) !== 0;
-            const waveMask = ctrl & 0xF0;
-            const isCombined = (waveMask !== 0 && waveMask !== 0x10 && waveMask !== 0x20 && waveMask !== 0x40 && waveMask !== 0x80);
 
             // Frequency or TEST-Bit Lock Display
             const hz = freqReg ? Math.round((freqReg * 985248) / 16777216) : 0;
@@ -318,35 +357,46 @@ export class Sid6581 extends BaseChip {
                 if (hzEl.textContent !== txt) hzEl.textContent = txt;
             }
 
-            // 12-Bit PWM Duty Cycle Bar (Test-Bit on Pulse forces 100% DC High!)
-            const pwBar = this.cache[`pwBar${idx}`];
-            if (pwBar) {
-                const hasPulse = (ctrl & 64) !== 0;
-                const pwNorm = (hasPulse && isTest) ? 1.0 : (pwReg / 4095.0);
-                pwBar.setAttribute('width', Math.max(1, Math.round(pwNorm * 40)));
-                pwBar.style.opacity = hasPulse ? 0.95 : 0.25;
+            // 12-Bit PWM Duty Cycle Bar (dirty-checked; TEST on Pulse forces 100% DC)
+            const hasPulse = (ctrl & 64) !== 0;
+            const pwNorm = (hasPulse && isTest) ? 1.0 : (pwReg / 4095.0);
+            const pwW = Math.max(1, Math.round(pwNorm * 40));
+            const pwPacked = (pwW << 1) | (hasPulse ? 1 : 0);
+            if (this.lastPwPacked[v] !== pwPacked) {
+                this.lastPwPacked[v] = pwPacked;
+                const pwBar = this.cache[`pwBar${idx}`];
+                if (pwBar) {
+                    pwBar.setAttribute('width', pwW);
+                    pwBar.style.opacity = hasPulse ? 0.95 : 0.25;
+                }
             }
 
-            // NMOS Wire-AND Combined Waveform Badge ($30, $50, $60, $70)
-            const wandEl = this.cache[`wand${idx}`];
-            if (wandEl) {
-                wandEl.style.opacity = isCombined ? '1.0' : '0.15';
-                wandEl.style.fill = isCombined ? 'var(--highlight-color)' : 'var(--text-color)';
+            // Waveform LEDs, Gate LED, Wire-AND & Sync/Ring Badges (dirty-checked per ctrl byte)
+            if (this.lastCtrlRegs[v] !== ctrl) {
+                this.lastCtrlRegs[v] = ctrl;
+                const waveMask = ctrl & 0xF0;
+                const isCombined = (waveMask !== 0 && waveMask !== 0x10 && waveMask !== 0x20 && waveMask !== 0x40 && waveMask !== 0x80);
+
+                const wandEl = this.cache[`wand${idx}`];
+                if (wandEl) {
+                    wandEl.style.opacity = isCombined ? '1.0' : '0.15';
+                    wandEl.style.fill = isCombined ? 'var(--highlight-color)' : 'var(--text-color)';
+                }
+
+                if (this.cache[`w${idx}T`]) this.cache[`w${idx}T`].style.fill = (ctrl & 16) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+                if (this.cache[`w${idx}S`]) this.cache[`w${idx}S`].style.fill = (ctrl & 32) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+                if (this.cache[`w${idx}P`]) this.cache[`w${idx}P`].style.fill = hasPulse ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+                if (this.cache[`w${idx}N`]) this.cache[`w${idx}N`].style.fill = (ctrl & 128) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+
+                const syncEl = this.cache[`sync${idx}`];
+                const ringEl = this.cache[`ring${idx}`];
+                const gateEl = this.cache[`gateLed${idx}`];
+                if (syncEl) syncEl.style.fill = isSync ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+                if (ringEl) ringEl.style.fill = isRing ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+                if (gateEl) gateEl.style.fill = isGate ? 'var(--highlight-color)' : 'var(--chassis-dark)';
             }
 
-            // Waveform LEDs (Triangle, Sawtooth, Pulse, Noise)
-            if (this.cache[`w${idx}T`]) this.cache[`w${idx}T`].style.fill = (ctrl & 16) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
-            if (this.cache[`w${idx}S`]) this.cache[`w${idx}S`].style.fill = (ctrl & 32) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
-            if (this.cache[`w${idx}P`]) this.cache[`w${idx}P`].style.fill = (ctrl & 64) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
-            if (this.cache[`w${idx}N`]) this.cache[`w${idx}N`].style.fill = (ctrl & 128) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
-
-            // Hard-Sync & Ring-Modulation Badges + Inter-Voice Bus
-            const syncEl = this.cache[`sync${idx}`];
-            const ringEl = this.cache[`ring${idx}`];
-            const xmodBus = this.cache[`xmodBus${idx}`];
-            if (syncEl) syncEl.style.fill = isSync ? 'var(--highlight-color)' : 'var(--chassis-dark)';
-            if (ringEl) ringEl.style.fill = isRing ? 'var(--highlight-color)' : 'var(--chassis-dark)';
-            this.updateBusFlow(xmodBus, (isSync || isRing) ? Math.max(0.35, vol) : 0.0);
+            this.updateBusFlow(this.cache[`xmodBus${idx}`], (isSync || isRing) ? Math.max(0.35, vol) : 0.0);
 
             // Block Glow
             if (this.cache[`osc${idx}`]) this.cache[`osc${idx}`].style.opacity = 0.30 + vol * 0.70;
@@ -374,10 +424,16 @@ export class Sid6581 extends BaseChip {
         const thermalCoefficient = Math.exp(-(temp - 55.0) * 0.003);
         const fhz = Math.round(Math.max(30.0, Math.min(6800.0, baseHz * thermalCoefficient)));
 
-        if (this.cache.filtCutLabel) this.cache.filtCutLabel.textContent = `FC:${fhz}Hz`;
-        if (this.cache.filtResBar) this.cache.filtResBar.setAttribute('width', Math.round((resReg / 15) * 52));
+        if (this.cache.filtCutLabel) {
+            const cutStr = `FC:${fhz}Hz`;
+            if (this.cache.filtCutLabel.textContent !== cutStr) this.cache.filtCutLabel.textContent = cutStr;
+        }
+        if (this.lastResReg !== resReg) {
+            this.lastResReg = resReg;
+            if (this.cache.filtResBar) this.cache.filtResBar.setAttribute('width', Math.round((resReg / 15) * 52));
+        }
 
-        // Filter Mode String (LP, BP, HP, NOTCH)
+        // Filter Mode String (LP, BP, HP, NOTCH & Combinations)
         let modeStr = 'OFF';
         if ((fMode & 80) === 80) modeStr = (fMode & 32) ? 'LP+BP+HP' : 'NOTCH';
         else if (fMode & 16) modeStr = (fMode & 32) ? 'LP+BP' : 'LOWPASS';
@@ -388,25 +444,32 @@ export class Sid6581 extends BaseChip {
             this.cache.filtModeLabel.textContent = modeStr;
         }
 
-        // Update Live SVG Filter Response Curve
-        this.updateFilterResponseCurve(cutoffReg, resReg, fMode);
+        // Update Live SVG Filter Response Curve (log-aligned to S-curve Hz)
+        this.updateFilterResponseCurve(fhz, resReg, fMode);
 
-        // Filter Mode & Routing LEDs
-        if (this.cache.lpLed) this.cache.lpLed.style.fill = (fMode & 16) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
-        if (this.cache.bpLed) this.cache.bpLed.style.fill = (fMode & 32) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
-        if (this.cache.hpLed) this.cache.hpLed.style.fill = (fMode & 64) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+        // Filter Mode & Routing LEDs (dirty-checked)
+        const modeBits = (fMode >> 4) & 7;
+        if (this.lastFilterModeBits !== modeBits) {
+            this.lastFilterModeBits = modeBits;
+            if (this.cache.lpLed) this.cache.lpLed.style.fill = (fMode & 16) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+            if (this.cache.bpLed) this.cache.bpLed.style.fill = (fMode & 32) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+            if (this.cache.hpLed) this.cache.hpLed.style.fill = (fMode & 64) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+        }
 
-        if (this.cache.rt1Led) this.cache.rt1Led.style.fill = (routeReg & 1) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
-        if (this.cache.rt2Led) this.cache.rt2Led.style.fill = (routeReg & 2) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
-        if (this.cache.rt3Led) this.cache.rt3Led.style.fill = (routeReg & 4) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+        const routeBits = routeReg & 7;
+        if (this.lastRouteBits !== routeBits) {
+            this.lastRouteBits = routeBits;
+            if (this.cache.rt1Led) this.cache.rt1Led.style.fill = (routeReg & 1) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+            if (this.cache.rt2Led) this.cache.rt2Led.style.fill = (routeReg & 2) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+            if (this.cache.rt3Led) this.cache.rt3Led.style.fill = (routeReg & 4) ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+        }
 
         // 3OFF Switch State (Schematic-accurate: only disconnects unfiltered Voice 3 path, leaks DC!)
-        if (this.cache.v3OffBox) {
-            this.cache.v3OffBox.style.opacity = is3Off ? '1.0' : '0.35';
-        }
-        if (this.cache.v3OffText) {
-            const v3Txt = is3Off ? '3OFF:DC' : '3ON';
-            if (this.cache.v3OffText.textContent !== v3Txt) this.cache.v3OffText.textContent = v3Txt;
+        const v3OffFlag = is3Off ? 1 : 0;
+        if (this.last3Off !== v3OffFlag) {
+            this.last3Off = v3OffFlag;
+            if (this.cache.v3OffBox) this.cache.v3OffBox.style.opacity = is3Off ? '1.0' : '0.35';
+            if (this.cache.v3OffText) this.cache.v3OffText.textContent = is3Off ? '3OFF:DC' : '3ON';
         }
 
         let filterLoad = 0.0;
@@ -426,7 +489,6 @@ export class Sid6581 extends BaseChip {
         this.updateBusFlow(this.cache.sigOsc2Byp,  (routeReg & 2) ? 0 : v1);
 
         this.updateBusFlow(this.cache.sigOsc3Filt, (routeReg & 4) ? v2 : 0);
-        // If 3OFF is set on unfiltered Voice 3, show subtle DC-leakage trickle (0.18 * v2)
         const v2BypassFlow = (routeReg & 4) ? 0 : (is3Off ? v2 * 0.18 : v2);
         this.updateBusFlow(this.cache.sigOsc3Byp, v2BypassFlow);
 
@@ -441,23 +503,28 @@ export class Sid6581 extends BaseChip {
         if (this.cache.vcaBlock) {
             this.cache.vcaBlock.style.opacity = 0.40 + masterActivity * 0.60;
         }
-        if (this.cache.vcaVolText) {
-            const volStr = `VOL:${masterVol4Bit.toString().padStart(2, '0')} ($${masterVol4Bit.toString(16).toUpperCase()})`;
-            if (this.cache.vcaVolText.textContent !== volStr) this.cache.vcaVolText.textContent = volStr;
-        }
-        if (this.cache.vcaVolBar) {
-            this.cache.vcaVolBar.setAttribute('width', Math.round((masterVol4Bit / 15.0) * 56));
+        if (this.lastMasterVol !== masterVol4Bit) {
+            this.lastMasterVol = masterVol4Bit;
+            if (this.cache.vcaVolText) {
+                this.cache.vcaVolText.textContent = `VOL:${masterVol4Bit.toString().padStart(2, '0')} ($${masterVol4Bit.toString(16).toUpperCase()})`;
+            }
+            if (this.cache.vcaVolBar) {
+                this.cache.vcaVolBar.setAttribute('width', Math.round((masterVol4Bit / 15.0) * 56));
+            }
         }
 
-        if (this.cache.digiBox) {
-            this.cache.digiBox.style.opacity = isDigiActive ? '1.0' : '0.30';
-            this.cache.digiBox.style.filter = isDigiActive ? 'drop-shadow(0 0 5px var(--text-color))' : 'none';
-        }
-        if (this.cache.digiStatus && this.cache.digiSub) {
-            const dStat = this.digiModeType === 2 ? 'PLAYSID DMA' : (this.digiModeType === 1 ? '$D418 DIGI' : '4-BIT DAC');
-            const dSub = this.digiModeType === 2 ? '3.91kHz NIBBLE' : (this.digiModeType === 1 ? 'GALWAY VCA MOD' : 'MULTIPLIER');
-            if (this.cache.digiStatus.textContent !== dStat) this.cache.digiStatus.textContent = dStat;
-            if (this.cache.digiSub.textContent !== dSub) this.cache.digiSub.textContent = dSub;
+        if (this.lastDigiVisual !== this.digiModeType) {
+            this.lastDigiVisual = this.digiModeType;
+            if (this.cache.digiBox) {
+                this.cache.digiBox.style.opacity = isDigiActive ? '1.0' : '0.30';
+                this.cache.digiBox.style.filter = isDigiActive ? 'drop-shadow(0 0 5px var(--text-color))' : 'none';
+            }
+            if (this.cache.digiStatus && this.cache.digiSub) {
+                const dStat = this.digiModeType === 2 ? 'PLAYSID DMA' : (this.digiModeType === 1 ? '$D418 DIGI' : '4-BIT DAC');
+                const dSub = this.digiModeType === 2 ? '3.91kHz NIB' : (this.digiModeType === 1 ? 'GALWAY VCA' : 'MULTIPLIER');
+                this.cache.digiStatus.textContent = dStat;
+                this.cache.digiSub.textContent = dSub;
+            }
         }
 
         if (this.cache.dieTempText) {
@@ -485,9 +552,9 @@ export class Sid6581 extends BaseChip {
         this.updatePinGlow(this.cache.pinVdd, 0.5);
 
         // Address (A0-A4), Data (D0-D7) & /CS Pin Flash on CPU Register Writes
-        const hasBusWrite = lastWrittenReg >= 0 || isDigiActive;
-        const activeAddr = isDigiActive ? 24 : Math.max(0, lastWrittenReg);
-        const activeData = isDigiActive ? regs[24] : lastWrittenVal;
+        const hasBusWrite = this.busHoldTimer > 0 || isDigiActive;
+        const activeAddr = isDigiActive ? 24 : this.lastBusAddr;
+        const activeData = isDigiActive ? regs[24] : this.lastBusData;
 
         this.updatePinGlow(this.cache.pinCs, hasBusWrite ? 0.9 : 0.0);
         this.updatePinGlow(this.cache.pinA0, (hasBusWrite && (activeAddr & 1)) ? 0.85 : 0.0);
@@ -507,7 +574,11 @@ export class Sid6581 extends BaseChip {
 
         // Side Chassis Diagnostics
         if (this.cache.diagVals && this.cache.diagVals.length >= 4) {
-            const busTxt = this.digiModeType === 2 ? 'DMA DIGI' : (this.digiModeType === 1 ? '$D418 MOD' : (hasBusWrite ? `$D4${activeAddr.toString(16).toUpperCase().padStart(2, '0')}` : 'LOCKSTEP'));
+            const busTxt = this.digiModeType === 2
+                ? 'DMA DIGI'
+                : (this.digiModeType === 1
+                    ? '$D418 MOD'
+                    : (hasBusWrite ? `$D4${activeAddr.toString(16).toUpperCase().padStart(2, '0')}` : 'LOCKSTEP'));
             if (this.cache.diagVals[1].textContent !== busTxt) this.cache.diagVals[1].textContent = busTxt;
             if (this.cache.diagVals[2].textContent !== modeStr) this.cache.diagVals[2].textContent = modeStr;
             const tempTxt = `${temp}°C SIM`;
@@ -519,7 +590,10 @@ export class Sid6581 extends BaseChip {
 
     getSvg() {
         return `
-            <svg viewBox="0 0 500 200" xmlns="http://www.w3.org/2000/svg">
+            <svg class="sid-visualization" viewBox="0 0 500 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="sid-title sid-description">
+                <title id="sid-title">MOS 6581 SID Living Silicon Signalfluss</title>
+                <desc id="sid-description">Drei 24-Bit-Oszillatoren mit 12-Bit-PWM, Kreuzmodulation und 15-Bit-ADSR-Hüllkurven speisen den 2-MHz-ZDF-Multimode-VCF oder den Bypass zum 4-Bit-Master-VCA und den externen Filterkondensatoren.</desc>
+
                 <!-- 28 DIP Pins (1-14 Bottom, 28-15 Top) -->
                 ${this.generatePins(28, 50, 400, 15, 170, true)}
                 
@@ -551,20 +625,17 @@ export class Sid6581 extends BaseChip {
                 <!-- OSC 1 -->
                 <g class="sid-osc1" style="opacity: 0.30;">
                     <rect x="79" y="50" width="68" height="30" rx="1" fill="none" stroke="var(--text-color)" stroke-width="1.2" />
-                    <text x="83" y="56" font-size="5" fill="var(--text-color)" font-weight="bold" dominant-baseline="middle">V1</text>
-                    <text x="113" y="56" class="sid-osc1-hz" font-size="5.5" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">IDLE</text>
-                    <text x="144" y="56" class="sid-wand-1" font-size="4.5" fill="var(--text-color)" text-anchor="end" dominant-baseline="middle" style="opacity:0.15;">W&amp;</text>
+                    <text x="83" y="56" font-size="4.8" fill="var(--text-color)" font-weight="bold" dominant-baseline="middle">V1</text>
+                    <text x="113" y="56" class="sid-osc1-hz" font-size="5" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">IDLE</text>
+                    <text x="144" y="56" class="sid-wand-1" font-size="4.2" fill="var(--text-color)" text-anchor="end" dominant-baseline="middle" style="opacity:0.15;">W&amp;</text>
                     
-                    <!-- 12-Bit PWM Bar -->
                     <rect x="83" y="61" width="40" height="3" fill="var(--chassis-dark)" />
                     <rect class="sid-pw-bar-1" x="83" y="61" width="20" height="3" fill="var(--highlight-color)" />
-                    <!-- Sync & Ring LEDs -->
                     <rect class="sid-sync-1" x="127" y="60" width="7" height="4" fill="var(--chassis-dark)" />
-                    <text x="130.5" y="62.5" font-size="3.2" fill="var(--screen-bg)" text-anchor="middle" dominant-baseline="middle">SY</text>
+                    <text x="130.5" y="62.5" font-size="3" fill="var(--screen-bg)" text-anchor="middle" dominant-baseline="middle">SY</text>
                     <rect class="sid-ring-1" x="136" y="60" width="7" height="4" fill="var(--chassis-dark)" />
-                    <text x="139.5" y="62.5" font-size="3.2" fill="var(--screen-bg)" text-anchor="middle" dominant-baseline="middle">RM</text>
+                    <text x="139.5" y="62.5" font-size="3" fill="var(--screen-bg)" text-anchor="middle" dominant-baseline="middle">RM</text>
 
-                    <!-- Waveform Selector Matrix (T S P N) -->
                     <rect class="w1-t" x="83" y="67" width="4" height="4" fill="var(--chassis-dark)"/><text x="85" y="75" font-size="4" fill="var(--text-color)" text-anchor="middle">T</text>
                     <rect class="w1-s" x="96" y="67" width="4" height="4" fill="var(--chassis-dark)"/><text x="98" y="75" font-size="4" fill="var(--text-color)" text-anchor="middle">S</text>
                     <rect class="w1-p" x="109" y="67" width="4" height="4" fill="var(--chassis-dark)"/><text x="111" y="75" font-size="4" fill="var(--text-color)" text-anchor="middle">P</text>
@@ -574,16 +645,16 @@ export class Sid6581 extends BaseChip {
                 <!-- OSC 2 -->
                 <g class="sid-osc2" style="opacity: 0.30;">
                     <rect x="79" y="85" width="68" height="30" rx="1" fill="none" stroke="var(--text-color)" stroke-width="1.2" />
-                    <text x="83" y="91" font-size="5" fill="var(--text-color)" font-weight="bold" dominant-baseline="middle">V2</text>
-                    <text x="113" y="91" class="sid-osc2-hz" font-size="5.5" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">IDLE</text>
-                    <text x="144" y="91" class="sid-wand-2" font-size="4.5" fill="var(--text-color)" text-anchor="end" dominant-baseline="middle" style="opacity:0.15;">W&amp;</text>
+                    <text x="83" y="91" font-size="4.8" fill="var(--text-color)" font-weight="bold" dominant-baseline="middle">V2</text>
+                    <text x="113" y="91" class="sid-osc2-hz" font-size="5" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">IDLE</text>
+                    <text x="144" y="91" class="sid-wand-2" font-size="4.2" fill="var(--text-color)" text-anchor="end" dominant-baseline="middle" style="opacity:0.15;">W&amp;</text>
                     
                     <rect x="83" y="96" width="40" height="3" fill="var(--chassis-dark)" />
                     <rect class="sid-pw-bar-2" x="83" y="96" width="20" height="3" fill="var(--highlight-color)" />
                     <rect class="sid-sync-2" x="127" y="95" width="7" height="4" fill="var(--chassis-dark)" />
-                    <text x="130.5" y="97.5" font-size="3.2" fill="var(--screen-bg)" text-anchor="middle" dominant-baseline="middle">SY</text>
+                    <text x="130.5" y="97.5" font-size="3" fill="var(--screen-bg)" text-anchor="middle" dominant-baseline="middle">SY</text>
                     <rect class="sid-ring-2" x="136" y="95" width="7" height="4" fill="var(--chassis-dark)" />
-                    <text x="139.5" y="97.5" font-size="3.2" fill="var(--screen-bg)" text-anchor="middle" dominant-baseline="middle">RM</text>
+                    <text x="139.5" y="97.5" font-size="3" fill="var(--screen-bg)" text-anchor="middle" dominant-baseline="middle">RM</text>
 
                     <rect class="w2-t" x="83" y="102" width="4" height="4" fill="var(--chassis-dark)"/><text x="85" y="110" font-size="4" fill="var(--text-color)" text-anchor="middle">T</text>
                     <rect class="w2-s" x="96" y="102" width="4" height="4" fill="var(--chassis-dark)"/><text x="98" y="110" font-size="4" fill="var(--text-color)" text-anchor="middle">S</text>
@@ -594,16 +665,16 @@ export class Sid6581 extends BaseChip {
                 <!-- OSC 3 -->
                 <g class="sid-osc3" style="opacity: 0.30;">
                     <rect x="79" y="120" width="68" height="30" rx="1" fill="none" stroke="var(--text-color)" stroke-width="1.2" />
-                    <text x="83" y="126" font-size="5" fill="var(--text-color)" font-weight="bold" dominant-baseline="middle">V3</text>
-                    <text x="113" y="126" class="sid-osc3-hz" font-size="5.5" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">IDLE</text>
-                    <text x="144" y="126" class="sid-wand-3" font-size="4.5" fill="var(--text-color)" text-anchor="end" dominant-baseline="middle" style="opacity:0.15;">W&amp;</text>
+                    <text x="83" y="126" font-size="4.8" fill="var(--text-color)" font-weight="bold" dominant-baseline="middle">V3</text>
+                    <text x="113" y="126" class="sid-osc3-hz" font-size="5" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">IDLE</text>
+                    <text x="144" y="126" class="sid-wand-3" font-size="4.2" fill="var(--text-color)" text-anchor="end" dominant-baseline="middle" style="opacity:0.15;">W&amp;</text>
                     
                     <rect x="83" y="131" width="40" height="3" fill="var(--chassis-dark)" />
                     <rect class="sid-pw-bar-3" x="83" y="131" width="20" height="3" fill="var(--highlight-color)" />
                     <rect class="sid-sync-3" x="127" y="130" width="7" height="4" fill="var(--chassis-dark)" />
-                    <text x="130.5" y="132.5" font-size="3.2" fill="var(--screen-bg)" text-anchor="middle" dominant-baseline="middle">SY</text>
+                    <text x="130.5" y="132.5" font-size="3" fill="var(--screen-bg)" text-anchor="middle" dominant-baseline="middle">SY</text>
                     <rect class="sid-ring-3" x="136" y="130" width="7" height="4" fill="var(--chassis-dark)" />
-                    <text x="139.5" y="132.5" font-size="3.2" fill="var(--screen-bg)" text-anchor="middle" dominant-baseline="middle">RM</text>
+                    <text x="139.5" y="132.5" font-size="3" fill="var(--screen-bg)" text-anchor="middle" dominant-baseline="middle">RM</text>
 
                     <rect class="w3-t" x="83" y="137" width="4" height="4" fill="var(--chassis-dark)"/><text x="85" y="145" font-size="4" fill="var(--text-color)" text-anchor="middle">T</text>
                     <rect class="w3-s" x="96" y="137" width="4" height="4" fill="var(--chassis-dark)"/><text x="98" y="145" font-size="4" fill="var(--text-color)" text-anchor="middle">S</text>
@@ -617,8 +688,8 @@ export class Sid6581 extends BaseChip {
                 <!-- ADSR 1 -->
                 <g class="sid-env1" style="opacity: 0.30;">
                     <rect x="152" y="50" width="52" height="30" rx="1" fill="none" stroke="var(--text-color)" stroke-width="1.2" />
-                    <text x="156" y="56" font-size="4.5" fill="var(--text-color)" dominant-baseline="middle">ENV1</text>
-                    <text x="184" y="56" class="sid-adsr-st-1" font-size="4.5" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">IDLE</text>
+                    <text x="156" y="56" font-size="4.4" fill="var(--text-color)" dominant-baseline="middle">ENV1</text>
+                    <text x="184" y="56" class="sid-adsr-st-1" font-size="4.4" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">IDLE</text>
                     <circle class="sid-gate-1" cx="199" cy="55.5" r="2" fill="var(--chassis-dark)" />
                     <path class="sid-adsr-path-1" d="M 156 74 L 164 60 L 174 66 L 190 66 L 200 74" fill="none" stroke="var(--text-color)" stroke-width="1.1" />
                     <circle class="sid-adsr-dot-1" cx="156" cy="74" r="2.2" fill="var(--chassis-dark)" />
@@ -627,8 +698,8 @@ export class Sid6581 extends BaseChip {
                 <!-- ADSR 2 -->
                 <g class="sid-env2" style="opacity: 0.30;">
                     <rect x="152" y="85" width="52" height="30" rx="1" fill="none" stroke="var(--text-color)" stroke-width="1.2" />
-                    <text x="156" y="91" font-size="4.5" fill="var(--text-color)" dominant-baseline="middle">ENV2</text>
-                    <text x="184" y="91" class="sid-adsr-st-2" font-size="4.5" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">IDLE</text>
+                    <text x="156" y="91" font-size="4.4" fill="var(--text-color)" dominant-baseline="middle">ENV2</text>
+                    <text x="184" y="91" class="sid-adsr-st-2" font-size="4.4" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">IDLE</text>
                     <circle class="sid-gate-2" cx="199" cy="90.5" r="2" fill="var(--chassis-dark)" />
                     <path class="sid-adsr-path-2" d="M 156 109 L 164 95 L 174 101 L 190 101 L 200 109" fill="none" stroke="var(--text-color)" stroke-width="1.1" />
                     <circle class="sid-adsr-dot-2" cx="156" cy="109" r="2.2" fill="var(--chassis-dark)" />
@@ -637,8 +708,8 @@ export class Sid6581 extends BaseChip {
                 <!-- ADSR 3 -->
                 <g class="sid-env3" style="opacity: 0.30;">
                     <rect x="152" y="120" width="52" height="30" rx="1" fill="none" stroke="var(--text-color)" stroke-width="1.2" />
-                    <text x="156" y="126" font-size="4.5" fill="var(--text-color)" dominant-baseline="middle">ENV3</text>
-                    <text x="184" y="126" class="sid-adsr-st-3" font-size="4.5" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">IDLE</text>
+                    <text x="156" y="126" font-size="4.4" fill="var(--text-color)" dominant-baseline="middle">ENV3</text>
+                    <text x="184" y="126" class="sid-adsr-st-3" font-size="4.4" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">IDLE</text>
                     <circle class="sid-gate-3" cx="199" cy="125.5" r="2" fill="var(--chassis-dark)" />
                     <path class="sid-adsr-path-3" d="M 156 144 L 164 130 L 174 136 L 190 136 L 200 144" fill="none" stroke="var(--text-color)" stroke-width="1.1" />
                     <circle class="sid-adsr-dot-3" cx="156" cy="144" r="2.2" fill="var(--chassis-dark)" />
@@ -649,10 +720,10 @@ export class Sid6581 extends BaseChip {
                      ========================================================= -->
                 <g class="sid-filt-block" style="opacity: 0.30;">
                     <rect x="238" y="50" width="102" height="100" rx="2" fill="none" stroke="var(--text-color)" stroke-width="1.5" />
-                    <text x="289" y="57" font-size="5.5" fill="var(--text-color)" font-weight="bold" text-anchor="middle" dominant-baseline="middle">ZDF MULTIMODE VCF</text>
+                    <text x="289" y="57" font-size="5" fill="var(--text-color)" font-weight="bold" text-anchor="middle" dominant-baseline="middle">ZDF MULTIMODE VCF</text>
                     
-                    <text x="243" y="66" class="sid-filt-cut" font-size="5.5" fill="var(--highlight-color)" dominant-baseline="middle">FC:30Hz</text>
-                    <text x="335" y="66" class="sid-filt-mode" font-size="5" fill="var(--text-color)" text-anchor="end" dominant-baseline="middle">OFF</text>
+                    <text x="243" y="66" class="sid-filt-cut" font-size="4.8" fill="var(--highlight-color)" dominant-baseline="middle">FC:30Hz</text>
+                    <text x="335" y="66" class="sid-filt-mode" font-size="4.4" fill="var(--text-color)" text-anchor="end" dominant-baseline="middle">OFF</text>
 
                     <!-- Live Filter Frequency Response Graph Window -->
                     <rect x="243" y="72" width="92" height="35" fill="var(--chassis-dark)" stroke="var(--text-color)" stroke-width="0.6" />
@@ -660,26 +731,26 @@ export class Sid6581 extends BaseChip {
                     <path class="sid-vcf-curve" d="M 244 103 L 332 103" fill="none" stroke="var(--highlight-color)" stroke-width="1.4" />
 
                     <!-- Resonance Bar -->
-                    <text x="243" y="114" font-size="4.8" fill="var(--text-color)" dominant-baseline="middle">RES</text>
-                    <rect x="259" y="111.5" width="52" height="4" fill="none" stroke="var(--text-color)" stroke-width="0.8" />
-                    <rect class="sid-filt-res-bar" x="259" y="111.5" width="0" height="4" fill="var(--highlight-color)" />
-                    <text x="335" y="114" font-size="4.5" fill="var(--text-color)" text-anchor="end" dominant-baseline="middle">JFET</text>
+                    <text x="243" y="114" font-size="4.6" fill="var(--text-color)" dominant-baseline="middle">RES</text>
+                    <rect x="260" y="111.5" width="52" height="4" fill="none" stroke="var(--text-color)" stroke-width="0.8" />
+                    <rect class="sid-filt-res-bar" x="260" y="111.5" width="0" height="4" fill="var(--highlight-color)" />
+                    <text x="335" y="114" font-size="4.2" fill="var(--text-color)" text-anchor="end" dominant-baseline="middle">JFET</text>
 
                     <!-- Filter Mode LEDs (LP / BP / HP) -->
                     <circle class="sid-lp-led" cx="255" cy="125" r="3" fill="var(--chassis-dark)" />
-                    <text x="255" y="133" font-size="4.5" fill="var(--text-color)" text-anchor="middle">LP</text>
+                    <text x="255" y="133" font-size="4.4" fill="var(--text-color)" text-anchor="middle">LP</text>
                     
                     <circle class="sid-bp-led" cx="289" cy="125" r="3" fill="var(--chassis-dark)" />
-                    <text x="289" y="133" font-size="4.5" fill="var(--text-color)" text-anchor="middle">BP</text>
+                    <text x="289" y="133" font-size="4.4" fill="var(--text-color)" text-anchor="middle">BP</text>
 
                     <circle class="sid-hp-led" cx="323" cy="125" r="3" fill="var(--chassis-dark)" />
-                    <text x="323" y="133" font-size="4.5" fill="var(--text-color)" text-anchor="middle">HP</text>
+                    <text x="323" y="133" font-size="4.4" fill="var(--text-color)" text-anchor="middle">HP</text>
 
                     <!-- Filter Voice Routing Indicators ($D417) -->
-                    <text x="244" y="143" font-size="4.2" fill="var(--text-color)" dominant-baseline="middle">MUX:</text>
-                    <rect class="sid-rt-1" x="263" y="140" width="5" height="5" fill="var(--chassis-dark)" /><text x="272" y="143" font-size="4.2" fill="var(--text-color)" dominant-baseline="middle">V1</text>
-                    <rect class="sid-rt-2" x="285" y="140" width="5" height="5" fill="var(--chassis-dark)" /><text x="294" y="143" font-size="4.2" fill="var(--text-color)" dominant-baseline="middle">V2</text>
-                    <rect class="sid-rt-3" x="307" y="140" width="5" height="5" fill="var(--chassis-dark)" /><text x="316" y="143" font-size="4.2" fill="var(--text-color)" dominant-baseline="middle">V3</text>
+                    <text x="244" y="143" font-size="4.1" fill="var(--text-color)" dominant-baseline="middle">MUX:</text>
+                    <rect class="sid-rt-1" x="264" y="140" width="5" height="5" fill="var(--chassis-dark)" /><text x="273" y="143" font-size="4.1" fill="var(--text-color)" dominant-baseline="middle">V1</text>
+                    <rect class="sid-rt-2" x="286" y="140" width="5" height="5" fill="var(--chassis-dark)" /><text x="295" y="143" font-size="4.1" fill="var(--text-color)" dominant-baseline="middle">V2</text>
+                    <rect class="sid-rt-3" x="308" y="140" width="5" height="5" fill="var(--chassis-dark)" /><text x="317" y="143" font-size="4.1" fill="var(--text-color)" dominant-baseline="middle">V3</text>
                 </g>
 
                 <!-- =========================================================
@@ -687,23 +758,23 @@ export class Sid6581 extends BaseChip {
                      ========================================================= -->
                 <g class="sid-vca" style="opacity: 0.90;">
                     <rect x="352" y="50" width="70" height="100" rx="2" fill="none" stroke="var(--text-color)" stroke-width="1.5" />
-                    <text x="387" y="57" font-size="5.5" fill="var(--text-color)" font-weight="bold" text-anchor="middle" dominant-baseline="middle">MASTER VCA</text>
+                    <text x="387" y="57" font-size="5" fill="var(--text-color)" font-weight="bold" text-anchor="middle" dominant-baseline="middle">MASTER VCA</text>
                     
-                    <text x="387" y="67" class="sid-vca-vol" font-size="5" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">VOL:15 ($F)</text>
+                    <text x="387" y="67" class="sid-vca-vol" font-size="4.6" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">VOL:15 ($F)</text>
                     <rect x="359" y="72" width="56" height="4" fill="var(--chassis-dark)" stroke="var(--text-color)" stroke-width="0.6" />
                     <rect class="sid-vca-vol-bar" x="359" y="72" width="56" height="4" fill="var(--highlight-color)" />
 
                     <!-- $D418 Digidrum / PlaySID DMA Detector Box -->
                     <g class="sid-digi-box" style="opacity: 0.30;">
                         <rect x="357" y="82" width="60" height="28" rx="1" fill="var(--chassis-dark)" stroke="var(--text-color)" stroke-width="1" />
-                        <text x="387" y="91" class="sid-digi-status" font-size="5" fill="var(--highlight-color)" font-weight="bold" text-anchor="middle" dominant-baseline="middle">4-BIT DAC</text>
-                        <text x="387" y="101" class="sid-digi-sub" font-size="4.2" fill="var(--text-color)" text-anchor="middle" dominant-baseline="middle">MULTIPLIER</text>
+                        <text x="387" y="91" class="sid-digi-status" font-size="4.4" fill="var(--highlight-color)" font-weight="bold" text-anchor="middle" dominant-baseline="middle">4-BIT DAC</text>
+                        <text x="387" y="101" class="sid-digi-sub" font-size="3.6" fill="var(--text-color)" text-anchor="middle" dominant-baseline="middle">MULTIPLIER</text>
                     </g>
 
                     <!-- Thermal Sensor & R3 Mixer DC Bias -->
-                    <text x="387" y="122" class="sid-die-temp" font-size="5" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">SIM:55°C</text>
-                    <text x="387" y="132" font-size="4.2" fill="var(--text-color)" text-anchor="middle" dominant-baseline="middle">ANALOG OUTPUT MODEL</text>
-                    <text x="387" y="142" font-size="4.2" fill="var(--text-color)" text-anchor="middle" dominant-baseline="middle">C64 AC COUPLING</text>
+                    <text x="387" y="121" class="sid-die-temp" font-size="4.8" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">SIM:55°C</text>
+                    <text x="387" y="132" font-size="4.2" fill="var(--text-color)" text-anchor="middle" dominant-baseline="middle">6581 R3 OUT</text>
+                    <text x="387" y="142" font-size="4.1" fill="var(--text-color)" text-anchor="middle" dominant-baseline="middle">AC COUPLED</text>
                 </g>
 
                 <!-- =========================================================
@@ -723,25 +794,25 @@ export class Sid6581 extends BaseChip {
                 <path class="sid-bus-wire" d="M 204 56 L 216 56 L 216 48 L 368 48 L 368 50" />
                 <path class="sid-bus-packet sig-osc1-byp" d="M 204 56 L 216 56 L 216 48 L 368 48 L 368 50" />
 
-                <path class="sid-bus-wire" d="M 204 91 L 212 91 L 212 48" />
-                <path class="sid-bus-packet sig-osc2-byp" d="M 204 91 L 212 91 L 212 48" />
+                <path class="sid-bus-wire" d="M 204 91 L 212 91 L 212 48 L 368 48 L 368 50" />
+                <path class="sid-bus-packet sig-osc2-byp" d="M 204 91 L 212 91 L 212 48 L 368 48 L 368 50" />
 
                 <path class="sid-bus-wire" d="M 204 144 L 216 144 L 216 152 L 368 152 L 368 150" />
                 <path class="sid-bus-packet sig-osc3-byp" d="M 204 144 L 216 144 L 216 152 L 368 152 L 368 150" />
 
                 <!-- Schematic-Accurate 3OFF Gate Badge on Voice 3 Unfiltered Bypass -->
                 <g class="sid-3off-box" style="opacity: 0.35;">
-                    <rect x="207" y="145" width="28" height="8" rx="1" fill="var(--screen-bg)" stroke="var(--text-color)" stroke-width="0.8" />
-                    <text x="221" y="149.5" class="sid-3off-text" font-size="3.8" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">3ON</text>
+                    <rect x="206" y="145" width="30" height="8" rx="1" fill="var(--screen-bg)" stroke="var(--text-color)" stroke-width="0.8" />
+                    <text x="221" y="149.5" class="sid-3off-text" font-size="3.4" fill="var(--highlight-color)" text-anchor="middle" dominant-baseline="middle">3ON</text>
                 </g>
 
                 <!-- VCF Output to Master VCA -->
                 <path class="sid-bus-wire" d="M 340 100 L 352 100" />
                 <path class="sid-bus-packet sig-vcf-out" d="M 340 100 L 352 100" />
                 
-                <!-- Master VCA Output to Pin 27 (Routed cleanly above pins at y=8) -->
-                <path class="sid-bus-wire" d="M 422 100 L 436 100 L 436 8 L 93 8 L 93 15" />
-                <path class="sid-bus-packet sig-master-out" d="M 422 100 L 436 100 L 436 8 L 93 8 L 93 15" />
+                <!-- Master VCA Output to Pin 27 (Routed cleanly inside package leadframe) -->
+                <path class="sid-bus-wire" d="M 422 100 L 434 100 L 434 43 L 93 43 L 93 30" />
+                <path class="sid-bus-packet sig-master-out" d="M 422 100 L 434 100 L 434 43 L 93 43 L 93 30" />
 
                 <!-- VCF Integrators to External Polystyrene Filter Capacitors (Pins 1-4) -->
                 <path class="sid-bus-wire" d="M 255 150 L 255 160 L 64 160 L 64 170" />
