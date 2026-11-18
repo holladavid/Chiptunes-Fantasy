@@ -1,3 +1,4 @@
+// === js/visuals/components/crt-shadow-mask.js ===
 const VERTEX_SHADER_SOURCE = `
 attribute vec2 a_position;
 varying vec2 v_uv;
@@ -110,8 +111,8 @@ void main() {
         beamBloom
     );
 
-    // 3. Dynamische Scanlines (weiten sich bei hoher Helligkeit vertikal auf)
-    float scanWave = 0.5 + 0.5 * cos(screenPosition.y * 3.14159265);
+    // 3. Dynamische Scanlines (phasengleich auf Zellmitte 0.5 statt Moiré-Drift)
+    float scanWave = 0.5 - 0.5 * cos(cellPosition.y * 6.2831853);
     float scanDepth = mix(0.22, 0.04, beamBloom);
     float scanline = 1.0 - scanDepth * (1.0 - scanWave);
 
@@ -262,9 +263,18 @@ export class CrtShadowMask {
         this.texelLocation = texelLocation;
         this.textureWidth = 0;
         this.textureHeight = 0;
+        this.viewportWidth = 0;
+        this.viewportHeight = 0;
+        this.uniformCssWidth = 0;
+        this.uniformCssHeight = 0;
 
+        gl.useProgram(program);
         gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
         gl.bufferData(gl.ARRAY_BUFFER, QUAD_VERTICES, gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(positionLocation);
+        gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+        gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, texture);
         // Bilineare Texturfilterung ermöglicht subpixelgenaue Röhrenwölbung,
         // radiale Konvergenzdrift und analoge horizontale Strahl-Glättung.
@@ -273,7 +283,6 @@ export class CrtShadowMask {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-        gl.useProgram(program);
         gl.uniform1i(sourceLocation, 0);
         gl.disable(gl.BLEND);
         gl.disable(gl.DEPTH_TEST);
@@ -296,23 +305,28 @@ export class CrtShadowMask {
 
         this.resize(width, height);
         const gl = this.gl;
-        gl.viewport(0, 0, width, height);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, this.texture);
+
+        if (this.viewportWidth !== width || this.viewportHeight !== height) {
+            this.viewportWidth = width;
+            this.viewportHeight = height;
+            gl.viewport(0, 0, width, height);
+            gl.uniform2f(this.texelLocation, 1.0 / width, 1.0 / height);
+        }
+
+        if (this.uniformCssWidth !== cssWidth || this.uniformCssHeight !== cssHeight) {
+            this.uniformCssWidth = cssWidth;
+            this.uniformCssHeight = cssHeight;
+            gl.uniform2f(this.sizeLocation, cssWidth, cssHeight);
+        }
+
         if (this.textureWidth !== width || this.textureHeight !== height) {
-            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.sourceCanvas);
             this.textureWidth = width;
             this.textureHeight = height;
         } else {
             gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.sourceCanvas);
         }
-        gl.useProgram(this.program);
-        gl.uniform2f(this.sizeLocation, cssWidth, cssHeight);
-        gl.uniform2f(this.texelLocation, 1.0 / width, 1.0 / height);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-        gl.enableVertexAttribArray(this.positionLocation);
-        gl.vertexAttribPointer(this.positionLocation, 2, gl.FLOAT, false, 0, 0);
+
         gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
 }
