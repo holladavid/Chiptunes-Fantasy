@@ -288,13 +288,15 @@ function updateNowPlayingSystem() {
 }
 
 function updateNowPlayingLive(force = false) {
+    if (!force && !isVisualFullscreen()) return;
+
     const totalFrames = trackData.length || 0;
     const currentTime = totalFrames > 0 ? formatTime(lastKnownFrame) : '00:00';
     const totalTime = totalFrames > 0 ? formatTime(totalFrames) : '00:00';
     const progress = totalFrames > 0 ? lastKnownFrame / totalFrames : 0;
     const seekable = canSeekActiveTrack();
 
-    if (nowPlayingConsole && (force || isVisualFullscreen())) {
+    if (nowPlayingConsole) {
         nowPlayingConsole.updateLive({
             currentTime,
             totalTime,

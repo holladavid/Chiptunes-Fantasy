@@ -5,25 +5,30 @@
 // =========================================================
 
 export class FullscreenUI {
-    constructor(callbacks) {
+    constructor(callbacks = {}) {
         this.trackInfo = document.getElementById('fs-track-info');
         this.trackTime = document.getElementById('fs-track-time');
         this.progressBar = document.getElementById('fs-progress-bar');
         this.progressFill = document.getElementById('fs-progress-fill');
         this.btnPlay = document.getElementById('fs-btn-play');
+        this.mainPlayBtn = document.getElementById('btn-play');
         this.btnPrev = document.getElementById('fs-btn-prev');
         this.btnNext = document.getElementById('fs-btn-next');
         this.btnEco = document.getElementById('fs-btn-eco');
         this.playbackStatus = document.getElementById('fs-playback-status');
+
+        this.lastTrackTitle = '';
         this.lastTimeText = '';
         this.lastProgress = -1;
+        this.lastSeekable = '';
+        this.lastState = '';
 
-        if (this.btnPlay) this.btnPlay.addEventListener('click', (e) => { e.stopPropagation(); callbacks.onTogglePlay(); });
-        if (this.btnPrev) this.btnPrev.addEventListener('click', (e) => { e.stopPropagation(); callbacks.onPrev(); });
-        if (this.btnNext) this.btnNext.addEventListener('click', (e) => { e.stopPropagation(); callbacks.onNext(); });
-        if (this.btnEco) this.btnEco.addEventListener('click', (e) => { e.stopPropagation(); callbacks.onToggleEco(); });
+        if (this.btnPlay) this.btnPlay.addEventListener('click', (e) => { e.stopPropagation(); callbacks?.onTogglePlay?.(); });
+        if (this.btnPrev) this.btnPrev.addEventListener('click', (e) => { e.stopPropagation(); callbacks?.onPrev?.(); });
+        if (this.btnNext) this.btnNext.addEventListener('click', (e) => { e.stopPropagation(); callbacks?.onNext?.(); });
+        if (this.btnEco) this.btnEco.addEventListener('click', (e) => { e.stopPropagation(); callbacks?.onToggleEco?.(); });
 
-        if (this.progressBar && typeof callbacks.onSeek === 'function') {
+        if (this.progressBar && typeof callbacks?.onSeek === 'function') {
             let scrubbing = false;
             const seekAtEvent = (e) => {
                 if (this.progressBar.dataset.seekable !== 'true') return;
@@ -34,6 +39,7 @@ export class FullscreenUI {
             };
             this.progressBar.addEventListener('pointerdown', (e) => {
                 if (this.progressBar.dataset.seekable !== 'true') return;
+                if (e.pointerType === 'mouse' && e.button !== 0) return;
                 e.stopPropagation();
                 scrubbing = true;
                 this.progressBar.setPointerCapture?.(e.pointerId);
@@ -43,7 +49,13 @@ export class FullscreenUI {
                 if (!scrubbing) return;
                 seekAtEvent(e);
             });
-            const endScrub = () => { scrubbing = false; };
+            const endScrub = (e) => {
+                if (!scrubbing) return;
+                scrubbing = false;
+                if (this.progressBar.hasPointerCapture?.(e.pointerId)) {
+                    this.progressBar.releasePointerCapture?.(e.pointerId);
+                }
+            };
             this.progressBar.addEventListener('pointerup', endScrub);
             this.progressBar.addEventListener('pointercancel', endScrub);
         }
@@ -52,10 +64,12 @@ export class FullscreenUI {
     }
 
     updateTrack(title) {
-        if (this.trackInfo) {
-            this.trackInfo.innerText = title;
-            this.trackInfo.title = title;
-        }
+        if (!this.trackInfo) return;
+        const nextTitle = String(title || '').trim() || '[ AWAITING INJECTION ]';
+        if (nextTitle === this.lastTrackTitle && this.trackInfo.textContent === nextTitle) return;
+        this.lastTrackTitle = nextTitle;
+        this.trackInfo.textContent = nextTitle;
+        this.trackInfo.title = nextTitle;
     }
 
     updateTimeline({ currentTime = '00:00', totalTime = '00:00', progress = 0, seekable = false } = {}) {
@@ -67,12 +81,14 @@ export class FullscreenUI {
 
         const clamped = Math.min(1, Math.max(0, Number(progress) || 0));
         if (this.progressFill && Math.abs(clamped - this.lastProgress) > 0.0005) {
-            this.progressFill.style.transform = `scaleX(${clamped})`;
+            this.progressFill.style.transform = `scaleX(${clamped.toFixed(4)})`;
             this.lastProgress = clamped;
         }
 
-        if (this.progressBar) {
-            this.progressBar.dataset.seekable = String(Boolean(seekable));
+        const nextSeekable = String(Boolean(seekable));
+        if (this.progressBar && nextSeekable !== this.lastSeekable) {
+            this.lastSeekable = nextSeekable;
+            this.progressBar.dataset.seekable = nextSeekable;
         }
     }
 
@@ -81,16 +97,24 @@ export class FullscreenUI {
     }
 
     updatePlaybackState(state) {
-        const labels = {
+        const nextState = state || 'idle';
+        if (nextState === this.lastState) return;
+        this.lastState = nextState;
+
+        const fsLabels = {
             idle: '[ INJECT ROM ]',
             loading: '[ DECODING ]',
             playing: '[ HALT BUS ]',
             paused: '[ RESUME BUS ]',
             error: '[ RETRY ROM ]'
         };
-        const label = labels[state] || labels.idle;
-        const isLoading = state === 'loading';
-        const mainPlayBtn = document.getElementById('btn-play');
+        const barLabels = {
+            idle: 'INJECT ROM',
+            loading: 'DECODING',
+            playing: 'HALT BUS',
+            paused: 'RESUME BUS',
+            error: 'RETRY ROM'
+        };
         const statusLabels = {
             idle: 'STANDBY',
             loading: 'DECODING',
@@ -98,17 +122,22 @@ export class FullscreenUI {
             paused: 'BUS HALTED',
             error: 'FAULT'
         };
+
+        const isLoading = nextState === 'loading';
         if (this.playbackStatus) {
-            this.playbackStatus.dataset.state = state;
-            this.playbackStatus.textContent = statusLabels[state] || statusLabels.idle;
+            this.playbackStatus.dataset.state = nextState;
+            this.playbackStatus.textContent = statusLabels[nextState] || statusLabels.idle;
         }
 
+        const mainPlayBtn = this.mainPlayBtn || document.getElementById('btn-play');
         for (const button of [this.btnPlay, mainPlayBtn]) {
             if (!button) continue;
-            button.innerText = label;
+            button.textContent = button === this.btnPlay
+                ? (fsLabels[nextState] || fsLabels.idle)
+                : (barLabels[nextState] || barLabels.idle);
             button.disabled = isLoading;
             button.setAttribute('aria-busy', String(isLoading));
-            button.dataset.state = state;
+            button.dataset.state = nextState;
         }
     }
 }
