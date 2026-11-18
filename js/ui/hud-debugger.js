@@ -1,7 +1,7 @@
 // === js/ui/hud-debugger.js ===
 // =========================================================
 // HIGH-PERFORMANCE REGISTER HUD & ANALYZER MODULE
-// Dynamic Layouts & Symmetrical Column-Nested Amiga LEDs
+// Dynamic Layouts, Cached DOM/Canvas & Symmetrical Amiga LEDs
 // =========================================================
 
 const NOISE_LUT_HZ = [
@@ -11,32 +11,70 @@ const NOISE_LUT_HZ = [
       5208,   5000,   4808,   4630,   4464,   4310,   4167,   4032
 ];
 
-let cachedSystem = null; 
-let hudValElements = [];
+const YM_ENV_SHAPES = {
+    0: '\\___', 4: '/___', 8: '\\\\\\\\', 9: '\\___', 10: '\\/\\/',
+    11: '\\---', 12: '////', 13: '/---', 14: '/\\/\\', 15: '/___'
+};
 
-const HIST_LEN = 60; 
+let cachedSystem = null;
+let hudDom = null;
+
+const HIST_LEN = 60;
 const pitchHistA = new Float32Array(HIST_LEN);
 const pitchHistB = new Float32Array(HIST_LEN);
 const pitchHistC = new Float32Array(HIST_LEN);
-const pitchHistD = new Float32Array(HIST_LEN); 
+const pitchHistD = new Float32Array(HIST_LEN);
 let histIdx = 0;
 
-export function resetHUD() {
+function resetHistories() {
     pitchHistA.fill(0);
     pitchHistB.fill(0);
     pitchHistC.fill(0);
     pitchHistD.fill(0);
     histIdx = 0;
-    cachedSystem = null;
-    hudValElements = [];
 }
 
-function drawSparkline(canvasId, historyArr, headIdx, color) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+export function resetHUD() {
+    resetHistories();
+    cachedSystem = null;
+    hudDom = null;
+}
+
+function setText(el, text) {
+    if (!el || el._hudText === text) return;
+    el._hudText = text;
+    el.textContent = text;
+}
+
+function setBarWidth(el, pct) {
+    if (!el) return;
+    const clamped = Math.max(0, Math.min(100, Math.round(pct * 2) / 2));
+    if (el._hudWidth === clamped) return;
+    el._hudWidth = clamped;
+    el.style.width = `${clamped}%`;
+}
+
+function setLed(el, active) {
+    if (!el) return;
+    const flag = active ? 1 : 0;
+    if (el._hudLed === flag) return;
+    el._hudLed = flag;
+    el.className = flag ? 'hud-led on' : 'hud-led';
+}
+
+function getChartRef(id) {
+    const canvas = document.getElementById(id);
+    if (!canvas) return null;
+    return { canvas, ctx: canvas.getContext('2d') };
+}
+
+function drawSparkline(chart, historyArr, headIdx, color) {
+    if (!chart?.ctx) return;
+    const { canvas, ctx } = chart;
+    const w = canvas.width;
+    const h = canvas.height;
+
+    ctx.clearRect(0, 0, w, h);
     ctx.beginPath();
     ctx.strokeStyle = color;
     ctx.lineWidth = 1.5;
@@ -44,21 +82,19 @@ function drawSparkline(canvasId, historyArr, headIdx, color) {
     let maxVal = 10;
     let minVal = 99999;
     for (let i = 0; i < HIST_LEN; i++) {
-        if (historyArr[i] > maxVal) maxVal = historyArr[i];
-        if (historyArr[i] > 0 && historyArr[i] < minVal) minVal = historyArr[i];
+        const v = historyArr[i];
+        if (v > maxVal) maxVal = v;
+        if (v > 0 && v < minVal) minVal = v;
     }
     if (minVal === 99999) minVal = 0;
-    let range = maxVal - minVal;
-    if (range < 100) range = 100; 
+    const range = Math.max(100, maxVal - minVal);
+    const drawH = Math.max(1, h - 2);
 
     for (let i = 0; i < HIST_LEN; i++) {
-        let actualIdx = (headIdx + i) % HIST_LEN;
-        let val = historyArr[actualIdx];
-        
-        let norm = (val - minVal) / range;
-        let y = canvas.height - (norm * canvas.height);
-        let x = (i / (HIST_LEN - 1)) * canvas.width;
-        
+        const val = historyArr[(headIdx + i) % HIST_LEN];
+        const norm = val <= 0 ? 0 : Math.max(0, Math.min(1, (val - minVal) / range));
+        const y = (h - 1) - (norm * drawH);
+        const x = (i / (HIST_LEN - 1)) * w;
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
     }
@@ -66,12 +102,12 @@ function drawSparkline(canvasId, historyArr, headIdx, color) {
 }
 
 function makeAtariChannelRow(ch, pitchId, volId, hegId, digiId) {
-    let digiHtml = digiId ? `
+    const digiHtml = digiId ? `
         <div class="hud-row">
             <label>Digi Hack</label>
             <span id="${digiId}" class="hud-text-sel">--</span>
         </div>` : '';
-    
+
     return `
         <div class="hud-channel">
             <h4>[ CH ${ch} ]</h4>
@@ -83,7 +119,7 @@ function makeAtariChannelRow(ch, pitchId, volId, hegId, digiId) {
             <div class="hud-row">
                 <label>Volume</label>
                 <div class="hud-bar"><div class="hud-bar-fill" id="${volId}-bar"></div></div>
-                <span class="hud-val" id="${volId}-val" style="width: 20px;">0</span>
+                <span class="hud-val" id="${volId}-val" style="width: 24px;">0</span>
                 <div style="width: 5px;"></div>
                 <div class="hud-led" id="${hegId}-led"></div><span style="font-size:0.8em; color:var(--text-color);">HEG</span>
             </div>
@@ -111,7 +147,7 @@ function makeC64ChannelRow(ch, id) {
             <div class="hud-row">
                 <label>PW</label>
                 <div class="hud-bar"><div class="hud-bar-fill" id="c64-pw-${id}-bar"></div></div>
-                <span class="hud-val" id="c64-pw-${id}-val" style="width: 35px;">0%</span>
+                <span class="hud-val" id="c64-pw-${id}-val" style="width: 38px;">0%</span>
             </div>
             <div class="hud-row">
                 <label>ADSR</label>
@@ -145,6 +181,73 @@ function makeAmigaChannelRow(ch, pan) {
     `;
 }
 
+function cacheDomForSystem(system) {
+    const byId = (id) => document.getElementById(id);
+
+    if (system === 'atari') {
+        return {
+            channels: ['a', 'b', 'c'].map((ch, idx) => ({
+                pitchVal: byId(`pitch-${ch}-val`),
+                chart: getChartRef(`pitch-${ch}-chart`),
+                volBar: byId(`vol-${ch}-bar`),
+                volVal: byId(`vol-${ch}-val`),
+                hegLed: byId(`heg-${ch}-led`),
+                digiVal: idx < 2 ? byId(`digi-${ch}`) : null
+            })),
+            noiseBar: byId('noise-bar'),
+            noiseVal: byId('noise-val'),
+            toneLeds: [byId('tone-a-led'), byId('tone-b-led'), byId('tone-c-led')],
+            noiseLeds: [byId('noise-a-led'), byId('noise-b-led'), byId('noise-c-led')],
+            envBar: byId('env-bar'),
+            envVal: byId('env-val'),
+            envShapeVal: byId('env-shape-val')
+        };
+    }
+
+    if (system === 'c64') {
+        return {
+            voices: [1, 2, 3].map((v) => ({
+                pitchVal: byId(`c64-pitch-${v}-val`),
+                chart: getChartRef(`c64-pitch-${v}-chart`),
+                pwBar: byId(`c64-pw-${v}-bar`),
+                pwVal: byId(`c64-pw-${v}-val`),
+                triLed: byId(`c64-tri-${v}-led`),
+                sawLed: byId(`c64-saw-${v}-led`),
+                pulLed: byId(`c64-pul-${v}-led`),
+                noiLed: byId(`c64-noi-${v}-led`),
+                gateLed: byId(`c64-gate-${v}-led`),
+                adsrVal: byId(`c64-adsr-${v}-val`)
+            })),
+            cutBar: byId('c64-cut-bar'),
+            cutVal: byId('c64-cut-val'),
+            resBar: byId('c64-res-bar'),
+            resVal: byId('c64-res-val'),
+            routeLeds: [byId('c64-route-1-led'), byId('c64-route-2-led'), byId('c64-route-3-led')],
+            lpLed: byId('c64-lp-led'),
+            bpLed: byId('c64-bp-led'),
+            hpLed: byId('c64-hp-led'),
+            v3OffLed: byId('c64-v3off-led'),
+            volBar: byId('c64-vol-bar'),
+            volVal: byId('c64-vol-val')
+        };
+    }
+
+    if (system === 'amiga') {
+        return {
+            channels: [0, 1, 2, 3].map((c) => ({
+                pitchVal: byId(`amiga-pitch-${c}-val`),
+                chart: getChartRef(`amiga-pitch-${c}-chart`),
+                volBar: byId(`amiga-vol-${c}-bar`),
+                volVal: byId(`amiga-vol-${c}-val`),
+                lenVal: byId(`amiga-len-${c}-val`),
+                dmaLed: byId(`amiga-dma-${c}-led`)
+            }))
+        };
+    }
+
+    return null;
+}
+
 export function updateChipHUD(stateGetters) {
     const matrix = document.getElementById('hud-matrix');
     if (!matrix) return;
@@ -154,8 +257,6 @@ export function updateChipHUD(stateGetters) {
     const currentChipRegs = stateGetters.getCurrentChipRegs();
 
     if (cachedSystem !== activeSystem) {
-        cachedSystem = activeSystem;
-        
         if (activeSystem === 'atari') {
             matrix.innerHTML = `
                 <div class="atari-analyzer-grid">
@@ -206,9 +307,6 @@ export function updateChipHUD(stateGetters) {
                     </div>
                 </div>
             `;
-            resetHUD();
-            cachedSystem = 'atari'; 
-
         } else if (activeSystem === 'c64') {
             matrix.innerHTML = `
                 <div class="atari-analyzer-grid">
@@ -223,7 +321,7 @@ export function updateChipHUD(stateGetters) {
                             <div class="hud-row">
                                 <label>Cutoff</label>
                                 <div class="hud-bar"><div class="hud-bar-fill" id="c64-cut-bar"></div></div>
-                                <span class="hud-val" id="c64-cut-val">0 Hz</span>
+                                <span class="hud-val" id="c64-cut-val">0Hz 55°</span>
                             </div>
                             <div class="hud-row">
                                 <label>Resonance</label>
@@ -258,21 +356,17 @@ export function updateChipHUD(stateGetters) {
                     </div>
                 </div>
             `;
-            resetHUD();
-            cachedSystem = 'c64';
-
         } else if (activeSystem === 'amiga') {
-            let ledState = currentChipRegs && currentChipRegs[29] !== undefined ? currentChipRegs[29] : 1;
-            let overrideState = currentChipRegs && currentChipRegs[30] !== undefined ? currentChipRegs[30] : 0;
-            
-            let ledClass = ledState === 0 ? 'on' : '';
-            let ledStyle = ledState === 0 
-                ? 'background:#ff0000; box-shadow:0 0 8px #ff0000;' 
-                : 'background:#440000; box-shadow:none;';
-                
-            let overrideStyle = overrideState === 1 ? 'display:block;' : 'display:none;';
+            const ledState = currentChipRegs && currentChipRegs[29] !== undefined ? currentChipRegs[29] : 1;
+            const overrideState = currentChipRegs && currentChipRegs[30] !== undefined ? currentChipRegs[30] : 0;
 
-matrix.innerHTML = `
+            const ledClass = ledState === 1 ? 'on' : '';
+            const ledStyle = ledState === 1
+                ? 'background:#ff0000; box-shadow:0 0 8px #ff0000;'
+                : 'background:#440000; box-shadow:none;';
+            const overrideStyle = overrideState > 0 ? 'display:block;' : 'display:none;';
+
+            matrix.innerHTML = `
                 <div class="atari-analyzer-grid">
                     <div>
                         ${makeAmigaChannelRow(0, 'L')}
@@ -285,7 +379,7 @@ matrix.innerHTML = `
                             <h4>[ PAULA 8364 & FILTERS ]</h4>
                             <div class="hud-row">
                                 <label>Clock</label>
-                                <span class="hud-text-sel" style="flex-grow: 1;">3.54 MHz (PAL)</span>
+                                <span class="hud-text-sel" style="flex-grow: 1;">3.55 MHz (PAL)</span>
                             </div>
                             <div class="hud-row" style="position: relative;">
                                 <label>LED LP</label>
@@ -307,185 +401,172 @@ matrix.innerHTML = `
                     </div>
                 </div>
             `;
-            resetHUD();
-            cachedSystem = 'amiga';
         }
+
+        resetHistories();
+        cachedSystem = activeSystem;
+        hudDom = cacheDomForSystem(activeSystem);
     }
 
-    if (!isPlaying || !currentChipRegs) return;
-    
+    // Im eingeklappten Zustand ([ LAB MODE: OFF ]) keine Canvas-/DOM-Arbeit pro Frame verschwenden
+    const hudBody = document.getElementById('hud-body');
+    if (hudBody?.classList.contains('hidden')) return;
+    if (!isPlaying || !currentChipRegs || !hudDom) return;
+
     if (activeSystem === 'atari') {
         const r = currentChipRegs;
-        
-        let pitchA = ((r[1] & 0x0F) << 8) | r[0];
-        let hzA = pitchA === 0 ? 0 : 2000000 / (16 * pitchA);
-        if (hzA > 15000) hzA = 0; 
-        pitchHistA[histIdx] = hzA;
-        document.getElementById('pitch-a-val').innerText = Math.round(hzA) + ' Hz';
-        drawSparkline('pitch-a-chart', pitchHistA, (histIdx+1)%HIST_LEN, '#55ff55');
-        
-        let volA = r[8] & 0x0F;
-        document.getElementById('vol-a-bar').style.width = (volA / 15 * 100) + '%';
-        document.getElementById('vol-a-val').innerText = volA;
-        document.getElementById('heg-a-led').className = (r[8] & 0x10) ? 'hud-led on' : 'hud-led';
-        let digiA = (r[1] & 0xF0) >> 4;
-        document.getElementById('digi-a').innerText = digiA > 0 ? `SMP #${digiA}` : '--';
+        const hists = [pitchHistA, pitchHistB, pitchHistC];
 
-        let pitchB = ((r[3] & 0x0F) << 8) | r[2];
-        let hzB = pitchB === 0 ? 0 : 2000000 / (16 * pitchB);
-        if (hzB > 15000) hzB = 0;
-        pitchHistB[histIdx] = hzB;
-        document.getElementById('pitch-b-val').innerText = Math.round(hzB) + ' Hz';
-        drawSparkline('pitch-b-chart', pitchHistB, (histIdx+1)%HIST_LEN, '#55ff55');
+        for (let i = 0; i < 3; i++) {
+            const ch = hudDom.channels[i];
+            const lo = r[i * 2];
+            const hi = r[i * 2 + 1];
+            const pitch = ((hi & 0x0F) << 8) | lo;
+            let hz = pitch === 0 ? 0 : 2000000 / (16 * pitch);
+            if (hz > 15000) hz = 0;
 
-        let volB = r[9] & 0x0F;
-        document.getElementById('vol-b-bar').style.width = (volB / 15 * 100) + '%';
-        document.getElementById('vol-b-val').innerText = volB;
-        document.getElementById('heg-b-led').className = (r[9] & 0x10) ? 'hud-led on' : 'hud-led';
-        let digiB = (r[3] & 0xF0) >> 4;
-        document.getElementById('digi-b').innerText = digiB > 0 ? `SMP #${digiB}` : '--';
+            hists[i][histIdx] = hz;
+            setText(ch.pitchVal, `${Math.round(hz)} Hz`);
+            drawSparkline(ch.chart, hists[i], (histIdx + 1) % HIST_LEN, '#55ff55');
 
-        let pitchC = ((r[5] & 0x0F) << 8) | r[4];
-        let hzC = pitchC === 0 ? 0 : 2000000 / (16 * pitchC);
-        if (hzC > 15000) hzC = 0;
-        pitchHistC[histIdx] = hzC;
-        document.getElementById('pitch-c-val').innerText = Math.round(hzC) + ' Hz';
-        drawSparkline('pitch-c-chart', pitchHistC, (histIdx+1)%HIST_LEN, '#55ff55');
+            const volReg = r[8 + i];
+            const vol = volReg & 0x0F;
+            setBarWidth(ch.volBar, (vol / 15) * 100);
+            setText(ch.volVal, String(vol));
+            setLed(ch.hegLed, (volReg & 0x10) !== 0);
 
-        let volC = r[10] & 0x0F;
-        document.getElementById('vol-c-bar').style.width = (volC / 15 * 100) + '%';
-        document.getElementById('vol-c-val').innerText = volC;
-        document.getElementById('heg-c-led').className = (r[10] & 0x10) ? 'hud-led on' : 'hud-led';
+            if (ch.digiVal) {
+                const digi = (hi & 0xF0) >> 4;
+                setText(ch.digiVal, digi > 0 ? `SMP #${digi}` : '--');
+            }
+        }
 
         histIdx = (histIdx + 1) % HIST_LEN;
 
-        let noiseP = r[6] & 0x1F;
-        let exactHz = NOISE_LUT_HZ[noiseP];
-        let noiseStr = exactHz >= 10000 ? (exactHz / 1000).toFixed(1) + " kHz" : exactHz + " Hz";
-        document.getElementById('noise-bar').style.width = (noiseP / 31 * 100) + '%';
-        document.getElementById('noise-val').innerText = noiseStr;
+        const noiseP = r[6] & 0x1F;
+        const exactHz = NOISE_LUT_HZ[noiseP];
+        const noiseStr = exactHz >= 10000 ? `${(exactHz / 1000).toFixed(1)} kHz` : `${exactHz} Hz`;
+        setBarWidth(hudDom.noiseBar, (noiseP / 31) * 100);
+        setText(hudDom.noiseVal, noiseStr);
 
-        let mix = r[7];
-        document.getElementById('tone-a-led').className = (mix & 0x01) === 0 ? 'hud-led on' : 'hud-led';
-        document.getElementById('tone-b-led').className = (mix & 0x02) === 0 ? 'hud-led on' : 'hud-led';
-        document.getElementById('tone-c-led').className = (mix & 0x04) === 0 ? 'hud-led on' : 'hud-led';
-        document.getElementById('noise-a-led').className = (mix & 0x08) === 0 ? 'hud-led on' : 'hud-led';
-        document.getElementById('noise-b-led').className = (mix & 0x10) === 0 ? 'hud-led on' : 'hud-led';
-        document.getElementById('noise-c-led').className = (mix & 0x20) === 0 ? 'hud-led on' : 'hud-led';
-
-        let envP = (r[12] << 8) | r[11];
-        let envHz = envP === 0 ? 0 : 2000000 / (256 * envP);
-        document.getElementById('env-bar').style.width = (envP / 65535 * 100) + '%';
-        document.getElementById('env-val').innerText = envHz.toFixed(1) + ' Hz';
-        
-        let shapeBits = r[13];
-        let shapeStr = "--";
-        if (shapeBits !== 0xFF && shapeBits !== 0) {
-            const shapes = {
-                0:'\\___', 4:'/___', 8:'\\\\\\\\', 9:'\\___', 10:'\\/\\/', 
-                11:'\\---', 12:'////', 13:'/---', 14:'/\\/\\', 15:'/___'
-            };
-            let s = shapeBits & 0x0F;
-            shapeStr = `[0x${s.toString(16).toUpperCase()}] ` + (s < 4 ? '\\___' : (s < 8 ? '/___' : shapes[s] || `0x${s}`));
+        const mix = r[7];
+        for (let i = 0; i < 3; i++) {
+            setLed(hudDom.toneLeds[i], (mix & (1 << i)) === 0);
+            setLed(hudDom.noiseLeds[i], (mix & (1 << (i + 3))) === 0);
         }
-        document.getElementById('env-shape-val').innerText = shapeStr;
+
+        const envP = (r[12] << 8) | r[11];
+        const envHz = envP === 0 ? 0 : 2000000 / (256 * envP);
+        setBarWidth(hudDom.envBar, (envP / 65535) * 100);
+        setText(hudDom.envVal, `${envHz.toFixed(1)} Hz`);
+
+        const shapeBits = r[13];
+        const anyHeg = ((r[8] | r[9] | r[10]) & 0x10) !== 0;
+        let shapeStr = '--';
+        if (shapeBits !== 0xFF && (shapeBits !== 0 || anyHeg)) {
+            const s = shapeBits & 0x0F;
+            const sym = s < 4 ? '\\___' : (s < 8 ? '/___' : (YM_ENV_SHAPES[s] || `0x${s.toString(16).toUpperCase()}`));
+            shapeStr = `[0x${s.toString(16).toUpperCase()}] ${sym}`;
+        }
+        setText(hudDom.envShapeVal, shapeStr);
 
     } else if (activeSystem === 'c64') {
         const r = currentChipRegs;
-        
+        const hists = [pitchHistA, pitchHistB, pitchHistC];
+
         for (let v = 0; v < 3; v++) {
-            let base = v * 7;
-            
-            let freq = r[base] | (r[base+1] << 8);
+            const voice = hudDom.voices[v];
+            const base = v * 7;
+
+            const freq = r[base] | (r[base + 1] << 8);
             let hz = freq ? (freq * 985248) / 16777216 : 0;
-            if (hz > 15000) hz = 0; 
+            if (hz > 15000) hz = 0;
 
-            let histArr = v === 0 ? pitchHistA : (v === 1 ? pitchHistB : pitchHistC);
-            histArr[histIdx] = hz;
-            
-            document.getElementById(`c64-pitch-${v+1}-val`).innerText = hz >= 1000 ? (hz/1000).toFixed(1)+' kHz' : Math.round(hz) + ' Hz';
-            drawSparkline(`c64-pitch-${v+1}-chart`, histArr, (histIdx+1)%HIST_LEN, '#6c5eb5');
+            hists[v][histIdx] = hz;
+            setText(voice.pitchVal, hz >= 1000 ? `${(hz / 1000).toFixed(1)} kHz` : `${Math.round(hz)} Hz`);
+            drawSparkline(voice.chart, hists[v], (histIdx + 1) % HIST_LEN, '#7c8cf8');
 
-            let pw = r[base+2] | ((r[base+3] & 0x0F) << 8);
-            document.getElementById(`c64-pw-${v+1}-bar`).style.width = (pw / 4095 * 100) + '%';
-            document.getElementById(`c64-pw-${v+1}-val`).innerText = Math.round((pw / 4095) * 100) + '%';
+            const pw = r[base + 2] | ((r[base + 3] & 0x0F) << 8);
+            setBarWidth(voice.pwBar, (pw / 4095) * 100);
+            setText(voice.pwVal, `${Math.round((pw / 4095) * 100)}%`);
 
-            let ctrl = r[base+4];
-            document.getElementById(`c64-tri-${v+1}-led`).className = (ctrl & 16) ? 'hud-led on' : 'hud-led';
-            document.getElementById(`c64-saw-${v+1}-led`).className = (ctrl & 32) ? 'hud-led on' : 'hud-led';
-            document.getElementById(`c64-pul-${v+1}-led`).className = (ctrl & 64) ? 'hud-led on' : 'hud-led';
-            document.getElementById(`c64-noi-${v+1}-led`).className = (ctrl & 128) ? 'hud-led on' : 'hud-led';
-            document.getElementById(`c64-gate-${v+1}-led`).className = (ctrl & 1) ? 'hud-led on' : 'hud-led';
+            const ctrl = r[base + 4];
+            setLed(voice.triLed, (ctrl & 16) !== 0);
+            setLed(voice.sawLed, (ctrl & 32) !== 0);
+            setLed(voice.pulLed, (ctrl & 64) !== 0);
+            setLed(voice.noiLed, (ctrl & 128) !== 0);
+            setLed(voice.gateLed, (ctrl & 1) !== 0);
 
-            let ad = r[base+5];
-            let sr = r[base+6];
-            document.getElementById(`c64-adsr-${v+1}-val`).innerText = `A:${ad>>4} D:${ad&15} S:${sr>>4} R:${sr&15}`;
+            const ad = r[base + 5];
+            const sr = r[base + 6];
+            setText(voice.adsrVal, `A:${ad >> 4} D:${ad & 15} S:${sr >> 4} R:${sr & 15}`);
         }
-        
+
         histIdx = (histIdx + 1) % HIST_LEN;
 
-        let temp = r[29] || 55; 
-        let fcut = (r[21] & 7) | (r[22] << 3);
-        let norm = fcut / 2047.0;
+        const temp = r[29] || 55;
+        const fcut = (r[21] & 7) | (r[22] << 3);
+        const norm = fcut / 2047.0;
 
         // S-curve JFET transfer matching MOS 6581 CUTOFF_LUT (30Hz to 6200Hz)
         let baseHz = 30.0 + (1200.0 * norm) + (7200.0 * norm * norm) - (2230.0 * norm * norm * norm);
         if (baseHz > 6200.0) baseHz = 6200.0;
 
         // Exponential thermal semiconductor drift matching sid-chip.js
-        let thermalCoefficient = Math.exp(-(temp - 55.0) * 0.003);
-        let fhz = Math.max(30.0, Math.min(6800.0, baseHz * thermalCoefficient));
+        const thermalCoefficient = Math.exp(-(temp - 55.0) * 0.003);
+        const fhz = Math.max(30.0, Math.min(6800.0, baseHz * thermalCoefficient));
 
-        document.getElementById('c64-cut-bar').style.width = (fcut / 2047 * 100) + '%';
-        document.getElementById('c64-cut-val').innerText = `${Math.round(fhz)} Hz (${temp}°C)`;
+        const cutStr = fhz >= 1000 ? `${(fhz / 1000).toFixed(1)}k ${temp}°` : `${Math.round(fhz)}Hz ${temp}°`;
+        setBarWidth(hudDom.cutBar, (fcut / 2047) * 100);
+        setText(hudDom.cutVal, cutStr);
 
-        let fres = r[23] >> 4;
-        document.getElementById('c64-res-bar').style.width = (fres / 15 * 100) + '%';
-        document.getElementById('c64-res-val').innerText = fres;
+        const fres = r[23] >> 4;
+        setBarWidth(hudDom.resBar, (fres / 15) * 100);
+        setText(hudDom.resVal, String(fres));
 
-        let froute = r[23] & 15;
-        document.getElementById('c64-route-1-led').className = (froute & 1) ? 'hud-led on' : 'hud-led';
-        document.getElementById('c64-route-2-led').className = (froute & 2) ? 'hud-led on' : 'hud-led';
-        document.getElementById('c64-route-3-led').className = (froute & 4) ? 'hud-led on' : 'hud-led';
+        const froute = r[23] & 15;
+        for (let v = 0; v < 3; v++) {
+            setLed(hudDom.routeLeds[v], (froute & (1 << v)) !== 0);
+        }
 
-        let fmode = r[24] & 0xF0;
-        document.getElementById('c64-lp-led').className = (fmode & 16) ? 'hud-led on' : 'hud-led';
-        document.getElementById('c64-bp-led').className = (fmode & 32) ? 'hud-led on' : 'hud-led';
-        document.getElementById('c64-hp-led').className = (fmode & 64) ? 'hud-led on' : 'hud-led';
-        document.getElementById('c64-v3off-led').className = (fmode & 128) ? 'hud-led on' : 'hud-led';
+        const fmode = r[24] & 0xF0;
+        setLed(hudDom.lpLed, (fmode & 16) !== 0);
+        setLed(hudDom.bpLed, (fmode & 32) !== 0);
+        setLed(hudDom.hpLed, (fmode & 64) !== 0);
+        setLed(hudDom.v3OffLed, (fmode & 128) !== 0);
 
-        let vol = r[24] & 15;
-        document.getElementById('c64-vol-bar').style.width = (vol / 15 * 100) + '%';
-        document.getElementById('c64-vol-val').innerText = vol;
+        const vol = r[24] & 15;
+        setBarWidth(hudDom.volBar, (vol / 15) * 100);
+        setText(hudDom.volVal, String(vol));
 
     } else if (activeSystem === 'amiga') {
         const r = currentChipRegs;
         const hists = [pitchHistA, pitchHistB, pitchHistC, pitchHistD];
-        
+
         for (let c = 0; c < 4; c++) {
-            let base = c * 7;
-            
-            let address = (r[base] << 8) | r[base+1];
-            let lenWords = (r[base+2] << 8) | r[base+3];
-            let period = (r[base+4] << 8) | r[base+5];
-            let vol = r[base+6];
-            
+            const ch = hudDom.channels[c];
+            const base = c * 7;
+
+            const address = (r[base] << 8) | r[base + 1];
+            const lenWords = (r[base + 2] << 8) | r[base + 3];
+            const period = (r[base + 4] << 8) | r[base + 5];
+            const vol = r[base + 6];
+
             let hz = period > 0 ? 3546895 / period : 0;
-            if (hz > 60000) hz = 0; 
-            
+            if (hz > 60000) hz = 0;
+
             hists[c][histIdx] = hz;
-            document.getElementById(`amiga-pitch-${c}-val`).innerText = hz >= 1000 ? (hz/1000).toFixed(1)+' kHz' : Math.round(hz) + ' Hz';
-            drawSparkline(`amiga-pitch-${c}-chart`, hists[c], (histIdx+1)%HIST_LEN, '#ff8800'); 
-            
-            document.getElementById(`amiga-vol-${c}-bar`).style.width = (vol / 64 * 100) + '%';
-            document.getElementById(`amiga-vol-${c}-val`).innerText = vol;
-            
-            document.getElementById(`amiga-len-${c}-val`).innerText = (lenWords * 2) + ' B';
-            
-            let isAct = address > 0 && vol > 0 && lenWords > 0;
-            document.getElementById(`amiga-dma-${c}-led`).className = isAct ? 'hud-led on' : 'hud-led';
+            setText(ch.pitchVal, hz >= 1000 ? `${(hz / 1000).toFixed(1)} kHz` : `${Math.round(hz)} Hz`);
+            drawSparkline(ch.chart, hists[c], (histIdx + 1) % HIST_LEN, '#ff8800');
+
+            setBarWidth(ch.volBar, (vol / 64) * 100);
+            setText(ch.volVal, String(vol));
+            setText(ch.lenVal, `${lenWords * 2} B`);
+
+            const isAct = address > 0 && vol > 0 && lenWords > 0;
+            setLed(ch.dmaLed, isAct);
         }
-        
+
         histIdx = (histIdx + 1) % HIST_LEN;
     }
 }
