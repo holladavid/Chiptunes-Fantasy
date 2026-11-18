@@ -1,10 +1,11 @@
 // === js/ui/silicon/ym-2149.js ===
 // =========================================================
-// YAMAHA YM2149F (ATARI ST) LIVING SILICON VISUALIZER (v1.5.0)
-// Zero-Allocation, Zero-Clipping, Schematic-Grade Signal Flow:
-// - 3x Square-Wave Tone Generators with Live Period-Scaled Scopes
+// YAMAHA YM2149F (ATARI ST) LIVING SILICON VISUALIZER (v1.6.0)
+// Zero-Allocation, Zero-Clipping, Hardware-Pinout-Exact Signal Flow:
+// - Authentic DIP-40 Pinout: CH B (3), CH A (4), CH C (38), CLOCK (22)
+// - 3x Square-Wave Tone Generators with Frame-Rate-Independent Scopes
 // - 17-Bit LFSR Noise Generator with Live Shift-Register Bit Bar
-// - 5-Bit (32-Step) Hardware Envelope Generator with Dedicated Shape Scope & Sync-Buzzer Detector
+// - 5-Bit (32-Step) Hardware Envelope Generator with Corrected Shape Scope & Sync-Buzzer Detector
 // - 3x 32-Step Logarithmic DACs (-1.5dB/step) with Live Envelope & Digidrum Injection Buses
 // - On-Die Digidrum / Timer-B Hijack Detector & 32-Step Log-DAC Curve Stage
 // - External Atari ST Board Model: linear passive summing, polyphase resampling & analog output filters
@@ -27,12 +28,20 @@ export class Ym2149 extends BaseChip {
     constructor(container) {
         super(container);
         this.lastShape = -1;
+        this.lastMixerMask = -1;
+        this.lastNoiseBarW = -1;
+        this.lastEnvBarW = -1;
+        this.lastBoardSumW = -1;
+        this.lastBoardOutW = -1;
+        this.lastDacWidths = new Int16Array([-1, -1, -1]);
+        this.lastSqPaths = ['', '', ''];
         this.sqPhaseA = 0.0;
         this.sqPhaseB = 0.0;
         this.sqPhaseC = 0.0;
-        this.digiHoldFrames = 0;
+        this.digiHoldTimer = 0.0;
         this.activeDigiSample = 0;
         this.activeDigiVoice = 0;
+        this.lastT = 0.0;
     }
 
     cacheDOM() {
@@ -123,12 +132,27 @@ export class Ym2149 extends BaseChip {
             boardFilterBlock: q('.ym-board-filter'),
             boardOutBar: q('.ym-board-out-bar'),
             boardOut: q('.ym-board-out'),
+            boardFinalOut: q('.ym-board-final-out'),
 
+            // Authentic DIP-40 Pinout: CH A (4), CH B (3), CH C (38), CLOCK (22)
             pinOutA: q('.pin-bot-4'),
             pinOutB: q('.pin-bot-3'),
             pinOutC: q('.pin-top-38'),
-            pinClock: q('.pin-top-21')
+            pinClock: q('.pin-top-22')
         };
+
+        this.lastShape = -1;
+        this.lastMixerMask = -1;
+        this.lastNoiseBarW = -1;
+        this.lastEnvBarW = -1;
+        this.lastBoardSumW = -1;
+        this.lastBoardOutW = -1;
+        this.lastDacWidths.fill(-1);
+        this.lastSqPaths[0] = '';
+        this.lastSqPaths[1] = '';
+        this.lastSqPaths[2] = '';
+        this.digiHoldTimer = 0.0;
+        this.lastT = 0.0;
 
         if (this.cache.diagLbls && this.cache.diagLbls.length >= 4) {
             this.cache.diagLbls[0].textContent = 'ST CLK';
@@ -136,6 +160,15 @@ export class Ym2149 extends BaseChip {
             this.cache.diagLbls[2].textContent = 'HEG/DIGI';
             this.cache.diagLbls[3].textContent = 'SUM LEVEL';
         }
+    }
+
+    setBlockOpacity(el, minOp, value) {
+        if (!el) return;
+        const quant = Math.round(Math.max(0, Math.min(1, value)) * 20);
+        const key = (Math.round(minOp * 100) << 5) | quant;
+        if (el._ymOpKey === key) return;
+        el._ymOpKey = key;
+        el.style.opacity = (minOp + (quant / 20) * (1 - minOp)).toFixed(2);
     }
 
     buildSquareWavePath(x0, yMid, width, amp, active, period, phase) {
@@ -154,7 +187,6 @@ export class Ym2149 extends BaseChip {
             const xStart = Math.round(x0 + s * segW);
             const xEnd = Math.round(x0 + (s + 1) * segW);
             const y = ((s + flip) & 1) === 0 ? yHigh : yLow;
-            const prevY = ((s + flip - 1) & 1) === 0 ? yHigh : yLow;
             if (s === 0) {
                 d += `M ${xStart} ${y} H ${xEnd}`;
             } else {
@@ -165,8 +197,8 @@ export class Ym2149 extends BaseChip {
     }
 
     buildEnvelopeShapePath(shape) {
-        // Drawn strictly inside Scope Box: x = 580..642 (w=62), y = 132..152 (h=20)
-        const x0 = 580, x1 = 600, x2 = 621, x3 = 642;
+        // Drawn strictly inside Scope Box: x = 582..642 (w=60), y = 132..152 (h=20)
+        const x0 = 582, x1 = 602, x2 = 622, x3 = 642;
         const hi = 133, lo = 151;
         const s = shape & 0x0F;
 
@@ -184,7 +216,7 @@ export class Ym2149 extends BaseChip {
             case 10: // \/\/ (Triangle Inv)
                 return `M ${x0} ${hi} L ${x1} ${lo} L ${x2} ${hi} L ${x3} ${lo}`;
             case 11: // \‾‾‾ (Decay then Hold High)
-                return `M ${x0} ${hi} V ${lo} V ${hi} H ${x3}`;
+                return `M ${x0} ${hi} L ${x1} ${lo} V ${hi} H ${x3}`;
             case 12: // //// (Sawtooth Attack)
                 return `M ${x0} ${lo} L ${x1} ${hi} V ${lo} L ${x2} ${hi} V ${lo} L ${x3} ${hi}`;
             case 13: // /‾‾‾ (Attack then Hold High)
@@ -199,6 +231,10 @@ export class Ym2149 extends BaseChip {
     update(vols, regs, t = 0) {
         if (!regs || regs.length < 16) return;
 
+        const dt = this.lastT === 0 ? 0.016 : Math.max(0.001, Math.min(0.1, t - this.lastT));
+        this.lastT = t;
+        const dtScale = dt * 60.0;
+
         const vA = Math.min(1, vols[0] || 0);
         const vB = Math.min(1, vols[1] || 0);
         const vC = Math.min(1, vols[2] || 0);
@@ -207,7 +243,6 @@ export class Ym2149 extends BaseChip {
         const periodA = regs[0] | ((regs[1] & 0x0F) << 8);
         const periodB = regs[2] | ((regs[3] & 0x0F) << 8);
         const periodC = regs[4] | ((regs[5] & 0x0F) << 8);
-        const periods = [periodA, periodB, periodC];
 
         const setText = (el, text) => {
             if (el && el.textContent !== text) el.textContent = text;
@@ -221,7 +256,7 @@ export class Ym2149 extends BaseChip {
         const mixer = regs[7];
         setText(this.cache.mixerValue, `MIX R07:$${mixer.toString(16).toUpperCase().padStart(2, '0')}`);
 
-        // 2. Tone Generators & Live Square-Wave Scopes
+        // 2. Tone Generators & Live Frame-Rate-Independent Square-Wave Scopes
         const toneEnabled = [0, 1, 2].map((ch) => (mixer & (1 << ch)) === 0);
         const noiseEnabled = [0, 1, 2].map((ch) => (mixer & (1 << (ch + 3))) === 0);
 
@@ -239,26 +274,36 @@ export class Ym2149 extends BaseChip {
         setText(this.cache.toneBHz, formatHz(periodB, vB > 0.02 || toneEnabled[1]));
         setText(this.cache.toneCHz, formatHz(periodC, vC > 0.02 || toneEnabled[2]));
 
-        this.sqPhaseA = (this.sqPhaseA + (vA > 0.02 ? 0.35 : 0)) % (Math.PI * 2);
-        this.sqPhaseB = (this.sqPhaseB + (vB > 0.02 ? 0.35 : 0)) % (Math.PI * 2);
-        this.sqPhaseC = (this.sqPhaseC + (vC > 0.02 ? 0.35 : 0)) % (Math.PI * 2);
+        this.sqPhaseA = (this.sqPhaseA + (vA > 0.02 ? 0.35 * dtScale : 0)) % (Math.PI * 2);
+        this.sqPhaseB = (this.sqPhaseB + (vB > 0.02 ? 0.35 * dtScale : 0)) % (Math.PI * 2);
+        this.sqPhaseC = (this.sqPhaseC + (vC > 0.02 ? 0.35 * dtScale : 0)) % (Math.PI * 2);
 
-        if (this.cache.sqWaveA) {
-            this.cache.sqWaveA.setAttribute('d', this.buildSquareWavePath(152, 226, 74, Math.max(2, vA * 8), vA > 0.02 && toneEnabled[0], periodA, this.sqPhaseA));
+        const sqPathA = this.buildSquareWavePath(152, 226, 74, Math.max(2, vA * 8), vA > 0.02 && toneEnabled[0], periodA, this.sqPhaseA);
+        if (this.cache.sqWaveA && this.lastSqPaths[0] !== sqPathA) {
+            this.lastSqPaths[0] = sqPathA;
+            this.cache.sqWaveA.setAttribute('d', sqPathA);
         }
-        if (this.cache.sqWaveB) {
-            this.cache.sqWaveB.setAttribute('d', this.buildSquareWavePath(152, 294, 74, Math.max(2, vB * 8), vB > 0.02 && toneEnabled[1], periodB, this.sqPhaseB));
+        const sqPathB = this.buildSquareWavePath(152, 294, 74, Math.max(2, vB * 8), vB > 0.02 && toneEnabled[1], periodB, this.sqPhaseB);
+        if (this.cache.sqWaveB && this.lastSqPaths[1] !== sqPathB) {
+            this.lastSqPaths[1] = sqPathB;
+            this.cache.sqWaveB.setAttribute('d', sqPathB);
         }
-        if (this.cache.sqWaveC) {
-            this.cache.sqWaveC.setAttribute('d', this.buildSquareWavePath(152, 362, 74, Math.max(2, vC * 8), vC > 0.02 && toneEnabled[2], periodC, this.sqPhaseC));
+        const sqPathC = this.buildSquareWavePath(152, 362, 74, Math.max(2, vC * 8), vC > 0.02 && toneEnabled[2], periodC, this.sqPhaseC);
+        if (this.cache.sqWaveC && this.lastSqPaths[2] !== sqPathC) {
+            this.lastSqPaths[2] = sqPathC;
+            this.cache.sqWaveC.setAttribute('d', sqPathC);
         }
 
-        // 3. Mixer Gate Indicators
-        const toneIndicators = [this.cache.mixTA, this.cache.mixTB, this.cache.mixTC];
-        const noiseIndicators = [this.cache.mixNA, this.cache.mixNB, this.cache.mixNC];
-        for (let i = 0; i < 3; i++) {
-            if (toneIndicators[i]) toneIndicators[i].style.fill = toneEnabled[i] ? 'var(--highlight-color)' : 'var(--chassis-dark)';
-            if (noiseIndicators[i]) noiseIndicators[i].style.fill = noiseEnabled[i] ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+        // 3. Mixer Gate Indicators (dirty-checked on mixer byte bits 0..5)
+        const mixerBits = mixer & 0x3F;
+        if (this.lastMixerMask !== mixerBits) {
+            this.lastMixerMask = mixerBits;
+            const toneIndicators = [this.cache.mixTA, this.cache.mixTB, this.cache.mixTC];
+            const noiseIndicators = [this.cache.mixNA, this.cache.mixNB, this.cache.mixNC];
+            for (let i = 0; i < 3; i++) {
+                if (toneIndicators[i]) toneIndicators[i].style.fill = toneEnabled[i] ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+                if (noiseIndicators[i]) noiseIndicators[i].style.fill = noiseEnabled[i] ? 'var(--highlight-color)' : 'var(--chassis-dark)';
+            }
         }
 
         // 4. 17-Bit LFSR Noise Generator
@@ -269,12 +314,12 @@ export class Ym2149 extends BaseChip {
 
         const noiseHigh = regs[30] === 1;
         const anyNoiseRouted = (noiseEnabled[0] && vA > 0.02) || (noiseEnabled[1] && vB > 0.02) || (noiseEnabled[2] && vC > 0.02);
-        if (this.cache.noiseGen) {
-            this.cache.noiseGen.style.opacity = anyNoiseRouted ? (noiseHigh ? '1.0' : '0.65') : '0.35';
-        }
-        if (this.cache.noiseBar) {
-            const nWidth = anyNoiseRouted ? Math.round((noiseHigh ? 1.0 : 0.45) * ((32 - noisePeriod) / 32) * 150) : 0;
-            this.cache.noiseBar.setAttribute('width', Math.max(anyNoiseRouted ? 18 : 0, nWidth));
+        this.setBlockOpacity(this.cache.noiseGen, 0.35, anyNoiseRouted ? (noiseHigh ? 1.0 : 0.46) : 0.0);
+
+        const nWidth = anyNoiseRouted ? Math.max(18, Math.round((noiseHigh ? 1.0 : 0.45) * ((32 - noisePeriod) / 32) * 150)) : 0;
+        if (this.lastNoiseBarW !== nWidth) {
+            this.lastNoiseBarW = nWidth;
+            if (this.cache.noiseBar) this.cache.noiseBar.setAttribute('width', nWidth);
         }
 
         // 5. 5-Bit (32-Step) Hardware Envelope Generator (HEG) & Sync-Buzzer Detection
@@ -293,38 +338,36 @@ export class Ym2149 extends BaseChip {
         setText(this.cache.envLabel, `P:$${envelopePeriod.toString(16).toUpperCase().padStart(4, '0')} ${envHzStr}`);
         setText(this.cache.envShapeLabel, isSyncBuzzer ? `SHP:$${shape.toString(16).toUpperCase()} BUZZER!` : `SHAPE:$${shape.toString(16).toUpperCase()} (32-ST)`);
 
-        if (this.cache.envGen) {
-            this.cache.envGen.style.opacity = anyEnvActive ? `${0.55 + envelopeLevel * 0.45}` : '0.35';
-        }
-        if (this.cache.envLevel) {
-            this.cache.envLevel.setAttribute('width', `${Math.round((anyEnvActive ? envelopeLevel : 0) * 66)}`);
+        this.setBlockOpacity(this.cache.envGen, 0.35, anyEnvActive ? (0.31 + envelopeLevel * 0.69) : 0.0);
+        const envBarW = Math.round((anyEnvActive ? envelopeLevel : 0) * 66);
+        if (this.lastEnvBarW !== envBarW) {
+            this.lastEnvBarW = envBarW;
+            if (this.cache.envLevel) this.cache.envLevel.setAttribute('width', envBarW);
         }
         if (this.lastShape !== shape && this.cache.envShape) {
             this.lastShape = shape;
             this.cache.envShape.setAttribute('d', this.buildEnvelopeShapePath(shape));
         }
 
-        // 6. Digidrum / Timer-B DAC Hijack Detection
+        // 6. Digidrum / Timer-B DAC Hijack Detection (Time-based hold for 60/120Hz consistency)
         const trigSample = detectDigidrum(regs);
         const trigVoice = detectDigidrumVoice(regs);
         if (trigSample > 0) {
             this.activeDigiSample = trigSample;
             this.activeDigiVoice = trigVoice || 1;
-            this.digiHoldFrames = 10;
-        } else if (this.digiHoldFrames > 0) {
-            this.digiHoldFrames--;
-            if (this.digiHoldFrames === 0) {
+            this.digiHoldTimer = 0.18;
+        } else if (this.digiHoldTimer > 0) {
+            this.digiHoldTimer = Math.max(0.0, this.digiHoldTimer - dt);
+            if (this.digiHoldTimer === 0) {
                 this.activeDigiSample = 0;
                 this.activeDigiVoice = 0;
             }
         }
 
-        const isDigiActive = this.digiHoldFrames > 0;
+        const isDigiActive = this.digiHoldTimer > 0;
         const voiceNames = ['NONE', 'DAC A', 'DAC B', 'DAC C'];
 
-        if (this.cache.digiEngine) {
-            this.cache.digiEngine.style.opacity = (isDigiActive || isSyncBuzzer) ? '1.0' : '0.45';
-        }
+        this.setBlockOpacity(this.cache.digiEngine, 0.45, (isDigiActive || isSyncBuzzer) ? 1.0 : 0.0);
         setText(this.cache.digiStatus, isDigiActive ? `DIGI: SMP #${this.activeDigiSample.toString().padStart(2, '0')}` : 'DIGI: STANDBY');
         setText(this.cache.digiTarget, isDigiActive ? `INJECT -> ${voiceNames[this.activeDigiVoice]}` : 'TIMER-B: IDLE');
         setText(this.cache.hegStatus, isSyncBuzzer ? 'HEG: SYNC-BUZZER' : (anyEnvActive ? 'HEG: 5-BIT ENV' : 'HEG: FIX 4-BIT'));
@@ -354,9 +397,13 @@ export class Ym2149 extends BaseChip {
             }
 
             setText(dacVals[i], modeTxt);
-            if (dacBars[i]) dacBars[i].setAttribute('width', `${Math.round(lvl * 168)}`);
-            if (dacBlocks[i]) dacBlocks[i].style.opacity = `${0.35 + lvl * 0.65}`;
-            if (toneBlocks[i]) toneBlocks[i].style.opacity = `${0.35 + lvl * 0.65}`;
+            const dacW = Math.round(lvl * 168);
+            if (this.lastDacWidths[i] !== dacW) {
+                this.lastDacWidths[i] = dacW;
+                if (dacBars[i]) dacBars[i].setAttribute('width', dacW);
+            }
+            this.setBlockOpacity(dacBlocks[i], 0.35, lvl);
+            this.setBlockOpacity(toneBlocks[i], 0.35, lvl);
         }
 
         // 8. Signal Buses (Tone, Noise, Mixer, Envelope, Digidrum, Package Pins)
@@ -387,21 +434,31 @@ export class Ym2149 extends BaseChip {
 
         this.updateBusFlow(this.cache.boardSumFeed, normSum);
         if (this.cache.boardSum) {
-            this.cache.boardSum.style.opacity = `${0.35 + normSum * 0.65}`;
-            this.cache.boardSum.style.filter = normSum > 0.1 ? `drop-shadow(0 0 ${2 + normSum * 5}px var(--bus-active-color))` : 'none';
+            const sumQuant = Math.round(normSum * 15);
+            if (this.cache.boardSum._sumQuant !== sumQuant) {
+                this.cache.boardSum._sumQuant = sumQuant;
+                const qNorm = sumQuant / 15;
+                this.cache.boardSum.style.opacity = (0.35 + qNorm * 0.65).toFixed(2);
+                this.cache.boardSum.style.filter = qNorm > 0.1
+                    ? `drop-shadow(0 0 ${(2 + qNorm * 5).toFixed(1)}px var(--bus-active-color))`
+                    : 'none';
+            }
         }
-        if (this.cache.boardSumBar) {
-            this.cache.boardSumBar.setAttribute('width', `${Math.round(normSum * 150)}`);
+
+        const sumBarW = Math.round(normSum * 150);
+        if (this.lastBoardSumW !== sumBarW) {
+            this.lastBoardSumW = sumBarW;
+            if (this.cache.boardSumBar) this.cache.boardSumBar.setAttribute('width', sumBarW);
         }
         setText(this.cache.boardSumText, `LINEAR SUM: ${sumPct}%`);
 
-        if (this.cache.boardFilterBlock) {
-            this.cache.boardFilterBlock.style.opacity = `${0.40 + normSum * 0.60}`;
-        }
-        if (this.cache.boardOutBar) {
-            this.cache.boardOutBar.setAttribute('width', `${Math.round(normSum * 150)}`);
+        this.setBlockOpacity(this.cache.boardFilterBlock, 0.40, normSum);
+        if (this.lastBoardOutW !== sumBarW) {
+            this.lastBoardOutW = sumBarW;
+            if (this.cache.boardOutBar) this.cache.boardOutBar.setAttribute('width', sumBarW);
         }
         this.updateBusFlow(this.cache.boardOut, normSum);
+        this.updateBusFlow(this.cache.boardFinalOut, normSum);
 
         // 10. DIP-40 Physical Pins & Parallel I/O Ports
         this.updatePinGlow(this.cache.pinOutA, vA);
@@ -469,12 +526,12 @@ export class Ym2149 extends BaseChip {
                     <text x="458" y="133" fill="var(--highlight-color)">5-BIT ENV (HEG)</text>
                     <text class="ym-env-hz" x="458" y="149">P:$0000 0.0Hz</text>
                     <text class="ym-env-shape-label" x="458" y="164">SHAPE:$0 (32-ST)</text>
-                    <!-- Dedicated CRT Scope Box for Envelope Shape (x=576..646, y=126..156) -->
-                    <rect x="576" y="126" width="68" height="30" rx="1" fill="var(--chassis-dark)" stroke="var(--text-color)" stroke-width="0.8" />
-                    <path class="ym-env-shape-preview" d="M 580 133 L 600 151 H 642" />
+                    <!-- Dedicated CRT Scope Box for Envelope Shape (x=579..645, y=126..156) -->
+                    <rect x="579" y="126" width="66" height="30" rx="1" fill="var(--chassis-dark)" stroke="var(--text-color)" stroke-width="0.8" />
+                    <path class="ym-env-shape-preview" d="M 582 133 L 602 151 H 642" />
                     <!-- Live 5-Bit Envelope Output Bar -->
-                    <rect x="576" y="160" width="68" height="5" class="ym-envelope-meter-bg" />
-                    <rect class="ym-env-level" x="576" y="160" width="0" height="5" />
+                    <rect x="579" y="160" width="66" height="5" class="ym-envelope-meter-bg" />
+                    <rect class="ym-env-level" x="579" y="160" width="0" height="5" />
                 </g>
 
                 <!-- 2D: Parallel I/O Ports A & B (Floppy / Printer / Digidrum Regs R14/R15) -->
@@ -686,7 +743,7 @@ export class Ym2149 extends BaseChip {
                     <g class="ym-board-filter" style="opacity:0.45">
                         <rect x="918" y="268" width="280" height="106" rx="4" fill="var(--screen-bg)" stroke="var(--text-color)" stroke-width="1.5" />
                         <text x="1058" y="286" text-anchor="middle" fill="var(--highlight-color)">ST ANALOG &amp; SINC-FIR STAGE</text>
-                        <text x="1058" y="303" text-anchor="middle" style="font-size:6px;">2-STAGE · 256-PHASE KAISER-SINC · 20kHz PB · 96dB</text>
+                        <text x="1058" y="303" text-anchor="middle" style="font-size:5.4px;">2-STAGE · 256-PH KAISER-SINC · 20kHz · 96dB</text>
                         <text x="1058" y="319" text-anchor="middle" style="font-size:6px;">15.9kHz LP · 25Hz HP · LINEAR</text>
 
                         <text x="932" y="343" style="font-size:6px;" fill="var(--highlight-color)">MONO OUT</text>
@@ -697,6 +754,7 @@ export class Ym2149 extends BaseChip {
 
                     <!-- Clean Forward-Pointing Audio Output Arrow -->
                     <path class="silicon-bus-wire" d="M 1198 321 H 1232" marker-end="url(#ym-arrow)" />
+                    <path class="silicon-bus-packet ym-board-final-out" d="M 1198 321 H 1232" />
                 </g>
             </svg>
         `;
