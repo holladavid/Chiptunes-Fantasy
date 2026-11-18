@@ -4408,7 +4408,11 @@ body:has(#visual-zone:fullscreen) {
         min-height: 36px;
     }
 
-    #track-search { font-size: 16px; }
+    #track-search {
+        font-family: var(--font-prose);
+        font-size: 16px;
+        letter-spacing: 0.04em;
+    }
 
     #ui-zone {
         display: grid;
