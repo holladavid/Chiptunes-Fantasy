@@ -27,6 +27,8 @@ export class SidMeter {
         this.lastGateMask = -1;
         this.lastStateMask = -1;
         this.busHistory = new Float32Array(SID_BUS_HISTORY);
+        this.busBarHeights = new Int8Array(SID_BUS_HISTORY);
+        this.busBarHeights.fill(-1);
         this.busHistoryBars = null;
         this.busHistoryHead = 0;
         this.busHistoryAccumulator = 0;
@@ -34,6 +36,7 @@ export class SidMeter {
         this.smoothedBusRate = 0;
         this.lastBusText = '';
         this.lastDigiActive = false;
+        this.digiHoldTimer = 0;
         this.busText = null;
         this.digiLed = null;
     }
@@ -41,7 +44,7 @@ export class SidMeter {
     getHTML() {
         let voices = '';
         for (let v = 0; v < SID_METER_VOICES; v++) {
-            const x = 18 + v * 43;
+            const x = 22 + v * 56;
             let segments = '';
             for (let s = 0; s < SID_METER_SEGMENTS; s++) {
                 segments += `<rect class="sid-meter-segment" x="${x}" y="${89 - s * 4}" width="22" height="3" />`;
@@ -50,7 +53,7 @@ export class SidMeter {
                 <g class="sid-meter-voice sid-meter-voice-${v}">
                     <rect class="sid-meter-gate" x="${x}" y="22" width="22" height="3" />
                     ${segments}
-                    <line class="sid-meter-peak" x1="${x - 1}" x2="${x + 23}" y1="94" y2="94" />
+                    <line class="sid-meter-peak" x1="${x - 1}" x2="${x + 23}" y1="93" y2="93" />
                     <text class="sid-meter-voice-label" x="${x + 11}" y="103" text-anchor="middle">V${v + 1}</text>
                     <text class="sid-meter-state" x="${x + 11}" y="112" text-anchor="middle">IDLE</text>
                 </g>`;
@@ -58,7 +61,8 @@ export class SidMeter {
 
         let history = '';
         for (let i = 0; i < SID_BUS_HISTORY; i++) {
-            history += `<rect class="sid-bus-history-bar" x="${10 + i * 3}" y="150" width="2" height="0" />`;
+            const bx = (10 + i * 3.35).toFixed(2);
+            history += `<rect class="sid-bus-history-bar" x="${bx}" y="151" width="2.4" height="0" />`;
         }
 
         return `
@@ -71,8 +75,8 @@ export class SidMeter {
                     ${voices}
                     <text class="sid-meter-caption" x="10" y="125">REG WR/S · LOG</text>
                     <text class="sid-meter-bus-value" x="170" y="125" text-anchor="end">0</text>
-                    <rect class="sid-bus-history-frame" x="9" y="130" width="145" height="22" />
-                    <line class="sid-bus-history-grid" x1="10" y1="139" x2="153" y2="139" />
+                    <rect class="sid-bus-history-frame" x="9" y="130" width="162" height="22" />
+                    <line class="sid-bus-history-grid" x1="10" y1="140" x2="170" y2="140" />
                     ${history}
                 </svg>
             </aside>`;
@@ -89,6 +93,13 @@ export class SidMeter {
         this.busHistoryBars = container.querySelectorAll('.sid-bus-history-bar');
         this.busText = container.querySelector('.sid-meter-bus-value');
         this.digiLed = container.querySelector('.sid-meter-digi');
+        this.lastGateMask = -1;
+        this.lastStateMask = -1;
+        this.lastBusText = '';
+        this.lastDigiActive = false;
+        this.digiHoldTimer = 0;
+        this.voicePeakY.fill(-1);
+        this.busBarHeights.fill(-1);
     }
 
     update(vols, regs, writesPerSecond, dt) {
@@ -124,7 +135,7 @@ export class SidMeter {
             const gate = (regs[v * 7 + 4] & 1) !== 0;
             if (gate) gateMask |= (1 << v);
             const rawState = regs[30 + v] & 3;
-            const state = (!gate && envelope < 0.005) ? 3 : rawState;
+            const state = (!gate && envelope < 0.005) ? 3 : (!gate ? 2 : rawState);
             stateMask |= state << (v * 2);
         }
 
@@ -156,7 +167,13 @@ export class SidMeter {
             }
         }
 
-        const digiActive = (regs[25] || 0) > 2 || (regs[26] || 0) !== 0;
+        if ((regs[25] || 0) > 2 || (regs[26] || 0) !== 0) {
+            this.digiHoldTimer = 0.18;
+        } else if (this.digiHoldTimer > 0) {
+            this.digiHoldTimer = Math.max(0, this.digiHoldTimer - dt);
+        }
+
+        const digiActive = this.digiHoldTimer > 0;
         if (digiActive !== this.lastDigiActive) {
             this.lastDigiActive = digiActive;
             this.digiLed.classList.toggle('is-active', digiActive);
@@ -170,7 +187,9 @@ export class SidMeter {
             for (let i = 0; i < SID_BUS_HISTORY; i++) {
                 const level = this.busHistory[(this.busHistoryHead + i) % SID_BUS_HISTORY];
                 const height = Math.round(level * 20);
-                this.busHistoryBars[i].setAttribute('y', 150 - height);
+                if (this.busBarHeights[i] === height) continue;
+                this.busBarHeights[i] = height;
+                this.busHistoryBars[i].setAttribute('y', 151 - height);
                 this.busHistoryBars[i].setAttribute('height', height);
             }
         }

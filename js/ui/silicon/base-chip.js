@@ -21,7 +21,7 @@ export class BaseChip {
             const bottomPin = i + 1;
             const topPin = pinCount - i;
             const bottomCenter = px + pinW / 2;
-            const topCenter = bottomCenter + (topPin === 38 ? 15 : 0);
+            const topCenter = bottomCenter + (pinCount === 40 && topPin === 38 ? 15 : 0);
             pinsHTML += `<rect class="silicon-pin pin-bot-${bottomPin}" x="${px}" y="${bottomY}" width="${pinW}" height="15" rx="1" />`;
             pinsHTML += `<rect class="silicon-pin pin-top-${topPin}" x="${px}" y="${topY}" width="${pinW}" height="15" rx="1" />`;
             if (showNumbers) {
@@ -34,20 +34,13 @@ export class BaseChip {
 
     updateBusFlow(el, volume) {
         if (!el) return;
-        const wire = el._wire || (el._wire = (el.previousElementSibling && (el.previousElementSibling.classList.contains('silicon-bus-wire') || el.previousElementSibling.classList.contains('sid-bus-wire'))) ? el.previousElementSibling : null);
+        const wire = el._wire !== undefined
+            ? el._wire
+            : (el._wire = (el.previousElementSibling && (el.previousElementSibling.classList.contains('silicon-bus-wire') || el.previousElementSibling.classList.contains('sid-bus-wire'))) ? el.previousElementSibling : null);
 
-        if (volume > 0.04) {
-            // 1. Traveling Discrete Energy Packet (Photon)
-            el.style.opacity = Math.min(1.0, 0.25 + volume * 0.75);
-            el.style.filter = `drop-shadow(0 0 ${2 + volume * 4}px var(--highlight-color))`;
-
-            // 2. Base Circuit Wire Gentle Glow in System Color (C64 Blue, Amiga Orange, Atari Green)
-            if (wire) {
-                wire.style.stroke = 'var(--bus-active-color)';
-                wire.style.opacity = Math.min(0.85, 0.35 + volume * 0.50);
-                wire.style.filter = `drop-shadow(0 0 ${1 + volume * 3}px var(--bus-active-color))`;
-            }
-        } else {
+        if (volume <= 0.04) {
+            if (el._busQuant === 0) return;
+            el._busQuant = 0;
             el.style.opacity = '0';
             el.style.filter = 'none';
             if (wire) {
@@ -55,13 +48,40 @@ export class BaseChip {
                 wire.style.opacity = '0.20';
                 wire.style.filter = 'none';
             }
+            return;
+        }
+
+        const quant = Math.max(1, Math.min(20, Math.round(volume * 20)));
+        if (el._busQuant === quant) return;
+        el._busQuant = quant;
+
+        const norm = quant / 20;
+        // 1. Traveling Discrete Energy Packet (Photon)
+        el.style.opacity = Math.min(1.0, 0.25 + norm * 0.75);
+        el.style.filter = `drop-shadow(0 0 ${2 + norm * 4}px var(--highlight-color))`;
+
+        // 2. Base Circuit Wire Gentle Glow in System Color (C64 Blue, Amiga Orange, Atari Green)
+        if (wire) {
+            wire.style.stroke = 'var(--bus-active-color)';
+            wire.style.opacity = Math.min(0.85, 0.35 + norm * 0.50);
+            wire.style.filter = `drop-shadow(0 0 ${1 + norm * 3}px var(--bus-active-color))`;
         }
     }
 
     updatePinGlow(el, val) {
         if (!el) return;
-        el.style.fill = val > 0.1 ? 'var(--highlight-color)' : 'var(--panel-text)';
-        el.style.filter = val > 0.1 ? `drop-shadow(0 0 ${1 + val * 6}px var(--text-color))` : 'none';
+        const quant = val > 0.1 ? Math.max(1, Math.min(10, Math.round(val * 10))) : 0;
+        if (el._pinQuant === quant) return;
+        el._pinQuant = quant;
+
+        if (quant > 0) {
+            const norm = quant / 10;
+            el.style.fill = 'var(--highlight-color)';
+            el.style.filter = `drop-shadow(0 0 ${1 + norm * 6}px var(--text-color))`;
+        } else {
+            el.style.fill = 'var(--panel-text)';
+            el.style.filter = 'none';
+        }
     }
 
     // Muss von Kind-Klassen überschrieben werden
@@ -75,7 +95,7 @@ export class BaseChip {
         const profiles = {
             Sid6581: {
                 labels: ['PAL CLK', '$D418 BUS', 'VCF MODE', 'MODEL TEMP'],
-                values: ['0.98 MHz', 'STANDBY', 'STANDBY', '55°C SIM'],
+                values: ['0.985 MHz', 'STANDBY', 'STANDBY', '55°C SIM'],
                 stages: ['OSC 1–3', 'VCF', 'VCA', 'AUDIO OUT'],
                 description: 'Three oscillators feed the multimode filter and master VCA. Bright buses reveal active routing; envelope phases and filter values follow the emulated SID registers.',
                 diagramLabel: 'MOS 6581 SID Oszillatoren, Hüllkurven, Filter und Audioausgang'

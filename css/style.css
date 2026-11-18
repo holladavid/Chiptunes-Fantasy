@@ -3137,6 +3137,10 @@ body.chip-expanded .silicon-chassis:has(.ym-visualization) {
     opacity: 1;
 }
 
+.sid-meter-digi.is-active + .sid-meter-digi-label {
+    fill: var(--screen-bg);
+}
+
 .sid-meter-peak {
     stroke: var(--panel-text);
     stroke-width: 1;
