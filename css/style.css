@@ -2406,7 +2406,7 @@ body.eco-mode #brand-logo::after {
 .now-playing-metadata > div { min-width: 0; }
 
 .now-playing-meta-composer,
-.now-playing-meta-format {
+.now-playing-meta-hardware {
     grid-column: span 2;
 }
 

@@ -294,7 +294,7 @@ function updateNowPlayingLive(force = false) {
     const progress = totalFrames > 0 ? lastKnownFrame / totalFrames : 0;
     const seekable = canSeekActiveTrack();
 
-    if (nowPlayingConsole) {
+    if (nowPlayingConsole && (force || isVisualFullscreen())) {
         nowPlayingConsole.updateLive({
             currentTime,
             totalTime,
@@ -1636,6 +1636,7 @@ function handleFullscreenChange() {
     syncStageModeUI();
     resetMouseIdleTimer();
     if (isNativeFS && !wasNativeFullscreen) {
+        updateNowPlayingLive(true);
         focusControl(document.getElementById('btn-fullscreen'));
     } else if (!isNativeFS && wasNativeFullscreen) {
         if (!focusControl(fullscreenReturnFocus)) focusControl(document.getElementById('btn-fullscreen'));

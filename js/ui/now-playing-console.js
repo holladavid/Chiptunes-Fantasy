@@ -7,9 +7,14 @@ const CHANNEL_LABELS = Object.freeze({
     atari: ['PSG A', 'PSG B', 'PSG C']
 });
 
+function cleanMetaValue(value) {
+    const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+    if (!text) return '';
+    return /^(?:(?:unknown|unbekannt)\b|none$|n\/?a$|<\?+>$|[-–—?]+$)/i.test(text) ? '' : text;
+}
+
 function displayValue(value, fallback = 'NOT IN FILE') {
-    const text = String(value ?? '').trim();
-    return text || fallback;
+    return cleanMetaValue(value) || fallback;
 }
 
 function formatSubsong(system, metadata, currentSubsong) {
@@ -38,10 +43,12 @@ function formatHardware(system, metadata = {}) {
 
     const clock = Number(metadata.masterClock);
     const playerRate = Number(metadata.playerRate);
+    const digidrums = Number(metadata.digidrumCount);
     return [
         '3 PSG',
         clock > 0 ? `${(clock / 1000000).toFixed(2)} MHZ` : '',
-        playerRate > 0 ? `${playerRate} HZ` : ''
+        playerRate > 0 ? `${playerRate} HZ` : '',
+        digidrums > 0 ? `${digidrums} DIGI` : ''
     ].filter(Boolean).join(' · ');
 }
 
@@ -62,13 +69,16 @@ export function buildNowPlayingModel({
 
     return {
         system,
-        composer: displayValue(metadata?.author || selectedSong?.composer, fallback),
+        composer: displayValue(cleanMetaValue(metadata?.author) || cleanMetaValue(selectedSong?.composer), fallback),
         release: displayValue(
-            metadata?.released || metadata?.year || selectedSong?.released || selectedSong?.year,
+            cleanMetaValue(metadata?.released) ||
+            cleanMetaValue(metadata?.year) ||
+            cleanMetaValue(selectedSong?.released) ||
+            cleanMetaValue(selectedSong?.year),
             fallback
         ),
         subsong: pending ? '—' : formatSubsong(system, metadata, currentSubsong),
-        format: displayValue(metadata?.type || selectedSong?.format, fallback),
+        format: displayValue(cleanMetaValue(metadata?.type) || cleanMetaValue(selectedSong?.format), fallback),
         hardware: pending ? fallback : formatHardware(system, metadata || {}),
         next: nextTrack?.listTitle || nextTrack?.title || '—',
         channelLabels: CHANNEL_LABELS[system] || []
@@ -78,17 +88,29 @@ export function buildNowPlayingModel({
 export class NowPlayingConsole {
     constructor(root = document.getElementById('now-playing')) {
         this.root = root;
+        const pick = (id) => this.root?.querySelector?.(`#${id}`) || document.getElementById(id);
+
         this.fields = {};
+        this.lastFieldValues = {};
         for (const name of ['composer', 'release', 'subsong', 'format', 'hardware', 'next', 'time']) {
-            this.fields[name] = document.getElementById(`now-playing-${name}`);
+            this.fields[name] = pick(`now-playing-${name}`);
+            this.lastFieldValues[name] = '';
         }
-        this.progress = document.getElementById('now-playing-progress-fill');
-        this.progressBar = document.getElementById('now-playing-progress');
-        this.channels = [...document.querySelectorAll('.now-playing-channel[data-channel-index]')];
+
+        this.progress = pick('now-playing-progress-fill');
+        this.progressBar = pick('now-playing-progress');
+        this.channels = [...(this.root?.querySelectorAll?.('.now-playing-channel[data-channel-index]')
+            || document.querySelectorAll('.now-playing-channel[data-channel-index]'))];
+        this.channelFills = this.channels.map(ch => ch.querySelector('.now-playing-channel-fill'));
+        this.channelLabels = this.channels.map(ch => ch.querySelector('.now-playing-channel-label'));
+
         this.lastLiveUpdate = 0;
         this.lastTime = '';
         this.lastProgress = -1;
-        this.lastLevels = new Array(this.channels.length).fill(-1);
+        this.lastSeekable = '';
+        this.lastLevels = new Float32Array(this.channels.length).fill(-1);
+        this.lastAriaValues = new Int16Array(this.channels.length).fill(-1);
+        this.lastActiveStates = new Int8Array(this.channels.length).fill(-1);
         this.seekHandler = null;
 
         if (this.progressBar) {
@@ -102,6 +124,7 @@ export class NowPlayingConsole {
             };
             this.progressBar.addEventListener('pointerdown', (e) => {
                 if (!this.seekHandler || this.progressBar.dataset.seekable !== 'true') return;
+                if (e.pointerType === 'mouse' && e.button !== 0) return;
                 e.stopPropagation();
                 scrubbing = true;
                 this.progressBar.setPointerCapture?.(e.pointerId);
@@ -111,7 +134,13 @@ export class NowPlayingConsole {
                 if (!scrubbing) return;
                 seekAtEvent(e);
             });
-            const endScrub = () => { scrubbing = false; };
+            const endScrub = (e) => {
+                if (!scrubbing) return;
+                scrubbing = false;
+                if (this.progressBar.hasPointerCapture?.(e.pointerId)) {
+                    this.progressBar.releasePointerCapture?.(e.pointerId);
+                }
+            };
             this.progressBar.addEventListener('pointerup', endScrub);
             this.progressBar.addEventListener('pointercancel', endScrub);
         }
@@ -124,24 +153,44 @@ export class NowPlayingConsole {
     setField(name, value) {
         const element = this.fields[name];
         if (!element) return;
-        element.textContent = value;
-        element.title = value;
+        const nextText = String(value ?? '');
+        if (this.lastFieldValues[name] === nextText && element.textContent === nextText) return;
+        this.lastFieldValues[name] = nextText;
+        element.textContent = nextText;
+        element.title = nextText;
     }
 
     updateTrack(model) {
-        if (this.root) this.root.dataset.system = model.system;
+        if (this.root && this.root.dataset.system !== model.system) {
+            this.root.dataset.system = model.system;
+        }
         for (const name of ['composer', 'release', 'subsong', 'format', 'hardware', 'next']) {
             this.setField(name, model[name]);
         }
 
-        this.channels.forEach((channel, index) => {
+        for (let index = 0; index < this.channels.length; index++) {
+            const channel = this.channels[index];
             const label = model.channelLabels[index] || '';
             channel.hidden = !label;
-            if (!label) return;
-            channel.setAttribute('aria-label', `${label} live activity`);
-            const labelElement = channel.querySelector('.now-playing-channel-label');
-            if (labelElement) labelElement.textContent = label;
-        });
+            if (!label) {
+                this.lastLevels[index] = -1;
+                this.lastAriaValues[index] = -1;
+                this.lastActiveStates[index] = -1;
+                const fill = this.channelFills[index];
+                if (fill) fill.style.transform = 'scaleX(0)';
+                channel.setAttribute('aria-valuenow', '0');
+                channel.dataset.active = 'false';
+                continue;
+            }
+            const ariaLabel = `${label} live activity`;
+            if (channel.getAttribute('aria-label') !== ariaLabel) {
+                channel.setAttribute('aria-label', ariaLabel);
+            }
+            const labelElement = this.channelLabels[index];
+            if (labelElement && labelElement.textContent !== label) {
+                labelElement.textContent = label;
+            }
+        }
     }
 
     updateLive({ currentTime = '00:00', totalTime = '00:00', progress = 0, levels = [], playing = false, seekable = false }, force = false) {
@@ -150,7 +199,8 @@ export class NowPlayingConsole {
         this.lastLiveUpdate = now;
 
         const nextSeekable = String(Boolean(seekable));
-        if (this.progressBar && this.progressBar.dataset.seekable !== nextSeekable) {
+        if (this.progressBar && this.lastSeekable !== nextSeekable) {
+            this.lastSeekable = nextSeekable;
             this.progressBar.dataset.seekable = nextSeekable;
         }
 
@@ -161,20 +211,34 @@ export class NowPlayingConsole {
         }
 
         const clampedProgress = Math.min(1, Math.max(0, Number(progress) || 0));
-        if (this.progress && Math.abs(clampedProgress - this.lastProgress) > 0.0005) {
-            this.progress.style.transform = `scaleX(${clampedProgress})`;
+        if (this.progress && (Math.abs(clampedProgress - this.lastProgress) > 0.0005 || force)) {
             this.lastProgress = clampedProgress;
+            this.progress.style.transform = `scaleX(${clampedProgress.toFixed(4)})`;
         }
 
-        this.channels.forEach((channel, index) => {
-            if (channel.hidden) return;
-            const level = playing ? Math.min(1, Math.max(0, Number(levels[index]) || 0)) : 0;
-            if (Math.abs(level - this.lastLevels[index]) < 0.004 && !force) return;
+        for (let index = 0; index < this.channels.length; index++) {
+            const channel = this.channels[index];
+            if (channel.hidden) continue;
+
+            const rawLevel = playing ? Number(levels[index]) : 0;
+            const level = Number.isFinite(rawLevel) ? Math.min(1, Math.max(0, rawLevel)) : 0;
+            if (!force && Math.abs(level - this.lastLevels[index]) < 0.004) continue;
             this.lastLevels[index] = level;
-            const fill = channel.querySelector('.now-playing-channel-fill');
-            if (fill) fill.style.transform = `scaleX(${level})`;
-            channel.setAttribute('aria-valuenow', String(Math.round(level * 100)));
-            channel.dataset.active = String(level > 0.01);
-        });
+
+            const fill = this.channelFills[index];
+            if (fill) fill.style.transform = `scaleX(${level.toFixed(3)})`;
+
+            const ariaPct = Math.round(level * 100);
+            if (this.lastAriaValues[index] !== ariaPct) {
+                this.lastAriaValues[index] = ariaPct;
+                channel.setAttribute('aria-valuenow', String(ariaPct));
+            }
+
+            const activeFlag = level > 0.01 ? 1 : 0;
+            if (this.lastActiveStates[index] !== activeFlag) {
+                this.lastActiveStates[index] = activeFlag;
+                channel.dataset.active = activeFlag ? 'true' : 'false';
+            }
+        }
     }
 }
