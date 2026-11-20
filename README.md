@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.6.5)
+# 💾 CHIPTUNES FANTASY (v1.6.6)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -6,420 +6,105 @@
 ## 🎯 The Vision ("Von Nerds für Nerds")
 **Chiptunes Fantasy** is not a simple music player. It is a high-fidelity, real-time emulated music disk and interactive hardware laboratory that runs entirely in your web browser with zero external framework dependencies. Hardware-oriented emulation is validated subsystem by subsystem; measured reference agreement is not a claim of universal chip accuracy.
 
-We do not play MP3s or pre-recorded audio. We parse genuine, vintage binary tracker and music-driver formats (`.sid`, `.hipc`, `.mod`, `.xm`, `.dw`, `.ym`) and synthesize every single waveform, DMA fetch, filter, and envelope on-the-fly using highly optimized, low-latency asynchronous `AudioWorkletProcessors`.
+We do not play MP3s or pre-recorded audio. We parse genuine, vintage binary tracker and music-driver formats (`.sid`, `.hipc`, `.mod`, `.xm`, `.ym`) and synthesize every single waveform, DMA fetch, filter, and envelope on-the-fly using highly optimized, low-latency asynchronous `AudioWorkletProcessors`.
 
 ### 🌌 Why "Fantasy"?
-A real Commodore 64, Amiga 500, or Atari ST could *never* execute a cycle-exact sound routine, calculate a 3D vector star, render a PETSCII plasma, and drive a logic analyzer simultaneously—it would have melted the CPU instantly. 
+A real Commodore 64, Amiga 500, or Atari ST could *never* execute a cycle-exact sound routine, calculate a 3D vector star, render a PETSCII plasma, and drive a logic analyzer simultaneously—it would have melted the CPU instantly.
 
 But memory paints the past grander than it actually was. **This is our Fantasy.**
 Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with ruthless historical accuracy (strict hardware palettes, true bit-banged integer math, zero anti-aliasing). Our `Scene-DJ` then acts as the ultimate virtual orchestrator, taking these isolated, period-accurate effects and layering them into a breathtaking, synchronized demoscene experience that feels *exactly* like our childhood memories.
 
-## 🚀 v1.6.5 Release Highlights
-
-Version 1.6.5 delivers a comprehensive **Living Silicon hardware audit, visual engine performance overhaul, and historical metadata fact-check** across all three computer pillars (**Commodore 64**, **Amiga**, and **Atari ST**). It introduces **cross-folder transport navigation**, eliminates **iOS Safari mobile search zooming**, corrects **DIP pinouts and hardware filter polarities**, and optimizes the **CRT shader, oscilloscope, FFT analyzer, and CRT glitch pipelines** for high-refresh-rate (120 Hz+) displays.
-
-### Living Silicon Hardware Verification & Pinout Accuracy
-- **MOS 6581 SID (`js/ui/silicon/sid-6581.js`, `sid-meter.js`):** Repaired broken Voice 2 filter bypass bus trace (`sig-osc2-byp`), eliminated C64 typography clipping on Master VCA and VCF mode labels, rerouted `sig-master-out` inside the chip leadframe (avoiding top pin labels), aligned the VCF curve logarithmically to the true 6581 S-curve, added a bus-write hold timer for 120 Hz displays, centered voice meters symmetrically in `SidMeter`, added inverted high-contrast styling for the active `D418` badge, and implemented quantization dirty-checking in `BaseChip` reducing SVG DOM mutations by ~85%.
-- **MOS 8364 Paula (`js/ui/silicon/paula-8364.js`):** Corrected physical DIP-48 pin assignments to match authentic MOS specifications—stereo audio outputs now route to **Pin 31 (`AUDA` Left)** and **Pin 30 (`AUDB` Right)** instead of joystick POT pins 32/33, clock to **Pin 28 (`CCK` 3.55 MHz)** instead of data bit D3, and DMA request to **Pin 12 (`DMAL`)** instead of interrupt pin 15. Eliminated left/right trace crossings, connected missing RCA output packet animations, centered ZOH scopes, and normalized wave rendering across 60 Hz and 120 Hz screens.
-- **Yamaha YM2149F (`js/ui/silicon/ym-2149.js`):** Corrected clock input to authentic **Pin 22 (`CLOCK`)** instead of Port A Pin 21, fixed broken SVG path geometry on Hardware Envelope Shape 11 (`\---`), resolved text overflow in the Sinc-FIR filter box, added missing board output packet animations, normalized square-wave phases and digidrum hold to frame delta-time (`dt`), and added dirty-checking across all mixer, envelope, and DAC blocks.
-
-### Visual Engine Performance & CRT Shader Optimization
-- **Row-Batched FFT Analyzer (`js/visuals/components/fft-analyzer.js`):** Restructured VFD/phosphor segment rendering into row-batched draw calls, slashing Canvas `fillStyle` switches from ~2,000 down to ~60 per frame (~30× reduction in Canvas state overhead). Eliminated DC-offset leakage into 45 Hz sub-bass bins by sampling from bin 1+, clamped treble sampling iterations, and repositioned the Amiga dotted accent line above the spectrum to avoid intersecting frequency scale labels.
-- **Trigger-Locked Oscilloscope (`js/visuals/components/oscilloscope.js`):** Fixed long-term 8-bit `destination-out` alpha ghosting by introducing an automatic idle cleanup pass after 1.25 s of silence, converted the cross-correlation trigger to an amplitude-normalized **Mean Squared Error (-MSE)** lock over 64 fixed points (providing identical trigger stability across mobile portrait and 4K viewports), cached draw-style states to eliminate thousands of string parsing operations per frame, and reused endpoint samples in `buildSweepRaster()` for a 33% reduction in Catmull-Rom evaluations.
-- **3-Phase CRT Glitch & Degauss Collapse (`js/visuals/components/crt-glitch.js`):** Upgraded the transition glitch into a realistic 3-phase CRT power cycle synchronized with the 300 ms theme blackout: horizontal slice degauss sine wave and H-sync tearing, chromatic ghost split, and an intense electron beam collapse with a central phosphor bloom that automatically adopts the target system's phosphor accent color at the 50% cycle peak.
-- **CRT Shadow Mask Shader (`js/visuals/components/crt-shadow-mask.js`):** Phase-aligned scanlines (3.0 px) with phosphor dot cells to completely eliminate the 6 px moiré drift, and cached WebGL pipeline states and uniforms to prevent redundant setup calls on every rendered frame.
-
-### UI, Playback Transport & Mobile Ergonomics
-- **Full-Library Transport Stepping (`js/app.js`):** `INJECT ROM` now reliably starts Track #1 if triggered from the root directory or an empty folder view; `Next` (`BUS >`) and `Previous` (`< MEM`) now cycle seamlessly across the computer's entire library across folder boundaries (with automatic breadcrumb and selection synchronization) instead of remaining trapped in the active folder.
-- **Compact Mobile Search (`css/style.css`):** Replaced the wide `Press Start 2P` font in `#track-search` on mobile screens with compact `VT323` at 16px, allowing `"TRACK, PATH, COMPOSER"` to fit comfortably without clipping while strictly preventing unwanted iOS Safari auto-zooming.
-- **Fullscreen UI Refinement (`js/ui/fullscreen-ui.js`):** Streamlined transport button labels to eliminate brackets on the main playback bar (`RESUME BUS` vs `[ RESUME BUS ]`), preventing text clipping on narrow 375px mobile screens, cached DOM lookups, and bypassed timeline updates when the fullscreen bar is hidden.
-- **Now Playing Console Optimization (`js/ui/now-playing-console.js`):** Added sanitization for raw parser fallback strings, expanded the fullscreen hardware telemetry grid column span, improved pointer-capture handling, and bypassed 15 Hz DOM updates when the expanded telemetry pane is hidden in windowed mode.
-
-### Historical Hardware & Track Museum Fact-Checking
-- **System Hardware Dossiers (`js/content/museum.js`):** Comprehensive historical and technical review—clarified Bob Yannes' 5-month sprint, 4-person team, and later founding of Ensoniq; detailed MOS 6510 sub-cycle writes, VIC-II Bad Line bus stealing, and 6581 (12V, 470pF) vs 8580 (9V, 22nF) capacitor differences; documented Glenn Keller's Lorraine TTL breadboards, Agnus `DMAL` word slots, 57 kHz ECS/AGA VGA trick, and CIA-A `$BFE001` bit 1 power LED polarity; corrected Atari ST YM2149 Port A/B responsibilities vs the Hitachi HD6301V1 keyboard controller, and documented the physical mechanics of MFP-timer digidrum DAC injection.
-- **Song Liner Notes (`tracks/*/museum.js`):** Fact-checked and enriched all 216 entries—corrected *The Great Giana Sisters* cave lore from "Armin und Maria" to "Giana und Maria"; credited Marc Rosocha (coding/design) and Tim Moss (Digisynth) on *Wings of Death* and Claus Frein & Heinz Rudolf (X-Troll) on *Lethal Xcess*; resolved *Spherical* intro composers (Chris Hülsbeck & Ramiro Vaca); verified Martin Galway's 200 Hz *Wizball* quad-raster interrupts from his 2026 GitHub release; documented Tim Follin's dual-voice guitar distortion discovery on *L.E.D. Storm*; and explained Dizzy's `9xx` sample-offset trick on *Carillon*.
-- **Register Cheat Sheets (`js/content/cheatsheets.js`):** Inverted the documented Amiga power LED filter polarity to match physical hardware (ON/bright = 3.09 kHz filter active/warm; OFF/dimmed = bypass/bright), updated Paula DMA structure to 7 bytes, and documented active-low mixer bits on the YM2149.
 ---
-## 🚀 v1.6.4 Release Highlights
 
-Version 1.6.4 introduces a major **UI workspace & digital museum overhaul** alongside a **cross-system track library reorganization and metadata rewrite**. The curated library now spans **216 entries** (**215 music tracks + 1 SID emulation test suite**): **73 Amiga**, **57 C64** (56 tracks + 1 test suite, adding Rob Hubbard's *Delta* and Martin Galway's *Ocean Loader 1*), and **86 Atari ST** titles. Audio synthesis engines remain unchanged.
+## 🚀 What's New in v1.6.6
 
-### Workspace Modes, Story-First Museum Dossier & Scroller Cross-Linking
+Version 1.6.6 transforms the display and measurement stage into a live-tunable **Hardware Calibration Laboratory**, powered by a **linear-light WebGL CRT Shadow Mask overhaul**, a **configurable, 100 Hz-capped Phosphor Oscilloscope**, and an **A/B-enabled Calibration Deck** persisted automatically across sessions.
 
-- **Three Right-Panel Workspace Modes (`[ SPLIT ]` / `[ MUSEUM ]` / `[ CHIP ]`):** Replaces the single `[ HIDE CHIP ]` toggle in `.living-silicon-toolbar` with explicit **Split**, **Museum** (shortcut `A`), and **Chip** (expanded Living Silicon height) views, adds a clickable `> DATABASE & ARCHIVE` expand badge (`[ EXPAND ]` / `[ SPLIT ]`), adds a sticky `[ ↓ FULL MUSEUM (A) ]` overflow hint in Split mode, and skips Living Silicon updates while `archive-expanded` is active (`js/visuals/visualizer.js`).
-- **Museum Sub-Tabs & Story-First Dossier Layout:** Splits the archive pane into `[ TRACK STORY ]` and `[ HARDWARE ]` sub-tabs (`index.html`, `js/app.js`, `css/style.css`). Track selection now opens a 2-column desktop `.museum-story-dossier` pairing curated composer notes with a collapsible `> BINARY ANALYSIS` sidebar and direct `[ HARDWARE DEEP DIVE > ]` / `[ < BACK TO TRACK STORY ]` jump links, while system switches default cleanly to the hardware view.
-- **Semantic Hardware Dossiers & Command Deck Proportions:** Replaces inline HTML styles in `js/content/museum.js` with semantic `.museum-hardware-dossier`, `.museum-spec-card`, and `.museum-essay` layout classes, lowers the 3-column Command Deck breakpoint from `2200px` to **`1900px`** (bringing the 3-column layout to 1920×1080 Full HD and ultrawide displays), refines vertical `#demo-container` stage/UI balance, adds `1900px–2199px` diagnostics protection for Paula/YM2149F, and tunes C64/Amiga/Atari museum typography.
-- **Scroller-to-Museum Link (`js/visuals/scroller.js`, `js/app.js`):** Adds a `MUSEUM ↗` button to `#scroller-zone` that opens the current track's museum dossier (scrolling smoothly on mobile), adapts mobile `.scroller-actions` columns dynamically, and fixes the `museumStory()` regex delimiter so excerpts stop cleanly before `SID & Replay:`, `Technik & Replay:`, `YM2149 & Replay:`, or `Datei & Replay:`.
+### 🎛️ Interactive CRT & Scope Calibration Deck (`[ CRT / SCOPE ]`, Shortcut `[C]`)
+- **Live Calibration & `localStorage` Persistence:** Tune every CRT optics and oscilloscope parameter in real time via `DisplaySettingsStore` (`chiptunes-fantasy.display-settings.v1`) with strict numeric clamping, enum validation, double-click per-slider reset, and one-click `[ RESET ]`.
+- **Hardware Monitor Presets & `AUTO SYS`:** Switch instantly between **FACTORY**, **AUTO SYS** (`C64 → 1702 COMP`, `Amiga → 1084S RGB`, `Atari ST → TRINITRON`), **1084S RGB**, **1702 COMP**, **TRINITRON**, and **DELTA** shadow-mask profiles while preserving your chosen GPU quality tier.
+- **Instant A/B Live Comparison (`[B]`):** Toggle `[ A/B ]` / `[ ORIG ]` to bypass custom settings and compare your calibration directly against factory defaults on the live stage without losing your tuned values. Moving any slider exits bypass automatically.
+- **Responsive Stage-Aware Layouts:** Renders as a 2-column rack (3-column CRT grid on `≥ 1500px` viewports) below the playback deck on desktop, a right-docked floating rack inside native or pseudo-fullscreen stages, a pinned stage + bottom control sheet on mobile portrait (`≤ 800px`), and a **50/50 side-by-side live split** on mobile landscape (`≤ 1024×580`).
 
-### Cross-System Track Library Reorganization & Museum Overhaul
+### 📺 Linear-Light WebGL CRT Shadow Mask Pipeline (`crt-shadow-mask.js`)
+- **Physically Modeled Linear-Light Processing (Gamma 2.0):** Converts source frames into linear light (`c * c` → `sqrt` output) for physically consistent additive beam mixing, halation, and spot blooming, rendered via a seam-free fullscreen triangle with `highp` vertex coordinates (`>1000 px` mobile-GPU safe).
+- **Analytical Pixel-Snapped Phosphor Masks:** Exact 1-px box-filtered coverage across **Slot** (staggered triads), **Delta** (true hexagonal triad dots), and **Grille** (continuous vertical Trinitron stripes). Triads snap to integer multiples of 3 (6 for Delta) in device pixels, eliminating moiré drift at any DPR while preserving overall brightness (`meanTransmission = 1`).
+- **Two-Pass Low-Res Halation & Beam Physics:** `quality: 'high'` renders a 4:1 linear box-filter FBO pass (stored in gamma space to avoid 8-bit banding) for smooth 5-tap glass halation without ring-tap echoes, alongside beam-current spot blooming (closing mask bars and scanline gaps at high intensity), radial R/B convergence drift, 1×/2× scanline rows, barrel curvature with SDF rounded bezel, $\cos^4$ vignette, ambient glass sheen, and Jimenez interleaved gradient noise dithering (`±0.5 LSB`).
+- **Quality Tiers & Safe Fallbacks:** Supports `'low'` (4 fetches), `'medium'` (6 fetches, no FBO halation), and `'high'` (6 fetches + 5 glow + ~0.25 FBO pass), gracefully falling back from `'high'` to `'medium'` if RTT is unavailable and cleanly engaging the CSS scanline fallback on software rasterizers (`failIfMajorPerformanceCaveat`), missing `highp`, or lost WebGL contexts.
 
-- **C64 (`tracks/c64/` — 57 entries: 56 tracks + 1 test suite):** Consolidated files into `games/`, `musicdisks/`, `demoscene/`, and `tests/` with unified kebab-case filenames and chronological ordering via a single `c64Tracks` registry (`tracks/c64/playlist.js`); added Rob Hubbard's original *Delta* and Martin Galway's *Ocean Loader 1*; moved Tomas Danko's *Delta* reinterpretation to `demoscene/delta-tomas-danko.sid`; fixed swapped *Radio Napalm* / *Coma Light 13 (Tune 1)* SIDs and synchronized `js/content/songlengths.js`; corrected misnamed *Compilation III* and *Comaland 100% – FaceTime* entries; moved `sid-emulation-test.sid` into `tests/`; and rewrote `tracks/c64/museum.js` with SID hardware/driver details and DeepSID/CSDb/Demozoo links.
-- **Amiga (`tracks/amiga/` — 73 tracks):** Consolidated files into `games/` (with `amberstar/`, `dragonflight/`, `giana-sisters/`, and `wings-of-death/` subfolders), `demoscene/`, and `tracker-xm/` (`deadlock.xm`, `space-debris.xm`, `turrican-2-title.xm`); refactored `tracks/amiga/playlist.js` to a single chronological `amigaTracks` registry using explicit `sampleBank`, `envSpec`, and `format: 'hip68k'` flags instead of fragile path-prefix special cases; removed the unplayable `beast1.title.dw` dump and unused `dw-parser.js` import; rewrote all 73 `tracks/amiga/museum.js` entries; and added Wave 2 expansion implementation plans in `doc/implementation-plans/`.
-- **Atari ST (`tracks/atari/` — 86 tracks):** Consolidated files into `games/` and `demoscene/` with unified kebab-case filenames; moved `spherical-intro.ym` to `games/`, `punish-your-machine` to `demoscene/`, reunited *Stormlord* under `games/stormlord/`, fixed the `UndionDemo_ThinkTwice.YM` typo (`demoscene/union-demo/loader.ym`), removed the unused `Captain_Blood.sndh` binary, extracted all 86 inline descriptions from `tracks/atari/playlist.js` into a dedicated `tracks/atari/museum.js` (matching C64 and Amiga), and removed virtual `path`/`sourcePath` discrepancies.
-
----
-## 🚀 v1.6.3 Release Highlights
-
-Version 1.6.3 completes the **"Blade Runner" trilogy** by introducing the new **C64 `sid-bladerunner` Core v1.1 ("Director's Cut")**, upgrades the **Master Bus DSP (`master-processor.js`)** with a true complementary bs2b Bauer crossfeed and an O(1) smoothed lookahead brickwall limiter, and delivers a cross-platform **audio engine, playback lifecycle, and worklet hardening pass** across C64, Amiga, and Atari ST.
-
-### C64 MOS 6581 / 8580 "Blade Runner" Core v1.1 (`sid-bladerunner`)
-
-- **1 MHz Lockstep + CS-80 Dual-Rank Voice Layer:** Combines the cycle-stepped 6502 CPU and Kaiser-Sinc stereo SID core (with 2× oversampled Tow-Thomas-accurate ZDF-SVF, physical LP+HP notch behavior, subtle `3OFF` AC crosstalk, live `$D41B/$D41C` updates, and `dcBaseline` start-jump cancellation preserving 100% of `$D418` digis) with three parallel **Yamaha CS-80** dual-rank PolyBLEP voices.
-- **6502 Bus-Settle Latch & `$D418` Onset Transient Designer:** Uses a 64-cycle register-settle latch and pure sample-domain timing to prevent torn 16-bit frequencies or false arpeggio detection, selective `$D417` per-voice filter coupling, soft `$11` triangle-flute scaling, and a density-filtered dual-envelope `$D418` onset detector (`74 → 45 Hz` sub-kick + 95 ms holdoff) that stays silent during sustained speech or sample playback.
-- **Studio Space & Zero-GC Performance:** Adds dynamic Hz/waveform voice staging, a bass-exempt **True-Stereo Dimension-D BBD Chorus**, fluttered **Multi-Tap Tape Delay**, a **19 ms pre-delay + prime-length 4-channel Lexicon 224 FDN** with orthogonal mono-compatible stereo taps (`cL · cR = 0`), a $C^\infty$-smooth bias-shifted master tape saturator, hoisted `Math.tan()` coefficients, and a monotonic Padé-[5/4] `fastTanh` core.
-- **Technical Deep Dive:** [SID Blade Runner DSP Architecture & Math](doc/books/SID-BLADERUNNER-DSP.md).
-
-### Master Bus DSP Stage Upgrade (`master-processor.js`)
-
-- **True Complementary bs2b Bauer Crossfeed:** Replaces the fixed-delay crossfeed with a complementary 700 Hz crossfeed low-pass + 1000 Hz direct high-shelf topology (`0 dB` DC mono sum, `-4.73 dB` cross-feed weight) and a click-free 10 ms toggle crossfade.
-- **Smoothed O(1) 1.0 ms Lookahead Brickwall Limiter:** Introduces a monotonic sliding-window minimum deque paired with 1.0 ms moving-average attack smoothing over the lookahead buffer (eliminating pre-transient gain steps), periodic sum-drift correction, and proper mono fold-down.
-
-### Cross-System Worklet, Engine Lifecycle & UI Hardening
-
-- **Worklet Transport, Sample-Rate Scaling & Effect Accuracy:** Standardizes 10 ms anti-click fade ramps across C64/Atari cores; adds `playerRate`, `loopFrame`, sample-rate-scaled delay/slew/filter coefficients, and full state resets across `ym-bladerunner`, `ym-exact`, `ym-fantasy`, and `ym-standard`; hardens `paula-exact` and `paula-fantasy` with `CLEAR_SAMPLES`, DMA low-byte tail completion (`stopAfterLowByte`), variable-pattern-length `SEEK_TRACK`, tick-0 `basePeriod` restoration, exact $2^{-n/12}$ arpeggio math, clamped `0x09` sample offsets, true Schroeder allpass diffusion, and pause-state preservation.
-- **Audio Engine, Media Session & UI Race Protection (`audio-controller.js`, `media-session.js`, `app.js`):** Adds full worklet/AudioContext teardown and per-system `coreLoadTokens` against async race conditions, iOS `'interrupted'` context resume, explicit stereo bus channel counts, Media Session cleanup (`destroy()`), shared `getPlayerRate`/frame-time utilities, double-boot protection, `playRequestToken` guards during core switching, Amiga sample & SID temperature restoration across core switches, and pointer-based timeline scrubbing.
+### 📈 Configurable, Framerate-Independent Phosphor Oscilloscope (`oscilloscope.js`)
+- **100 Hz Simulation Cap & Framerate Independence:** Decouples `simulate()` from `compose()` with a `10 ms` (`MIN_STEP_SECONDS`) accumulator and proportional memory deposition, guaranteeing identical phosphor decay and brightness across 60 Hz, 120 Hz, 144 Hz, and 240 Hz displays without wasting CPU/GPU cycles.
+- **Level-Normalized Trigger & Layer-Batched Drawing:** Normalizes Schmitt trigger slope and `-MSE` correlation by peak and signal power so quiet and mid-level chiptune passages lock as steadily as loud leads; draws trace layers (`halo`, `core`, `turn`, `plateau`) sequentially instead of column-by-column to cut canvas state changes in half; replaces per-column `Math.pow()` calls with a precomputed `dwellLut`; centers bloom vertically on trace segments; and supports `#rgb/#rgba/#rrggbb/#rrggbbaa`, `rgb()/rgba()`, and CSS colors.
+- **Full Front-Panel Scope Controls:** Adjust **V/DIV Gain** (`0.50x–2.50x`), **Timebase** (`8–36 ms` with sample-rate-safe trigger headroom), **Persistence** (`0–100%`), **Phosphor Glow** (`0–100%`), **Graticule** (`OFF` / `0–100%`), **Beam FX** (`SPARKS`, `SPOT`, `OFF`), **Trigger** (`AUTO`, `FREE`), and **Phosphor Tint** (`SYS`, `P31` green, `P11` cyan, `AMBER`).
 
 ---
 
-## 🚀 v1.6.2 Release Highlights
-
-Version 1.6.2 delivers a major **Atari ST showcase update**: the Fantasy **`ym-bladerunner` DSP core** advances to **v2.5 ("Director's Cut")**, **`AtariEnchantedCastle`** receives a dense Winter-Gothic pixel-art overhaul with full DSE-rules compliance, **`AtariRetroSunset`** gains beat-choreographed **IK+ martial-arts sprites**, and fullscreen UI inactivity handling plus repository governance are refined. Exact/reference emulation cores (SID, Paula, YM2149 Exact) and the 214-track curated library remain unchanged.
-
-### Atari ST YM2149F "Blade Runner" Core v2.5 (Director's Cut)
-
-- **True Yamaha CS-80 voice architecture (`CS80Voice` × 3):** Replaces `MoogFilter` with fast Padé-[3/2] **Zero-Delay Feedback (TPT) SVFs (`ZDFFilter`)** featuring soft cubic bandpass saturation, dual-rank detuned PWM/sawtooth VCOs with Nyquist roll-off, ~9 ms legato ribbon glide (preserving fast arpeggios and tracker slides 1:1), per-frame retrigger/arpeggio detection, 12 dB HPF + 12 dB resonant LPF, and authentic **post-VCF pure Sine addition**.
-- **32-step hardware envelope & YM6 MFP-timer FX (`decodeSlotFx`):** Adds 32-step `YM_DAC` envelope interpolation, clean silencing for expired one-shot envelopes (`envStoppedZero`), PolyBLEP buzzer edge anti-aliasing, and MFP-clocked decoding for **YM6 Digidrum rates (2.5–32 kHz)**, **Atari SID-Voice** modulation, and **TAO Sync-Buzzer** phase resets, alongside a 1.5 ms anti-click Digidrum crossfade and start-flag snare-roll support.
-- **Sample-rate-independent stereo space pipeline:** Adds polynomial equal-power panning (`fastSinHalfPi`), a mono-compatible **True-Stereo Dimension-D BBD Chorus**, a flutter-modulated **Tape Multi-Tap Delay**, a **19 ms pre-delay + 2× Allpass + 4-channel quadrature-modulated Lexicon 224 FDN Reverb**, asymmetric tape saturation, signed block-peak visual telemetry, and live `SET_PARAMS` support.
-
-### Atari ST DSE Upgrades (`AtariEnchantedCastle`, `AtariRetroSunset` & `ik-fighter-sprites.js`)
-
-- **`AtariEnchantedCastle` (`background`):** Reimagined in strict 16-color, 9-bit Atari ST Shifter pixels as a snow-clad Carpathian/Dolomite Vampire Fortress inspired by *Tanz der Vampire* and Caspar David Friedrich (`FLOOR_HORIZON_RATIO = 0.55`). Replaces DOM-dependent fades and `globalAlpha` with a native **4×4 Bayer ordered-dither curtain** and Shifter sky seams, adds pre-baked ridge/couloir, ashlar masonry, and spruce-tuft LUTs, Bayer-dithered cylindrical towers, multi-volume fortress architecture, an 80-flake 3-layer snowfall pool, valley spruce groves, snow-fence/hollow-way/bridge and hunter silhouettes, YM channel (`smooth[0..2]`) reactivity, and 2.5 s `afterglow` Blood-Moon cooling.
-- **`AtariRetroSunset` + `ik-fighter-sprites.js` (`background`):** Adds a 100% DOM-free 9-bit Shifter sprite catalog (`IK_SPRITE_FRAMES`) compiling 29 hand-crafted IK+ martial-arts keyframes into zero-allocation RLE horizontal spans (`drawCompiledSprite`). Rolls per-fade-in between **`karateka`** (white Gi & red Hachimaki) and **`kaempferin`** (sleeveless Gi, crimson wraps/obi, indigo trousers & animated ponytail) with 50 Hz PAL-aligned strikes, beat canceling (`canCancelAt`), parabolic jumps, strike sparks, opening/closing bows, Zen katas, and foreground petals passing in front of the fighter.
-
-### Fullscreen Inactivity UI, Mobile Landscape & Governance
-
-- **Auto-hide consistency & fullscreen wakeups (`css/style.css`, `js/app.js`, `index.html`):** Fades `#brand-logo` during fullscreen inactivity alongside `#fs-ui-bar` and `.now-playing`, removes the `#fs-ui-bar:focus-within` lock so retained button focus does not pin the bar open, keeps `#brand-logo` visible in windowed mobile landscape (`<= 1024×580`) while respecting fullscreen auto-hide, evaluates `isFS` inside the idle timeout callback, wakes UI overlays on `touchmove` and `fullscreenchange`/`webkitfullscreenchange`, and updates the boot screen header to `V1.6.2`.
-- **Contributor governance:** Adds a Contributor Covenant v2.0 `CODE_OF_CONDUCT.md`.
-
----
-
-## 🚀 v1.6.1 Release Highlights
-
-Version 1.6.1 refines the **responsive UI & fullscreen stage cockpit**, hardens the **Scene-DJ engine's 50 Hz PAL timing and layer lifecycle**, and polishes three **Amiga DSEs** alongside nearest-neighbor HiDPI canvas scaling. Audio synthesis engines and the 214-track curated library remain unchanged.
-
-### Responsive UI, Fullscreen Cockpit & Canvas Rendering
-
-- **Harmonized CSS tokens & layout repairs:** Unified theme typography tokens (`--font-size-xs/sm/base/title/prose/grid`) across C64, Amiga, and Atari ST, repaired the `#player-panel` `.system-tabs` markup in `index.html` and an unclosed wrapper in Amiga `hud-debugger.js`, refined C64/Atari CRT contrast, and fixed the Amiga active-tab rainbow indicator without breaking hardware bevels.
-- **Desktop, widescreen & mobile stage containment:** Restricted the 3-column Command Deck to true widescreen (`>= 2200px`) while preserving a balanced 2-column layout up to `2199px`, positioned open `.silicon-guide` panels alongside `.silicon-chassis` (`1300px–2199px`), constrained mobile HUD drawers and eco overlays inside `#visual-zone`, and separated mobile landscape (`<= 1024×580`) rules with `env(safe-area-inset-*)` support.
-- **Unified fullscreen cockpit & timeline scrubbing:** Standardized the toggle to `[ FULL ]` / `[ EXIT ]`, prevented duplicate desktop track text while adding compact title (with `[SUB x/y]` subsong display), status, timer, and `#fs-progress-bar` scrubbing in mobile fullscreen, enabled pointer scrubbing on `#now-playing-progress` (`NowPlayingConsole.bindSeek`) for seekable Amiga/Atari tracks, and removed `#visual-zone` bottom border / Safari C64 theme bleed in fullscreen.
-- **Crisp nearest-neighbor scaling & resize observation:** Prioritized `image-rendering: pixelated` in `css/style.css` and wired `ResizeObserver` plus `fullscreenchange` listeners in `js/visuals/visualizer.js` with `0px` and `dt` guards so layout shifts and pseudo-fullscreen always resize the canvas, oscilloscope, `SceneDJ`, and CRT mask cleanly.
-
-### Scene-DJ Engine Timing, Lifecycle & Headless Testing
-
-- **>50 Hz PAL beat latching & bounded smoothing:** `StageManager` now latches missed `beatStarted` triggers and peak onset metrics per DSE cache on 60/120/144 Hz displays and delivers them once on the next rendered PAL tick; `TrackMonitor` uses clamped `[0, 1]` exponential smoothing and defensive `dt` clamping runs across all DJ managers.
-- **Sequential opaque transitions & lifecycle accuracy:** `SetlistManager` sequences outgoing/incoming `background` and `floor` swaps so fade-outs finish cleanly before replacement scenes start, defers managed swaps during `climax` and `afterglow`, enforces `maxInstances` during swaps, and avoids pre-filling `idle` slots on `forceSystemChange()`.
-- **Idle-skip, oneshot cleanup, tension & Atari novelty:** `StageManager` skips rendering and offscreen allocation for `idle` DSEs, invalidates caches on re-triggered starts, removes finished `oneshot` presenters after onstage `duration`, filters `getMaxClimaxHoldTime()` to active visible `managed` DSEs, normalizes `TensionManager` momentum to `dt` with preserved `buildup` hysteresis, and adds Atari YM2149 tone/volume novelty detection. `SceneDJ` passes system retro dimensions on `resize()` and defers `TrackPresenter` activation until playback starts.
-- **Headless verification & documentation sync:** Added `createCanvas` injection to `SceneDJ` and `StageManager` alongside `test/dj-engine-lifecycle.test.mjs`, `test/scene-dj-integration.test.mjs`, expanded beat tests, and updated [DSE development rules](doc/concepts/dse_development_rules.md).
-
-### Amiga OCS DSE Refinements
-
-- **`AmigaRetroSunset`:** Replaced the unmasked horizon beam and widening road-like water cone with `1 px` `1/z` perspective Copper scanlines, Copper-wobbled shoreline mountain reflections, and split crimson/gold wave glints; closed `0 px` mountain tile seams, fixed even-radius climax solar slits, preserved afterglow colors during `stopping`, and guarded trailing seagull, last sky-band, and `idle` edge cases.
-- **`AmigaBoingBall`:** Removed the rectangular red/gold floor flash box beneath the dithered checkerboard shadow, added hard `[0..w, 0..h]` polygon/edge clipping, hardened `starting`/`stopping` transition timing and `idle` resets, reduced shading steps to `12`, and cooled afterglow specular facets.
-- **`KefrensCheckerboard`:** Decoupled the floor highlight from `RetroSunset` with background-independent roaming Copper disco hotspots (single in calm play, dual crossing spots in `buildup`/`climax`) tinted from each active Copper palette, preserved afterglow cooling during `stopping`, fixed non-4px Bayer frontier stepping, and replaced per-segment PRNG glints with a tile-locked spatial hash.
-
----
-
-## 🚀 v1.6.0 Release Highlights
-
-Version 1.6.0 delivers a comprehensive **DSE Overhaul** across **12 system-specific Demo-Scene-Elements** for Amiga, Commodore 64, and Atari ST. Every updated effect now adheres strictly to the [DSE development rules](doc/concepts/dse_development_rules.md): deterministic, DOM-free integer rastering, strict hardware palettes, graded beat/channel choreography, dedicated `afterglow` transitions, and seamless continuity from mobile portrait to ultrawide displays. No audio synthesis engines or track-library counts are altered.
-
-### Architectural overhaul across all 12 updated DSEs
-
-- **True time-based 50 Hz PAL design:** Replaced frame-counter intervals, frame-rate-coupled smoothing, and `Math.random()` calls with clamped `dt` accumulators, local `stateAge` transition timers, modulo-wrapped phases, and instance-owned Xorshift32 PRNGs.
-- **DOM-free, zero-alpha retro rendering:** Eliminated `ctx.globalAlpha`, `ctx.save()`/`ctx.clip()`, offscreen DOM sprite/pattern canvases, shared module caches, and per-frame `getImageData()`/`putImageData()` raster readbacks. Background transitions use native Bayer 4×4 `fillRect` power curtains, while foreground DSEs emerge and retract geometrically without painting over background or floor layers.
-- **Strict hardware palettes & zero-allocation loops:** Precomputed immutable 12-bit Amiga OCS (4,096-entry), 9-bit Atari ST Shifter (512-entry), and 16-color C64 VIC-II Colodore hex tables alongside reusable typed buffers.
-- **Graded musical choreography:** Continuous reactions (`beatImpulse[0]`) scale motion, perspective depth, and luminance smoothly across soft, medium, and hard beats, while discrete palette, formation, and spawn changes trigger strictly on exact `beatStarted`/`beatCount` events. Dedicated **afterglow** modes preserve positions and decelerate into cooled night/dusk palettes instead of snapping back to `playing`.
-- **Responsive projection & rotation continuity:** Scaled projections, safe-area orbits, and dual landscape/portrait silicon layouts dynamically from buffer dimensions with strict `[0..width, 0..height]` clipping across portrait (`1:3`), desktop, and ultrawide (`3:1`) viewports.
-
-### Amiga OCS/ECS DSEs (12-bit RGB, 256 px)
-
-- **`KefrensCheckerboard` (`floor`):** Upgraded with four Copper palettes plus *Moonlit Indigo* afterglow, four scanline tile formations (Classic, Beveled Slabs, Cyber Grid, Racing Check), Copper line-scroll S-curves, traveling Z-shockwaves, scanline-interlaced horizon dither, and a specular sun-track aligned with `RetroSunset`.
-- **`PaulaSiliconBg` (`background`):** Rebuilt without DOM canvases or shared caches using precomputed octant Moiré rings clipped to the sky, non-overlapping L-R-R-L Paula DMA towers with live 3D PCB bus traces, and `smooth[0..3]` channel mapping.
-- **`AmigaRetroSunset` (`background`):** Activated the second parallax cloud layer, added aspect-stable tiled parallax mountains with beat-lit rim outlines, climax solar raster slits, clipped seagulls, deterministic leaping fish, odd-height-safe water reflections, and a blue-hour dusk afterglow.
-
-### Commodore 64 VIC-II DSEs (16-color Colodore, 200 px)
-
-- **`ChunkyPlasma` (`background`):** Added animated 8×8 PETSCII sub-block dithering across four circular VIC-II ramps, four plasma families (Dual-Sine, Twin-Orb, Diamond, Hyper-Vortex), Bayer-dithered night-indigo afterglow, and 3-voice SID channel mapping.
-- **`C64RetroSunset` (`background`):** Converted sky breathing, inner-edge sun dithering, and 1 px horizon heat-haze to time-based phases, added ordered sky-band dither seams, climax sun slits, deterministic `$D016` water ripples with traveling sparkle waves, and a twilight afterglow.
-- **`SidSiliconBg` (`background`):** Added dual adaptive landscape/portrait chip layouts, deterministic fallback waveform synthesis when `regs` are absent, sustain `1.0` ADSR protection, and beat-reactive bus/VCF highlights replacing the full-screen white climax flash.
-- **`C64VectorStar` (`foreground`):** Preserved the mechanical 6510 3-tick rotation stutter on a `dt` accumulator, added four Y-Raster-Interrupt palettes, 2-pass Z-depth splits, 2-step opaque wireframe ghost trails, vertex node sparkles, and safe-area Lissajous orbits.
-
-### Atari ST Shifter DSEs (9-bit RGB, 200 px)
-
-- **`AtariDotTorus` (`foreground`):** Fixed 50 Hz PAL Z-axis rotation stagnation, added depth-cued `1×1` back / `2×2` front pixel passes, four Shifter cycling palettes, knot/spiral morph modes, opaque ghost trails, and *Midnight Steel* afterglow.
-- **`AtariBobs` (`foreground`):** Replaced offscreen DOM sprite blitting with precomputed scanline circle LUTs, fixed single-quadrant clamping into symmetric 4-way kaleidoscope mirroring, added 3D chain-wave sizing, and horizontal/vertical carrier sweeps.
-- **`AtariRetroSunset` (`background`):** Fixed undefined `cPathLight`/`cPathDark` stone-path colors, line-clipping endpoint doubling, and out-of-bounds Torii/shrine/water draws; sculpted curved tapered Bonsai boughs tucked beneath sunlit foliage cushions with drifting beat petals and Zen moonlit afterglow.
-- **`WireframeMorph` (`foreground`):** Calibrated projection scaling across narrow and wide viewports, added four Shifter themes, 2-pass Z-depth lines, opaque ghost trails, and an inner-cube dual-shell mode.
-- **`YmSiliconBg` (`background`):** Eliminated `getImageData()`/`putImageData()` tears and full-screen white strobes in favor of dual adaptive landscape/portrait YM2149F square-wave bays, Log-DAC Copper shockwaves, deterministic LFSR noise rain, and zero-readback Timer-B Sync-Buzzer scanline shifts.
-
----
-
-## 🚀 v1.5.10 Release Highlights
-
-Version 1.5.10 expands the synchronized castle DSEs across all three retro systems: it adds **Amiga Castle Fireworks**, reimagines the **Atari Enchanted Castle** as a gothic storm scene, and refines the existing **C64 Castle Fireworks**. The Paula silicon visualization also receives a more compact output-stage layout.
-
-### Three system-specific castle scenes
-
-- **Amiga Castle Fireworks (`AmigaCastleFireworks`):** A new Amiga-only background DSE with a Gothic citadel, moonlit loch, stone viaduct, and beat-responsive fireworks, lightning, and atmospheric effects. Its bounded palette is quantized to Amiga 12-bit OCS colors.
-- **Atari Enchanted Castle (`AtariEnchantedCastle`):** A dark Atari ST castle-and-storm scene with a strict 16-color, 9-bit Shifter palette, precomputed ridge geometry, and beat-graded effects.
-- **C64 Castle Fireworks (`C64CastleFireworks`):** Refined castle, roof, and shoreline details, with scene choreography responding to beat strength and musical tension.
-- Each castle is registered only as a background for its corresponding system; the other systems' setlists remain separate.
-
-### Paula silicon output-stage layout
-
-- Compacts and shifts the filter-response windows to better fit the output-stage diagram.
-- Simplifies the FIFO status labels while preserving the live channel/fetch status.
-
-### Release validation status
-
-The focused command `node --test test/amiga-castle-fireworks.test.mjs test/atari-enchanted-castle.test.mjs test/c64-castle-fireworks.test.mjs test/paula-visualizer.test.mjs` currently reports **23 passing and 4 failing tests**. The failing assertions cover Amiga macro-state/tension choreography, Atari beat grading and macro-state choreography, and the Atari ordered-dither fade test in Node without a `document` global. Resolve or explicitly disposition these failures before treating the release as fully validated.
-
-Copy-ready GitHub texts are included for the [v1.5.10 pull request](doc/releases/v1.5.10-PR-Text.md) and [v1.5.10 release](doc/releases/v1.5.10-Release-Text.md). Earlier release highlights remain below as historical records.
-
----
-
-## 🚀 v1.5.9 Release Highlights
-
-Version 1.5.9 introduces the **C64 Castle Fireworks** background DSE, redesigns the brand logo into an interactive **Demoscene Soundchip Crest**, and refines oscilloscope phosphor persistence for razor-sharp transient tracking. The curated library remains at **214 directly playable tracks**: **73 Amiga**, **55 C64**, and **86 Atari ST** titles.
-
-### C64 Castle Fireworks background DSE (`C64CastleFireworks`)
-
-- **Castlevania-style gothic fortress:** standing centered and flush on the horizon (`floorHorizon = 0.55`), the multi-tiered castle features a towering keep with spire needle, asymmetric flank towers with crenellations and bartizans, glowing amber lancet windows, an arched portcullis gate with torches, and craggy rock foundations.
-- **Asymmetric mountain crags without artificial horizon lines:** dramatic rocky ridges rise above the horizon on the left flank, while terraced hills slope gently on the right, framing the fortress organically without any drawn horizontal ruler line.
-- **Dracula-style gothic silhouetted trees:** knobby dead oaks with twisted skeletal branches and drooping spruce/pines stand silhouetted against the night sky, moon, and stars.
-- **Musical beat-synchronized fireworks:** multi-colored C64 fireworks launch and detonate in the sky *behind* the castle silhouette, featuring radial particle bursts, parabolic gravity arcs, spark trails, center flashes, and intense climax barrages.
-- **Atmospheric night sky and foreground:** deep raster twilight sky with crescent moon, drifting clouds, twinkling stars, rolling dark meadows with dithered grass, plowed furrow fields, and a perspective S-curve winding path leading from the portcullis.
-- **Seamless floor DSE layering:** because the sky and castle reside strictly at `y <= floorY`, activating any Floor DSE cleanly replaces only the foreground landscape while keeping the gothic castle and sky fireworks 100% visible and unclipped.
-
-### Demoscene Soundchip brand crest and UI identity
-
-- **Interactive DIP-IC crest emblem:** redesigned `#brand-logo` features a 16-pin gold-plated DIP soundchip package with orientation notch, ceramic bevel, twilight raster horizon, and an animated 4-channel equalizer wavebar core.
-- **Demoscene typography and copper lockup:** dual-deck chrome-cycling typography with an animated copper raster bar and an active DJ status LED badge.
-- **System-specific color palettes:** dynamically adapts between C64 (VIC-II/SID purple-blue), Amiga (OCS Copper/Boing orange-amber), and Atari ST (YM2149/SM124 phosphor green).
-- **Interactive animations and idle auto-fade:** bouncing wavebars during demo mode, 3D push responses, and an automatic 10-second idle fade-out during Scene-DJ demo mode that restores immediately upon pointer movement.
-- **High-resolution icon set:** refreshed SVG, 192px, 512px, and Apple touch icons incorporating the new soundchip mark.
-
-### Oscilloscope phosphor persistence and decay tuning
-
-- **Crisp transient definition:** optimized phosphor decay rates (`slowFade` adjusted from 4.8 to 8.0 s⁻¹ active, `bloomFade` from 14.5 to 18.0 s⁻¹) reduce ghosting trails and visual clutter during rapid chiptune arpeggios and note transitions ($\tau = 125\text{ ms}$).
-- **Higher trace contrast:** increased baseline minimum trace alpha (`edgeAlpha` = 0.20) and optical bloom (0.58) ensure sharp, punchy signal visibility through the CRT shadow mask.
-- **Documentation:** updated mathematical decay formulas and time constants in the [Oscilloscope technical deep dive](doc/specs/oscilloscope_deep_dive.md).
-
-### Release validation and limits
-
-- **All 4 focused C64 castle fireworks tests passed (`test/c64-castle-fireworks.test.mjs`)**, verifying integer pixel geometry, C64 palette conformance, beat triggering, and viewport safety across standard, narrow, and widescreen viewports.
-- **Full visual/DSE suite green:** StageManager tension, Starfield, Copperbars, and TrackPresenter deterministic regression tests passed with zero errors.
-- As always, all audio synthesis remains genuine real-time emulation with zero prerecorded shortcuts.
-
-Copy-ready GitHub texts are included for the [v1.5.9 pull request](doc/releases/v1.5.9-PR-Text.md) and [v1.5.9 release](doc/releases/v1.5.9-Release-Text.md). Earlier release documents remain unchanged as historical records.
-
----
-
-## 🚀 v1.5.8 Release Highlights
-
-Version 1.5.8 makes the Scene-DJ respond to **how hard a beat hits**, adds a dedicated **CRT shadow-mask post-processing pipeline**, and turns the SID emulation test into an audible **ADSR and analogue-filter sweep laboratory**. The curated library now contains **214 directly playable tracks**: **73 Amiga**, **55 C64**, and **86 Atari ST** titles.
-
-### Sophisticated CRT monitor shadow-mask shader
-
-- **Real WebGL post-processing:** the existing demo canvas is rendered through a dedicated CRT pass after the visualizer, oscilloscope/FFT, Scene-DJ, and CRT-glitch stages. The source DSE rendering and its system-correct retro raster remain unchanged.
-- **Tube optics:** restrained barrel distortion, radial red/blue convergence drift, analogue beam-bandwidth smoothing, dynamic scanlines, phosphor cross-bleed, glass sheen, vignette, and tube-edge shading create a coherent monitor image rather than a simple overlay.
-- **Energy-aware RGB mask:** a staggered RGB slot/dot-triad mask with a black matrix shapes individual phosphor apertures. Mask bloom follows beam energy, while scanline depth eases at high brightness to retain luminous detail.
-- **Stable and efficient integration:** the mask pitch is anchored to CSS pixels, source textures are allocated only when dimensions change and updated in place thereafter, and no framework or external runtime dependency is introduced.
-- **Graceful fallback:** if WebGL is unavailable or its context is lost, the existing CSS scanline presentation remains available; a restored context re-enables the shader path.
-
-### Gradual beat intensity for the Scene-DJ and universal DSEs
-
-The `TrackMonitor` now publishes a continuous `beatStrength` from **0.0 to 1.0**, a shared `beatLevel` (**none / soft / medium / hard**), and a strength-weighted `beatImpulse`. Its initial value is `beatEnvelope[0] × beatStrength` and it decays smoothly without erasing the last accepted beat's strength or level.
-
-This separates **visual intensity** from **musical timing**: continuous movement, brightness, thickness, and warp reactions use `beatImpulse`, while pattern, palette, formation, direction, and layout changes still require the exact `beatStarted` / `beatCount` event. A decaying envelope can therefore never retrigger choreography.
-
-- **Starfield:** graded warp thrust plus C64 raster wobble, Amiga nebula/brightness accents, and an integer Atari star-size kick.
-- **Copperbars:** graded vertical nudge, climax interference, and core-punch thickness; formations and Copperlists still change only on exact fourth beats.
-- **TrackPresenter:** system-correct panel motion and an additional climax title nudge; one-shot behavior and exact fourth-beat layout changes remain intact.
-- **LimitBar:** its isolated soft/medium/hard responses were refined, but the DSE intentionally remains disabled in the registry.
-- **VoidElement:** remains a transparent, zero-drawing placeholder and does not invent a beat reaction.
-
-The DSE baseline harness provides reproducible **soft = 0.20**, **medium = 0.50**, and **hard = 0.90** impulses. The [DSE development rules](doc/concepts/dse_development_rules.md) and [audio/visual pipeline](doc/concepts/audio_visual_pipeline.md) document the complete contract and legacy-metrics fallbacks.
-
-### SID emulation test: audible ADSR and analogue-filter sweeps
-
-`SID_Emulation_Test.sid` is now a **60-test, 91.72-second PSID v2 program** driven by real generated 6502 code at 50 Hz. After the **40 oscillator patterns**, one common **220 Hz sawtooth** makes the following settings directly comparable:
-
-- Four **16-step ADSR sweeps** cover attack, decay, sustain, and release. Gate retriggers make each step audible; the release sweep explicitly gates off.
-- A dry filter reference and **11 filter sweeps** then exercise cutoff, resonance, routing, and mode combinations using a constant full-level envelope, without retriggering the gate or ADSR between filter steps.
-- Four coupling tests complete the sequence. The updated song-length metadata and curated duration both use **91.72 seconds**.
-
-A targeted SID engine fix now saturates a retriggered Attack envelope at **255** instead of overflowing the 8-bit envelope DAC. This removes the non-finite synthesis output exposed by fast full-level retriggers rather than hiding it in the test generator.
-
-### Release validation and limits
-
-- **62/62 focused release-feature tests passed**, covering the CRT pass and fallback, graded beat detection/routing, universal DSE responses, generated 6502/SID register sequences, envelope saturation, and C64 curation.
-- The complete **55-track C64 curation corpus** was regenerated after the envelope fix: every track passed the audible, finite, deterministic, block-size-independent, and restart-identical checks.
-- The complete **4,586-frame / 91.72-second** SID test render completed with **zero non-finite samples**. Browser playback and the intentionally truncated **01:31** duration display were also checked.
-- The full regression run comprised **427 tests: 411 passed, 9 failed, and 7 skipped**. The remaining failures are the known unrelated SID synthetic-corpus `noise-adsr` hash mismatch and eight FFT/oscilloscope tests; this is not an all-green full-suite claim.
-- The CRT effect requires WebGL for the full shader presentation and retains a CSS fallback otherwise. Headless checks do not replace final physical-device GPU/browser acceptance.
-
-Copy-ready GitHub texts are included for the [v1.5.8 pull request](doc/releases/v1.5.8-PR-Text.md) and [v1.5.8 release](doc/releases/v1.5.8-Release-Text.md). Earlier release documents remain unchanged as historical records.
-
----
-
-## 🚀 v1.5.7 Release Highlights
-
-Version 1.5.7 turns the main oscilloscope into a real, triggered PCM instrument, redesigns the FFT display as a segmented phosphor analyzer, and refines the existing Scene-DJ/DSE presentation. The curated library remains unchanged at **213 directly playable tracks**: **73 Amiga**, **54 C64**, and **86 Atari ST** titles. No SID, Paula, or YM synthesis-engine replacement is included.
-
-### Real PCM oscilloscope with CRT phosphor sweep
-
-- **Actual audio time-domain data:** the scope reads a reused **4096-sample AnalyserNode buffer** through `getFloatTimeDomainData()`, with a byte-domain fallback. Each **32 ms** analysis window is derived from the real `AudioContext.sampleRate`—**1,536 samples at 48 kHz** or **1,411 samples at 44.1 kHz**—rather than from a 60 Hz history of scalar values.
-- **Stable, loss-aware waveform rasterization:** whole-buffer DC removal, a hysteresis-armed rising zero-crossing trigger with linear interpolation, and per-pixel-column min/max mapping preserve the waveform shape and single-sample impulses. A fixed gain and **160 quantized amplitude levels** retain the retro instrument character.
-- **Readable phosphor motion:** a bright **32 ms left-to-right sweep** draws only newly reached columns, while a separate dim reference trace persists for **420 ms**. Retrace stays blank, avoiding an artificial horizontal return line.
-- **Bounded rendering work:** PCM buffers and column rasters are reused, the internal canvas runs at reduced resolution, and a wide transparent outer stroke replaces expensive shadow blur on hundreds of subpaths. Soft shadow is reserved for the small beam head; the spark pool is capped at **64** particles.
-
-### Segmented FFT phosphor analyzer
-
-The FFT display now uses **48 logarithmic bars from 45 Hz to 12 kHz**, system-specific palettes, an unlit LED matrix, measurement lines, a logarithmic frequency ruler, and time-based peak-hold gravity. A **4096-point FFT / 2,048-bin** analyser is sampled at **30 Hz**; typed arrays, bin ranges, segment colors, and the static grid are reused or cached. Animation and peak decay use elapsed time rather than assuming a 60 Hz display.
-
-### Music-aware DSE refinement and responsive continuity
-
-- **Tension and macro states:** moderate passages accumulate tension more slowly, while full-board channel energy and active beats can accelerate the build. Distinct **playing** and **buildup** phases remain visible before climax. C64 tension ignores the fourth telemetry slot, which carries SID write rate rather than an audio-channel level.
-- **Starfield:** three exact-beat-switched patterns add warp/vortex variation, deterministic recycling, and system-specific movement. Widescreen coverage and immediate redistribution after mobile rotation prevent clustered stars and large empty regions without restarting the DSE.
-- **Copperbars:** three fourth-beat-switched formations, alternating beat direction, state-sensitive punch/twist, and a dedicated afterglow treatment create clearer musical choreography while retaining deterministic system palettes.
-- **TrackPresenter:** aliased 5×7 bitmap typography, exact fourth-beat layout changes, state-specific color/motion, and rotation-safe deterministic layouts replace browser-text styling in the presenter.
-- **C64 and Paula repairs:** the C64 sunset positions its rasterized sun relative to the actual raster radius so narrow portrait buffers do not hide it below the horizon. Paula silicon-floor cache hits now receive instance-owned canvas copies, preventing later resizes from deforming shared cache snapshots or other formats.
-- **Development contract:** [DSE development rules](doc/concepts/dse_development_rules.md) document music response, exact beat events, macro states, historical palettes/resolutions, responsive projection, rotation continuity, deterministic resources, performance, and the acceptance matrix.
-
-### CF pixel-chip identity for browser, iOS, and PWA
-
-A custom CF pixel-chip mark is now used as the SVG favicon, opaque **180×180 Apple touch icon**, and **192×192 / 512×512 PWA icons**, including a maskable 512px entry. The artwork is local to the project; no external icon service or runtime dependency was added.
-
-### Release validation and limits
-
-- **23/23 focused tests passed:** 11 spectrum/PCM-visualizer tests plus 12 tension, Starfield, Copperbars, and TrackPresenter tests. Coverage includes 30/60/120 Hz sweep behavior, PCM capture/window sizing, DC removal and triggering, impulse preservation, reference-trace decay, resize/clear safety, deterministic DSE behavior, exact beat events, and responsive redistribution.
-- Production-browser playback was checked with **Commando** (C64/SID), **Space Debris** (Amiga/Paula), and **Goldrunner** (Atari/YM), including desktop, mobile portrait/landscape, and **1440×896 fullscreen** presentation, with no observed runtime errors.
-- In the final measured PCM browser run, oscilloscope rendering averaged **2.1871 ms**, with **1.7 ms median** and **2.8 ms p95**. These measurements describe that browser/setup only and are not a universal frame-rate or physical-device guarantee.
-- This is focused release validation, not a newly all-green complete-suite claim. The known pre-existing SID synthetic-corpus mismatch and unavailable C64/SID random-access seeking remain outside this release's scope. Headless/mobile-viewport testing does not replace final physical-device Safari/PWA acceptance.
-
-Copy-ready GitHub texts are included for the [v1.5.7 pull request](doc/releases/v1.5.7-PR-Text.md) and [v1.5.7 release](doc/releases/v1.5.7-Release-Text.md). Earlier release documents remain unchanged as historical records.
-
----
-
-## 🚀 v1.5.5 Feature Highlights
-
-Version 1.5.5 adds four carefully documented Amiga conversions from *The Great Giana Sisters* and turns the bottom scroller into an adaptive, song-aware information strip. It carries forward the v1.5.4 Amiga Exact refinement program, curated libraries, and targeted C64/Atari corrections without changing the audio engines in this release.
-
-The curated library now contains **209 directly playable tracks**: **73 Amiga**, **50 C64**, and **86 Atari ST** titles. Compared with v1.5.4, the four Giana conversions expand the Amiga selection from 69 to 73 tracks; all previous playlist paths remain intact.
-
-### New: The Great Giana Sisters on Amiga
-
-A dedicated `giana-sisters` folder contains **Title Screen**, **Get Ready!**, **In-Game 1 – Ground**, and **In-Game 2 – Cave**. Every entry has a researched museum card, local binary facts, safe source links, and hash-bound provenance. The documentation distinguishes Chris Hülsbeck's underlying compositions, Thomas Lopatic's 1988 Amiga music and Beathoven Synthesizer replay, and the later four-channel ProTracker conversions supplied here. The original BSS modules are not presented as ProTracker files, and no unverified conversion author is credited.
-
-Only these four verified, browser-compatible conversions are included. **Options** and **High Scores** remain outside the release because no suitable verified conversions were selected; C64 SIDs, Atari YM files, BRSTMs, and prerecorded audio were not used as substitutes.
-
-### New: Adaptive song scroller
-
-The bottom scroller now derives **TRACK**, **TECH**, and **STORY** channels from the selected song's curated title, binary metadata, core, subsong, and museum research. Its lower-amplitude sine motion is time-based and seamlessly wrapped. Hover and **HOLD/RUN** provide pause control, native buttons expose the channels to keyboard and touch users, and reduced-motion preferences are respected. The mobile strip has a bounded 108px height plus the device safe area; playback and emulation code are unchanged.
-
-### Amiga Exact — measurement, replay, output, and production acceptance
-Phases 0–5 establish reproducible evidence before changing behavior, then correct the production `paula-exact` path subsystem by subsystem:
-
-- **Measurement foundation:** A real-worklet offline harness exposes separate Paula, ZOH, and A500 taps, while the corpus inventory records formats, tracker features, source hashes, and reference requirements.
-- **Digital state and transport:** `AUDxVOL = 0` now silences the DAC without stopping DMA or period state. `PLAY_TRACK` performs a complete restart reset; pause/resume preserves sequencer, sample, effect, DMA, and filter state.
-- **COSO/HIPC and HIP68K:** Replay uses the PAL CIA timer period 14188—approximately **49.99852 Hz**, not an assumed exact 50 Hz. HIP68K schedules its documented DMA start and loop-latch writes at raster-derived positions within the replay tick.
-- **MOD/XM:** Continuous arpeggio, portamento, tone-portamento, vibrato, tremolo, volume slides, combined effects, effect memory, sample offset, linear XM frequencies, panning, global volume, variable pattern lengths, and multi-channel attenuation are covered by focused tests and real modules.
-- **Linear A500 approximation:** Uncalibrated LF347/`tanh` stages were removed. The documented 4.421 kHz RC filter, optional 3.09 kHz LED filter with continuous bypass history, 255-tap FIR, and 0.7 output scale remain software approximations—not a measured Amiga-mainboard calibration.
-
-The [Phase 5 production report](doc/verification/amiga/phase5-report.md) and the earlier phase reports retain their historical evidence instead of rewriting old baselines as new behavior landed.
-
-### Curated Amiga and C64 libraries — 52 new additions
-The **73-track Amiga library** contains 35 HIPC-family, 35 MOD, and 3 XM entries. Its 28 additions comprise 12 game classics, 12 demo-scene modules, and four Giana Sisters conversions, with nested folders, individual museum research, local binary facts, and hash-bound provenance. The Giana cards distinguish Thomas Lopatic's Beathoven Synthesizer Amiga music from the later ProTracker files. Selection and editorial decisions are documented in [Amiga track sources](doc/museum/amiga-track-sources.md).
-
-The **50-track C64 library** retains all 26 existing paths and adds 24 HVSC #85 files: 20 game soundtracks and four demo-scene works. Every entry has an individual museum card and official sub-song lengths. Folder navigation is now enabled in the production C64 interface. The 43 direct MD5 mappings, seven path-based legacy mappings, source decisions, and the documented 23-subsong Rambo variant are covered in [C64 track sources](doc/museum/c64-track-sources.md).
-
-Public availability in Modland or HVSC does **not** imply public domain, redistribution permission, or a commercial-use license. Rights remain with their respective holders; the provenance files document origin and integrity, not a new license grant.
-
-### C64 environmental diagnostics and Atari YM5 Digidrums
-C64 environmental readouts no longer average the fourth telemetry slot—the SID bus-rate value—as a fictitious audio channel. Random jitter was removed and smoothing is time-based rather than frame-rate-dependent. This changes the presentation/sensor model only, not SID emulation.
-
-Atari YM5 frames now receive a version-specific normalization for Digidrum start bits in R3; global YM6 decoding is unchanged. A regression test uses a real *Punish Your Machine* frame and proves that normalized R3 value `0x31` starts sample 0 as a Digidrum on voice C. The sample audit covers 20 sample-based tracks: eight affected YM5 files were repaired by the normalization, eleven YM6 files remain correctly decoded, and *Turrican 1* contains sample blocks but no Digidrum start commands.
-
-### Validation and known limitations
-- **Full suite:** 367 tests — 359 passed, 7 skipped, 1 known pre-existing failure.
-- **Amiga library:** 73/73 tracks passed audible, finite, deterministic, block-size-independent, and restart-identical offline acceptance; no silent A500 title was found. All four Giana conversions also passed real desktop- and mobile-viewport Chromium playback, adaptive-scroller channel and pause checks, reduced-motion behavior, museum cards, credits, source links, and bounded-layout checks.
-- **C64 library:** 50/50 tracks passed the equivalent four-render offline acceptance. Representative PSID and RSID playback, folders, museum cards, and source links were also exercised in desktop and mobile-viewport Chromium.
-- **Atari:** The real YM5 Punish-frame regression and sample audit cover the corrected behavior without changing YM6 semantics.
-
-The remaining full-suite failure is `SID synthetic corpus matches the reviewed Phase 3 raw/trace/WAV hashes`; its `noise-adsr` baseline was not overwritten. Details and hashes are retained in the [C64 curation report](doc/verification/c64/curation-report.md). Offline timing ratios are not device underrun guarantees, headless mobile viewports are not physical-device tests, and self-generated hashes are regression anchors—not hardware truth references. C64/SID random-access seeking remains unavailable.
-
-Copy-ready GitHub texts are included for the [v1.5.5 pull request](doc/releases/v1.5.5-PR-Text.md) and [v1.5.5 release](doc/releases/v1.5.5-Release-Text.md). Earlier release documents remain unchanged as historical records.
-
----
-
-## 🔬 Living Silicon & Hardware-Oriented Chip Telemetry
+## ✨ Core Features & Architecture
+
+### 🎬 Scene-DJ & System-Accurate Demo-Scene Elements (DSEs)
+*   **50 Hz PAL Orchestration:** Our `Scene-DJ` monitors channel energies, track novelty, beat strength (`soft` / `medium` / `hard` impulses vs. exact musical beat boundaries), and macro tension (`playing`, `buildup`, `climax`, `afterglow`) to choreograph layered background, floor, foreground, and presenter DSEs—including *Amiga/C64/Atari Castles*, *Retro Sunsets*, *Kefrens Checkerboards*, *IK+ Martial Arts*, *Starfields*, *Copperbars*, and *PETSCII Plasmas*.
+*   **Ruthless Historical Accuracy:** All DSEs run DOM-free inside system-strict retro rasters and hardware color tables (16-color C64 Colodore, 4,096-color 12-bit Amiga OCS, 512-color 9-bit Atari ST Shifter) with Bayer 4×4 ordered dithering and crisp `image-rendering: pixelated` scaling.
+*   **Row-Batched FFT Phosphor Analyzer:** 48 logarithmic VFD/phosphor bars from `45 Hz` to `12 kHz` sampled from a 4096-point FFT with DC-offset rejection, time-based peak-hold gravity, and row-batched draw calls.
 
 ### 🧬 Interactive "Living Silicon" Die & Motherboard Telemetry
-Each of the three sound pillars features a real-time SVG silicon die and external motherboard circuit model driven by emulator telemetry:
-*   **MOS 6581 (C64):** Features live 12-bit PWM duty-cycle bars, `TEST`-bit DC lock & `W&` (NMOS Wire-AND) indicators, inter-voice Hard-Sync (`SY`) and XOR Ring-Modulation (`RM`) pathways, register-driven ADSR graphs with live phase/level tracer dots, a morphing 2MHz ZDF VCF response display (`LP`/`BP`/`HP`/`NOTCH`), direct-path `3OFF` routing, `$D418` Galway/PlaySID digi detection, and active DIP-28 address/data (`A0–A4`, `D0–D7`, `/CS`, `PHI2`) pin flashing. The v1.5.2 SID Activity instrument adds three envelope/GATE meters with peak holds and actual ADSR phases, plus a logarithmic register-write counter and 48-column bus history.
-*   **MOS 8364 Paula (Amiga 500):** Displays zero-clipping 4-channel Agnus/Paula DMA telemetry (`LC`, `LEN`, `PER`, `Hz`, 6-bit `AUDxVOL` bars), Dual 14-Bit Multiplying DACs with **live animated four-times-host-rate Zero-Order Hold (ZOH) staircase oscilloscopes**, an on-die `DMACON` (`D0–D3`) & 16-bit FIFO core, jumper-arc PCB routing, and an external **linear A500 approximation** (4.421 kHz static RC + live morphing 3.09 kHz Butterworth LED filter curves).
-*   **Yamaha YM2149F (Atari ST):** Showcases live period-scaled **Square-Wave Oscilloscopes** in Tone A/B/C, a 17-bit LFSR noise activity bar, a dedicated CRT scope for all 16 5-bit Hardware Envelope (HEG) shapes with automatic **Sync-Buzzer** detection, visible HEG and Digidrum DAC injection buses, an on-die 32-step Log-DAC & Digidrum hijack detector, and an external **Atari ST Board** model with linear `R43–R45` summing, a summed-level meter, 256-phase Kaiser-sinc resampling and linear 15.9 kHz / 25 Hz output filters.
+Each soundchip pillar drives a real-time SVG silicon die and external motherboard circuit model directly from emulator telemetry:
+*   **MOS 6581 SID (C64):** Live 12-bit PWM duty-cycle bars, `TEST`-bit DC lock & `W&` (NMOS Wire-AND) indicators, Hard-Sync (`SY`) and Ring-Mod (`RM`) pathways, register-driven ADSR graphs with live phase/level tracer dots, logarithmic 6581 ZDF VCF response curve (`LP`/`BP`/`HP`/`NOTCH`), `3OFF` direct routing, `$D418` digi detection, active DIP-28 pins (`A0–A4`, `D0–D7`, `/CS`, `PHI2`), and a 48-column bus history meter.
+*   **MOS 8364 Paula (Amiga 500):** 4-channel Agnus/Paula DMA telemetry (`LC`, `LEN`, `PER`, `Hz`, 6-bit `AUDxVOL`), Dual 14-Bit Multiplying DACs with **live animated 4× Zero-Order Hold (ZOH) staircase oscilloscopes**, authentic DIP-48 pin assignments (`Pin 31 AUDA`, `Pin 30 AUDB`, `Pin 28 CCK`, `Pin 12 DMAL`), `DMACON` & FIFO status, and an external linear A500 filter stage (`4.421 kHz` static RC + morphing `3.09 kHz` LED filter).
+*   **Yamaha YM2149F (Atari ST):** Live period-scaled square-wave oscilloscopes for Tone A/B/C, 17-bit LFSR noise activity, dedicated CRT scope for all 16 5-bit Hardware Envelope shapes with Sync-Buzzer detection, visible HEG and Digidrum DAC injection buses, authentic `Pin 22 CLOCK` indicator, 32-step Log-DAC readout, and external Atari ST board output filters.
+
+### 📚 216-Entry Curated Library & Story-First Digital Museum
+*   **Three Computer Pillars:** **216 curated entries** across **Amiga (73)**, **Commodore 64 (57: 56 music tracks + 1 60-test SID emulation suite)**, and **Atari ST (86)** with full-library cross-folder transport stepping (`BUS >` / `< MEM`), search, and subsong switching.
+*   **Story-First Museum & Workspace Modes:** Switch right-hand panels between `[ SPLIT ]`, `[ MUSEUM ]` (`[A]`), and `[ CHIP ]` modes. Every track features fact-checked historical liner notes, DeepSID/CSDb/Demozoo/Modland provenance, binary structure analysis, system hardware dossiers, register cheat sheets, and a synchronized adaptive bottom scroller (`TRACK` / `TECH` / `STORY`) with direct `MUSEUM ↗` jumping.
+
+### 🎧 Audiophile Master Bus DSP & Ergonomics
+*   **Complementary Bauer Binaural Crossfeed (bs2b):** 700 Hz crossfeed low-pass + 1000 Hz direct high-shelf (`0 dB` DC mono sum, `-4.73 dB` crossfeed) with a click-free 10 ms toggle crossfade (`[ STEREO BLEND ]`) to eliminate headphone fatigue on hard-panned Amiga and StereoSID mixes.
+*   **1.0 ms Smoothed Lookahead Brickwall Limiter:** O(1) monotonic sliding-window minimum deque with moving-average attack smoothing capping peaks cleanly at `-0.35 dBFS` without pre-transient stepping or OS ducking.
+*   **Cockpit & Power Saving:** Supports Desktop Command Deck layouts (up to 3-column ultrawide), native & pseudo-fullscreen stages with timeline scrubbing and auto-hiding overlays, Media Session lockscreen integration, and `[ HALT GFX ]` Eco Mode (`[M]`).
 
 ---
 
 ## 🎛️ The Three Soundchip Pillars
 
+Each system supports an **Exact** hardware-oriented core plus optional **Fantasy Studio** / **Blade Runner** DSP reinterpretations:
+
 ### 1. MOS Technology SID 6581 / CSG 8580 (Commodore 64)
-Our PAL-clock SID engine combines a documented digital core with independently measured analogue calibration:
-*   **Curated 57-Entry Library & Song Lengths:** Organized chronologically across `games/`, `musicdisks/`, `demoscene/`, and `tests/` (56 music tracks—including Rob Hubbard's original *Delta*, Martin Galway's *Ocean Loader 1*, HVSC #85 classics, and Assembly C64 overall-winner title tracks—plus the `sid-emulation-test.sid` suite), backed by `tracks/c64/museum.js`, `js/content/songlengths.js`, and the [acceptance corpus](doc/verification/c64/curation-library-corpus.json).
-*   **Re-Entrant 50Hz Play-IRQ Dispatcher (`$FFD0–$FFDD`):** A 14-byte phantom KERNAL IRQ wrapper allows 50Hz music voice updates to cleanly interrupt Martin Galway's multi-frame foreground `$D418` drum synthesis loops (*Arkanoid*) whenever `CLI` (`I = 0`) is active, resuming the procedural drum loop via `RTI` with zero dropped music frames.
-*   **6510 Sub-Cycle Bus Write Pipelining & RMW Dummy-Writes:** Store instructions (`STA/STX/STY`) commit to the hardware bus strictly on the final 4th clock cycle, while Read-Modify-Write instructions (`INC/DEC/ASL/LSR/ROL/ROR`) execute a penultimate-cycle dummy write of the unmodified byte before committing the new value.
-*   **Phase 4 CPU / MOS 6526 Timing:** Penultimate-cycle IRQ polling, delayed CLI/SEI mask behavior, RDY write-cycle progression, CIA timer start/force-load/reload pipelines, cascaded Timer B, one-clock delayed IRQ/NMI outputs and final-cycle `LDA $DC0D` acknowledgement are regression-tested against a synthetic corpus and external libsidplayfp black-box traces. This is bounded reference-model agreement, not a complete bus-cycle CPU or real-hardware proof; see `doc/specs/emulation/c64/sid-cpu-cia-timing.md`.
-*   **Mirror-Safe PlaySID 3.6× Auto-Conversion & Volume Restore:** Isolates PlaySID extended DMA registers strictly to `(addr & 0x1F) >= 0x1D`, converts Amiga-Paula clock periods ($\ge 280$) to C64 PAL cycles ($907 \to 252$ cycles = $3.91\text{ kHz}$), supports `$D47D` nibble endianness and sample loops, and automatically restores the tracker's shadow `$D418` master volume upon sample completion (*The Great Giana Sisters*).
-*   **MOS 6581 R3 12-Bit Digital Core:** Advances three 24-bit phase accumulators with Hard-Sync/RingMod on the 1MHz grid, preserves full 12-bit saw/triangle/pulse/noise DAC inputs, retains the DAC latch with no waveform selected, and uses a documented wired-AND combined-selector baseline. Combined-waveform analogue pull-down calibration remains explicitly measurement-dependent.
-*   **Measured `$50` Triangle+Pulse Transfer:** A 257-anchor phase-domain model restores the calibrated Exact-path combined waveform used by *The Great Giana Sisters* Subsong 2. It is special-cased before generic wired-AND and does not alter other combined selectors or Fantasy DSP.
-*   **Stateful 15-Bit ADSR:** Two-clock GATE pipeline, wrapping rate counter, exact period matching, linear Attack, and documented exponential divider thresholds preserve state-dependent timing. A resolved rising GATE restarts the rate phase and exponential divider; `TEST` does not, and Release preserves running counters. The zero-level hold also covers short GATE pulses that enter Release before Attack's first increment, preventing envelope underflow and non-finite output. The rising-GATE behavior is bounded to the original-recording calibration documented for *Wizball* Subsong 7.
-*   **Black-Box-Calibrated MOS 6581 R3 Filter & Mixer:** The two-substep ZDF solver uses cutoff and damping maps fitted through the public API of libresidfp revision `c1791383`—without importing its code or internal tables. The archived 639-point EXT-IN comparison currently measures 1.876dB median and 6.737dB p95 absolute response error. Additive LP/BP/HP routing, separate measured feedthrough, linear 16-step master volume and direct-path-only `3OFF` are regression-tested. This is reference-model agreement, not a real-chip capture or universal hardware-accuracy claim; see `doc/specs/emulation/c64/sid-filter-model.md`.
-*   **Measured Resampling & Output Coupling:** 256-phase interpolated Kaiser-Sinc resampling provides a measured 20kHz passband and at least 96dB stopband attenuation at 44.1/48kHz. The motherboard stage retains its parameterized 16kHz output low-pass and **16Hz** `C13` AC-coupling high-pass.
-*   **SID 6581/8580 "Chiptunes Fantasy Studio" & "Blade Runner" Cores:** The **Fantasy Studio** core provides audiophile dual-channel playback with CSG 8580 linear R-2R DACs, 20kHz Studio Airband ZDF VCF, Constant-Power StereoSID dynamic voice staging, 16Hz stereo output coupling (−0.448dB at 48Hz), and a 48Hz digidrum sub-harmonic transient exciter (see `doc/specs/emulation/c64/sid-fantasy-studio.md`). The **Blade Runner v1.1 (Director's Cut)** core pairs the 1MHz lockstep stereo SID (with Tow-Thomas `-bp` / Notch accuracy, `dcBaseline` compensation, and Padé-[5/4] `fastTanh`) with a 3-voice Yamaha CS-80 dual-rank PolyBLEP layer, 64-cycle 6502 bus-settle latch, `$D418` onset transient designer, Dimension-D chorus, multi-tap tape delay, orthogonal mono-compatible Lexicon 224 FDN reverb, and $C^\infty$ tape saturation (see `doc/books/SID-BLADERUNNER-DSP.md`).
+*   **1 MHz Cycle-Stepped 6510 / MOS 6526 CIA / SID Core:** Sub-cycle store pipelining, RMW dummy-writes, re-entrant 50 Hz Play-IRQ dispatcher (`$FFD0–$FFDD`), CIA timer pipelines, and mirror-safe PlaySID DMA (`3.6×` auto-conversion & `$D418` restore).
+*   **MOS 6581 R3 Digital & Analogue Stage:** 24-bit phase accumulators, Hard-Sync/RingMod, measured `$50` Triangle+Pulse transfer, stateful 15-bit ADSR (with saturation-safe Attack retrigger), black-box-calibrated 2× oversampled ZDF-SVF filter & mixer, 256-phase Kaiser-Sinc resampling (`≥96 dB` stopband), and `16 Hz` `C13` AC coupling.
+*   **Studio & Blade Runner Cores:** *Fantasy Studio* (CSG 8580 R-2R DACs, 20 kHz airband ZDF, StereoSID staging, 48 Hz digidrum sub-exciter) and *Blade Runner v1.1* (1 MHz lockstep Stereo SID + 3-voice Yamaha CS-80 dual-rank PolyBLEP layer, 64-cycle bus-settle latch, `$D418` onset designer, Dimension-D chorus, multi-tap tape delay, orthogonal Lexicon 224 FDN reverb, and $C^\infty$ tape saturation).
 
 ### 2. MOS Technology Paula 8364 / AHI (Amiga 500 & A1200)
-*   **Curated 73-Track Library:** Organized chronologically across `games/`, `demoscene/` (4-channel Amiga MODs), and `tracker-xm/` (35 HIPC-family, 35 MOD, and 3 XM entries), with explicit sample-bank/HIP68K metadata flags and rewritten Paula/COSO/demoscene entries in `tracks/amiga/museum.js`; see [Amiga track sources](doc/museum/amiga-track-sources.md).
-*   **Native Jochen Hippel COSO / HIPC and HIP68K Replay:** Bit-accurate binary parsing and deterministic replay use the PAL CIA timer period 14188 (approximately 49.99852Hz rather than an assumed exact 50Hz). HIP68K executes the original 68000 player with raster-timed DMA starts and loop latches. Two-layer Timbre/Instrument execution, song-duration calculation and deterministic seeking remain covered by the fixture and production corpus.
-*   **Hardware Agnus/Paula Latch-on-Wrap DMA (`paula-exact` & `paula-fantasy`):** Models true Amiga shared Chip-RAM and `AUDxLC`/`AUDxLEN` register latching (where pointer/length writes take effect only on the next loop wrap while `hwStartDMA()` triggers the initial pass).
-*   **MOD/XM Tracker Playback:** The Exact path covers tick-based arpeggio, portamento, tone-portamento, vibrato, tremolo, volume slides, combined effects, effect memory, sample offset, linear XM frequencies and panning, global volume, variable pattern lengths, and the existing 16/24/32-channel mix attenuation.
-*   **Paula 8364 Exact / A500 Output Approximation:** Four-times host-rate oversampling, word-aligned 16-bit DMA with high/low-byte output phases, signed 8-bit sample and 6-bit volume scaling, physical L-R-R-L panning with 3.5% crosstalk, and deterministic full-track reset feed a linear A500 approximation. The output chain retains the project’s 4.421kHz one-pole RC filter, optional 3.09kHz Butterworth LED filter with continuous bypass state, 255-tap Sinc-FIR decimator, and 0.7 output scale. The former uncalibrated LF347/`tanh` stages are not part of Exact. These filter values are documented software approximations, not a measured Amiga-mainboard calibration.
-*   **Paula 8364/AHI Studio Core:** Audiophile A1200/AHI 14-bit Hermite cubic interpolation (following the live DMA loop stream across sample boundaries), Constant-Power spatialized stereo panning, parametric Schroeder/Moorer stereo diffusion reverb, and $>8\text{ kHz}$ airband presence exciter.
+*   **Native COSO / HIPC / HIP68K & Tracker Replay:** Bit-accurate Jochen Hippel replay at PAL CIA timer period 14188 (`~49.99852 Hz`), raster-timed 68000 DMA latches (`HIP68K`), plus full `.mod` and `.xm` effect execution (arpeggio, portamento, vibrato, tremolo, volume slides, linear XM frequencies, variable pattern lengths, and multi-channel attenuation).
+*   **Paula 8364 Exact / A500 Output Approximation:** 4× host-rate oversampling, word-aligned 16-bit Agnus latch-on-wrap DMA, 6-bit volume scaling, physical L-R-R-L panning with 3.5% crosstalk, and a linear A500 filter approximation (`4.421 kHz` RC, switchable `3.09 kHz` LED filter with continuous bypass state, 255-tap Sinc-FIR decimator).
+*   **Paula / AHI Studio Core:** 14-bit Hermite cubic interpolation across live DMA loop wraps, constant-power stereo panning, Schroeder/Moorer diffusion reverb, and `>8 kHz` airband exciter.
 
 ### 3. Yamaha YM2149F (Atari ST)
-*   **2MHz Cycle-Stepped Digital Core:** Advances three tone generators, a shared 17-bit noise LFSR, the 5-bit hardware envelope, active-low mixer gates, and the project's 32-level logarithmic DAC table on the native YM timeline. The current production profile plays fixed-2-MHz register dumps rather than executing a complete Atari ST.
-*   **YM3/YM5/YM6 Formats & MFP-Derived Effects:** Supports YM3!, YM3b, YM5!, and YM6! register layouts, Digidrum encodings, player rates, and stored loop points. YM5-only normalization maps R3 Digidrum start bits without changing global YM6 decoding; a real *Punish Your Machine* frame guards the voice-C `0x31` case. Two YM6 effect slots implement Digidrum, SID-Voice, Sinus-SID, and Sync-Buzzer with integer MFP-to-YM phase accumulation.
-*   **Linear Summing Baseline:** Sums the three YM channels with one fixed level-preserving output scale. The previous additional bus compression and `tanh` saturation are not part of the Exact path; no uncalibrated motherboard-nonlinearity claim is made.
-*   **Two-Stage Interpolated 256-Phase Kaiser-Sinc Resampler:** Converts the 2MHz stream to 44.1, 48 or 96kHz with a 20kHz requested passband and a 96dB stopband design target. The two stages use 181+493, 163+297 and 73+87 taps respectively; measured worst-case stopband-start responses are −99.46, −103.00 and −98.94dB. Constant group delay and the linear 15.9kHz low-pass / 25Hz high-pass output model are documented in the Atari measurement notes.
-*   **Curated 86-Track Library:** Organized chronologically across `games/` (1987–1992) and `demoscene/` (1989–1993) with unified kebab-case paths and dedicated YM2149/MFP-timer museum cards in `tracks/atari/museum.js`.
-**Technical Deep Dive:** [Atari ST YM2149F emulation engine](doc/specs/emulation/atari/technical-deep-dive-atari.md) — parser and transport, 2MHz digital core, YM6/MFP-derived effects, DAC summing, two-stage resampling, output filtering, performance and evidence limits.
+*   **2 MHz Cycle-Stepped Digital Core:** Three tone generators, shared 17-bit noise LFSR, 5-bit hardware envelope, active-low mixer gates, and 32-level logarithmic DAC summing.
+*   **YM3/YM5/YM6 & MFP-Timer Effects:** Full format support (including YM5 R3 Digidrum normalization) and two MFP-clocked YM6 effect slots for Digidrum, SID-Voice, Sinus-SID, and Sync-Buzzer.
+*   **Two-Stage 256-Phase Kaiser-Sinc Resampler & Blade Runner v2.5:** Converts 2 MHz output to 44.1/48/96 kHz (`>98 dB` stopband attenuation) with linear `15.9 kHz` LP / `25 Hz` HP filtering, alongside the *YM Blade Runner v2.5* CS-80 ZDF-SVF + Dimension-D + Lexicon 224 core.
 
 ---
 
-## 🎛️ Master Bus DSP Stage & Audiophile Headphone Acoustics
-*   **Complementary Bauer Binaural Crossfeed (bs2b 700 Hz LP / 1000 Hz Direct Shelf, -4.73 dB Feed):** Eliminates headphone listening fatigue on extreme hard-panned Amiga and StereoSID tracks with `0 dB` DC mono sum and a click-free 10 ms toggle crossfade. Off by default; toggleable via the `[ STEREO BLEND: ON/OFF ]` HUD button.
-*   **1.0ms Smoothed Lookahead Brickwall Limiter:** Uses an O(1) monotonic sliding-window minimum deque with 1.0 ms lookahead attack smoothing to cap peaks cleanly at $-0.35\text{ dBFS}$ with zero pre-transient step artifacts and zero OS ducking on macOS CoreAudio and Windows WASAPI.
+## ⌨️ Keyboard Shortcuts
+
+| Key | Action |
+| :--- | :--- |
+| **`C`** | Open / close the CRT & Oscilloscope Calibration Deck |
+| **`B`** | Toggle **A/B** Factory Default live comparison (while Calibration Deck is open) |
+| **`F`** | Toggle Fullscreen Stage |
+| **`M`** | Toggle Eco Mode (`[ HALT GFX ]`) |
+| **`A`** | Toggle Right Panel (`[ MUSEUM ]` / `[ SPLIT ]`) |
+| **`L`** | Toggle Chip Logic HUD |
+| **`Esc`** | Close Calibration Deck / Exit Eco Mode / Exit Pseudo-Fullscreen |
 
 ---
 
-## 🛠️ Local Playback
-Run via a local web server (due to ES6 Module & AudioWorklet CORS rules):
+## 🛠️ Local Playback & Testing
+
+Run via a local web server (required by ES6 Modules and `AudioWorklet` CORS rules):
 
 ```bash
-# Using NodeJS:
+# Using Node.js:
 npx serve .
 
 # Using Python:
 python3 -m http.server 8080
-```
