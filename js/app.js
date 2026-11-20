@@ -443,6 +443,7 @@ function resetMouseIdleTimer() {
 
     // Inaktivitäts-Timer starten
     mouseIdleTimer = setTimeout(() => {
+        if (displaySetupDialog?.isOpen()) return;
         const isFS = Boolean(
             document.fullscreenElement ||
             document.webkitFullscreenElement ||
@@ -1840,7 +1841,12 @@ document.addEventListener('keydown', event => {
 document.addEventListener('keydown', event => {
     if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
     const target = event.target;
-    if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+    const isTextEntry = target instanceof HTMLElement && (
+        target.isContentEditable ||
+        /^(TEXTAREA|SELECT)$/.test(target.tagName) ||
+        (target.tagName === 'INPUT' && !/^(range|checkbox|radio|button)$/i.test(target.type))
+    );
+    if (isTextEntry) return;
     if (!document.getElementById('boot-screen').classList.contains('hidden')) return;
 
     const key = event.key.toLowerCase();
@@ -1857,6 +1863,11 @@ document.addEventListener('keydown', event => {
     if (key === 'escape' && visualZone?.classList.contains('pseudo-fullscreen')) {
         event.preventDefault();
         exitPseudoFullscreen(visualZone);
+        return;
+    }
+    if (key === 'b' && displaySetupDialog?.isOpen()) {
+        event.preventDefault();
+        displaySetupDialog.toggleBypass();
         return;
     }
     if (!['f', 'm', 'l', 'a', 'c'].includes(key)) return;

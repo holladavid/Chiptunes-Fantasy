@@ -1,11 +1,16 @@
 // === js/ui/display-setup-dialog.js ===
 // =========================================================
 // CRT SHADOW MASK & PHOSPHOR OSCILLOSCOPE CALIBRATION DECK
-// Responsives Hardware-Setup-Panel mit Live-Vorschau für
-// Desktop, Widescreen, Fullscreen sowie Mobile Hoch-/Querformat.
+// Responsives Hardware-Setup-Panel mit Live-Vorschau,
+// A/B-Werksvergleich und Touch-Fadern für alle Viewports.
 // =========================================================
 
-import { displaySettings, SYSTEM_CRT_PRESETS } from '../visuals/display-settings.js';
+import {
+    CRT_DEFAULTS,
+    OSC_DEFAULTS,
+    displaySettings,
+    SYSTEM_CRT_PRESETS
+} from '../visuals/display-settings.js';
 
 const CRT_PRESET_OPTIONS = Object.freeze([
     { id: 'default', label: 'FACTORY' },
@@ -153,6 +158,19 @@ export class DisplaySetupDialog {
         titleGroup.append(title, this.crtBadge);
 
         const headerActions = createElement('div', 'setup-header-actions');
+
+        this.abBtn = createElement('button', 'setup-action-btn setup-ab-btn');
+        this.abBtn.type = 'button';
+        this.abBtn.id = 'setup-btn-ab';
+        this.abBtn.setAttribute('aria-pressed', 'false');
+        this.abBtn.setAttribute('aria-keyshortcuts', 'B');
+        this.abBtn.title = 'Live-Vergleich: Eigene Kalibrierung vs. Werkseinstellung [B]';
+        this.abLed = createElement('i', 'setup-ab-led');
+        this.abLed.setAttribute('aria-hidden', 'true');
+        this.abLabel = createElement('span', '', 'A/B');
+        this.abBtn.append(this.abLed, this.abLabel);
+        this.abBtn.addEventListener('click', () => this.toggleBypass());
+
         this.resetBtn = createElement('button', 'setup-action-btn', '[ RESET ]');
         this.resetBtn.type = 'button';
         this.resetBtn.id = 'setup-btn-reset';
@@ -163,7 +181,7 @@ export class DisplaySetupDialog {
         this.closeBtn.id = 'setup-btn-close';
         this.closeBtn.setAttribute('aria-label', 'Einstellungsdialog schließen');
 
-        headerActions.append(this.resetBtn, this.closeBtn);
+        headerActions.append(this.abBtn, this.resetBtn, this.closeBtn);
         header.append(titleGroup, headerActions);
 
         // --- Tab Bar (Mobile & schmale Fenster) ---
@@ -177,13 +195,22 @@ export class DisplaySetupDialog {
         };
         tabBar.append(this.tabButtons.crt, this.tabButtons.osc);
 
+        // --- A/B Bypass Statusleiste ---
+        this.bypassBanner = createElement(
+            'div',
+            'setup-bypass-banner hidden',
+            'A/B COMPARE: WERKSEINSTELLUNG AUF STAGE AKTIV · REGLER BEWEGEN ODER [B] FÜR EIGENE KALIBRIERUNG'
+        );
+        this.bypassBanner.setAttribute('role', 'status');
+
         // --- Body ---
         const body = createElement('div', 'setup-deck-body');
+        this.deckBody = body;
         const crtSection = this.buildCrtSection();
         const oscSection = this.buildOscSection();
         body.append(crtSection, oscSection);
 
-        this.root.append(header, tabBar, body);
+        this.root.append(header, tabBar, this.bypassBanner, body);
         this.setActiveTab(this.activeTab);
     }
 
@@ -260,9 +287,12 @@ export class DisplaySetupDialog {
         // Sliders
         const slidersGrid = createElement('div', 'setup-sliders-grid setup-sliders-crt');
         for (const spec of CRT_SLIDER_SPECS) {
-            const entry = this.createSliderField('crt', spec, value => {
-                displaySettings.updateCrt({ [spec.key]: value }, this.getSystem());
-            });
+            const entry = this.createSliderField(
+                'crt',
+                spec,
+                value => displaySettings.updateCrt({ [spec.key]: value }, this.getSystem()),
+                () => displaySettings.updateCrt({ [spec.key]: CRT_DEFAULTS[spec.key] }, this.getSystem())
+            );
             this.crtSliderEntries.push(entry);
             slidersGrid.appendChild(entry.field);
         }
@@ -308,9 +338,12 @@ export class DisplaySetupDialog {
         // Sliders
         const slidersGrid = createElement('div', 'setup-sliders-grid setup-sliders-osc');
         for (const spec of OSC_SLIDER_SPECS) {
-            const entry = this.createSliderField('osc', spec, value => {
-                displaySettings.updateOsc({ [spec.key]: value });
-            });
+            const entry = this.createSliderField(
+                'osc',
+                spec,
+                value => displaySettings.updateOsc({ [spec.key]: value }),
+                () => displaySettings.updateOsc({ [spec.key]: OSC_DEFAULTS[spec.key] })
+            );
             this.oscSliderEntries.push(entry);
             slidersGrid.appendChild(entry.field);
         }
@@ -319,7 +352,7 @@ export class DisplaySetupDialog {
         return section;
     }
 
-    createSliderField(prefix, spec, onInput) {
+    createSliderField(prefix, spec, onInput, onReset) {
         const field = createElement('div', 'setup-slider-field');
         const inputId = `setup-${prefix}-${spec.key}`;
 
@@ -336,9 +369,13 @@ export class DisplaySetupDialog {
         input.min = String(spec.min);
         input.max = String(spec.max);
         input.step = String(spec.step);
+        input.title = 'Doppelklick setzt diesen Regler auf Werkseinstellung zurück';
         input.addEventListener('input', () => {
             const parsed = Number.parseFloat(input.value);
             if (Number.isFinite(parsed)) onInput(parsed);
+        });
+        input.addEventListener('dblclick', () => {
+            if (!input.disabled && onReset) onReset();
         });
 
         inputWrap.appendChild(input);
@@ -383,6 +420,10 @@ export class DisplaySetupDialog {
         return this.openFlag;
     }
 
+    toggleBypass() {
+        displaySettings.setBypassed(!displaySettings.isBypassed());
+    }
+
     open() {
         if (!this.root || this.openFlag) return;
         this.returnFocusEl = document.activeElement instanceof HTMLElement
@@ -407,6 +448,7 @@ export class DisplaySetupDialog {
 
     close({ restoreFocus = true } = {}) {
         if (!this.root || !this.openFlag) return;
+        displaySettings.setBypassed(false);
         this.openFlag = false;
 
         document.body.classList.remove('setup-open');
@@ -475,16 +517,33 @@ export class DisplaySetupDialog {
     sync(state = displaySettings.getState()) {
         if (!this.root) return;
         const system = this.getSystem();
-        const effectiveCrt = displaySettings.getEffectiveCrt(system);
-        const effectiveOsc = displaySettings.getEffectiveOsc();
+        // Im A/B-Bypass zeigen die Regler weiterhin die eigene Kalibrierung,
+        // während die Stage live auf Factory Defaults schaltet.
+        const shownCrt = state.crtPreset === 'auto'
+            ? displaySettings.getPresetCrt('auto', system)
+            : state.crt;
+        const shownOsc = state.osc;
         const crtAvailable = Boolean(state.crtAvailable);
+        const isBypassed = Boolean(state.bypassed);
+
+        if (this.abBtn) {
+            this.abBtn.classList.toggle('is-bypassed', isBypassed);
+            this.abBtn.setAttribute('aria-pressed', String(isBypassed));
+        }
+        if (this.abLabel) {
+            this.abLabel.textContent = isBypassed ? 'ORIG' : 'A/B';
+        }
+        if (this.bypassBanner) {
+            this.bypassBanner.classList.toggle('hidden', !isBypassed);
+        }
+        this.deckBody?.classList.toggle('is-bypassed', isBypassed);
 
         if (this.crtBadge) {
             if (!crtAvailable) {
                 this.crtBadge.textContent = '[ CSS FALLBACK ]';
                 this.crtBadge.dataset.status = 'fallback';
-            } else if (effectiveCrt.quality !== 'high') {
-                this.crtBadge.textContent = `[ WEBGL · ${effectiveCrt.quality.toUpperCase()} ]`;
+            } else if (shownCrt.quality !== 'high') {
+                this.crtBadge.textContent = `[ WEBGL · ${shownCrt.quality.toUpperCase()} ]`;
                 this.crtBadge.dataset.status = 'ready';
             } else {
                 this.crtBadge.textContent = '[ WEBGL CRT ]';
@@ -514,7 +573,7 @@ export class DisplaySetupDialog {
 
         for (const btn of this.crtEnumButtons) {
             const key = btn.dataset.crtKey;
-            const currentVal = String(effectiveCrt[key]);
+            const currentVal = String(shownCrt[key]);
             const isActive = btn.dataset.crtValue === currentVal;
             btn.classList.toggle('active', isActive);
             btn.setAttribute('aria-pressed', String(isActive));
@@ -523,11 +582,11 @@ export class DisplaySetupDialog {
 
         for (const entry of this.crtSliderEntries) {
             const { spec, field, input, readout } = entry;
-            const val = effectiveCrt[spec.key];
+            const val = shownCrt[spec.key];
             if (Math.abs(Number.parseFloat(input.value) - val) > 1e-6) {
                 input.value = String(val);
             }
-            const qualityBlocked = Boolean(spec.requiresHighQuality && effectiveCrt.quality !== 'high');
+            const qualityBlocked = Boolean(spec.requiresHighQuality && shownCrt.quality !== 'high');
             const disabled = !crtAvailable || qualityBlocked;
             input.disabled = disabled;
             field.classList.toggle('is-disabled', disabled);
@@ -536,14 +595,14 @@ export class DisplaySetupDialog {
 
         for (const btn of this.oscEnumButtons) {
             const key = btn.dataset.oscKey;
-            const isActive = btn.dataset.oscValue === String(effectiveOsc[key]);
+            const isActive = btn.dataset.oscValue === String(shownOsc[key]);
             btn.classList.toggle('active', isActive);
             btn.setAttribute('aria-pressed', String(isActive));
         }
 
         for (const entry of this.oscSliderEntries) {
             const { spec, input, readout } = entry;
-            const val = effectiveOsc[spec.key];
+            const val = shownOsc[spec.key];
             if (Math.abs(Number.parseFloat(input.value) - val) > 1e-6) {
                 input.value = String(val);
             }
