@@ -11,58 +11,99 @@ import { Oscilloscope } from './components/oscilloscope.js';
 import { LivingSilicon } from '../ui/living-silicon.js';
 import { CrtGlitch } from './components/crt-glitch.js';
 import { CrtShadowMask } from './components/crt-shadow-mask.js';
+import { displaySettings, toCrtMaskOptions } from './display-settings.js';
 
 // NEU: Statisches, prä-allozierte Null-Array zur Vermeidung von Heap-Garbages bei Inaktivität
 const zeroVolumes = new Float32Array(4);
 const idleRegs = new Uint8Array(32);
 idleRegs[7] = 0xFF; // Schaltet alle Mixer-LED-Gatter des YM2149 im Idle-Modus ab
 
+function getActiveSystemFromDOM() {
+    if (document.body.classList.contains('theme-atari')) return 'atari';
+    if (document.body.classList.contains('theme-amiga')) return 'amiga';
+    return 'c64';
+}
+
 export function initVisuals(stateGetters, callbacks) {
     const canvas = document.getElementById('demo-canvas');
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d', { alpha: false }); 
+    const ctx = canvas.getContext('2d', { alpha: false });
 
     // =========================================================
     // INITIALISIERUNG SCENE-DJ (Hardware Rebootable)
     // =========================================================
     let dss = null;
-    
+
     function wireSiliconDJ() {
         dss = new SceneDJ();
         dseRegistry.forEach(entry => {
             try {
                 const effectInstance = new entry.Class();
-                effectInstance.metadata = entry.metadata; 
+                effectInstance.metadata = entry.metadata;
                 dss.registerDSE(effectInstance);
             } catch (err) {
                 console.error(`[SCENE-DJ] Failed to register DSE: ${entry.Class.name}`, err);
             }
         });
     }
-    
+
     wireSiliconDJ(); // Kaltstart beim Boot
+
+    let currentCrtSystem = getActiveSystemFromDOM();
+
+    // Core UI (Vom DJ unabhängig)
+    const fft = new FftAnalyzer();
+    const osc = new Oscilloscope(canvas.width, canvas.height, displaySettings.getEffectiveOsc());
+    const glitch = new CrtGlitch(); // NEU: Instanziiert den Glitcher
+    const visualZone = document.getElementById('visual-zone');
+    displaySettings.setCrtAvailable(false);
+    const crtMask = new CrtShadowMask(
+        canvas,
+        document.getElementById('crt-mask-canvas'),
+        isAvailable => {
+            visualZone?.classList.toggle('crt-mask-active', isAvailable);
+            displaySettings.setCrtAvailable(isAvailable);
+        },
+        toCrtMaskOptions(displaySettings.getEffectiveCrt(currentCrtSystem))
+    );
+
+    const applyCrtOptions = (system = getActiveSystemFromDOM()) => {
+        currentCrtSystem = system;
+        crtMask.setOptions(toCrtMaskOptions(displaySettings.getEffectiveCrt(system)));
+    };
+
+    const applyOscOptions = () => {
+        osc.setOptions(displaySettings.getEffectiveOsc());
+    };
+
+    displaySettings.subscribe((_state, meta) => {
+        if (meta.reason === 'availability') return;
+        if (meta.reason === 'osc') {
+            applyOscOptions();
+        } else if (meta.reason === 'crt') {
+            applyCrtOptions(getActiveSystemFromDOM());
+        } else {
+            applyOscOptions();
+            applyCrtOptions(getActiveSystemFromDOM());
+        }
+    });
 
     // Horcht auf den physischen Power-Cycle und flusht den RAM
     window.addEventListener('hardware-power-cycle', () => {
         wireSiliconDJ();
-        const sys = document.body.classList.contains('theme-atari') ? 'atari' : (document.body.classList.contains('theme-amiga') ? 'amiga' : 'c64');
+        const sys = getActiveSystemFromDOM();
         dss.forceSystemChange(sys);
+        if (sys !== currentCrtSystem) {
+            currentCrtSystem = sys;
+            if (displaySettings.getState().crtPreset === 'auto') {
+                applyCrtOptions(sys);
+            }
+        }
         if (canvas.width > 0 && canvas.height > 0) {
             dss.resize(canvas.width, canvas.height); // Skalierung für neue DSEs wiederherstellen
         }
     });
-
-    // Core UI (Vom DJ unabhängig)
-    const fft = new FftAnalyzer();
-    const osc = new Oscilloscope(canvas.width, canvas.height);
-    const glitch = new CrtGlitch(); // NEU: Instanziiert den Glitcher
-    const visualZone = document.getElementById('visual-zone');
-    const crtMask = new CrtShadowMask(
-        canvas,
-        document.getElementById('crt-mask-canvas'),
-        isAvailable => visualZone?.classList.toggle('crt-mask-active', isAvailable)
-    );
 
     // --- INTERACTIVE GIMMICK STATE & TOGGLE ---
     let showGimmick = false;
@@ -84,7 +125,7 @@ export function initVisuals(stateGetters, callbacks) {
         logo.addEventListener('click', () => {
             showGimmick = !showGimmick;
             if (!showGimmick) osc.clear();
-            
+
             // NEU: Klassenzuweisung für den systemgetreuen Glow
             logo.classList.toggle('demo-mode-active', showGimmick);
             logo.setAttribute('aria-pressed', String(showGimmick));
@@ -168,29 +209,32 @@ export function initVisuals(stateGetters, callbacks) {
         if (!Number.isFinite(dt) || dt < 0 || dt > 0.1) dt = 0.016; // FPS-Drop & Clock-Skew Protection
         lastDrawTime = now;
 
-        ctx.fillStyle = '#000000'; 
+        ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        const isAmiga = document.body.classList.contains('theme-amiga');
-        const isAtari = document.body.classList.contains('theme-atari');
-        const isC64 = document.body.classList.contains('theme-c64');
-        const lineColor = isAtari ? '#55ff55' : isAmiga ? '#ff8800' : '#6c5eb5';
-        
-        const currentSystem = isAtari ? 'atari' : (isAmiga ? 'amiga' : 'c64');
+
+        const currentSystem = getActiveSystemFromDOM();
+        const lineColor = currentSystem === 'atari' ? '#55ff55' : currentSystem === 'amiga' ? '#ff8800' : '#6c5eb5';
+
         if (dss.currentSystem !== currentSystem) {
             dss.forceSystemChange(currentSystem);
+        }
+        if (currentSystem !== currentCrtSystem) {
+            currentCrtSystem = currentSystem;
+            if (displaySettings.getState().crtPreset === 'auto') {
+                applyCrtOptions(currentSystem);
+            }
         }
 
         // =========================================================
         // 1. AUDIO & REGISTER DATEN ABGREIFEN
         // =========================================================
         const isPlaying = stateGetters.getIsPlaying();
-        const channelVolumes = (isPlaying && stateGetters.getChannelVolumes) 
-            ? stateGetters.getChannelVolumes() 
+        const channelVolumes = (isPlaying && stateGetters.getChannelVolumes)
+            ? stateGetters.getChannelVolumes()
             : zeroVolumes;
 
         // FIX: Variable konsequent "chipRegs" nennen
-        let chipRegs = idleRegs; 
+        let chipRegs = idleRegs;
         if (isPlaying && stateGetters.getCurrentChipRegs) {
             const r = stateGetters.getCurrentChipRegs();
             if (r) chipRegs = r;
@@ -234,9 +278,9 @@ export function initVisuals(stateGetters, callbacks) {
         hudCounter++;
         callbacks.updateTimelineUI();
         if (hudCounter % 4 === 0) callbacks.updateChipHUD();
-        
+
         requestAnimationFrame(draw);
     }
-    
+
     draw();
 }

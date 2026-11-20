@@ -3,6 +3,7 @@
 //                  CHIPTUNES FANTASY - MAIN APP CONTROLLER
 // =========================================================================
 import { FullscreenUI } from './ui/fullscreen-ui.js';
+import { DisplaySetupDialog } from './ui/display-setup-dialog.js';
 import { buildNowPlayingModel, NowPlayingConsole } from './ui/now-playing-console.js';
 import { getTracklistEntries, searchTracks, trackRegistry } from '../tracks/index.js';
 import { systemDescriptions } from './content/museum.js';
@@ -28,6 +29,7 @@ import { MediaSessionController } from './audio/media-session.js';
 import { formatFrameTime, framesToSeconds, getPlayerRate, isStoredLoopTransition, secondsToFrames } from './audio/playback-timing.js';
 
 let fsUI = null;
+let displaySetupDialog = null;
 let nowPlayingConsole = null;
 let siliconVisualizer = null; // Living Silicon Instanz
 let currentOscValue = 0;
@@ -441,6 +443,7 @@ function resetMouseIdleTimer() {
 
     // Inaktivitäts-Timer starten
     mouseIdleTimer = setTimeout(() => {
+        if (displaySetupDialog?.isOpen()) return;
         const isFS = Boolean(
             document.fullscreenElement ||
             document.webkitFullscreenElement ||
@@ -573,7 +576,7 @@ function initApp() {
             });
         }
 
-// WORKSPACE-MODI (SPLIT / MUSEUM / CHIP) & MUSEUM SUB-TABS VERKABELN
+        // WORKSPACE-MODI (SPLIT / MUSEUM / CHIP) & MUSEUM SUB-TABS VERKABELN
         document.querySelectorAll('.workspace-mode-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 setRightPanelMode(btn.dataset.rightMode);
@@ -608,7 +611,6 @@ function initApp() {
         window.addEventListener('resize', updateMuseumScrollHint);
         setRightPanelMode(rightPanelMode);
 
-
         // Event-Listener für das Cursor-Hiding binden
         if (visualZone) {
             visualZone.addEventListener('mousemove', resetMouseIdleTimer);
@@ -633,6 +635,18 @@ function initApp() {
             onToggleEco: () => document.getElementById('btn-eco').click(),
             onSeek: ratio => {
                 if (trackData.length > 0) seekToFrame(Math.floor(ratio * trackData.length));
+            }
+        });
+
+        // Initialisiert das CRT & Scope Calibration Deck
+        displaySetupDialog = new DisplaySetupDialog({
+            triggerButton: document.getElementById('btn-display-setup'),
+            visualZone: document.getElementById('visual-zone'),
+            playbackBar: document.getElementById('playback-bar'),
+            getSystem: () => activeSystem,
+            isVisualFullscreen,
+            onOpenChange: () => {
+                resetMouseIdleTimer();
             }
         });
 
@@ -1163,6 +1177,10 @@ async function setTheme(themeName, isBootSequence = false) {
         siliconVisualizer.setSystem(activeSystem);
     }
 
+    if (displaySetupDialog) {
+        displaySetupDialog.sync();
+    }
+
     window.dispatchEvent(new CustomEvent('hardware-power-cycle'));
 
     // POWER UP
@@ -1503,7 +1521,6 @@ async function selectAndPlayTrack(index, system, options = {}) {
             };
             setMuseumTab(options.preserveMuseumTab ? activeMuseumTab : 'story', { scrollToTop: true });
 
-
             playbackSessionId++;
             syncMediaSessionTrack(selectedSong);
             startPlayback();
@@ -1525,7 +1542,8 @@ async function selectAndPlayTrack(index, system, options = {}) {
                 title: selectedSong.title,
                 errorMessage: err.message || 'Unknown binary format error.'
             };
-            setMuseumTab('story', { scrollToTop: true });        }
+            setMuseumTab('story', { scrollToTop: true });
+        }
     } else {
         currentTrackMuseumData = {
             title: selectedSong.title,
@@ -1572,6 +1590,7 @@ function enterPseudoFullscreen(zone) {
     document.body.style.overflow = 'hidden';
     document.body.appendChild(zone);
     syncStageModeUI();
+    displaySetupDialog?.handleViewportChange();
     resetMouseIdleTimer();
     focusControl(document.getElementById('btn-fullscreen'));
     setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
@@ -1585,6 +1604,7 @@ function exitPseudoFullscreen(zone) {
     const playbackBar = document.getElementById('playback-bar');
     if (demoContainer && playbackBar) demoContainer.insertBefore(zone, playbackBar);
     syncStageModeUI();
+    displaySetupDialog?.handleViewportChange();
     resetMouseIdleTimer();
     restoreFocus(fullscreenReturnFocus, document.getElementById('btn-fullscreen'));
     fullscreenReturnFocus = null;
@@ -1636,6 +1656,7 @@ function toggleFullscreen() {
 function handleFullscreenChange() {
     const isNativeFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
     syncStageModeUI();
+    displaySetupDialog?.handleViewportChange();
     resetMouseIdleTimer();
     if (isNativeFS && !wasNativeFullscreen) {
         updateNowPlayingLive(true);
@@ -1654,6 +1675,7 @@ async function enableEcoMode() {
         ? document.activeElement
         : document.getElementById('btn-eco');
     isEcoMode = true;
+    displaySetupDialog?.close({ restoreFocus: false });
     document.getElementById('eco-overlay').classList.remove('hidden');
     document.body.classList.add('eco-mode');
     syncEcoPlaybackUI();
@@ -1819,7 +1841,12 @@ document.addEventListener('keydown', event => {
 document.addEventListener('keydown', event => {
     if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
     const target = event.target;
-    if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+    const isTextEntry = target instanceof HTMLElement && (
+        target.isContentEditable ||
+        /^(TEXTAREA|SELECT)$/.test(target.tagName) ||
+        (target.tagName === 'INPUT' && !/^(range|checkbox|radio|button)$/i.test(target.type))
+    );
+    if (isTextEntry) return;
     if (!document.getElementById('boot-screen').classList.contains('hidden')) return;
 
     const key = event.key.toLowerCase();
@@ -1828,19 +1855,33 @@ document.addEventListener('keydown', event => {
         disableEcoMode();
         return;
     }
+    if (key === 'escape' && displaySetupDialog?.isOpen()) {
+        event.preventDefault();
+        displaySetupDialog.close();
+        return;
+    }
     if (key === 'escape' && visualZone?.classList.contains('pseudo-fullscreen')) {
         event.preventDefault();
         exitPseudoFullscreen(visualZone);
         return;
     }
-    if (!['f', 'm', 'l', 'a'].includes(key)) return;
+    if (key === 'b' && displaySetupDialog?.isOpen()) {
+        event.preventDefault();
+        displaySetupDialog.toggleBypass();
+        return;
+    }
+    if (!['f', 'm', 'l', 'a', 'c'].includes(key)) return;
 
     event.preventDefault();
     resetMouseIdleTimer();
     if (key === 'f') toggleFullscreen();
     else if (key === 'm') document.getElementById('btn-eco').click();
     else if (key === 'a') setRightPanelMode(rightPanelMode === 'museum' ? 'split' : 'museum');
-    else document.getElementById('btn-hud-toggle').click();
+    else if (key === 'c') {
+        if (!isEcoMode) displaySetupDialog?.toggle();
+    } else {
+        document.getElementById('btn-hud-toggle').click();
+    }
 });
 
 document.getElementById('volume-slider').addEventListener('input', (e) => {
