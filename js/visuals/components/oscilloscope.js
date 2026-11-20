@@ -6,20 +6,14 @@
 // halation, HF-rejected MSE correlation trigger & cathode beam.
 // =========================================================
 //
-// Hinweise zur Überarbeitung (API unverändert: new Oscilloscope(w, h), render(...), resize, clear):
-// - Die Simulation läuft höchstens mit ~100 Hz (MIN_STEP_SECONDS): Nachleuchten und Memory-Helligkeit
-//   sind bildratenunabhängig, 120/144/240-Hz-Displays kosten nicht mehr als 60 Hz.
-// - Trigger: relative Hysterese-Untergrenze und pegelnormierte Korrelation (leise und mittellaute
-//   Signale locken jetzt). Töne unter ~95 Hz brauchen analyser.fftSize >= 4096, sonst ist der
-//   Suchbereich (fftSize - Fenster = 510 Samples) kürzer als die Periode.
-// - Spur wird lagenweise statt spaltenweise gezeichnet (halb so viele Stilwechsel, pixelgleich).
-// - Bloom sitzt mittig auf dem Spurabschnitt (vorher bei fallenden Flanken unterhalb davon).
-// - Farben: auch rgb()/rgba()/benannte CSS-Farben (vorher nur #hex, sonst stilles Grün).
+// Nutzung:
+//   const osc = new Oscilloscope(width, height);
+//   const osc = new Oscilloscope(width, height, { gain: 1.5, beamMode: 'spot' });
+//   osc.setOptions({ persistence: 0.85, phosphorTint: 'p31' });
+//   osc.render(ctx, width, height, stateGetters, lineColor, deltaTime);
 
 const DEFAULT_FRAME_INTERVAL = 1 / 60;
-const TIME_WINDOW_SECONDS = 0.032;
 const TRIGGER_HYSTERESIS = 0.0008;   // absolute Untergrenze; darüber gelten 8 % des Spitzenpegels
-const AMPLITUDE_GAIN = 1.24;
 const BLOOM_SCALE = 0.25;
 const COLOR_LUT_SIZE = 32;
 const MAX_SPARKS = 64;
@@ -33,9 +27,41 @@ const NO_LAYER = 255;
 const MIN_STEP_SECONDS = 0.01;
 // Einlagerung in die Memory-Schicht: bei 60 Hz 0.26, sonst proportional zur Fade-Rate des Schritts.
 const MEMORY_DEPOSIT_AT_60HZ = 0.26;
-const MEMORY_FADE_AT_60HZ = 1 - Math.exp(-8.0 / 60);
 
 const DEFAULT_RGB = [85, 255, 85];
+
+const PHOSPHOR_TINTS = Object.freeze({
+    system: null,
+    p31: '#55ff55',
+    p11: '#4ce6ff',
+    amber: '#ffaa22'
+});
+
+const BEAM_MODES = Object.freeze({
+    sparks: 'sparks',
+    spot: 'spot',
+    off: 'off'
+});
+
+const TRIGGER_MODES = Object.freeze({
+    auto: 'auto',
+    free: 'free'
+});
+
+const DEFAULT_OPTIONS = Object.freeze({
+    gain: 1.24,             // Vertikale Amplitude (0.50 .. 2.50)
+    timeWindowMs: 32,       // Zeitbasis in ms (8 .. 36)
+    persistence: 0.5,       // Phosphor-Nachleuchten (0 .. 1)
+    bloom: 0.52,            // Optische Glas-Halation (0 .. 1)
+    graticule: 0.55,        // Geätzte Mittenskala (0 .. 1)
+    beamMode: 'sparks',     // 'sparks' | 'spot' | 'off'
+    triggerMode: 'auto',    // 'auto' | 'free'
+    phosphorTint: 'system'  // 'system' | 'p31' | 'p11' | 'amber'
+});
+
+const OPTION_KEYS = Object.freeze(Object.keys(DEFAULT_OPTIONS));
+
+const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 
 function clamp(value, minimum, maximum) {
     return Math.max(minimum, Math.min(maximum, value));
@@ -43,6 +69,47 @@ function clamp(value, minimum, maximum) {
 
 function clamp01(value) {
     return Math.max(0, Math.min(1, value));
+}
+
+function clampNumber(value, minimum, maximum, fallback) {
+    return Number.isFinite(value) ? clamp(value, minimum, maximum) : fallback;
+}
+
+function resolveOptions(user) {
+    const merged = { ...DEFAULT_OPTIONS, ...(user || null) };
+    return {
+        gain: clampNumber(merged.gain, 0.5, 2.5, DEFAULT_OPTIONS.gain),
+        timeWindowMs: clampNumber(merged.timeWindowMs, 8, 36, DEFAULT_OPTIONS.timeWindowMs),
+        persistence: clampNumber(merged.persistence, 0, 1, DEFAULT_OPTIONS.persistence),
+        bloom: clampNumber(merged.bloom, 0, 1, DEFAULT_OPTIONS.bloom),
+        graticule: clampNumber(merged.graticule, 0, 1, DEFAULT_OPTIONS.graticule),
+        beamMode: has(BEAM_MODES, merged.beamMode) ? merged.beamMode : DEFAULT_OPTIONS.beamMode,
+        triggerMode: has(TRIGGER_MODES, merged.triggerMode) ? merged.triggerMode : DEFAULT_OPTIONS.triggerMode,
+        phosphorTint: has(PHOSPHOR_TINTS, merged.phosphorTint) ? merged.phosphorTint : DEFAULT_OPTIONS.phosphorTint
+    };
+}
+
+function getFastFadeRate(persistence) {
+    return persistence <= 0.5
+        ? 24.0 - (24.0 - 16.5) * (persistence / 0.5)
+        : 16.5 - (16.5 - 11.5) * ((persistence - 0.5) / 0.5);
+}
+
+function getSlowFadeRate(persistence) {
+    return persistence <= 0.5
+        ? 16.0 - (16.0 - 8.0) * (persistence / 0.5)
+        : 8.0 * Math.pow(0.25, (persistence - 0.5) / 0.5);
+}
+
+function getMemoryAlpha(persistence) {
+    if (persistence <= 0.001) return 0;
+    return persistence <= 0.5
+        ? 0.44 * (persistence / 0.5)
+        : 0.44 + (0.76 - 0.44) * ((persistence - 0.5) / 0.5);
+}
+
+function defaultCreateCanvas() {
+    return document.createElement('canvas');
 }
 
 let colorProbeCtx = null;
@@ -101,27 +168,41 @@ function applyDrawStyle(ctx, state, color, alpha) {
 }
 
 export class Oscilloscope {
-    constructor(width, height) {
+    constructor(width, height, options = {}) {
+        const initialOptions = (options && typeof options === 'object') ? options : {};
+        this.createCanvas = typeof initialOptions.createCanvas === 'function'
+            ? initialOptions.createCanvas
+            : defaultCreateCanvas;
+
+        this.userOptions = {};
+        for (const key of OPTION_KEYS) {
+            if (has(initialOptions, key) && initialOptions[key] !== undefined) {
+                this.userOptions[key] = initialOptions[key];
+            }
+        }
+        this.options = resolveOptions(this.userOptions);
+
         // 1:1 Phosphor-Röhrenschirm für gestochen scharfe 1px-Vertikalflanken
-        this.offscreen = document.createElement('canvas');
+        this.offscreen = this.createCanvas();
         this.offscreenCtx = this.offscreen.getContext('2d');
 
         // Langzeit-Phosphoreszenz-Schicht (Nachleucht-Gedächtnis der Röhre)
-        this.memory = document.createElement('canvas');
+        this.memory = this.createCanvas();
         this.memoryCtx = this.memory.getContext('2d');
 
         // Viertel-Auflösung mit bilinearer Filterung für echtes optisches Glas-Halation/Bloom
-        this.bloom = document.createElement('canvas');
+        this.bloom = this.createCanvas();
         this.bloomCtx = this.bloom.getContext('2d');
 
         // Statisches, im Röhrenglas geätztes Mess-Graticule (wird nur bei Resize gebaut)
-        this.graticule = document.createElement('canvas');
+        this.graticule = this.createCanvas();
         this.graticuleCtx = this.graticule.getContext('2d');
 
         this.width = 0;
         this.height = 0;
         this.configuredFftSize = 0;
         this.configuredSampleRate = 0;
+        this.configuredTimeWindowMs = 0;
         this.timeDomainData = null;
         this.triggerFilterBuf = null;
         this.prevTriggerWave = new Float32Array(CORR_POINTS);
@@ -186,9 +267,55 @@ export class Oscilloscope {
         this.resize(width, height);
     }
 
+    getOptions() {
+        return { ...this.options };
+    }
+
+    setOptions(options = {}) {
+        if (!options || typeof options !== 'object') return;
+
+        const prevTriggerMode = this.options.triggerMode;
+        const prevTimeWindowMs = this.options.timeWindowMs;
+
+        for (const key of OPTION_KEYS) {
+            if (has(options, key) && options[key] !== undefined) {
+                this.userOptions[key] = options[key];
+            }
+        }
+        this.options = resolveOptions(this.userOptions);
+        this.userOptions = { ...this.options };
+
+        if (this.options.persistence <= 0.001 && this.hasMemory) {
+            this.hasMemory = false;
+            this.clearSurface(this.memoryCtx, this.memory);
+        }
+
+        if (this.options.bloom <= 0.001) {
+            this.clearSurface(this.bloomCtx, this.bloom);
+        }
+
+        if (this.options.beamMode !== 'sparks' && this.hasActiveSparks) {
+            for (const spark of this.sparks) spark.life = 0;
+            this.hasActiveSparks = false;
+        }
+
+        if (prevTriggerMode !== this.options.triggerMode && this.options.triggerMode === 'auto') {
+            this.captureCount = 0;
+            this.prevTriggerWave.fill(0);
+        }
+
+        if (prevTimeWindowMs !== this.options.timeWindowMs && this.configuredFftSize > 0) {
+            this.updateWindowSampleCount();
+            if (this.sweepActive && this.timeDomainData) {
+                this.buildSweepRaster();
+                this.beamY = this.getSweepY(this.beamX);
+            }
+        }
+    }
+
     copySurface(source) {
         if (!source || source.width <= 0 || source.height <= 0) return null;
-        const copy = document.createElement('canvas');
+        const copy = this.createCanvas();
         copy.width = source.width;
         copy.height = source.height;
         copy.getContext('2d').drawImage(source, 0, 0);
@@ -412,24 +539,35 @@ export class Oscilloscope {
         }
     }
 
+    updateWindowSampleCount() {
+        const fftSize = this.configuredFftSize;
+        if (fftSize <= 0) return;
+        const maxWindow = fftSize > 128 ? fftSize - 64 : Math.max(16, fftSize - 4);
+        const requestedSamples = Math.round(this.audioSampleRate * (this.options.timeWindowMs / 1000));
+        this.windowSampleCount = Math.min(maxWindow, Math.max(64, requestedSamples));
+        this.configuredTimeWindowMs = this.options.timeWindowMs;
+    }
+
     configureAnalyser(analyser, audioCtx) {
         if (!analyser || !audioCtx) return false;
         const fftSize = analyser.fftSize || 2048;
         const sampleRate = Number.isFinite(audioCtx.sampleRate) ? audioCtx.sampleRate : 48000;
-        if (fftSize === this.configuredFftSize && sampleRate === this.configuredSampleRate) return true;
+        const sizeChanged = fftSize !== this.configuredFftSize || sampleRate !== this.configuredSampleRate;
 
-        this.configuredFftSize = fftSize;
-        this.configuredSampleRate = sampleRate;
-        this.audioSampleRate = sampleRate;
-        if (!this.timeDomainData || this.timeDomainData.length !== fftSize) {
-            this.timeDomainData = new Float32Array(fftSize);
-            this.triggerFilterBuf = new Float32Array(fftSize);
-            this.timeDomainBytes = null;
+        if (sizeChanged) {
+            this.configuredFftSize = fftSize;
+            this.configuredSampleRate = sampleRate;
+            this.audioSampleRate = sampleRate;
+            if (!this.timeDomainData || this.timeDomainData.length !== fftSize) {
+                this.timeDomainData = new Float32Array(fftSize);
+                this.triggerFilterBuf = new Float32Array(fftSize);
+                this.timeDomainBytes = null;
+            }
+            this.updateWindowSampleCount();
+        } else if (this.configuredTimeWindowMs !== this.options.timeWindowMs) {
+            this.updateWindowSampleCount();
         }
-        this.windowSampleCount = Math.min(
-            fftSize - 4,
-            Math.max(64, Math.round(sampleRate * TIME_WINDOW_SECONDS))
-        );
+
         return true;
     }
 
@@ -465,6 +603,14 @@ export class Oscilloscope {
             if (av > peak) peak = av;
         }
         this.signalRms = Math.sqrt(sumSq / data.length);
+
+        if (this.options.triggerMode === 'free') {
+            this.triggerPosition = 0;
+            this.triggered = false;
+            this.captureCount++;
+            this.buildSweepRaster();
+            return true;
+        }
 
         // 2. HF-Reject Trigger-Konditionierungsfilter (einpoliger Tiefpass),
         // damit SID-Rauschen, Oberwellen oder PWM-Spitzen den Nulldurchgang nicht verwackeln.
@@ -574,7 +720,7 @@ export class Oscilloscope {
         if (this.offscreen.height <= 2) return 0;
         // Authentisches thermisches Vorverstärker-Rauschen (~0.25 px), damit die 0V-Linie analog lebt
         const thermalNoise = (this.nextRandom() - 0.5) * 0.0018;
-        const normalized = clamp01(0.5 - (value + thermalNoise) * AMPLITUDE_GAIN * 0.42);
+        const normalized = clamp01(0.5 - (value + thermalNoise) * this.options.gain * 0.42);
         return this.yMargin + Math.round(normalized * this.yUsable);
     }
 
@@ -629,10 +775,17 @@ export class Oscilloscope {
     fadePhosphorSurfaces(dt, isActive) {
         if (!this.hasCurrentTrace && !this.hasMemory) return;
 
+        const persistence = this.options.persistence;
+        const memoryActive = persistence > 0.001;
+        const bloomActive = this.options.bloom > 0.001;
+        const idleClearSeconds = persistence <= 0.5
+            ? IDLE_CLEAR_SECONDS
+            : IDLE_CLEAR_SECONDS + (persistence - 0.5) * 3.5;
+
         if (!isActive) {
             this.idleElapsed += dt;
             // Verhindert dauerhafte 8-Bit-Alpha-Geisterreste durch destination-out-Rundung
-            if (this.idleElapsed >= IDLE_CLEAR_SECONDS && this.activeIdleFade <= 0) {
+            if (this.idleElapsed >= idleClearSeconds && this.activeIdleFade <= 0) {
                 this.hasCurrentTrace = false;
                 this.hasMemory = false;
                 this.clearSurface(this.offscreenCtx, this.offscreen);
@@ -645,13 +798,16 @@ export class Oscilloscope {
         }
 
         // Zweistufiges P31/P11-Phosphor-Abklingen:
+        const fastRate = getFastFadeRate(persistence);
+        const slowRate = getSlowFadeRate(persistence);
+
         const fastFade = isActive
-            ? clamp(1 - Math.exp(-16.5 * dt), 0.14, 0.48)
-            : clamp(1 - Math.exp(-8.5 * dt), 0.08, 0.35);
+            ? clamp(1 - Math.exp(-fastRate * dt), 0.10, 0.55)
+            : clamp(1 - Math.exp(-(fastRate * (8.5 / 16.5)) * dt), 0.06, 0.40);
 
         const slowFade = isActive
-            ? clamp(1 - Math.exp(-8.0 * dt), 0.05, 0.22)
-            : clamp(1 - Math.exp(-10.0 * dt), 0.06, 0.25);
+            ? clamp(1 - Math.exp(-slowRate * dt), 0.02, 0.28)
+            : clamp(1 - Math.exp(-(slowRate * 1.25) * dt), 0.03, 0.35);
 
         const bloomFade = clamp(1 - Math.exp(-18.0 * dt), 0.15, 0.55);
 
@@ -662,17 +818,21 @@ export class Oscilloscope {
             this.offscreenCtx.fillRect(0, 0, this.offscreen.width, this.offscreen.height);
             this.offscreenCtx.restore();
 
-            this.memoryCtx.save();
-            this.memoryCtx.globalCompositeOperation = 'destination-out';
-            this.memoryCtx.fillStyle = getFadeStyle(slowFade);
-            this.memoryCtx.fillRect(0, 0, this.memory.width, this.memory.height);
-            this.memoryCtx.restore();
+            if (memoryActive && this.hasMemory) {
+                this.memoryCtx.save();
+                this.memoryCtx.globalCompositeOperation = 'destination-out';
+                this.memoryCtx.fillStyle = getFadeStyle(slowFade);
+                this.memoryCtx.fillRect(0, 0, this.memory.width, this.memory.height);
+                this.memoryCtx.restore();
+            }
 
-            this.bloomCtx.save();
-            this.bloomCtx.globalCompositeOperation = 'destination-out';
-            this.bloomCtx.fillStyle = getFadeStyle(bloomFade);
-            this.bloomCtx.fillRect(0, 0, this.bloom.width, this.bloom.height);
-            this.bloomCtx.restore();
+            if (bloomActive) {
+                this.bloomCtx.save();
+                this.bloomCtx.globalCompositeOperation = 'destination-out';
+                this.bloomCtx.fillStyle = getFadeStyle(bloomFade);
+                this.bloomCtx.fillRect(0, 0, this.bloom.width, this.bloom.height);
+                this.bloomCtx.restore();
+            }
         }
     }
 
@@ -688,13 +848,20 @@ export class Oscilloscope {
         const oState = this.offscreenStyle;
         const bState = this.bloomStyle;
 
+        const beamMode = this.options.beamMode;
+        const showBeam = beamMode !== 'off';
+        const allowSparks = beamMode === 'sparks';
+        const bloomActive = this.options.bloom > 0.001;
+
         // Stroboskopischer Kathoden-Fokusstrahl wandert sichtbar über die Welle (~2.1 Sweeps/Sek),
         // während die gesamte getriggerte Welle mit echter Verweildauer-Physik den Phosphor anregt.
         const prevBeamX = this.beamX;
-        const sweepRate = 2.15 + clamp01(this.signalRms * 1.8) * 0.85;
-        this.sweepPhase = (this.sweepPhase + dt * sweepRate) % 1;
-        this.beamX = this.sweepPhase * (width - 1);
-        this.beamY = this.getSweepY(this.beamX);
+        if (showBeam) {
+            const sweepRate = 2.15 + clamp01(this.signalRms * 1.8) * 0.85;
+            this.sweepPhase = (this.sweepPhase + dt * sweepRate) % 1;
+            this.beamX = this.sweepPhase * (width - 1);
+            this.beamY = this.getSweepY(this.beamX);
+        }
 
         const beamCol = Math.round(this.beamX);
         const cometLength = Math.max(18, Math.round(width * 0.14));
@@ -713,10 +880,12 @@ export class Oscilloscope {
         const colSegTop = this.colSegTop;
         const colSpan = this.colSpan;
 
-        bCtx.save();
-        bCtx.globalCompositeOperation = 'source-over';
-        bState.color = '';
-        bState.alpha = -1;
+        if (bloomActive) {
+            bCtx.save();
+            bCtx.globalCompositeOperation = 'source-over';
+            bState.color = '';
+            bState.alpha = -1;
+        }
 
         // Durchlauf 1: Parameter je Spalte bestimmen, Bloom einspeisen, Funken auslösen
         for (let x = 0; x < width; x++) {
@@ -740,11 +909,11 @@ export class Oscilloscope {
                 : Math.pow(1 / (1 + deltaY * 0.22), 0.62);
 
             const distBehindBeam = (beamCol - x + width) % width;
-            const cometBoost = distBehindBeam < cometLength
+            const cometBoost = showBeam && distBehindBeam < cometLength
                 ? Math.pow(1 - distBehindBeam / cometLength, 2.2) * 0.38
                 : 0;
 
-            const totalEnergy = clamp01(dwellEnergy * 0.86 + cometBoost);
+            const totalEnergy = clamp01(dwellEnergy * (showBeam ? 0.86 : 0.96) + cometBoost);
             columnEnergy[x] = totalEnergy;
 
             const colorIdx = clamp(Math.round(totalEnergy * (COLOR_LUT_SIZE - 1)), 0, COLOR_LUT_SIZE - 1);
@@ -767,7 +936,7 @@ export class Oscilloscope {
 
             // Optisches Halation-Blooming ins Viertel-Auflösungs-Canvas einspeisen, mittig auf dem
             // Spurabschnitt (Spalte x-1 -> x), nicht ab seinem Mittelpunkt nach unten
-            if ((x & 1) === 0 && totalEnergy > 0.24) {
+            if (bloomActive && (x & 1) === 0 && totalEnergy > 0.24) {
                 const bloomHeight = Math.max(2, Math.ceil(span * bScaleY));
                 const bloomX = Math.floor(x * bScaleX) - 1;
                 const bloomY = Math.round((segTop + (span - 1) * 0.5) * bScaleY - bloomHeight * 0.5);
@@ -776,19 +945,16 @@ export class Oscilloscope {
             }
 
             // Kathoden-Funken an extrem steilen Flanken auslösen, wenn der Fokusstrahl passiert
-            if (deltaY > 14 && distBehindBeam <= sparkWindow) {
+            if (allowSparks && deltaY > 14 && distBehindBeam <= sparkWindow) {
                 if (this.nextRandom() < 0.45) {
                     this.spawnSparks(x, mid, deltaY);
                 }
             }
         }
 
-        bCtx.restore();
+        if (bloomActive) bCtx.restore();
 
-        // Durchlauf 2: Spur lagenweise zeichnen (Korona -> Kern -> Umkehrpunkte -> Plateau). Spalten
-        // überlappen sich nicht, nur die Reihenfolge innerhalb einer Spalte zählt: das Ergebnis ist
-        // pixelgleich zum spaltenweisen Zeichnen, aber Stilwechsel gibt es nur noch an Farb-/Alpha-
-        // Übergängen entlang x.
+        // Durchlauf 2: Spur lagenweise zeichnen (Korona -> Kern -> Umkehrpunkte -> Plateau).
         ctx.save();
         ctx.globalCompositeOperation = 'source-over';
         oState.color = '';
@@ -841,20 +1007,26 @@ export class Oscilloscope {
 
         // Aktuelle Fluoreszenz-Spur in die langsamer abklingende Phosphoreszenz-Schicht übertragen.
         // Die Einlagerung folgt der Fade-Rate des Schritts: gleiche Helligkeit bei jeder Bildrate.
-        const slowFade = clamp(1 - Math.exp(-8.0 * dt), 0.05, 0.22);
-        this.memoryCtx.save();
-        this.memoryCtx.globalCompositeOperation = 'lighter';
-        this.memoryCtx.globalAlpha = clamp01(MEMORY_DEPOSIT_AT_60HZ * slowFade / MEMORY_FADE_AT_60HZ);
-        this.memoryCtx.drawImage(this.offscreen, 0, 0);
-        this.memoryCtx.restore();
+        if (this.options.persistence > 0.001) {
+            const slowRate = getSlowFadeRate(this.options.persistence);
+            const slowFade = clamp(1 - Math.exp(-slowRate * dt), 0.02, 0.28);
+            const refFade = Math.max(EPSILON, 1 - Math.exp(-slowRate / 60));
+            this.memoryCtx.save();
+            this.memoryCtx.globalCompositeOperation = 'lighter';
+            this.memoryCtx.globalAlpha = clamp01(MEMORY_DEPOSIT_AT_60HZ * slowFade / refFade);
+            this.memoryCtx.drawImage(this.offscreen, 0, 0);
+            this.memoryCtx.restore();
+            this.hasMemory = true;
+        } else {
+            this.hasMemory = false;
+        }
 
         this.hasCurrentTrace = true;
-        this.hasMemory = true;
         this.activeIdleFade = 1;
         this.idleElapsed = 0;
 
         // Falls der Fokusstrahl beim Wrap-Around über eine Flanke lief
-        if (prevBeamX > this.beamX && this.signalRms > 0.05) {
+        if (allowSparks && prevBeamX > this.beamX && this.signalRms > 0.05) {
             const dy0 = Math.abs(columnBottom[0] - columnTop[0]);
             if (dy0 > 12) this.spawnSparks(0, this.beamY, dy0);
         }
@@ -903,7 +1075,8 @@ export class Oscilloscope {
     }
 
     drawBeamAndSparks(ctx, lineColor) {
-        if (!this.sweepActive && !this.hasActiveSparks) return;
+        const showBeam = this.sweepActive && this.options.beamMode !== 'off';
+        if (!showBeam && !this.hasActiveSparks) return;
 
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
@@ -923,7 +1096,7 @@ export class Oscilloscope {
             }
         }
 
-        if (this.sweepActive) {
+        if (showBeam) {
             const bx = this.beamX;
             const by = this.beamY;
             const colIdx = clamp(Math.round(bx), 0, Math.max(0, this.width - 1));
@@ -994,7 +1167,8 @@ export class Oscilloscope {
         }
         if (this.offscreen.width <= 0 || this.offscreen.height <= 0) return;
 
-        this.prepareColors(lineColor);
+        const effectiveColor = PHOSPHOR_TINTS[this.options.phosphorTint] || lineColor || '#55ff55';
+        this.prepareColors(effectiveColor);
 
         const getters = stateGetters || {};
         const trackData = getters.getTrackData ? getters.getTrackData() : null;
@@ -1014,7 +1188,7 @@ export class Oscilloscope {
             this.simulate(stepDt, mayCapture, analyser);
         }
 
-        this.compose(ctx, width, height, lineColor);
+        this.compose(ctx, width, height, effectiveColor);
     }
 
     compose(ctx, width, height, lineColor) {
@@ -1022,8 +1196,9 @@ export class Oscilloscope {
         ctx.globalCompositeOperation = 'screen';
 
         // 1. Subtiles geätztes Innen-Graticule (leuchtet leicht mit, wenn die Röhre aktiv ist)
-        if (this.graticule.width > 0) {
-            ctx.globalAlpha = 0.55 + this.activeIdleFade * 0.45;
+        const baseGrat = this.options.graticule;
+        if (this.graticule.width > 0 && baseGrat > 0.001) {
+            ctx.globalAlpha = clamp01(baseGrat + (baseGrat / 0.55) * 0.45 * this.activeIdleFade);
             ctx.drawImage(this.graticule, 0, 0);
         }
 
@@ -1031,17 +1206,22 @@ export class Oscilloscope {
             const prevSmooth = ctx.imageSmoothingEnabled;
 
             // 2. Weites optisches Röhrenglas-Halation (weiches bilineares Upscaling des 0.25x Buffers)
-            ctx.imageSmoothingEnabled = true;
-            ctx.globalAlpha = 0.52;
-            ctx.drawImage(
-                this.bloom,
-                0, 0, this.bloom.width, this.bloom.height,
-                0, 0, width, height
-            );
+            if (this.options.bloom > 0.001) {
+                ctx.imageSmoothingEnabled = true;
+                ctx.globalAlpha = this.options.bloom;
+                ctx.drawImage(
+                    this.bloom,
+                    0, 0, this.bloom.width, this.bloom.height,
+                    0, 0, width, height
+                );
+            }
 
             // 3. Langzeit-Phosphoreszenz (Nachleucht-Schatten vergangener Perioden)
-            ctx.globalAlpha = 0.44;
-            ctx.drawImage(this.memory, 0, 0, width, height);
+            const memoryAlpha = getMemoryAlpha(this.options.persistence);
+            if (this.hasMemory && memoryAlpha > 0.001) {
+                ctx.globalAlpha = memoryAlpha;
+                ctx.drawImage(this.memory, 0, 0, width, height);
+            }
 
             // 4. Gestochen scharfe 1:1-Elektronenstrahl-Hauptspur
             ctx.imageSmoothingEnabled = false;
@@ -1057,3 +1237,8 @@ export class Oscilloscope {
         this.drawBeamAndSparks(ctx, lineColor);
     }
 }
+
+Oscilloscope.DEFAULT_OPTIONS = DEFAULT_OPTIONS;
+Oscilloscope.PHOSPHOR_TINTS = PHOSPHOR_TINTS;
+Oscilloscope.BEAM_MODES = BEAM_MODES;
+Oscilloscope.TRIGGER_MODES = TRIGGER_MODES;
