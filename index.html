@@ -43,10 +43,10 @@
         <!-- ZONE 1: Das Spektakel (40% Höhe) -->
         <div id="visual-zone" class="user-inactive">
 
-        <canvas id="demo-canvas" aria-hidden="true"></canvas>
-        
-        <canvas id="crt-mask-canvas" aria-hidden="true"></canvas>
-                        
+            <canvas id="demo-canvas" aria-hidden="true"></canvas>
+            
+            <canvas id="crt-mask-canvas" aria-hidden="true"></canvas>
+                            
             <!-- Das animierte Chiptunes Fantasy Logo (Demoscene Soundchip Crest & Copper Lockup) -->
             <div id="brand-logo" role="button" tabindex="0" aria-label="Scene-DJ Demo-Modus umschalten" aria-pressed="false" title="Scene-DJ Demo-Modus umschalten">
                 <div class="brand-emblem" aria-hidden="true">
@@ -209,7 +209,6 @@
             </div>
 
             <!-- FULLSCREEN UI BAR -->
-  <!-- FULLSCREEN UI BAR -->
             <div id="fs-ui-bar">
                 <span id="stage-mode-status" data-mode="windowed" role="status" aria-live="polite">
                     <span class="stage-mode-led" aria-hidden="true"></span>
@@ -234,8 +233,13 @@
                             aria-controls="eco-overlay" aria-pressed="false" aria-keyshortcuts="M">[ HALT GFX ]</button>
                     </div>
                 </div>
-                <button id="btn-fullscreen" type="button" title="Fullscreen [F]" aria-label="Vollbild aktivieren"
-                    aria-controls="visual-zone" aria-pressed="false" aria-keyshortcuts="F">[ FULL ]</button>
+                <div class="fs-stage-actions">
+                    <button id="btn-display-setup" type="button" title="CRT &amp; Scope Setup [C]"
+                        aria-label="CRT und Oszilloskop Einstellungen öffnen" aria-controls="display-setup-dialog"
+                        aria-expanded="false" aria-keyshortcuts="C">[ CRT / SCOPE ]</button>
+                    <button id="btn-fullscreen" type="button" title="Fullscreen [F]" aria-label="Vollbild aktivieren"
+                        aria-controls="visual-zone" aria-pressed="false" aria-keyshortcuts="F">[ FULL ]</button>
+                </div>
             </div>
             
             <div class="scanlines"></div> <!-- CRT Monitor Effekt -->
@@ -300,7 +304,7 @@
 
             <!-- Rechte Spalte: Museum / Info -->
             <div id="museum-panel">
-<div class="museum-toolbar living-silicon-toolbar">
+                <div class="museum-toolbar living-silicon-toolbar">
                     <span class="museum-toolbar-title" id="living-silicon-title">&gt; LIVING SILICON · MOS 6581 SID</span>
                     <span class="silicon-toolbar-status" role="status" aria-live="polite">
                         <span class="silicon-status-led" aria-hidden="true"></span>
@@ -324,7 +328,7 @@
                         <span>&gt; DATABASE &amp; ARCHIVE</span>
                         <span id="museum-expand-badge" class="museum-expand-badge">[ EXPAND ]</span>
                     </button>
-                        <div class="museum-subtabs" role="tablist" aria-label="Museumsansicht wählen">
+                    <div class="museum-subtabs" role="tablist" aria-label="Museumsansicht wählen">
                         <button id="btn-museum-story" type="button" class="museum-subtab-btn" role="tab"
                             data-museum-tab="story" aria-selected="false" aria-controls="info-text"
                             title="Track-Historie &amp; Binäranalyse">[ TRACK STORY ]</button>
@@ -359,6 +363,10 @@
         </div>
 
     </div> <!-- Ende demo-container -->
+
+    <!-- CRT & OSCILLOSCOPE CALIBRATION DECK -->
+    <aside id="display-setup-dialog" class="display-setup-dialog hidden" role="dialog" aria-modal="false"
+        aria-labelledby="display-setup-title" aria-hidden="true"></aside>
 
     <!-- WICHTIG: Das Skript MUSS ans Ende des Bodys! -->
     <script type="module" src="js/app.js"></script>
