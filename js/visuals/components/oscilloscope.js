@@ -5,10 +5,20 @@
 // dual-stage P31/P11 phosphor persistence, optical glass
 // halation, HF-rejected MSE correlation trigger & cathode beam.
 // =========================================================
+//
+// Hinweise zur Überarbeitung (API unverändert: new Oscilloscope(w, h), render(...), resize, clear):
+// - Die Simulation läuft höchstens mit ~100 Hz (MIN_STEP_SECONDS): Nachleuchten und Memory-Helligkeit
+//   sind bildratenunabhängig, 120/144/240-Hz-Displays kosten nicht mehr als 60 Hz.
+// - Trigger: relative Hysterese-Untergrenze und pegelnormierte Korrelation (leise und mittellaute
+//   Signale locken jetzt). Töne unter ~95 Hz brauchen analyser.fftSize >= 4096, sonst ist der
+//   Suchbereich (fftSize - Fenster = 510 Samples) kürzer als die Periode.
+// - Spur wird lagenweise statt spaltenweise gezeichnet (halb so viele Stilwechsel, pixelgleich).
+// - Bloom sitzt mittig auf dem Spurabschnitt (vorher bei fallenden Flanken unterhalb davon).
+// - Farben: auch rgb()/rgba()/benannte CSS-Farben (vorher nur #hex, sonst stilles Grün).
 
 const DEFAULT_FRAME_INTERVAL = 1 / 60;
 const TIME_WINDOW_SECONDS = 0.032;
-const TRIGGER_HYSTERESIS = 0.015;
+const TRIGGER_HYSTERESIS = 0.0008;   // absolute Untergrenze; darüber gelten 8 % des Spitzenpegels
 const AMPLITUDE_GAIN = 1.24;
 const BLOOM_SCALE = 0.25;
 const COLOR_LUT_SIZE = 32;
@@ -16,6 +26,16 @@ const MAX_SPARKS = 64;
 const CORR_POINTS = 64;
 const IDLE_CLEAR_SECONDS = 1.25;
 const EPSILON = 1e-7;
+const NO_LAYER = 255;
+
+// Ab ~10 ms Schrittweite greifen die Untergrenzen der Fade-Raten nie (sie sollen nur 8-Bit-Alpha-
+// Reste verhindern): das Nachleuchten bleibt bildratenunabhängig.
+const MIN_STEP_SECONDS = 0.01;
+// Einlagerung in die Memory-Schicht: bei 60 Hz 0.26, sonst proportional zur Fade-Rate des Schritts.
+const MEMORY_DEPOSIT_AT_60HZ = 0.26;
+const MEMORY_FADE_AT_60HZ = 1 - Math.exp(-8.0 / 60);
+
+const DEFAULT_RGB = [85, 255, 85];
 
 function clamp(value, minimum, maximum) {
     return Math.max(minimum, Math.min(maximum, value));
@@ -25,17 +45,40 @@ function clamp01(value) {
     return Math.max(0, Math.min(1, value));
 }
 
-function parseHexRgb(lineColor) {
-    let hex = lineColor && lineColor.startsWith('#') ? lineColor.slice(1) : '55ff55';
-    if (hex.length === 3) {
-        hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+let colorProbeCtx = null;
+
+// #rgb / #rgba / #rrggbb / #rrggbbaa, rgb()/rgba(); alles andere (benannte Farben, hsl(), ...)
+// löst der Browser auf. Ungültige Werte ergeben das Standard-Phosphorgrün.
+function parseColor(color, depth = 0) {
+    if (typeof color !== 'string') return DEFAULT_RGB;
+    const text = color.trim();
+
+    const hexMatch = /^#([0-9a-f]+)$/i.exec(text);
+    if (hexMatch) {
+        let hex = hexMatch[1];
+        if (hex.length === 3 || hex.length === 4) {
+            hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+        }
+        if (hex.length < 6) return DEFAULT_RGB;
+        return [
+            parseInt(hex.slice(0, 2), 16) || 0,
+            parseInt(hex.slice(2, 4), 16) || 0,
+            parseInt(hex.slice(4, 6), 16) || 0
+        ];
     }
-    if (hex.length < 6) return [85, 255, 85];
-    return [
-        parseInt(hex.slice(0, 2), 16) || 0,
-        parseInt(hex.slice(2, 4), 16) || 0,
-        parseInt(hex.slice(4, 6), 16) || 0
-    ];
+
+    const rgbMatch = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(text);
+    if (rgbMatch) {
+        return [1, 2, 3].map(i => clamp(Math.round(parseFloat(rgbMatch[i])) || 0, 0, 255));
+    }
+
+    if (depth === 0 && typeof document !== 'undefined') {
+        if (!colorProbeCtx) colorProbeCtx = document.createElement('canvas').getContext('2d');
+        colorProbeCtx.fillStyle = '#55ff55';
+        colorProbeCtx.fillStyle = text;   // ungültige Werte werden ignoriert
+        return parseColor(colorProbeCtx.fillStyle, 1);
+    }
+    return DEFAULT_RGB;
 }
 
 // Quantisierte Fade-Strings vermeiden Template-String-Allokationen pro Frame
@@ -77,7 +120,8 @@ export class Oscilloscope {
 
         this.width = 0;
         this.height = 0;
-        this.analyserKey = '';
+        this.configuredFftSize = 0;
+        this.configuredSampleRate = 0;
         this.timeDomainData = null;
         this.triggerFilterBuf = null;
         this.prevTriggerWave = new Float32Array(CORR_POINTS);
@@ -95,7 +139,19 @@ export class Oscilloscope {
         this.columnBottom = new Int16Array(0);
         this.columnMid = new Int16Array(0);
         this.columnEnergy = new Float32Array(0);
+        this.colColor = new Uint8Array(0);
+        this.colAlphaHalo = new Uint8Array(0);
+        this.colAlphaCore = new Uint8Array(0);
+        this.colAlphaTurn = new Uint8Array(0);
+        this.colAlphaPlateau = new Uint8Array(0);
+        this.colSegTop = new Int16Array(0);
+        this.colSpan = new Int16Array(0);
+        this.dwellLut = new Float64Array(0);
+        this.yMargin = 0;
+        this.yUsable = 1;
 
+        this.stepAccumulator = 0;
+        this.forceStep = true;
         this.sweepActive = false;
         this.sweepPhase = 0;
         this.beamX = 0;
@@ -157,6 +213,25 @@ export class Oscilloscope {
         this.columnBottom = new Int16Array(width);
         this.columnMid = new Int16Array(width);
         this.columnEnergy = new Float32Array(width);
+        this.colColor = new Uint8Array(width);
+        this.colAlphaHalo = new Uint8Array(width);
+        this.colAlphaCore = new Uint8Array(width);
+        this.colAlphaTurn = new Uint8Array(width);
+        this.colAlphaPlateau = new Uint8Array(width);
+        this.colSegTop = new Int16Array(width);
+        this.colSpan = new Int16Array(width);
+    }
+
+    // Höhenabhängige Tabellen: Wertebereich der Spur und Verweildauer-Energie (pow() je Spalte -> Lookup)
+    buildHeightTables(height) {
+        const margin = Math.min(6, Math.floor(height * 0.04));
+        this.yMargin = margin;
+        this.yUsable = Math.max(1, height - margin * 2);
+        const size = Math.max(0, height) + 2;
+        if (this.dwellLut.length !== size) {
+            this.dwellLut = new Float64Array(size);
+            for (let d = 0; d < size; d++) this.dwellLut[d] = Math.pow(1 / (1 + d * 0.22), 0.62);
+        }
     }
 
     resize(newWidth, newHeight) {
@@ -189,6 +264,7 @@ export class Oscilloscope {
         this.bloomCtx.imageSmoothingEnabled = true;
 
         this.allocateRaster(width);
+        this.buildHeightTables(height);
 
         if (width > 0 && height > 0) {
             if (prevTrace) {
@@ -220,6 +296,7 @@ export class Oscilloscope {
         this.beamY = this.sweepActive ? this.getSweepY(this.beamX) : Math.floor(height * 0.5);
         for (const spark of this.sparks) spark.life = 0;
         this.hasActiveSparks = false;
+        this.forceStep = true;
     }
 
     clear() {
@@ -243,6 +320,8 @@ export class Oscilloscope {
         this.hasMemory = false;
         this.activeIdleFade = 0;
         this.idleElapsed = 0;
+        this.stepAccumulator = 0;
+        this.forceStep = true;
         for (const spark of this.sparks) spark.life = 0;
         this.hasActiveSparks = false;
         this.clearSurface(this.offscreenCtx, this.offscreen);
@@ -263,7 +342,7 @@ export class Oscilloscope {
         if (!lineColor || lineColor === this.colorKey) return;
         this.colorKey = lineColor;
 
-        const [rBase, gBase, bBase] = parseHexRgb(lineColor);
+        const [rBase, gBase, bBase] = parseColor(lineColor);
         this.baseRgb = [rBase, gBase, bBase];
 
         // 32-stufige Phosphor-Farbtemperatur-Kurve:
@@ -337,10 +416,10 @@ export class Oscilloscope {
         if (!analyser || !audioCtx) return false;
         const fftSize = analyser.fftSize || 2048;
         const sampleRate = Number.isFinite(audioCtx.sampleRate) ? audioCtx.sampleRate : 48000;
-        const key = `${fftSize}:${sampleRate}`;
-        if (key === this.analyserKey) return true;
+        if (fftSize === this.configuredFftSize && sampleRate === this.configuredSampleRate) return true;
 
-        this.analyserKey = key;
+        this.configuredFftSize = fftSize;
+        this.configuredSampleRate = sampleRate;
         this.audioSampleRate = sampleRate;
         if (!this.timeDomainData || this.timeDomainData.length !== fftSize) {
             this.timeDomainData = new Float32Array(fftSize);
@@ -391,10 +470,18 @@ export class Oscilloscope {
         // damit SID-Rauschen, Oberwellen oder PWM-Spitzen den Nulldurchgang nicht verwackeln.
         let lp = data[0];
         const alpha = 0.22;
+        let trigPeak = 0;
+        let trigPower = 0;
         for (let i = 0; i < data.length; i++) {
             lp += (data[i] - lp) * alpha;
             trigBuf[i] = lp;
+            const absLp = Math.abs(lp);
+            if (absLp > trigPeak) trigPeak = absLp;
+            trigPower += lp * lp;
         }
+        // Flankensteilheit und Korrelationsfehler pegelnormiert: gleiches Verhalten bei laut und leise
+        const invPower = 1 / Math.max(trigPower / data.length, 1e-10);
+        const invPeak = 1 / Math.max(trigPeak, 1e-6);
 
         // 3. Schmitt-Trigger mit adaptiver Hysterese & auflösungsunabhängigem MSE-Korrelations-Lock
         const dynamicHysteresis = Math.max(TRIGGER_HYSTERESIS, peak * 0.08);
@@ -415,9 +502,9 @@ export class Oscilloscope {
 
             const fraction = clamp(-prev / Math.max(EPSILON, curr - prev), 0, 1);
             const candidatePos = i - 1 + fraction;
-            const slope = curr - trigBuf[i - 2];
+            const slope = (curr - trigBuf[i - 2]) * invPeak;
 
-            // Auflösungsunabhängiger Mean Squared Error (-MSE) gegen die Vorperiode
+            // Auflösungs- und pegelunabhängiger Mean Squared Error (-MSE) gegen die Vorperiode
             let mseNeg = 0;
             if (this.captureCount > 0) {
                 for (let k = 0; k < CORR_POINTS; k++) {
@@ -425,18 +512,18 @@ export class Oscilloscope {
                     const diff = trigBuf[idx] - this.prevTriggerWave[k];
                     mseNeg -= diff * diff;
                 }
-                mseNeg *= invCorrPoints;
+                mseNeg *= invCorrPoints * invPower;
             }
 
             // Bevorzuge frühe stabile Triggerpunkte mit steiler Flanke und hoher Periodenähnlichkeit
             const positionPenalty = (i / maximumStart) * 0.06;
-            const score = mseNeg * 2.0 + slope * 0.45 - positionPenalty;
+            const score = mseNeg * 0.25 + slope * 0.225 - positionPenalty;
 
             if (score > bestScore) {
                 bestScore = score;
                 bestPos = candidatePos;
                 foundAny = true;
-                if (this.captureCount > 0 && mseNeg > -0.002 && i > 8) break;
+                if (this.captureCount > 0 && mseNeg > -0.016 && i > 8) break;
             }
             armed = false;
         }
@@ -484,14 +571,11 @@ export class Oscilloscope {
     }
 
     valueToY(value) {
-        const height = this.offscreen.height;
-        if (height <= 2) return 0;
+        if (this.offscreen.height <= 2) return 0;
         // Authentisches thermisches Vorverstärker-Rauschen (~0.25 px), damit die 0V-Linie analog lebt
         const thermalNoise = (this.nextRandom() - 0.5) * 0.0018;
         const normalized = clamp01(0.5 - (value + thermalNoise) * AMPLITUDE_GAIN * 0.42);
-        const margin = Math.min(6, Math.floor(height * 0.04));
-        const usable = Math.max(1, height - margin * 2);
-        return margin + Math.round(normalized * usable);
+        return this.yMargin + Math.round(normalized * this.yUsable);
     }
 
     buildSweepRaster() {
@@ -614,25 +698,35 @@ export class Oscilloscope {
 
         const beamCol = Math.round(this.beamX);
         const cometLength = Math.max(18, Math.round(width * 0.14));
+        const sparkWindow = Math.max(2, Math.ceil(width * dt * 2.5));
 
-        ctx.save();
-        ctx.globalCompositeOperation = 'source-over';
-        oState.color = '';
-        oState.alpha = -1;
+        const columnTop = this.columnTop;
+        const columnBottom = this.columnBottom;
+        const columnMid = this.columnMid;
+        const columnEnergy = this.columnEnergy;
+        const dwellLut = this.dwellLut;
+        const colColor = this.colColor;
+        const aHalo = this.colAlphaHalo;
+        const aCore = this.colAlphaCore;
+        const aTurn = this.colAlphaTurn;
+        const aPlateau = this.colAlphaPlateau;
+        const colSegTop = this.colSegTop;
+        const colSpan = this.colSpan;
 
         bCtx.save();
         bCtx.globalCompositeOperation = 'source-over';
         bState.color = '';
         bState.alpha = -1;
 
+        // Durchlauf 1: Parameter je Spalte bestimmen, Bloom einspeisen, Funken auslösen
         for (let x = 0; x < width; x++) {
-            const top = this.columnTop[x];
-            const bottom = this.columnBottom[x];
-            const mid = this.columnMid[x];
+            const top = columnTop[x];
+            const bottom = columnBottom[x];
+            const mid = columnMid[x];
 
-            const prevTop = x > 0 ? this.columnTop[x - 1] : top;
-            const prevBottom = x > 0 ? this.columnBottom[x - 1] : bottom;
-            const prevMid = x > 0 ? this.columnMid[x - 1] : mid;
+            const prevTop = x > 0 ? columnTop[x - 1] : top;
+            const prevBottom = x > 0 ? columnBottom[x - 1] : bottom;
+            const prevMid = x > 0 ? columnMid[x - 1] : mid;
 
             // Lückenlose vertikale Verbindung zwischen Spalte x-1 und x
             const segTop = Math.min(top, prevBottom);
@@ -641,7 +735,9 @@ export class Oscilloscope {
             const deltaY = Math.max(bottom - top, Math.abs(mid - prevMid), span - 1);
 
             // ECHTE CRT-PHYSIK (Z-Modulation / Dwell-Time):
-            const dwellEnergy = Math.pow(1 / (1 + deltaY * 0.22), 0.62);
+            const dwellEnergy = deltaY < dwellLut.length
+                ? dwellLut[deltaY]
+                : Math.pow(1 / (1 + deltaY * 0.22), 0.62);
 
             const distBehindBeam = (beamCol - x + width) % width;
             const cometBoost = distBehindBeam < cometLength
@@ -649,56 +745,106 @@ export class Oscilloscope {
                 : 0;
 
             const totalEnergy = clamp01(dwellEnergy * 0.86 + cometBoost);
-            this.columnEnergy[x] = totalEnergy;
+            columnEnergy[x] = totalEnergy;
 
             const colorIdx = clamp(Math.round(totalEnergy * (COLOR_LUT_SIZE - 1)), 0, COLOR_LUT_SIZE - 1);
+            colColor[x] = colorIdx;
+            colSegTop[x] = segTop;
+            colSpan[x] = span;
 
-            // 1. Äußere Korona entlang der Spur
-            if (totalEnergy > 0.28) {
-                applyDrawStyle(ctx, oState, this.haloColors[colorIdx], (totalEnergy - 0.22) * 0.42);
-                ctx.fillRect(x, segTop - 1, 1, span + 2);
-            }
-
-            // 2. Steile Flanke vs. flaches Plateau (vermeidet Doppel-Draws auf Plateaus)
+            // Lagenmerkmale: Alpha als Index in 1/32-Schritten (so quantisiert auch applyDrawStyle)
+            aHalo[x] = totalEnergy > 0.28 ? Math.round(clamp01((totalEnergy - 0.22) * 0.42) * 32) : NO_LAYER;
             if (span > 2) {
                 const edgeAlpha = clamp(0.11 + Math.pow(totalEnergy, 1.15) * 0.89, 0.11, 1.0);
-                applyDrawStyle(ctx, oState, this.coreColors[colorIdx], edgeAlpha);
-                ctx.fillRect(x, segTop, 1, span);
-
-                // Umkehrpunkt-Aufhellung an lokalen Extrema
-                const turnAroundIdx = clamp(colorIdx + 7, 0, COLOR_LUT_SIZE - 1);
-                applyDrawStyle(ctx, oState, this.coreColors[turnAroundIdx], clamp(edgeAlpha * 1.45, 0.28, 0.96));
-                ctx.fillRect(x, top, 1, 2);
-                ctx.fillRect(x, Math.max(top, bottom - 1), 1, 2);
+                aCore[x] = Math.round(clamp01(edgeAlpha) * 32);
+                aTurn[x] = Math.round(clamp01(clamp(edgeAlpha * 1.45, 0.28, 0.96)) * 32);
+                aPlateau[x] = NO_LAYER;
             } else {
-                const plateauIdx = Math.min(COLOR_LUT_SIZE - 1, colorIdx + 5);
-                applyDrawStyle(ctx, oState, this.coreColors[plateauIdx], totalEnergy * 0.95);
-                ctx.fillRect(x, mid, 1, 2);
+                aCore[x] = NO_LAYER;
+                aTurn[x] = NO_LAYER;
+                aPlateau[x] = Math.round(clamp01(totalEnergy * 0.95) * 32);
             }
 
-            // 3. Optisches Halation-Blooming ins Viertel-Auflösungs-Canvas einspeisen
+            // Optisches Halation-Blooming ins Viertel-Auflösungs-Canvas einspeisen, mittig auf dem
+            // Spurabschnitt (Spalte x-1 -> x), nicht ab seinem Mittelpunkt nach unten
             if ((x & 1) === 0 && totalEnergy > 0.24) {
-                const bx = Math.floor(x * bScaleX);
-                const by = Math.floor(mid * bScaleY);
+                const bloomHeight = Math.max(2, Math.ceil(span * bScaleY));
+                const bloomX = Math.floor(x * bScaleX) - 1;
+                const bloomY = Math.round((segTop + (span - 1) * 0.5) * bScaleY - bloomHeight * 0.5);
                 applyDrawStyle(bCtx, bState, this.coreColors[colorIdx], totalEnergy * 0.55);
-                bCtx.fillRect(bx, by, 2, Math.max(2, Math.ceil(span * bScaleY)));
+                bCtx.fillRect(bloomX, bloomY, 2, bloomHeight);
             }
 
-            // 4. Kathoden-Funken an extrem steilen Flanken auslösen, wenn der Fokusstrahl passiert
-            if (deltaY > 14 && distBehindBeam <= Math.max(2, Math.ceil(width * dt * 2.5))) {
+            // Kathoden-Funken an extrem steilen Flanken auslösen, wenn der Fokusstrahl passiert
+            if (deltaY > 14 && distBehindBeam <= sparkWindow) {
                 if (this.nextRandom() < 0.45) {
                     this.spawnSparks(x, mid, deltaY);
                 }
             }
         }
 
-        ctx.restore();
         bCtx.restore();
 
-        // Aktuelle Fluoreszenz-Spur in die langsamer abklingende Phosphoreszenz-Schicht übertragen
+        // Durchlauf 2: Spur lagenweise zeichnen (Korona -> Kern -> Umkehrpunkte -> Plateau). Spalten
+        // überlappen sich nicht, nur die Reihenfolge innerhalb einer Spalte zählt: das Ergebnis ist
+        // pixelgleich zum spaltenweisen Zeichnen, aber Stilwechsel gibt es nur noch an Farb-/Alpha-
+        // Übergängen entlang x.
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-over';
+        oState.color = '';
+        oState.alpha = -1;
+
+        const halo = this.haloColors;
+        const core = this.coreColors;
+
+        for (let x = 0; x < width; x++) {
+            const a = aHalo[x];
+            if (a === NO_LAYER) continue;
+            const color = halo[colColor[x]];
+            if (oState.color !== color) { oState.color = color; ctx.fillStyle = color; }
+            if (oState.alpha !== a) { oState.alpha = a; ctx.globalAlpha = a / 32; }
+            ctx.fillRect(x, colSegTop[x] - 1, 1, colSpan[x] + 2);
+        }
+
+        for (let x = 0; x < width; x++) {
+            const a = aCore[x];
+            if (a === NO_LAYER) continue;
+            const color = core[colColor[x]];
+            if (oState.color !== color) { oState.color = color; ctx.fillStyle = color; }
+            if (oState.alpha !== a) { oState.alpha = a; ctx.globalAlpha = a / 32; }
+            ctx.fillRect(x, colSegTop[x], 1, colSpan[x]);
+        }
+
+        // Umkehrpunkt-Aufhellung an lokalen Extrema
+        for (let x = 0; x < width; x++) {
+            const a = aTurn[x];
+            if (a === NO_LAYER) continue;
+            const color = core[clamp(colColor[x] + 7, 0, COLOR_LUT_SIZE - 1)];
+            if (oState.color !== color) { oState.color = color; ctx.fillStyle = color; }
+            if (oState.alpha !== a) { oState.alpha = a; ctx.globalAlpha = a / 32; }
+            const top = columnTop[x];
+            ctx.fillRect(x, top, 1, 2);
+            ctx.fillRect(x, Math.max(top, columnBottom[x] - 1), 1, 2);
+        }
+
+        // Flache Plateaus (vermeidet Doppel-Draws)
+        for (let x = 0; x < width; x++) {
+            const a = aPlateau[x];
+            if (a === NO_LAYER) continue;
+            const color = core[Math.min(COLOR_LUT_SIZE - 1, colColor[x] + 5)];
+            if (oState.color !== color) { oState.color = color; ctx.fillStyle = color; }
+            if (oState.alpha !== a) { oState.alpha = a; ctx.globalAlpha = a / 32; }
+            ctx.fillRect(x, columnMid[x], 1, 2);
+        }
+
+        ctx.restore();
+
+        // Aktuelle Fluoreszenz-Spur in die langsamer abklingende Phosphoreszenz-Schicht übertragen.
+        // Die Einlagerung folgt der Fade-Rate des Schritts: gleiche Helligkeit bei jeder Bildrate.
+        const slowFade = clamp(1 - Math.exp(-8.0 * dt), 0.05, 0.22);
         this.memoryCtx.save();
         this.memoryCtx.globalCompositeOperation = 'lighter';
-        this.memoryCtx.globalAlpha = 0.26;
+        this.memoryCtx.globalAlpha = clamp01(MEMORY_DEPOSIT_AT_60HZ * slowFade / MEMORY_FADE_AT_60HZ);
         this.memoryCtx.drawImage(this.offscreen, 0, 0);
         this.memoryCtx.restore();
 
@@ -709,7 +855,7 @@ export class Oscilloscope {
 
         // Falls der Fokusstrahl beim Wrap-Around über eine Flanke lief
         if (prevBeamX > this.beamX && this.signalRms > 0.05) {
-            const dy0 = Math.abs(this.columnBottom[0] - this.columnTop[0]);
+            const dy0 = Math.abs(columnBottom[0] - columnTop[0]);
             if (dy0 > 12) this.spawnSparks(0, this.beamY, dy0);
         }
     }
@@ -822,26 +968,13 @@ export class Oscilloscope {
         ctx.restore();
     }
 
-    render(ctx, width, height, stateGetters, lineColor, deltaTime = DEFAULT_FRAME_INTERVAL) {
-        if (width <= 0 || height <= 0) return;
-        if (this.width !== width || this.height !== height) {
-            this.resize(width, height);
-        }
-        if (this.offscreen.width <= 0 || this.offscreen.height <= 0) return;
+    // Ein Simulationsschritt: Welle erfassen, Phosphor abklingen lassen, Spur einbrennen, Funken bewegen.
+    // Capture läuft vor dem Fade, damit auch ein fehlschlagender Capture den Idle-Pfad (mit Löschen) nimmt.
+    simulate(dt, mayCapture, analyser) {
+        const captured = mayCapture && this.captureWaveform(analyser);
+        this.fadePhosphorSurfaces(dt, captured);
 
-        this.prepareColors(lineColor);
-
-        const trackData = stateGetters.getTrackData ? stateGetters.getTrackData() : null;
-        const hasTrack = !!trackData && (trackData.length || 0) > 0;
-        const isPlaying = stateGetters.getIsPlaying ? stateGetters.getIsPlaying() : hasTrack;
-        const analyser = stateGetters.getAnalyserNode ? stateGetters.getAnalyserNode() : null;
-        const audioCtx = stateGetters.getAudioContext ? stateGetters.getAudioContext() : null;
-        const mayCapture = hasTrack && isPlaying && this.configureAnalyser(analyser, audioCtx);
-        const dt = Number.isFinite(deltaTime) ? clamp(deltaTime, 0.001, 0.1) : DEFAULT_FRAME_INTERVAL;
-
-        this.fadePhosphorSurfaces(dt, mayCapture);
-
-        if (mayCapture && this.captureWaveform(analyser)) {
+        if (captured) {
             this.sweepActive = true;
             this.burnPhosphorTrace(dt);
         } else {
@@ -850,7 +983,41 @@ export class Oscilloscope {
         }
 
         this.updateSparks(dt);
+    }
 
+    render(ctx, width, height, stateGetters, lineColor, deltaTime = DEFAULT_FRAME_INTERVAL) {
+        width = Math.floor(width);
+        height = Math.floor(height);
+        if (!(width > 0) || !(height > 0)) return;
+        if (this.width !== width || this.height !== height) {
+            this.resize(width, height);
+        }
+        if (this.offscreen.width <= 0 || this.offscreen.height <= 0) return;
+
+        this.prepareColors(lineColor);
+
+        const getters = stateGetters || {};
+        const trackData = getters.getTrackData ? getters.getTrackData() : null;
+        const hasTrack = !!trackData && (trackData.length || 0) > 0;
+        const isPlaying = getters.getIsPlaying ? getters.getIsPlaying() : hasTrack;
+        const analyser = getters.getAnalyserNode ? getters.getAnalyserNode() : null;
+        const audioCtx = getters.getAudioContext ? getters.getAudioContext() : null;
+        const mayCapture = hasTrack && isPlaying && this.configureAnalyser(analyser, audioCtx);
+        const dt = Number.isFinite(deltaTime) ? clamp(deltaTime, 0.001, 0.1) : DEFAULT_FRAME_INTERVAL;
+
+        // Auf schnellen Displays Schritte bündeln (>= MIN_STEP_SECONDS), Komposition läuft jeden Frame
+        this.stepAccumulator += dt;
+        if (this.forceStep || this.stepAccumulator >= MIN_STEP_SECONDS) {
+            const stepDt = Math.min(this.stepAccumulator, 0.1);
+            this.stepAccumulator = 0;
+            this.forceStep = false;
+            this.simulate(stepDt, mayCapture, analyser);
+        }
+
+        this.compose(ctx, width, height, lineColor);
+    }
+
+    compose(ctx, width, height, lineColor) {
         ctx.save();
         ctx.globalCompositeOperation = 'screen';
 
