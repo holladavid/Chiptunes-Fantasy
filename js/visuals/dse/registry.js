@@ -43,6 +43,7 @@ import { AmigaVoxelHills } from './amiga/voxel-hills.js';
 import { AtariLaserGrid } from './atari/laser-grid.js';
 import { AtariPondRipples } from './atari/pond-ripples.js';
 import { AtariMetaBlobs } from './atari/meta-blobs.js';
+import { AtariJuliaCycler } from './atari/julia-cycler.js';
 
 // =========================================================
 // FLUENT BUILDER PATTERN (1 Funktion je Attribut)
@@ -163,6 +164,14 @@ export const dseRegistry = [
         .layer('background')
         .weight(12)
         .duration(13.0)
+        .climaxHold(12.0)
+        .build(),
+
+    RegisterDSE(AtariJuliaCycler)
+        .systems('atari')
+        .layer('background')
+        .weight(11)
+        .duration(14.0)
         .climaxHold(12.0)
         .build(),
 
