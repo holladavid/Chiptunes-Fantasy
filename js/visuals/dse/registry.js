@@ -28,6 +28,7 @@ import { C64VectorStar } from './c64/vector-star.js';
 import { C64CastleFireworks } from './c64/castle-fireworks.js';
 import { AmigaCastleFireworks } from './amiga/castle-fireworks.js';
 import { AtariEnchantedCastle } from './atari/enchanted-castle.js';
+import { C64RasterRoad } from './c64/raster-road.js';
 
 // =========================================================
 // FLUENT BUILDER PATTERN (1 Funktion je Attribut)
@@ -214,6 +215,14 @@ export const dseRegistry = [
         .weight(12)
         .duration(12.0)
         .climaxHold(15.0)
+        .build(),
+
+    RegisterDSE(C64RasterRoad)
+        .systems('c64')
+        .layer('floor')
+        .weight(12)
+        .duration(15.0)
+        .climaxHold(14.0)
         .build(),
 
     RegisterDSE(VoidElement)

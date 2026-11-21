@@ -243,3 +243,271 @@ export function fillAliasedPolygon(ctx, points, color, transparentDither = false
         }
     }
 }
+
+// =========================================================
+// DOM-FREIE DETERMINISTIK-, FADE- & CLIPPING-HELFER
+// =========================================================
+
+export function createXorshift32(seed = 0x9E3779B9) {
+    const initialSeed = (seed | 0) || 0x9E3779B9;
+    let state = initialSeed;
+
+    function next() {
+        state ^= state << 13;
+        state ^= state >>> 17;
+        state ^= state << 5;
+        return state >>> 0;
+    }
+
+    function float() {
+        return next() / 4294967296;
+    }
+
+    function int(n) {
+        if (!Number.isFinite(n) || n <= 0) return 0;
+        return Math.floor(float() * Math.floor(n));
+    }
+
+    function reset(newSeed = initialSeed) {
+        state = (newSeed | 0) || 0x9E3779B9;
+    }
+
+    return { next, float, int, reset };
+}
+
+export function bayerFadeCells(ctx, x, y, w, h, visibility, cell = 2, color = '#000000') {
+    if (!ctx || !Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || !Number.isFinite(h)) {
+        return;
+    }
+    const x0 = Math.floor(x);
+    const y0 = Math.floor(y);
+    const x1 = Math.floor(x + w);
+    const y1 = Math.floor(y + h);
+    const rw = x1 - x0;
+    const rh = y1 - y0;
+    if (rw <= 0 || rh <= 0) return;
+
+    const alpha = Number.isFinite(visibility) ? visibility : 1;
+    const level = Math.max(0, Math.min(16, Math.round(alpha * 16)));
+    if (level >= 16) return;
+
+    ctx.fillStyle = color;
+    if (level <= 0) {
+        ctx.fillRect(x0, y0, rw, rh);
+        return;
+    }
+
+    let effCell = Number.isFinite(cell) ? Math.max(1, Math.floor(cell)) : 2;
+    while (Math.ceil(rw / effCell) * Math.ceil(rh / effCell) * 0.5 > 3600) {
+        effCell++;
+    }
+
+    const cols = Math.ceil(rw / effCell);
+    const rows = Math.ceil(rh / effCell);
+
+    for (let row = 0; row < rows; row++) {
+        const py = y0 + row * effCell;
+        const ch = Math.min(effCell, y1 - py);
+        if (ch <= 0) break;
+
+        const bayerRow = (row & 3) * 4;
+        let runStart = -1;
+
+        for (let col = 0; col <= cols; col++) {
+            const masked = col < cols && ORDERED_FADE_MATRIX[bayerRow + (col & 3)] >= level;
+            if (masked) {
+                if (runStart === -1) runStart = col;
+            } else if (runStart !== -1) {
+                const px = x0 + runStart * effCell;
+                const pw = Math.min(x1, x0 + col * effCell) - px;
+                if (pw > 0) ctx.fillRect(px, py, pw, ch);
+                runStart = -1;
+            }
+        }
+    }
+}
+
+function normalizeClipRect(clipRect) {
+    if (!clipRect) return null;
+    let minX, minY, maxX, maxY;
+    if (Number.isFinite(clipRect.minX) && Number.isFinite(clipRect.maxX)) {
+        minX = Math.floor(clipRect.minX);
+        maxX = Math.floor(clipRect.maxX);
+        minY = Math.floor(clipRect.minY ?? 0);
+        maxY = Math.floor(clipRect.maxY ?? 0);
+    } else {
+        const x = Number.isFinite(clipRect.x) ? clipRect.x : 0;
+        const y = Number.isFinite(clipRect.y) ? clipRect.y : 0;
+        const w = Number.isFinite(clipRect.w) ? clipRect.w : clipRect.width;
+        const h = Number.isFinite(clipRect.h) ? clipRect.h : clipRect.height;
+        if (!Number.isFinite(w) || !Number.isFinite(h)) return null;
+        minX = Math.floor(x);
+        minY = Math.floor(y);
+        maxX = Math.floor(x + w);
+        maxY = Math.floor(y + h);
+    }
+    if (maxX <= minX || maxY <= minY) return null;
+    return { minX, minY, maxX, maxY };
+}
+
+function emitClippedRect(ctx, rx, ry, rw, rh, clip) {
+    if (!clip) {
+        if (rw > 0 && rh > 0) ctx.fillRect(rx, ry, rw, rh);
+        return;
+    }
+    const x0 = Math.max(clip.minX, rx);
+    const y0 = Math.max(clip.minY, ry);
+    const x1 = Math.min(clip.maxX, rx + rw);
+    const y1 = Math.min(clip.maxY, ry + rh);
+    const cw = x1 - x0;
+    const ch = y1 - y0;
+    if (cw > 0 && ch > 0) {
+        ctx.fillRect(x0, y0, cw, ch);
+    }
+}
+
+export function drawAliasedLineClipped(ctx, x0, y0, x1, y1, color, clipRect = null) {
+    if (!ctx || !Number.isFinite(x0) || !Number.isFinite(y0) || !Number.isFinite(x1) || !Number.isFinite(y1)) {
+        return;
+    }
+
+    const hasClip = clipRect !== null && clipRect !== undefined;
+    const clip = hasClip ? normalizeClipRect(clipRect) : null;
+    if (hasClip && !clip) return;
+
+    let cx0 = x0, cy0 = y0, cx1 = x1, cy1 = y1;
+    if (clip) {
+        const left = clip.minX - 1;
+        const right = clip.maxX;
+        const top = clip.minY - 1;
+        const bottom = clip.maxY;
+        const dxF = cx1 - cx0;
+        const dyF = cy1 - cy0;
+        let t0 = 0;
+        let t1 = 1;
+        const p = [-dxF, dxF, -dyF, dyF];
+        const q = [cx0 - left, right - cx0, cy0 - top, bottom - cy0];
+        for (let i = 0; i < 4; i++) {
+            if (p[i] === 0) {
+                if (q[i] < 0) return;
+            } else {
+                const r = q[i] / p[i];
+                if (p[i] < 0) {
+                    if (r > t1) return;
+                    if (r > t0) t0 = r;
+                } else {
+                    if (r < t0) return;
+                    if (r < t1) t1 = r;
+                }
+            }
+        }
+        cx1 = cx0 + t1 * dxF;
+        cy1 = cy0 + t1 * dyF;
+        cx0 = cx0 + t0 * dxF;
+        cy0 = cy0 + t0 * dyF;
+    }
+
+    ctx.fillStyle = color;
+    let ix0 = Math.floor(cx0), iy0 = Math.floor(cy0);
+    const ix1 = Math.floor(cx1), iy1 = Math.floor(cy1);
+
+    const dx = Math.abs(ix1 - ix0), sx = ix0 < ix1 ? 1 : -1;
+    const dy = Math.abs(iy1 - iy0), sy = iy0 < iy1 ? 1 : -1;
+    let err = (dx > dy ? dx : -dy) / 2;
+
+    if (dx >= dy) {
+        let runStartX = ix0;
+        while (true) {
+            const oldX = ix0, oldY = iy0;
+            if (ix0 === ix1 && iy0 === iy1) {
+                emitClippedRect(ctx, Math.min(runStartX, ix0), iy0, Math.abs(ix0 - runStartX) + 1, 1, clip);
+                break;
+            }
+            const e2 = err;
+            if (e2 > -dx) { err -= dy; ix0 += sx; }
+            if (e2 < dy) { err += dx; iy0 += sy; }
+            if (iy0 !== oldY) {
+                emitClippedRect(ctx, Math.min(runStartX, oldX), oldY, Math.abs(oldX - runStartX) + 1, 1, clip);
+                runStartX = ix0;
+            }
+        }
+        return;
+    }
+
+    let runStartY = iy0;
+    while (true) {
+        const oldX = ix0, oldY = iy0;
+        if (ix0 === ix1 && iy0 === iy1) {
+            emitClippedRect(ctx, ix0, Math.min(runStartY, iy0), 1, Math.abs(iy0 - runStartY) + 1, clip);
+            break;
+        }
+        const e2 = err;
+        if (e2 > -dx) { err -= dy; ix0 += sx; }
+        if (e2 < dy) { err += dx; iy0 += sy; }
+        if (ix0 !== oldX) {
+            emitClippedRect(ctx, oldX, Math.min(runStartY, oldY), 1, Math.abs(oldY - runStartY) + 1, clip);
+            runStartY = iy0;
+        }
+    }
+}
+
+export function fillAliasedPolygonClipped(ctx, points, color, transparentDither = false, clipRect = null) {
+    if (!ctx || !points || points.length < 3) return;
+
+    const hasClip = clipRect !== null && clipRect !== undefined;
+    const clip = hasClip ? normalizeClipRect(clipRect) : null;
+    if (hasClip && !clip) return;
+
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < points.length; i++) {
+        const pt = points[i];
+        if (!pt || !Number.isFinite(pt.x) || !Number.isFinite(pt.y)) return;
+        if (pt.y < minY) minY = pt.y;
+        if (pt.y > maxY) maxY = pt.y;
+    }
+
+    minY = Math.ceil(minY);
+    maxY = Math.floor(maxY);
+    if (clip) {
+        minY = Math.max(clip.minY, minY);
+        maxY = Math.min(clip.maxY - 1, maxY);
+    }
+    if (maxY < minY) return;
+
+    const intersections = [];
+    ctx.fillStyle = color;
+
+    for (let y = minY; y <= maxY; y++) {
+        intersections.length = 0;
+        for (let i = 0; i < points.length; i++) {
+            const p0 = points[i];
+            const p1 = points[(i + 1) % points.length];
+            if (p0.y === p1.y) continue;
+
+            const crossesScanline = (p0.y <= y && p1.y > y) || (p1.y <= y && p0.y > y);
+            if (crossesScanline) {
+                intersections.push(p0.x + ((y - p0.y) / (p1.y - p0.y)) * (p1.x - p0.x));
+            }
+        }
+
+        intersections.sort((a, b) => a - b);
+        for (let i = 0; i + 1 < intersections.length; i += 2) {
+            let startX = Math.ceil(intersections[i]);
+            let endX = Math.floor(intersections[i + 1]);
+            if (clip) {
+                startX = Math.max(clip.minX, startX);
+                endX = Math.min(clip.maxX - 1, endX);
+            }
+            if (endX < startX) continue;
+
+            if (transparentDither) {
+                for (let x = startX; x <= endX; x++) {
+                    if (((x + y) & 1) === 0) ctx.fillRect(x, y, 1, 1);
+                }
+            } else {
+                ctx.fillRect(startX, y, endX - startX + 1, 1);
+            }
+        }
+    }
+}
