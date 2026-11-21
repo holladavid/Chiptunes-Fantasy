@@ -37,6 +37,7 @@ import { C64BorderRasters } from './c64/border-rasters.js';
 import { AmigaRotoZoomer } from './amiga/rotozoomer.js';
 import { AmigaTechTech } from './amiga/tech-tech.js';
 import { AmigaTwister } from './amiga/twister.js';
+import { AmigaVectorBalls } from './amiga/vector-balls.js';
 
 // =========================================================
 // FLUENT BUILDER PATTERN (1 Funktion je Attribut)
@@ -312,6 +313,14 @@ export const dseRegistry = [
         .layer('foreground')
         .weight(12)
         .duration(12.0)
+        .climaxHold(15.0)
+        .build(),
+
+    RegisterDSE(AmigaVectorBalls)
+        .systems('amiga')
+        .layer('foreground')
+        .weight(11)
+        .duration(15.0)
         .climaxHold(15.0)
         .build(),
     
