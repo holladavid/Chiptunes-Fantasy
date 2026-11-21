@@ -511,3 +511,148 @@ export function fillAliasedPolygonClipped(ctx, points, color, transparentDither 
         }
     }
 }
+
+function emitClippedHLine(ctx, x0, x1, y, clip) {
+    if (x1 < x0) return;
+    emitClippedRect(ctx, x0, y, x1 - x0 + 1, 1, clip);
+}
+
+function emitClippedVLine(ctx, x, y0, y1, clip) {
+    if (y1 < y0) return;
+    emitClippedRect(ctx, x, y0, 1, y1 - y0 + 1, clip);
+}
+
+function flushEllipseHRun(ctx, cx, cy, startX, endX, y, clip) {
+    if (startX === 0) {
+        emitClippedHLine(ctx, cx - endX, cx + endX, cy + y, clip);
+        if (y > 0) emitClippedHLine(ctx, cx - endX, cx + endX, cy - y, clip);
+        return;
+    }
+    emitClippedHLine(ctx, cx - endX, cx - startX, cy + y, clip);
+    emitClippedHLine(ctx, cx + startX, cx + endX, cy + y, clip);
+    if (y > 0) {
+        emitClippedHLine(ctx, cx - endX, cx - startX, cy - y, clip);
+        emitClippedHLine(ctx, cx + startX, cx + endX, cy - y, clip);
+    }
+}
+
+function flushEllipseVRun(ctx, cx, cy, x, startY, endY, clip) {
+    if (endY === 0) {
+        emitClippedVLine(ctx, cx + x, cy - startY, cy + startY, clip);
+        if (x > 0) emitClippedVLine(ctx, cx - x, cy - startY, cy + startY, clip);
+        return;
+    }
+    emitClippedVLine(ctx, cx + x, cy - startY, cy - endY, clip);
+    emitClippedVLine(ctx, cx + x, cy + endY, cy + startY, clip);
+    if (x > 0) {
+        emitClippedVLine(ctx, cx - x, cy - startY, cy - endY, clip);
+        emitClippedVLine(ctx, cx - x, cy + endY, cy + startY, clip);
+    }
+}
+
+export function drawAliasedEllipseOutlineClipped(ctx, xc, yc, rx, ry, color, clipRect = null) {
+    if (!ctx || !Number.isFinite(xc) || !Number.isFinite(yc) || !Number.isFinite(rx) || !Number.isFinite(ry)) {
+        return;
+    }
+
+    const hasClip = clipRect !== null && clipRect !== undefined;
+    const clip = hasClip ? normalizeClipRect(clipRect) : null;
+    if (hasClip && !clip) return;
+
+    const cx = Math.round(xc);
+    const cy = Math.round(yc);
+    const irx = Math.round(rx);
+    const iry = Math.round(ry);
+    if (irx < 0 || iry < 0 || irx > 16384 || iry > 16384) return;
+
+    if (clip && (cx + irx < clip.minX || cx - irx >= clip.maxX || cy + iry < clip.minY || cy - iry >= clip.maxY)) {
+        return;
+    }
+
+    ctx.fillStyle = color;
+
+    if (irx === 0 && iry === 0) {
+        emitClippedRect(ctx, cx, cy, 1, 1, clip);
+        return;
+    }
+    if (irx === 0) {
+        emitClippedVLine(ctx, cx, cy - iry, cy + iry, clip);
+        return;
+    }
+    if (iry === 0) {
+        emitClippedHLine(ctx, cx - irx, cx + irx, cy, clip);
+        return;
+    }
+
+    const rx2 = irx * irx;
+    const ry2 = iry * iry;
+    const twoRx2 = 2 * rx2;
+    const twoRy2 = 2 * ry2;
+
+    let x = 0;
+    let y = iry;
+    let px = 0;
+    let py = twoRx2 * y;
+    let p1 = Math.round(ry2 - (rx2 * iry) + (0.25 * rx2));
+
+    let runStartX = -1;
+    let runEndX = -1;
+    let runY = y;
+
+    // Region 1 (flache obere/untere Boegen -> horizontales Run-Merging)
+    while (px < py) {
+        if (runStartX === -1) {
+            runStartX = x;
+            runEndX = x;
+            runY = y;
+        } else {
+            runEndX = x;
+        }
+
+        x++;
+        px += twoRy2;
+        if (p1 < 0) {
+            p1 += ry2 + px;
+        } else {
+            y--;
+            py -= twoRx2;
+            p1 += ry2 + px - py;
+            flushEllipseHRun(ctx, cx, cy, runStartX, runEndX, runY, clip);
+            runStartX = -1;
+        }
+    }
+    if (runStartX !== -1) {
+        flushEllipseHRun(ctx, cx, cy, runStartX, runEndX, runY, clip);
+    }
+
+    // Region 2 (steile linke/rechte Flanken -> vertikales Run-Merging)
+    let p2 = Math.round(ry2 * (x + 0.5) * (x + 0.5) + rx2 * (y - 1) * (y - 1) - rx2 * ry2);
+    let runX = -1;
+    let runStartY = y;
+    let runEndY = y;
+
+    while (y >= 0) {
+        if (runX === -1) {
+            runX = x;
+            runStartY = y;
+            runEndY = y;
+        } else {
+            runEndY = y;
+        }
+
+        y--;
+        py -= twoRx2;
+        if (p2 > 0) {
+            p2 += rx2 - py;
+        } else {
+            x++;
+            px += twoRy2;
+            p2 += rx2 - py + px;
+            flushEllipseVRun(ctx, cx, cy, runX, runStartY, runEndY, clip);
+            runX = -1;
+        }
+    }
+    if (runX !== -1) {
+        flushEllipseVRun(ctx, cx, cy, runX, runStartY, runEndY, clip);
+    }
+}
