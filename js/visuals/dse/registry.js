@@ -38,6 +38,7 @@ import { AmigaRotoZoomer } from './amiga/rotozoomer.js';
 import { AmigaTechTech } from './amiga/tech-tech.js';
 import { AmigaTwister } from './amiga/twister.js';
 import { AmigaVectorBalls } from './amiga/vector-balls.js';
+import { AmigaParallaxGround } from './amiga/parallax-ground.js';
 
 // =========================================================
 // FLUENT BUILDER PATTERN (1 Funktion je Attribut)
@@ -256,6 +257,14 @@ export const dseRegistry = [
         .weight(12)
         .duration(12.0)
         .climaxHold(15.0)
+        .build(),
+
+    RegisterDSE(AmigaParallaxGround)
+        .systems('amiga')
+        .layer('floor')
+        .weight(12)
+        .duration(14.0)
+        .climaxHold(12.0)
         .build(),
 
     RegisterDSE(C64RasterRoad)
