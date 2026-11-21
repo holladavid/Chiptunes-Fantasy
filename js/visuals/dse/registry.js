@@ -30,6 +30,7 @@ import { AmigaCastleFireworks } from './amiga/castle-fireworks.js';
 import { AtariEnchantedCastle } from './atari/enchanted-castle.js';
 import { C64RasterRoad } from './c64/raster-road.js';
 import { C64DanceFloor } from './c64/dance-floor.js';
+import { C64RasterTunnel } from './c64/raster-tunnel.js';
 
 // =========================================================
 // FLUENT BUILDER PATTERN (1 Funktion je Attribut)
@@ -167,6 +168,14 @@ export const dseRegistry = [
         .weight(12)
         .duration(12.0)
         .climaxHold(10.0)
+        .build(),
+
+    RegisterDSE(C64RasterTunnel)
+        .systems('c64')
+        .layer('background')
+        .weight(11)
+        .duration(14.0)
+        .climaxHold(12.0)
         .build(),
 
     // --- SYSTEM EXCLUSIVE BACKGROUNDS (Living Silicon) ---
