@@ -36,6 +36,7 @@ import { C64SineScroller } from './c64/sine-scroller.js';
 import { C64BorderRasters } from './c64/border-rasters.js';
 import { AmigaRotoZoomer } from './amiga/rotozoomer.js';
 import { AmigaTechTech } from './amiga/tech-tech.js';
+import { AmigaTwister } from './amiga/twister.js';
 
 // =========================================================
 // FLUENT BUILDER PATTERN (1 Funktion je Attribut)
@@ -182,7 +183,7 @@ export const dseRegistry = [
         .duration(13.0)
         .climaxHold(12.0)
         .build(),
-        
+
     RegisterDSE(ChunkyPlasma)
         .systems('c64')
         .layer('background')
@@ -296,6 +297,14 @@ export const dseRegistry = [
         .weight(12)
         .duration(12.0)
         .climaxHold(15.0)
+        .build(),
+
+    RegisterDSE(AmigaTwister)
+        .systems('amiga')
+        .layer('foreground')
+        .weight(12)
+        .duration(14.0)
+        .climaxHold(14.0)
         .build(),
 
     RegisterDSE(AtariDotTorus)
