@@ -33,6 +33,7 @@ import { C64DanceFloor } from './c64/dance-floor.js';
 import { C64RasterTunnel } from './c64/raster-tunnel.js';
 import { C64FireWall } from './c64/fire-wall.js';
 import { C64SineScroller } from './c64/sine-scroller.js';
+import { C64BorderRasters } from './c64/border-rasters.js';
 
 // =========================================================
 // FLUENT BUILDER PATTERN (1 Funktion je Attribut)
@@ -317,6 +318,14 @@ export const dseRegistry = [
         .weight(12)
         .duration(15.0)
         .climaxHold(12.0)
+        .build(),
+
+    RegisterDSE(C64BorderRasters)
+        .systems('c64')
+        .layer('foreground')
+        .weight(11)
+        .duration(14.0)
+        .climaxHold(10.0)
         .build(),
 
     RegisterDSE(VoidElement)
