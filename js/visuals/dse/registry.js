@@ -44,6 +44,7 @@ import { AtariLaserGrid } from './atari/laser-grid.js';
 import { AtariPondRipples } from './atari/pond-ripples.js';
 import { AtariMetaBlobs } from './atari/meta-blobs.js';
 import { AtariJuliaCycler } from './atari/julia-cycler.js';
+import { AtariLineRibbons } from './atari/line-ribbons.js';
 
 // =========================================================
 // FLUENT BUILDER PATTERN (1 Funktion je Attribut)
@@ -368,6 +369,14 @@ export const dseRegistry = [
         .weight(12)
         .duration(12.0)
         .climaxHold(15.0)
+        .build(),
+
+    RegisterDSE(AtariLineRibbons)
+        .systems('atari')
+        .layer('foreground')
+        .weight(11)
+        .duration(15.0)
+        .climaxHold(12.0)
         .build(),
 
     RegisterDSE(AmigaVectorBalls)
