@@ -45,6 +45,7 @@ import { AtariPondRipples } from './atari/pond-ripples.js';
 import { AtariMetaBlobs } from './atari/meta-blobs.js';
 import { AtariJuliaCycler } from './atari/julia-cycler.js';
 import { AtariLineRibbons } from './atari/line-ribbons.js';
+import { AtariFlatShadedTrio } from './atari/flat-shaded-trio.js';
 
 // =========================================================
 // FLUENT BUILDER PATTERN (1 Funktion je Attribut)
@@ -401,6 +402,14 @@ export const dseRegistry = [
         .weight(10)
         .duration(15.0)
         .climaxHold(10.0)
+        .build(),
+
+    RegisterDSE(AtariFlatShadedTrio)
+        .systems('atari')
+        .layer('foreground')
+        .weight(12)
+        .duration(14.0)
+        .climaxHold(14.0)
         .build(),
 
     RegisterDSE(C64VectorStar)
