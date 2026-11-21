@@ -35,6 +35,7 @@ import { C64FireWall } from './c64/fire-wall.js';
 import { C64SineScroller } from './c64/sine-scroller.js';
 import { C64BorderRasters } from './c64/border-rasters.js';
 import { AmigaRotoZoomer } from './amiga/rotozoomer.js';
+import { AmigaTechTech } from './amiga/tech-tech.js';
 
 // =========================================================
 // FLUENT BUILDER PATTERN (1 Funktion je Attribut)
@@ -165,7 +166,7 @@ export const dseRegistry = [
         .duration(15.0)
         .climaxHold(12.0)
         .build(),
-        
+
     RegisterDSE(AmigaRotoZoomer)
         .systems('amiga')
         .layer('background')
@@ -174,6 +175,14 @@ export const dseRegistry = [
         .climaxHold(12.0)
         .build(),
 
+    RegisterDSE(AmigaTechTech)
+        .systems('amiga')
+        .layer('background')
+        .weight(12)
+        .duration(13.0)
+        .climaxHold(12.0)
+        .build(),
+        
     RegisterDSE(ChunkyPlasma)
         .systems('c64')
         .layer('background')
