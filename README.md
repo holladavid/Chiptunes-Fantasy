@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.6.6)
+# 💾 CHIPTUNES FANTASY (v1.6.7)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -16,35 +16,43 @@ Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with rut
 
 ---
 
-## 🚀 What's New in v1.6.6
+## 🚀 What's New in v1.6.7
 
-Version 1.6.6 transforms the display and measurement stage into a live-tunable **Hardware Calibration Laboratory**, powered by a **linear-light WebGL CRT Shadow Mask overhaul**, a **configurable, 100 Hz-capped Phosphor Oscilloscope**, and an **A/B-enabled Calibration Deck** persisted automatically across sessions.
+Version 1.6.7 expands the `Scene-DJ` visual repertoire with **18 brand-new, system-authentic Demo-Scene Elements (6 per hardware pillar)** spanning `background`, `floor`, and `foreground`—closing the missing `floor` layer gap on **Commodore 64** and **Atari ST**, expanding **Amiga's** parallax and 3D terrain visuals, and backing every effect with a **DOM-free, zero-allocation retro graphics kit**.
 
-### 🎛️ Interactive CRT & Scope Calibration Deck (`[ CRT / SCOPE ]`, Shortcut `[C]`)
-- **Live Calibration & `localStorage` Persistence:** Tune every CRT optics and oscilloscope parameter in real time via `DisplaySettingsStore` (`chiptunes-fantasy.display-settings.v1`) with strict numeric clamping, enum validation, double-click per-slider reset, and one-click `[ RESET ]`.
-- **Hardware Monitor Presets & `AUTO SYS`:** Switch instantly between **FACTORY**, **AUTO SYS** (`C64 → 1702 COMP`, `Amiga → 1084S RGB`, `Atari ST → TRINITRON`), **1084S RGB**, **1702 COMP**, **TRINITRON**, and **DELTA** shadow-mask profiles while preserving your chosen GPU quality tier.
-- **Instant A/B Live Comparison (`[B]`):** Toggle `[ A/B ]` / `[ ORIG ]` to bypass custom settings and compare your calibration directly against factory defaults on the live stage without losing your tuned values. Moving any slider exits bypass automatically.
-- **Responsive Stage-Aware Layouts:** Renders as a 2-column rack (3-column CRT grid on `≥ 1500px` viewports) below the playback deck on desktop, a right-docked floating rack inside native or pseudo-fullscreen stages, a pinned stage + bottom control sheet on mobile portrait (`≤ 800px`), and a **50/50 side-by-side live split** on mobile landscape (`≤ 1024×580`).
+### 🟦 Commodore 64 (VIC-II + 3-Voice SID)
+- **Backgrounds:** *Raster Tunnel* (nested horizon-anchored intro frames with 32-ring SID waterfall, `climax` splits & pulse pool) and *Fire Wall* (50 Hz chunky heat cellular fire with 3 SID zones, ember bed & 24-spark pool).
+- **Floors (New Layer):** *Raster Road* (scanline perspective road with 4 wipeable terrain families, anti-moiré haze, 3 hysteresis-lit SID lanes, Z-sorted pylons & gates) and *Dance Floor* (61×9 Color-RAM tile grid with 4 beat-driven 50 Hz patterns & SID sparkles).
+- **Foregrounds:** *Sine Scroller* (2-pass black-outlined `5×7` DYCP scroller with Raster-IRQ bands & adaptive horizontal/vertical rotation continuity) and *Border Rasters* (VIC-II `$D020` open-border bars with 8 orbiting `7×7` hardware star sprites).
 
-### 📺 Linear-Light WebGL CRT Shadow Mask Pipeline (`crt-shadow-mask.js`)
-- **Physically Modeled Linear-Light Processing (Gamma 2.0):** Converts source frames into linear light (`c * c` → `sqrt` output) for physically consistent additive beam mixing, halation, and spot blooming, rendered via a seam-free fullscreen triangle with `highp` vertex coordinates (`>1000 px` mobile-GPU safe).
-- **Analytical Pixel-Snapped Phosphor Masks:** Exact 1-px box-filtered coverage across **Slot** (staggered triads), **Delta** (true hexagonal triad dots), and **Grille** (continuous vertical Trinitron stripes). Triads snap to integer multiples of 3 (6 for Delta) in device pixels, eliminating moiré drift at any DPR while preserving overall brightness (`meanTransmission = 1`).
-- **Two-Pass Low-Res Halation & Beam Physics:** `quality: 'high'` renders a 4:1 linear box-filter FBO pass (stored in gamma space to avoid 8-bit banding) for smooth 5-tap glass halation without ring-tap echoes, alongside beam-current spot blooming (closing mask bars and scanline gaps at high intensity), radial R/B convergence drift, 1×/2× scanline rows, barrel curvature with SDF rounded bezel, $\cos^4$ vignette, ambient glass sheen, and Jimenez interleaved gradient noise dithering (`±0.5 LSB`).
-- **Quality Tiers & Safe Fallbacks:** Supports `'low'` (4 fetches), `'medium'` (6 fetches, no FBO halation), and `'high'` (6 fetches + 5 glow + ~0.25 FBO pass), gracefully falling back from `'high'` to `'medium'` if RTT is unavailable and cleanly engaging the CSS scanline fallback on software rasterizers (`failIfMajorPerformanceCaveat`), missing `highp`, or lost WebGL contexts.
+### 🟥 Amiga OCS/ECS (Copper + Blitter + 4-Channel Paula)
+- **Backgrounds:** *RotoZoomer* (chunky 4×4-style rotozoomer across 4 `64×64` textures, tension-gated kaleidoscope mirrors & Copper flash bands) and *Tech-Tech* (`BPLCON1` multi-harmonic scanline-shift curtain with sweeping shockwaves).
+- **Floors:** *Voxel Hills* (`128×128` Comanche-style height-map raycaster with winding canyon flight, 3D mountain peaks silhouetted against transparent sky & 4 Paula `L-R-R-L` ridges) and *Parallax Ground* (*Shadow of the Beast*-inspired 8-band terrain equalizer with cascading wipes, `8×10` sprites & dust particles).
+- **Foregrounds:** *Twister* (1–3 phase-offset 4-sided raster bars with 4 morphing twist modes & fixed 1:1 Paula face binding) and *Vector Balls* (pre-shaded Blitter-bob spheres across 4 morphing 3D formations, ultrawide twin bodies & `climax` ghost trails).
 
-### 📈 Configurable, Framerate-Independent Phosphor Oscilloscope (`oscilloscope.js`)
-- **100 Hz Simulation Cap & Framerate Independence:** Decouples `simulate()` from `compose()` with a `10 ms` (`MIN_STEP_SECONDS`) accumulator and proportional memory deposition, guaranteeing identical phosphor decay and brightness across 60 Hz, 120 Hz, 144 Hz, and 240 Hz displays without wasting CPU/GPU cycles.
-- **Level-Normalized Trigger & Layer-Batched Drawing:** Normalizes Schmitt trigger slope and `-MSE` correlation by peak and signal power so quiet and mid-level chiptune passages lock as steadily as loud leads; draws trace layers (`halo`, `core`, `turn`, `plateau`) sequentially instead of column-by-column to cut canvas state changes in half; replaces per-column `Math.pow()` calls with a precomputed `dwellLut`; centers bloom vertically on trace segments; and supports `#rgb/#rgba/#rrggbb/#rrggbbaa`, `rgb()/rgba()`, and CSS colors.
-- **Full Front-Panel Scope Controls:** Adjust **V/DIV Gain** (`0.50x–2.50x`), **Timebase** (`8–36 ms` with sample-rate-safe trigger headroom), **Persistence** (`0–100%`), **Phosphor Glow** (`0–100%`), **Graticule** (`OFF` / `0–100%`), **Beam FX** (`SPARKS`, `SPOT`, `OFF`), **Trigger** (`AUTO`, `FREE`), and **Phosphor Tint** (`SYS`, `P31` green, `P11` cyan, `AMBER`).
+### 🟩 Atari ST (9-Bit Shifter + Timer-B Rasters + 3-Voice YM2149)
+- **Backgrounds:** *Meta Blobs* (chunky metaball field with 3 YM voice blobs + 4 orbiting satellites & `climax` `#fcfcfc` cores) and *Julia Cycler* (4-constant morphing Julia fractal with 3 radial YM zones & flicker-safe `RING_HUE` cycling).
+- **Floors (New Layer):** *Laser Grid* (perspective wireframe floor with scanline-dithered YM lane glows, grid sine waves & `climax` laser sweeps) and *Pond Ripples* (row-dithered water surface with 3 YM wave emitters, ambient droplets & run-merged Midpoint-ellipse ripples).
+- **Foregrounds:** *Flat Shaded Trio* (6 unit-normalized polyhedra with Lambert flat shading, Painter Z-sort, deduplicated `1 px` black edges & face explosions) and *Line Ribbons* (Mystify-style Bresenham ribbons with `25 Hz` history ring buffer, black drop shadow & proportional resize mapping).
+- **Timer-B Raster Wipes & Strict Scanline Budgets:** Every Atari ST DSE enforces `0..7 × 36` 9-bit color quantization (max `#fcfcfc`) and splits crossing primitives cleanly along `wipeY` to stay within hardware per-scanline color limits (`<= 6` for floors, `<= 13–16` overall).
+
+### 🔧 Shared DOM-Free Retro Rendering Infrastructure
+- **`hardware-constraints.js` & `bitmap-font.js`:** Added `createXorshift32`, run-merged `bayerFadeCells`, clipped Bresenham/scanline/Midpoint-ellipse primitives, and extracted the shared `5×7` bitmap font with precomputed glyph runs for `TrackPresenter` and `C64SineScroller`.
+- **Aligned Stage Transitions & Verification:** Synchronized all 18 new DSEs to `StageManager`'s `1.5 s` fade timings, balanced `VoidFloor` weights across all three systems, and added **21 Node.js strict fake-canvas test suites** covering determinism, graded beat intensities, rotation continuity, and `fillRect` budgets.
 
 ---
 
 ## ✨ Core Features & Architecture
 
 ### 🎬 Scene-DJ & System-Accurate Demo-Scene Elements (DSEs)
-*   **50 Hz PAL Orchestration:** Our `Scene-DJ` monitors channel energies, track novelty, beat strength (`soft` / `medium` / `hard` impulses vs. exact musical beat boundaries), and macro tension (`playing`, `buildup`, `climax`, `afterglow`) to choreograph layered background, floor, foreground, and presenter DSEs—including *Amiga/C64/Atari Castles*, *Retro Sunsets*, *Kefrens Checkerboards*, *IK+ Martial Arts*, *Starfields*, *Copperbars*, and *PETSCII Plasmas*.
-*   **Ruthless Historical Accuracy:** All DSEs run DOM-free inside system-strict retro rasters and hardware color tables (16-color C64 Colodore, 4,096-color 12-bit Amiga OCS, 512-color 9-bit Atari ST Shifter) with Bayer 4×4 ordered dithering and crisp `image-rendering: pixelated` scaling.
+*   **50 Hz PAL Orchestration:** Our `Scene-DJ` monitors channel energies, track novelty, beat strength (`soft` / `medium` / `hard` impulses vs. exact musical beat boundaries), and macro tension (`playing`, `buildup`, `climax`, `afterglow`) to choreograph layered background, floor, foreground, and presenter DSEs—spanning classic *Castles*, *Retro Sunsets*, *Kefrens Checkerboards*, *PETSCII Plasmas*, *C64 Raster Tunnels/Roads*, *Amiga Voxel Hills/Twisters/Vector Balls*, and *Atari ST Flat-Shaded Trios/Julia Cyclers/Laser Grids*.
+*   **Ruthless Historical Accuracy:** All DSEs run DOM-free inside system-strict retro rasters and hardware color tables (16-color C64 Colodore, 4,096-color 12-bit Amiga OCS, 512-color 9-bit Atari ST Shifter) with Bayer 4×4 ordered dithering, zero alpha blending, and crisp `image-rendering: pixelated` scaling.
 *   **Row-Batched FFT Phosphor Analyzer:** 48 logarithmic VFD/phosphor bars from `45 Hz` to `12 kHz` sampled from a 4096-point FFT with DC-offset rejection, time-based peak-hold gravity, and row-batched draw calls.
+
+### 🎛️ Interactive CRT & Scope Calibration Deck (`[ CRT / SCOPE ]`, Shortcut `[C]`)
+*   **Live Calibration & Persistent Profiles:** Tune every CRT optics and oscilloscope parameter in real time via `DisplaySettingsStore` (`localStorage`-persisted) across **FACTORY**, **AUTO SYS** (`C64 → 1702 COMP`, `Amiga → 1084S RGB`, `Atari ST → TRINITRON`), **1084S RGB**, **1702 COMP**, **TRINITRON**, and **DELTA** profiles, with double-click per-slider reset, `[ RESET ]`, and instant **A/B live factory comparison (`[B]`)**.
+*   **Linear-Light WebGL CRT Shadow Mask (`crt-shadow-mask.js`):** Gamma-2.0 linear-light pipeline on a `highp` fullscreen triangle with analytical pixel-snapped **Slot**, **Delta**, and **Aperture Grille** masks, 2-pass low-res FBO glass halation (`HIGH` tier), beam-current spot blooming, 1×/2× scanlines, R/B convergence drift, barrel curvature with rounded SDF bezel, $\cos^4$ vignette, and clean `MED`/CSS fallbacks.
+*   **100 Hz-Capped Phosphor Oscilloscope (`oscilloscope.js`):** Decoupled `simulate()`/`compose()` architecture (`10 ms` step cap) delivering identical phosphor persistence across 60 Hz–240 Hz displays, level-normalized Schmitt + `-MSE` triggering, layer-batched drawing, and front-panel **V/DIV Gain**, **Timebase**, **Persistence**, **Phosphor Glow**, **Graticule**, **Beam FX**, **Trigger Mode**, and **Phosphor Tint** (`SYS`, `P31`, `P11`, `AMBER`) controls.
 
 ### 🧬 Interactive "Living Silicon" Die & Motherboard Telemetry
 Each soundchip pillar drives a real-time SVG silicon die and external motherboard circuit model directly from emulator telemetry:
@@ -108,3 +116,6 @@ npx serve .
 
 # Using Python:
 python3 -m http.server 8080
+
+# Run automated Node.js unit & DSE test suites:
+node --test test/*.test.mjs
