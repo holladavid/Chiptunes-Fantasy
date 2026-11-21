@@ -34,6 +34,7 @@ import { C64RasterTunnel } from './c64/raster-tunnel.js';
 import { C64FireWall } from './c64/fire-wall.js';
 import { C64SineScroller } from './c64/sine-scroller.js';
 import { C64BorderRasters } from './c64/border-rasters.js';
+import { AmigaRotoZoomer } from './amiga/rotozoomer.js';
 
 // =========================================================
 // FLUENT BUILDER PATTERN (1 Funktion je Attribut)
@@ -162,6 +163,14 @@ export const dseRegistry = [
         .layer('background')
         .weight(10)
         .duration(15.0)
+        .climaxHold(12.0)
+        .build(),
+        
+    RegisterDSE(AmigaRotoZoomer)
+        .systems('amiga')
+        .layer('background')
+        .weight(12)
+        .duration(14.0)
         .climaxHold(12.0)
         .build(),
 
