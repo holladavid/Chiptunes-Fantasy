@@ -187,6 +187,8 @@ Regeln:
 
 `stateTime` wird zwischen `playing`, `buildup`, `climax` und `afterglow` nicht zuverlässig auf null gesetzt. Für zustandslokale Animationen MUSS der DSE einen eigenen Übergangszähler führen:
 
+Der `StageManager` rendert jeden aktiven DSE in einen eigenen, vor jedem gerenderten Frame per `clearRect(0, 0, width, height)` geleerten Offscreen-Buffer und blittet die sichtbaren Layer anschließend übereinander. Die reguläre Übergangsdauer für `starting` und `stopping` beträgt gemäß `StageManager` (`TRANSITION_TIME`) **`1.5 s`** für `managed`-DSEs (und **`1.0 s`** für `oneshot`-DSEs). Ein DSE SOLL seine Ein- und Ausblendkonstanten exakt auf diese Zeiten auslegen, damit Übergänge nahtlos und ohne abruptes Abschneiden am Ende von `stopping` abschließen.
+
 ```javascript
 if (this.lastState !== state) {
     this.lastState = state;
@@ -229,6 +231,12 @@ Alle sichtbaren universellen DSEs verwenden bei fehlendem `beatImpulse` weiterhi
 | Atari | `WireframeMorph` | Morph-Schub, 4 Themes, 2-Pass-Z-Depth, Ghost-Trails & Dual-Shell-Kern (`smooth[0..2]`) | Kalibriertes FOV + geclippte Bresenham-Kanten (`test/atari-wireframe-morph.test.mjs`) |
 | Atari | `YmSiliconBg` | 3 Rechteck-Oszillatoren, Log-DAC-Schockwelle, LFSR-Regen & Timer-B-Scanline-Tears | Ohne `getImageData`/`putImageData` & ohne Weiß-Wipe, Dual-Layout (`test/ym-silicon-bg.test.mjs`) |
 | Atari | `AtariEnchantedCastle` | 9-Bit-Shifter-Sturmszene mit Burg & gradierten Blitz-/Magie-Effekten | Maximal 16 Farben, begrenzte Pools (`test/atari-enchanted-castle.test.mjs`) |
+| Atari | `AtariLaserGrid` | Perspektivisches Z-Gitter ab `horizon`, 3 YM-Lanes per Scanline-Dither, Climax-Sweeps, 4er-Pulse-Pool | ≤ 6 Farben/Scanline, Timer-B-Raster-Wipe am 4. Beat (`test/atari-laser-grid.test.mjs`) |
+| Atari | `AtariPondRipples` | 3 YM-Wellenquellen, Tiefendither, 12er-Ripple-/Sprüh-Pools, 24 Glitzer, Doppelringe auf Hard-Beats | Midpoint-Ellipsen-Run-Merging (`drawAliasedEllipseOutlineClipped`), `atari-kit.js` (`test/atari-pond-ripples.test.mjs`) |
+| Atari | `AtariMetaBlobs` | 3 YM-Stimmenbälle + 4 Satelliten mit Hysterese, 4 Bahnformen, `beatImpulse`-Atmung, Climax-`WHITE`-Kern | ≤ 5000 Chunky-Zellen mit Run-Merging, ≤ 14 Farben/Scanline (`test/atari-meta-blobs.test.mjs`) |
+| Atari | `AtariJuliaCycler` | 4 Julia-Familien (`c0`-Morph), 3 Radialzonen (A/B/C), `RING_HUE`-Zyklus ≤ 6 Schritte/s | ≤ 6000 Zellen, Run-Merging, Konturband-Highlight bei Hard-Beat (`test/atari-julia-cycler.test.mjs`) |
+| Atari | `AtariLineRibbons` | 3 Vektorbänder (Pool 6, 5 im Climax), 8er-History-Ringpuffer, 3 Link-Modi, Doppelkopf | Proportionales Resize inkl. History, `INK` (+1,+1)-Kontrast, geometrisches Fade (`test/atari-line-ribbons.test.mjs`) |
+| Atari | `AtariFlatShadedTrio` | 6 normierte Polyeder, Lambert-Flat-Shading pro Stimme, Explosion, 4.-Beat-Geometriewechsel | Perspektiv-Backface-Culling, Painter-Sort, deduplizierter `INK`-Kantenpass (`test/atari-flat-shaded-trio.test.mjs`) |
 
 ## 4. Historischer Stil und Hardwaregrenzen
 
@@ -282,15 +290,16 @@ Innerhalb von DSEs gilt:
 - Keine Canvas-Schatten, Weichzeichner, Gradienten mit unerlaubten Mischfarben oder Compositing-Tricks.
 - Keine CSS-/Canvas-Filter als Ersatz für historische Shading-Tabellen.
 
-Geeignete Helfer sind unter anderem:
+Geeignete Helfer in `js/visuals/utils/hardware-constraints.js` sind unter anderem:
 
-- `fillAliasedCircle(...)`
-- `drawAliasedCircleOutline(...)`
-- `drawAliasedLine(...)`
-- `fillAliasedPolygon(...)`
+- `fillAliasedCircle(...)` (ungeclippt)
+- `drawAliasedCircleOutline(...)` (ungeclippt)
+- `drawAliasedLine(...)` / `drawAliasedLineClipped(ctx, x0, y0, x1, y1, color, clipRect)`
+- `fillAliasedPolygon(...)` / `fillAliasedPolygonClipped(ctx, points, color, transparentDither, clipRect)`
+- `drawAliasedEllipseOutlineClipped(ctx, xc, yc, rx, ry, color, clipRect)` (Midpoint-Ellipse mit Span-Run-Merging)
 
 Historische Bewegung entsteht durch diskrete Raster-, Paletten- und Formwechsel, nicht durch moderne weiche Partikeleffekte.
-Die Helfer in `hardware-constraints.js` clippen Koordinaten nicht automatisch auf den Retro-Buffer. Jeder DSE MUSS sicherstellen, dass Linien, Kreise und Sprites am Bildrand hart auf `[0..width, 0..height]` (bzw. auf layer-spezifische Grenzen wie `y < horizon`) beschnitten werden und keine negativen Koordinaten oder Überläufe an `fillRect()` übergeben.
+Die klassischen Basishelfer ohne `*Clipped`-Suffix clippen Koordinaten nicht automatisch auf den Retro-Buffer. Jeder DSE MUSS entweder die `*Clipped`-Varianten mit explizitem Clip-Rechteck nutzen oder sicherstellen, dass Linien, Kreise und Sprites am Bildrand hart auf `[0..width, 0..height]` (bzw. auf layer-spezifische Grenzen wie `y >= horizon` bei `floor`-DSEs) beschnitten werden und keine negativen Koordinaten oder Überläufe an `fillRect()` übergeben.
 
 ### 4.4 Kein Alpha-Blending
 
@@ -304,9 +313,9 @@ Geeignete Alternativen:
 - `applyOrderedDitherFade(...)` für deterministische Ordered-Dither-Übergänge verwenden.
 - Trails durch begrenzte, opake Nachzeichnungen oder persistente Palettenstufen erzeugen.
 Für Ein- und Ausblendungen gilt zusätzlich die Layer-Trennung:
-- Vollflächige `#000000`-Ordered-Dither-Vorhänge (über `applyOrderedDitherFade(...)` oder native Bayer-4×4-`fillRect`-Muster) sind **nur** für `background`-DSEs (und bei `floor`-DSEs ausschließlich unterhalb der Horizontlinie) zulässig.
-- `foreground`- und `overlay`-DSEs DÜRFEN in `starting`/`stopping` keinen schwarzen Vollbild-Dither über den Hintergrund legen, sondern müssen über eigene Geometrie, Schrittweise-Sichtbarkeit oder Objektanzahl ein- und ausblenden.
-- Hinweis zu `applyOrderedDitherFade(...)`: Der Helfer nutzt intern `document.createElement('canvas')` und `createPattern(...)`. Für DSEs, die ohne DOM in Node getestet werden, ist ein natives Bayer-4×4-`fillRect`-Verfahren vorzuziehen (oder ein entsprechender DOM-freier Test-Fallback nötig).
+- Vollflächige `#000000`-Ordered-Dither-Vorhänge sind **nur** für `background`-DSEs (und bei `floor`-DSEs ausschließlich unterhalb der Horizontlinie) zulässig. Auf `floor`-Layern SOLL das Ein-/Ausblenden auf den jeweils aktiven Bereich `[horizon .. horizon + Math.floor(vis * (height - horizon)))` begrenzt werden (bei `vis <= 0` null Zeichenoperationen), damit bei Übergängen zu `VoidFloor` kein schwarzes Rechteck über dem Hintergrund stehen bleibt.
+- `foreground`- und `overlay`-DSEs DÜRFEN in `starting`/`stopping` keinen schwarzen Vollbild-Dither über den Hintergrund legen, sondern müssen über eigene Geometrie, schrittweise Sichtbarkeit oder Objektanzahl ein- und ausblenden.
+- Hinweis zu `applyOrderedDitherFade(...)` vs. `bayerFadeCells(...)`: `applyOrderedDitherFade(...)` nutzt intern `document.createElement('canvas')` und `createPattern(...)`. Für DOM-freie DSEs und Node-Unit-Tests steht in `hardware-constraints.js` der native, run-gemergte Helfer `bayerFadeCells(ctx, x, y, w, h, visibility, cell, color)` bereit.
 
 ### 4.5 Text und Typografie
 
@@ -454,6 +463,7 @@ One-Shots MÜSSEN mehrfach startbar sein, ohne alte Trackdaten, Zeitstempel, `_m
 - Gleiche Eingabesequenz erzeugt dieselbe Ausgabe.
 - Keine Abhängigkeit von Wall-Clock-Zeit, Objekt-Iteration mit zufälliger Reihenfolge oder global veränderten Zufallszuständen.
 - PRNG nach visueller Verteilung auswählen und testen. Ein einfacher LFSR kann bei aufeinanderfolgenden XY-Werten sichtbare Korrelationen erzeugen; Xorshift32 ist ein bewährter einfacher Ersatz, aber ebenfalls zu prüfen.
+- Für instanzeigenes deterministisches Rauschen stellt `hardware-constraints.js` `createXorshift32(seed)` bereit.
 
 Determinismus bedeutet nicht mechanische Gleichförmigkeit: Beatcount, Tension, Kanalwerte und zulässige PRNG-Folgen sollen für kontrollierte Variation sorgen.
 
@@ -553,7 +563,14 @@ node --test \
   test/atari-retro-sunset.test.mjs \
   test/atari-wireframe-morph.test.mjs \
   test/ym-silicon-bg.test.mjs \
-  test/atari-enchanted-castle.test.mjs
+  test/atari-enchanted-castle.test.mjs \
+  test/atari-kit-helpers.test.mjs \
+  test/atari-laser-grid.test.mjs \
+  test/atari-pond-ripples.test.mjs \
+  test/atari-meta-blobs.test.mjs \
+  test/atari-julia-cycler.test.mjs \
+  test/atari-line-ribbons.test.mjs \
+  test/atari-flat-shaded-trio.test.mjs
 ```
 
 Ein Fake-Canvas für Unit-Tests SOLL zusätzlich zu fehlendem `fillText()`/`measureText()` strikte Integer-, Bounds- (`0 <= x`, `x + w <= width`, `0 <= y`, `y + h <= height`) und Palettenprüfungen erzwingen sowie `globalAlpha`, `save()`/`clip()` und `getImageData()` verweigern bzw. markieren. DSEs SOLLEN idealerweise ohne globales `document` in Node testbar sein; für Engine-Tests stehen dafür optional `new SceneDJ({ createCanvas })` und `new StageManager({ createCanvas })` bereit.
