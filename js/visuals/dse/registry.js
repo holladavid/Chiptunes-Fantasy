@@ -39,6 +39,7 @@ import { AmigaTechTech } from './amiga/tech-tech.js';
 import { AmigaTwister } from './amiga/twister.js';
 import { AmigaVectorBalls } from './amiga/vector-balls.js';
 import { AmigaParallaxGround } from './amiga/parallax-ground.js';
+import { AmigaVoxelHills } from './amiga/voxel-hills.js';
 
 // =========================================================
 // FLUENT BUILDER PATTERN (1 Funktion je Attribut)
@@ -267,6 +268,14 @@ export const dseRegistry = [
         .climaxHold(12.0)
         .build(),
 
+    RegisterDSE(AmigaVoxelHills)
+        .systems('amiga')
+        .layer('floor')
+        .weight(12)
+        .duration(15.0)
+        .climaxHold(15.0)
+        .build(),
+
     RegisterDSE(C64RasterRoad)
         .systems('c64')
         .layer('floor')
@@ -286,7 +295,7 @@ export const dseRegistry = [
     RegisterDSE(VoidElement)
         .name('VoidFloor')
         .layer('floor')
-        .weight(15) // Erhöht von 8 auf 15 für mehr Isolation
+        .weight(18) // Angepasst fuer Amiga-Floor-Balance (36 sichtbar vs 18 Void = 33% Atempause)
         .duration(15.0)
         .isVoid()
         .build(),
