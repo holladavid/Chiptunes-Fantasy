@@ -41,6 +41,7 @@ import { AmigaVectorBalls } from './amiga/vector-balls.js';
 import { AmigaParallaxGround } from './amiga/parallax-ground.js';
 import { AmigaVoxelHills } from './amiga/voxel-hills.js';
 import { AtariLaserGrid } from './atari/laser-grid.js';
+import { AtariPondRipples } from './atari/pond-ripples.js';
 
 // =========================================================
 // FLUENT BUILDER PATTERN (1 Funktion je Attribut)
@@ -299,6 +300,14 @@ export const dseRegistry = [
         .weight(12)
         .duration(15.0)
         .climaxHold(14.0)
+        .build(),
+
+    RegisterDSE(AtariPondRipples)
+        .systems('atari')
+        .layer('floor')
+        .weight(12)
+        .duration(14.0)
+        .climaxHold(12.0)
         .build(),
 
     RegisterDSE(VoidElement)
