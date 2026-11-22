@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { AtariPondRipples } from '../js/visuals/dse/atari/pond-ripples.js';
-import { INK, RAMPS, WFAM } from '../js/visuals/dse/atari/atari-kit.js';
+import { INK, RAMPS, WHITE } from '../js/visuals/dse/atari/atari-kit.js';
 import { dseRegistry } from '../js/visuals/dse/registry.js';
 
 function isValidAtari9BitHex(hex) {
@@ -93,7 +93,7 @@ test('2. Strict horizon contract, 9-bit palette, <= 6 colors/scanline even durin
     const w = 355, h = 200;
     const horizon = Math.floor(h * 0.55); // 110
 
-    // Trigger 4th beat to start a Raster-Wipe across water & ellipses
+    // Trigger 4th beat to start a Raster-Wipe across water & 3D ripples
     for (let c = 1; c <= 4; c++) {
         dse.render(createStrictContext(w, h), w, h, 1 + c * 0.2, 'climax', 2.0, makeMetrics({
             tensionPct: 0.95,
@@ -106,12 +106,12 @@ test('2. Strict horizon contract, 9-bit palette, <= 6 colors/scanline even durin
         }));
     }
 
-    // Advance 0.20s mid-wipe so wipeY cuts right through active ellipses & glints
+    // Advance 0.20s mid-wipe so wipeY cuts right through active ellipses, troughs, shimmer & glints
     const midCtx = createStrictContext(w, h);
     dse.render(midCtx, w, h, 1.9, 'climax', 2.2, makeMetrics({
         tensionPct: 0.95,
         smooth: [0.8, 0.6, 0.4],
-        beatImpulse: [0.6]
+        beatImpulse: [0.85]
     }));
 
     assert.ok(midCtx.ops.length > 20);
@@ -216,7 +216,6 @@ test('6. Discrete events trigger only on beatStarted (never on decaying envelope
     const dse = new AtariPondRipples();
     const w = 320, h = 200;
 
-    // 3 beats -> fam stays 0
     for (let c = 1; c <= 3; c++) {
         dse.render(createStrictContext(w, h), w, h, 1 + c * 0.2, 'playing', 1.0, makeMetrics({
             beatStarted: true,
@@ -227,7 +226,6 @@ test('6. Discrete events trigger only on beatStarted (never on decaying envelope
     }
     assert.equal(dse.fam, 0);
 
-    // Clear ripples, then feed held/decaying envelope with beatStarted=false -> no beat emissions, no fam change
     dse.ripples.forEach(r => { r.active = false; });
     for (let i = 1; i <= 5; i++) {
         dse.render(createStrictContext(w, h), w, h, 1.6 + i * 0.02, 'playing', 1.0, makeMetrics({
@@ -242,7 +240,6 @@ test('6. Discrete events trigger only on beatStarted (never on decaying envelope
     assert.equal(dse.fam, 0, 'envelope must not advance fam');
     assert.equal(dse.sprays.filter(s => s.active).length, 0, 'envelope must not emit sprays');
 
-    // Beat 4 advances fam
     dse.render(createStrictContext(w, h), w, h, 1.8, 'playing', 1.0, makeMetrics({
         beatStarted: true,
         beatCount: 4,
@@ -251,7 +248,6 @@ test('6. Discrete events trigger only on beatStarted (never on decaying envelope
     }));
     assert.equal(dse.fam, 1);
 
-    // Beat 8 flips driftSign
     for (let c = 5; c <= 8; c++) {
         dse.render(createStrictContext(w, h), w, h, 2.0 + c * 0.2, 'playing', 1.0, makeMetrics({
             beatStarted: true,
@@ -296,12 +292,10 @@ test('7. Soft, medium and hard beats differ measurably; channel tie breaks to lo
     assert.equal(medium.activeRipples.length, 3);
     assert.equal(medium.activeSprays, 0);
 
-    // Hard emits 3 channel ripples + 1 delayed double ring (total 4) + 6 sprays
     assert.equal(hard.activeRipples.length, 4);
     assert.ok(hard.activeRipples.some(r => r.delay > 0));
     assert.equal(hard.activeSprays, 6);
 
-    // Tie-breaking: [0.5, 0.5, 0.5] must pick channel 0 (xw < 0)
     const tie = runIntensity(0.20, 1, [0.5, 0.5, 0.5]);
     assert.ok(tie.activeRipples[0].xw < 0, 'tie must deterministically select lowest channel index 0');
 });
@@ -310,7 +304,6 @@ test('8. Macro states: starting gates ripples until vis >= 0.6, afterglow cools 
     const dse = new AtariPondRipples();
     const w = 355, h = 200;
 
-    // Starting at vis = 0 -> 0 ops
     const start0 = createStrictContext(w, h);
     dse.render(start0, w, h, 1.0, 'starting', 0.0, makeMetrics({
         beatStarted: true, beatCount: 1, beatStrength: 0.9, beatLevel: 3
@@ -318,7 +311,6 @@ test('8. Macro states: starting gates ripples until vis >= 0.6, afterglow cools 
     assert.equal(start0.ops.length, 0);
     assert.equal(dse.ripples.filter(r => r.active).length, 0, 'vis < 0.6 must gate new ripples');
 
-    // Advance into climax with non-BLU5 family (fam=1 -> CYN5)
     for (let c = 2; c <= 4; c++) {
         dse.render(createStrictContext(w, h), w, h, 1.0 + c * 0.3, 'climax', 2.0, makeMetrics({
             tensionPct: 0.95,
@@ -332,7 +324,6 @@ test('8. Macro states: starting gates ripples until vis >= 0.6, afterglow cools 
     }
     assert.equal(dse.fam, 1);
 
-    // Enter afterglow -> completes wipe to BLU5 and keeps glints <= 6
     let agCtx;
     for (let i = 0; i < 30; i++) {
         agCtx = createStrictContext(w, h);
@@ -341,7 +332,6 @@ test('8. Macro states: starting gates ripples until vis >= 0.6, afterglow cools 
     const bluSet = new Set(RAMPS.BLU5);
     assert.ok(agCtx.ops.every(o => bluSet.has(o.color) || o.color === INK), 'afterglow must wipe cleanly to BLU5');
 
-    // Stopping at vis = 0 -> 0 ops
     const stop0 = createStrictContext(w, h);
     dse.render(stop0, w, h, 3.5, 'stopping', 1.5, makeMetrics());
     assert.equal(stop0.ops.length, 0);
@@ -360,7 +350,6 @@ test('9. Rotation (portrait -> landscape -> portrait), all viewports & <= 4000 f
 
     for (const [w, h] of viewports) {
         const dse = new AtariPondRipples();
-        // Saturate pool in climax and let ripples expand
         for (let f = 0; f < 16; f++) {
             const onBeat = f % 4 === 0;
             dse.render(createStrictContext(w, h), w, h, 1 + f * 0.04, 'climax', 2.0, makeMetrics({
@@ -383,7 +372,6 @@ test('9. Rotation (portrait -> landscape -> portrait), all viewports & <= 4000 f
         assert.ok(peakCtx.ops.length <= 4000, `${w}x${h} climax drew ${peakCtx.ops.length} fillRects (> 4000 budget)`);
     }
 
-    // Same-instance continuity across portrait -> landscape -> portrait
     const rotDse = new AtariPondRipples();
     rotDse.render(createStrictContext(92, 200), 92, 200, 1.0, 'playing', 1.0, makeMetrics({
         beatStarted: true, beatCount: 4, beatStrength: 0.5, beatLevel: 2
@@ -402,4 +390,99 @@ test('9. Rotation (portrait -> landscape -> portrait), all viewports & <= 4000 f
     rotDse.render(portCtx, 92, 200, 1.08, 'playing', 1.08, makeMetrics());
     assert.equal(rotDse.fam, savedFam);
     assert.ok(portCtx.ops.length > 0);
+});
+
+test('10. Ultrawide coverage: ripples & shimmer reach left and right outer thirds (no central cluster)', () => {
+    const w = 600, h = 200;
+    const dse = new AtariPondRipples();
+
+    for (let f = 0; f < 80; f++) {
+        const onBeat = f % 10 === 0;
+        dse.render(createStrictContext(w, h), w, h, 1 + f * 0.02, 'buildup', 1.0, makeMetrics({
+            tensionPct: 0.75,
+            smooth: [0.85, 0.70, 0.85],
+            beatStarted: onBeat,
+            beatCount: Math.floor(f / 10) + 1,
+            beatStrength: onBeat ? 0.6 : 0,
+            beatLevel: onBeat ? 2 : 0,
+            beatImpulse: [onBeat ? 0.6 : 0.2]
+        }));
+    }
+
+    const active = dse.ripples.filter(r => r.active);
+    const sx = 0.5 * Math.min(w, 1.6 * h);
+    const wideHalf = Math.max(sx, w * 0.5 * 1.25);
+    const xs = active.map(rp => w * 0.5 + rp.xw * wideHalf / rp.zw);
+
+    assert.ok(xs.some(x => x < w * 0.34), 'ultrawide must place ripples in left third');
+    assert.ok(xs.some(x => x > w * 0.66), 'ultrawide must place ripples in right third');
+});
+
+test('11. Visual graded beat output: soft, medium and hard impulses produce distinct crest rendering', () => {
+    const w = 320, h = 200;
+
+    const sampleRender = (strength, level) => {
+        const dse = new AtariPondRipples();
+        dse.render(createStrictContext(w, h), w, h, 1.0, 'playing', 1.0, makeMetrics({
+            tensionPct: 0.55,
+            smooth: [0.7, 0.8, 0.7],
+            beatStarted: true,
+            beatCount: 1,
+            beatStrength: strength,
+            beatLevel: level,
+            beatImpulse: [strength]
+        }));
+        const outCtx = createStrictContext(w, h);
+        dse.render(outCtx, w, h, 1.12, 'playing', 1.12, makeMetrics({
+            tensionPct: 0.55,
+            smooth: [0.7, 0.8, 0.7],
+            beatImpulse: [strength]
+        }));
+        return outCtx.ops;
+    };
+
+    const softOps = sampleRender(0.20, 1);
+    const medOps = sampleRender(0.50, 2);
+    const hardOps = sampleRender(0.90, 3);
+
+    assert.notDeepEqual(softOps, medOps);
+    assert.notDeepEqual(medOps, hardOps);
+    assert.ok(hardOps.some(o => o.color === WHITE), 'hard beat impulse must flash #fcfcfc crest highlights');
+});
+
+test('12. Continuous glint twinkle & mid-wipe snapshot safety', () => {
+    const dse = new AtariPondRipples();
+    const w = 320, h = 200;
+    const before = dse.glints.map(g => ({ xNorm: g.xNorm, rNorm: g.rNorm }));
+
+    // 4 PAL ticks must drift glints smoothly without wiping all 24 positions
+    for (let f = 0; f < 4; f++) {
+        dse.render(createStrictContext(w, h), w, h, 1 + f * 0.02, 'playing', 1.0, makeMetrics());
+    }
+    const unchangedCount = dse.glints.filter((g, i) =>
+        g.xNorm === before[i].xNorm && g.rNorm === before[i].rNorm
+    ).length;
+    assert.ok(unchangedCount >= 20, 'glints must not teleport all 24 slots every 4 frames');
+    assert.notEqual(dse.glintDriftPx, 0, 'glint drift must accumulate continuously');
+
+    // Interrupting an active wipe must preserve the upper active palette as wipeFrom
+    dse._startWipe(RAMPS.CYN5);
+    dse.wipeAge = 0.2;
+    dse._startWipe(RAMPS.VIO5);
+    assert.equal(dse.wipeFrom, RAMPS.CYN5);
+    assert.equal(dse.wipeTo, RAMPS.VIO5);
+    assert.equal(dse.wipeAge, 0);
+});
+
+test('13. Transparent Bayer floor fade: starting at vis=0.5 dissolves without solid #000000 curtain', () => {
+    const dse = new AtariPondRipples();
+    const w = 320, h = 200;
+    const horizon = Math.floor(h * 0.55);
+    const midStartCtx = createStrictContext(w, h);
+
+    dse.render(midStartCtx, w, h, 1.0, 'starting', 0.75, makeMetrics());
+    assert.ok(midStartCtx.ops.length > 0);
+    const maxY = Math.max(...midStartCtx.ops.map(o => o.y + o.h));
+    assert.ok(maxY <= horizon + Math.floor((h - horizon) * 0.5), 'fade must stay within visH');
+    assert.equal(midStartCtx.ops.some(o => o.color === INK), false, 'transparent Bayer fade must not paint #000000 over background');
 });
