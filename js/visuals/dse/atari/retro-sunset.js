@@ -1,11 +1,12 @@
-// === js/visuals/dse/atari/retro-sunset.js ===
 // =========================================================
 // DEMO-SCENE-ELEMENT: ATARI ST RETRO SUNSET (IK+ TORII & BONSAI)
 // 100% DOM-free 9-bit Shifter palette rendering via pure fillRect:
-// Dithered sky & clouds, clipped mountains, beat-pulsing sun,
-// shimmering shoreline reflection, stone path, shrines, Torii gate
-// with glowing Kanji, sculpted Bonsai tree, IK+ Sprite Karateka /
-// Kaempferin choreography synced to Tension & Beats, & Zen afterglow.
+// Timer-B rasterized 10-band sunset sky & lake reflection,
+// clean OutRun/ST sliced sun, dual-ridge twilight valley mountains,
+// asymmetric pixel-art dusk clouds, curved Myojin Torii with Kanji
+// plaque, glowing Toro lanterns, lush Moyogi S-curve Pine Bonsai with
+// 5 cloud tiers, settling fallen leaves on courtyard stones, IK+ Sprite
+// choreography, & Zen moonlit afterglow.
 // =========================================================
 
 import { quantizeAtari9Bit, rgbToHex } from '../../utils/hardware-constraints.js';
@@ -19,7 +20,8 @@ import {
 } from './ik-fighter-sprites.js';
 
 const TWO_PI = Math.PI * 2;
-const TRANSITION_DURATION = 1.15;
+const TRANSITION_DURATION = 1.5;
+const PETAL_POOL_SIZE = 18;
 
 // 4x4 Bayer threshold matrix (0..15)
 const BAYER_4X4 = Object.freeze([
@@ -27,6 +29,94 @@ const BAYER_4X4 = Object.freeze([
     12, 4, 14, 6,
     3, 11, 1, 9,
     15, 7, 13, 5
+]);
+
+// 10-Stop Timer-B Raster Sky Palettes (Warm Sunset -> Zen Moonlit Dusk)
+const SKY_SUNSET_RGB = Object.freeze([
+    [0, 0, 72],     // Deep Prussian dusk zenith
+    [36, 0, 72],    // Nocturnal indigo
+    [72, 0, 72],    // Deep twilight plum
+    [108, 0, 72],   // Rich dusk purple
+    [144, 0, 72],   // Crimson magenta
+    [180, 36, 72],  // Warm rose-crimson
+    [216, 36, 36],  // Sunset vermilion
+    [252, 72, 36],  // Fiery tangerine
+    [252, 144, 36], // Golden amber glow
+    [252, 216, 108] // Warm horizon mist
+]);
+
+const SKY_AFTERGLOW_RGB = Object.freeze([
+    [0, 0, 36],
+    [0, 0, 72],
+    [0, 36, 72],
+    [36, 36, 108],
+    [36, 72, 108],
+    [72, 72, 144],
+    [72, 108, 144],
+    [108, 108, 180],
+    [108, 144, 180],
+    [144, 144, 216]
+]);
+
+// 5-Stop Timer-B Lake Water Palettes
+const WATER_SUNSET_RGB = Object.freeze([
+    [108, 36, 108],
+    [72, 36, 144],
+    [36, 72, 180],
+    [0, 36, 144],
+    [0, 36, 108]
+]);
+
+const WATER_AFTERGLOW_RGB = Object.freeze([
+    [36, 36, 108],
+    [0, 36, 108],
+    [0, 36, 72],
+    [0, 0, 72],
+    [0, 0, 36]
+]);
+
+// 3 Asymmetric Hand-Pixeled Dusk Cloud Silhouettes (zero UFO symmetry!)
+// Offsets normalized to cloud radius r; sunSide (+1/-1) flips towards scene center.
+const CLOUD_SHAPES = Object.freeze([
+    Object.freeze({
+        puffs: [
+            { dx: -0.75, dy: -0.18, rx: 1.05, ry: 0.56 },
+            { dx:  0.22, dy:  0.04, rx: 1.25, ry: 0.44 },
+            { dx:  1.15, dy:  0.22, rx: 0.90, ry: 0.28 },
+            { dx: -1.55, dy:  0.14, rx: 0.65, ry: 0.30 }
+        ],
+        wisps: [
+            { dx: -2.35, dy: 0.28, w: 1.45 },
+            { dx:  1.65, dy: 0.26, w: 1.35 }
+        ],
+        rim: { dx: -0.25, w: 1.75 }
+    }),
+    Object.freeze({
+        puffs: [
+            { dx:  0.60, dy: -0.24, rx: 0.92, ry: 0.52 },
+            { dx: -0.35, dy: -0.06, rx: 1.15, ry: 0.45 },
+            { dx: -1.30, dy:  0.16, rx: 0.85, ry: 0.28 },
+            { dx:  1.45, dy:  0.12, rx: 0.72, ry: 0.30 }
+        ],
+        wisps: [
+            { dx: -2.40, dy: 0.22, w: 1.55 },
+            { dx:  0.95, dy: 0.32, w: 1.40 }
+        ],
+        rim: { dx: 0.15, w: 1.65 }
+    }),
+    Object.freeze({
+        puffs: [
+            { dx: -0.20, dy: -0.12, rx: 1.35, ry: 0.42 },
+            { dx:  0.95, dy: -0.22, rx: 0.75, ry: 0.38 },
+            { dx: -1.45, dy:  0.08, rx: 0.95, ry: 0.26 },
+            { dx:  1.65, dy:  0.14, rx: 0.65, ry: 0.22 }
+        ],
+        wisps: [
+            { dx: -2.75, dy: 0.18, w: 1.90 },
+            { dx:  1.80, dy: 0.22, w: 1.30 }
+        ],
+        rim: { dx: 0.10, w: 1.95 }
+    })
 ]);
 
 // Precompute all 512 Atari ST 9-bit RGB hex colors once
@@ -43,10 +133,10 @@ const ATARI_HEX_LUT = (() => {
     return Object.freeze(lut);
 })();
 
-// Precomputed half-width LUT for integer circles radii 1..36
+// Precomputed half-width LUT for integer circles radii 1..40
 const CIRCLE_HALF_WIDTHS = (() => {
     const tables = [null];
-    for (let r = 1; r <= 36; r++) {
+    for (let r = 1; r <= 40; r++) {
         const hw = new Int8Array(r * 2 + 1);
         const rSq = r * r;
         for (let dy = -r; dy <= r; dy++) {
@@ -62,152 +152,75 @@ const CIRCLE_HALF_WIDTHS = (() => {
 // =========================================================
 const MOVES = Object.freeze({
     IDLE: Object.freeze({
-        tier: 0,
-        air: false,
-        canCancelAt: 0.0,
-        peakHeight: 0,
-        dxTotal: 0,
-        frames: ['IDLE_0'],
-        durations: [0.20]
+        tier: 0, air: false, canCancelAt: 0.0, peakHeight: 0, dxTotal: 0,
+        frames: ['IDLE_0'], durations: [0.20]
     }),
     STEP_FORWARD: Object.freeze({
-        tier: 0,
-        air: false,
-        canCancelAt: 0.25,
-        peakHeight: 0,
-        dxTotal: 12,
-        frames: ['STEP_PASS', 'STEP_REACH', 'IDLE_2'],
-        durations: [0.08, 0.10, 0.06]
+        tier: 0, air: false, canCancelAt: 0.25, peakHeight: 0, dxTotal: 12,
+        frames: ['STEP_PASS', 'STEP_REACH', 'IDLE_2'], durations: [0.08, 0.10, 0.06]
     }),
     GLIDE_ADVANCE: Object.freeze({
-        tier: 0,
-        air: false,
-        canCancelAt: 0.35,
-        peakHeight: 0,
-        dxTotal: 18,
-        frames: ['STEP_PASS', 'STEP_REACH', 'STEP_PASS', 'IDLE_0'],
-        durations: [0.08, 0.10, 0.08, 0.06]
+        tier: 0, air: false, canCancelAt: 0.35, peakHeight: 0, dxTotal: 18,
+        frames: ['STEP_PASS', 'STEP_REACH', 'STEP_PASS', 'IDLE_0'], durations: [0.08, 0.10, 0.08, 0.06]
     }),
     BOW_OPEN: Object.freeze({
-        tier: 0,
-        air: false,
-        canCancelAt: 0.70,
-        peakHeight: 0,
-        dxTotal: 0,
-        frames: ['BOW_READY', 'BOW_DEEP', 'BOW_READY', 'IDLE_0'],
-        durations: [0.18, 0.34, 0.16, 0.12]
+        tier: 0, air: false, canCancelAt: 0.70, peakHeight: 0, dxTotal: 0,
+        frames: ['BOW_READY', 'BOW_DEEP', 'BOW_READY', 'IDLE_0'], durations: [0.18, 0.34, 0.16, 0.12]
     }),
     BOW_CLOSE: Object.freeze({
-        tier: 0,
-        air: false,
-        canCancelAt: 1.0,
-        peakHeight: 0,
-        dxTotal: 0,
-        frames: ['BOW_READY', 'BOW_DEEP', 'BOW_READY'],
-        durations: [0.20, 0.50, 0.40]
+        tier: 0, air: false, canCancelAt: 1.0, peakHeight: 0, dxTotal: 0,
+        frames: ['BOW_READY', 'BOW_DEEP', 'BOW_READY'], durations: [0.20, 0.50, 0.40]
     }),
     JAB: Object.freeze({
-        tier: 1,
-        air: false,
-        canCancelAt: 0.50,
-        peakHeight: 0,
-        dxTotal: 4,
-        frames: ['JAB_CHAMBER', 'JAB_EXTEND', 'JAB_CHAMBER'],
-        durations: [0.06, 0.12, 0.06]
+        tier: 1, air: false, canCancelAt: 0.50, peakHeight: 0, dxTotal: 4,
+        frames: ['JAB_CHAMBER', 'JAB_EXTEND', 'JAB_CHAMBER'], durations: [0.06, 0.12, 0.06]
     }),
     PARRY_HIGH: Object.freeze({
-        tier: 1,
-        air: false,
-        canCancelAt: 0.45,
-        peakHeight: 0,
-        dxTotal: 0,
-        frames: ['BLOCK_HIGH', 'IDLE_2'],
-        durations: [0.16, 0.08]
+        tier: 1, air: false, canCancelAt: 0.45, peakHeight: 0, dxTotal: 0,
+        frames: ['BLOCK_HIGH', 'IDLE_2'], durations: [0.16, 0.08]
     }),
     PARRY_LOW: Object.freeze({
-        tier: 1,
-        air: false,
-        canCancelAt: 0.45,
-        peakHeight: 0,
-        dxTotal: 0,
-        frames: ['BLOCK_LOW', 'IDLE_1'],
-        durations: [0.16, 0.08]
+        tier: 1, air: false, canCancelAt: 0.45, peakHeight: 0, dxTotal: 0,
+        frames: ['BLOCK_LOW', 'IDLE_1'], durations: [0.16, 0.08]
     }),
     FRONT_KICK: Object.freeze({
-        tier: 1,
-        air: false,
-        canCancelAt: 0.55,
-        peakHeight: 0,
-        dxTotal: 4,
-        frames: ['KICK_CHAMBER', 'FRONT_KICK', 'KICK_CHAMBER'],
-        durations: [0.06, 0.14, 0.06]
+        tier: 1, air: false, canCancelAt: 0.55, peakHeight: 0, dxTotal: 4,
+        frames: ['KICK_CHAMBER', 'FRONT_KICK', 'KICK_CHAMBER'], durations: [0.06, 0.14, 0.06]
     }),
     ROUNDHOUSE: Object.freeze({
-        tier: 2,
-        air: false,
-        canCancelAt: 0.58,
-        peakHeight: 0,
-        dxTotal: 8,
-        frames: ['KICK_CHAMBER', 'ROUNDHOUSE_KICK', 'KICK_CHAMBER', 'IDLE_0'],
-        durations: [0.06, 0.18, 0.08, 0.06]
+        tier: 2, air: false, canCancelAt: 0.58, peakHeight: 0, dxTotal: 8,
+        frames: ['KICK_CHAMBER', 'ROUNDHOUSE_KICK', 'KICK_CHAMBER', 'IDLE_0'], durations: [0.06, 0.18, 0.08, 0.06]
     }),
     LOW_SWEEP: Object.freeze({
-        tier: 2,
-        air: false,
-        canCancelAt: 0.62,
-        peakHeight: 0,
-        dxTotal: 9,
-        frames: ['CROUCH_PREP', 'SWEEP_DROP', 'SWEEP_EXTEND', 'SWEEP_DROP'],
-        durations: [0.06, 0.06, 0.18, 0.08]
+        tier: 2, air: false, canCancelAt: 0.62, peakHeight: 0, dxTotal: 9,
+        frames: ['CROUCH_PREP', 'SWEEP_DROP', 'SWEEP_EXTEND', 'SWEEP_DROP'], durations: [0.06, 0.06, 0.18, 0.08]
     }),
     LUNGE_PUNCH: Object.freeze({
-        tier: 2,
-        air: false,
-        canCancelAt: 0.58,
-        peakHeight: 0,
-        dxTotal: 11,
-        frames: ['STEP_PASS', 'JAB_CHAMBER', 'LUNGE_PUNCH', 'STEP_REACH'],
-        durations: [0.06, 0.04, 0.18, 0.08]
+        tier: 2, air: false, canCancelAt: 0.58, peakHeight: 0, dxTotal: 11,
+        frames: ['STEP_PASS', 'JAB_CHAMBER', 'LUNGE_PUNCH', 'STEP_REACH'], durations: [0.06, 0.04, 0.18, 0.08]
     }),
     HIGH_KICK: Object.freeze({
-        tier: 3,
-        air: false,
-        canCancelAt: 0.65,
-        peakHeight: 0,
-        dxTotal: 5,
+        tier: 3, air: false, canCancelAt: 0.65, peakHeight: 0, dxTotal: 5,
         frames: ['KICK_CHAMBER', 'HIGH_KICK_RISE', 'HIGH_KICK', 'HIGH_KICK_RISE', 'KICK_CHAMBER'],
         durations: [0.06, 0.06, 0.20, 0.06, 0.06]
     }),
     FLYING_KICK: Object.freeze({
-        tier: 3,
-        air: true,
-        canCancelAt: 0.86,
-        peakHeight: 15,
-        dxTotal: 20,
+        tier: 3, air: true, canCancelAt: 0.86, peakHeight: 15, dxTotal: 20,
         frames: ['CROUCH_PREP', 'JUMP_LAUNCH', 'FLYING_KICK', 'JUMP_LAUNCH', 'CROUCH_PREP'],
         durations: [0.06, 0.08, 0.24, 0.06, 0.06]
     }),
     SPLIT_KICK: Object.freeze({
-        tier: 3,
-        air: true,
-        canCancelAt: 0.86,
-        peakHeight: 16,
-        dxTotal: 0,
+        tier: 3, air: true, canCancelAt: 0.86, peakHeight: 16, dxTotal: 0,
         frames: ['CROUCH_PREP', 'JUMP_LAUNCH', 'SPLIT_KICK', 'JUMP_LAUNCH', 'CROUCH_PREP'],
         durations: [0.06, 0.08, 0.24, 0.06, 0.06]
     }),
     BACKFLIP: Object.freeze({
-        tier: 3,
-        air: true,
-        canCancelAt: 0.88,
-        peakHeight: 17,
-        dxTotal: -17,
+        tier: 3, air: true, canCancelAt: 0.88, peakHeight: 17, dxTotal: -17,
         frames: ['CROUCH_PREP', 'BACKFLIP_1', 'BACKFLIP_2', 'BACKFLIP_3', 'BACKFLIP_4', 'CROUCH_PREP'],
         durations: [0.06, 0.08, 0.08, 0.10, 0.08, 0.06]
     })
 });
 
-// Precompute total move durations once
 const MOVE_TOTAL_DURATIONS = (() => {
     const map = {};
     const names = Object.keys(MOVES);
@@ -277,12 +290,12 @@ function fillClippedRect(ctx, x, y, rw, rh, bufW, bufH, minY = 0, maxY = bufH) {
     }
 }
 
-function fillClippedCircle(ctx, cx, cy, r, colorHex, bufW, maxY) {
+function fillClippedCircle(ctx, cx, cy, r, colorHex, bufW, maxY, minY = 0) {
     const ri = Math.floor(r);
     if (ri <= 0) return;
     const icx = Math.floor(cx);
     const icy = Math.floor(cy);
-    if (icx + ri < 0 || icx - ri >= bufW || icy - ri >= maxY || icy + ri < 0) return;
+    if (icx + ri < 0 || icx - ri >= bufW || icy - ri >= maxY || icy + ri < minY) return;
 
     ctx.fillStyle = colorHex;
     const hw = ri < CIRCLE_HALF_WIDTHS.length ? CIRCLE_HALF_WIDTHS[ri] : null;
@@ -290,7 +303,7 @@ function fillClippedCircle(ctx, cx, cy, r, colorHex, bufW, maxY) {
 
     for (let dy = -ri; dy <= ri; dy++) {
         const py = icy + dy;
-        if (py < 0 || py >= maxY) continue;
+        if (py < minY || py >= maxY) continue;
         const dx = hw ? hw[dy + ri] : Math.floor(Math.sqrt(Math.max(0, rSq - dy * dy)));
         const x0 = Math.max(0, icx - dx);
         const x1 = Math.min(bufW, icx + dx + 1);
@@ -299,91 +312,63 @@ function fillClippedCircle(ctx, cx, cy, r, colorHex, bufW, maxY) {
     }
 }
 
-function fillDitheredCircle(ctx, cx, cy, r, col1, col2, bufW, maxY) {
-    const ri = Math.floor(r);
-    if (ri <= 0) return;
+function fillClippedEllipse(ctx, cx, cy, rx, ry, colorHex, bufW, maxY, minY = 0) {
+    const irx = Math.floor(rx);
+    const iry = Math.floor(ry);
+    if (irx <= 0 || iry <= 0) return;
     const icx = Math.floor(cx);
     const icy = Math.floor(cy);
-    if (icx + ri < 0 || icx - ri >= bufW || icy - ri >= maxY || icy + ri < 0) return;
+    if (icx + irx < 0 || icx - irx >= bufW || icy - iry >= maxY || icy + iry < minY) return;
 
-    const hw = ri < CIRCLE_HALF_WIDTHS.length ? CIRCLE_HALF_WIDTHS[ri] : null;
-    const rSq = ri * ri;
-
-    ctx.fillStyle = col1;
-    for (let dy = -ri; dy <= ri; dy++) {
+    ctx.fillStyle = colorHex;
+    for (let dy = -iry; dy <= iry; dy++) {
         const py = icy + dy;
-        if (py < 0 || py >= maxY) continue;
-        const dx = hw ? hw[dy + ri] : Math.floor(Math.sqrt(Math.max(0, rSq - dy * dy)));
+        if (py < minY || py >= maxY) continue;
+        const norm = dy / (iry + 0.35);
+        const dx = Math.floor(irx * Math.sqrt(Math.max(0, 1.0 - norm * norm)));
         const x0 = Math.max(0, icx - dx);
         const x1 = Math.min(bufW, icx + dx + 1);
         const cw = x1 - x0;
         if (cw > 0) ctx.fillRect(x0, py, cw, 1);
     }
-
-    ctx.fillStyle = col2;
-    for (let dy = -ri; dy <= ri; dy++) {
-        const py = icy + dy;
-        if (py < 0 || py >= maxY) continue;
-        const dx = hw ? hw[dy + ri] : Math.floor(Math.sqrt(Math.max(0, rSq - dy * dy)));
-        let startX = Math.max(0, icx - dx);
-        const endX = Math.min(bufW - 1, icx + dx);
-        if (((startX + py) & 1) !== 0) startX++;
-        for (let px = startX; px <= endX; px += 2) {
-            ctx.fillRect(px, py, 1, 1);
-        }
-    }
 }
 
-function drawClippedLine(ctx, x0, y0, x1, y1, bufW, bufH) {
-    if (!Number.isFinite(x0) || !Number.isFinite(y0) || !Number.isFinite(x1) || !Number.isFinite(y1)) return;
-    const maxX = bufW - 1;
-    const maxY = bufH - 1;
-    let t0 = 0;
-    let t1 = 1;
-    const dx = x1 - x0;
-    const dy = y1 - y0;
+function bonsaiTrunkOffset(u, treeScale) {
+    return -Math.sin(u * Math.PI * 2.25) * (treeScale * (0.095 - 0.035 * u));
+}
 
-    const clipTest = (p, q) => {
-        if (p === 0) return q >= 0;
-        const r = q / p;
-        if (p < 0) {
-            if (r > t1) return false;
-            if (r > t0) t0 = r;
+function drawTaperedBranch(ctx, x0, y0, cx, cy, x1, y1, rStart, rEnd, colDark, colMid, colLit, bufW, bufH) {
+    const steps = 20;
+    for (let i = 0; i <= steps; i++) {
+        const s = i / steps;
+        const inv = 1.0 - s;
+        const bx = inv * inv * x0 + 2 * inv * s * cx + s * s * x1;
+        const by = inv * inv * y0 + 2 * inv * s * cy + s * s * y1;
+        const r = Math.max(1, Math.round(rStart + (rEnd - rStart) * s));
+
+        if (r === 1) {
+            ctx.fillStyle = colDark;
+            fillClippedRect(ctx, bx, by + 1, 2, 1, bufW, bufH);
+            ctx.fillStyle = colMid;
+            fillClippedRect(ctx, bx, by, 2, 1, bufW, bufH);
         } else {
-            if (r < t0) return false;
-            if (r < t1) t1 = r;
+            fillClippedCircle(ctx, bx, by + 1, r, colDark, bufW, bufH);
+            fillClippedCircle(ctx, bx, by, r, colMid, bufW, bufH);
+            if (r >= 2) {
+                ctx.fillStyle = colLit;
+                fillClippedRect(ctx, bx - Math.floor(r * 0.5), by - r + 1, Math.max(1, Math.floor(r * 1.1)), 1, bufW, bufH);
+            }
         }
-        return true;
-    };
-
-    if (!clipTest(-dx, x0) || !clipTest(dx, maxX - x0) || !clipTest(-dy, y0) || !clipTest(dy, maxY - y0)) return;
-
-    let cx0 = Math.min(maxX, Math.max(0, Math.floor(x0 + t0 * dx)));
-    let cy0 = Math.min(maxY, Math.max(0, Math.floor(y0 + t0 * dy)));
-    const cx1 = Math.min(maxX, Math.max(0, Math.floor(x0 + t1 * dx)));
-    const cy1 = Math.min(maxY, Math.max(0, Math.floor(y0 + t1 * dy)));
-
-    const adx = Math.abs(cx1 - cx0);
-    const ady = Math.abs(cy1 - cy0);
-    const sx = cx0 < cx1 ? 1 : -1;
-    const sy = cy0 < cy1 ? 1 : -1;
-    let err = adx - ady;
-    const maxSteps = adx + ady + 2;
-
-    for (let step = 0; step < maxSteps; step++) {
-        ctx.fillRect(cx0, cy0, 1, 1);
-        if (cx0 === cx1 && cy0 === cy1) break;
-        const e2 = err * 2;
-        if (e2 > -ady) { err -= ady; cx0 += sx; }
-        if (e2 < adx) { err += adx; cy0 += sy; }
     }
 }
 
-const LEAF_CLUSTERS = Object.freeze([
-    { dx: -0.15, dy: -0.02, r: 0.10 },
-    { dx: -0.06, dy: -0.15, r: 0.12 },
-    { dx: 0.08, dy: -0.12, r: 0.11 },
-    { dx: 0.16, dy: 0.02, r: 0.09 }
+// 5 Asymmetric Japanese Moyogi Pine Bonsai Cloud Pads (lush fuller green volume)
+const BONSAI_PADS = Object.freeze([
+    { uAttach: 0.34, padX: -0.185, padFracY: 0.56, rx: 0.108, ry: 0.042, bBendX: -0.11, bBendY: 0.59, rStart: 0.025, rEnd: 0.010, leaves: 44 },
+    { uAttach: 0.48, padX:  0.125, padFracY: 0.43, rx: 0.095, ry: 0.039, bBendX:  0.07, bBendY: 0.47, rStart: 0.022, rEnd: 0.009, leaves: 40 },
+    { uAttach: 0.66, padX: -0.130, padFracY: 0.25, rx: 0.092, ry: 0.037, bBendX: -0.05, bBendY: 0.29, rStart: 0.019, rEnd: 0.008, leaves: 38 },
+    { uAttach: 0.80, padX:  0.088, padFracY: 0.16, rx: 0.078, ry: 0.032, bBendX:  0.04, bBendY: 0.19, rStart: 0.015, rEnd: 0.007, leaves: 32 },
+    { uAttach: 0.96, padX: -0.025, padFracY: 0.02, rx: 0.090, ry: 0.038, bBendX: -0.03, bBendY: 0.05, rStart: 0.013, rEnd: 0.006, leaves: 38 }
 ]);
 
 const SHRINES = Object.freeze([
@@ -391,6 +376,13 @@ const SHRINES = Object.freeze([
     { xDir: -1, z: 0.55 }, { xDir: 1, z: 0.55 },
     { xDir: -1, z: 0.25 }, { xDir: 1, z: 0.25 },
     { xDir: -1, z: 0.05 }, { xDir: 1, z: 0.05 }
+]);
+
+const SKY_STARS = Object.freeze([
+    { x: 0.06, y: 0.07, p: 0.4 }, { x: 0.16, y: 0.12, p: 1.9 },
+    { x: 0.29, y: 0.05, p: 3.1 }, { x: 0.42, y: 0.14, p: 4.6 },
+    { x: 0.57, y: 0.08, p: 2.2 }, { x: 0.69, y: 0.04, p: 5.1 },
+    { x: 0.82, y: 0.11, p: 1.1 }, { x: 0.93, y: 0.07, p: 3.8 }
 ]);
 
 export class AtariRetroSunset {
@@ -418,33 +410,38 @@ export class AtariRetroSunset {
         this.prngState = 0x494B2B53; // 'IK+S'
         this.appearanceCount = 0;
 
-        // Normalized drifting cloud states
+        // Preallocated per-frame Timer-B ramp buffers (Zero-GC!)
+        this.skyRamp = new Array(SKY_SUNSET_RGB.length).fill('#000000');
+        this.waterRamp = new Array(WATER_SUNSET_RGB.length).fill('#000000');
+
+        // Normalized drifting cloud states (mapped to 3 asymmetric cloud shapes)
         this.clouds = [
-            { y: 0.15, normX: 0.15, r: 0.038, speed: -0.020 },
-            { y: 0.28, normX: 0.68, r: 0.046, speed: 0.028 },
-            { y: 0.38, normX: 0.22, r: 0.042, speed: -0.013 }
+            { shapeIdx: 0, y: 0.16, normX: 0.14, r: 0.044, speed: -0.018 },
+            { shapeIdx: 1, y: 0.25, normX: 0.68, r: 0.052, speed: 0.024 },
+            { shapeIdx: 2, y: 0.35, normX: 0.26, r: 0.045, speed: -0.012 }
         ];
 
-        // Deterministic Bonsai foliage pads
+        // Deterministic Bonsai cloud-pad foliage leaves (rich rounded pine foliage!)
         this.treeLeaves = [];
-        for (let c = 0; c < LEAF_CLUSTERS.length; c++) {
-            const cl = LEAF_CLUSTERS[c];
-            for (let i = 0; i < 42; i++) {
+        for (let c = 0; c < BONSAI_PADS.length; c++) {
+            const pad = BONSAI_PADS[c];
+            for (let i = 0; i < pad.leaves; i++) {
                 const angle = this._nextRandom() * TWO_PI;
-                const dist = Math.sqrt(this._nextRandom()) * cl.r;
+                const dist = Math.sqrt(this._nextRandom());
                 const sinA = Math.sin(angle);
                 const roll = this._nextRandom();
                 let colType;
-                if (sinA < -0.2) {
-                    colType = roll > 0.45 ? 1 : 0;
-                } else if (sinA > 0.35) {
-                    colType = roll > 0.35 ? 2 : 0;
+                if (sinA < -0.30) {
+                    colType = roll > 0.35 ? 1 : 2; // Sunlit fresh pine needles on upper ridge
+                } else if (sinA > 0.20) {
+                    colType = roll > 0.25 ? 0 : 2; // Rich deep evergreen underside
                 } else {
-                    colType = roll > 0.60 ? 0 : (roll > 0.30 ? 1 : 2);
+                    colType = roll > 0.45 ? 2 : (roll > 0.15 ? 0 : 1);
                 }
                 this.treeLeaves.push({
-                    dx: cl.dx + Math.cos(angle) * dist * 1.15,
-                    dy: cl.dy + sinA * dist * 0.65,
+                    padIdx: c,
+                    dx: Math.cos(angle) * dist * pad.rx,
+                    dy: (sinA > 0 ? sinA * 0.45 : sinA) * dist * pad.ry,
                     r: Math.floor(this._nextRandom() * 3) + 2,
                     colType,
                     phase: this._nextRandom() * TWO_PI
@@ -452,21 +449,26 @@ export class AtariRetroSunset {
             }
         }
 
-        // Preallocated falling Bonsai petals pool (max 10 petals)
-        this.petals = Array.from({ length: 10 }, () => ({
+        // Preallocated falling & settling Bonsai leaves/petals pool
+        this.petals = Array.from({ length: PETAL_POOL_SIZE }, () => ({
             active: false,
+            landed: false,
             xFrac: 0.8,
             yFrac: 0.3,
+            landYFrac: 0.82,
             vx: -0.03,
             vy: 0.09,
-            phase: 0
+            phase: 0,
+            restAge: 0,
+            restDuration: 3.2,
+            variant: 0
         }));
 
-        // IK+ Sprite Fighter State (normalized courtyard position + choreography)
+        // IK+ Sprite Fighter State
         this.fighter = {
-            style: null,          // 'karateka' | 'kaempferin' (rolled per fade-in)
-            xNorm: 0.0,           // [-1..1] inside dynamic courtyard roam span
-            facing: 1,            // +1 right, -1 left
+            style: null,
+            xNorm: 0.0,
+            facing: 1,
             moveName: 'IDLE',
             moveElapsed: 0,
             moveDuration: 0.20,
@@ -524,7 +526,6 @@ export class AtariRetroSunset {
         const isFemale = f.style === 'kaempferin';
         f.moveSeq++;
 
-        // Traverse full courtyard width before steering cleanly back inward
         if (f.xNorm > 0.80) f.facing = -1;
         else if (f.xNorm < -0.80) f.facing = 1;
         else if (beatCount > 0 && (beatCount % 8) === 0) {
@@ -536,37 +537,22 @@ export class AtariRetroSunset {
         if (beatLevel >= 3) {
             if (state === 'climax' || (state === 'buildup' && tension > 0.45)) {
                 const canBackflip = (f.facing > 0 && f.xNorm > -0.60) || (f.facing < 0 && f.xNorm < 0.60);
-                if (canBackflip && roll < (isFemale ? 0.30 : 0.24)) {
-                    return 'BACKFLIP';
-                }
-                if (roll < (isFemale ? 0.58 : 0.46)) {
-                    return 'SPLIT_KICK';
-                }
-                if (roll < 0.84) {
-                    return 'FLYING_KICK';
-                }
+                if (canBackflip && roll < (isFemale ? 0.30 : 0.24)) return 'BACKFLIP';
+                if (roll < (isFemale ? 0.58 : 0.46)) return 'SPLIT_KICK';
+                if (roll < 0.84) return 'FLYING_KICK';
                 return 'HIGH_KICK';
             }
-            if (beatCount > 0 && (beatCount % 4) === 0 && roll < 0.42) {
-                return 'SPLIT_KICK';
-            }
+            if (beatCount > 0 && (beatCount % 4) === 0 && roll < 0.42) return 'SPLIT_KICK';
             return roll < 0.72 ? 'HIGH_KICK' : 'ROUNDHOUSE';
         }
 
         if (beatLevel === 2) {
-            if (state === 'climax' && roll < 0.22) {
-                return 'FLYING_KICK';
-            }
-            if (roll < (isFemale ? 0.44 : 0.32)) {
-                return 'ROUNDHOUSE';
-            }
-            if (roll < 0.68) {
-                return 'LOW_SWEEP';
-            }
+            if (state === 'climax' && roll < 0.22) return 'FLYING_KICK';
+            if (roll < (isFemale ? 0.44 : 0.32)) return 'ROUNDHOUSE';
+            if (roll < 0.68) return 'LOW_SWEEP';
             return 'LUNGE_PUNCH';
         }
 
-        // Tier 1 (SOFT) — mixes compact strikes with lively courtyard footwork
         if (state === 'buildup' || state === 'climax') {
             if (roll < 0.30) return 'FRONT_KICK';
             if (roll < 0.56) return 'JAB';
@@ -589,7 +575,6 @@ export class AtariRetroSunset {
         const activeMove = MOVES[f.moveName] || MOVES.IDLE;
         const prevProgress = f.moveDuration > 0 ? clamp01(f.moveElapsed / f.moveDuration) : 1.0;
 
-        // 1. State-specific macro overrides
         if (state === 'stopping') {
             if (f.jumpY <= 0.1 && f.moveName !== 'BOW_CLOSE') {
                 this._startFighterMove('BOW_CLOSE');
@@ -602,7 +587,6 @@ export class AtariRetroSunset {
                 this._startFighterMove('IDLE');
             }
         } else if (beatStarted && state !== 'starting') {
-            // 2. Strict Beat-Triggered Move Selection & IK+ Input Canceling
             f.timeSinceBeat = 0;
             const allowOverride =
                 f.moveName === 'IDLE' ||
@@ -628,14 +612,12 @@ export class AtariRetroSunset {
             f.timeSinceBeat > 0.68 &&
             roamRadius > 14
         ) {
-            // Active martial-arts footwork roaming across the courtyard between beats
             if (f.xNorm > 0.78) f.facing = -1;
             else if (f.xNorm < -0.78) f.facing = 1;
             this._startFighterMove(state === 'playing' ? 'STEP_FORWARD' : 'GLIDE_ADVANCE');
             f.timeSinceBeat = 0.22;
         }
 
-        // 3. Advance active move timeline with smooth ease-out root motion
         const curMove = MOVES[f.moveName] || MOVES.IDLE;
         f.moveElapsed += dt * speedScale;
         const progress = f.moveDuration > 0 ? clamp01(f.moveElapsed / f.moveDuration) : 1.0;
@@ -647,7 +629,6 @@ export class AtariRetroSunset {
             f.xNorm = Math.max(-0.95, Math.min(0.95, f.xNorm + normStep));
         }
 
-        // Parabolic vertical jump arc for airborne moves
         if (curMove.air) {
             const airT = clamp01((progress - 0.12) / 0.76);
             f.jumpY = Math.sin(airT * Math.PI) * curMove.peakHeight;
@@ -664,7 +645,6 @@ export class AtariRetroSunset {
             }
         }
 
-        // 4. Resolve current pose frame key
         if (f.moveName !== 'IDLE') {
             const durs = curMove.durations;
             let acc = 0;
@@ -679,7 +659,6 @@ export class AtariRetroSunset {
             return frameKey;
         }
 
-        // 5. Continuous Beatless Kata & Martial Arts Rhythm Bounce
         const bounceRate = state === 'afterglow' ? 1.8 : (3.4 + energy * 3.0 + ymBass * 2.2);
         f.idlePhase = (f.idlePhase + dt * bounceRate) % TWO_PI;
 
@@ -705,11 +684,16 @@ export class AtariRetroSunset {
             const p = this.petals[i];
             if (!p.active) {
                 p.active = true;
-                p.xFrac = 0.72 + this._nextRandom() * 0.20;
-                p.yFrac = 0.25 + this._nextRandom() * 0.16;
-                p.vx = -(0.025 + this._nextRandom() * 0.045);
-                p.vy = 0.08 + this._nextRandom() * 0.08;
+                p.landed = false;
+                p.xFrac = 0.68 + this._nextRandom() * 0.22;
+                p.yFrac = 0.26 + this._nextRandom() * 0.18;
+                p.landYFrac = 0.72 + this._nextRandom() * 0.23; // Lands across stone path
+                p.vx = -(0.035 + this._nextRandom() * 0.055);
+                p.vy = 0.09 + this._nextRandom() * 0.08;
                 p.phase = this._nextRandom() * TWO_PI;
+                p.restAge = 0;
+                p.restDuration = 2.6 + this._nextRandom() * 1.8;
+                p.variant = Math.floor(this._nextRandom() * 3);
                 spawned++;
             }
         }
@@ -720,24 +704,96 @@ export class AtariRetroSunset {
         // character identity, phases and choreography persist cleanly across rotations.
     }
 
-    _drawDitheredBand(ctx, w, yStart, yEnd, col1, col2, horizon) {
-        const y0 = Math.max(0, Math.floor(yStart));
-        const y1 = Math.min(horizon, Math.floor(yEnd));
+    _drawTimerBRamp(ctx, w, yStart, yEnd, ramp, stepX) {
+        const y0 = Math.floor(yStart);
+        const y1 = Math.floor(yEnd);
+        const spanH = y1 - y0;
+        if (spanH <= 0 || w <= 0) return;
+
+        const maxIdx = ramp.length - 1;
+        let runColor = null;
+        let runStartY = y0;
+
         for (let y = y0; y < y1; y++) {
-            ctx.fillStyle = (y & 1) === 0 ? col1 : col2;
-            ctx.fillRect(0, y, w, 1);
+            const norm = spanH <= 1 ? 0 : (y - y0) / (spanH - 1);
+            const pos = norm * maxIdx;
+            const idx = Math.min(maxIdx, Math.floor(pos));
+            const baseCol = ramp[idx];
+            if (baseCol !== runColor) {
+                if (runColor !== null) {
+                    ctx.fillStyle = runColor;
+                    ctx.fillRect(0, runStartY, w, y - runStartY);
+                }
+                runColor = baseCol;
+                runStartY = y;
+            }
+        }
+        if (runColor !== null) {
+            ctx.fillStyle = runColor;
+            ctx.fillRect(0, runStartY, w, y1 - runStartY);
+        }
+
+        if (spanH < 10) return;
+        const sx = Math.max(1, stepX);
+        const period = sx * 2;
+        for (let y = y0; y < y1; y++) {
+            const norm = (y - y0) / (spanH - 1);
+            const pos = norm * maxIdx;
+            const idx = Math.floor(pos);
+            if (idx >= maxIdx) continue;
+            const frac = pos - idx;
+            if (frac >= 0.42 && frac <= 0.88) {
+                ctx.fillStyle = ramp[idx + 1];
+                const offset = (y & 1) * sx;
+                for (let x = offset; x < w; x += period) {
+                    const cw = Math.min(sx, w - x);
+                    if (cw > 0) ctx.fillRect(x, y, cw, 1);
+                }
+            }
         }
     }
 
-    _drawChunkyCloud(ctx, cx, cy, r, col1, col2, w, horizon) {
-        const ri = Math.max(2, Math.floor(r));
-        fillDitheredCircle(ctx, cx, cy, ri, col1, col2, w, horizon);
-        fillDitheredCircle(ctx, cx - Math.floor(ri * 0.7), cy + Math.floor(ri * 0.1), Math.max(1, Math.floor(ri * 0.7)), col1, col2, w, horizon);
-        fillDitheredCircle(ctx, cx + Math.floor(ri * 0.7), cy + Math.floor(ri * 0.1), Math.max(1, Math.floor(ri * 0.7)), col1, col2, w, horizon);
-        fillDitheredCircle(ctx, cx - Math.floor(ri * 1.25), cy + Math.floor(ri * 0.3), Math.max(1, Math.floor(ri * 0.45)), col1, col2, w, horizon);
-        fillDitheredCircle(ctx, cx + Math.floor(ri * 1.25), cy + Math.floor(ri * 0.3), Math.max(1, Math.floor(ri * 0.45)), col1, col2, w, horizon);
-        fillDitheredCircle(ctx, cx - Math.floor(ri * 0.35), cy - Math.floor(ri * 0.35), Math.max(1, Math.floor(ri * 0.65)), col1, col2, w, horizon);
-        fillDitheredCircle(ctx, cx + Math.floor(ri * 0.35), cy - Math.floor(ri * 0.35), Math.max(1, Math.floor(ri * 0.65)), col1, col2, w, horizon);
+    // Irregular hand-pixeled dusk clouds with wispy asymmetric tails & sunset rim
+    _drawIrregularCloud(ctx, cx, cy, r, shapeIdx, cShadow, cMid, cLit, w, horizon, towardSunX) {
+        const shape = CLOUD_SHAPES[shapeIdx % CLOUD_SHAPES.length];
+        const dir = towardSunX >= 0 ? 1 : -1;
+
+        // 1. Dark upper/rear silhouette puffs
+        for (let i = 0; i < shape.puffs.length; i++) {
+            const pf = shape.puffs[i];
+            const px = cx + pf.dx * r * dir;
+            const py = cy + pf.dy * r;
+            fillClippedEllipse(ctx, px, py, Math.max(2, pf.rx * r), Math.max(1, pf.ry * r), cShadow, w, horizon);
+        }
+
+        // 2. Trailing wispy cloud streaks at staggered heights
+        ctx.fillStyle = cShadow;
+        for (let i = 0; i < shape.wisps.length; i++) {
+            const ws = shape.wisps[i];
+            const ww = Math.max(2, Math.floor(ws.w * r));
+            const wx = dir > 0 ? (cx + ws.dx * r) : (cx - ws.dx * r - ww);
+            const wy = Math.min(horizon - 1, Math.floor(cy + ws.dy * r));
+            fillClippedRect(ctx, wx, wy, ww, 1, w, horizon);
+        }
+
+        // 3. Warm rose-purple lit inner puffs shifted slightly sunward & down
+        const shiftX = dir * Math.max(1, Math.floor(r * 0.12));
+        for (let i = 0; i < shape.puffs.length; i++) {
+            const pf = shape.puffs[i];
+            const px = cx + pf.dx * r * dir + shiftX;
+            const py = cy + pf.dy * r + Math.max(1, Math.floor(r * 0.14));
+            fillClippedEllipse(ctx, px, py, Math.max(2, pf.rx * r * 0.80), Math.max(1, pf.ry * r * 0.72), cMid, w, horizon);
+        }
+
+        // 4. Crisp irregular sunset-kissed lower rim facing setting sun
+        const rimW = Math.max(3, Math.floor(shape.rim.w * r));
+        const rimX = cx + shape.rim.dx * r * dir - Math.floor(rimW * 0.5) + shiftX;
+        const rimY = Math.min(horizon - 1, cy + Math.max(1, Math.floor(r * 0.34)));
+        ctx.fillStyle = cLit;
+        fillClippedRect(ctx, rimX, rimY, rimW, 1, w, horizon);
+        if (r >= 5) {
+            fillClippedRect(ctx, rimX + Math.floor(rimW * 0.18), rimY - 1, Math.max(2, Math.floor(rimW * 0.56)), 1, w, horizon);
+        }
     }
 
     _drawPowerCurtain(ctx, w, h, horizon, revealRatio) {
@@ -807,6 +863,10 @@ export class AtariRetroSunset {
             this.lastState = 'idle';
             this.stateAge = 0;
             this.fighter.style = null;
+            for (let i = 0; i < this.petals.length; i++) {
+                this.petals[i].active = false;
+                this.petals[i].landed = false;
+            }
             return;
         }
 
@@ -828,7 +888,6 @@ export class AtariRetroSunset {
         // ---------------------------------------------------------
         const safeMetrics = metrics || {};
         const energy = clamp01(safeMetrics.energy ?? 0.35);
-        const pulse = clamp01(safeMetrics.pulse ?? 0);
         const tension = clamp01(safeMetrics.tensionPct ?? 0.3);
         const isClimaxLocked = Boolean(safeMetrics.isClimaxLocked);
 
@@ -944,73 +1003,102 @@ export class AtariRetroSunset {
         const minDim = Math.min(w, h);
         const cx = Math.floor(w * 0.5);
         const shoreY = Math.min(h - 2, horizon + Math.max(3, Math.floor(minDim * 0.15)));
+        const stepX = w > 480 ? 3 : 2;
 
         // ---------------------------------------------------------
-        // Dynamic 9-bit IK+ Palette (Warm Sunset -> Zen Moonlit Dusk)
+        // Dynamic 9-bit Timer-B Palettes (Sunset -> Zen Moonlit Dusk)
         // ---------------------------------------------------------
-        const cSky1 = toAtariHex(0, 0, lerp(0, 36, ag));
-        const cSky2 = mixHex([144, 0, 108], [36, 0, 72], ag);
-        const cSky3 = mixHex([216, 36, 72], [72, 36, 108], ag);
-        const cSky4 = mixHex([252, 108, 72], [108, 72, 144], ag);
-        const cSky5 = mixHex([252, 216, 144], [144, 144, 180], ag);
+        for (let i = 0; i < SKY_SUNSET_RGB.length; i++) {
+            this.skyRamp[i] = mixHex(SKY_SUNSET_RGB[i], SKY_AFTERGLOW_RGB[i], ag);
+        }
+        for (let i = 0; i < WATER_SUNSET_RGB.length; i++) {
+            this.waterRamp[i] = mixHex(WATER_SUNSET_RGB[i], WATER_AFTERGLOW_RGB[i], ag);
+        }
 
-        const cCloudW = mixHex([252, 252, 252], [180, 180, 216], ag);
-        const cCloudP = mixHex([216, 144, 180], [108, 108, 144], ag);
-        const cCloudD = mixHex([144, 72, 108], [72, 72, 108], ag);
+        const cStar = mixHex([252, 216, 180], [216, 216, 252], ag);
+        const cCloudShadow = mixHex([72, 0, 72], [36, 36, 72], ag);
+        const cCloudMid = mixHex([144, 36, 108], [72, 72, 108], ag);
+        const cCloudLit = mixHex([252, 144, 108], [180, 180, 216], ag);
+        const cCloudFlare = mixHex([252, 216, 144], [216, 216, 252], ag);
 
-        const cSun = mixHex([252, 252, 0], [216, 180, 144], ag);
-        const cWater = mixHex([36, 72, 252], [0, 36, 108], ag);
-        const cWaterDark = mixHex([0, 36, 180], [0, 0, 72], ag);
-        const cWaterRefl = mixHex([252, 252, 0], [180, 180, 216], ag);
-        const cWaterRefl2 = mixHex([252, 144, 0], [108, 108, 144], ag);
+        const cSunTop = mixHex([252, 252, 144], [252, 252, 252], ag);
+        const cSunMid = mixHex([252, 216, 0], [216, 216, 252], ag);
+        const cSunLow = mixHex([252, 144, 0], [144, 144, 180], ag);
+        const cSunBase = mixHex([252, 72, 0], [108, 108, 144], ag);
+        const cSunCorona = mixHex([252, 180, 72], [144, 144, 216], ag);
+        const cSunSlit = mixHex([216, 36, 36], [72, 108, 144], ag);
 
-        const cMountain = mixHex([36, 0, 0], [0, 0, 36], ag);
-        const cTorii = mixHex([36, 0, 0], [0, 0, 36], ag);
-        const cToriiHigh = mixHex([108, 36, 0], [72, 36, 72], ag);
-        const kanjiGlow = (0.7 + 0.3 * ymMid + 0.4 * beatImpulse) * (1.0 - 0.55 * ag);
+        const cWaterRefl = mixHex([252, 216, 72], [216, 216, 252], ag);
+        const cWaterRefl2 = mixHex([252, 108, 36], [108, 144, 180], ag);
+        const cWaterRim = mixHex([108, 144, 180], [72, 108, 144], ag);
+
+        const cMountFar = mixHex([72, 0, 72], [36, 36, 72], ag);
+        const cMountNear = mixHex([36, 0, 36], [0, 0, 36], ag);
+        const cMountRim = mixHex([144, 36, 72], [72, 72, 108], ag);
+
+        const cTorii = mixHex([72, 0, 0], [0, 0, 36], ag);
+        const cToriiDark = mixHex([36, 0, 0], [0, 0, 36], ag);
+        const cToriiHigh = mixHex([144, 36, 0], [72, 36, 72], ag);
+        const kanjiGlow = (0.72 + 0.28 * ymMid + 0.42 * beatImpulse) * (1.0 - 0.55 * ag);
         const cKanji = toAtariHex(252 * kanjiGlow, 180 * kanjiGlow, 36 * kanjiGlow * (beatImpulse > 0.55 ? 2.5 : 1.0));
 
-        const pathContrast = 1.0 + 0.15 * ymMid;
+        const pathContrast = 1.0 + 0.14 * ymMid;
         const cPathLight = mixHex([180 * pathContrast, 180 * pathContrast, 180 * pathContrast], [108, 108, 144], ag);
         const cStoneMid = mixHex([108, 108, 108], [72, 72, 108], ag);
         const cPathDark = mixHex([72, 72, 72], [36, 36, 72], ag);
         const cStoneDark = mixHex([36, 36, 36], [36, 36, 72], ag);
         const cStoneLine = toAtariHex(0, 0, 0);
+        const cLanternFlame = toAtariHex(
+            252 * (0.75 + 0.25 * ymMid + 0.3 * beatImpulse) * (1.0 - 0.45 * ag),
+            180 * (0.65 + 0.35 * ymMid) * (1.0 - 0.40 * ag),
+            lerp(36, 144, ag)
+        );
 
-        const cTreeTrunk = mixHex([108, 36, 0], [72, 36, 36], ag);
+        // Lush Japanese Pine Bonsai palette
+        const cTreeDark = mixHex([72, 36, 0], [36, 0, 36], ag);
+        const cTreeTrunk = mixHex([108, 72, 36], [72, 36, 36], ag);
+        const cTreeLit = mixHex([180, 108, 72], [108, 72, 72], ag);
+        const cLeafShadow = mixHex([0, 36, 0], [0, 36, 36], ag);
         const cLeafCols = [
-            mixHex([144, 216, 36], [72, 108, 72], ag),
-            mixHex([252, 216, 0], [144, 108, 72], ag),
-            mixHex([252, 108, 0], [108, 72, 72], ag)
+            mixHex([36, 108, 36], [0, 72, 36], ag),      // Deep evergreen pine core
+            mixHex([108, 180, 36], [72, 144, 108], ag),  // Fresh sunlit pine needles
+            mixHex([72, 144, 36], [36, 108, 72], ag)     // Lush vibrant mid pine green
         ];
-        const cMoss = mixHex([36, 216, 36], [36, 108, 72], ag);
+        // Distinct fallen leaf hues so settled leaves stand out crisply on gray courtyard stones
+        const cFallenLeaves = [
+            mixHex([216, 144, 0], [108, 108, 180], ag),
+            mixHex([180, 72, 0], [72, 72, 144], ag),
+            mixHex([36, 108, 36], [36, 72, 108], ag)
+        ];
+        const cMoss = mixHex([36, 108, 36], [36, 72, 72], ag);
+
+        const baseSunR = Math.max(3, Math.floor(minDim * 0.125));
+        const sunBoost = (0.65 * beatImpulse + 0.35 * ymBass) * (1.0 - 0.65 * ag);
+        const activeSunR = baseSunR + Math.floor(sunBoost * minDim * 0.040);
+        const sunValleyClear = Math.ceil(activeSunR * 1.15) + 2;
 
         // ---------------------------------------------------------
-        // 1. THE SKY (Atari Banding & Dithering)
+        // 1. TIMER-B RASTER SKY + DUSK STARS
         // ---------------------------------------------------------
-        const h1 = Math.floor(horizon * 0.15);
-        const h2 = Math.floor(horizon * 0.35);
-        const h3 = Math.floor(horizon * 0.60);
-        const h4 = Math.floor(horizon * 0.85);
+        this._drawTimerBRamp(ctx, w, 0, horizon, this.skyRamp, stepX);
 
-        ctx.fillStyle = cSky1;
-        ctx.fillRect(0, 0, w, Math.max(1, h1));
-        this._drawDitheredBand(ctx, w, h1, h2, cSky1, cSky2, horizon);
-        if (h3 > h2) {
-            ctx.fillStyle = cSky2;
-            ctx.fillRect(0, h2, w, h3 - h2);
+        if (horizon >= 20) {
+            const starZoneH = Math.floor(horizon * 0.45);
+            for (let i = 0; i < SKY_STARS.length; i++) {
+                const st = SKY_STARS[i];
+                const sx = Math.floor(st.x * w);
+                const sy = Math.floor(st.y * horizon);
+                if (sy >= starZoneH) continue;
+                const tw = Math.sin(this.internalT * 2.1 + st.p) + ymHigh * 0.4 + ag * 0.6;
+                if (tw > 0.35) {
+                    ctx.fillStyle = tw > 1.05 ? cSunTop : cStar;
+                    fillClippedRect(ctx, sx, sy, 1, 1, w, horizon);
+                }
+            }
         }
-        this._drawDitheredBand(ctx, w, h3, h4, cSky2, cSky3, horizon);
-        if (horizon > h4) {
-            ctx.fillStyle = cSky3;
-            ctx.fillRect(0, h4, w, horizon - h4);
-        }
-        this._drawDitheredBand(ctx, w, horizon - Math.max(2, Math.floor(horizon * 0.1)), horizon, cSky3, cSky4, horizon);
-        ctx.fillStyle = cSky5;
-        fillClippedRect(ctx, 0, horizon - 2, w, 2, w, h, 0, horizon);
 
         // ---------------------------------------------------------
-        // 2. SHIFTER-DITHERED CLOUDS (Normalized Drift, Zero DOM)
+        // 2. ASYMMETRIC PIXEL-ART DUSK CLOUDS
         // ---------------------------------------------------------
         for (let i = 0; i < this.clouds.length; i++) {
             const c = this.clouds[i];
@@ -1018,89 +1106,147 @@ export class AtariRetroSunset {
 
             const cy = Math.floor(horizon * c.y);
             const rSize = Math.max(2, Math.floor(minDim * c.r));
-            const span = w + rSize * 3;
-            const finalX = Math.floor(c.normX * span - rSize * 1.5);
+            const span = w + rSize * 5;
+            const finalX = Math.floor(c.normX * span - rSize * 2.5);
+            const towardSun = finalX < cx ? 1 : -1;
+            const litCol = (ymHigh > 0.65 && !ag) ? cCloudFlare : cCloudLit;
 
-            this._drawChunkyCloud(ctx, finalX + 3, cy + 2, rSize, cCloudP, cCloudD, w, horizon);
-            this._drawChunkyCloud(ctx, finalX, cy, rSize, ymHigh > 0.7 && !ag ? cSky5 : cCloudW, cCloudP, w, horizon);
+            this._drawIrregularCloud(ctx, finalX, cy, rSize, c.shapeIdx, cCloudShadow, cCloudMid, litCol, w, horizon, towardSun);
         }
 
         // ---------------------------------------------------------
-        // 3. MOUNTAINS (Scanline Columns Clipped to [0, w-1])
+        // 3. DUAL-LAYER TWILIGHT MOUNTAINS (Clear of Setting Sun!)
         // ---------------------------------------------------------
-        ctx.fillStyle = cMountain;
-        const h1A = Math.floor(horizon * 0.40);
-        const h1B = Math.floor(horizon * 0.20);
-        const x1A = Math.max(1, Math.floor(w * 0.15));
-        const x1B = Math.min(w - 1, Math.max(x1A + 1, Math.floor(w * 0.35)));
+        if (horizon >= 10) {
+            const farLeftEnd = Math.max(1, Math.min(Math.floor(w * 0.42), cx - sunValleyClear));
+            const farRightStart = Math.min(w - 2, Math.max(Math.floor(w * 0.58), cx + sunValleyClear));
 
-        for (let x = 0; x <= x1B; x++) {
-            const mh = x <= x1A
-                ? Math.floor(h1A + (h1B - h1A) * (x / x1A))
-                : Math.floor(h1B * (1.0 - (x - x1A) / Math.max(1, x1B - x1A)));
-            if (mh > 0) fillClippedRect(ctx, x, horizon - mh, 1, mh, w, h, 0, horizon);
+            ctx.fillStyle = cMountFar;
+            for (let x = 0; x <= farLeftEnd; x++) {
+                const u = x / farLeftEnd;
+                const mh = Math.floor(horizon * Math.max(0, (1.0 - u) * 0.36 + Math.sin(u * 6.5) * 0.035 * (1.0 - u)));
+                if (mh > 0) fillClippedRect(ctx, x, horizon - mh, 1, mh, w, horizon);
+            }
+            for (let x = farRightStart; x < w; x++) {
+                const u = (x - farRightStart) / Math.max(1, w - 1 - farRightStart);
+                const mh = Math.floor(horizon * Math.max(0, u * 0.34 + Math.cos(u * 5.8) * 0.035 * u));
+                if (mh > 0) fillClippedRect(ctx, x, horizon - mh, 1, mh, w, horizon);
+            }
+
+            const x1B = Math.max(1, Math.min(Math.floor(w * 0.35), cx - sunValleyClear - 4));
+            const x2B = Math.min(w - 2, Math.max(Math.floor(w * 0.65), cx + sunValleyClear + 4));
+            for (let x = 0; x <= x1B; x++) {
+                const u = x / x1B;
+                const mh = Math.floor(horizon * Math.max(0, 0.31 * (1.0 - Math.pow(u, 0.85)) + Math.sin(u * 14.0) * 0.015 * (1.0 - u)));
+                if (mh > 0) {
+                    ctx.fillStyle = cMountNear;
+                    fillClippedRect(ctx, x, horizon - mh, 1, mh, w, horizon);
+                    ctx.fillStyle = cMountRim;
+                    fillClippedRect(ctx, x, horizon - mh, 1, 1, w, horizon);
+                }
+            }
+            for (let x = x2B; x < w; x++) {
+                const u = (x - x2B) / Math.max(1, w - 1 - x2B);
+                const mh = Math.floor(horizon * Math.max(0, 0.29 * Math.pow(u, 0.85) + Math.cos(u * 13.0) * 0.015 * u));
+                if (mh > 0) {
+                    ctx.fillStyle = cMountNear;
+                    fillClippedRect(ctx, x, horizon - mh, 1, mh, w, horizon);
+                    ctx.fillStyle = cMountRim;
+                    fillClippedRect(ctx, x, horizon - mh, 1, 1, w, horizon);
+                }
+            }
         }
 
-        const h2A = Math.floor(horizon * 0.35);
-        const h2B = Math.floor(horizon * 0.15);
-        const x2B = Math.min(w - 2, Math.floor(w * 0.65));
-        const x2A = Math.min(w - 1, Math.max(x2B + 1, Math.floor(w * 0.80)));
+        // ---------------------------------------------------------
+        // 4. TIMER-B RASTER SUN (Clean Horizon Slits, Zero Bleed!)
+        // ---------------------------------------------------------
+        if (activeSunR > 0) {
+            const hwTable = activeSunR < CIRCLE_HALF_WIDTHS.length ? CIRCLE_HALF_WIDTHS[activeSunR] : null;
+            const rSq = activeSunR * activeSunR;
+            const coronaW = beatImpulse > 0.35 && !ag ? 1 : 0;
 
-        for (let x = x2B; x < w; x++) {
-            const mh = x <= x2A
-                ? Math.floor(h2B * ((x - x2B) / Math.max(1, x2A - x2B)))
-                : Math.floor(h2B + (h2A - h2B) * ((x - x2A) / Math.max(1, w - 1 - x2A)));
-            if (mh > 0) fillClippedRect(ctx, x, horizon - mh, 1, mh, w, h, 0, horizon);
+            for (let dy = -activeSunR; dy < 0; dy++) {
+                const py = horizon + dy;
+                if (py < 0 || py >= horizon) continue;
+                const dx = hwTable ? hwTable[dy + activeSunR] : Math.floor(Math.sqrt(Math.max(0, rSq - dy * dy)));
+                if (dx <= 0) continue;
+
+                const distFromBottom = -dy;
+                if (activeSunR >= 14 && (distFromBottom === 3 || distFromBottom === 7)) {
+                    ctx.fillStyle = cSunSlit;
+                    fillClippedRect(ctx, cx - dx, py, dx * 2 + 1, 1, w, horizon);
+                    continue;
+                }
+
+                const vFrac = (dy + activeSunR) / Math.max(1, activeSunR);
+                const sunCol = vFrac < 0.25 ? cSunTop : (vFrac < 0.56 ? cSunMid : (vFrac < 0.82 ? cSunLow : cSunBase));
+
+                if (coronaW > 0) {
+                    ctx.fillStyle = cSunCorona;
+                    fillClippedRect(ctx, cx - dx - 1, py, dx * 2 + 3, 1, w, horizon);
+                }
+                ctx.fillStyle = sunCol;
+                fillClippedRect(ctx, cx - dx, py, dx * 2 + 1, 1, w, horizon);
+            }
         }
 
         // ---------------------------------------------------------
-        // 4. PULSING SUN (Clipped above horizon without save/clip)
+        // 5. TIMER-B LAKE WATER & TAPERED SUN REFLECTION
         // ---------------------------------------------------------
-        const baseSunR = Math.max(3, Math.floor(minDim * 0.12));
-        const sunBoost = (0.65 * beatImpulse + 0.35 * ymBass) * (1.0 - 0.65 * ag);
-        const activeSunR = baseSunR + Math.floor(sunBoost * minDim * 0.038);
-        fillClippedCircle(ctx, cx, horizon, activeSunR, cSun, w, horizon);
+        this._drawTimerBRamp(ctx, w, horizon, shoreY, this.waterRamp, stepX);
 
-        // ---------------------------------------------------------
-        // 5. WATER & BEAT-RIPPLE REFLECTION (Strictly clipped to shoreY)
-        // ---------------------------------------------------------
-        ctx.fillStyle = cWater;
-        ctx.fillRect(0, horizon, w, Math.max(1, shoreY - horizon));
-
-        ctx.fillStyle = cWaterDark;
-        fillClippedRect(ctx, 0, horizon, Math.floor(w * 0.35), 4, w, h, horizon, shoreY);
-        fillClippedRect(ctx, Math.floor(w * 0.65), horizon, w - Math.floor(w * 0.65), 4, w, h, horizon, shoreY);
+        ctx.fillStyle = cMountNear;
+        fillClippedRect(ctx, 0, horizon, Math.floor(w * 0.28), 2, w, shoreY, horizon, shoreY);
+        fillClippedRect(ctx, Math.floor(w * 0.72), horizon, w - Math.floor(w * 0.72), 2, w, shoreY, horizon, shoreY);
 
         const waterSpan = Math.max(1, shoreY - horizon);
         const waveActive = this.waterWaveAge < 0.65 && this.waterWavePeak > 0.01;
         const waveY = horizon + (this.waterWaveAge / 0.65) * waterSpan;
 
-        for (let y = horizon + 2; y < shoreY; y += 2) {
+        if (waterSpan >= 6) {
+            ctx.fillStyle = cWaterRim;
+            for (let y = horizon + 3; y < shoreY - 1; y += 3) {
+                const segPhase = ((y * 19) % 13) / 13;
+                const drift = Math.floor(Math.sin(this.waterT * 1.8 + y * 0.7) * 6);
+                const leftX = Math.floor(w * (0.08 + segPhase * 0.24)) + drift;
+                const rightX = Math.floor(w * (0.68 + segPhase * 0.22)) - drift;
+                const len = Math.max(2, Math.floor(minDim * 0.03));
+                fillClippedRect(ctx, leftX, y, len, 1, w, shoreY, horizon, shoreY);
+                fillClippedRect(ctx, rightX, y, len, 1, w, shoreY, horizon, shoreY);
+            }
+        }
+
+        for (let y = horizon + 1; y < shoreY - 1; y += 2) {
             const depth = (y - horizon) / waterSpan;
-            const shimmer = Math.sin(y * 1.2 - this.waterT * 6.0);
-            const onWave = waveActive && Math.abs(y - waveY) < 3;
+            const shimmer = Math.sin(y * 1.15 - this.waterT * 5.8);
+            const onWave = waveActive && Math.abs(y - waveY) < 2.5;
 
-            if (shimmer > -0.3 || onWave) {
-                let rWidth = activeSunR * 0.6 + depth * activeSunR * 1.2;
-                rWidth *= (0.5 + Math.sin(y * 0.15) * 0.8);
-                rWidth += (beatImpulse * 14.0 + ymBass * 6.0 + (onWave ? 10.0 : 0.0)) * (1.0 - 0.55 * ag);
-                rWidth = Math.max(2, rWidth);
+            if (shimmer > -0.35 || onWave) {
+                let rWidth = activeSunR * (1.20 - depth * 0.52) * (0.55 + Math.sin(y * 0.35 + this.waterT * 2.0) * 0.35);
+                rWidth += (beatImpulse * activeSunR * 0.55 + ymBass * 4.0 + (onWave ? activeSunR * 0.45 : 0.0)) * (1.0 - 0.55 * ag);
+                rWidth = Math.max(2, Math.min(activeSunR * 1.65, rWidth));
 
-                const jitterX = Math.floor(Math.sin(y * 0.5 + this.waterT * 8.0) * (2 + ymHigh * 1.5));
+                const jitterX = Math.floor(Math.sin(y * 0.55 + this.waterT * 7.5) * (1.5 + ymHigh * 1.6));
 
                 ctx.fillStyle = cWaterRefl2;
-                fillClippedRect(ctx, cx - rWidth * 0.5 - 2 + jitterX, y, rWidth + 4, 1, w, h, horizon, shoreY);
+                fillClippedRect(ctx, cx - rWidth * 0.5 - 1 + jitterX, y, rWidth + 2, 1, w, shoreY, horizon, shoreY);
 
-                ctx.fillStyle = onWave && !ag ? cCloudW : cWaterRefl;
-                if (depth > 0.3 && (y % 4) === 0 && rWidth > 8) {
-                    const half = Math.floor(rWidth * 0.5);
-                    fillClippedRect(ctx, cx - rWidth * 0.5 + jitterX, y, half - 2, 1, w, h, horizon, shoreY);
-                    fillClippedRect(ctx, cx + 2 + jitterX, y, half - 2, 1, w, h, horizon, shoreY);
+                ctx.fillStyle = onWave && !ag ? cSunTop : cWaterRefl;
+                if (depth > 0.28 && rWidth > 7) {
+                    const seg = Math.max(2, Math.floor(rWidth * 0.36));
+                    fillClippedRect(ctx, cx - rWidth * 0.5 + jitterX, y, seg, 1, w, shoreY, horizon, shoreY);
+                    fillClippedRect(ctx, cx + rWidth * 0.5 - seg + jitterX, y, seg, 1, w, shoreY, horizon, shoreY);
+                    if (depth < 0.72) {
+                        fillClippedRect(ctx, cx - 1 + jitterX, y, 3, 1, w, shoreY, horizon, shoreY);
+                    }
                 } else {
-                    fillClippedRect(ctx, cx - rWidth * 0.5 + jitterX, y, rWidth, 1, w, h, horizon, shoreY);
+                    fillClippedRect(ctx, cx - rWidth * 0.5 + jitterX, y, rWidth, 1, w, shoreY, horizon, shoreY);
                 }
             }
         }
+
+        ctx.fillStyle = cWaterRim;
+        fillClippedRect(ctx, 0, shoreY - 1, w, 1, w, shoreY, horizon, shoreY);
 
         // ---------------------------------------------------------
         // 6. SHORELINE & PERSPECTIVE STONE PATH
@@ -1111,11 +1257,11 @@ export class AtariRetroSunset {
         ctx.fillStyle = cStoneLine;
         fillClippedRect(ctx, 0, shoreY, w, 2, w, h, shoreY, h);
 
-        const pathBottomW = w * 0.90;
-        const pathTopW = w * 0.15;
+        const pathBottomW = w * 0.88;
+        const pathTopW = w * 0.16;
         const hMinusHorizon = Math.max(1, h - horizon);
 
-        for (let y = shoreY; y < h; y++) {
+        for (let y = shoreY + 1; y < h; y++) {
             const trueDepth = (y - horizon) / hMinusHorizon;
             const pathW = pathTopW + trueDepth * (pathBottomW - pathTopW);
             const px = cx - pathW * 0.5;
@@ -1138,7 +1284,7 @@ export class AtariRetroSunset {
                 fillClippedRect(ctx, laneX, y, 1, 1, w, h, shoreY, h);
             }
 
-            if ((y % 8) < 2 && trueDepth > 0.2) {
+            if ((y % 11) === 0 && trueDepth > 0.25) {
                 ctx.fillStyle = cMoss;
                 fillClippedRect(ctx, px - 2, y, 2, 1, w, h, shoreY, h);
                 fillClippedRect(ctx, px + pathW, y, 2, 1, w, h, shoreY, h);
@@ -1146,46 +1292,68 @@ export class AtariRetroSunset {
         }
 
         // ---------------------------------------------------------
-        // 7. STONE SHRINES ALONG THE PATH (Clamped inside Viewport)
+        // 7. JAPANESE TORO STONE LANTERNS ALONG PATH
         // ---------------------------------------------------------
         for (let i = 0; i < SHRINES.length; i++) {
             const s = SHRINES[i];
-            const scale = Math.pow(s.z, 1.5);
+            const scale = Math.pow(s.z, 1.45);
             const sy = Math.min(h - 1, Math.floor(shoreY + scale * pathZoneH));
             const trueDepth = (sy - horizon) / hMinusHorizon;
             const pathWAtZ = pathTopW + trueDepth * (pathBottomW - pathTopW);
 
-            const sWidth = Math.max(4, Math.min(w * 0.16, 8 + scale * (minDim * 0.14)));
-            const sHeight = Math.max(6, Math.min(h * 0.25, 12 + scale * (minDim * 0.18)));
-            const rawSx = cx + s.xDir * (pathWAtZ * 0.5 + 4 + scale * Math.min(36, w * 0.12));
-            const sx = Math.min(w - Math.max(2, sWidth * 0.5), Math.max(Math.max(2, sWidth * 0.5), rawSx));
+            const sWidth = Math.max(4, Math.min(w * 0.14, 7 + scale * (minDim * 0.12)));
+            const sHeight = Math.max(6, Math.min(h * 0.24, 11 + scale * (minDim * 0.17)));
+            const rawSx = cx + s.xDir * (pathWAtZ * 0.5 + 4 + scale * Math.min(34, w * 0.11));
+            const sx = Math.min(w - Math.max(3, sWidth * 0.6), Math.max(Math.max(3, sWidth * 0.6), rawSx));
+
+            const baseH = Math.max(1, Math.floor(sHeight * 0.18));
+            const postH = Math.max(2, Math.floor(sHeight * 0.42));
+            const boxH = Math.max(2, Math.floor(sHeight * 0.22));
+            const roofH = Math.max(2, Math.floor(sHeight * 0.22));
 
             ctx.fillStyle = cPathDark;
-            fillClippedRect(ctx, sx - sWidth * 0.5, sy - Math.floor(sHeight * 0.2), sWidth, Math.floor(sHeight * 0.2), w, h);
+            fillClippedRect(ctx, sx - sWidth * 0.48, sy - baseH, sWidth * 0.96, baseH, w, h);
 
+            const postW = Math.max(2, Math.floor(sWidth * 0.34));
             ctx.fillStyle = cStoneMid;
-            fillClippedRect(ctx, sx - sWidth * 0.25, sy - Math.floor(sHeight * 0.7), sWidth * 0.5, Math.floor(sHeight * 0.5), w, h);
+            fillClippedRect(ctx, sx - postW * 0.5, sy - baseH - postH, postW, postH, w, h);
+            if (postH >= 4) {
+                ctx.fillStyle = cMoss;
+                fillClippedRect(ctx, sx - postW * 0.5, sy - baseH - 2, 1, 2, w, h);
+            }
 
+            const boxW = Math.max(3, Math.floor(sWidth * 0.64));
+            const boxY = sy - baseH - postH - boxH;
+            ctx.fillStyle = cPathDark;
+            fillClippedRect(ctx, sx - boxW * 0.5, boxY, boxW, boxH, w, h);
+            if (boxW >= 4 && boxH >= 2) {
+                ctx.fillStyle = cLanternFlame;
+                fillClippedRect(ctx, sx - Math.max(1, Math.floor(boxW * 0.25)), boxY + 1, Math.max(1, Math.floor(boxW * 0.5)), Math.max(1, boxH - 1), w, h);
+            }
+
+            const roofBaseY = boxY;
+            for (let ry = 0; ry < roofH; ry++) {
+                const rFrac = ry / Math.max(1, roofH);
+                const rw = Math.max(2, Math.floor(sWidth * 1.15 * (1.0 - rFrac * 0.72)));
+                ctx.fillStyle = ry === 0 ? cPathLight : cStoneMid;
+                fillClippedRect(ctx, sx - rw * 0.5, roofBaseY - ry - 1, rw, 1, w, h);
+            }
             ctx.fillStyle = cPathLight;
-            fillClippedRect(ctx, sx - sWidth * 0.6, sy - Math.floor(sHeight * 0.9), sWidth * 1.2, Math.floor(sHeight * 0.2), w, h);
-
-            fillClippedCircle(ctx, sx, sy - Math.floor(sHeight * 0.9), Math.max(1, Math.floor(sWidth * 0.35)), cStoneDark, w, h);
-
-            ctx.fillStyle = cMoss;
-            fillClippedRect(ctx, sx - sWidth * 0.5, sy - Math.floor(sHeight * 0.7), 2, Math.floor(sHeight * 0.3), w, h);
+            fillClippedRect(ctx, sx, roofBaseY - roofH - 1, 1, 1, w, h);
         }
 
         // ---------------------------------------------------------
-        // 8. THE TORII GATE (Proportional & Clipped)
+        // 8. CURVED MYOJIN TORII GATE (Straight Korobi Pillars!)
         // ---------------------------------------------------------
-        const toriiTop = Math.max(2, horizon - Math.floor(horizon * 0.82));
+        const toriiTop = Math.max(2, horizon - Math.floor(horizon * 0.80));
         const toriiBot = Math.min(h - 1, shoreY + Math.floor(minDim * 0.05));
-        const toriiSpanScale = Math.min(minDim, w * 0.82);
+        const toriiH = Math.max(1, toriiBot - toriiTop);
+        const toriiSpanScale = Math.min(minDim, w * 0.80);
 
         for (let y = toriiTop; y <= toriiBot; y++) {
-            const depth = Math.max(0, (y - horizon) / hMinusHorizon);
-            const offset = Math.floor(toriiSpanScale * 0.22) + depth * Math.floor(toriiSpanScale * 0.05);
-            const postW = Math.max(2, Math.floor(toriiSpanScale * 0.03) + depth * 3);
+            const vFrac = (y - toriiTop) / toriiH;
+            const offset = Math.floor(toriiSpanScale * (0.215 + vFrac * 0.020));
+            const postW = Math.max(2, Math.floor(toriiSpanScale * (0.032 + vFrac * 0.012)));
 
             const pxLeft = cx - offset - postW * 0.5;
             const pxRight = cx + offset - postW * 0.5;
@@ -1198,85 +1366,178 @@ export class AtariRetroSunset {
             fillClippedRect(ctx, pxLeft + postW - 1, y, 1, 1, w, h);
             fillClippedRect(ctx, pxRight + postW - 1, y, 1, 1, w, h);
 
-            if (y > toriiTop + 10 && y < toriiBot - 10 && ((y * 7) % 11) < 3) {
-                ctx.fillStyle = cKanji;
-                fillClippedRect(ctx, pxLeft + postW * 0.5 - 1, y, 2, 1, w, h);
-                fillClippedRect(ctx, pxRight + postW * 0.5 - 1, y, 2, 1, w, h);
+            if (y >= toriiBot - Math.max(2, Math.floor(minDim * 0.025))) {
+                ctx.fillStyle = cToriiDark;
+                fillClippedRect(ctx, pxLeft - 1, y, postW + 2, 1, w, h);
+                fillClippedRect(ctx, pxRight - 1, y, postW + 2, 1, w, h);
             }
         }
 
-        const beamW = Math.min(w - 2, Math.floor(toriiSpanScale * 0.60));
-        const beamH = Math.max(2, Math.floor(minDim * 0.04));
+        const beamW = Math.min(w - 2, Math.floor(toriiSpanScale * 0.62));
+        const beamH = Math.max(2, Math.floor(minDim * 0.038));
         const beamX = Math.floor(cx - beamW * 0.5);
-        ctx.fillStyle = cTorii;
+
+        ctx.fillStyle = cToriiDark;
         fillClippedRect(ctx, beamX, toriiTop, beamW, beamH, w, h);
         ctx.fillStyle = cToriiHigh;
-        fillClippedRect(ctx, beamX, toriiTop, beamW, 1, w, h);
+        fillClippedRect(ctx, beamX + 2, toriiTop, Math.max(2, beamW - 4), 1, w, h);
+        const eaveW = Math.max(2, Math.floor(beamW * 0.14));
+        ctx.fillStyle = cToriiDark;
+        fillClippedRect(ctx, beamX - 2, toriiTop - 1, eaveW, 2, w, h);
+        fillClippedRect(ctx, beamX + beamW - eaveW + 2, toriiTop - 1, eaveW, 2, w, h);
+        ctx.fillStyle = cToriiHigh;
+        fillClippedRect(ctx, beamX - 2, toriiTop - 1, Math.max(1, eaveW - 2), 1, w, h);
+        fillClippedRect(ctx, beamX + beamW - eaveW + 4, toriiTop - 1, Math.max(1, eaveW - 2), 1, w, h);
 
-        const beamW2 = Math.min(w - 2, Math.floor(toriiSpanScale * 0.50));
+        const beamW2 = Math.min(w - 2, Math.floor(toriiSpanScale * 0.52));
         const beamH2 = Math.max(1, Math.floor(minDim * 0.02));
+        const nukiY = toriiTop + Math.max(3, Math.floor(minDim * 0.062));
         ctx.fillStyle = cTorii;
-        fillClippedRect(ctx, Math.floor(cx - beamW2 * 0.5), toriiTop + Math.max(3, Math.floor(minDim * 0.06)), beamW2, beamH2, w, h);
-        fillClippedRect(ctx, cx - 2, toriiTop, 4, Math.max(3, Math.floor(minDim * 0.06)), w, h);
+        fillClippedRect(ctx, Math.floor(cx - beamW2 * 0.5), nukiY, beamW2, beamH2, w, h);
+
+        const plaqueW = Math.max(4, Math.floor(toriiSpanScale * 0.048));
+        const plaqueH = Math.max(3, nukiY - toriiTop);
+        ctx.fillStyle = cToriiDark;
+        fillClippedRect(ctx, cx - Math.floor(plaqueW * 0.5), toriiTop + 1, plaqueW, plaqueH, w, h);
+        if (plaqueW >= 4 && plaqueH >= 4) {
+            ctx.fillStyle = cKanji;
+            fillClippedRect(ctx, cx - 1, toriiTop + 2, 3, 1, w, h);
+            fillClippedRect(ctx, cx, toriiTop + 2, 1, Math.max(1, plaqueH - 2), w, h);
+            fillClippedRect(ctx, cx - 1, toriiTop + Math.floor(plaqueH * 0.65), 3, 1, w, h);
+        }
 
         // ---------------------------------------------------------
-        // 9. THE SCULPTED BONSAI TREE
+        // 9. MOYOGI S-CURVE PINE BONSAI (Gnarled Trunk & Lush Cloud Tiers)
         // ---------------------------------------------------------
         const treeScale = Math.min(minDim, w * 0.78);
-        const trunkBaseX = Math.min(w - Math.max(8, Math.floor(treeScale * 0.22)), Math.floor(w * 0.85));
+        const trunkBaseX = Math.min(w - Math.max(10, Math.floor(treeScale * 0.20)), Math.floor(w * 0.85));
         const trunkBaseY = Math.min(h - 1, shoreY + Math.floor(minDim * 0.14));
-        const trunkTopY = Math.max(4, shoreY - Math.floor(minDim * 0.24));
+        const trunkTopY = Math.max(4, shoreY - Math.floor(minDim * 0.28));
         const trunkH = Math.max(1, trunkBaseY - trunkTopY);
-        const crownBaseX = trunkBaseX;
 
-        const joinY = Math.min(trunkBaseY, trunkTopY + Math.max(2, Math.floor(treeScale * 0.06)));
-        const joinDepth = (joinY - trunkTopY) / trunkH;
-        const joinX = Math.floor(trunkBaseX + Math.sin(joinDepth * 3.5) * Math.floor(treeScale * 0.05));
-
-        for (let c = 0; c < LEAF_CLUSTERS.length; c++) {
-            const cl = LEAF_CLUSTERS[c];
-            const endX = Math.floor(crownBaseX + cl.dx * treeScale * 0.88);
-            const endY = Math.floor(trunkTopY + (cl.dy + 0.02) * treeScale);
-            const bendSign = cl.dx < 0 ? -1 : 1;
-            const midX = Math.floor((joinX + endX) * 0.5 + bendSign * treeScale * 0.02);
-            const midY = Math.floor((joinY + endY) * 0.5 + treeScale * 0.03);
-
-            ctx.fillStyle = cTreeTrunk;
-            drawClippedLine(ctx, joinX, joinY, midX, midY, w, h);
-            drawClippedLine(ctx, joinX, joinY + 1, midX, midY + 1, w, h);
-            drawClippedLine(ctx, joinX + bendSign, joinY, midX + bendSign, midY, w, h);
-            ctx.fillStyle = cToriiHigh;
-            drawClippedLine(ctx, joinX, joinY - 1, midX, midY - 1, w, h);
-
-            ctx.fillStyle = cTreeTrunk;
-            drawClippedLine(ctx, midX, midY, endX, endY, w, h);
-            drawClippedLine(ctx, midX, midY + 1, endX, endY + 1, w, h);
+        if (treeScale >= 32) {
+            const moundRx = Math.max(4, Math.floor(treeScale * 0.115));
+            const moundRy = Math.max(2, Math.floor(treeScale * 0.025));
+            fillClippedEllipse(ctx, trunkBaseX, trunkBaseY, moundRx, moundRy, cStoneLine, w, h);
+            fillClippedEllipse(ctx, trunkBaseX, trunkBaseY - 1, Math.max(3, moundRx - 1), Math.max(1, moundRy - 1), cMoss, w, h);
         }
 
         for (let y = trunkTopY; y <= trunkBaseY; y++) {
-            const depth = (y - trunkTopY) / trunkH;
-            const tw = Math.max(2, Math.floor(treeScale * 0.04) + Math.pow(depth, 2) * Math.floor(treeScale * 0.09));
-            const tx = trunkBaseX + Math.sin(depth * 3.5) * Math.floor(treeScale * 0.05);
+            const u = 1.0 - (y - trunkTopY) / trunkH;
+            const rootFlare = u < 0.20 ? Math.pow((0.20 - u) / 0.20, 1.5) * 0.075 : 0;
+            const knotWave = Math.sin(u * 18.0) * 0.006;
+            const tw = Math.max(2, Math.round(treeScale * (0.016 + (1.0 - u) * 0.076 + rootFlare + knotWave)));
+            const tx = trunkBaseX + bonsaiTrunkOffset(u, treeScale);
+
+            const leftEdge = Math.floor(tx - tw * 0.5);
+            ctx.fillStyle = cTreeDark;
+            fillClippedRect(ctx, leftEdge, y, tw, 1, w, h);
 
             ctx.fillStyle = cTreeTrunk;
-            fillClippedRect(ctx, tx - tw * 0.5, y, tw, 1, w, h);
+            fillClippedRect(ctx, leftEdge, y, Math.max(1, Math.floor(tw * 0.74)), 1, w, h);
 
-            if ((y & 3) === 0 && tw >= 4) {
-                ctx.fillStyle = cToriiHigh;
-                fillClippedRect(ctx, tx - tw * 0.5 + 1, y, Math.max(1, tw * 0.35), 1, w, h);
+            if (tw >= 4) {
+                ctx.fillStyle = cTreeLit;
+                const litW = Math.max(1, Math.floor(tw * 0.24));
+                fillClippedRect(ctx, leftEdge + 1, y, litW, 1, w, h);
+                if (tw >= 7 && (((y + (leftEdge & 3)) % 5) === 0)) {
+                    ctx.fillStyle = cTreeDark;
+                    fillClippedRect(ctx, leftEdge + Math.floor(tw * 0.44), y, 1, 2, w, h);
+                }
             }
         }
 
-        const leafSizeScale = Math.max(0.5, Math.min(1.0, minDim / 180));
-        const rustleGain = (1.0 + beatImpulse * 2.2 + ymHigh * 1.2) * (1.0 - 0.7 * ag);
+        const leafSizeScale = Math.max(0.55, Math.min(1.15, minDim / 170));
+        const rustleGain = (0.75 + beatImpulse * 1.8 + ymHigh * 1.0) * (1.0 - 0.7 * ag);
+
+        // Pass 1: Lush evergreen pad under-cushions (deep pine shadow + rich evergreen core)
+        for (let c = 0; c < BONSAI_PADS.length; c++) {
+            const pad = BONSAI_PADS[c];
+            const padX = Math.floor(trunkBaseX + pad.padX * treeScale);
+            const padY = Math.floor(trunkTopY + pad.padFracY * trunkH);
+            const padRx = Math.max(3, Math.floor(pad.rx * treeScale * 1.02));
+            const padRy = Math.max(2, Math.floor(pad.ry * treeScale * 0.90));
+            fillClippedEllipse(ctx, padX, padY + Math.max(1, Math.floor(padRy * 0.28)), padRx, padRy, cLeafShadow, w, h);
+            fillClippedEllipse(ctx, padX, padY, Math.max(2, Math.floor(padRx * 0.92)), Math.max(1, Math.floor(padRy * 0.85)), cLeafCols[0], w, h);
+        }
+
+        // Pass 2: Gnarled horizontal Bonsai limbs sweeping from S-trunk bends into each pad
+        for (let c = 0; c < BONSAI_PADS.length; c++) {
+            const pad = BONSAI_PADS[c];
+            const startX = Math.floor(trunkBaseX + bonsaiTrunkOffset(pad.uAttach, treeScale));
+            const startY = Math.floor(trunkBaseY - pad.uAttach * trunkH);
+            const endX = Math.floor(trunkBaseX + pad.padX * treeScale * 0.90);
+            const endY = Math.floor(trunkTopY + (pad.padFracY + 0.025) * trunkH);
+            const ctrlX = Math.floor(trunkBaseX + pad.bBendX * treeScale);
+            const ctrlY = Math.floor(trunkTopY + pad.bBendY * trunkH);
+            const rStart = Math.max(1, Math.round(pad.rStart * treeScale));
+            const rEnd = Math.max(1, Math.round(pad.rEnd * treeScale));
+
+            drawTaperedBranch(ctx, startX, startY, ctrlX, ctrlY, endX, endY, rStart, rEnd, cTreeDark, cTreeTrunk, cTreeLit, w, h);
+
+            if (treeScale >= 48) {
+                const subX = Math.floor((ctrlX + endX) * 0.5);
+                const subY = Math.floor((ctrlY + endY) * 0.5);
+                const dir = pad.padX < 0 ? -1 : 1;
+                const forkX = endX + dir * Math.max(2, Math.floor(treeScale * 0.035));
+                const forkY = endY - Math.max(1, Math.floor(treeScale * 0.01));
+                drawTaperedBranch(ctx, subX, subY, subX + dir * 2, forkY + 1, forkX, forkY, Math.max(1, rEnd), 1, cTreeDark, cTreeTrunk, cTreeLit, w, h);
+            }
+        }
+
+        // Pass 3: Rounded pine-foliage clusters grouped into the 5 Bonsai cloud tiers
         for (let i = 0; i < this.treeLeaves.length; i++) {
             const leaf = this.treeLeaves[i];
-            const rustleX = Math.round(Math.sin(this.internalT * 3.0 + leaf.phase) * rustleGain);
-            const rustleY = Math.round(Math.cos(this.internalT * 2.0 + leaf.phase) * (0.5 * rustleGain));
-            const lx = Math.floor(crownBaseX + leaf.dx * treeScale + rustleX);
-            const ly = Math.floor(trunkTopY + leaf.dy * treeScale + rustleY);
+            const pad = BONSAI_PADS[leaf.padIdx];
+            const rustleX = Math.round(Math.sin(this.internalT * 2.8 + leaf.phase) * rustleGain);
+            const rustleY = Math.round(Math.cos(this.internalT * 1.9 + leaf.phase) * (0.40 * rustleGain));
+            const lx = Math.floor(trunkBaseX + (pad.padX + leaf.dx) * treeScale + rustleX);
+            const ly = Math.floor(trunkTopY + pad.padFracY * trunkH + leaf.dy * treeScale + rustleY);
             const lr = Math.max(1, Math.round(leaf.r * leafSizeScale));
             fillClippedCircle(ctx, lx, ly, lr, cLeafCols[leaf.colType], w, h);
+        }
+
+        // ---------------------------------------------------------
+        // 9A. ADVANCE LEAVES & RENDER SETTLED LEAVES ON STONES
+        // (Drawn under the fighter so Karateka moves over fallen leaves!)
+        // ---------------------------------------------------------
+        const minLandYFrac = Math.min(0.95, Math.max(0.68, (shoreY + 2) / h));
+        for (let i = 0; i < this.petals.length; i++) {
+            const p = this.petals[i];
+            if (!p.active) continue;
+
+            if (!p.landed) {
+                p.xFrac += dt * (p.vx + Math.sin(this.internalT * 2.5 + p.phase) * 0.016) * speedMult;
+                p.yFrac += dt * p.vy * speedMult;
+                if (p.xFrac <= 0.02 || p.xFrac >= 0.98) {
+                    p.active = false;
+                    continue;
+                }
+                const targetLand = Math.max(minLandYFrac, p.landYFrac);
+                if (p.yFrac >= targetLand) {
+                    p.yFrac = targetLand;
+                    p.landed = true;
+                    p.restAge = 0;
+                }
+            } else {
+                p.restAge += dt;
+                if (beatImpulse > 0.65 && !ag && (i & 1) === 0) {
+                    p.xFrac = Math.max(0.03, p.xFrac - dt * 0.025);
+                }
+                if (p.restAge >= p.restDuration) {
+                    p.active = false;
+                    continue;
+                }
+
+                const lx = Math.floor(p.xFrac * w);
+                const ly = Math.min(h - 1, Math.max(shoreY, Math.floor(p.yFrac * h)));
+                if (p.restAge < p.restDuration - 0.35 || ((Math.floor(p.restAge * 16)) & 1) === 0) {
+                    ctx.fillStyle = cStoneDark;
+                    fillClippedRect(ctx, lx, ly + 1, 2, 1, w, h);
+                    ctx.fillStyle = cFallenLeaves[p.variant];
+                    fillClippedRect(ctx, lx, ly, 2, 1, w, h);
+                }
+            }
         }
 
         // ---------------------------------------------------------
@@ -1353,26 +1614,20 @@ export class AtariRetroSunset {
                 f.facing,
                 spriteScale,
                 f.sparkAge,
-                cCloudW,
-                cSun,
+                cCloudFlare,
+                cSunMid,
                 w,
                 h
             );
         }
 
         // ---------------------------------------------------------
-        // 9C. FOREGROUND FALLING PETALS (PASSING IN FRONT OF FIGHTER)
+        // 9C. AIRBORNE FALLING LEAVES (PASSING IN FRONT OF FIGHTER)
         // ---------------------------------------------------------
         for (let i = 0; i < this.petals.length; i++) {
             const p = this.petals[i];
-            if (!p.active) continue;
-            p.xFrac += dt * (p.vx + Math.sin(this.internalT * 2.5 + p.phase) * 0.015) * speedMult;
-            p.yFrac += dt * p.vy * speedMult;
-            if (p.yFrac >= 0.98 || p.xFrac <= 0.02) {
-                p.active = false;
-                continue;
-            }
-            ctx.fillStyle = (i & 1) === 0 ? cLeafCols[1] : cLeafCols[2];
+            if (!p.active || p.landed) continue;
+            ctx.fillStyle = cFallenLeaves[p.variant];
             fillClippedRect(ctx, p.xFrac * w, p.yFrac * h, 2, 1, w, h);
         }
 
