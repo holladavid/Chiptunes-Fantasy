@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.6.7)
+# 💾 CHIPTUNES FANTASY (v1.6.8)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -14,38 +14,45 @@ A real Commodore 64, Amiga 500, or Atari ST could *never* execute a cycle-exact 
 But memory paints the past grander than it actually was. **This is our Fantasy.**
 Every single *Demo-Scene-Element (DSE)* you see on screen is programmed with ruthless historical accuracy (strict hardware palettes, true bit-banged integer math, zero anti-aliasing). Our `Scene-DJ` then acts as the ultimate virtual orchestrator, taking these isolated, period-accurate effects and layering them into a breathtaking, synchronized demoscene experience that feels *exactly* like our childhood memories.
 
+### 🏛️ The Road Ahead: A Living Museum of the Home-Computer Era
+While **Chiptunes Fantasy** began with music at its core—and its spirit is already growing beyond chiptunes alone—our long-term dream is to build a lasting, playable **historical testimony to both the chiptunes and the demoscene of the home-computer era**.
+
+Today, our **Digital Museum** already documents the tracks, their composers, the soundchips, and the hardware engineers who built them. Looking ahead, we want to expand the Museum into an interactive **Demoscene Effects Encyclopedia**:
+*   **Read It, Then Watch It Live:** Every classic technique—from *Copperbars*, *Tech-Tech*, and *Open-Border Rasters* to *Rotozoomers*, *Voxel Hills*, *Vector Balls*, *Metaballs*, *Julia Fractals*, and *Flat-Shaded 3D*—paired directly with its matching **Demo-Scene-Element (DSE)** so visitors can inspect and experience the effect right alongside the historical text.
+*   **Evolution of Craftsmanship:** Tracing the historical progression of each effect over time—from early, rough hardware tricks to ever smoother, faster, multi-layered breakthroughs as coders pushed 8-bit and 16-bit machines past their limits.
+*   **Origins, Pioneers & Milestones:** Recording **who invented each technique**, **which demo or game showcased it first**, and **on which home computer** (C64, Amiga, Atari ST, and their contemporaries) the breakthrough was born.
+
 ---
 
-## 🚀 What's New in v1.6.7
+## 🚀 What's New in v1.6.8
 
-Version 1.6.7 expands the `Scene-DJ` visual repertoire with **18 brand-new, system-authentic Demo-Scene Elements (6 per hardware pillar)** spanning `background`, `floor`, and `foreground`—closing the missing `floor` layer gap on **Commodore 64** and **Atari ST**, expanding **Amiga's** parallax and 3D terrain visuals, and backing every effect with a **DOM-free, zero-allocation retro graphics kit**.
+Version 1.6.8 delivers a sweeping **Atari ST 9-Bit Shifter, Timer-B Raster & 3D Visual Overhaul** across **9 Atari DSEs and sprite sheets**, upgrades the **`TrackPresenter` overlay (`v3.2.0`)**, hardens core geometry primitives in **`hardware-constraints.js`**, codifies authentic multi-technique hardware raster rules in **`dse_development_rules.md`**, and expands automated fake-canvas test coverage across Atari DSEs.
 
-### 🟦 Commodore 64 (VIC-II + 3-Voice SID)
-- **Backgrounds:** *Raster Tunnel* (nested horizon-anchored intro frames with 32-ring SID waterfall, `climax` splits & pulse pool) and *Fire Wall* (50 Hz chunky heat cellular fire with 3 SID zones, ember bed & 24-spark pool).
-- **Floors (New Layer):** *Raster Road* (scanline perspective road with 4 wipeable terrain families, anti-moiré haze, 3 hysteresis-lit SID lanes, Z-sorted pylons & gates) and *Dance Floor* (61×9 Color-RAM tile grid with 4 beat-driven 50 Hz patterns & SID sparkles).
-- **Foregrounds:** *Sine Scroller* (2-pass black-outlined `5×7` DYCP scroller with Raster-IRQ bands & adaptive horizontal/vertical rotation continuity) and *Border Rasters* (VIC-II `$D020` open-border bars with 8 orbiting `7×7` hardware star sprites).
+### 🟩 Atari ST 9-Bit Shifter & Timer-B Overhaul (9 DSEs + IK+ Sprites)
+*   **Timer-B Raster Floors (`AtariLaserGrid` & `AtariPondRipples`):** Upgraded `AtariLaserGrid` with **4×16 Timer-B raster themes** (*Cyber Outrun*, *Synth Sunset*, *Solar Copper*, *Toxic Aurora* + `BLU5` afterglow, `<= 6` colors/scanline), moving shimmer bands, smooth Bresenham 3D waved curves, gapless run-merged perspective rays, converging YM2149 lanes, and `#fcfcfc` twin-core laser sweeps. `AtariPondRipples` gains a 4th *North-Sea Teal* palette (`SEA5`), 3-zone perspective water with liquid-streak dithering, HBL scanline shimmer + YM2149 side wisps, flicker-free continuous twinkling across 24 glints, 3D trough+crest waves, and a transparent Bayer-4×4 floor fade.
+*   **3D Solid & Vector Craftsmanship (`AtariFlatShadedTrio`, `AtariBobs`, `WireframeMorph` & `AtariLineRibbons`):**
+    *   `AtariFlatShadedTrio` replaces basic primitives with **6 planar-normalized crystal polyhedra** (*Cuboctahedron*, *Rhombic Dodecahedron*, *Square Antiprism*, *5-Sided Crystal*, *Octahedron*, *Hex Bipyramid*), front-hemisphere wrap-Lambert shading, `1 px` specular rims, dark inner crystal cores during explosions, and `climax` opaque silhouette echo-trails with 3D cross-body sorting.
+    *   `AtariBobs` (`lissajous-bobs.js`) evolves into a true **3D Lissajous & Knot Bob engine** across 6 formations (*Lissajous*, *Halo*, *Helix*, *Trefoil*, *Ribbon*, *Galaxy*) powered by precomputed **3D raytraced sphere scanline LUTs** (`r = 1..10`, zero `Math.sqrt` per frame), Painter Z-sorting, opaque `climax` echo trails, graded 3-tier chain waves, and cascading Midnight-Chrome afterglow.
+    *   `WireframeMorph` adds a counter-rotating **4D Hyper-Core**, Painter Z-sorting across up to 48 edges, theme-matched 3-step opaque trails, `1 px` `INK` drop shadows & parallel bevels, vertex star crosshairs, and a Lissajous figure-8 roaming path.
+    *   `AtariLineRibbons` doubles history depth (`8 → 16` slots) with stride-2 airy trail fanning (`3 → 2 → 1`), cohesive anti-collapse rotation geometry, symmetrical `INK` double-head contrast, corner jewels, and `#fcfcfc` hard-beat flashes.
+*   **Scenic & Silicon Masterpieces (`AtariRetroSunset`, `ik-fighter-sprites.js` & `YmSiliconBg`):**
+    *   `AtariRetroSunset` introduces 10-stop Timer-B raster skies & 5-stop lake reflections, twinkling dusk stars, 3 asymmetric hand-pixeled cloud silhouettes, dual-layer twilight mountain valleys, *Toro* stone lanterns, a curved *Myojin* Torii with straight *Korobi* pillars, a gnarled *Moyogi* S-curve Pine Bonsai with 5 cloud tiers, and an 18-slot falling & courtyard-settling leaf pool—paired with refined leg/kick anatomy across 7 frames in `ik-fighter-sprites.js`.
+    *   `YmSiliconBg` enforces a strict `0.55 * h` horizon contract (DIP-40 IC die & 3 oscillators above; perspective Log-DAC & copper bus packets below), 15-color 9-bit silicon palette, true per-voice YM2149F waveforms (4-bit Log-DAC bass, hardware envelope, Sync-Buzzer/PWM) with 10-segment LED peak meters & optional `metrics.regs` tuning, 16-bit LFSR + envelope monitor, and `1.5 s` Bayer fades.
 
-### 🟥 Amiga OCS/ECS (Copper + Blitter + 4-Channel Paula)
-- **Backgrounds:** *RotoZoomer* (chunky 4×4-style rotozoomer across 4 `64×64` textures, tension-gated kaleidoscope mirrors & Copper flash bands) and *Tech-Tech* (`BPLCON1` multi-harmonic scanline-shift curtain with sweeping shockwaves).
-- **Floors:** *Voxel Hills* (`128×128` Comanche-style height-map raycaster with winding canyon flight, 3D mountain peaks silhouetted against transparent sky & 4 Paula `L-R-R-L` ridges) and *Parallax Ground* (*Shadow of the Beast*-inspired 8-band terrain equalizer with cascading wipes, `8×10` sprites & dust particles).
-- **Foregrounds:** *Twister* (1–3 phase-offset 4-sided raster bars with 4 morphing twist modes & fixed 1:1 Paula face binding) and *Vector Balls* (pre-shaded Blitter-bob spheres across 4 morphing 3D formations, ultrawide twin bodies & `climax` ghost trails).
+### 🏷️ TrackPresenter v3.2.0 & Registry Timing (`track-presenter.js`, `registry.js`)
+*   **Atari ST Timer-B Raster Banner & Rock-Steady Typography:** Extended overlay duration from `3.0 s` to `4.0 s` and locked title/subtitle alignment cleanly centered across all systems (scrolling only when wider than the frame). Redesigned the Atari ST presenter with 4 iconic demoscene themes (*Goldrunner*, *ST Shifter*, *Union*, *Carebears*), a 50 Hz PAL CRT shutter unfold, counter-moving rail glints, stepped 16-bit corner brackets, Copper-split dividers, and symmetrical 3-channel YM2149 raster wings.
 
-### 🟩 Atari ST (9-Bit Shifter + Timer-B Rasters + 3-Voice YM2149)
-- **Backgrounds:** *Meta Blobs* (chunky metaball field with 3 YM voice blobs + 4 orbiting satellites & `climax` `#fcfcfc` cores) and *Julia Cycler* (4-constant morphing Julia fractal with 3 radial YM zones & flicker-safe `RING_HUE` cycling).
-- **Floors (New Layer):** *Laser Grid* (perspective wireframe floor with scanline-dithered YM lane glows, grid sine waves & `climax` laser sweeps) and *Pond Ripples* (row-dithered water surface with 3 YM wave emitters, ambient droplets & run-merged Midpoint-ellipse ripples).
-- **Foregrounds:** *Flat Shaded Trio* (6 unit-normalized polyhedra with Lambert flat shading, Painter Z-sort, deduplicated `1 px` black edges & face explosions) and *Line Ribbons* (Mystify-style Bresenham ribbons with `25 Hz` history ring buffer, black drop shadow & proportional resize mapping).
-- **Timer-B Raster Wipes & Strict Scanline Budgets:** Every Atari ST DSE enforces `0..7 × 36` 9-bit color quantization (max `#fcfcfc`) and splits crossing primitives cleanly along `wipeY` to stay within hardware per-scanline color limits (`<= 6` for floors, `<= 13–16` overall).
-
-### 🔧 Shared DOM-Free Retro Rendering Infrastructure
-- **`hardware-constraints.js` & `bitmap-font.js`:** Added `createXorshift32`, run-merged `bayerFadeCells`, clipped Bresenham/scanline/Midpoint-ellipse primitives, and extracted the shared `5×7` bitmap font with precomputed glyph runs for `TrackPresenter` and `C64SineScroller`.
-- **Aligned Stage Transitions & Verification:** Synchronized all 18 new DSEs to `StageManager`'s `1.5 s` fade timings, balanced `VoidFloor` weights across all three systems, and added **21 Node.js strict fake-canvas test suites** covering determinism, graded beat intensities, rotation continuity, and `fillRect` budgets.
+### 🔧 Shared Retro Geometry, DSE Rules & Atari Test Suites
+*   **Midpoint Circle Parity & Clipping Hardening (`hardware-constraints.js`):** Replaced `Math.sqrt` even-span circles in `fillAliasedCircle` with an exact odd-span integer Midpoint rasterizer matching `drawAliasedCircleOutline` 1:1 (deduplicated octant vertices, optional `clipRect`, plus `*Clipped` aliases), added NaN/bounds guards across palette/geometry helpers, and optimized `transparentDither` polygon fills.
+*   **Expanded Hardware Raster Rules (`doc/concepts/dse_development_rules.md`):** Documented system-authentic raster modes (C64 *Hires/Multicolor/FLI*, Amiga *EHB/HAM6/Mid-Scanline Copper*, Atari ST *16-color/scanline + Timer-B/Spectrum-512*), *Bitplane-Index-Addition / Shade-Bobs*, strict `getImageData()` prohibition, and preallocated chunky/C2P `putImageData()` buffer rules.
+*   **Automated Fake-Canvas Test Coverage:** Populated `test/atari-bobs.test.mjs` (8 suites), expanded `test/atari-pond-ripples.test.mjs` (`9 → 13` suites), and upgraded `test/ym-silicon-bg.test.mjs` (10 suites) validating strict 9-bit `#fcfcfc` max palettes, `<= 16` scanline color budgets, horizon contracts, `1.5 s` transitions, graded beats, and `fillRect` budgets.
 
 ---
 
 ## ✨ Core Features & Architecture
 
 ### 🎬 Scene-DJ & System-Accurate Demo-Scene Elements (DSEs)
-*   **50 Hz PAL Orchestration:** Our `Scene-DJ` monitors channel energies, track novelty, beat strength (`soft` / `medium` / `hard` impulses vs. exact musical beat boundaries), and macro tension (`playing`, `buildup`, `climax`, `afterglow`) to choreograph layered background, floor, foreground, and presenter DSEs—spanning classic *Castles*, *Retro Sunsets*, *Kefrens Checkerboards*, *PETSCII Plasmas*, *C64 Raster Tunnels/Roads*, *Amiga Voxel Hills/Twisters/Vector Balls*, and *Atari ST Flat-Shaded Trios/Julia Cyclers/Laser Grids*.
+*   **50 Hz PAL Orchestration:** Our `Scene-DJ` monitors channel energies, track novelty, beat strength (`soft` / `medium` / `hard` impulses vs. exact musical beat boundaries), and macro tension (`playing`, `buildup`, `climax`, `afterglow`) to choreograph layered background, floor, foreground, and presenter DSEs—spanning classic *Castles*, *Retro Sunsets*, *Kefrens Checkerboards*, *PETSCII Plasmas*, *C64 Raster Tunnels/Roads*, *Amiga Voxel Hills/Twisters/Vector Balls*, and *Atari ST Timer-B Laser Grids/Pond Ripples/3D Raytraced Bobs/Flat-Shaded Crystals/Julia Cyclers*.
 *   **Ruthless Historical Accuracy:** All DSEs run DOM-free inside system-strict retro rasters and hardware color tables (16-color C64 Colodore, 4,096-color 12-bit Amiga OCS, 512-color 9-bit Atari ST Shifter) with Bayer 4×4 ordered dithering, zero alpha blending, and crisp `image-rendering: pixelated` scaling.
 *   **Row-Batched FFT Phosphor Analyzer:** 48 logarithmic VFD/phosphor bars from `45 Hz` to `12 kHz` sampled from a 4096-point FFT with DC-offset rejection, time-based peak-hold gravity, and row-batched draw calls.
 
