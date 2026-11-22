@@ -1,16 +1,23 @@
 // === js/visuals/dse/atari/wireframe-morph.js ===
 // =========================================================
 // DEMO-SCENE-ELEMENT: ATARI 3D WIREFRAME MORPH
-// CPU-Math tribute morphing a 3D cube into an 8-pointed star.
-// Strict 9-bit Shifter LUT colors, 2-pass Z-depth wireframe,
-// inner-cube dual-shell mode, opaque vector ghost trails,
-// clipped Bresenham lines & foreground-safe transitions.
+// 68000er Demo-Tribut: Morphing 3D-Cube <-> 14-Vert-Stella-Star
+// mit gegenlaeufigem 4D-Tesseract-Kern, Z-Painter-Edge-Sort,
+// 9-Bit Shifter-Themen, themen-treuen Opaque-Ghost-Trails,
+// Kontrast-Schatten, Stern-Crosshairs & Lissajous-Flugbahn.
 // =========================================================
 
-import { quantizeAtari9Bit, rgbToHex } from '../../utils/hardware-constraints.js';
+import {
+    drawAliasedLineClipped,
+    quantizeAtari9Bit,
+    rgbToHex
+} from '../../utils/hardware-constraints.js';
 
 const TWO_PI = Math.PI * 2;
-const TRANSITION_DURATION = 1.1;
+const TRANSITION_DURATION = 1.5;
+const CAM_Z = 4.15;
+const MAX_TRAILS = 3;
+const MAX_EDGES = 48; // 24 Star + 12 Morph-Cube + 12 Counter-HyperCore
 
 // Precompute all 512 Atari ST 9-bit RGB hex colors once
 const ATARI_HEX_LUT = (() => {
@@ -33,47 +40,61 @@ function quantHex(r, g, b) {
     return ATARI_HEX_LUT[(r3 << 6) | (g3 << 3) | b3];
 }
 
-// 4 curated Atari ST 9-bit vector palettes (back, mid, front, flash/node, innerShell)
+const INK = quantHex(0, 0, 0);
+
+// 4 kuratierte Atari ST 9-Bit Vector-Paletten inkl. themen-passender Trails
 const WIREFRAME_THEMES = Object.freeze([
     Object.freeze({
+        // 0: Acid Phosphor & Solar Gold
         back: quantHex(0, 72, 0),
-        mid: quantHex(0, 144, 0),
-        front: quantHex(72, 252, 72),
+        mid: quantHex(0, 180, 36),
+        front: quantHex(108, 252, 72),
         node: quantHex(252, 252, 252),
-        inner: quantHex(216, 216, 0)
+        inner: quantHex(252, 216, 0),
+        innerBack: quantHex(108, 72, 0),
+        trails: Object.freeze([quantHex(0, 108, 36), quantHex(0, 72, 0), quantHex(0, 36, 0)])
     }),
     Object.freeze({
+        // 1: Cyber Cyan & Copper Amber
         back: quantHex(0, 36, 108),
-        mid: quantHex(0, 144, 180),
-        front: quantHex(72, 252, 252),
+        mid: quantHex(0, 144, 216),
+        front: quantHex(108, 252, 252),
         node: quantHex(252, 252, 252),
-        inner: quantHex(252, 144, 0)
+        inner: quantHex(252, 144, 0),
+        innerBack: quantHex(108, 36, 0),
+        trails: Object.freeze([quantHex(0, 108, 180), quantHex(0, 72, 108), quantHex(0, 36, 72)])
     }),
     Object.freeze({
+        // 2: Inferno Gold & Crimson Rose
         back: quantHex(108, 36, 0),
         mid: quantHex(216, 108, 0),
         front: quantHex(252, 216, 72),
         node: quantHex(252, 252, 252),
-        inner: quantHex(252, 72, 144)
+        inner: quantHex(252, 72, 144),
+        innerBack: quantHex(108, 0, 72),
+        trails: Object.freeze([quantHex(180, 72, 0), quantHex(108, 36, 0), quantHex(72, 0, 0)])
     }),
     Object.freeze({
+        // 3: Laser Magenta & Ice Cyan
         back: quantHex(72, 0, 108),
-        mid: quantHex(180, 36, 180),
+        mid: quantHex(180, 36, 216),
         front: quantHex(252, 108, 252),
         node: quantHex(252, 252, 180),
-        inner: quantHex(72, 216, 252)
+        inner: quantHex(72, 252, 252),
+        innerBack: quantHex(0, 72, 108),
+        trails: Object.freeze([quantHex(144, 0, 180), quantHex(108, 0, 108), quantHex(36, 0, 72)])
     })
 ]);
 
 const AFTERGLOW_THEME = Object.freeze({
-    back: quantHex(0, 0, 72),
-    mid: quantHex(36, 72, 108),
-    front: quantHex(108, 144, 180),
-    node: quantHex(180, 216, 252),
-    inner: quantHex(72, 72, 144)
+    back: quantHex(0, 36, 72),
+    mid: quantHex(36, 108, 144),
+    front: quantHex(144, 180, 216),
+    node: quantHex(216, 252, 252),
+    inner: quantHex(72, 108, 180),
+    innerBack: quantHex(36, 36, 108),
+    trails: Object.freeze([quantHex(36, 72, 108), quantHex(0, 36, 72), quantHex(0, 0, 36)])
 });
-
-const GHOST_TRAIL_HEX = Object.freeze([quantHex(36, 36, 108), quantHex(36, 36, 72)]);
 
 const BASE_CORNERS = Object.freeze([
     [1, 1, 1], [1, 1, -1], [1, -1, 1], [1, -1, -1],
@@ -125,60 +146,18 @@ function fillClippedRect(ctx, x, y, rw, rh, bufW, bufH) {
     }
 }
 
-function drawClippedLine(ctx, x0, y0, x1, y1, bufW, bufH, colorHex, thick = false) {
-    if (
-        !Number.isFinite(x0) || !Number.isFinite(y0) ||
-        !Number.isFinite(x1) || !Number.isFinite(y1) ||
-        bufW <= 0 || bufH <= 0
-    ) {
+function drawTipCrosshair(ctx, x, y, arm, color, coreColor, bufW, bufH) {
+    if (arm <= 0) {
+        ctx.fillStyle = color;
+        fillClippedRect(ctx, x, y, 1, 1, bufW, bufH);
         return;
     }
-
-    const maxX = bufW - 1;
-    const maxY = bufH - 1;
-    let t0 = 0;
-    let t1 = 1;
-    const dx = x1 - x0;
-    const dy = y1 - y0;
-
-    const clipTest = (p, q) => {
-        if (p === 0) return q >= 0;
-        const r = q / p;
-        if (p < 0) {
-            if (r > t1) return false;
-            if (r > t0) t0 = r;
-        } else {
-            if (r < t0) return false;
-            if (r < t1) t1 = r;
-        }
-        return true;
-    };
-
-    if (!clipTest(-dx, x0) || !clipTest(dx, maxX - x0) || !clipTest(-dy, y0) || !clipTest(dy, maxY - y0)) {
-        return;
-    }
-
-    let cx0 = Math.min(maxX, Math.max(0, Math.floor(x0 + t0 * dx)));
-    let cy0 = Math.min(maxY, Math.max(0, Math.floor(y0 + t0 * dy)));
-    const cx1 = Math.min(maxX, Math.max(0, Math.floor(x0 + t1 * dx)));
-    const cy1 = Math.min(maxY, Math.max(0, Math.floor(y0 + t1 * dy)));
-
-    ctx.fillStyle = colorHex;
-    const adx = Math.abs(cx1 - cx0);
-    const ady = Math.abs(cy1 - cy0);
-    const sx = cx0 < cx1 ? 1 : -1;
-    const sy = cy0 < cy1 ? 1 : -1;
-    let err = adx - ady;
-    const maxSteps = adx + ady + 2;
-
-    for (let step = 0; step < maxSteps; step++) {
-        const pw = thick && cx0 + 1 <= maxX ? 2 : 1;
-        const ph = thick && cy0 + 1 <= maxY ? 2 : 1;
-        ctx.fillRect(cx0, cy0, pw, ph);
-        if (cx0 === cx1 && cy0 === cy1) break;
-        const e2 = err * 2;
-        if (e2 > -ady) { err -= ady; cx0 += sx; }
-        if (e2 < adx) { err += adx; cy0 += sy; }
+    ctx.fillStyle = color;
+    fillClippedRect(ctx, x - arm, y, arm * 2 + 1, 1, bufW, bufH);
+    fillClippedRect(ctx, x, y - arm, 1, arm * 2 + 1, bufW, bufH);
+    if (coreColor && arm >= 2) {
+        ctx.fillStyle = coreColor;
+        fillClippedRect(ctx, x, y, 1, 1, bufW, bufH);
     }
 }
 
@@ -191,14 +170,26 @@ export class WireframeMorph {
         this.lastState = 'idle';
         this.stateAge = 0;
 
-        // Preallocated vertex, projection & trail buffers (zero per-frame allocations)
+        // Preallocated vertex, core & trail buffers (Zero-GC)
         this.vertices = Array.from({ length: 14 }, () => ({ x: 0, y: 0, z: 0 }));
         this.rotatedZ = new Float32Array(14);
         this.projected = Array.from({ length: 14 }, () => ({ x: 0, y: 0 }));
-        this.trailFrames = [
-            Array.from({ length: 14 }, () => ({ x: 0, y: 0 })),
+
+        // Counter-rotating inner 4D Hyper-Core (8 vertices)
+        this.coreRotatedZ = new Float32Array(8);
+        this.coreProjected = Array.from({ length: 8 }, () => ({ x: 0, y: 0 }));
+
+        // Preallocated Painter-Sort Edge Buffers (max 48 edges)
+        this.edgeA = new Uint8Array(MAX_EDGES);
+        this.edgeB = new Uint8Array(MAX_EDGES);
+        this.edgeKind = new Uint8Array(MAX_EDGES); // 0=morphCube, 1=star, 2=counterCore
+        this.edgeDepth = new Float32Array(MAX_EDGES);
+        this.edgeOrder = new Uint8Array(MAX_EDGES);
+
+        // 3-step Opaque Motion Echo Ring Buffer
+        this.trailFrames = Array.from({ length: MAX_TRAILS }, () =>
             Array.from({ length: 14 }, () => ({ x: 0, y: 0 }))
-        ];
+        );
         this.trailValidCount = 0;
         this.trailAccum = 0;
         this.lastW = -1;
@@ -207,6 +198,7 @@ export class WireframeMorph {
         // Continuous simulation state (preserved across resize/rotation)
         this.internalT = 0;
         this.roamPhase = 0;
+        this.coreAngle = 0;
         this.smoothedSpeed = 1.0;
         this.smoothedMorph = 0.0;
         this.afterglowMix = 0.0;
@@ -215,7 +207,7 @@ export class WireframeMorph {
         this.lastBeatCount = 0;
         this.spinDirection = 1;
         this.themeIndex = 0;
-        this.detailMode = 0; // 0: Classic, 1: Z-Depth + Nodes, 2: Ghost Trails, 3: Dual-Shell Crystal
+        this.detailMode = 0; // 0: Crisp Cube/Star, 1: Bevel + Crosshairs, 2: Ghost Trails, 3: Dual-Shell Hyper-Core
         this.flashAge = 10.0;
         this.flashPeak = 0.0;
     }
@@ -347,47 +339,46 @@ export class WireframeMorph {
         this.flashAge = Math.min(10.0, this.flashAge + dt);
 
         // ---------------------------------------------------------
-        // Macro State Dynamics & Foreground-Safe Transitions
+        // Macro State Dynamics & Foreground-Safe 1.5s Transitions
         // ---------------------------------------------------------
         let targetSpeed = 1.0 + tension * 0.4;
         let targetMorph = tension * 0.35;
-        let beatScaleGain = 0.16;
+        let beatScaleGain = 0.14;
         let targetAfterglow = 0.0;
         let geoReveal = 1.0;
-        let maxVisibleEdges = STAR_EDGES.length;
+        let revealRatio = 1.0;
 
         if (state === 'starting') {
             const prog = clamp01((this.stateAge + 0.08) / TRANSITION_DURATION);
             targetSpeed = 0.85;
-            targetMorph = 0.0;
-            beatScaleGain = 0.10;
-            geoReveal = 0.25 + 0.75 * prog;
-            maxVisibleEdges = Math.max(4, Math.ceil(STAR_EDGES.length * prog));
+            targetMorph = 0.05;
+            beatScaleGain = 0.08;
+            geoReveal = 0.28 + 0.72 * prog;
+            revealRatio = Math.max(0.2, prog);
         } else if (state === 'stopping') {
             const prog = 1.0 - clamp01(this.stateAge / TRANSITION_DURATION);
             if (prog <= 0.01) return;
-            targetSpeed = 0.50;
-            targetMorph = 0.1;
+            targetSpeed = 0.45;
+            targetMorph = 0.10;
             beatScaleGain = 0.05;
             geoReveal = prog;
-            maxVisibleEdges = Math.max(0, Math.ceil(STAR_EDGES.length * prog));
-            if (maxVisibleEdges <= 0) return;
+            revealRatio = prog;
         } else if (state === 'playing') {
             targetSpeed = 0.95 + tension * 0.40;
-            targetMorph = tension * 0.40;
-            beatScaleGain = 0.18;
+            targetMorph = 0.15 + 0.35 * tension + 0.15 * Math.sin(this.internalT * 0.85);
+            beatScaleGain = 0.16;
         } else if (state === 'buildup') {
-            targetSpeed = 1.65 + tension * 0.60;
-            targetMorph = 0.35 + (Math.sin(this.internalT * 2.6) * 0.5 + 0.5) * 0.55;
-            beatScaleGain = 0.24;
+            targetSpeed = 1.55 + tension * 0.55;
+            targetMorph = 0.38 + (Math.sin(this.internalT * 2.2) * 0.5 + 0.5) * 0.55;
+            beatScaleGain = 0.20;
         } else if (state === 'climax') {
-            targetSpeed = 2.6 + tension * 0.85 + (isClimaxLocked ? 0.3 : 0);
-            targetMorph = 0.92 + 0.08 * Math.sin(this.internalT * 4.0);
-            beatScaleGain = 0.32;
+            targetSpeed = 2.35 + tension * 0.75 + (isClimaxLocked ? 0.25 : 0);
+            targetMorph = 0.84 + 0.16 * Math.sin(this.internalT * 3.4);
+            beatScaleGain = 0.24;
         } else if (state === 'afterglow') {
-            targetSpeed = 0.35;
-            targetMorph = 0.25;
-            beatScaleGain = 0.06;
+            targetSpeed = 0.32;
+            targetMorph = 0.22;
+            beatScaleGain = 0.05;
             targetAfterglow = 1.0;
         }
 
@@ -396,15 +387,18 @@ export class WireframeMorph {
         this.afterglowMix += (targetAfterglow - this.afterglowMix) * Math.min(1.0, dt * 2.0);
         const ag = this.afterglowMix;
 
-        this.internalT = (this.internalT + dt * this.smoothedSpeed) % 4096;
-        this.roamPhase = (this.roamPhase + dt * (0.55 + 0.35 * ymMid) * this.smoothedSpeed) % TWO_PI;
+        // Kontinuierlicher Vorwaerts-Spin-Boost bei Beat (kein Rueckwaerts-Zucken!)
+        const spinBoost = 1.0 + beatImpulse * 0.85 * (1.0 - ag);
+        this.internalT = (this.internalT + dt * this.smoothedSpeed * spinBoost) % 4096;
+        this.roamPhase = (this.roamPhase + dt * (0.58 + 0.36 * ymMid) * this.smoothedSpeed) % TWO_PI;
+        this.coreAngle = (this.coreAngle + dt * (1.35 + 0.95 * ymMid) * this.smoothedSpeed) % TWO_PI;
 
         // ---------------------------------------------------------
-        // Morph Geometry & Safe Responsive Projection
+        // Morph Geometry: Cube (12) + Stella Tips (6) + Counter Core
         // ---------------------------------------------------------
-        const morph = clamp01(this.smoothedMorph + beatImpulse * 0.12 * (1.0 - ag));
-        const cornerScale = Math.max(0.25, (1.0 - morph * 0.65) * (1.0 - 0.12 * ymMid));
-        const tipScale = (1.0 + morph * 1.18) + (ymBass * 0.18 + beatImpulse * 0.16) * (1.0 - 0.6 * ag);
+        const morph = clamp01(this.smoothedMorph + beatImpulse * 0.14 * (1.0 - ag));
+        const cornerScale = Math.max(0.42, (1.0 - morph * 0.52) * (1.0 - 0.10 * ymMid));
+        const tipScale = (0.86 + morph * 0.96) + (ymBass * 0.22 + beatImpulse * 0.18) * (1.0 - 0.65 * ag);
 
         for (let i = 0; i < 8; i++) {
             this.vertices[i].x = BASE_CORNERS[i][0] * cornerScale;
@@ -417,22 +411,24 @@ export class WireframeMorph {
             this.vertices[8 + i].z = BASE_TIPS[i][2] * tipScale;
         }
 
+        // Kalibrierte Projektion fuer imposante Demo-Groesse ohne Abschneiden
         const minDim = Math.min(w, h);
-        const beatScale = 1.0 + beatImpulse * beatScaleGain;
-        const projScale = Math.max(8, minDim * 0.42 * geoReveal * beatScale);
+        const beatScale = 1.0 + beatImpulse * beatScaleGain * (1.0 - 0.6 * ag);
+        const projScale = Math.max(10, minDim * 0.72 * geoReveal * beatScale);
 
         const maxRadiusUnits = Math.max(1.732 * cornerScale, tipScale);
-        const minZOff = Math.max(1.8, 4.5 - maxRadiusUnits);
-        const estMaxRadius = (maxRadiusUnits * projScale) / minZOff;
+        const safeDenom = Math.sqrt(Math.max(1.0, CAM_Z * CAM_Z - maxRadiusUnits * maxRadiusUnits));
+        const estMaxRadius = Math.min(minDim * 0.45, (maxRadiusUnits * projScale) / safeDenom);
 
-        const roamAmpX = Math.max(0, w * 0.45 - estMaxRadius) * (0.35 + 0.55 * tension) * (1.0 - 0.65 * ag);
-        const roamAmpY = Math.max(0, h * 0.45 - estMaxRadius) * (0.25 + 0.45 * ymMid) * (1.0 - 0.65 * ag);
+        // Lissajous-Achter-Flugbahn nutzt Portraet, 4:3 und Ultrawide voll aus
+        const roamAmpX = Math.max(0, w * 0.46 - estMaxRadius) * (0.45 + 0.50 * tension) * (1.0 - 0.70 * ag);
+        const roamAmpY = Math.max(0, h * 0.44 - estMaxRadius) * (0.30 + 0.45 * ymMid) * (1.0 - 0.70 * ag);
         const cx = Math.floor(w * 0.5 + Math.sin(this.roamPhase) * roamAmpX);
-        const cy = Math.floor(h * 0.5 + Math.cos(this.roamPhase * 0.7) * roamAmpY);
+        const cy = Math.floor(h * 0.5 + Math.sin(this.roamPhase * 1.5) * roamAmpY);
 
-        const rx = this.internalT * 0.9;
-        const ry = this.internalT * 1.3 * this.spinDirection;
-        const rz = this.internalT * 0.6;
+        const rx = this.internalT * 0.78;
+        const ry = this.internalT * 1.15 * this.spinDirection;
+        const rz = this.internalT * 0.48;
 
         const sinX = Math.sin(rx); const cosX = Math.cos(rx);
         const sinY = Math.sin(ry); const cosY = Math.cos(ry);
@@ -448,96 +444,226 @@ export class WireframeMorph {
             const y3 = x2 * sinZ + y1 * cosZ;
 
             this.rotatedZ[i] = z2;
-            const zOff = Math.max(1.6, z2 + 4.5);
+            const zOff = Math.max(1.6, z2 + CAM_Z);
             this.projected[i].x = Math.floor(cx + (x3 * projScale) / zOff);
             this.projected[i].y = Math.floor(cy + (y3 * projScale) / zOff);
         }
 
-        // ---------------------------------------------------------
-        // Opaque Ghost Trails (Mode 2 or Climax)
-        // ---------------------------------------------------------
-        const showTrails = (this.detailMode === 2 || state === 'climax') && ag < 0.55 && state !== 'starting' && state !== 'stopping';
-        if (showTrails && this.trailValidCount > 0) {
-            const tCount = Math.min(2, this.trailValidCount);
-            for (let tr = tCount - 1; tr >= 0; tr--) {
-                const pts = this.trailFrames[tr];
-                const trailCol = GHOST_TRAIL_HEX[tr];
-                for (let i = 0; i < maxVisibleEdges; i++) {
-                    const p1 = pts[STAR_EDGES[i][0]];
-                    const p2 = pts[STAR_EDGES[i][1]];
-                    drawClippedLine(ctx, p1.x, p1.y, p2.x, p2.y, w, h, trailCol, false);
-                }
-            }
-        }
-
-        // ---------------------------------------------------------
-        // 2-Pass Z-Depth Shifter Wireframe + Dual-Shell Core
-        // ---------------------------------------------------------
         const isCool = ag > 0.5;
         const theme = isCool ? AFTERGLOW_THEME : WIREFRAME_THEMES[this.themeIndex];
-        const flashActive = !isCool && this.flashAge < 0.09 && this.flashPeak > 0.3;
-        const highBoost = beatImpulse > 0.55 || pulse > 0.5 || ymHigh > 0.7;
+        const showCounterCore = (this.detailMode === 3 || state === 'climax') && !isCool;
 
-        // Optional inner cube wireframe shell (Mode 3 or Climax)
-        const showInnerCube = (this.detailMode === 3 || state === 'climax') && maxVisibleEdges >= 12 && !isCool;
-        if (showInnerCube) {
-            const innerCol = flashActive ? theme.node : theme.inner;
-            for (let i = 0; i < CUBE_EDGES.length; i++) {
-                const p1 = this.projected[CUBE_EDGES[i][0]];
-                const p2 = this.projected[CUBE_EDGES[i][1]];
-                drawClippedLine(ctx, p1.x, p1.y, p2.x, p2.y, w, h, innerCol, false);
+        // Gegenlaeufiger innerer Hyper-Cube (4D-Tesseract-Effekt im Climax / Mode 3)
+        if (showCounterCore) {
+            const coreR = Math.max(0.30, cornerScale * (0.76 + 0.14 * ymBass + 0.12 * beatImpulse));
+            const crx = -this.coreAngle * 1.1;
+            const cry = this.coreAngle * 1.45 * -this.spinDirection;
+            const crz = this.coreAngle * 0.65;
+            const csX = Math.sin(crx); const ccX = Math.cos(crx);
+            const csY = Math.sin(cry); const ccY = Math.cos(cry);
+            const csZ = Math.sin(crz); const ccZ = Math.cos(crz);
+
+            for (let i = 0; i < 8; i++) {
+                const vx = BASE_CORNERS[i][0] * coreR;
+                const vy = BASE_CORNERS[i][1] * coreR;
+                const vz = BASE_CORNERS[i][2] * coreR;
+                const y1 = vy * ccX - vz * csX;
+                const z1 = vy * csX + vz * ccX;
+                const x2 = vx * ccY + z1 * csY;
+                const z2 = -vx * csY + z1 * ccY;
+                const x3 = x2 * ccZ - y1 * csZ;
+                const y3 = x2 * csZ + y1 * ccZ;
+
+                this.coreRotatedZ[i] = z2;
+                const zOff = Math.max(1.6, z2 + CAM_Z);
+                this.coreProjected[i].x = Math.floor(cx + (x3 * projScale) / zOff);
+                this.coreProjected[i].y = Math.floor(cy + (y3 * projScale) / zOff);
             }
         }
 
-        // Pass 1: Back edges (avgZ > 0)
-        for (let i = 0; i < maxVisibleEdges; i++) {
-            const e = STAR_EDGES[i];
-            const avgZ = (this.rotatedZ[e[0]] + this.rotatedZ[e[1]]) * 0.5;
-            if (avgZ > 0) {
-                const p1 = this.projected[e[0]];
-                const p2 = this.projected[e[1]];
-                drawClippedLine(ctx, p1.x, p1.y, p2.x, p2.y, w, h, flashActive ? theme.mid : theme.back, false);
-            }
-        }
+        const clipRect = { x: 0, y: 0, w, h };
 
-        // Pass 2: Front edges (avgZ <= 0)
-        const thickFront = (this.detailMode === 1 || state === 'climax') && minDim >= 100 && !isCool;
-        for (let i = 0; i < maxVisibleEdges; i++) {
-            const e = STAR_EDGES[i];
-            const avgZ = (this.rotatedZ[e[0]] + this.rotatedZ[e[1]]) * 0.5;
-            if (avgZ <= 0) {
-                const p1 = this.projected[e[0]];
-                const p2 = this.projected[e[1]];
-                const edgeCol = flashActive
-                    ? (this.flashPeak >= 0.66 ? theme.node : theme.front)
-                    : (avgZ < -0.35 && highBoost ? theme.node : (avgZ < -0.1 ? theme.front : theme.mid));
-                drawClippedLine(ctx, p1.x, p1.y, p2.x, p2.y, w, h, edgeCol, thickFront && avgZ < -0.3);
-            }
-        }
+        // ---------------------------------------------------------
+        // 1. Themen-treue Opaque Ghost Trails (Mode 2 oder Climax)
+        // ---------------------------------------------------------
+        const showTrails = (this.detailMode === 2 || state === 'climax' || state === 'buildup') &&
+            ag < 0.55 && state !== 'starting' && state !== 'stopping';
+        if (showTrails && this.trailValidCount > 0) {
+            const maxTrail = state === 'climax' ? Math.min(3, this.trailValidCount) : Math.min(2, this.trailValidCount);
+            const cubeFadeLimit = Math.max(4, Math.floor(CUBE_EDGES.length * revealRatio));
+            const starFadeLimit = Math.max(4, Math.floor(STAR_EDGES.length * revealRatio));
 
-        // Crisp 2x2 vertex nodes on front star tips (Mode 1, Climax or high YM)
-        if ((this.detailMode === 1 || state === 'climax' || ymHigh > 0.65) && !isCool && maxVisibleEdges > 12) {
-            const nodeSize = minDim >= 80 && (beatImpulse > 0.45 || this.detailMode === 1) ? 2 : 1;
-            ctx.fillStyle = theme.node;
-            for (let i = 8; i < 14; i++) {
-                if (this.rotatedZ[i] <= 0.25) {
-                    const p = this.projected[i];
-                    fillClippedRect(ctx, p.x - (nodeSize >> 1), p.y - (nodeSize >> 1), nodeSize, nodeSize, w, h);
+            for (let tr = maxTrail - 1; tr >= 0; tr--) {
+                const pts = this.trailFrames[tr];
+                const trailCol = theme.trails[tr];
+                for (let i = 0; i < starFadeLimit; i++) {
+                    const p1 = pts[STAR_EDGES[i][0]];
+                    const p2 = pts[STAR_EDGES[i][1]];
+                    drawAliasedLineClipped(ctx, p1.x, p1.y, p2.x, p2.y, trailCol, clipRect);
+                }
+                if (tr === 0) {
+                    for (let i = 0; i < cubeFadeLimit; i++) {
+                        const p1 = pts[CUBE_EDGES[i][0]];
+                        const p2 = pts[CUBE_EDGES[i][1]];
+                        drawAliasedLineClipped(ctx, p1.x, p1.y, p2.x, p2.y, trailCol, clipRect);
+                    }
                 }
             }
         }
 
-        // Snapshot trail ring buffer at ~25Hz cadence
+        // ---------------------------------------------------------
+        // 2. Aktive Kanten einsammeln & nach Z-Tiefe sortieren (Back -> Front)
+        // ---------------------------------------------------------
+        let totalEdges = 0;
+
+        // 12 Morph-Cube Rahmenkanten (immer Teil des Morphs!)
+        const cubeLimit = Math.min(CUBE_EDGES.length, Math.max(4, Math.ceil(CUBE_EDGES.length * revealRatio)));
+        for (let i = 0; i < cubeLimit; i++) {
+            const e = CUBE_EDGES[i];
+            this.edgeA[totalEdges] = e[0];
+            this.edgeB[totalEdges] = e[1];
+            this.edgeKind[totalEdges] = 0;
+            this.edgeDepth[totalEdges] = (this.rotatedZ[e[0]] + this.rotatedZ[e[1]]) * 0.5;
+            this.edgeOrder[totalEdges] = totalEdges;
+            totalEdges++;
+        }
+
+        // 24 Stella-Sternkanten
+        const starLimit = Math.min(STAR_EDGES.length, Math.max(4, Math.ceil(STAR_EDGES.length * revealRatio)));
+        for (let i = 0; i < starLimit; i++) {
+            const e = STAR_EDGES[i];
+            this.edgeA[totalEdges] = e[0];
+            this.edgeB[totalEdges] = e[1];
+            this.edgeKind[totalEdges] = 1;
+            this.edgeDepth[totalEdges] = (this.rotatedZ[e[0]] + this.rotatedZ[e[1]]) * 0.5;
+            this.edgeOrder[totalEdges] = totalEdges;
+            totalEdges++;
+        }
+
+        // 12 Gegenlaeufige Hyper-Core-Kanten
+        if (showCounterCore) {
+            for (let i = 0; i < CUBE_EDGES.length; i++) {
+                const e = CUBE_EDGES[i];
+                this.edgeA[totalEdges] = e[0];
+                this.edgeB[totalEdges] = e[1];
+                this.edgeKind[totalEdges] = 2;
+                this.edgeDepth[totalEdges] = (this.coreRotatedZ[e[0]] + this.coreRotatedZ[e[1]]) * 0.5;
+                this.edgeOrder[totalEdges] = totalEdges;
+                totalEdges++;
+            }
+        }
+
+        // Insertion Sort absteigend nach Z (groesseres Z = weiter hinten -> zuerst zeichnen)
+        for (let a = 1; a < totalEdges; a++) {
+            const keyIdx = this.edgeOrder[a];
+            const keyZ = this.edgeDepth[keyIdx];
+            let b = a - 1;
+            while (b >= 0 && this.edgeDepth[this.edgeOrder[b]] < keyZ) {
+                this.edgeOrder[b + 1] = this.edgeOrder[b];
+                b--;
+            }
+            this.edgeOrder[b + 1] = keyIdx;
+        }
+
+        // ---------------------------------------------------------
+        // 3. Z-Sorted Shifter Vector Rendering + Contrast Drop-Shadow
+        // ---------------------------------------------------------
+        const flashActive = !isCool && this.flashAge < 0.10 && this.flashPeak > 0.25;
+        const hardFlash = flashActive && this.flashPeak >= 0.75;
+        const medFlash = flashActive && this.flashPeak >= 0.45;
+        const highBoost = beatImpulse > 0.55 || pulse > 0.5 || ymHigh > 0.68;
+        const useBevel = (this.detailMode === 1 || state === 'climax' || hardFlash) && minDim >= 80 && !isCool;
+        const useContrastShadow = minDim >= 64;
+
+        for (let si = 0; si < totalEdges; si++) {
+            const idx = this.edgeOrder[si];
+            const kind = this.edgeKind[idx];
+            const a = this.edgeA[idx];
+            const b = this.edgeB[idx];
+            const avgZ = this.edgeDepth[idx];
+
+            const pts = kind === 2 ? this.coreProjected : this.projected;
+            const p1 = pts[a];
+            const p2 = pts[b];
+
+            let col;
+            if (kind === 2) {
+                // Gegenlaeufiger Hyper-Core
+                col = hardFlash ? theme.node : (avgZ > 0.1 ? theme.innerBack : theme.inner);
+            } else if (kind === 0 && morph > 0.55 && showCounterCore) {
+                // Bei aktivem Hyper-Core bleibt der Morph-Rahmen dezent als Bruecke
+                col = avgZ > 0 ? theme.back : theme.mid;
+            } else if (avgZ > 0.12) {
+                col = medFlash ? theme.mid : theme.back;
+            } else if (avgZ > -0.22) {
+                col = hardFlash ? theme.front : (medFlash ? theme.front : theme.mid);
+            } else {
+                col = hardFlash
+                    ? theme.node
+                    : ((highBoost && avgZ < -0.42) || (medFlash && avgZ < -0.28) ? theme.node : theme.front);
+            }
+
+            // 1px Kontrast-Schatten (+1,+1) fuer helle Frontkanten ueber hellen Hintergruenden
+            if (useContrastShadow && avgZ <= -0.05) {
+                drawAliasedLineClipped(ctx, p1.x + 1, p1.y + 1, p2.x + 1, p2.y + 1, INK, clipRect);
+            }
+
+            // Saubere 1px Parallel-Bevel-Kante statt klobiger 2x2-Ecken!
+            if (useBevel && avgZ <= -0.32 && kind !== 2) {
+                const ox = Math.abs(p2.x - p1.x) >= Math.abs(p2.y - p1.y) ? 0 : 1;
+                const oy = ox === 0 ? 1 : 0;
+                drawAliasedLineClipped(ctx, p1.x + ox, p1.y + oy, p2.x + ox, p2.y + oy, theme.mid, clipRect);
+            }
+
+            drawAliasedLineClipped(ctx, p1.x, p1.y, p2.x, p2.y, col, clipRect);
+        }
+
+        // ---------------------------------------------------------
+        // 4. Atari ST Vertex Star Crosshairs (+-Funken an Frontspitzen)
+        // ---------------------------------------------------------
+        if (!isCool && minDim >= 48) {
+            const showCrosshairs = this.detailMode === 1 || state === 'climax' || state === 'buildup' || ymHigh > 0.60 || beatImpulse > 0.40;
+            if (showCrosshairs) {
+                const bigSpark = hardFlash || (state === 'climax' && beatImpulse > 0.65);
+                const arm = minDim >= 100 ? (bigSpark ? 2 : 1) : 1;
+                for (let i = 8; i < 14; i++) {
+                    if (this.rotatedZ[i] <= 0.15) {
+                        const p = this.projected[i];
+                        drawTipCrosshair(
+                            ctx,
+                            p.x,
+                            p.y,
+                            arm,
+                            bigSpark || this.rotatedZ[i] < -0.35 ? theme.node : theme.front,
+                            theme.node,
+                            w,
+                            h
+                        );
+                    }
+                }
+            }
+        }
+
+        // ---------------------------------------------------------
+        // 5. Trail Ring Buffer Snapshot (~25 Hz)
+        // ---------------------------------------------------------
         this.trailAccum += dt;
         if (this.trailAccum >= 0.04) {
             this.trailAccum = 0;
-            for (let i = 0; i < 14; i++) {
-                this.trailFrames[1][i].x = this.trailFrames[0][i].x;
-                this.trailFrames[1][i].y = this.trailFrames[0][i].y;
-                this.trailFrames[0][i].x = this.projected[i].x;
-                this.trailFrames[0][i].y = this.projected[i].y;
+            for (let tr = MAX_TRAILS - 1; tr >= 1; tr--) {
+                const dst = this.trailFrames[tr];
+                const src = this.trailFrames[tr - 1];
+                for (let i = 0; i < 14; i++) {
+                    dst[i].x = src[i].x;
+                    dst[i].y = src[i].y;
+                }
             }
-            if (this.trailValidCount < 2) this.trailValidCount++;
+            const head = this.trailFrames[0];
+            for (let i = 0; i < 14; i++) {
+                head[i].x = this.projected[i].x;
+                head[i].y = this.projected[i].y;
+            }
+            if (this.trailValidCount < MAX_TRAILS) this.trailValidCount++;
         }
     }
 }
