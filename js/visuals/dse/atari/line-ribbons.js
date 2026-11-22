@@ -1,26 +1,27 @@
 // =========================================================
 // DEMO-SCENE-ELEMENT: ATARI LINE RIBBONS (Foreground DSE)
-// Klassische Atari-ST-Bresenham-Linienbaender (Mystify-Stil).
+// Klassische Atari-ST-Bresenham-Linienbaender (Mystify-/Qix-Stil).
 // Features:
 // - 3 Baender (YM2149 A/B/C), Pool 6 Ecken, nv=4 (5 im Climax mit Warteregel)
-// - Ringpuffer mit 8 Momentaufnahmen (25 Hz + snapNow bei Medium/Hard)
-// - Proportionales Resize-Mapping inkl. History-Ringpuffer (Toleranz <= 1 px)
-// - 1px INK-Schattenlinie (+1,+1) + Doppelkopf fuer klaren Foreground-Kontrast
-// - Timer-B-Raster-Wipe am 8. Beat; Ein-/Ausblendung rein ueber Ghost/Band-Anzahl
+// - Kohesive, rotierende Anti-Kollaps-Geometrie (kein Ausfransen zu Nadeln)
+// - Ringpuffer (16 Slots, 25 Hz + snapNow) mit luftigem Stride-2-Echo-Fächer
+// - Sauber gestaffelte Trail-Rampen (3->2->1), schlanke Ghost-Kontur (Background bleibt frei!)
+// - Symmetrischer INK-Kontrast, Corner-Jewels & WHITE (#fcfcfc) Hard-Beat-Flash
+// - Timer-B-Raster-Wipe am 8. Beat; proportionales Resize-Mapping (<= 1 px)
 // =========================================================
 
 import {
     createXorshift32,
     drawAliasedLineClipped
 } from '../../utils/hardware-constraints.js';
-import { COOL, INK, SETS } from './atari-kit.js';
+import { COOL, INK, SETS, WHITE } from './atari-kit.js';
 
 const T_IN = 1.5;
 const T_OUT = 1.5;
 const WIPE_DURATION = 0.5;
 const NUM_RIBBONS = 3;
 const MAX_VERTS = 6;
-const HISTORY_LEN = 8;
+const HISTORY_LEN = 16;
 
 const FALLBACK_TENSION = {
     playing: 0.30,
@@ -51,6 +52,7 @@ export class AtariLineRibbons {
         this.stateAge = 0;
         this.simAcc = 0;
         this.stepCounter = 0;
+        this.snappedThisFrame = false;
 
         // Geglaettete Tension & Eckenzahl-Zustand
         this.ten = 0.30;
@@ -66,7 +68,8 @@ export class AtariLineRibbons {
         this.lastBeatCount = -1;
         this.hardCooldown = 0;
         this.hardHeadTimer = 0;
-        this.link = 0; // 0 = Umriss, 1 = Stern, 2 = Umriss + Diagonalen
+        this.link = 0; // 0 = Umriss, 1 = Twisted Ribbon / Stern, 2 = Kristall (Umriss + Diagonalen)
+        this.spinDir = 1;
 
         // Familien- & Afterglow-Zustand
         this.setIdx = 0;
@@ -90,7 +93,7 @@ export class AtariLineRibbons {
         this.shoveVy = new Float32Array(NUM_RIBBONS * MAX_VERTS);
         this.nudgeVx = new Float32Array(NUM_RIBBONS);
 
-        // Ringpuffer fuer 8 Momentaufnahmen: Int16Array(3 * 6 * 2 * 8)
+        // Ringpuffer fuer 16 Momentaufnahmen: Int16Array(3 * 6 * 2 * 16)
         this.history = new Int16Array(NUM_RIBBONS * MAX_VERTS * 2 * HISTORY_LEN);
         this.headSlot = 0;
         this.filledSlots = 0;
@@ -110,20 +113,32 @@ export class AtariLineRibbons {
     }
 
     _seedVertices() {
+        // 3 ausgewogene Zonen (links/mitte/rechts, leicht in oberer/mittlerer Buehne),
+        // mit einwaerts gerichteter Startgeschwindigkeit und sauber geordnetem Polygon.
+        const centersU = [0.26, 0.50, 0.74];
+        const centersV = [0.36, 0.48, 0.38];
+        const baseVelDirs = [
+            [0.86, 0.42],
+            [-0.45, -0.78],
+            [-0.84, 0.44]
+        ];
+
         for (let b = 0; b < NUM_RIBBONS; b++) {
-            // Deterministische Startregion entlang der Breite verteilen,
-            // damit auch Ultrawide sofort voll bespielt wird.
-            const bandCenterU = 0.20 + b * 0.30;
+            const cx = centersU[b];
+            const cy = centersV[b];
+            const phaseOffset = b * 0.75 + this.rng.float() * 0.4;
+            const spd = 0.72 + 0.22 * this.rng.float();
+            const bvx = baseVelDirs[b][0] * spd;
+            const bvy = baseVelDirs[b][1] * spd;
+
             for (let v = 0; v < MAX_VERTS; v++) {
                 const idx = b * MAX_VERTS + v;
-                const u = clamp(bandCenterU + (this.rng.float() - 0.5) * 0.45, 0.04, 0.96);
-                const wv = clamp(0.10 + this.rng.float() * 0.80, 0.04, 0.96);
-                const ang = this.rng.float() * Math.PI * 2;
-                const spd = 0.8 + 0.4 * this.rng.float();
-                this.initNormX[idx] = u;
-                this.initNormY[idx] = wv;
-                this.vx[idx] = Math.cos(ang) * spd;
-                this.vy[idx] = Math.sin(ang) * spd;
+                const vAngle = phaseOffset + (v / 4) * Math.PI * 2;
+                const rad = 0.10 + (v & 1) * 0.03;
+                this.initNormX[idx] = clamp(cx + Math.cos(vAngle) * rad, 0.08, 0.92);
+                this.initNormY[idx] = clamp(cy + Math.sin(vAngle) * rad * 1.35, 0.08, 0.92);
+                this.vx[idx] = bvx;
+                this.vy[idx] = bvy;
             }
         }
     }
@@ -226,7 +241,7 @@ export class AtariLineRibbons {
             this.shoveVx[i4] = this.shoveVx[i3];
             this.shoveVy[i4] = this.shoveVy[i3];
 
-            // Bestehende History-Slots fuellen, damit kein Spikes nach (0,0) entsteht
+            // Bestehende History-Slots fuellen, damit kein Spike nach (0,0) entsteht
             for (let s = 0; s < HISTORY_LEN; s++) {
                 const slotBase = s * NUM_RIBBONS * MAX_VERTS * 2;
                 const h3 = slotBase + i3 * 2;
@@ -270,7 +285,7 @@ export class AtariLineRibbons {
 
     _startWipe(nextSet) {
         if (this.wipeTo === nextSet) return;
-        this.wipeFrom = this.wipeAge < WIPE_DURATION ? this.wipeFrom : this.wipeTo;
+        this.wipeFrom = this.wipeAge < WIPE_DURATION * 0.5 ? this.wipeFrom : this.wipeTo;
         this.wipeTo = nextSet;
         this.wipeAge = 0;
     }
@@ -278,15 +293,23 @@ export class AtariLineRibbons {
     _stepSimulation(stepDt, w, h, chVals, impulse, vBase, isAfterglow) {
         this.stepCounter++;
         const box = this._safeMargins(w, h);
+        const minDim = Math.min(w, h);
+        const spanX = Math.max(2, box.xMax - box.xMin);
+        const spanY = Math.max(2, box.yMax - box.yMin);
+        const maxSpanR = 0.42 * Math.min(spanX, spanY);
         const kDecay = Math.exp(-stepDt / 0.25);
+        const radialRelax = 1 - Math.exp(-stepDt / 0.26);
         const activeVerts = this.nv;
 
         for (let b = 0; b < NUM_RIBBONS; b++) {
             const chMul = 1 + 0.6 * chVals[b];
-            const impMul = 1 + 0.8 * impulse;
+            const impMul = 1 + 0.7 * impulse;
             const baseSpeed = vBase * chMul * impMul;
             const nudge = this.nudgeVx[b];
 
+            // 1. Translationale Bewegung + Wandreflexion (vx/vy bleiben rein fuer Bounce/8.Beat)
+            let cx = 0;
+            let cy = 0;
             for (let v = 0; v < activeVerts; v++) {
                 const idx = b * MAX_VERTS + v;
                 let nx = this.px[idx] + (this.vx[idx] * baseSpeed + this.shoveVx[idx] + nudge) * stepDt;
@@ -320,11 +343,55 @@ export class AtariLineRibbons {
                 this.py[idx] = ny;
                 this.shoveVx[idx] *= kDecay;
                 this.shoveVy[idx] *= kDecay;
+                cx += nx;
+                cy += ny;
             }
             this.nudgeVx[b] *= kDecay;
+
+            // 2. Kohesive Band-Skulptur: harmonische Rotation + Anti-Kollaps-Radius
+            // Verhindert flache Nadeln und uebermaessiges Zerschneiden von Background/Floor
+            cx /= activeVerts;
+            cy /= activeVerts;
+
+            const stateScale = isAfterglow ? 0.115 : lerp(0.135, 0.195, this.ten);
+            const targetR = Math.min(
+                maxSpanR,
+                Math.max(3, minDim * stateScale * (0.86 + 0.28 * chVals[b] + 0.14 * impulse))
+            );
+            const twistRate = (0.78 + 1.40 * this.ten + 0.72 * chVals[b])
+                * (isAfterglow ? 0.30 : 1.0)
+                * this.spinDir
+                * (b === 1 ? -1 : 1);
+            const dAng = twistRate * stepDt;
+            const cosA = Math.cos(dAng);
+            const sinA = Math.sin(dAng);
+
+            for (let v = 0; v < activeVerts; v++) {
+                const idx = b * MAX_VERTS + v;
+                let dx = this.px[idx] - cx;
+                let dy = this.py[idx] - cy;
+                const dist = Math.hypot(dx, dy);
+
+                if (dist < 0.25 * targetR) {
+                    const fallbackAng = this.stepCounter * 0.04 + b * 1.4 + (v / activeVerts) * Math.PI * 2;
+                    dx = Math.cos(fallbackAng) * (0.35 * targetR);
+                    dy = Math.sin(fallbackAng) * (0.35 * targetR);
+                }
+
+                // Sanft rotieren + organisch in kompakte Polygon-Huellkurve atmen
+                const rx = dx * cosA - dy * sinA;
+                const ry = dx * sinA + dy * cosA;
+                const curR = Math.hypot(rx, ry) || 1;
+                const wave = 1 + 0.14 * Math.sin(this.stepCounter * 0.05 + v * 1.9 + b * 2.1);
+                const nextR = lerp(curR, targetR * wave, radialRelax);
+                const scaleR = nextR / curR;
+
+                this.px[idx] = clamp(cx + rx * scaleR, box.xMin, box.xMax);
+                this.py[idx] = clamp(cy + ry * scaleR, box.yMin, box.yMax);
+            }
         }
 
-        // Schrink-Uebergang (Ecke 4 laeuft in 0,5 s auf Ecke 3 zu)
+        // Shrink-Uebergang (Ecke 4 laeuft in 0,5 s auf Ecke 3 zu)
         if (this.shrinkingV4 && !isAfterglow) {
             this.shrinkAge += stepDt;
             if (this.shrinkAge >= 0.50) {
@@ -335,9 +402,26 @@ export class AtariLineRibbons {
             }
         }
 
-        // Alle 2 PAL-Schritte (25 Hz) Momentaufnahme schreiben
-        if ((this.stepCounter & 1) === 0) {
+        // Alle 2 PAL-Schritte (25 Hz) Momentaufnahme schreiben (sofern kein snapNow lief)
+        if ((this.stepCounter & 1) === 0 && !this.snappedThisFrame) {
             this._recordSnapshot();
+        }
+        this.snappedThisFrame = false;
+    }
+
+    _drawCornerPip(ctx, x, y, size, color, w, h) {
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        const ix = Math.round(x);
+        const iy = Math.round(y);
+        const x0 = Math.max(0, ix);
+        const y0 = Math.max(0, iy);
+        const x1 = Math.min(w, ix + size);
+        const y1 = Math.min(h, iy + size);
+        const cw = x1 - x0;
+        const ch = y1 - y0;
+        if (cw > 0 && ch > 0) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x0, y0, cw, ch);
         }
     }
 
@@ -374,13 +458,83 @@ export class AtariLineRibbons {
             }
         }
         if (drawMode === 1 || drawMode === 2) {
-            const starCount = nv === 4 ? 2 : nv;
-            for (let i = 0; i < starCount; i++) {
-                const j = (i + 2) % nv;
+            if (nv === 4) {
+                // Gekreuzte Diagonalen + bei Modus 1 zusaetzliche Endkappen fuer 3D-Twisted-Ribbon
                 this._drawClippedLineSplit(
-                    ctx, xs[i] + dxOff, ys[i] + dyOff, xs[j] + dxOff, ys[j] + dyOff,
+                    ctx, xs[0] + dxOff, ys[0] + dyOff, xs[2] + dxOff, ys[2] + dyOff,
                     bandIdx, lvl, w, h, wipeY, overrideColor
                 );
+                this._drawClippedLineSplit(
+                    ctx, xs[1] + dxOff, ys[1] + dyOff, xs[3] + dxOff, ys[3] + dyOff,
+                    bandIdx, lvl, w, h, wipeY, overrideColor
+                );
+                if (drawMode === 1) {
+                    this._drawClippedLineSplit(
+                        ctx, xs[0] + dxOff, ys[0] + dyOff, xs[1] + dxOff, ys[1] + dyOff,
+                        bandIdx, lvl, w, h, wipeY, overrideColor
+                    );
+                    this._drawClippedLineSplit(
+                        ctx, xs[2] + dxOff, ys[2] + dyOff, xs[3] + dxOff, ys[3] + dyOff,
+                        bandIdx, lvl, w, h, wipeY, overrideColor
+                    );
+                }
+            } else {
+                for (let i = 0; i < nv; i++) {
+                    const j = (i + 2) % nv;
+                    this._drawClippedLineSplit(
+                        ctx, xs[i] + dxOff, ys[i] + dyOff, xs[j] + dxOff, ys[j] + dyOff,
+                        bandIdx, lvl, w, h, wipeY, overrideColor
+                    );
+                }
+            }
+        }
+    }
+
+    _drawHeadWithSymShadow(ctx, xs, ys, nv, drawMode, bandIdx, w, h, wipeY, headDouble, headOverride) {
+        if (!headDouble) {
+            this._drawRibbonEdges(ctx, xs, ys, nv, drawMode, bandIdx, 4, w, h, wipeY, 1, 1, INK);
+            this._drawRibbonEdges(ctx, xs, ys, nv, drawMode, bandIdx, 4, w, h, wipeY, 0, 0, headOverride);
+            return;
+        }
+
+        const drawEdgePair = (i0, i1, pass) => {
+            const x0 = xs[i0], y0 = ys[i0];
+            const x1 = xs[i1], y1 = ys[i1];
+            const flat = Math.abs(x1 - x0) >= Math.abs(y1 - y0);
+            const dx2 = flat ? 0 : 1;
+            const dy2 = flat ? 1 : 0;
+
+            if (pass === 0) {
+                // Ununterbrochener INK-Kontrast unter beiden Kopflinien
+                this._drawClippedLineSplit(ctx, x0 + 1, y0 + 1, x1 + 1, y1 + 1, bandIdx, 4, w, h, wipeY, INK);
+                this._drawClippedLineSplit(
+                    ctx, x0 + dx2 + 1, y0 + dy2 + 1, x1 + dx2 + 1, y1 + dy2 + 1,
+                    bandIdx, 4, w, h, wipeY, INK
+                );
+            } else {
+                this._drawClippedLineSplit(ctx, x0, y0, x1, y1, bandIdx, 4, w, h, wipeY, headOverride);
+                this._drawClippedLineSplit(
+                    ctx, x0 + dx2, y0 + dy2, x1 + dx2, y1 + dy2,
+                    bandIdx, 4, w, h, wipeY, headOverride
+                );
+            }
+        };
+
+        for (let pass = 0; pass < 2; pass++) {
+            if (drawMode === 0 || drawMode === 2) {
+                for (let i = 0; i < nv; i++) drawEdgePair(i, (i + 1) % nv, pass);
+            }
+            if (drawMode === 1 || drawMode === 2) {
+                if (nv === 4) {
+                    drawEdgePair(0, 2, pass);
+                    drawEdgePair(1, 3, pass);
+                    if (drawMode === 1) {
+                        drawEdgePair(0, 1, pass);
+                        drawEdgePair(2, 3, pass);
+                    }
+                } else {
+                    for (let i = 0; i < nv; i++) drawEdgePair(i, (i + 2) % nv, pass);
+                }
             }
         }
     }
@@ -432,6 +586,7 @@ export class AtariLineRibbons {
         this.hardCooldown = Math.max(0, this.hardCooldown - dt);
         this.hardHeadTimer = Math.max(0, this.hardHeadTimer - dt);
         this.wipeAge = Math.min(WIPE_DURATION, this.wipeAge + dt);
+        this.snappedThisFrame = false;
 
         // Tension (asymmetrisch geglaettet; erster Frame snappt fuer warmup:0-Stills)
         const safeMetrics = metrics || {};
@@ -523,7 +678,7 @@ export class AtariLineRibbons {
         }
 
         const minDim = Math.min(w, h);
-        const vBase = lerp(30, 90, this.ten) * (minDim / 200) * (isAfterglow ? 0.35 : 1.0);
+        const vBase = lerp(30, 88, this.ten) * (minDim / 200) * (isAfterglow ? 0.35 : 1.0);
 
         if (onBeat) {
             let bestC = 0;
@@ -534,11 +689,13 @@ export class AtariLineRibbons {
                 this.nudgeVx[bestC] += dir * 0.15 * vBase;
             } else if (level === 2) {
                 this._recordSnapshot(); // snapNow
+                this.snappedThisFrame = true;
                 for (let b = 0; b < NUM_RIBBONS; b++) {
                     this._applyRadialShove(b, 0.25 * vBase);
                 }
             } else if (level === 3) {
                 this._recordSnapshot(); // snapNow
+                this.snappedThisFrame = true;
                 for (let b = 0; b < NUM_RIBBONS; b++) {
                     this._applyRadialShove(b, 0.40 * vBase);
                 }
@@ -555,6 +712,7 @@ export class AtariLineRibbons {
                 for (let i = 0; i < NUM_RIBBONS * MAX_VERTS; i++) {
                     this.vx[i] = -this.vx[i];
                 }
+                this.spinDir = -this.spinDir;
                 if (!isAfterglow) {
                     this.setIdx = (this.setIdx + 1) & 1;
                     this._startWipe(SETS[this.setIdx]);
@@ -570,7 +728,7 @@ export class AtariLineRibbons {
             this.simAcc -= 0.02;
         }
 
-        // Aktive Ghost-Anzahl bestimmen (inkl. Budget-Schutz im Climax bei link=2)
+        // Aktive Ghost-Anzahl bestimmen (inkl. Budget- & Sichtbarkeitsschutz fuer Background/Floor)
         let gh;
         if (isAfterglow) {
             gh = Math.max(1, 5 - Math.floor(this.afterglowAge / 0.15));
@@ -582,29 +740,41 @@ export class AtariLineRibbons {
             gh = this.link === 2 ? 5 : 6;
         }
 
-        const activeGh = Math.floor(gh * vis);
+        const activeGh = vis <= 0 ? 0 : Math.max(1, Math.ceil(gh * vis));
         if (vis <= 0 || activeGh <= 0) {
             // Foreground blendet ohne Schwarz-Vorhang sauber auf 0 aus
             return;
         }
 
-        const availGh = Math.min(activeGh, this.filledSlots);
         const wipeY = this.wipeAge < WIPE_DURATION
             ? Math.floor((this.wipeAge / WIPE_DURATION) * h)
             : h;
         const shrinkFrac = this.shrinkingV4 ? clamp01(this.shrinkAge / 0.50) : 0;
         const headDouble = (!isAfterglow && (state === 'climax' || this.ten >= 0.70 || this.hardHeadTimer > 0))
             || Math.round(impulse) >= 1;
+        const canUseWhite = !isAfterglow && state !== 'starting' && vis > 0.25 && this.hardHeadTimer > 0;
+        const headOverride = canUseWhite ? WHITE : null;
+        const drawPips = w >= 48 && h >= 48;
+        const trailCount = Math.max(1, activeGh - 1);
 
         // =========================================================
-        // ZEICHNEN: Aelteste Ghosts zuerst, Kopf (mit INK-Kontrast) zuletzt
+        // ZEICHNEN: Luftige Stride-2-Trails zuerst, Kopf mit INK + Pips zuletzt
         // =========================================================
         for (let b = 0; b < NUM_RIBBONS; b++) {
             if (vis <= 0.2 * b) continue;
 
-            for (let g = availGh - 1; g >= 0; g--) {
-                const lvl = Math.max(1, 4 - Math.floor((g * 4) / activeGh));
-                const slot = (this.headSlot - g + HISTORY_LEN) % HISTORY_LEN;
+            for (let g = activeGh - 1; g >= 0; g--) {
+                let slotOffset = 0;
+                if (g > 0) {
+                    slotOffset = g * 2;
+                    if (slotOffset >= this.filledSlots) {
+                        // Beim Einblenden sanft vorhandene Slots auffuellen, ohne Sprung
+                        slotOffset = g;
+                        if (slotOffset >= this.filledSlots) continue;
+                    }
+                }
+
+                const slot = (this.headSlot - slotOffset + HISTORY_LEN) % HISTORY_LEN;
                 const slotBase = slot * NUM_RIBBONS * MAX_VERTS * 2;
                 const bandBase = b * MAX_VERTS;
 
@@ -623,43 +793,31 @@ export class AtariLineRibbons {
                     this.drawY[4] = lerp(this.drawY[4], this.drawY[3], shrinkFrac);
                 }
 
-                // Bei link=2 Diagonalen nur auf den juengsten Kopien (Budget-Schutz)
-                const copyLink = (this.link === 2 && g >= 2) ? 0 : this.link;
-
                 if (g === 0) {
-                    // 1. Kontrast-Schatten in INK (+1, +1) unter dem gesamten Kopf
-                    this._drawRibbonEdges(
-                        ctx, this.drawX, this.drawY, this.nv, copyLink, b, lvl, w, h, wipeY, 1, 1, INK
+                    // 1. Kopf mit symmetrischem INK-Kontrast & optionalem 2px-Doppelkopf
+                    this._drawHeadWithSymShadow(
+                        ctx, this.drawX, this.drawY, this.nv, this.link, b, w, h, wipeY, headDouble, headOverride
                     );
 
-                    // 2. Kopf in Stufe 4 zeichnen
-                    this._drawRibbonEdges(
-                        ctx, this.drawX, this.drawY, this.nv, copyLink, b, 4, w, h, wipeY, 0, 0, null
-                    );
-
-                    // 3. Doppelkopf (2 px dick: flach -> y+1, steil -> x+1)
-                    if (headDouble) {
-                        const drawOne = (i0, i1) => {
-                            const x0 = this.drawX[i0];
-                            const y0 = this.drawY[i0];
-                            const x1 = this.drawX[i1];
-                            const y1 = this.drawY[i1];
-                            const flat = Math.abs(x1 - x0) >= Math.abs(y1 - y0);
-                            const dxOff = flat ? 0 : 1;
-                            const dyOff = flat ? 1 : 0;
-                            this._drawClippedLineSplit(
-                                ctx, x0 + dxOff, y0 + dyOff, x1 + dxOff, y1 + dyOff, b, 4, w, h, wipeY, null
-                            );
-                        };
-                        if (copyLink === 0 || copyLink === 2) {
-                            for (let i = 0; i < this.nv; i++) drawOne(i, (i + 1) % this.nv);
-                        }
-                        if (copyLink === 1 || copyLink === 2) {
-                            const starCount = this.nv === 4 ? 2 : this.nv;
-                            for (let i = 0; i < starCount; i++) drawOne(i, (i + 2) % this.nv);
+                    // 2. Crisp Atari-ST Corner-Jewels an den Ecken des Kopfs (sparen 13-Farben-Limit!)
+                    if (drawPips) {
+                        const pipSize = headDouble ? 2 : 1;
+                        const rampSet = wipeY > 0 ? this.wipeTo : this.wipeFrom;
+                        for (let v = 0; v < this.nv; v++) {
+                            const vx = this.drawX[v];
+                            const vy = this.drawY[v];
+                            const pipCol = headOverride !== null
+                                ? headOverride
+                                : ((wipeY > 0 && wipeY < h && vy >= wipeY) ? this.wipeFrom[b][4] : rampSet[b][4]);
+                            this._drawCornerPip(ctx, vx + 1, vy + 1, pipSize, INK, w, h);
+                            this._drawCornerPip(ctx, vx, vy, pipSize, pipCol, w, h);
                         }
                     }
                 } else {
+                    // Trails nutzen streng Stufen 3 -> 2 -> 1 (niemals Stufe 4 -> Kopf bleibt glasklar)
+                    // und bei Kristall/Stern bleiben aeltere Geister auf schlanker Kontur (Background-Schutz!)
+                    const lvl = Math.max(1, Math.min(3, 4 - Math.ceil((g * 3) / trailCount)));
+                    const copyLink = this.link === 2 ? 0 : (this.link === 1 && g >= 2 ? 0 : this.link);
                     this._drawRibbonEdges(
                         ctx, this.drawX, this.drawY, this.nv, copyLink, b, lvl, w, h, wipeY, 0, 0, null
                     );

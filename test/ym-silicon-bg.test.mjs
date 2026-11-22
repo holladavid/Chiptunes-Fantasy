@@ -1,244 +1,383 @@
 // === test/ym-silicon-bg.test.mjs ===
 import test from 'node:test';
 import assert from 'node:assert/strict';
+
 import { YmSiliconBg } from '../js/visuals/dse/atari/ym-silicon-bg.js';
+import { dseRegistry } from '../js/visuals/dse/registry.js';
 
-function createStrictFakeCanvas(width, height) {
-    const rects = [];
-    let currentStyle = '#000000';
-
-    const ctx = {
-        get fillStyle() {
-            return currentStyle;
-        },
-        set fillStyle(val) {
-            currentStyle = String(val);
-        },
-        fillRect(x, y, w, h) {
-            assert.ok(Number.isFinite(x) && Number.isFinite(y), `Ungültige Koordinate (${x}, ${y})`);
-            assert.ok(Number.isFinite(w) && w >= 0 && Number.isFinite(h) && h >= 0, `Ungültige Größe (${w}x${h})`);
-            assert.equal(x, Math.floor(x));
-            assert.equal(y, Math.floor(y));
-            assert.equal(w, Math.floor(w));
-            assert.equal(h, Math.floor(h));
-            assert.ok(x >= 0 && x + w <= width, `X außerhalb: ${x}+${w} > ${width}`);
-            assert.ok(y >= 0 && y + h <= height, `Y außerhalb: ${y}+${h} > ${height}`);
-            rects.push({ x, y, w, h, fillStyle: currentStyle });
-        }
-    };
-
-    return { ctx, rects };
-}
-
-function assertAtari9BitHex(hex) {
-    assert.match(hex, /^#[0-9a-fA-F]{6}$/, `Erwartet #RRGGBB, erhalten: ${hex}`);
+function isValidAtari9BitHex(hex) {
+    if (typeof hex !== 'string' || !/^#[0-9a-f]{6}$/i.test(hex)) return false;
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
-    assert.equal(r % 36, 0, `Rot nicht 9-Bit Atari quantisiert: ${r} (${hex})`);
-    assert.equal(g % 36, 0, `Grün nicht 9-Bit Atari quantisiert: ${g} (${hex})`);
-    assert.equal(b % 36, 0, `Blau nicht 9-Bit Atari quantisiert: ${b} (${hex})`);
+    return [r, g, b].every(v => v >= 0 && v <= 252 && v % 36 === 0);
 }
 
-function makeTestMetrics(overrides = {}) {
+function createStrictContext(width, height) {
+    const ops = [];
+    const scanlineColors = Array.from({ length: height }, () => new Set());
+    const deny = name => () => {
+        throw new Error(`Forbidden Canvas API called: ${name}`);
+    };
+
+    const ctx = {
+        fillStyle: '#000000',
+        ops,
+        scanlineColors,
+        fillText: deny('fillText'),
+        measureText: deny('measureText'),
+        save: deny('save'),
+        clip: deny('clip'),
+        getImageData: deny('getImageData'),
+        putImageData: deny('putImageData'),
+        fillRect(x, y, rw, rh) {
+            assert.ok([x, y, rw, rh].every(Number.isFinite), 'coords/sizes must be finite');
+            assert.ok([x, y, rw, rh].every(Number.isInteger), 'coords/sizes must be integers');
+            assert.ok(rw > 0 && rh > 0, `rect size must be positive: ${rw}x${rh}`);
+            assert.ok(
+                x >= 0 && y >= 0 && x + rw <= width && y + rh <= height,
+                `rect (${x},${y},${rw},${rh}) out of bounds ${width}x${height}`
+            );
+            assert.ok(
+                isValidAtari9BitHex(this.fillStyle),
+                `color ${this.fillStyle} is not valid 9-bit Atari ST RGB`
+            );
+            assert.notEqual(this.fillStyle.toLowerCase(), '#ffffff', '9-bit ST white max is #fcfcfc');
+            for (let py = y; py < y + rh; py++) {
+                scanlineColors[py].add(this.fillStyle);
+            }
+            ops.push({ x, y, w: rw, h: rh, color: this.fillStyle });
+        }
+    };
+
+    Object.defineProperty(ctx, 'globalAlpha', {
+        get() { return 1; },
+        set() { throw new Error('Forbidden globalAlpha assignment'); }
+    });
+
+    return ctx;
+}
+
+function makeMetrics(overrides = {}) {
     return {
-        system: 'atari',
         energy: 0.45,
-        pulse: 0.1,
-        tensionPct: 0.4,
-        beat: [0.0],
-        beatImpulse: [0.0],
+        pulse: 0,
+        beat: [0],
+        beatImpulse: [0],
         beatStarted: false,
         beatCount: 0,
-        beatStrength: 0.0,
+        beatStrength: 0,
         beatLevel: 0,
-        smooth: [0.55, 0.45, 0.65],
-        isClimaxLocked: false,
+        smooth: [0.55, 0.35, 0.25],
+        tensionPct: 0.35,
+        system: 'atari',
         ...overrides
     };
 }
 
-test('Smoke, DOM-Freiheit & 9-Bit Palette: idle, fehlende Metriken & kein Weiß-Wipe im Climax', () => {
-    const dse = new YmSiliconBg();
+test('1. YmSiliconBg is registered exclusively as an Atari background with exact metadata', () => {
+    const entry = dseRegistry.find(e => e.Class === YmSiliconBg);
+    assert.ok(entry, 'YmSiliconBg must be registered in dseRegistry');
+    assert.deepEqual(entry.metadata.systems, ['atari']);
+    assert.equal(entry.metadata.layer, 'background');
+    assert.equal(entry.metadata.lifecycle, 'managed');
+    assert.equal(entry.metadata.weight, 12);
+    assert.equal(entry.metadata.duration, 12.0);
+    assert.equal(entry.metadata.climaxHold, 10.0);
+    assert.equal(entry.metadata.isDisabled, false);
+});
 
-    const idleCanvas = createStrictFakeCanvas(320, 200);
-    dse.render(idleCanvas.ctx, 320, 200, 0.0, 'idle', 0, undefined);
-    assert.equal(idleCanvas.rects.length, 0);
-
-    dse.render(idleCanvas.ctx, 0, 200, 0.02, 'playing', 0, undefined);
-    dse.render(idleCanvas.ctx, 320, 0, 0.04, 'playing', 0, undefined);
-    dse.render(idleCanvas.ctx, NaN, 200, 0.06, 'playing', 0, undefined);
-
+test('2. Strict 9-bit palette & <= 16 colors/scanline across all macro states and Sync-Buzzer tears', () => {
+    const w = 355, h = 200;
     const states = ['starting', 'playing', 'buildup', 'climax', 'afterglow', 'stopping'];
-    let t = 0.1;
+
     for (const st of states) {
-        const c = createStrictFakeCanvas(320, 200);
-        dse.render(c.ctx, 320, 200, t, st, 0.25, undefined);
-        assert.ok(c.rects.length > 0, `Zustand ${st} muss zeichnen`);
-        for (const r of c.rects) {
-            assertAtari9BitHex(r.fillStyle);
-        }
-        t += 0.02;
-    }
-
-    const climaxBeat = createStrictFakeCanvas(320, 200);
-    dse.render(climaxBeat.ctx, 320, 200, 1.0, 'climax', 1.0, makeTestMetrics({
-        beatStarted: true,
-        beatCount: 4,
-        beat: [1.0],
-        beatImpulse: [0.95],
-        beatLevel: 3
-    }));
-    const fullWhite = climaxBeat.rects.find((r) => r.w === 320 && r.h === 200 && r.fillStyle.toLowerCase() === '#fcfcfc');
-    assert.equal(fullWhite, undefined, 'Climax darf keinen blinden Vollbild-Weiß-Wipe zeichnen');
-});
-
-test('Determinismus: identische Sequenzen liefern über 120 Frames identische Ausgabe', () => {
-    const dseA = new YmSiliconBg();
-    const dseB = new YmSiliconBg();
-
-    const seq = [];
-    for (let i = 0; i < 120; i++) {
-        const beatStarted = i % 12 === 0;
-        const beatEnv = Math.max(0, 1 - (i % 12) / 9);
-        seq.push({
-            t: i * 0.02,
-            state: i < 20 ? 'starting' : (i < 55 ? 'playing' : (i < 90 ? 'climax' : 'afterglow')),
-            metrics: makeTestMetrics({
-                energy: 0.35 + (i % 12) * 0.04,
-                tensionPct: Math.min(1, i / 85),
-                beat: [beatEnv],
-                beatImpulse: [beatEnv * 0.8],
-                beatStarted,
-                beatCount: Math.floor(i / 12) + 1,
-                beatStrength: 0.8,
-                beatLevel: 3
-            })
-        });
-    }
-
-    const outA = [];
-    const outB = [];
-    for (const s of seq) {
-        const cA = createStrictFakeCanvas(320, 200);
-        const cB = createStrictFakeCanvas(320, 200);
-        dseA.render(cA.ctx, 320, 200, s.t, s.state, s.t, s.metrics);
-        dseB.render(cB.ctx, 320, 200, s.t, s.state, s.t, s.metrics);
-        outA.push(cA.rects);
-        outB.push(cB.rects);
-    }
-
-    assert.deepEqual(outA, outB);
-});
-
-test('Exakte Beats vs. Hüllkurve: kein Retrigger ohne beatStarted', () => {
-    const dse = new YmSiliconBg();
-    const c = createStrictFakeCanvas(320, 200);
-
-    dse.render(c.ctx, 320, 200, 0.02, 'climax', 0.02, makeTestMetrics({
-        beatStarted: true,
-        beatCount: 4,
-        beat: [1.0],
-        beatImpulse: [0.9],
-        beatStrength: 0.9,
-        beatLevel: 3
-    }));
-    const theme4 = dse.themePhase;
-    assert.equal(theme4, 1);
-
-    for (let i = 1; i <= 25; i++) {
-        const frame = createStrictFakeCanvas(320, 200);
-        dse.render(frame.ctx, 320, 200, 0.02 + i * 0.02, 'climax', 0.02 + i * 0.02, makeTestMetrics({
-            beatStarted: false,
+        const dse = new YmSiliconBg();
+        const ctx = createStrictContext(w, h);
+        const stateT = st === 'starting' ? 0.75 : (st === 'stopping' ? 0.5 : 2.0);
+        dse.render(ctx, w, h, 2.0, st, stateT, makeMetrics({
+            tensionPct: st === 'climax' ? 0.98 : 0.6,
+            smooth: [0.9, 0.75, 0.65],
+            beatStarted: true,
             beatCount: 4,
-            beat: [0.85],
-            beatImpulse: [0.76],
+            beatStrength: 0.9,
+            beatLevel: 3,
+            beatImpulse: [0.9]
+        }));
+        assert.ok(ctx.ops.length > 0, `${st} must produce output`);
+        for (let y = 0; y < h; y++) {
+            assert.ok(
+                ctx.scanlineColors[y].size <= 16,
+                `${st} scanline ${y} exceeded 16 colors (${ctx.scanlineColors[y].size})`
+            );
+        }
+    }
+});
+
+test('3. Smoke, idle, missing metrics, invalid/tiny viewports & live silent rendering', () => {
+    const dse = new YmSiliconBg();
+
+    for (const [w, h] of [[0, 200], [320, 0], [-10, 200], [NaN, 200], [Infinity, 200]]) {
+        const ctx = createStrictContext(320, 200);
+        dse.render(ctx, w, h, 1.0, 'playing', 1.0, makeMetrics());
+        assert.equal(ctx.ops.length, 0);
+    }
+
+    const idleCtx = createStrictContext(320, 200);
+    dse.render(idleCtx, 320, 200, 1.0, 'idle', 0, makeMetrics());
+    assert.equal(idleCtx.ops.length, 0);
+
+    for (const [w, h] of [[1, 1], [3, 1], [1, 3], [7, 7], [18, 18]]) {
+        const ctx = createStrictContext(w, h);
+        dse.render(ctx, w, h, 1.0, 'playing', 1.0, undefined);
+        assert.ok(ctx.ops.length > 0);
+    }
+
+    // Without audio beats, animation remains alive over time
+    const silent = new YmSiliconBg();
+    const c1 = createStrictContext(320, 200);
+    const c2 = createStrictContext(320, 200);
+    silent.render(c1, 320, 200, 1.0, 'playing', 1.0, {});
+    silent.render(c2, 320, 200, 1.4, 'playing', 1.4, {});
+    assert.notDeepEqual(c1.ops, c2.ops, 'silent scene must animate over time');
+});
+
+test('4. Determinism over 300 frames (identical ops stream)', () => {
+    const a = new YmSiliconBg();
+    const b = new YmSiliconBg();
+    const w = 355, h = 200;
+
+    for (let f = 0; f < 300; f++) {
+        const ctxA = createStrictContext(w, h);
+        const ctxB = createStrictContext(w, h);
+        const t = 1 + f * 0.02;
+        const state = f < 40 ? 'starting' : f < 140 ? 'playing' : f < 210 ? 'buildup' : f < 260 ? 'climax' : 'afterglow';
+        const onBeat = f % 12 === 0;
+        const m = makeMetrics({
+            beatStarted: onBeat,
+            beatCount: Math.floor(f / 12),
+            beatStrength: onBeat ? 0.6 : 0,
+            beatLevel: onBeat ? 2 : 0,
+            beatImpulse: [Math.max(0, 0.6 - (f % 12) * 0.08)],
+            tensionPct: state === 'climax' ? 0.95 : state === 'buildup' ? 0.65 : 0.30,
+            smooth: [0.4 + 0.4 * Math.sin(f * 0.08), 0.5, 0.3]
+        });
+        a.render(ctxA, w, h, t, state, f * 0.02, m);
+        b.render(ctxB, w, h, t, state, f * 0.02, m);
+        assert.deepEqual(ctxA.ops, ctxB.ops, `frame ${f} differed`);
+    }
+});
+
+test('5. Horizon contract protection: oscillator cores remain cleanly above 0.55*h in landscape & portrait', () => {
+    for (const [w, h] of [[320, 200], [474, 200], [112, 200]]) {
+        const dse = new YmSiliconBg();
+        const horizon = Math.floor(h * 0.55);
+        const ctx = createStrictContext(w, h);
+        dse.render(ctx, w, h, 1.0, 'playing', 1.0, makeMetrics({
+            smooth: [0.85, 0.70, 0.60],
+            beatImpulse: [0.75]
+        }));
+
+        // Bright green/white oscillator waveform pixels must live exclusively inside the upper chip (y < horizon)
+        const waveformOps = ctx.ops.filter(op => op.color === '#00fc00' && op.y < horizon);
+        assert.ok(waveformOps.length > 5, `${w}x${h} must draw oscillator cores above horizon ${horizon}`);
+        const lowerScopeBoxes = ctx.ops.filter(op => op.color === '#000000' && op.y >= horizon);
+        assert.equal(lowerScopeBoxes.length, 0, `${w}x${h} oscillator scopes must not leak below floor horizon`);
+    }
+});
+
+test('6. Discrete events trigger only on beatStarted (incl. beatCount=0, never on envelope)', () => {
+    const dse = new YmSiliconBg();
+    const w = 320, h = 200;
+
+    // First beat with beatCount=0 must be accepted!
+    dse.render(createStrictContext(w, h), w, h, 1.0, 'playing', 1.0, makeMetrics({
+        beatStarted: true, beatCount: 0, beatStrength: 0.5, beatLevel: 2
+    }));
+    assert.equal(dse.lastBeatCount, 0);
+    assert.ok(dse.dacWaveAge < 0.01);
+
+    // Beats 1..3 -> themePhase stays 0
+    for (let c = 1; c <= 3; c++) {
+        dse.render(createStrictContext(w, h), w, h, 1.0 + c * 0.2, 'playing', 1.0, makeMetrics({
+            beatStarted: true, beatCount: c, beatStrength: 0.5, beatLevel: 2
+        }));
+    }
+    assert.equal(dse.themePhase, 0);
+
+    // Decaying envelope without beatStarted must never advance themePhase or retrigger dacWave
+    for (let i = 1; i <= 5; i++) {
+        dse.render(createStrictContext(w, h), w, h, 1.7 + i * 0.02, 'playing', 1.0, makeMetrics({
+            beat: [0.9],
+            beatImpulse: [0.85],
+            beatStarted: false,
+            beatCount: 3,
             beatStrength: 0.9,
             beatLevel: 3
         }));
-        assert.equal(dse.themePhase, theme4);
     }
-});
+    assert.equal(dse.themePhase, 0, 'envelope must not advance themePhase');
+    assert.ok(dse.dacWaveAge >= 0.08, 'envelope must not retrigger dacWaveAge');
 
-test('Graduelle Beat-Stärken (0.20 / 0.50 / 0.90) unterscheiden sich sichtbar', () => {
-    const strengths = [0.20, 0.50, 0.90];
-    const snapshots = strengths.map((s) => {
-        const dse = new YmSiliconBg();
-        const c = createStrictFakeCanvas(320, 200);
-        dse.render(c.ctx, 320, 200, 0.02, 'playing', 0.02, makeTestMetrics({
-            beatStarted: true,
-            beatCount: 1,
-            beat: [1.0],
-            beatImpulse: [s],
-            beatStrength: s,
-            beatLevel: s < 0.33 ? 1 : (s < 0.66 ? 2 : 3)
+    // Beat 4 advances themePhase
+    dse.render(createStrictContext(w, h), w, h, 2.0, 'playing', 1.0, makeMetrics({
+        beatStarted: true, beatCount: 4, beatStrength: 0.5, beatLevel: 2
+    }));
+    assert.equal(dse.themePhase, 1);
+
+    // Beat 8 flips busDir
+    for (let c = 5; c <= 8; c++) {
+        dse.render(createStrictContext(w, h), w, h, 2.0 + c * 0.2, 'playing', 1.0, makeMetrics({
+            beatStarted: true, beatCount: c, beatStrength: 0.5, beatLevel: 2
         }));
-        return c.rects;
-    });
-
-    assert.notDeepEqual(snapshots[0], snapshots[1]);
-    assert.notDeepEqual(snapshots[1], snapshots[2]);
+    }
+    assert.equal(dse.busDir, -1);
 });
 
-test('Zustände & Afterglow: sanftes Abkühlen ohne Phase-Reset', () => {
-    const dse = new YmSiliconBg();
-    let t = 0.02;
+test('7. Graded beat intensities (soft 0.20, medium 0.50, hard 0.90) produce distinct visuals', () => {
+    const w = 320, h = 200;
 
-    for (let i = 0; i < 30; i++) {
-        const c = createStrictFakeCanvas(320, 200);
-        dse.render(c.ctx, 320, 200, t, 'climax', t, makeTestMetrics({ tensionPct: 0.95, energy: 0.9, beatImpulse: [0.7] }));
-        t += 0.02;
-    }
-    const climaxSnap = createStrictFakeCanvas(320, 200);
-    dse.render(climaxSnap.ctx, 320, 200, t, 'climax', t, makeTestMetrics({ tensionPct: 0.95, energy: 0.9, beatImpulse: [0.7] }));
+    const runLevel = (strength, level) => {
+        const dse = new YmSiliconBg();
+        const ctx = createStrictContext(w, h);
+        dse.render(ctx, w, h, 1.0, 'climax', 2.0, makeMetrics({
+            tensionPct: 0.95,
+            smooth: [0.6, 0.5, 0.4],
+            beatStarted: strength > 0,
+            beatCount: strength > 0 ? 1 : 0,
+            beatStrength: strength,
+            beatLevel: level,
+            beatImpulse: [strength]
+        }));
+        return {
+            ops: ctx.ops,
+            whiteCount: ctx.ops.filter(o => o.color === '#fcfcfc').length,
+            tearActive: dse.tearBurstAge === 0,
+            dacPeak: dse.dacWavePeak
+        };
+    };
 
-    const timeBefore = dse.internalT;
-    for (let i = 0; i < 50; i++) {
-        t += 0.02;
-        const c = createStrictFakeCanvas(320, 200);
-        dse.render(c.ctx, 320, 200, t, 'afterglow', t, makeTestMetrics({ tensionPct: 0.15, energy: 0.2 }));
-    }
-    const afterglowSnap = createStrictFakeCanvas(320, 200);
-    dse.render(afterglowSnap.ctx, 320, 200, t + 0.02, 'afterglow', t + 0.02, makeTestMetrics({ tensionPct: 0.15, energy: 0.2 }));
+    const soft = runLevel(0.20, 1);
+    const medium = runLevel(0.50, 2);
+    const hard = runLevel(0.90, 3);
 
-    assert.notDeepEqual(climaxSnap.rects, afterglowSnap.rects);
-    assert.ok(dse.afterglowMix > 0.7);
-    assert.ok(dse.internalT > timeBefore);
+    assert.equal(soft.tearActive, false);
+    assert.equal(medium.tearActive, true);
+    assert.equal(hard.tearActive, true);
+    assert.ok(soft.dacPeak < medium.dacPeak && medium.dacPeak < hard.dacPeak);
+    assert.ok(hard.whiteCount > soft.whiteCount, 'hard beat must emit prominent #fcfcfc register flashes');
+    assert.notDeepEqual(soft.ops, medium.ops);
+    assert.notDeepEqual(medium.ops, hard.ops);
 });
 
-test('Responsive Viewports & Rotation (Landscape <-> Portrait, 1:3, 3:1, Mini)', () => {
+test('8. Optional metrics.regs modulates waveforms safely and degrades cleanly on malformed regs', () => {
+    const w = 320, h = 200;
+    const base = new YmSiliconBg();
+    const withRegs = new YmSiliconBg();
+
+    const baseCtx = createStrictContext(w, h);
+    const regCtx = createStrictContext(w, h);
+
+    base.render(baseCtx, w, h, 1.0, 'playing', 1.0, makeMetrics({ smooth: [0.6, 0.5, 0.4] }));
+    withRegs.render(regCtx, w, h, 1.0, 'playing', 1.0, makeMetrics({
+        smooth: [0.6, 0.5, 0.4],
+        regs: { periods: [180, 90, 45], envShape: 10, noisePeriod: 5 }
+    }));
+    assert.notDeepEqual(baseCtx.ops, regCtx.ops, 'valid YM regs should tune waveform frequencies');
+
+    // Corrupt/partial regs must not throw or emit NaNs
+    const dirtyCtx = createStrictContext(w, h);
+    withRegs.render(dirtyCtx, w, h, 1.04, 'playing', 1.04, makeMetrics({
+        regs: { r: [NaN, undefined, -5], periods: null, envShape: Infinity }
+    }));
+    assert.ok(dirtyCtx.ops.length > 0);
+});
+
+test('9. Macro states (starting 1.5s, playing, buildup, climax, afterglow, stopping 1.5s)', () => {
     const dse = new YmSiliconBg();
+    const w = 355, h = 200;
+
+    // starting(0.0) -> fully black curtain
+    const s0 = createStrictContext(w, h);
+    dse.render(s0, w, h, 0.0, 'starting', 0.0, makeMetrics());
+    assert.equal(s0.ops.length, 1);
+    assert.equal(s0.ops[0].color, '#000000');
+
+    const playingCtx = createStrictContext(w, h);
+    dse.render(playingCtx, w, h, 2.0, 'playing', 1.5, makeMetrics({ tensionPct: 0.30 }));
+
+    const buildCtx = createStrictContext(w, h);
+    dse.render(buildCtx, w, h, 2.5, 'buildup', 2.0, makeMetrics({ tensionPct: 0.68, smooth: [0.8, 0.7, 0.6] }));
+
+    const climaxCtx = createStrictContext(w, h);
+    dse.render(climaxCtx, w, h, 3.0, 'climax', 2.5, makeMetrics({
+        tensionPct: 0.96, smooth: [0.9, 0.85, 0.8],
+        beatStarted: true, beatCount: 4, beatStrength: 0.9, beatLevel: 3, beatImpulse: [0.9]
+    }));
+
+    // Afterglow settles to cool slate/silver palette without bright neon green/magenta
+    let agCtx;
+    for (let i = 0; i < 40; i++) {
+        agCtx = createStrictContext(w, h);
+        dse.render(agCtx, w, h, 3.1 + i * 0.05, 'afterglow', i * 0.05, makeMetrics({ tensionPct: 0.20 }));
+    }
+    const agColors = new Set(agCtx.ops.map(o => o.color));
+    assert.equal(agColors.has('#00fc00'), false, 'afterglow must cool down out of neon green');
+    assert.equal(agColors.has('#fc00fc'), false, 'afterglow must cool down out of bright magenta');
+
+    assert.notDeepEqual(playingCtx.ops, buildCtx.ops);
+    assert.notDeepEqual(buildCtx.ops, climaxCtx.ops);
+
+    // stopping(1.5) -> clean full black end state
+    const stopEnd = createStrictContext(w, h);
+    dse.render(stopEnd, w, h, 6.0, 'stopping', 1.5, makeMetrics());
+    assert.equal(stopEnd.ops.length, 1);
+    assert.equal(stopEnd.ops[0].color, '#000000');
+});
+
+test('10. Rotation continuity, extreme viewports & <= 4000 fillRect budget', () => {
     const viewports = [
-        [32, 32],   // Tiny Buffer
-        [112, 200], // 320x568 Small Portrait
-        [92, 200],  // 390x844 Mobile Portrait
-        [67, 200],  // ~1:3 Extreme Portrait
-        [432, 200], // 844x390 Mobile Landscape
-        [320, 200], // 4:3 Atari Standard
-        [474, 200], // 2560x1080 Ultrawide
-        [600, 200], // 3:1 Extreme Landscape
-        [92, 200]   // Rück-Rotation auf derselben Instanz
+        [66, 200],
+        [92, 200],
+        [112, 200],
+        [320, 200],
+        [355, 200],
+        [474, 200],
+        [600, 200]
     ];
 
-    let t = 0.2;
     for (const [w, h] of viewports) {
-        dse.resize(w, h);
-        const c = createStrictFakeCanvas(w, h);
-        dse.render(c.ctx, w, h, t, 'climax', t, makeTestMetrics({
-            tensionPct: 0.85,
-            beatImpulse: [0.65],
+        const dse = new YmSiliconBg();
+        const ctx = createStrictContext(w, h);
+        dse.render(ctx, w, h, 1.0, 'climax', 2.0, makeMetrics({
+            tensionPct: 0.96,
+            smooth: [0.9, 0.85, 0.8],
             beatStarted: true,
-            beatCount: 2,
-            beatLevel: 2,
-            smooth: [0.8, 0.7, 0.85]
+            beatCount: 4,
+            beatStrength: 0.9,
+            beatLevel: 3,
+            beatImpulse: [0.9]
         }));
-
-        assert.ok(c.rects.length > 0, `Viewport ${w}x${h} muss Ausgabe erzeugen`);
-        for (const r of c.rects) {
-            assertAtari9BitHex(r.fillStyle);
-        }
-        t += 0.02;
+        assert.ok(ctx.ops.length > 0, `expected output for ${w}x${h}`);
+        assert.ok(ctx.ops.length <= 4000, `${w}x${h} drew ${ctx.ops.length} fillRects (> 4000 budget)`);
     }
 
-    assert.ok(dse.internalT > 0);
+    // Same-instance portrait -> landscape -> portrait preserves internal phases & beat state
+    const rot = new YmSiliconBg();
+    rot.render(createStrictContext(112, 200), 112, 200, 1.0, 'playing', 1.0, makeMetrics({
+        beatStarted: true, beatCount: 4, beatStrength: 0.5, beatLevel: 2
+    }));
+    const savedTheme = rot.themePhase;
+    const savedT = rot.internalT;
+
+    const landCtx = createStrictContext(474, 200);
+    rot.render(landCtx, 474, 200, 1.04, 'playing', 1.04, makeMetrics());
+    assert.equal(rot.themePhase, savedTheme);
+    assert.ok(rot.internalT > savedT);
+    assert.ok(landCtx.ops.length > 0);
+
+    const portCtx = createStrictContext(112, 200);
+    rot.render(portCtx, 112, 200, 1.08, 'playing', 1.08, makeMetrics());
+    assert.equal(rot.themePhase, savedTheme);
+    assert.ok(portCtx.ops.length > 0);
 });

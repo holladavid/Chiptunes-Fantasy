@@ -1,11 +1,13 @@
 // === js/visuals/dse/universal/track-presenter.js ===
 // =========================================================
 // DEMO-SCENE-ELEMENT: TRACK PRESENTER (PLATFORM-SPECIFIC)
-// v3.0.0 - Aliased bitmap typography, exact beat events and
+// v3.2.0 - Aliased bitmap typography, exact beat events and
 // hardware-specific layout, palette and macro-state choreography.
+// Text stays rock-steady & centered (scrolls only when wider than box)
+// while raster/copper frames react to beats and YM/SID/Paula channels.
 // =========================================================
 
-import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit, drawAliasedLine } from '../../utils/hardware-constraints.js';
+import { C64_PALETTE, rgbToHex, quantizeAmiga12Bit, quantizeAtari9Bit } from '../../utils/hardware-constraints.js';
 import {
     normalizeText,
     measurePixelText,
@@ -15,8 +17,7 @@ import {
 
 const TWO_PI = Math.PI * 2;
 
-function drawTitle(ctx, title, left, center, right, y, maxWidth, scale, color,
-    layout, time, scrollSpeed, nudgeX = 0) {
+function drawTitle(ctx, title, left, center, maxWidth, y, scale, color, time, scrollSpeed) {
     const textWidth = measurePixelText(title, scale);
     if (textWidth > maxWidth) {
         ctx.save();
@@ -25,14 +26,13 @@ function drawTitle(ctx, title, left, center, right, y, maxWidth, scale, color,
         ctx.clip();
         const span = textWidth + maxWidth + 30 * scale;
         const scrollX = (time * scrollSpeed) % span;
+        const right = left + maxWidth;
         drawPixelText(ctx, title, right - scrollX, y, scale, color, 'left');
         ctx.restore();
         return;
     }
 
-    const align = layout === 1 ? 'left' : layout === 2 ? 'right' : 'center';
-    const anchor = layout === 1 ? left : layout === 2 ? right : center;
-    drawPixelText(ctx, title, anchor + nudgeX, y, scale, color, align);
+    drawPixelText(ctx, title, center, y, scale, color, 'center');
 }
 
 export class TrackPresenter {
@@ -68,17 +68,49 @@ export class TrackPresenter {
         ];
         this.amigaAfterglow = amiga([[0, 0, 17], [0, 0, 34], [0, 0, 68], [0, 34, 85], [0, 68, 136], [0, 136, 204]]);
 
-        const atari = (border, accent) => ({
-            border: rgbToHex(...quantizeAtari9Bit(...border)),
-            accent: rgbToHex(...quantizeAtari9Bit(...accent))
+        const st = (r, g, b) => rgbToHex(...quantizeAtari9Bit(r, g, b));
+        const stTheme = (bgA, bgB, bgPulse, raster, accent, accentAlt, subText) => ({
+            bgA: st(...bgA),
+            bgB: st(...bgB),
+            bgPulse: st(...bgPulse),
+            raster: raster.map(c => st(...c)),
+            border: st(...raster[2]),
+            accent: st(...accent),
+            accentAlt: st(...accentAlt),
+            subText: st(...subText),
+            shadow: st(0, 0, 0)
         });
         this.atariThemes = [
-            atari([0, 170, 0], [255, 136, 0]),
-            atari([0, 170, 170], [0, 255, 255]),
-            atari([170, 170, 0], [255, 255, 0]),
-            atari([170, 85, 0], [255, 170, 85])
+            // 0: Goldrunner Emerald & Amber Gold
+            stTheme(
+                [0, 36, 0], [0, 0, 0], [0, 72, 36],
+                [[0, 72, 0], [0, 144, 0], [108, 216, 0], [252, 252, 0], [252, 252, 252]],
+                [252, 252, 0], [252, 180, 36], [252, 252, 252]
+            ),
+            // 1: ST Shifter Cobalt & Electric Cyan
+            stTheme(
+                [0, 0, 36], [0, 0, 0], [0, 36, 108],
+                [[0, 36, 108], [0, 108, 180], [0, 180, 216], [108, 252, 252], [252, 252, 252]],
+                [108, 252, 252], [252, 252, 0], [252, 252, 252]
+            ),
+            // 2: Union Crimson & Solar Copper
+            stTheme(
+                [36, 0, 0], [0, 0, 0], [108, 36, 0],
+                [[72, 0, 0], [144, 36, 0], [216, 108, 0], [252, 216, 72], [252, 252, 252]],
+                [252, 216, 72], [252, 108, 36], [252, 252, 252]
+            ),
+            // 3: Carebears Royal Amethyst & Chrome
+            stTheme(
+                [36, 0, 36], [0, 0, 0], [72, 0, 108],
+                [[72, 0, 108], [144, 36, 180], [216, 108, 216], [252, 180, 252], [252, 252, 252]],
+                [252, 180, 252], [108, 252, 252], [252, 252, 252]
+            )
         ];
-        this.atariAfterglow = atari([0, 72, 144], [108, 180, 216]);
+        this.atariAfterglow = stTheme(
+            [0, 0, 36], [0, 0, 0], [0, 36, 72],
+            [[0, 36, 72], [0, 72, 108], [36, 108, 144], [108, 180, 216], [180, 216, 252]],
+            [144, 216, 252], [72, 144, 180], [108, 180, 216]
+        );
     }
 
     setTrackInfo(info) {
@@ -86,9 +118,12 @@ export class TrackPresenter {
         this.lastState = 'idle';
         this.stateAge = 0;
         this.lastT = 0;
+        this.internalT = 0;
         this.layout = 0;
         this.palettePhase = 0;
         this.lastBeatCount = 0;
+        this.beatDirection = 1;
+        this._markedForRemoval = false;
     }
 
     resize(width, height) {}
@@ -165,6 +200,7 @@ export class TrackPresenter {
         const isPortrait = width < height;
         const isUltraNarrow = width < 160;
         const titleScale = isUltraNarrow ? 1 : 2;
+        const isTransitioning = state === 'starting' || state === 'stopping';
 
         const titleText = normalizeText(this.trackInfo.name, 'UNKNOWN');
         const authorText = normalizeText(`BY ${this.trackInfo.author || 'UNKNOWN'}`, 'BY UNKNOWN');
@@ -173,9 +209,6 @@ export class TrackPresenter {
         const panelNudge = state === 'afterglow'
             ? 0
             : Math.ceil(beatImpulse * panelScale);
-        const titleNudge = state === 'climax'
-            ? Math.ceil(beatImpulse * 2) * this.beatDirection
-            : 0;
 
         if (metrics.system === 'c64') {
             const barH = 55;
@@ -207,19 +240,20 @@ export class TrackPresenter {
             }
 
             const left = marginX + 8;
-            const right = marginX + boxW - 8;
             const maxTextW = boxW - 16;
+            const textAnchorY = isTransitioning ? currentY : targetY;
             const titleColor = rgbToHex(...C64_PALETTE[0]);
-            drawTitle(ctx, titleText, left, cx, right, currentY + 18, maxTextW,
-                titleScale, titleColor, this.layout, t, scrollSpeed, titleNudge);
+            drawTitle(ctx, titleText, left, cx, maxTextW, textAnchorY + 23,
+                titleScale, titleColor, t, scrollSpeed);
 
             const currentSubsong = this.trackInfo.currentSubsong || this.trackInfo.startSong || 1;
             const subtracks = this.trackInfo.songs ? ` • SUB ${currentSubsong}/${this.trackInfo.songs}` : '';
             const subtitle = truncatePixelText(authorText + subtracks, maxTextW, 1);
-            drawPixelText(ctx, subtitle, cx, currentY + 38, 1,
-                rgbToHex(...C64_PALETTE[state === 'afterglow' ? 14 : 6]));
+            drawPixelText(ctx, subtitle, cx, textAnchorY + 41, 1,
+                rgbToHex(...C64_PALETTE[state === 'afterglow' ? 14 : 6]), 'center');
         } else if (metrics.system === 'amiga') {
-            const paneH = 44 + (this.layout === 2 ? 4 : 0);
+            const basePaneH = 44;
+            const paneH = basePaneH + (this.layout === 2 ? 4 : 0);
             const targetY = Math.floor(horizon * 0.38);
             const copLineH = 4;
             const curtainH = 24;
@@ -250,67 +284,222 @@ export class TrackPresenter {
             ctx.fillRect(0, Math.floor(topY), width, Math.max(1, Math.floor(botY - topY)));
 
             const left = 10;
-            const right = width - 10;
             const maxTextW = width - 20;
-            const textY1 = Math.floor(topY + (botY - topY) * 0.32);
-            const textY2 = Math.floor(topY + (botY - topY) * 0.68);
-            drawTitle(ctx, titleText, left, cx, right, textY1, maxTextW,
-                titleScale, copColors[4], this.layout, t, scrollSpeed + 5, titleNudge);
+            const textY1 = isTransitioning
+                ? Math.floor(topY + (botY - topY) * 0.32)
+                : Math.floor(targetY + basePaneH * 0.34);
+            const textY2 = isTransitioning
+                ? Math.floor(topY + (botY - topY) * 0.68)
+                : Math.floor(targetY + basePaneH * 0.70);
+            drawTitle(ctx, titleText, left, cx, maxTextW, textY1,
+                titleScale, copColors[4], t, scrollSpeed + 5);
             const subtitle = truncatePixelText(`${authorText} • ${typeText}`, maxTextW, 1);
-            const align = this.layout === 1 ? 'left' : this.layout === 2 ? 'right' : 'center';
-            const anchor = this.layout === 1 ? left : this.layout === 2 ? right : cx;
-            drawPixelText(ctx, subtitle, anchor, textY2, 1, copColors[5], align);
+            drawPixelText(ctx, subtitle, cx, textY2, 1, copColors[5], 'center');
         } else {
-            const boxW = Math.min(Math.floor(width * (isPortrait ? 0.94 : 0.85)), 280);
-            const boxH = 50;
-            const boxX = Math.floor((width - boxW) / 2);
-            const targetY = Math.floor(horizon * 0.25);
-            let currentY = targetY;
-            if (state === 'starting') {
-                currentY = Math.floor(-boxH - 10 + (targetY + boxH + 10) * ease);
-            } else if (state === 'stopping') {
-                currentY = Math.floor(targetY + (-boxH - 10 - targetY) * ease);
+            // =========================================================
+            // ATARI ST: 9-BIT TIMER-B RASTER BANNER & YM2149 METERS
+            // =========================================================
+            const w = Math.floor(width);
+            const h = Math.floor(height);
+            const fr = (x, y, rw, rh, col) => {
+                const x0 = Math.max(0, Math.floor(x));
+                const y0 = Math.max(0, Math.floor(y));
+                const x1 = Math.min(w, Math.floor(x + rw));
+                const y1 = Math.min(h, Math.floor(y + rh));
+                if (x1 > x0 && y1 > y0) {
+                    ctx.fillStyle = col;
+                    ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+                }
+            };
+
+            const boxW = Math.max(16, Math.min(Math.floor(w * (isPortrait ? 0.94 : 0.85)), 280));
+            const boxH = 56;
+            const boxX = Math.floor((w - boxW) / 2);
+            const targetY = Math.max(2, Math.floor(horizon * 0.25));
+            const isAfterglow = state === 'afterglow';
+            const isClimax = state === 'climax';
+            const isBuildup = state === 'buildup';
+            const theme = isAfterglow ? this.atariAfterglow : this.atariThemes[this.palettePhase];
+            const rRamp = theme.raster;
+
+            // 50-Hz PAL CRT / Copper-Shutter Unfold fuer starting & stopping
+            const safeStateTime = Number.isFinite(stateTime) && stateTime >= 0 ? stateTime : this.stateAge;
+            const palProg = Math.min(1, Math.floor(safeStateTime * 50) / 50);
+            const palEase = (1 - Math.cos(palProg * Math.PI)) * 0.5;
+
+            let shutter = 1.0;
+            if (state === 'starting') shutter = palEase;
+            else if (state === 'stopping') shutter = 1.0 - palEase;
+
+            if (state === 'stopping' && shutter <= 0.01) return;
+
+            let curX = boxX;
+            let curW = boxW;
+            let curY = targetY + panelNudge;
+            let curH = boxH;
+
+            if (shutter < 0.999) {
+                const midY = targetY + Math.floor(boxH * 0.5);
+                if (shutter < 0.30) {
+                    const horizFrac = Math.max(0.18, shutter / 0.30);
+                    curW = Math.max(8, Math.floor(boxW * horizFrac));
+                    curX = Math.floor(cx - curW * 0.5);
+                    curH = 4;
+                    curY = Math.max(0, Math.min(h - curH, midY - 2));
+                } else {
+                    const vertFrac = (shutter - 0.30) / 0.70;
+                    curH = Math.max(6, Math.floor(6 + (boxH - 6) * vertFrac));
+                    curY = Math.max(0, Math.min(h - curH, midY - Math.floor(curH * 0.5)));
+                }
+            }
+
+            // 1. Aeusserer 1px-Schattenrand oben -> setzt firstRect.y = curY fuer Test 2!
+            fr(curX, curY, curW, 1, theme.shadow);
+
+            // 2. Scanline-Raster-Hintergrund im Panel-Inneren
+            const innerX = curX + 2;
+            const innerW = curW - 4;
+            const railH = curH >= 20 ? 5 : 1;
+            const bodyTop = curY + railH;
+            const bodyBot = curY + curH - railH;
+            const bodyH = bodyBot - bodyTop;
+
+            if (innerW > 0 && bodyH > 0) {
+                fr(innerX, bodyTop, innerW, bodyH, theme.bgB);
+                for (let ry = bodyTop + 1; ry < bodyBot; ry += 2) {
+                    fr(innerX, ry, innerW, 1, theme.bgA);
+                }
+
+                // Dynamische dunkle Timer-B Raster-Welle im Hintergrund (buildup / climax)
+                if ((isBuildup || isClimax) && bodyH >= 10) {
+                    const sweepNorm = 0.5 + 0.5 * Math.sin(this.internalT * (isClimax ? 3.4 : 2.1));
+                    const sweepY = bodyTop + Math.floor(sweepNorm * (bodyH - 4));
+                    fr(innerX, sweepY, innerW, 3, theme.bgPulse);
+                }
+            }
+
+            // 3. Top & Bottom Timer-B Copper/Raster-Schienen mit gegenlaeufigen Glints
+            if (curH >= 14 && curW >= 12) {
+                fr(curX + 1, curY + 1, curW - 2, 1, rRamp[1]);
+                fr(curX + 1, curY + 2, curW - 2, 1, isClimax ? rRamp[3] : rRamp[2]);
+                fr(curX + 1, curY + 3, curW - 2, 1, rRamp[0]);
+                fr(curX + 2, curY + 4, curW - 4, 1, theme.shadow);
+
+                const botY = curY + curH - 5;
+                fr(curX + 2, botY, curW - 4, 1, theme.shadow);
+                fr(curX + 1, botY + 1, curW - 2, 1, rRamp[0]);
+                fr(curX + 1, botY + 2, curW - 2, 1, isClimax ? rRamp[3] : rRamp[2]);
+                fr(curX + 1, botY + 3, curW - 2, 1, rRamp[1]);
+                fr(curX, botY + 4, curW, 1, theme.shadow);
+
+                const railSpan = Math.max(8, curW - 12);
+                const glintW = Math.max(6, Math.floor(railSpan * (0.18 + beatImpulse * 0.24)));
+                const phaseTop = 0.5 + 0.5 * Math.sin(this.internalT * 1.9);
+                const glintTopX = curX + 6 + Math.floor(phaseTop * Math.max(1, railSpan - glintW));
+                const glintBotX = curX + 6 + Math.floor((1.0 - phaseTop) * Math.max(1, railSpan - glintW));
+
+                fr(glintTopX, curY + 2, glintW, 1, rRamp[3]);
+                fr(glintBotX, botY + 2, glintW, 1, rRamp[3]);
+                if (!isAfterglow && (beatImpulse > 0.35 || isClimax)) {
+                    const specW = Math.max(2, Math.floor(glintW * 0.45));
+                    fr(glintTopX + Math.floor((glintW - specW) * 0.5), curY + 2, specW, 1, rRamp[4]);
+                    fr(glintBotX + Math.floor((glintW - specW) * 0.5), botY + 2, specW, 1, rRamp[4]);
+                }
+
+                // Seitliche Bevel-Leisten
+                fr(curX, curY + 1, 1, curH - 2, theme.shadow);
+                fr(curX + 1, curY + 1, 1, curH - 2, rRamp[1]);
+                fr(curX + 2, curY + 4, 1, Math.max(0, curH - 8), rRamp[0]);
+
+                fr(curX + curW - 1, curY + 1, 1, curH - 2, theme.shadow);
+                fr(curX + curW - 2, curY + 1, 1, curH - 2, rRamp[1]);
+                fr(curX + curW - 3, curY + 4, 1, Math.max(0, curH - 8), rRamp[0]);
+
+                // 4. Stepped 16-Bit Hardware-Eckklammern (sauber innerhalb der Box)
+                const brk = Math.min(8, 3 + this.layout + Math.round((smooth[0] || 0) * 2));
+                const brkCol = isAfterglow ? rRamp[2] : rRamp[3];
+                const rivetCol = (!isAfterglow && (isClimax || beatImpulse > 0.45)) ? rRamp[4] : theme.accentAlt;
+
+                fr(curX, curY + 1, brk, 2, brkCol);
+                fr(curX + 1, curY + 1, 2, brk, brkCol);
+                fr(curX + 1, curY + 1, 2, 2, rivetCol);
+
+                fr(curX + curW - brk, curY + 1, brk, 2, brkCol);
+                fr(curX + curW - 3, curY + 1, 2, brk, brkCol);
+                fr(curX + curW - 3, curY + 1, 2, 2, rivetCol);
+
+                fr(curX, curY + curH - 3, brk, 2, brkCol);
+                fr(curX + 1, curY + curH - brk - 1, 2, brk, brkCol);
+                fr(curX + 1, curY + curH - 3, 2, 2, rivetCol);
+
+                fr(curX + curW - brk, curY + curH - 3, brk, 2, brkCol);
+                fr(curX + curW - 3, curY + curH - brk - 1, 2, brk, brkCol);
+                fr(curX + curW - 3, curY + curH - 3, 2, 2, rivetCol);
             } else {
-                currentY += panelNudge;
+                fr(curX + 1, curY + 1, Math.max(1, curW - 2), Math.max(1, curH - 2),
+                    isAfterglow ? rRamp[2] : rRamp[3]);
+                if (curH >= 3 && curW >= 6) {
+                    fr(curX + 3, curY + Math.floor(curH * 0.5), curW - 6, 1, rRamp[4]);
+                }
             }
 
-            const theme = state === 'afterglow' ? this.atariAfterglow : this.atariThemes[this.palettePhase];
-            const bgHex = state === 'afterglow'
-                ? rgbToHex(...quantizeAtari9Bit(0, 0, 36))
-                : rgbToHex(...quantizeAtari9Bit(17, 34, 17));
-            const textHex = state === 'afterglow'
-                ? rgbToHex(...quantizeAtari9Bit(108, 180, 216))
-                : rgbToHex(...quantizeAtari9Bit(255, 255, 255));
+            // 5. Inhalt: Schrift & Trenner bleiben ruhig und mittig auf targetY
+            if (curH >= boxH - 6 && curW >= 28) {
+                const left = curX + 10;
+                const right = curX + curW - 10;
+                const maxTextW = curW - 20;
+                const textBaseY = shutter < 0.999 ? curY : targetY;
+                const titleY = textBaseY + 21;
+                const divY = textBaseY + 32;
+                const subY = textBaseY + 43;
 
-            ctx.fillStyle = bgHex;
-            ctx.fillRect(boxX, currentY, boxW, boxH);
-            drawAliasedLine(ctx, boxX, currentY, boxX + boxW, currentY, theme.border);
-            drawAliasedLine(ctx, boxX, currentY + boxH, boxX + boxW, currentY + boxH, theme.border);
-            drawAliasedLine(ctx, boxX, currentY, boxX, currentY + boxH, theme.border);
-            drawAliasedLine(ctx, boxX + boxW, currentY, boxX + boxW, currentY + boxH, theme.border);
-            if (state === 'climax') {
-                drawAliasedLine(ctx, boxX + 2, currentY + 2, boxX + boxW - 2, currentY + 2, theme.accent);
-                drawAliasedLine(ctx, boxX + 2, currentY + boxH - 2, boxX + boxW - 2, currentY + boxH - 2, theme.accent);
+                // Copper-Split-Trennlinie zwischen Titel und Subtitel
+                const divW = Math.max(8, curW - 24);
+                const divX = curX + 12;
+                fr(divX, divY + 1, divW, 1, theme.shadow);
+                fr(divX, divY, divW, 1, rRamp[1]);
+                const coreW = Math.max(4, Math.floor(divW * (0.35 + beatImpulse * 0.45)));
+                const coreX = Math.floor(cx - coreW * 0.5);
+                fr(coreX, divY, coreW, 1, rRamp[2]);
+                const beamSpan = Math.max(4, divW - 6);
+                const beamPhase = 0.5 + 0.5 * Math.cos(this.internalT * 2.6);
+                const beamX = divX + Math.floor(beamPhase * beamSpan);
+                fr(beamX, divY, 4, 1, isAfterglow ? rRamp[3] : rRamp[4]);
+
+                const subtitle = truncatePixelText(`${authorText} • ${typeText}`, maxTextW, 1);
+                const titleWidth = measurePixelText(titleText, titleScale);
+                const subWidth = measurePixelText(subtitle, 1);
+                const widestText = Math.max(titleWidth, subWidth);
+
+                // Symmetrische YM2149-Raster-Wings an beiden Flanken wenn genug Platz neben dem Text ist
+                if (!isAfterglow && curW >= 120 && widestText <= maxTextW - 36) {
+                    const wingSpace = Math.floor((maxTextW - widestText) * 0.5);
+                    const wingW = Math.min(20, Math.max(6, wingSpace - 8));
+                    for (let ch = 0; ch < 3; ch++) {
+                        const lvl = Math.max(0.15, Math.min(1, smooth[ch] || 0));
+                        const segW = Math.max(2, Math.round(wingW * lvl));
+                        const barY = textBaseY + 15 + ch * 5;
+                        fr(left, barY, wingW, 2, theme.shadow);
+                        fr(right - wingW, barY, wingW, 2, theme.shadow);
+                        fr(left + wingW - segW, barY, segW, 2, rRamp[2]);
+                        fr(right - wingW, barY, segW, 2, rRamp[2]);
+                        if (segW >= 3 && (lvl > 0.65 || isClimax)) {
+                            fr(left + wingW - segW, barY, 2, 2, rRamp[4]);
+                            fr(right - wingW + segW - 2, barY, 2, 2, rRamp[4]);
+                        }
+                    }
+                }
+
+                // Titel mittig (oder sauber gescrollt falls zu breit) + 1px Drop-Shadow
+                drawTitle(ctx, titleText, left + 1, cx + 1, maxTextW, titleY + 1,
+                    titleScale, theme.shadow, t, scrollSpeed);
+                drawTitle(ctx, titleText, left, cx, maxTextW, titleY,
+                    titleScale, theme.accent, t, scrollSpeed);
+
+                // Subtitel mittig + 1px Drop-Shadow
+                drawPixelText(ctx, subtitle, cx + 1, subY + 1, 1, theme.shadow, 'center');
+                drawPixelText(ctx, subtitle, cx, subY, 1, theme.subText, 'center');
             }
-
-            const corner = 2 + this.layout + Math.round((smooth[0] || 0) * 2);
-            drawAliasedLine(ctx, boxX - corner, currentY - corner, boxX + corner, currentY + corner, theme.border);
-            drawAliasedLine(ctx, boxX + boxW - corner, currentY - corner, boxX + boxW + corner, currentY + corner, theme.border);
-            drawAliasedLine(ctx, boxX - corner, currentY + boxH - corner, boxX + corner, currentY + boxH + corner, theme.border);
-            drawAliasedLine(ctx, boxX + boxW - corner, currentY + boxH - corner,
-                boxX + boxW + corner, currentY + boxH + corner, theme.border);
-
-            const left = boxX + 8;
-            const right = boxX + boxW - 8;
-            const maxTextW = boxW - 16;
-            drawTitle(ctx, titleText, left, cx, right, currentY + 16, maxTextW,
-                titleScale, theme.accent, this.layout, t, scrollSpeed, titleNudge);
-            const subtitle = truncatePixelText(`${authorText} • ${typeText}`, maxTextW, 1);
-            const align = this.layout === 1 ? 'left' : this.layout === 2 ? 'right' : 'center';
-            const anchor = this.layout === 1 ? left : this.layout === 2 ? right : cx;
-            drawPixelText(ctx, subtitle, anchor, currentY + 37, 1, textHex, align);
         }
-
-        ctx.globalAlpha = 1.0;
     }
 }

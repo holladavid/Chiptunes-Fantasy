@@ -13,15 +13,21 @@ export const C64_PALETTE = [
 ];
 
 export function rgbToHex(r, g, b) {
-    return "#" + (1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1);
+    const cr = Number.isFinite(r) ? Math.max(0, Math.min(255, Math.round(r))) : 0;
+    const cg = Number.isFinite(g) ? Math.max(0, Math.min(255, Math.round(g))) : 0;
+    const cb = Number.isFinite(b) ? Math.max(0, Math.min(255, Math.round(b))) : 0;
+    return "#" + (1 << 24 | cr << 16 | cg << 8 | cb).toString(16).slice(1);
 }
 
 export function getNearestC64Color(r, g, b) {
+    const cr = Number.isFinite(r) ? r : 0;
+    const cg = Number.isFinite(g) ? g : 0;
+    const cb = Number.isFinite(b) ? b : 0;
     let minDist = Infinity;
     let bestColor = C64_PALETTE[0];
     for (let i = 0; i < 16; i++) {
-        let c = C64_PALETTE[i];
-        let dist = (c[0] - r) ** 2 + (c[1] - g) ** 2 + (c[2] - b) ** 2;
+        const c = C64_PALETTE[i];
+        const dist = (c[0] - cr) ** 2 + (c[1] - cg) ** 2 + (c[2] - cb) ** 2;
         if (dist < minDist) {
             minDist = dist;
             bestColor = c;
@@ -31,25 +37,31 @@ export function getNearestC64Color(r, g, b) {
 }
 
 export function quantizeAmiga12Bit(r, g, b) {
+    const cr = Number.isFinite(r) ? Math.max(0, Math.min(255, r)) : 0;
+    const cg = Number.isFinite(g) ? Math.max(0, Math.min(255, g)) : 0;
+    const cb = Number.isFinite(b) ? Math.max(0, Math.min(255, b)) : 0;
     return [
-        Math.round(r / 255 * 15) * 17,
-        Math.round(g / 255 * 15) * 17,
-        Math.round(b / 255 * 15) * 17
+        Math.round(cr / 255 * 15) * 17,
+        Math.round(cg / 255 * 15) * 17,
+        Math.round(cb / 255 * 15) * 17
     ];
 }
 
 export function quantizeAtari9Bit(r, g, b) {
+    const cr = Number.isFinite(r) ? Math.max(0, Math.min(255, r)) : 0;
+    const cg = Number.isFinite(g) ? Math.max(0, Math.min(255, g)) : 0;
+    const cb = Number.isFinite(b) ? Math.max(0, Math.min(255, b)) : 0;
     return [
-        Math.round(r / 255 * 7) * 36,
-        Math.round(g / 255 * 7) * 36,
-        Math.round(b / 255 * 7) * 36
+        Math.round(cr / 255 * 7) * 36,
+        Math.round(cg / 255 * 7) * 36,
+        Math.round(cb / 255 * 7) * 36
     ];
 }
 
 export const SYSTEM_RESOLUTIONS = {
-    'c64': 200,    
-    'atari': 200,  
-    'amiga': 256   
+    'c64': 200,
+    'atari': 200,
+    'amiga': 256
 };
 
 // Ein-/Ausblendungen bleiben als ordered Dither vollstaendig in der
@@ -63,6 +75,9 @@ const ORDERED_FADE_MATRIX = [
 const ORDERED_FADE_PATTERNS = new WeakMap();
 
 export function applyOrderedDitherFade(ctx, width, height, visibility) {
+    if (!ctx || !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+        return;
+    }
     const alpha = Number.isFinite(visibility) ? visibility : 1;
     const level = Math.max(0, Math.min(16, Math.round(alpha * 16)));
     ctx.globalAlpha = 1.0;
@@ -97,14 +112,56 @@ export function applyOrderedDitherFade(ctx, width, height, visibility) {
     ctx.fillRect(0, 0, width, height);
 }
 
-export function fillAliasedCircle(ctx, xc, yc, r, color) {
+/**
+ * Symmetrischer Midpoint-Kreis-Rasterizer (100% passgenau zu drawAliasedCircleOutline).
+ * Zeichnet ungerade Spannen (2 * span + 1) inkl. Pol-Pixel ohne Überdraw und
+ * unterstützt optionales Clipping über clipRect.
+ */
+export function fillAliasedCircle(ctx, xc, yc, r, color, clipRect = null) {
+    if (!ctx || !Number.isFinite(xc) || !Number.isFinite(yc) || !Number.isFinite(r)) {
+        return;
+    }
+
+    const hasClip = clipRect !== null && clipRect !== undefined;
+    const clip = hasClip ? normalizeClipRect(clipRect) : null;
+    if (hasClip && !clip) return;
+
+    const cx = Math.floor(xc);
+    const cy = Math.floor(yc);
+    const ir = Math.floor(r);
+    if (ir < 0 || ir > 16384) return;
+
+    if (clip && (cx + ir < clip.minX || cx - ir >= clip.maxX || cy + ir < clip.minY || cy - ir >= clip.maxY)) {
+        return;
+    }
+
     ctx.fillStyle = color;
-    xc = Math.floor(xc);
-    yc = Math.floor(yc);
-    r = Math.floor(r);
-    for (let y = -r; y <= r; y++) {
-        let dx = Math.round(Math.sqrt(r * r - y * y));
-        ctx.fillRect(xc - dx, yc + y, dx * 2, 1);
+    if (ir === 0) {
+        emitClippedRect(ctx, cx, cy, 1, 1, clip);
+        return;
+    }
+
+    let x = 0;
+    let y = ir;
+    let d = 3 - 2 * ir;
+
+    while (y >= x) {
+        emitClippedRect(ctx, cx - y, cy + x, y * 2 + 1, 1, clip);
+        if (x > 0) {
+            emitClippedRect(ctx, cx - y, cy - x, y * 2 + 1, 1, clip);
+        }
+
+        x++;
+        if (d > 0) {
+            if (y > x - 1) {
+                emitClippedRect(ctx, cx - (x - 1), cy + y, (x - 1) * 2 + 1, 1, clip);
+                emitClippedRect(ctx, cx - (x - 1), cy - y, (x - 1) * 2 + 1, 1, clip);
+            }
+            y--;
+            d = d + 4 * (x - y) + 10;
+        } else {
+            d = d + 4 * x + 6;
+        }
     }
 }
 
@@ -115,27 +172,58 @@ export function fillAliasedCircle(ctx, xc, yc, r, color) {
 /**
  * Der klassische Midpoint-Kreis-Algorithmus (Bresenham)
  * Zeichnet pixelgenaue Kreisumrisse extrem schnell über 8-Oktanten-Plots
+ * (ohne doppelte Kardinal-/Diagonalpixel und mit optionalem clipRect).
  */
-export function drawAliasedCircleOutline(ctx, xc, yc, r, color) {
+export function drawAliasedCircleOutline(ctx, xc, yc, r, color, clipRect = null) {
+    if (!ctx || !Number.isFinite(xc) || !Number.isFinite(yc) || !Number.isFinite(r)) {
+        return;
+    }
+
+    const hasClip = clipRect !== null && clipRect !== undefined;
+    const clip = hasClip ? normalizeClipRect(clipRect) : null;
+    if (hasClip && !clip) return;
+
+    const cx = Math.floor(xc);
+    const cy = Math.floor(yc);
+    const ir = Math.floor(r);
+    if (ir < 0 || ir > 16384) return;
+
+    if (clip && (cx + ir < clip.minX || cx - ir >= clip.maxX || cy + ir < clip.minY || cy - ir >= clip.maxY)) {
+        return;
+    }
+
     ctx.fillStyle = color;
-    xc = Math.floor(xc);
-    yc = Math.floor(yc);
-    r = Math.floor(r);
+    if (ir === 0) {
+        emitClippedRect(ctx, cx, cy, 1, 1, clip);
+        return;
+    }
 
     let x = 0;
-    let y = r;
-    let d = 3 - 2 * r;
-    
+    let y = ir;
+    let d = 3 - 2 * ir;
+
     while (y >= x) {
-        ctx.fillRect(xc + x, yc + y, 1, 1);
-        ctx.fillRect(xc - x, yc + y, 1, 1);
-        ctx.fillRect(xc + x, yc - y, 1, 1);
-        ctx.fillRect(xc - x, yc - y, 1, 1);
-        ctx.fillRect(xc + y, yc + x, 1, 1);
-        ctx.fillRect(xc - y, yc + x, 1, 1);
-        ctx.fillRect(xc + y, yc - x, 1, 1);
-        ctx.fillRect(xc - y, yc - x, 1, 1);
-        
+        if (x === 0) {
+            emitClippedRect(ctx, cx, cy + y, 1, 1, clip);
+            emitClippedRect(ctx, cx, cy - y, 1, 1, clip);
+            emitClippedRect(ctx, cx + y, cy, 1, 1, clip);
+            emitClippedRect(ctx, cx - y, cy, 1, 1, clip);
+        } else if (x === y) {
+            emitClippedRect(ctx, cx + x, cy + y, 1, 1, clip);
+            emitClippedRect(ctx, cx - x, cy + y, 1, 1, clip);
+            emitClippedRect(ctx, cx + x, cy - y, 1, 1, clip);
+            emitClippedRect(ctx, cx - x, cy - y, 1, 1, clip);
+        } else {
+            emitClippedRect(ctx, cx + x, cy + y, 1, 1, clip);
+            emitClippedRect(ctx, cx - x, cy + y, 1, 1, clip);
+            emitClippedRect(ctx, cx + x, cy - y, 1, 1, clip);
+            emitClippedRect(ctx, cx - x, cy - y, 1, 1, clip);
+            emitClippedRect(ctx, cx + y, cy + x, 1, 1, clip);
+            emitClippedRect(ctx, cx - y, cy + x, 1, 1, clip);
+            emitClippedRect(ctx, cx + y, cy - x, 1, 1, clip);
+            emitClippedRect(ctx, cx - y, cy - x, 1, 1, clip);
+        }
+
         x++;
         if (d > 0) {
             y--;
@@ -147,6 +235,10 @@ export function drawAliasedCircleOutline(ctx, xc, yc, r, color) {
 }
 
 export function drawAliasedLine(ctx, x0, y0, x1, y1, color) {
+    if (!ctx || !Number.isFinite(x0) || !Number.isFinite(y0) || !Number.isFinite(x1) || !Number.isFinite(y1)) {
+        return;
+    }
+
     ctx.fillStyle = color;
     x0 = Math.floor(x0); y0 = Math.floor(y0);
     x1 = Math.floor(x1); y1 = Math.floor(y1);
@@ -200,17 +292,21 @@ export function drawAliasedLine(ctx, x0, y0, x1, y1, color) {
  * zweite Pixel transparent, wie bei einem klassischen Glenz-Effekt.
  */
 export function fillAliasedPolygon(ctx, points, color, transparentDither = false) {
-    if (!points || points.length < 3) return;
+    if (!ctx || !points || points.length < 3) return;
 
-    let minY = points[0].y;
-    let maxY = points[0].y;
-    for (let i = 1; i < points.length; i++) {
-        minY = Math.min(minY, points[i].y);
-        maxY = Math.max(maxY, points[i].y);
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < points.length; i++) {
+        const pt = points[i];
+        if (!pt || !Number.isFinite(pt.x) || !Number.isFinite(pt.y)) return;
+        if (pt.y < minY) minY = pt.y;
+        if (pt.y > maxY) maxY = pt.y;
     }
 
     minY = Math.ceil(minY);
     maxY = Math.floor(maxY);
+    if (maxY < minY) return;
+
     const intersections = [];
     ctx.fillStyle = color;
 
@@ -234,8 +330,9 @@ export function fillAliasedPolygon(ctx, points, color, transparentDither = false
             if (endX < startX) continue;
 
             if (transparentDither) {
-                for (let x = startX; x <= endX; x++) {
-                    if (((x + y) & 1) === 0) ctx.fillRect(x, y, 1, 1);
+                let x = startX + (((startX + y) & 1) !== 0 ? 1 : 0);
+                for (; x <= endX; x += 2) {
+                    ctx.fillRect(x, y, 1, 1);
                 }
             } else {
                 ctx.fillRect(startX, y, endX - startX + 1, 1);
@@ -364,6 +461,14 @@ function emitClippedRect(ctx, rx, ry, rw, rh, clip) {
     if (cw > 0 && ch > 0) {
         ctx.fillRect(x0, y0, cw, ch);
     }
+}
+
+export function fillAliasedCircleClipped(ctx, xc, yc, r, color, clipRect = null) {
+    fillAliasedCircle(ctx, xc, yc, r, color, clipRect);
+}
+
+export function drawAliasedCircleOutlineClipped(ctx, xc, yc, r, color, clipRect = null) {
+    drawAliasedCircleOutline(ctx, xc, yc, r, color, clipRect);
 }
 
 export function drawAliasedLineClipped(ctx, x0, y0, x1, y1, color, clipRect = null) {
@@ -502,8 +607,9 @@ export function fillAliasedPolygonClipped(ctx, points, color, transparentDither 
             if (endX < startX) continue;
 
             if (transparentDither) {
-                for (let x = startX; x <= endX; x++) {
-                    if (((x + y) & 1) === 0) ctx.fillRect(x, y, 1, 1);
+                let x = startX + (((startX + y) & 1) !== 0 ? 1 : 0);
+                for (; x <= endX; x += 2) {
+                    ctx.fillRect(x, y, 1, 1);
                 }
             } else {
                 ctx.fillRect(startX, y, endX - startX + 1, 1);

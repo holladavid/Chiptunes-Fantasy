@@ -116,7 +116,7 @@ export const dseRegistry = [
     RegisterDSE(TrackPresenter)
         .layer('overlay')       
         .lifecycle('oneshot')   
-        .duration(3.0)          
+        .duration(4.0)          
         .weight(10)
         .climaxHold(0)
         .build(),

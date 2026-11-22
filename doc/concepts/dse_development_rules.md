@@ -1,3 +1,7 @@
+================================================================================
+FILE 1: DSE-Entwicklungsregeln.md
+================================================================================
+
 # DSE-Entwicklungsregeln
 
 **Geltungsbereich:** neue und überarbeitete Demo Scene Elements (DSEs) in Chiptunes Fantasy
@@ -260,7 +264,7 @@ Deshalb DARF kein DSE eine feste historische 4:3-Breite als dauerhafte Buffergr�
 
 Die Ausgabe wird anschließend mit Nearest Neighbor hochskaliert. DSEs MÜSSEN für diesen Retro-Buffer zeichnen und keine hochauflösenden Canvas-Effekte als Ersatz verwenden.
 
-### 4.2 Paletten und Quantisierung
+### 4.2 Paletten, Farbbudgets und Raster-Techniken
 
 Verbindliche Helfer aus `js/visuals/utils/hardware-constraints.js` verwenden:
 
@@ -274,10 +278,13 @@ Regeln:
 - Hartcodierte Farbtabellen bereits korrekt quantisiert anlegen.
 - Berechnete Farben vor dem Zeichnen quantisieren beziehungsweise auf die C64-Palette abbilden.
 - Die Abnahme erfolgt an den tatsächlich gerenderten Pixeln, nicht nur an den Farbangaben im Quelltext.
-- Neben dem Farbraum ist auch das historische Farbbudget zu achten: Auf Atari ST soll eine Szene im Kern mit maximal 16 Grundfarben pro Bild (zzgl. gezielter Scanline-/Timer-B-Raster-Splits) auskommen; auf Amiga soll eine bewusste OCS-Subpalette (typisch 16–32 Farben zzgl. Copper-Zeilenwechseln) statt willkürlicher Echtfarb-Verläufe genutzt werden.
+- Neben dem Farbraum ist auch die historische Chip-Ästhetik (inkl. Raster-Interrupts und Copperlists zur Farbvermehrung) systemgerecht zu achten:
+  - **C64 (VIC-II):** Ausschließlich die 16 festen Colodore-Farben (keine Interlace-/25-Hz-IFLI-Flickermodi wegen Strobe-Schutz). Um nicht wie eine beliebige 16-Farben-Pixelmap zu wirken, SOLLEN C64-DSEs nach Möglichkeit erkennbar die historische Rasterlogik widerspiegeln: **Hires** (1×1-Pixel mit lokaler 2-Farben-Disziplin für Vektoren/Schrift/Sprites), **Multicolor** (2×1-„Fat-Pixels“ für flächige Grafik) sowie **Raster-Splits / FLI** (`$D020`/`$D021`-Scanline-Rasterbars, 4×1-/8×1-Streifen und Sprite-Multiplexing). Für Dithering auf modernen OLEDs SOLLEN abgestufte Helligkeits-Ramps statt harter komplementärer 1×1-Checkerboards verwendet werden.
+  - **Amiga (OCS/ECS):** Bewusste Subpalette im Standard-Bitplane-Betrieb (**16–32 Farben**, 4–5 Bitplanes) zzgl. **Copper-Zeilenwechseln**. Ausdrücklich zulässig sind zudem historische OCS-Erweiterungen: **EHB** (Extra Half-Brite: 64 Farben pro Scanline aus 32 Basis- und 32 halbhellen Farben), **HAM6** (alle 4096 Farben bei Beachtung der 1-Kanal-Modify-Regel / des charakteristischen HAM-Fringing) sowie **Mid-Scanline Copper / Copper-Chunky** (horizontale Registerwechsel im 8px- bzw. 4px-Preload-Raster).
+  - **Atari ST (ST/STFM, 9-Bit Shifter – kein 12-Bit-STe):** Pro eigenständigem DSE-Layer gilt ein Budget von **maximal 16 Farben pro Scanline** (4 Bitplanes). Vertikal darf die Palette durch simulierte **Timer-B-Raster-Splits** beliebig über den Frame erweitert werden; als spezielle Demo-Technik ist auch ein **Spectrum-512-Modus** (bis zu 3 horizontale 16-Farben-Palettenwechsel pro Scanline = max. 48 Farben pro Zeile) zulässig. Da kombinierte Web-Layer (`background`, `floor`, `foreground`, `overlay`) technisch eigene Paletten auf derselben Zeile überlagern können, wird das 16-Farben-Scanline-Budget verbindlich pro Layer geprüft.
 - Keine Schatten, Browser-Filter, Antialiasing-Kanten oder Textausgabe, die unerlaubte Zwischenfarben erzeugen.
 - Nicht versuchen, Paletteverletzungen nachträglich durch eine undokumentierte Ausnahmeregel zu verstecken.
-- Bei Atari ST beträgt der maximale quantisierte Kanalwert `252` (`7 × 36`, `#fcfcfc`) und nicht `255` (`#ffffff`). Auch Weiß-Highlights müssen über `quantizeAtari9Bit(...)` erzeugt werden.
+- Bei Atari ST beträgt der maximale quantisierte Kanalwert der Projektkonvention `252` (`7 × 36`, `#fcfcfc`) und nicht `255` (`#ffffff`). Auch Weiß-Highlights MÜSSEN über `quantizeAtari9Bit(...)` erzeugt werden.
 
 ### 4.3 Integer-Raster und Geometrie
 
@@ -292,14 +299,14 @@ Innerhalb von DSEs gilt:
 
 Geeignete Helfer in `js/visuals/utils/hardware-constraints.js` sind unter anderem:
 
-- `fillAliasedCircle(...)` (ungeclippt)
-- `drawAliasedCircleOutline(...)` (ungeclippt)
+- `fillAliasedCircle(ctx, xc, yc, r, color, clipRect?)` / `fillAliasedCircleClipped(...)` (symmetrische Midpoint-Spans passend zu `drawAliasedCircleOutline`)
+- `drawAliasedCircleOutline(ctx, xc, yc, r, color, clipRect?)` / `drawAliasedCircleOutlineClipped(...)`
 - `drawAliasedLine(...)` / `drawAliasedLineClipped(ctx, x0, y0, x1, y1, color, clipRect)`
 - `fillAliasedPolygon(...)` / `fillAliasedPolygonClipped(ctx, points, color, transparentDither, clipRect)`
 - `drawAliasedEllipseOutlineClipped(ctx, xc, yc, rx, ry, color, clipRect)` (Midpoint-Ellipse mit Span-Run-Merging)
 
 Historische Bewegung entsteht durch diskrete Raster-, Paletten- und Formwechsel, nicht durch moderne weiche Partikeleffekte.
-Die klassischen Basishelfer ohne `*Clipped`-Suffix clippen Koordinaten nicht automatisch auf den Retro-Buffer. Jeder DSE MUSS entweder die `*Clipped`-Varianten mit explizitem Clip-Rechteck nutzen oder sicherstellen, dass Linien, Kreise und Sprites am Bildrand hart auf `[0..width, 0..height]` (bzw. auf layer-spezifische Grenzen wie `y >= horizon` bei `floor`-DSEs) beschnitten werden und keine negativen Koordinaten oder Überläufe an `fillRect()` übergeben.
+Die klassischen Basishelfer ohne `*Clipped`-Suffix clippen Koordinaten standardmäßig nicht auf den Retro-Buffer (sofern kein optionales `clipRect` übergeben wird). Jeder DSE MUSS entweder die `*Clipped`-Varianten bzw. ein explizites `clipRect` nutzen oder sicherstellen, dass Linien, Kreise und Sprites am Bildrand hart auf `[0..width, 0..height]` (bzw. auf layer-spezifische Grenzen wie `y >= horizon` bei `floor`-DSEs) beschnitten werden und keine negativen Koordinaten oder Überläufe an `fillRect()` übergeben.
 
 ### 4.4 Kein Alpha-Blending
 
@@ -309,9 +316,11 @@ Geeignete Alternativen:
 
 - Geometrie oder Objektanzahl stufenweise verändern.
 - Palettenindizes und Shading-Tabellen reduzieren.
-- Raster-/Scanline-Muster einsetzen.
-- `applyOrderedDitherFade(...)` für deterministische Ordered-Dither-Übergänge verwenden.
+- **Bitplane-Index-Addition / Shade-Bobs:** Scheinbare Transparenz und Glenz-/Überlagerungseffekte durch Erhöhen des Farbindex innerhalb definierter Paletten-Ramps (oder Zeichnen in separate Bitplane-Ebenen) statt Alpha-Mischung realisieren.
+- Raster-/Scanline-Muster einsetzen (`transparentDither` in `fillAliasedPolygonClipped` auf großen Ultrawide-Polygonen wegen der vielen 1×1-`fillRect`-Aufrufe sparsam nutzen oder durch Shade-Bobs/abgestufte Ramps ersetzen).
+- `applyOrderedDitherFade(...)` bzw. `bayerFadeCells(...)` für deterministische Ordered-Dither-Übergänge verwenden.
 - Trails durch begrenzte, opake Nachzeichnungen oder persistente Palettenstufen erzeugen.
+
 Für Ein- und Ausblendungen gilt zusätzlich die Layer-Trennung:
 - Vollflächige `#000000`-Ordered-Dither-Vorhänge sind **nur** für `background`-DSEs (und bei `floor`-DSEs ausschließlich unterhalb der Horizontlinie) zulässig. Auf `floor`-Layern SOLL das Ein-/Ausblenden auf den jeweils aktiven Bereich `[horizon .. horizon + Math.floor(vis * (height - horizon)))` begrenzt werden (bei `vis <= 0` null Zeichenoperationen), damit bei Übergängen zu `VoidFloor` kein schwarzes Rechteck über dem Hintergrund stehen bleibt.
 - `foreground`- und `overlay`-DSEs DÜRFEN in `starting`/`stopping` keinen schwarzen Vollbild-Dither über den Hintergrund legen, sondern müssen über eigene Geometrie, schrittweise Sichtbarkeit oder Objektanzahl ein- und ausblenden.
@@ -494,7 +503,8 @@ Ein DSE läuft zusammen mit Emulation, Audioanalyse und gegebenenfalls weiteren 
 - Feste Objekt- und Geometriebudgets pro System definieren.
 - Teure Tabellen und Paletten vorberechnen.
 - Keine unnötigen Vollbild-Pixelzugriffe pro Frame, wenn Rasterbalken oder kleinere Regionen genügen.
-- `getImageData()`/`putImageData()` nur einsetzen, wenn der Algorithmus sie tatsächlich benötigt und die Kosten kontrolliert sind.
+- `getImageData()` (Readback aus dem Canvas) ist grundsätzlich **nicht zulässig**.
+- `putImageData()` DARF ausschließlich als gezielter Chunky-/C2P-Pfad aus einem **instanzeigenen, fest allokierten Pixel- oder Index-Buffer** eingesetzt werden, wenn der Algorithmus ihn benötigt (z. B. Tunnel, Rotozoomer, Plasma oder Shade-Bobs), alle geschriebenen Pixel garantiert der quantisierten Systempalette entsprechen und die Kosten auch auf Ultrawide im Budget bleiben; reguläre Effekte SOLLEN weiterhin Run-Merged-`fillRect`-Verfahren bevorzugen.
 - Keine wachsenden Allokationen, Listener, Timer oder Offscreen-Ressourcen im Renderloop.
 - Systemabhängige Qualität reduzieren, bevor die Anwendung insgesamt instabil wird; dabei Palette und Determinismus beibehalten.
 
@@ -573,7 +583,7 @@ node --test \
   test/atari-flat-shaded-trio.test.mjs
 ```
 
-Ein Fake-Canvas für Unit-Tests SOLL zusätzlich zu fehlendem `fillText()`/`measureText()` strikte Integer-, Bounds- (`0 <= x`, `x + w <= width`, `0 <= y`, `y + h <= height`) und Palettenprüfungen erzwingen sowie `globalAlpha`, `save()`/`clip()` und `getImageData()` verweigern bzw. markieren. DSEs SOLLEN idealerweise ohne globales `document` in Node testbar sein; für Engine-Tests stehen dafür optional `new SceneDJ({ createCanvas })` und `new StageManager({ createCanvas })` bereit.
+Ein Fake-Canvas für Unit-Tests SOLL zusätzlich zu fehlendem `fillText()`/`measureText()` strikte Integer-, Bounds- (`0 <= x`, `x + w <= width`, `0 <= y`, `y + h <= height`) und Palettenprüfungen erzwingen sowie `globalAlpha`, `save()`/`clip()` und `getImageData()` verweigern bzw. markieren (`putImageData()` wird – sofern für Chunky-DSEs unterstützt – ebenfalls vollständig auf Systempalette und Buffer-Bounds geprüft). DSEs SOLLEN idealerweise ohne globales `document` in Node testbar sein; für Engine-Tests stehen dafür optional `new SceneDJ({ createCanvas })` und `new StageManager({ createCanvas })` bereit.
 
 ### 9.2 Visuelle Nachweise
 
