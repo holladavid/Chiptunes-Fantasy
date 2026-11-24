@@ -429,9 +429,18 @@ function setPlaybackState(nextState, detail = '') {
     }
 }
 
-// Cursor-Hiding Inaktivitäts-Timer
+// Cursor-Hiding & Overlay-Ausblenden Inaktivitäts-Timer
 let mouseIdleTimer = null;
+let overlayWakeTimer = null;
 const visualZone = document.getElementById('visual-zone');
+
+function clearOverlayWakeGuard(delay = 80) {
+    clearTimeout(overlayWakeTimer);
+    if (!visualZone) return;
+    overlayWakeTimer = setTimeout(() => {
+        visualZone.classList.remove('overlays-waking');
+    }, delay);
+}
 
 function resetMouseIdleTimer() {
     if (!visualZone) return;
@@ -611,12 +620,28 @@ function initApp() {
         window.addEventListener('resize', updateMuseumScrollHint);
         setRightPanelMode(rightPanelMode);
 
-        // Event-Listener für das Cursor-Hiding binden
+        // Event-Listener für das Cursor-Hiding und Overlay-Ausblenden binden
         if (visualZone) {
             visualZone.addEventListener('mousemove', resetMouseIdleTimer);
             visualZone.addEventListener('mousedown', resetMouseIdleTimer);
-            visualZone.addEventListener('touchstart', resetMouseIdleTimer);
-            visualZone.addEventListener('touchmove', resetMouseIdleTimer);
+            visualZone.addEventListener('touchstart', () => {
+                if (visualZone.classList.contains('user-inactive')) {
+                    visualZone.classList.add('overlays-waking');
+                    clearOverlayWakeGuard(450);
+                }
+                resetMouseIdleTimer();
+            }, { passive: true });
+            visualZone.addEventListener('touchend', () => {
+                if (visualZone.classList.contains('overlays-waking')) {
+                    clearOverlayWakeGuard(80);
+                }
+            }, { passive: true });
+            visualZone.addEventListener('touchcancel', () => {
+                if (visualZone.classList.contains('overlays-waking')) {
+                    clearOverlayWakeGuard(80);
+                }
+            }, { passive: true });
+            visualZone.addEventListener('touchmove', resetMouseIdleTimer, { passive: true });
             visualZone.addEventListener('keydown', resetMouseIdleTimer);
             visualZone.addEventListener('focusin', resetMouseIdleTimer);
             document.addEventListener('fullscreenchange', resetMouseIdleTimer);
@@ -1189,6 +1214,8 @@ async function setTheme(themeName, isBootSequence = false) {
         document.body.classList.remove('system-transitioning');
         isTransitioning = false;
     }
+
+    resetMouseIdleTimer();
 }
 
 function updateLivingSiliconTitle() {
