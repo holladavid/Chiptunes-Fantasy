@@ -30,7 +30,7 @@ export const OSC_BOUNDS = Object.freeze({
     graticule: Object.freeze({ min: 0, max: 1, step: 0.05 })
 });
 
-export const CRT_QUALITIES = Object.freeze(['low', 'medium', 'high']);
+export const CRT_QUALITIES = Object.freeze(['off', 'low', 'medium', 'high']);
 export const CRT_MASK_TYPES = Object.freeze(['slot', 'delta', 'grille']);
 export const OSC_BEAM_MODES = Object.freeze(['sparks', 'spot', 'off']);
 export const OSC_TRIGGER_MODES = Object.freeze(['auto', 'free']);

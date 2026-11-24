@@ -26,7 +26,7 @@
 // Braucht highp im Fragment-Shader; fehlt das (oder WebGL), greift der CSS-Fallback über den Callback.
 
 const MASK_TYPES = Object.freeze({ slot: 0, delta: 1, grille: 2 });
-const QUALITY_LEVELS = Object.freeze({ low: 0, medium: 1, high: 2 });
+const QUALITY_LEVELS = Object.freeze({ off: -1, low: 0, medium: 1, high: 2 });
 
 // Phosphor-Geometrie je Maskentyp: Füllgrad relativ zum Raster und mittlere Deckung pro
 // Farbkanal. Die Deckung normiert die Maske auf Mittelwert 1 (Gesamthelligkeit bleibt erhalten).
@@ -48,7 +48,7 @@ const GLASS_BLACK_LEVEL = 0.00004;
 const GLASS_SHEEN_LEVEL = 0.00010;
 
 const DEFAULT_OPTIONS = Object.freeze({
-    quality: 'high',            // 'low' | 'medium' (ohne Halation) | 'high' (mit Low-Res-Glow-Pass)
+    quality: 'high',            // 'off' (Shader aus) | 'low' | 'medium' (ohne Halation) | 'high' (mit Low-Res-Glow-Pass)    
     maskType: 'slot',           // 'slot' | 'delta' | 'grille'
     pitch: 3,                   // Triadenbreite in CSS-px (rastet auf ganze Geräte-px: Slot/Grille x3, Delta x6)
     maskStrength: 1,            // 0 = keine Maske, 1 = volle Tiefe bei schwachem Strahlstrom
@@ -425,6 +425,14 @@ export class CrtShadowMask {
             gl.deleteTexture(this.glow.texture);
         }
         this.program = this.buffer = this.texture = this.glow = null;
+        this.uniforms = {};
+        this.textureWidth = 0;
+        this.textureHeight = 0;
+        this.viewportWidth = 0;
+        this.viewportHeight = 0;
+        this.uniformCssWidth = 0;
+        this.uniformCssHeight = 0;
+        this.uniformsDirty = true;
     }
 
     compileShader(gl, type, source) {
@@ -532,6 +540,10 @@ export class CrtShadowMask {
         this.releaseResources(gl);
 
         let quality = QUALITY_LEVELS[this.options.quality];
+        if (quality < 0) {
+            return true;
+        }
+
         if (quality >= 2) {
             this.glow = this.createGlow(gl);
             if (!this.glow) quality = 1;
@@ -674,13 +686,13 @@ export class CrtShadowMask {
     }
 
     resize(width, height) {
-        if (!this.isReady) return;
+        if (!this.isReady || this.options.quality === 'off') return;
         if (this.canvas.width !== width) this.canvas.width = width;
         if (this.canvas.height !== height) this.canvas.height = height;
     }
 
     render() {
-        if (!this.isReady) return;
+        if (!this.isReady || this.options.quality === 'off') return;
         const source = this.sourceCanvas;
         const width = source.width;
         const height = source.height;

@@ -53,6 +53,7 @@ const CRT_ENUM_GROUPS = Object.freeze([
         key: 'quality',
         label: 'GPU',
         options: [
+            { value: 'off', label: 'OFF' },
             { value: 'low', label: 'LOW' },
             { value: 'medium', label: 'MED' },
             { value: 'high', label: 'HIGH' }
@@ -524,6 +525,7 @@ export class DisplaySetupDialog {
             : state.crt;
         const shownOsc = state.osc;
         const crtAvailable = Boolean(state.crtAvailable);
+        const crtOff = shownCrt.quality === 'off';
         const isBypassed = Boolean(state.bypassed);
 
         if (this.abBtn) {
@@ -542,6 +544,9 @@ export class DisplaySetupDialog {
             if (!crtAvailable) {
                 this.crtBadge.textContent = '[ CSS FALLBACK ]';
                 this.crtBadge.dataset.status = 'fallback';
+            } else if (crtOff) {
+                this.crtBadge.textContent = '[ SHADER OFF · CSS ]';
+                this.crtBadge.dataset.status = 'ready';
             } else if (shownCrt.quality !== 'high') {
                 this.crtBadge.textContent = `[ WEBGL · ${shownCrt.quality.toUpperCase()} ]`;
                 this.crtBadge.dataset.status = 'ready';
@@ -556,19 +561,21 @@ export class DisplaySetupDialog {
         }
 
         if (this.presetIndicator) {
+            let presetText;
             if (state.crtPreset === 'auto') {
                 const sysTarget = SYSTEM_CRT_PRESETS[system] || 'rgb';
-                this.presetIndicator.textContent = `AUTO (${system.toUpperCase()} · ${CRT_PRESET_LABELS[sysTarget]})`;
+                presetText = `AUTO (${system.toUpperCase()} · ${CRT_PRESET_LABELS[sysTarget]})`;
             } else {
-                this.presetIndicator.textContent = CRT_PRESET_LABELS[state.crtPreset] || 'CUSTOM';
+                presetText = CRT_PRESET_LABELS[state.crtPreset] || 'CUSTOM';
             }
+            this.presetIndicator.textContent = (crtAvailable && crtOff) ? `${presetText} · OFF` : presetText;
         }
 
         for (const btn of this.crtPresetButtons) {
             const isActive = btn.dataset.crtPreset === state.crtPreset;
             btn.classList.toggle('active', isActive);
             btn.setAttribute('aria-pressed', String(isActive));
-            btn.disabled = !crtAvailable;
+            btn.disabled = !crtAvailable || crtOff;
         }
 
         for (const btn of this.crtEnumButtons) {
@@ -577,7 +584,7 @@ export class DisplaySetupDialog {
             const isActive = btn.dataset.crtValue === currentVal;
             btn.classList.toggle('active', isActive);
             btn.setAttribute('aria-pressed', String(isActive));
-            btn.disabled = !crtAvailable;
+            btn.disabled = !crtAvailable || (crtOff && key !== 'quality');
         }
 
         for (const entry of this.crtSliderEntries) {
@@ -587,10 +594,10 @@ export class DisplaySetupDialog {
                 input.value = String(val);
             }
             const qualityBlocked = Boolean(spec.requiresHighQuality && shownCrt.quality !== 'high');
-            const disabled = !crtAvailable || qualityBlocked;
+            const disabled = !crtAvailable || crtOff || qualityBlocked;
             input.disabled = disabled;
             field.classList.toggle('is-disabled', disabled);
-            readout.textContent = (crtAvailable && qualityBlocked) ? 'HIGH ONLY' : spec.format(val);
+            readout.textContent = (crtAvailable && !crtOff && qualityBlocked) ? 'HIGH ONLY' : spec.format(val);
         }
 
         for (const btn of this.oscEnumButtons) {

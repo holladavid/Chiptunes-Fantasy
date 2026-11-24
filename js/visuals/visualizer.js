@@ -57,20 +57,28 @@ export function initVisuals(stateGetters, callbacks) {
     const osc = new Oscilloscope(canvas.width, canvas.height, displaySettings.getEffectiveOsc());
     const glitch = new CrtGlitch(); // NEU: Instanziiert den Glitcher
     const visualZone = document.getElementById('visual-zone');
+    let isCrtWebglAvailable = false;
+    const syncCrtMaskVisibility = (effectiveCrt = displaySettings.getEffectiveCrt(currentCrtSystem)) => {
+        visualZone?.classList.toggle('crt-mask-active', isCrtWebglAvailable && effectiveCrt.quality !== 'off');
+    };
+
     displaySettings.setCrtAvailable(false);
     const crtMask = new CrtShadowMask(
         canvas,
         document.getElementById('crt-mask-canvas'),
         isAvailable => {
-            visualZone?.classList.toggle('crt-mask-active', isAvailable);
+            isCrtWebglAvailable = isAvailable;
             displaySettings.setCrtAvailable(isAvailable);
+            syncCrtMaskVisibility();
         },
         toCrtMaskOptions(displaySettings.getEffectiveCrt(currentCrtSystem))
     );
 
     const applyCrtOptions = (system = getActiveSystemFromDOM()) => {
         currentCrtSystem = system;
-        crtMask.setOptions(toCrtMaskOptions(displaySettings.getEffectiveCrt(system)));
+        const effectiveCrt = displaySettings.getEffectiveCrt(system);
+        crtMask.setOptions(toCrtMaskOptions(effectiveCrt));
+        syncCrtMaskVisibility(effectiveCrt);
     };
 
     const applyOscOptions = () => {
