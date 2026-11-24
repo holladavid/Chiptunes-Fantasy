@@ -5039,9 +5039,9 @@ body:has(#visual-zone:fullscreen) {
 }
 
 .setup-segment-row .setup-seg-btn {
-    flex: 1 1 0;
+    flex: 1 1 auto;
     min-width: 0;
-    padding-inline: 5px;
+    padding-inline: 6px;
     text-align: center;
 }
 
@@ -5208,6 +5208,26 @@ body:has(#visual-zone:fullscreen) {
     }
 }
 
+@media (min-width: 1360px) and (min-height: 581px) {
+    .display-setup-dialog:not(.in-stage-fullscreen) .setup-section-crt .setup-segmented-grid {
+        grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.72fr) minmax(0, 1.25fr);
+    }
+
+    .display-setup-dialog:not(.in-stage-fullscreen) .setup-section-emu .setup-segmented-grid {
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+    }
+
+    .display-setup-dialog:not(.in-stage-fullscreen) .setup-segment-group-wide {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (min-width: 2200px) and (min-height: 900px) {
+    .display-setup-dialog:not(.in-stage-fullscreen) {
+        width: min(1560px, calc(100vw - 28px));
+    }
+}
+
 /* Fullscreen Floating Rack (Desktop & Mobile) */
 .display-setup-dialog.in-stage-fullscreen {
     top: 64px;
@@ -5217,6 +5237,10 @@ body:has(#visual-zone:fullscreen) {
     transform: none;
     width: min(440px, 42vw);
     z-index: 60;
+}
+
+.display-setup-dialog.in-stage-fullscreen .setup-segment-group-wide {
+    grid-column: 1 / -1;
 }
 
 /* Mobile Portrait: Stage oben anpinnen, Setup-Sheet darunter */

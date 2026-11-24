@@ -95,6 +95,7 @@ const OSC_ENUM_GROUPS = Object.freeze([
     {
         key: 'phosphorTint',
         label: 'PHOSPHOR',
+        wide: true,
         options: [
             { value: 'system', label: 'SYS' },
             { value: 'p31', label: 'P31' },
@@ -117,6 +118,7 @@ const EMU_ENUM_GROUPS = Object.freeze([
         key: 'dseRefreshDivisor',
         label: 'DSE RATE (HZ)',
         numeric: true,
+        wide: true,
         options: [
             { value: '1', label: '50' },
             { value: '2', label: '25' },
@@ -360,7 +362,10 @@ export class DisplaySetupDialog {
         // Segmented Hardware Switches
         const segmentedGrid = createElement('div', 'setup-segmented-grid');
         for (const group of OSC_ENUM_GROUPS) {
-            const groupEl = createElement('div', 'setup-segment-group');
+            const groupEl = createElement(
+                'div',
+                group.wide ? 'setup-segment-group setup-segment-group-wide' : 'setup-segment-group'
+            );
             const lbl = createElement('span', 'setup-group-label', group.label);
             const row = createElement('div', 'setup-segment-row');
             for (const opt of group.options) {
@@ -410,7 +415,10 @@ export class DisplaySetupDialog {
 
         const segmentedGrid = createElement('div', 'setup-segmented-grid');
         for (const group of EMU_ENUM_GROUPS) {
-            const groupEl = createElement('div', 'setup-segment-group');
+            const groupEl = createElement(
+                'div',
+                group.wide ? 'setup-segment-group setup-segment-group-wide' : 'setup-segment-group'
+            );
             const lbl = createElement('span', 'setup-group-label', group.label);
             const row = createElement('div', 'setup-segment-row');
             for (const opt of group.options) {
