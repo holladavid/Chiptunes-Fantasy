@@ -221,14 +221,18 @@ void main() {
     float inside = clamp(0.5 - sd, 0.0, 1.0);
 
     // 2. Strahl: Bandbreite + Konvergenz. Jeder Kanal wird an seiner eigenen Position abgetastet.
-    // Kernel [a, 1-2a, a] == zwei Bilinear-Taps bei +-2a mit Gewicht 0,5: u_beam.x ist der Offset 2a.
+    // Echter 3-Tap-Gauß [0.25, 0.5, 0.25] verhindert Doppelkonturen auch bei hohem beamBlur / HiDPI.
     vec2 hb   = vec2(u_beam.x * u_texel.x, 0.0);
     vec2 conv = c * dot(c, c) * 0.5 * u_beam.z * u_texel;
 #if QUALITY >= 1
-    vec3 beam = vec3(
-        0.5 * (fetch(w + conv - hb).r + fetch(w + conv + hb).r),
-        0.5 * (fetch(w - hb).g        + fetch(w + hb).g),
-        0.5 * (fetch(w - conv - hb).b + fetch(w - conv + hb).b));
+    vec2 wr = w + conv;
+    vec2 wb = w - conv;
+    vec3 center = vec3(fetch(wr).r, fetch(w).g, fetch(wb).b);
+    vec3 sides  = vec3(
+        fetch(wr - hb).r + fetch(wr + hb).r,
+        fetch(w  - hb).g + fetch(w  + hb).g,
+        fetch(wb - hb).b + fetch(wb + hb).b);
+    vec3 beam = 0.5 * center + 0.25 * sides;
 #else
     vec3 beam = vec3(
         fetch(w + conv).r,
@@ -255,19 +259,27 @@ void main() {
     float peak  = max(lin.r, max(lin.g, lin.b));
     float bloom = smoothstep(0.28, 0.98, max(sqrt(luma), 0.85 * sqrt(peak)));
 
-    // 5. Phosphor-Maske: Pixelposition, nicht gekrümmte UV -> kein Schwimmen, kein Moiré
+    // 5. Phosphor-Maske: per #define fest kompiliert (kein Branching pro Pixel, kein Moiré)
     vec3 cov;
-    if (u_mask.w < 0.5)      cov = slotMask(p);
-    else if (u_mask.w < 1.5) cov = deltaMask(p);
-    else                     cov = grilleMask(p);
+#if MASK_TYPE == 0
+    cov = slotMask(p);
+#elif MASK_TYPE == 1
+    cov = deltaMask(p);
+#else
+    cov = grilleMask(p);
+#endif
     vec3 maskGain = (u_phos.z + (1.0 - u_phos.z) * cov) / u_phos.w;
     float maskDepth = u_dyn.x * mix(1.0, u_dyn.y, bloom);
     vec3 gain = max(mix(vec3(1.0), maskGain, maskDepth), 0.0);
 
-    // 6. Scanlines: Raised-Cosine, phasengleich zur Zeilenmitte, mittelwertnormiert
+    // 6. Scanlines: energieerhaltendes Strahl-Blooming (dunkel schmal/scharf, Weißglut füllt die Lücke)
     float wave = 0.5 - 0.5 * cos(6.2831853 * fract(p.y / u_scan.x + u_scan.y));
+    float wLow  = wave * (0.5 + 0.5 * wave);
+    float wHigh = 1.0 - (1.0 - wave) * (1.0 - wave);
+    float scanWave = mix(wLow, wHigh, bloom);
+    float meanWave = mix(0.4375, 0.625, bloom);
     float scanDepth = u_dyn.z * mix(1.0, u_dyn.w, bloom);
-    float scan = (1.0 - scanDepth * (1.0 - wave)) / (1.0 - 0.5 * scanDepth);
+    float scan = (1.0 - scanDepth * (1.0 - scanWave)) / (1.0 - (1.0 - meanWave) * scanDepth);
 
     lin *= gain * scan * u_tone.x;
     lin = pow(max(lin, vec3(0.0)), vec3(u_beam.w));
@@ -305,7 +317,7 @@ uniform vec2 u_resolution;    // Größe des Glow-Ziels [px]
 
 void main() {
     vec2 uv = v_px / u_resolution;
-    vec2 s  = 0.25 / u_resolution;
+    vec2 s  = 0.375 / u_resolution;
     vec3 a = texture2D(u_source, uv + vec2( s.x,  s.y)).rgb;
     vec3 b = texture2D(u_source, uv + vec2(-s.x,  s.y)).rgb;
     vec3 c = texture2D(u_source, uv + vec2( s.x, -s.y)).rgb;
@@ -317,7 +329,8 @@ void main() {
 const GLOW_DIVISOR = 4;     // Glow-Raster = Quelle / 4
 const GLOW_TAP_SPACING = 1.6; // Tap-Abstand in Glow-Texeln (bei DPR >= 2 proportional größer)
 
-const buildFragmentSource = quality => `#define QUALITY ${quality}\n${FRAGMENT_SHADER_BODY}`;
+const buildFragmentSource = (quality, maskType) =>
+    `#define QUALITY ${quality}\n#define MASK_TYPE ${maskType}\n${FRAGMENT_SHADER_BODY}`;
 
 const UNIFORM_NAMES = [
     'u_source', 'u_glow', 'u_resolution', 'u_texel', 'u_glowStep', 'u_mask', 'u_phos',
@@ -386,13 +399,18 @@ export class CrtShadowMask {
         maskCanvas.addEventListener('webglcontextrestored', this.handleContextRestored);
     }
 
-    // Optionen zur Laufzeit ändern; nur 'quality' erzwingt ein Neukompilieren des Shaders.
+    // Optionen zur Laufzeit ändern; 'quality' und 'maskType' erzwingen ein Neukompilieren des Shaders.
     setOptions(options = {}) {
         const previousQuality = this.options.quality;
+        const previousMaskType = this.options.maskType;
         this.userOptions = { ...this.userOptions, ...options };
         this.options = resolveOptions(this.userOptions);
         this.uniformsDirty = true;
-        if (this.gl && this.isReady && this.options.quality !== previousQuality) {
+        if (
+            this.gl &&
+            this.isReady &&
+            (this.options.quality !== previousQuality || this.options.maskType !== previousMaskType)
+        ) {
             if (!this.initialize(this.gl)) this.fail('Shader rebuild failed');
         }
     }
@@ -549,7 +567,9 @@ export class CrtShadowMask {
             if (!this.glow) quality = 1;
         }
 
-        const program = this.createProgram(gl, buildFragmentSource(quality));
+        const maskType = MASK_TYPES[this.options.maskType];
+        const program = this.createProgram(gl, buildFragmentSource(quality, maskType));
+
         if (!program) {
             this.releaseResources(gl);
             return false;
@@ -619,24 +639,29 @@ export class CrtShadowMask {
         const o = this.options;
         const shape = MASK_SHAPES[o.maskType];
 
-        // Alles Raster in ganzen Geräte-Pixeln: Triade = Vielfaches von 3 (ein Phosphor = n px),
-        // Reihenversatz ganzzahlig. So bleibt die Maske bei jedem DPR moiré-frei und scharf.
-        // Delta-Triaden rasten auf Vielfache von 6: der Reihenabstand W/2 bleibt ganzzahlig.
-        const step = o.maskType === 'delta' ? 6 : 3;
-        const triad = Math.max(step, Math.round(o.pitch * scale / step) * step);
-        const rowPitch = triad;
+        // Slot/Grille: Triade = Vielfaches von 3 Geräte-px (ein Phosphor = n px) für perfekte Schärfe.
+        // Delta (Lochmaske): rastet auf gerade Geräte-px (step = 2), damit der Reihenabstand W/2
+        // ganzzahlig bleibt, der MASK-PITCH-Regler aber auch bei DPR=1 sauber greift.
+        const isDelta = o.maskType === 'delta';
+        const step = isDelta ? 2 : 3;
+        const minTriad = isDelta ? 4 : 3;
+        const triad = Math.max(minTriad, Math.round(o.pitch * scale / step) * step);
+        const rowPitch = isDelta ? triad / 2 : triad;
         const stagger = Math.floor(triad / 2);
         const scanPitch = rowPitch * o.scanlineRows;
-        // Phase der Zeilenwelle: Slot-Reihen sitzen mittig in der Scanline; die Delta-Punktreihen
-        // (bei 0,5 W und 1,0 W) liegen symmetrisch zu einem Peak bei 0,75 W, also alle gleich hell.
-        const scanPeak = o.maskType === 'delta' ? 0.75 * triad : 0.5 * scanPitch;
+        // Phase der Zeilenwelle: bei 1X liegt der Peak genau auf jeder Phosphorreihe (bei Delta auf
+        // y = 0, 0.5W, 1.0W..., bei Slot auf 0.5H, 1.5H...); bei 2X zwischen zwei gleich hellen Reihen.
+        const scanPeak = isDelta
+            ? (o.scanlineRows === 1 ? 0 : 0.5 * rowPitch)
+            : 0.5 * scanPitch;
         const scanPhase = 0.5 - scanPeak / scanPitch;
         const meanTransmission = o.blackMatrix + (1 - o.blackMatrix) * shape.coverage(shape.fillX, shape.fillY);
+        const maxBeam = o.quality === 'low' ? 0.5 : 1.5;
 
         gl.uniform2f(u.u_resolution, width, height);
         gl.uniform2f(u.u_texel, 1 / width, 1 / height);
         if (this.glow) {
-            const spacing = GLOW_TAP_SPACING * Math.max(1, scale / 2);
+            const spacing = GLOW_TAP_SPACING * Math.min(1.5, Math.max(1, scale * 0.75));
             gl.uniform2f(
                 u.u_glowStep,
                 spacing / Math.ceil(width / GLOW_DIVISOR),
@@ -647,7 +672,7 @@ export class CrtShadowMask {
         gl.uniform4f(u.u_phos, shape.fillX, shape.fillY, o.blackMatrix, meanTransmission);
         gl.uniform4f(u.u_dyn, o.maskStrength, MASK_DEPTH_AT_FULL_BEAM, o.scanlineStrength, SCAN_DEPTH_AT_FULL_BEAM);
         gl.uniform2f(u.u_scan, scanPitch, scanPhase);
-        gl.uniform4f(u.u_beam, Math.min(1, o.beamBlur * scale), o.halation, o.convergence * scale, o.contrast);
+        gl.uniform4f(u.u_beam, Math.min(maxBeam, o.beamBlur * scale), o.halation, o.convergence * scale, o.contrast);
         gl.uniform4f(
             u.u_geo,
             o.curvature[0], o.curvature[1],
