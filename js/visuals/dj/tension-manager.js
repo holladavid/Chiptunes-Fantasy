@@ -16,6 +16,12 @@ const MIN_RATE_DT = 1.0 / 240.0;
 const MOMENTUM_MAX = 2.0;
 export const TENSION_MAX = 20.0;
 
+const TENSION_SPEED_PROFILES = Object.freeze({
+    slow: Object.freeze({ rateScale: 0.5, holdScale: 1.5 }),
+    normal: Object.freeze({ rateScale: 1.0, holdScale: 1.0 }),
+    fast: Object.freeze({ rateScale: 2.0, holdScale: 0.55 })
+});
+
 function clamp01(value) {
     return Number.isFinite(value) ? Math.max(0.0, Math.min(1.0, value)) : 0.0;
 }
@@ -32,6 +38,7 @@ export class TensionManager {
         this.currentClimaxHoldTime = 10.0;
         this.macroState = 'idle';
         this.energyStateTimer = 0.0;
+        this.speedMode = 'normal';
 
         // Demo-Director Metriken (Zero Allocation Speicher)
         this.lastRegs = new Uint8Array(32);
@@ -39,6 +46,10 @@ export class TensionManager {
         this.freshness = 0.0;
         this.lastEnergy = 0.0;
         this.afterglowTimer = 0.0;
+    }
+
+    setSpeedMode(mode) {
+        this.speedMode = Object.prototype.hasOwnProperty.call(TENSION_SPEED_PROFILES, mode) ? mode : 'normal';
     }
 
     reset() {
@@ -198,17 +209,18 @@ export class TensionManager {
                 const beatDrive = clamp01(dynamics && dynamics.beatEnvelope ? dynamics.beatEnvelope[0] : 0.0);
                 const fullBoardDrive = channelDrive * loudnessDrive * (0.35 + beatDrive * 0.65);
 
+                const speedProfile = TENSION_SPEED_PROFILES[this.speedMode] || TENSION_SPEED_PROFILES.normal;
                 let accumulationSpeed = 0.65;
                 if (info.system === 'c64') accumulationSpeed = 0.40;
                 else if (info.system === 'amiga') accumulationSpeed = 0.30;
-                accumulationSpeed *= 1.0 + fullBoardDrive * FULL_BOARD_SPEED_BOOST;
+                accumulationSpeed *= (1.0 + fullBoardDrive * FULL_BOARD_SPEED_BOOST) * speedProfile.rateScale;
 
                 if (energy > 0.25) {
                     this.tension = Math.min(TENSION_MAX,
                         this.tension + visualIntensity * accumulationSpeed * safeDt * 4.0);
 
-                    const buildupHoldTime = BUILDUP_HOLD_TIME -
-                        fullBoardDrive * (BUILDUP_HOLD_TIME - FULL_BOARD_BUILDUP_HOLD_TIME);
+                    const buildupHoldTime = (BUILDUP_HOLD_TIME -
+                        fullBoardDrive * (BUILDUP_HOLD_TIME - FULL_BOARD_BUILDUP_HOLD_TIME)) * speedProfile.holdScale;
                     const buildupComplete = this.macroState === 'buildup' &&
                         this.energyStateTimer >= buildupHoldTime;
 

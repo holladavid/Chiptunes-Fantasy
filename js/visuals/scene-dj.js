@@ -28,6 +28,26 @@ export class SceneDJ {
         // --- RETRO BLITTER BUFFER ---
         this.retroCanvas = createCanvas();
         this.retroCtx = this.retroCanvas.getContext('2d', { alpha: false });
+
+        this.setOptions(options);
+    }
+
+    setOptions(options = {}) {
+        if (options.dseRefreshDivisor !== undefined) {
+            this.stage.setRefreshDivisor(options.dseRefreshDivisor);
+        }
+        if (options.tensionSpeed !== undefined) {
+            this.tension.setSpeedMode(options.tensionSpeed);
+        }
+        if (options.showLimitBar !== undefined && typeof this.setlist.setPermanentDseEnabled === 'function') {
+            this.setlist.setPermanentDseEnabled(
+                'LimitBar',
+                options.showLimitBar,
+                this.stage,
+                this.monitor.info,
+                this.tension.macroState
+            );
+        }
     }
 
     get currentSystem() {

@@ -40,12 +40,13 @@ export function initVisuals(stateGetters, callbacks) {
         dseRegistry.forEach(entry => {
             try {
                 const effectInstance = new entry.Class();
-                effectInstance.metadata = entry.metadata;
+                effectInstance.metadata = { ...entry.metadata };
                 dss.registerDSE(effectInstance);
             } catch (err) {
                 console.error(`[SCENE-DJ] Failed to register DSE: ${entry.Class.name}`, err);
             }
         });
+        dss.setOptions(displaySettings.getEffectiveEmu());
     }
 
     wireSiliconDJ(); // Kaltstart beim Boot
@@ -57,24 +58,36 @@ export function initVisuals(stateGetters, callbacks) {
     const osc = new Oscilloscope(canvas.width, canvas.height, displaySettings.getEffectiveOsc());
     const glitch = new CrtGlitch(); // NEU: Instanziiert den Glitcher
     const visualZone = document.getElementById('visual-zone');
+    let isCrtWebglAvailable = false;
+    const syncCrtMaskVisibility = (effectiveCrt = displaySettings.getEffectiveCrt(currentCrtSystem)) => {
+        visualZone?.classList.toggle('crt-mask-active', isCrtWebglAvailable && effectiveCrt.quality !== 'off');
+    };
+
     displaySettings.setCrtAvailable(false);
     const crtMask = new CrtShadowMask(
         canvas,
         document.getElementById('crt-mask-canvas'),
         isAvailable => {
-            visualZone?.classList.toggle('crt-mask-active', isAvailable);
+            isCrtWebglAvailable = isAvailable;
             displaySettings.setCrtAvailable(isAvailable);
+            syncCrtMaskVisibility();
         },
         toCrtMaskOptions(displaySettings.getEffectiveCrt(currentCrtSystem))
     );
 
     const applyCrtOptions = (system = getActiveSystemFromDOM()) => {
         currentCrtSystem = system;
-        crtMask.setOptions(toCrtMaskOptions(displaySettings.getEffectiveCrt(system)));
+        const effectiveCrt = displaySettings.getEffectiveCrt(system);
+        crtMask.setOptions(toCrtMaskOptions(effectiveCrt));
+        syncCrtMaskVisibility(effectiveCrt);
     };
 
     const applyOscOptions = () => {
         osc.setOptions(displaySettings.getEffectiveOsc());
+    };
+
+    const applyEmuOptions = () => {
+        dss?.setOptions(displaySettings.getEffectiveEmu());
     };
 
     displaySettings.subscribe((_state, meta) => {
@@ -83,9 +96,12 @@ export function initVisuals(stateGetters, callbacks) {
             applyOscOptions();
         } else if (meta.reason === 'crt') {
             applyCrtOptions(getActiveSystemFromDOM());
+        } else if (meta.reason === 'emu') {
+            applyEmuOptions();
         } else {
             applyOscOptions();
             applyCrtOptions(getActiveSystemFromDOM());
+            applyEmuOptions();
         }
     });
 

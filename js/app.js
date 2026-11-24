@@ -4,6 +4,7 @@
 // =========================================================================
 import { FullscreenUI } from './ui/fullscreen-ui.js';
 import { DisplaySetupDialog } from './ui/display-setup-dialog.js';
+import { displaySettings } from './visuals/display-settings.js';
 import { buildNowPlayingModel, NowPlayingConsole } from './ui/now-playing-console.js';
 import { getTracklistEntries, searchTracks, trackRegistry } from '../tracks/index.js';
 import { systemDescriptions } from './content/museum.js';
@@ -74,8 +75,17 @@ let channelVolumes = new Float32Array(4);
 let playRequestToken = 0; // Async Race Condition Schutz
 let playbackSessionId = 0; // Unidirectional State Sync für den Scene-DJ
 let loadedAmigaSamples = null;
-let lastSidTemperature = 55;
+let lastSidTemperature = displaySettings.getEffectiveEmu().sidTemperature;
 let hasBooted = false;
+
+function applySidTemperature(temp) {
+    const clamped = Math.min(75, Math.max(15, Math.round(Number(temp) || 55)));
+    lastSidTemperature = clamped;
+    const sidNode = getSidNode();
+    if (sidNode) {
+        sidNode.port.postMessage({ type: 'SET_TEMPERATURE', value: clamped });
+    }
+}
 
 let activeMuseumTab = 'hardware'; // 'story' | 'hardware'
 let currentTrackMuseumData = null;
@@ -429,9 +439,18 @@ function setPlaybackState(nextState, detail = '') {
     }
 }
 
-// Cursor-Hiding Inaktivitäts-Timer
+// Cursor-Hiding & Overlay-Ausblenden Inaktivitäts-Timer
 let mouseIdleTimer = null;
+let overlayWakeTimer = null;
 const visualZone = document.getElementById('visual-zone');
+
+function clearOverlayWakeGuard(delay = 80) {
+    clearTimeout(overlayWakeTimer);
+    if (!visualZone) return;
+    overlayWakeTimer = setTimeout(() => {
+        visualZone.classList.remove('overlays-waking');
+    }, delay);
+}
 
 function resetMouseIdleTimer() {
     if (!visualZone) return;
@@ -508,6 +527,7 @@ function initApp() {
             await initAudioEngine();
             await loadEmuCore('atari', workletRegistry.atari[0], handleWorkletMessage);
             await loadEmuCore('c64', workletRegistry.c64[0], handleWorkletMessage);
+            applySidTemperature(displaySettings.getEffectiveEmu().sidTemperature);
             await loadEmuCore('amiga', workletRegistry.amiga[0], handleWorkletMessage);
         } catch (err) {
             audioInitFailed = true;
@@ -611,12 +631,28 @@ function initApp() {
         window.addEventListener('resize', updateMuseumScrollHint);
         setRightPanelMode(rightPanelMode);
 
-        // Event-Listener für das Cursor-Hiding binden
+        // Event-Listener für das Cursor-Hiding und Overlay-Ausblenden binden
         if (visualZone) {
             visualZone.addEventListener('mousemove', resetMouseIdleTimer);
             visualZone.addEventListener('mousedown', resetMouseIdleTimer);
-            visualZone.addEventListener('touchstart', resetMouseIdleTimer);
-            visualZone.addEventListener('touchmove', resetMouseIdleTimer);
+            visualZone.addEventListener('touchstart', () => {
+                if (visualZone.classList.contains('user-inactive')) {
+                    visualZone.classList.add('overlays-waking');
+                    clearOverlayWakeGuard(450);
+                }
+                resetMouseIdleTimer();
+            }, { passive: true });
+            visualZone.addEventListener('touchend', () => {
+                if (visualZone.classList.contains('overlays-waking')) {
+                    clearOverlayWakeGuard(80);
+                }
+            }, { passive: true });
+            visualZone.addEventListener('touchcancel', () => {
+                if (visualZone.classList.contains('overlays-waking')) {
+                    clearOverlayWakeGuard(80);
+                }
+            }, { passive: true });
+            visualZone.addEventListener('touchmove', resetMouseIdleTimer, { passive: true });
             visualZone.addEventListener('keydown', resetMouseIdleTimer);
             visualZone.addEventListener('focusin', resetMouseIdleTimer);
             document.addEventListener('fullscreenchange', resetMouseIdleTimer);
@@ -647,6 +683,12 @@ function initApp() {
             isVisualFullscreen,
             onOpenChange: () => {
                 resetMouseIdleTimer();
+            }
+        });
+
+        displaySettings.subscribe((_state, meta) => {
+            if (meta.reason === 'emu' || meta.reason === 'bypass' || meta.reason === 'reset') {
+                applySidTemperature(displaySettings.getEffectiveEmu().sidTemperature);
             }
         });
 
@@ -1189,6 +1231,8 @@ async function setTheme(themeName, isBootSequence = false) {
         document.body.classList.remove('system-transitioning');
         isTransitioning = false;
     }
+
+    resetMouseIdleTimer();
 }
 
 function updateLivingSiliconTitle() {
@@ -1939,10 +1983,7 @@ document.getElementById('core-selector').addEventListener('change', async (e) =>
         if (targetSystem === 'amiga' && loadedAmigaSamples) {
             uploadAmigaSamples(getPaulaNode(), loadedAmigaSamples);
         } else if (targetSystem === 'c64') {
-            const sidNode = getSidNode();
-            if (sidNode) {
-                sidNode.port.postMessage({ type: 'SET_TEMPERATURE', value: lastSidTemperature });
-            }
+            applySidTemperature(displaySettings.getEffectiveEmu().sidTemperature);
         }
 
         if (trackData.length > 0) {

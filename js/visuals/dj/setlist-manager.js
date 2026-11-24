@@ -154,7 +154,55 @@ export class SetlistManager {
                 }
             }
         }
+        // Aktivierte permanente Overlays (z. B. LimitBar) unabhängig von One-Shots auf dem Layer aktivieren
+        for (let perm of this.registeredDSEs) {
+            if (perm.metadata.isDisabled) continue;
+            if (perm.metadata.lifecycle !== 'permanent') continue;
+            if (perm.state !== 'idle' || perm._markedForRemoval) continue;
+            if (!perm.metadata.systems.includes(info.system) && !perm.metadata.systems.includes('all')) continue;
+            if (stageManager.activeDSEs.includes(perm)) continue;
+
+            perm.state = initialState;
+            perm.stateTime = 0.0;
+            perm._markedForRemoval = false;
+            if (typeof stageManager.invalidateCache === 'function') {
+                stageManager.invalidateCache(perm);
+            }
+            stageManager.activeDSEs.push(perm);
+        }
+
         stageManager.sortZOrder();
+    }
+
+    setPermanentDseEnabled(name, enabled, stageManager, info, macroState = 'idle') {
+        const flag = Boolean(enabled);
+        for (let dse of this.registeredDSEs) {
+            if (!dse.metadata || dse.metadata.name !== name) continue;
+            dse.metadata.isDisabled = !flag;
+            const idx = stageManager.activeDSEs.indexOf(dse);
+
+            if (flag) {
+                const validSystem = dse.metadata.systems.includes(info.system) || dse.metadata.systems.includes('all');
+                if (validSystem && macroState !== 'idle' && idx === -1) {
+                    dse.state = 'starting';
+                    dse.stateTime = 0.0;
+                    dse._markedForRemoval = false;
+                    if (typeof stageManager.invalidateCache === 'function') {
+                        stageManager.invalidateCache(dse);
+                    }
+                    stageManager.activeDSEs.push(dse);
+                    stageManager.sortZOrder();
+                }
+            } else if (idx !== -1) {
+                dse.state = 'idle';
+                dse.stateTime = 0.0;
+                dse._markedForRemoval = false;
+                if (typeof stageManager.clearPendingBeat === 'function') {
+                    stageManager.clearPendingBeat(dse);
+                }
+                stageManager.activeDSEs.splice(idx, 1);
+            }
+        }
     }
 
     forceSystemChange(stageManager, info) {

@@ -14,6 +14,7 @@ export class StageManager {
     constructor(options = {}) {
         this.activeDSEs = [];
         this.frameCaches = new WeakMap();
+        this.refreshDivisor = 1;
         this.createCanvas = typeof options.createCanvas === 'function'
             ? options.createCanvas
             : () => document.createElement('canvas');
@@ -37,6 +38,16 @@ export class StageManager {
         if (cache) {
             cache.tick = null;
             cache.hasPendingBeat = false;
+        }
+    }
+
+    setRefreshDivisor(divisor) {
+        const parsed = Number(divisor);
+        const next = (parsed === 1 || parsed === 2 || parsed === 3 || parsed === 4) ? parsed : 1;
+        if (next === this.refreshDivisor) return;
+        this.refreshDivisor = next;
+        for (let i = 0; i < this.activeDSEs.length; i++) {
+            this.invalidateCache(this.activeDSEs[i]);
         }
     }
 
@@ -198,7 +209,8 @@ export class StageManager {
         metricsWrapper.rawEnergyState = dynamics.rawEnergyState;
         metricsWrapper.system = system;
 
-        const palTick = Math.floor(t * PAL_FRAME_RATE + 1e-7);
+        const effectiveRate = PAL_FRAME_RATE / this.refreshDivisor;
+        const palTick = Math.floor(t * effectiveRate + 1e-7);
         for (let i = 0; i < this.activeDSEs.length; i++) {
             const dse = this.activeDSEs[i];
             if (dse.state === 'idle') {
