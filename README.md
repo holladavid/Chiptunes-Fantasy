@@ -1,4 +1,4 @@
-# 💾 CHIPTUNES FANTASY (v1.6.8)
+# 💾 CHIPTUNES FANTASY (v1.6.9)
 > **The Ultimate 8-Bit/16-Bit Bare-Metal Music Disk Emulator & Hardware Laboratory**
 
 ---
@@ -24,42 +24,45 @@ Today, our **Digital Museum** already documents the tracks, their composers, the
 
 ---
 
-## 🚀 What's New in v1.6.8
+## 🚀 What's New in v1.6.9
 
-Version 1.6.8 delivers a sweeping **Atari ST 9-Bit Shifter, Timer-B Raster & 3D Visual Overhaul** across **9 Atari DSEs and sprite sheets**, upgrades the **`TrackPresenter` overlay (`v3.2.0`)**, hardens core geometry primitives in **`hardware-constraints.js`**, codifies authentic multi-technique hardware raster rules in **`dse_development_rules.md`**, and expands automated fake-canvas test coverage across Atari DSEs.
+Version 1.6.9 introduces an all-new **Emulation & Timing** category in the Calibration Deck, adds a **`GPU: OFF`** shader bypass alongside major **CRT Shadow Mask optical & alignment upgrades**, expands **unobstructed stage overlay auto-hiding to windowed mode**, and delivers a complete **v4.0.0 Demoscene Hardware Overhaul of `LimitBar`**.
 
-### 🟩 Atari ST 9-Bit Shifter & Timer-B Overhaul (9 DSEs + IK+ Sprites)
-*   **Timer-B Raster Floors (`AtariLaserGrid` & `AtariPondRipples`):** Upgraded `AtariLaserGrid` with **4×16 Timer-B raster themes** (*Cyber Outrun*, *Synth Sunset*, *Solar Copper*, *Toxic Aurora* + `BLU5` afterglow, `<= 6` colors/scanline), moving shimmer bands, smooth Bresenham 3D waved curves, gapless run-merged perspective rays, converging YM2149 lanes, and `#fcfcfc` twin-core laser sweeps. `AtariPondRipples` gains a 4th *North-Sea Teal* palette (`SEA5`), 3-zone perspective water with liquid-streak dithering, HBL scanline shimmer + YM2149 side wisps, flicker-free continuous twinkling across 24 glints, 3D trough+crest waves, and a transparent Bayer-4×4 floor fade.
-*   **3D Solid & Vector Craftsmanship (`AtariFlatShadedTrio`, `AtariBobs`, `WireframeMorph` & `AtariLineRibbons`):**
-    *   `AtariFlatShadedTrio` replaces basic primitives with **6 planar-normalized crystal polyhedra** (*Cuboctahedron*, *Rhombic Dodecahedron*, *Square Antiprism*, *5-Sided Crystal*, *Octahedron*, *Hex Bipyramid*), front-hemisphere wrap-Lambert shading, `1 px` specular rims, dark inner crystal cores during explosions, and `climax` opaque silhouette echo-trails with 3D cross-body sorting.
-    *   `AtariBobs` (`lissajous-bobs.js`) evolves into a true **3D Lissajous & Knot Bob engine** across 6 formations (*Lissajous*, *Halo*, *Helix*, *Trefoil*, *Ribbon*, *Galaxy*) powered by precomputed **3D raytraced sphere scanline LUTs** (`r = 1..10`, zero `Math.sqrt` per frame), Painter Z-sorting, opaque `climax` echo trails, graded 3-tier chain waves, and cascading Midnight-Chrome afterglow.
-    *   `WireframeMorph` adds a counter-rotating **4D Hyper-Core**, Painter Z-sorting across up to 48 edges, theme-matched 3-step opaque trails, `1 px` `INK` drop shadows & parallel bevels, vertex star crosshairs, and a Lissajous figure-8 roaming path.
-    *   `AtariLineRibbons` doubles history depth (`8 → 16` slots) with stride-2 airy trail fanning (`3 → 2 → 1`), cohesive anti-collapse rotation geometry, symmetrical `INK` double-head contrast, corner jewels, and `#fcfcfc` hard-beat flashes.
-*   **Scenic & Silicon Masterpieces (`AtariRetroSunset`, `ik-fighter-sprites.js` & `YmSiliconBg`):**
-    *   `AtariRetroSunset` introduces 10-stop Timer-B raster skies & 5-stop lake reflections, twinkling dusk stars, 3 asymmetric hand-pixeled cloud silhouettes, dual-layer twilight mountain valleys, *Toro* stone lanterns, a curved *Myojin* Torii with straight *Korobi* pillars, a gnarled *Moyogi* S-curve Pine Bonsai with 5 cloud tiers, and an 18-slot falling & courtyard-settling leaf pool—paired with refined leg/kick anatomy across 7 frames in `ik-fighter-sprites.js`.
-    *   `YmSiliconBg` enforces a strict `0.55 * h` horizon contract (DIP-40 IC die & 3 oscillators above; perspective Log-DAC & copper bus packets below), 15-color 9-bit silicon palette, true per-voice YM2149F waveforms (4-bit Log-DAC bass, hardware envelope, Sync-Buzzer/PWM) with 10-segment LED peak meters & optional `metrics.regs` tuning, 16-bit LFSR + envelope monitor, and `1.5 s` Bayer fades.
+### ⚙️ New `EMULATION & TIMING` Calibration Deck (`[ CRT / SCOPE ]`, 3-Column Rack)
+*   **Selectable DSE Refresh Rates (`50` / `25` / `16.7` / `12.5 Hz`):** Throttle DSE rendering via authentic PAL vertical-blank divisors (`1 / 2 / 3 / 4 VBLs`) inside `StageManager` to emulate classic multi-frame 3D vector, fractal, and blitter engines—while keeping `StageManager` beat-latching, audio, Oscilloscope, and FFT at full smoothness.
+*   **Tension Buildup Speed (`SLOW` / `NORM` / `FAST`):** Control how rapidly `TensionManager` drives macro intensity and buildup hold times across `playing`, `buildup`, `climax`, and `afterglow`.
+*   **SID Silicon Temperature (`15 °C – 75 °C`):** Restored live thermal drift control (`SET_TEMPERATURE`, `55 °C` default) synced to C64 `AudioWorklet` cores on boot, core switches, live slider adjustments, `A/B` compare, and resets.
+*   **Toggleable `LimitBar` Overlay (`OFF` / `ON`):** Enable or hide the bottom tension meter at runtime without touching static `dseRegistry` defaults; registry metadata is cloned per `SceneDJ` instance and permanent overlays mount cleanly alongside oneshot `TrackPresenter` banners.
+*   **Responsive 3-Column Calibration Rack:** Expanded the desktop deck (`>= 1360 px`) into a 3-column rack (`CRT SHADOW MASK`, `PHOSPHOR OSCILLOSCOPE`, `EMULATION & TIMING`), added wide full-row placement for 4-way controls (`PHOSPHOR`, `DSE RATE (HZ)`), and switched segmented controls to proportional flex sizing so wide `Press Start 2P` glyphs (`AMBER`, `GRILLE`, `16.7`, `12.5`) never clip.
 
-### 🏷️ TrackPresenter v3.2.0 & Registry Timing (`track-presenter.js`, `registry.js`)
-*   **Atari ST Timer-B Raster Banner & Rock-Steady Typography:** Extended overlay duration from `3.0 s` to `4.0 s` and locked title/subtitle alignment cleanly centered across all systems (scrolling only when wider than the frame). Redesigned the Atari ST presenter with 4 iconic demoscene themes (*Goldrunner*, *ST Shifter*, *Union*, *Carebears*), a 50 Hz PAL CRT shutter unfold, counter-moving rail glints, stepped 16-bit corner brackets, Copper-split dividers, and symmetrical 3-channel YM2149 raster wings.
+### 📺 WebGL CRT Shadow Mask: `GPU: OFF`, `DELTA` Fix & Optical Upgrades (`crt-shadow-mask.js`)
+*   **`GPU: OFF` Performance Bypass:** Disables WebGL shader compilation, FBO/texture allocation, and per-frame texture uploads (`[ SHADER OFF · CSS ]`), rendering `#demo-canvas` directly with lightweight CSS `.scanlines` while keeping all presets/sliders preserved and `A/B` Factory comparison active.
+*   **`DELTA` Lochmaske & Scanline Alignment Fix:** Switched `delta` pitch snapping from `step = 6` to `step = 2` (`min 4 px`) so `MASK PITCH` responds smoothly on `DPR = 1` displays, and aligned `delta` scanlines directly onto phosphor dot rows (`1X`) and dot pairs (`2X`).
+*   **Unimodal 3-Tap Beam Filter & Spot-Blooming:** Replaced the bimodal 2-tap horizontal beam filter in `MED`/`HIGH` with a center-weighted 3-tap Gaussian (up to `1.5 px`) to eliminate double contours on HiDPI screens, added energy-preserving scanline spot-blooming, widened the halation glow prefilter to an overlapping tent, and compiled active `maskType` via `#define MASK_TYPE`.
 
-### 🔧 Shared Retro Geometry, DSE Rules & Atari Test Suites
-*   **Midpoint Circle Parity & Clipping Hardening (`hardware-constraints.js`):** Replaced `Math.sqrt` even-span circles in `fillAliasedCircle` with an exact odd-span integer Midpoint rasterizer matching `drawAliasedCircleOutline` 1:1 (deduplicated octant vertices, optional `clipRect`, plus `*Clipped` aliases), added NaN/bounds guards across palette/geometry helpers, and optimized `transparentDither` polygon fills.
-*   **Expanded Hardware Raster Rules (`doc/concepts/dse_development_rules.md`):** Documented system-authentic raster modes (C64 *Hires/Multicolor/FLI*, Amiga *EHB/HAM6/Mid-Scanline Copper*, Atari ST *16-color/scanline + Timer-B/Spectrum-512*), *Bitplane-Index-Addition / Shade-Bobs*, strict `getImageData()` prohibition, and preallocated chunky/C2P `putImageData()` buffer rules.
-*   **Automated Fake-Canvas Test Coverage:** Populated `test/atari-bobs.test.mjs` (8 suites), expanded `test/atari-pond-ripples.test.mjs` (`9 → 13` suites), and upgraded `test/ym-silicon-bg.test.mjs` (10 suites) validating strict 9-bit `#fcfcfc` max palettes, `<= 16` scanline color budgets, horizon contracts, `1.5 s` transitions, graded beats, and `fillRect` budgets.
+### 🪟 Unobstructed Stage Overlays in Windowed Mode (`css/style.css`, `js/app.js`)
+*   **Windowed Auto-Hide + Touch Wake Guard:** `#brand-logo` and `#fs-ui-bar` now fade out cleanly alongside `#chip-hud.collapsed` and `#now-playing` after `3 s` of inactivity in windowed mode as well as fullscreen (with seekable progress bars guarded against hidden clicks). Includes a touch wake-up guard (`overlays-waking`) so the first tap reveals controls without triggering a hidden button underneath, plus automatic idle-timer resets on boot and system switches.
+
+### 📊 `LimitBar` v4.0.0 — Demoscene Hardware Edition (`limit-bar.js`)
+*   **System-Authentic Hardware Overhaul:** Rebuilt with zero per-frame allocations, deterministic `hashU32` math, `dt`-independent slide transitions, `beatStarted` discrete phase steps, dark contrast bevel frames, and strict viewport clipping:
+    *   **C64:** VIC-II `$D020/$D021` scanline rasterbars, 3 physical SID voice LEDs (`smooth[0..2]`), and beveled Colodore segments.
+    *   **Amiga:** Precomputed 64-step 12-bit OCS Copperlist LUTs with **Extra Half-Brite (EHB)** lower shading, **L-R-R-L** 4-channel Paula DMA pips (`smooth[0..3]`), stepped blitter sweeps, and `climax` end-cap orbiters.
+    *   **Atari ST:** Strict 9-bit Shifter palette (`<= #fcfcfc`), Timer-B bezel split pulses, 3 YM2149 voice pips (`smooth[0..2]`), and clipped Bresenham tip & edge vector sparks.
 
 ---
 
 ## ✨ Core Features & Architecture
 
 ### 🎬 Scene-DJ & System-Accurate Demo-Scene Elements (DSEs)
-*   **50 Hz PAL Orchestration:** Our `Scene-DJ` monitors channel energies, track novelty, beat strength (`soft` / `medium` / `hard` impulses vs. exact musical beat boundaries), and macro tension (`playing`, `buildup`, `climax`, `afterglow`) to choreograph layered background, floor, foreground, and presenter DSEs—spanning classic *Castles*, *Retro Sunsets*, *Kefrens Checkerboards*, *PETSCII Plasmas*, *C64 Raster Tunnels/Roads*, *Amiga Voxel Hills/Twisters/Vector Balls*, and *Atari ST Timer-B Laser Grids/Pond Ripples/3D Raytraced Bobs/Flat-Shaded Crystals/Julia Cyclers*.
+*   **PAL VBL Orchestration (`50 / 25 / 16.7 / 12.5 Hz`):** Our `Scene-DJ` monitors channel energies, track novelty, beat strength (`soft` / `medium` / `hard` impulses vs. exact musical beat boundaries), and configurable macro tension buildup (`playing`, `buildup`, `climax`, `afterglow`) to choreograph layered background, floor, foreground, and presenter/limit overlays—spanning classic *Castles*, *Retro Sunsets*, *Kefrens Checkerboards*, *PETSCII Plasmas*, *C64 Raster Tunnels/Roads*, *Amiga Voxel Hills/Twisters/Vector Balls*, and *Atari ST Timer-B Laser Grids/Pond Ripples/3D Raytraced Bobs/Flat-Shaded Crystals/Julia Cyclers*.
 *   **Ruthless Historical Accuracy:** All DSEs run DOM-free inside system-strict retro rasters and hardware color tables (16-color C64 Colodore, 4,096-color 12-bit Amiga OCS, 512-color 9-bit Atari ST Shifter) with Bayer 4×4 ordered dithering, zero alpha blending, and crisp `image-rendering: pixelated` scaling.
 *   **Row-Batched FFT Phosphor Analyzer:** 48 logarithmic VFD/phosphor bars from `45 Hz` to `12 kHz` sampled from a 4096-point FFT with DC-offset rejection, time-based peak-hold gravity, and row-batched draw calls.
 
-### 🎛️ Interactive CRT & Scope Calibration Deck (`[ CRT / SCOPE ]`, Shortcut `[C]`)
-*   **Live Calibration & Persistent Profiles:** Tune every CRT optics and oscilloscope parameter in real time via `DisplaySettingsStore` (`localStorage`-persisted) across **FACTORY**, **AUTO SYS** (`C64 → 1702 COMP`, `Amiga → 1084S RGB`, `Atari ST → TRINITRON`), **1084S RGB**, **1702 COMP**, **TRINITRON**, and **DELTA** profiles, with double-click per-slider reset, `[ RESET ]`, and instant **A/B live factory comparison (`[B]`)**.
-*   **Linear-Light WebGL CRT Shadow Mask (`crt-shadow-mask.js`):** Gamma-2.0 linear-light pipeline on a `highp` fullscreen triangle with analytical pixel-snapped **Slot**, **Delta**, and **Aperture Grille** masks, 2-pass low-res FBO glass halation (`HIGH` tier), beam-current spot blooming, 1×/2× scanlines, R/B convergence drift, barrel curvature with rounded SDF bezel, $\cos^4$ vignette, and clean `MED`/CSS fallbacks.
+### 🎛️ Interactive CRT, Scope & Emulation Calibration Deck (`[ CRT / SCOPE ]`, Shortcut `[C]`)
+*   **Live Calibration & Persistent Profiles:** Tune CRT optics, oscilloscope parameters, DSE emulation timing, and C64 SID chip temperature in real time via `DisplaySettingsStore` (`localStorage`-persisted) across **FACTORY**, **AUTO SYS** (`C64 → 1702 COMP`, `Amiga → 1084S RGB`, `Atari ST → TRINITRON`), **1084S RGB**, **1702 COMP**, **TRINITRON**, and **DELTA** profiles, with double-click per-slider reset, `[ RESET ]`, and instant **A/B live factory comparison (`[B]`)**.
+*   **Linear-Light WebGL CRT Shadow Mask (`crt-shadow-mask.js`):** Gamma-2.0 linear-light pipeline on a `highp` fullscreen triangle with analytical pixel-snapped **Slot**, **Delta**, and **Aperture Grille** masks, 2-pass low-res FBO glass halation (`HIGH` tier), unimodal 3-tap beam filtering, energy-preserving scanline spot-blooming, `1×`/`2×` scanlines, R/B convergence drift, barrel curvature with rounded SDF bezel, $\cos^4$ vignette, and **`GPU: OFF`** / CSS `.scanlines` fallback.
 *   **100 Hz-Capped Phosphor Oscilloscope (`oscilloscope.js`):** Decoupled `simulate()`/`compose()` architecture (`10 ms` step cap) delivering identical phosphor persistence across 60 Hz–240 Hz displays, level-normalized Schmitt + `-MSE` triggering, layer-batched drawing, and front-panel **V/DIV Gain**, **Timebase**, **Persistence**, **Phosphor Glow**, **Graticule**, **Beam FX**, **Trigger Mode**, and **Phosphor Tint** (`SYS`, `P31`, `P11`, `AMBER`) controls.
+*   **Emulation & Timing (`EMULATION`):** Choose authentic PAL VBL engine refresh divisors (**50 / 25 / 16.7 / 12.5 Hz**), macro **Tension** buildup speed (**SLOW / NORM / FAST**), live **Limit Bar** toggle (**OFF / ON**), and **SID Temp** (**15–75 °C**).
 
 ### 🧬 Interactive "Living Silicon" Die & Motherboard Telemetry
 Each soundchip pillar drives a real-time SVG silicon die and external motherboard circuit model directly from emulator telemetry:
@@ -74,7 +77,7 @@ Each soundchip pillar drives a real-time SVG silicon die and external motherboar
 ### 🎧 Audiophile Master Bus DSP & Ergonomics
 *   **Complementary Bauer Binaural Crossfeed (bs2b):** 700 Hz crossfeed low-pass + 1000 Hz direct high-shelf (`0 dB` DC mono sum, `-4.73 dB` crossfeed) with a click-free 10 ms toggle crossfade (`[ STEREO BLEND ]`) to eliminate headphone fatigue on hard-panned Amiga and StereoSID mixes.
 *   **1.0 ms Smoothed Lookahead Brickwall Limiter:** O(1) monotonic sliding-window minimum deque with moving-average attack smoothing capping peaks cleanly at `-0.35 dBFS` without pre-transient stepping or OS ducking.
-*   **Cockpit & Power Saving:** Supports Desktop Command Deck layouts (up to 3-column ultrawide), native & pseudo-fullscreen stages with timeline scrubbing and auto-hiding overlays, Media Session lockscreen integration, and `[ HALT GFX ]` Eco Mode (`[M]`).
+*   **Cockpit & Power Saving:** Supports Desktop Command Deck layouts (up to 3-column ultrawide), native & pseudo-fullscreen stages with timeline scrubbing, auto-hiding overlays in both windowed and fullscreen modes, Media Session lockscreen integration, and `[ HALT GFX ]` Eco Mode (`[M]`).
 
 ---
 
@@ -103,7 +106,7 @@ Each system supports an **Exact** hardware-oriented core plus optional **Fantasy
 
 | Key | Action |
 | :--- | :--- |
-| **`C`** | Open / close the CRT & Oscilloscope Calibration Deck |
+| **`C`** | Open / close the CRT, Scope & Emulation Calibration Deck |
 | **`B`** | Toggle **A/B** Factory Default live comparison (while Calibration Deck is open) |
 | **`F`** | Toggle Fullscreen Stage |
 | **`M`** | Toggle Eco Mode (`[ HALT GFX ]`) |
@@ -117,7 +120,7 @@ Each system supports an **Exact** hardware-oriented core plus optional **Fantasy
 
 Run via a local web server (required by ES6 Modules and `AudioWorklet` CORS rules):
 
-```bash
+~~~bash
 # Using Node.js:
 npx serve .
 
@@ -126,3 +129,4 @@ python3 -m http.server 8080
 
 # Run automated Node.js unit & DSE test suites:
 node --test test/*.test.mjs
+~~~
