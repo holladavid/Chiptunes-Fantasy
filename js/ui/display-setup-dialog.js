@@ -132,6 +132,15 @@ const EMU_ENUM_GROUPS = Object.freeze([
             { value: 'normal', label: 'NORM' },
             { value: 'fast', label: 'FAST' }
         ]
+    },
+    {
+        key: 'showLimitBar',
+        label: 'LIMIT BAR',
+        boolean: true,
+        options: [
+            { value: 'false', label: 'OFF' },
+            { value: 'true', label: 'ON' }
+        ]
     }
 ]);
 
@@ -411,7 +420,9 @@ export class DisplaySetupDialog {
                 btn.dataset.emuValue = opt.value;
                 btn.setAttribute('aria-pressed', 'false');
                 btn.addEventListener('click', () => {
-                    const value = group.numeric ? Number(opt.value) : opt.value;
+                    const value = group.boolean
+                        ? opt.value === 'true'
+                        : (group.numeric ? Number(opt.value) : opt.value);
                     displaySettings.updateEmu({ [group.key]: value });
                 });
                 this.emuEnumButtons.push(btn);

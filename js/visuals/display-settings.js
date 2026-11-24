@@ -71,7 +71,8 @@ export const OSC_DEFAULTS = Object.freeze({
 export const EMU_DEFAULTS = Object.freeze({
     dseRefreshDivisor: 1,
     tensionSpeed: 'normal',
-    sidTemperature: 55
+    sidTemperature: 55,
+    showLimitBar: false
 });
 
 export const CRT_PRESETS = Object.freeze({
@@ -197,7 +198,8 @@ export function sanitizeEmuSettings(raw, base = EMU_DEFAULTS) {
     return {
         dseRefreshDivisor: DSE_REFRESH_DIVISORS.includes(div) ? div : base.dseRefreshDivisor,
         tensionSpeed: pickEnum(src.tensionSpeed, DSE_TENSION_SPEEDS, base.tensionSpeed),
-        sidTemperature: clampInt(src.sidTemperature, EMU_BOUNDS.sidTemperature, base.sidTemperature)
+        sidTemperature: clampInt(src.sidTemperature, EMU_BOUNDS.sidTemperature, base.sidTemperature),
+        showLimitBar: typeof src.showLimitBar === 'boolean' ? src.showLimitBar : base.showLimitBar
     };
 }
 

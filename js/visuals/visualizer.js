@@ -40,7 +40,7 @@ export function initVisuals(stateGetters, callbacks) {
         dseRegistry.forEach(entry => {
             try {
                 const effectInstance = new entry.Class();
-                effectInstance.metadata = entry.metadata;
+                effectInstance.metadata = { ...entry.metadata };
                 dss.registerDSE(effectInstance);
             } catch (err) {
                 console.error(`[SCENE-DJ] Failed to register DSE: ${entry.Class.name}`, err);

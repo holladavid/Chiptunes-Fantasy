@@ -39,6 +39,15 @@ export class SceneDJ {
         if (options.tensionSpeed !== undefined) {
             this.tension.setSpeedMode(options.tensionSpeed);
         }
+        if (options.showLimitBar !== undefined && typeof this.setlist.setPermanentDseEnabled === 'function') {
+            this.setlist.setPermanentDseEnabled(
+                'LimitBar',
+                options.showLimitBar,
+                this.stage,
+                this.monitor.info,
+                this.tension.macroState
+            );
+        }
     }
 
     get currentSystem() {
