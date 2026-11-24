@@ -46,6 +46,7 @@ export function initVisuals(stateGetters, callbacks) {
                 console.error(`[SCENE-DJ] Failed to register DSE: ${entry.Class.name}`, err);
             }
         });
+        dss.setOptions(displaySettings.getEffectiveEmu());
     }
 
     wireSiliconDJ(); // Kaltstart beim Boot
@@ -85,15 +86,22 @@ export function initVisuals(stateGetters, callbacks) {
         osc.setOptions(displaySettings.getEffectiveOsc());
     };
 
+    const applyEmuOptions = () => {
+        dss?.setOptions(displaySettings.getEffectiveEmu());
+    };
+
     displaySettings.subscribe((_state, meta) => {
         if (meta.reason === 'availability') return;
         if (meta.reason === 'osc') {
             applyOscOptions();
         } else if (meta.reason === 'crt') {
             applyCrtOptions(getActiveSystemFromDOM());
+        } else if (meta.reason === 'emu') {
+            applyEmuOptions();
         } else {
             applyOscOptions();
             applyCrtOptions(getActiveSystemFromDOM());
+            applyEmuOptions();
         }
     });
 

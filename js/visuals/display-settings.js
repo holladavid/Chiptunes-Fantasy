@@ -30,11 +30,17 @@ export const OSC_BOUNDS = Object.freeze({
     graticule: Object.freeze({ min: 0, max: 1, step: 0.05 })
 });
 
+export const EMU_BOUNDS = Object.freeze({
+    sidTemperature: Object.freeze({ min: 15, max: 75, step: 1 })
+});
+
 export const CRT_QUALITIES = Object.freeze(['off', 'low', 'medium', 'high']);
 export const CRT_MASK_TYPES = Object.freeze(['slot', 'delta', 'grille']);
 export const OSC_BEAM_MODES = Object.freeze(['sparks', 'spot', 'off']);
 export const OSC_TRIGGER_MODES = Object.freeze(['auto', 'free']);
 export const OSC_PHOSPHOR_TINTS = Object.freeze(['system', 'p31', 'p11', 'amber']);
+export const DSE_REFRESH_DIVISORS = Object.freeze([1, 2, 3, 4]);
+export const DSE_TENSION_SPEEDS = Object.freeze(['slow', 'normal', 'fast']);
 
 export const CRT_DEFAULTS = Object.freeze({
     quality: 'high',
@@ -60,6 +66,12 @@ export const OSC_DEFAULTS = Object.freeze({
     beamMode: 'sparks',
     triggerMode: 'auto',
     phosphorTint: 'system'
+});
+
+export const EMU_DEFAULTS = Object.freeze({
+    dseRefreshDivisor: 1,
+    tensionSpeed: 'normal',
+    sidTemperature: 55
 });
 
 export const CRT_PRESETS = Object.freeze({
@@ -179,6 +191,16 @@ export function sanitizeOscSettings(raw, base = OSC_DEFAULTS) {
     };
 }
 
+export function sanitizeEmuSettings(raw, base = EMU_DEFAULTS) {
+    const src = (raw && typeof raw === 'object') ? raw : {};
+    const div = Number(src.dseRefreshDivisor);
+    return {
+        dseRefreshDivisor: DSE_REFRESH_DIVISORS.includes(div) ? div : base.dseRefreshDivisor,
+        tensionSpeed: pickEnum(src.tensionSpeed, DSE_TENSION_SPEEDS, base.tensionSpeed),
+        sidTemperature: clampInt(src.sidTemperature, EMU_BOUNDS.sidTemperature, base.sidTemperature)
+    };
+}
+
 export function toCrtMaskOptions(crtState) {
     const safe = sanitizeCrtSettings(crtState);
     const curvX = safe.curvature;
@@ -229,7 +251,8 @@ function saveToStorage(storage, state) {
             version: 1,
             crtPreset: state.crtPreset,
             crt: state.crt,
-            osc: state.osc
+            osc: state.osc,
+            emu: state.emu
         }));
         return true;
     } catch {
@@ -261,7 +284,8 @@ export class DisplaySettingsStore {
         this.state = {
             crtPreset,
             crt: sanitizeCrtSettings(saved?.crt, CRT_DEFAULTS),
-            osc: sanitizeOscSettings(saved?.osc, OSC_DEFAULTS)
+            osc: sanitizeOscSettings(saved?.osc, OSC_DEFAULTS),
+            emu: sanitizeEmuSettings(saved?.emu, EMU_DEFAULTS)
         };
     }
 
@@ -270,6 +294,7 @@ export class DisplaySettingsStore {
             crtPreset: this.state.crtPreset,
             crt: { ...this.state.crt },
             osc: { ...this.state.osc },
+            emu: { ...this.state.emu },
             bypassed: this.bypassed,
             crtAvailable: this.crtAvailable
         };
@@ -300,6 +325,13 @@ export class DisplaySettingsStore {
             return { ...OSC_DEFAULTS };
         }
         return { ...this.state.osc };
+    }
+
+    getEffectiveEmu() {
+        if (this.bypassed) {
+            return { ...EMU_DEFAULTS };
+        }
+        return { ...this.state.emu };
     }
 
     isBypassed() {
@@ -358,6 +390,14 @@ export class DisplaySettingsStore {
         this.notify('osc');
     }
 
+    updateEmu(patch = {}) {
+        if (!patch || typeof patch !== 'object') return;
+        this.bypassed = false;
+        this.state.emu = sanitizeEmuSettings({ ...this.state.emu, ...patch }, this.state.emu);
+        saveToStorage(this.storage, this.state);
+        this.notify('emu');
+    }
+
     resetCrt() {
         this.bypassed = false;
         this.state.crtPreset = 'default';
@@ -373,11 +413,19 @@ export class DisplaySettingsStore {
         this.notify('osc');
     }
 
+    resetEmu() {
+        this.bypassed = false;
+        this.state.emu = { ...EMU_DEFAULTS };
+        saveToStorage(this.storage, this.state);
+        this.notify('emu');
+    }
+
     resetAll() {
         this.bypassed = false;
         this.state.crtPreset = 'default';
         this.state.crt = { ...CRT_DEFAULTS };
         this.state.osc = { ...OSC_DEFAULTS };
+        this.state.emu = { ...EMU_DEFAULTS };
         saveToStorage(this.storage, this.state);
         this.notify('reset');
     }

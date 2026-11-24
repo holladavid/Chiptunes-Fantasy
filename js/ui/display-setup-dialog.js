@@ -8,6 +8,7 @@
 import {
     CRT_DEFAULTS,
     OSC_DEFAULTS,
+    EMU_DEFAULTS,
     displaySettings,
     SYSTEM_CRT_PRESETS
 } from '../visuals/display-settings.js';
@@ -111,6 +112,35 @@ const OSC_SLIDER_SPECS = Object.freeze([
     { key: 'graticule', label: 'GRATICULE', min: 0, max: 1, step: 0.05, format: v => (v <= 0.005 ? 'OFF' : `${Math.round(v * 100)}%`) }
 ]);
 
+const EMU_ENUM_GROUPS = Object.freeze([
+    {
+        key: 'dseRefreshDivisor',
+        label: 'DSE RATE (HZ)',
+        numeric: true,
+        options: [
+            { value: '1', label: '50' },
+            { value: '2', label: '25' },
+            { value: '3', label: '16.7' },
+            { value: '4', label: '12.5' }
+        ]
+    },
+    {
+        key: 'tensionSpeed',
+        label: 'TENSION',
+        options: [
+            { value: 'slow', label: 'SLOW' },
+            { value: 'normal', label: 'NORM' },
+            { value: 'fast', label: 'FAST' }
+        ]
+    }
+]);
+
+const EMU_SLIDER_SPECS = Object.freeze([
+    { key: 'sidTemperature', label: 'SID TEMP', min: 15, max: 75, step: 1, format: v => `${Math.round(v)} °C`, requiresC64: true }
+]);
+
+const EMU_RATE_LABELS = Object.freeze({ 1: '50 HZ', 2: '25 HZ', 3: '16.7 HZ', 4: '12.5 HZ' });
+
 function createElement(tag, className, textContent) {
     const el = document.createElement(tag);
     if (className) el.className = className;
@@ -137,6 +167,8 @@ export class DisplaySetupDialog {
         this.crtSliderEntries = [];
         this.oscEnumButtons = [];
         this.oscSliderEntries = [];
+        this.emuEnumButtons = [];
+        this.emuSliderEntries = [];
 
         if (!this.root) return;
 
@@ -175,7 +207,7 @@ export class DisplaySetupDialog {
         this.resetBtn = createElement('button', 'setup-action-btn', '[ RESET ]');
         this.resetBtn.type = 'button';
         this.resetBtn.id = 'setup-btn-reset';
-        this.resetBtn.title = 'Alle CRT- und Oszi-Werte auf Werkseinstellung zurücksetzen';
+        this.resetBtn.title = 'Alle CRT-, Oszi- und Emulationswerte auf Werkseinstellung zurücksetzen';
 
         this.closeBtn = createElement('button', 'setup-action-btn setup-close-btn', '[ CLOSE ]');
         this.closeBtn.type = 'button';
@@ -192,9 +224,10 @@ export class DisplaySetupDialog {
 
         this.tabButtons = {
             crt: this.createTabButton('crt', '[ CRT MASK ]', 'setup-section-crt'),
-            osc: this.createTabButton('osc', '[ OSCILLOSCOPE ]', 'setup-section-osc')
+            osc: this.createTabButton('osc', '[ SCOPE ]', 'setup-section-osc'),
+            emu: this.createTabButton('emu', '[ EMULATION ]', 'setup-section-emu')
         };
-        tabBar.append(this.tabButtons.crt, this.tabButtons.osc);
+        tabBar.append(this.tabButtons.crt, this.tabButtons.osc, this.tabButtons.emu);
 
         // --- A/B Bypass Statusleiste ---
         this.bypassBanner = createElement(
@@ -209,7 +242,8 @@ export class DisplaySetupDialog {
         this.deckBody = body;
         const crtSection = this.buildCrtSection();
         const oscSection = this.buildOscSection();
-        body.append(crtSection, oscSection);
+        const emuSection = this.buildEmuSection();
+        body.append(crtSection, oscSection, emuSection);
 
         this.root.append(header, tabBar, this.bypassBanner, body);
         this.setActiveTab(this.activeTab);
@@ -353,6 +387,56 @@ export class DisplaySetupDialog {
         return section;
     }
 
+    buildEmuSection() {
+        const section = createElement('section', 'setup-section setup-section-emu');
+        section.id = 'setup-section-emu';
+        section.setAttribute('aria-labelledby', 'setup-heading-emu');
+        this.emuSection = section;
+
+        const headingRow = createElement('div', 'setup-section-head');
+        const heading = createElement('h3', 'setup-section-heading', '> EMULATION & TIMING');
+        heading.id = 'setup-heading-emu';
+        this.emuBadge = createElement('span', 'setup-preset-indicator', '50 HZ');
+        headingRow.append(heading, this.emuBadge);
+
+        const segmentedGrid = createElement('div', 'setup-segmented-grid');
+        for (const group of EMU_ENUM_GROUPS) {
+            const groupEl = createElement('div', 'setup-segment-group');
+            const lbl = createElement('span', 'setup-group-label', group.label);
+            const row = createElement('div', 'setup-segment-row');
+            for (const opt of group.options) {
+                const btn = createElement('button', 'setup-seg-btn', opt.label);
+                btn.type = 'button';
+                btn.dataset.emuKey = group.key;
+                btn.dataset.emuValue = opt.value;
+                btn.setAttribute('aria-pressed', 'false');
+                btn.addEventListener('click', () => {
+                    const value = group.numeric ? Number(opt.value) : opt.value;
+                    displaySettings.updateEmu({ [group.key]: value });
+                });
+                this.emuEnumButtons.push(btn);
+                row.appendChild(btn);
+            }
+            groupEl.append(lbl, row);
+            segmentedGrid.appendChild(groupEl);
+        }
+
+        const slidersGrid = createElement('div', 'setup-sliders-grid setup-sliders-emu');
+        for (const spec of EMU_SLIDER_SPECS) {
+            const entry = this.createSliderField(
+                'emu',
+                spec,
+                value => displaySettings.updateEmu({ [spec.key]: value }),
+                () => displaySettings.updateEmu({ [spec.key]: EMU_DEFAULTS[spec.key] })
+            );
+            this.emuSliderEntries.push(entry);
+            slidersGrid.appendChild(entry.field);
+        }
+
+        section.append(headingRow, segmentedGrid, slidersGrid);
+        return section;
+    }
+
     createSliderField(prefix, spec, onInput, onReset) {
         const field = createElement('div', 'setup-slider-field');
         const inputId = `setup-${prefix}-${spec.key}`;
@@ -405,16 +489,18 @@ export class DisplaySetupDialog {
     }
 
     setActiveTab(tabId) {
-        this.activeTab = tabId === 'osc' ? 'osc' : 'crt';
-        const isCrt = this.activeTab === 'crt';
-
-        this.tabButtons.crt?.classList.toggle('active', isCrt);
-        this.tabButtons.crt?.setAttribute('aria-selected', String(isCrt));
-        this.tabButtons.osc?.classList.toggle('active', !isCrt);
-        this.tabButtons.osc?.setAttribute('aria-selected', String(!isCrt));
-
-        this.crtSection?.classList.toggle('is-active-tab', isCrt);
-        this.oscSection?.classList.toggle('is-active-tab', !isCrt);
+        this.activeTab = (tabId === 'osc' || tabId === 'emu') ? tabId : 'crt';
+        const sections = {
+            crt: this.crtSection,
+            osc: this.oscSection,
+            emu: this.emuSection
+        };
+        for (const id of ['crt', 'osc', 'emu']) {
+            const active = this.activeTab === id;
+            this.tabButtons[id]?.classList.toggle('active', active);
+            this.tabButtons[id]?.setAttribute('aria-selected', String(active));
+            sections[id]?.classList.toggle('is-active-tab', active);
+        }
     }
 
     isOpen() {
@@ -614,6 +700,30 @@ export class DisplaySetupDialog {
                 input.value = String(val);
             }
             readout.textContent = spec.format(val);
+        }
+
+        const shownEmu = state.emu || EMU_DEFAULTS;
+        if (this.emuBadge) {
+            this.emuBadge.textContent = EMU_RATE_LABELS[shownEmu.dseRefreshDivisor] || '50 HZ';
+        }
+
+        for (const btn of this.emuEnumButtons) {
+            const key = btn.dataset.emuKey;
+            const isActive = btn.dataset.emuValue === String(shownEmu[key]);
+            btn.classList.toggle('active', isActive);
+            btn.setAttribute('aria-pressed', String(isActive));
+        }
+
+        for (const entry of this.emuSliderEntries) {
+            const { spec, field, input, readout } = entry;
+            const val = shownEmu[spec.key];
+            if (Math.abs(Number.parseFloat(input.value) - val) > 1e-6) {
+                input.value = String(val);
+            }
+            const disabled = Boolean(spec.requiresC64 && system !== 'c64');
+            input.disabled = disabled;
+            field.classList.toggle('is-disabled', disabled);
+            readout.textContent = disabled ? 'C64 ONLY' : spec.format(val);
         }
     }
 

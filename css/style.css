@@ -4612,7 +4612,7 @@ body:has(#visual-zone:fullscreen) {
 @media (max-width: 800px),
        (max-width: 1024px) and (max-height: 580px) and (orientation: landscape) {
     .now-playing { display: none; }
-    
+
 
     #visual-zone:fullscreen #fs-ui-bar,
     #visual-zone:-webkit-full-screen #fs-ui-bar,
@@ -4792,7 +4792,7 @@ body:has(#visual-zone:fullscreen) {
     left: 50%;
     bottom: 12px;
     transform: translateX(-50%);
-    width: min(1320px, calc(100vw - 28px));
+    width: min(1460px, calc(100vw - 28px));
     z-index: 80;
     display: flex;
     flex-direction: column;
@@ -4899,6 +4899,8 @@ body:has(#visual-zone:fullscreen) {
     min-width: 0;
     min-height: 40px;
     padding: 6px 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
     background: var(--chassis-dark);
     color: var(--panel-text);
     border: 1px solid var(--chassis-light);
@@ -5154,15 +5156,26 @@ body:has(#visual-zone:fullscreen) {
     }
 }
 
-/* Desktop & Widescreen: 2-Spalten-Rack ohne Tabs */
+/* Kompakte Desktops (1050px-1359px): Tabs behalten, breite Slider-Spalten */
 @media (min-width: 1050px) and (min-height: 581px) {
+    .display-setup-dialog:not(.in-stage-fullscreen) .setup-sliders-crt {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .display-setup-dialog:not(.in-stage-fullscreen) .setup-sliders-osc {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* Desktop & Widescreen: 3-Spalten-Rack ohne Tabs */
+@media (min-width: 1360px) and (min-height: 581px) {
     .display-setup-dialog:not(.in-stage-fullscreen) .setup-tab-bar {
         display: none;
     }
 
     .display-setup-dialog:not(.in-stage-fullscreen) .setup-deck-body {
         display: grid;
-        grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.95fr);
+        grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.95fr) minmax(0, 0.85fr);
         gap: 14px;
         align-items: stretch;
         overflow: hidden;
@@ -5179,9 +5192,13 @@ body:has(#visual-zone:fullscreen) {
     .display-setup-dialog:not(.in-stage-fullscreen) .setup-sliders-crt {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+
+    .display-setup-dialog:not(.in-stage-fullscreen) .setup-sliders-osc {
+        grid-template-columns: 1fr;
+    }
 }
 
-@media (min-width: 1500px) and (min-height: 680px) {
+@media (min-width: 1680px) and (min-height: 680px) {
     .display-setup-dialog:not(.in-stage-fullscreen) .setup-sliders-crt {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
