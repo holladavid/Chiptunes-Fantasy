@@ -16,7 +16,8 @@ export function sawtooth12Bit(phase24) {
 
 export function pulse12Bit(phase24, pw12, test) {
     if (test) return 0x0FFF;
-    return ((phase24 >>> 12) & 0x0FFF) < (pw12 & 0x0FFF) ? 0x0FFF : 0;
+    // STEP1(pulse): reSID/reSIDfp polarity - high when (acc >> 12) >= PW; PW = 0 is a constant high level.
+    return ((phase24 >>> 12) & 0x0FFF) >= (pw12 & 0x0FFF) ? 0x0FFF : 0;
 }
 
 export function noise12Bit(lfsr23) {

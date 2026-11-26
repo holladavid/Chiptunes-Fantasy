@@ -41,7 +41,7 @@ export function clockSidEnvelope(voice) {
         voice.gate = resolvedGate;
         voice.state = resolvedGate ? SID_ENV_ATTACK : SID_ENV_RELEASE;
         if (resolvedGate) {
-            voice.rate_counter = 0;
+            // STEP1(rate-counter): GATE never resets the free-running 15-bit rate counter (ADSR delay bug; reSID: "never reset").
             voice.exponential_counter = 0;
             voice.exponential_period = 1;
             voice.hold_zero = false;

@@ -73,7 +73,7 @@ export class CPU6502 {
 
         this.todTenths = 0; this.todSec = 0; this.todMin = 0; this.todHour = 1; 
         this.todLatchTenths = 0; this.todLatchSec = 0; this.todLatchMin = 0; this.todLatchHour = 1;
-        this.todLatched = false; this.todHalted = false; this.todCycleCounter = 19705;
+        this.todLatched = false; this.todHalted = false; this.todCycleCounter = 19705; this.todPulses = 0;
 
         this.defaultIrqLo = 0x31; 
         this.defaultIrqHi = 0xEA; 
@@ -271,7 +271,7 @@ export class CPU6502 {
 
         this.todTenths = 0; this.todSec = 0; this.todMin = 0; this.todHour = 1;
         this.todLatchTenths = 0; this.todLatchSec = 0; this.todLatchMin = 0; this.todLatchHour = 1;
-        this.todLatched = false; this.todHalted = false; this.todCycleCounter = 19705;
+        this.todLatched = false; this.todHalted = false; this.todCycleCounter = 19705; this.todPulses = 0;
     }
 
     push(val) {
@@ -816,7 +816,11 @@ export class CPU6502 {
             if (this.todCycleCounter <= 0) {
                 let is50Hz = (this.cia1CtrlA & 0x80) !== 0;
                 this.todCycleCounter += is50Hz ? 19705 : 16421;
-                this.incrementTod();
+                // STEP1(tod): the TOD input is a 50/60 Hz pulse; the tenths register advances on every 5th/6th pulse.
+                if (++this.todPulses >= (is50Hz ? 5 : 6)) {
+                    this.todPulses = 0;
+                    this.incrementTod();
+                }
             }
 
             this.rasterCycles++;
@@ -942,9 +946,12 @@ export class CPU6502 {
 
             case 0xEA: cycles = 2; break; 
             case 0x1A: case 0x3A: case 0x5A: case 0x7A: case 0xDA: case 0xFA: cycles = 2; break; 
-            case 0x04: case 0x14: case 0x34: case 0x44: case 0x54: case 0x64: case 0x74:
-            case 0x80: case 0x82: case 0x89: case 0xC2: case 0xE2:
-                this.pc++; cycles = 3; break; 
+            case 0x04: case 0x44: case 0x64: // STEP1(nop): NOP zp = 3 cycles
+                this.pc++; cycles = 3; break;
+            case 0x14: case 0x34: case 0x54: case 0x74: case 0xD4: case 0xF4: // NOP zp,X = 4 cycles (incl. $D4/$F4)
+                this.pc++; cycles = 4; break;
+            case 0x80: case 0x82: case 0x89: case 0xC2: case 0xE2: // NOP #imm = 2 cycles
+                this.pc++; cycles = 2; break; 
             case 0x0C:
                 this.pc += 2; cycles = 4; break; 
             case 0x1C: case 0x3C: case 0x5C: case 0x7C: case 0xDC: case 0xFC: {

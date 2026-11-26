@@ -980,17 +980,14 @@ function changeC64Subsong(subsongId) {
     const sidNode = getSidNode();
     if (activeSystem === 'c64' && trackData && trackData.isSidFile && sidNode) {
         playbackSessionId++;
-        sidNode.port.postMessage({
-            type: 'CHANGE_SUBSONG',
-            frame: subsongId,
-            length: trackData.length
-        });
         currentSubsongIndex = subsongId;
         trackData.metadata.currentSubsong = subsongId;
 
         const sldbLengths = trackData.lengths || [180];
         const songLengthSeconds = sldbLengths[subsongId - 1] || sldbLengths[0] || 180;
         trackData.length = songLengthSeconds * 50;
+        // STEP1(subsong-length): post the NEW subsong length (the stale one of the previous subsong was sent before)
+        sidNode.port.postMessage({ type: 'CHANGE_SUBSONG', frame: subsongId, length: trackData.length });
 
         lastKnownFrame = 0;
         previousFrame = 0;

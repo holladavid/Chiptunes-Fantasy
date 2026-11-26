@@ -23,6 +23,10 @@ import {
     SID_FILTER_SUBCLOCK
 } from './sid-filter-6581.js';
 
+// STEP1(lfsr-delay): the noise shift register is reset only after the test bit has been held this long
+// (reSID/VICE: ~35000 cycles for the 6581, ~2.5M for the 8580; chip dependent).
+export const SHIFT_REGISTER_RESET_CYCLES_6581 = 35000;
+
 // The datasheet defines sixteen linear master-volume steps.
 const VOLUME_DAC_6581 = new Float32Array(16);
 for (let i = 0; i < 16; i++) VOLUME_DAC_6581[i] = i / 15;
@@ -47,7 +51,8 @@ export class SIDChip {
                 decay_period: RATE_COUNTER_PERIOD[0],
                 sustain_level: 0,
                 release_period: RATE_COUNTER_PERIOD[0],
-                msbRisingEdge: false
+                msbRisingEdge: false,
+                lfsrResetIn: 0 // STEP1(lfsr-delay): cycles until the noise LFSR is reset while the test bit is held
             };
             initializeSidEnvelope(voice);
             this.voices.push(voice);
@@ -125,10 +130,13 @@ export class SIDChip {
             const previousGate = (prevCtrl & 1) !== 0;
             if (gate !== previousGate) setSidEnvelopeGate(ch, gate);
 
-            if (ch.ctrl & 8) {
-                ch.phase = 0; 
-                ch.lfsr = 0x7FFFFF;
-            }
+            // STEP1(lfsr-delay): the test bit clears the accumulator at once; the noise shift register is reset
+            // only after the bit has been held for SHIFT_REGISTER_RESET_CYCLES_6581 cycles.
+            const testNow = (ch.ctrl & 8) !== 0;
+            const testBefore = (prevCtrl & 8) !== 0;
+            if (testNow) ch.phase = 0;
+            if (testNow && !testBefore) ch.lfsrResetIn = SHIFT_REGISTER_RESET_CYCLES_6581;
+            else if (!testNow) ch.lfsrResetIn = 0;
 
             if (reg === base + 5) { 
                 ch.attack_period = RATE_COUNTER_PERIOD[val >> 4];
@@ -174,7 +182,7 @@ export class SIDChip {
 
                     if ((ch.ctrl & 0x80) && (ch.ctrl & 0x70) !== 0) {
                         const testPhase = (newAcc >> 12) & 0xFFF;
-                        const isPulseLow = (ch.ctrl & 0x40) && (testPhase >= (ch.pw & 0xFFF));
+                        const isPulseLow = (ch.ctrl & 0x40) && (testPhase < (ch.pw & 0xFFF)); // STEP1(pulse): pulse is low below PW (reSID polarity)
                         
                         if (isPulseLow || (ch.ctrl & 0x30)) {
                             bit = 0; 
@@ -185,6 +193,8 @@ export class SIDChip {
                 }
             } else {
                 ch.msbRisingEdge = false;
+                // STEP1(lfsr-delay): countdown while the test bit is held
+                if (ch.lfsrResetIn > 0 && --ch.lfsrResetIn === 0) ch.lfsr = 0x7FFFFF;
             }
         }
 

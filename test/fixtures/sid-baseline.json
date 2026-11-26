@@ -20,9 +20,9 @@
       "clock": 985248,
       "vcfOffset": 0,
       "temperature": 55,
-      "rawSha256": "864248b7c0543c79a1fc65302768abde520b191ffc6a84c920b2157281b4dfe4",
-      "traceSha256": "dab34924206b1d818930c1a33a65898254919ed4a040e47425af4f1f93abf2c0",
-      "wavSha256": "3af3f51f8c743c0f788d13a3fb5f84d89099312caf813fabca8bc9df8649c6bb"
+      "rawSha256": "1957e01f67ce7e5c6bfab4118e213c383f8818e07a2fc29a6965ae62f3e2382f",
+      "traceSha256": "65fc0fac59783e2dd28531eecc4be298f94a60af1b070733a4e8274070ee79f7",
+      "wavSha256": "099d2d429ea7b235005536dfec779c8237341d84ef5a64b2f3a7a66222a80181"
     },
     "saw-adsr": {
       "cycles": 65536,
@@ -30,9 +30,9 @@
       "clock": 985248,
       "vcfOffset": 0,
       "temperature": 55,
-      "rawSha256": "783f4fde96dc6f5f19a3c60324426ddc4c9863c8917a8362852da18e4a8db33e",
-      "traceSha256": "869a7c9da5a9f3beec8327e178585e2664d4c03dc8227e93990ba8af4b7f88df",
-      "wavSha256": "28d8b47b253e5e68a5b90ac74839110b58673eaa8b6101f350a84f207dff90a9"
+      "rawSha256": "584b29637c4bedf6aeee95e1b52776903d2538bbda7347d1c34009c560ad5a88",
+      "traceSha256": "554945d806b7c7f6f615d3650f7018ec2c8917641ed45b0535d743ba86ea0a2f",
+      "wavSha256": "dba70fb36d5f5f0a8c1edbc4bdec303aa08d39251b88298ac436287a84ec77c6"
     },
     "triangle-adsr": {
       "cycles": 65536,
@@ -40,9 +40,9 @@
       "clock": 985248,
       "vcfOffset": 0,
       "temperature": 55,
-      "rawSha256": "af3d882f5e5f8e0fdda2aafed5c05ca2240659cb4b271b5e90bf9e9b02e8be01",
-      "traceSha256": "a4f356d21b7a98c4da4e593f8fd755af0bebfe31e55366e07683fd2fdb533398",
-      "wavSha256": "282c9649755ebfb7989af7cd94e57929b4ad3240ae02a658d31ed3f04390e9ec"
+      "rawSha256": "606ead92476a109f9e83df4e91546f637969e7500735497c03702a8c4f167107",
+      "traceSha256": "b621b348f7735136a3f9c5948fed436eb3d493eab3a18ad74eeb7da3c079c284",
+      "wavSha256": "91875d4bf9a36738354bcc2cfdad9c0f16ab38ec36c69b41fb6782d07eef9881"
     },
     "noise-adsr": {
       "cycles": 65536,
@@ -50,9 +50,9 @@
       "clock": 985248,
       "vcfOffset": 0,
       "temperature": 55,
-      "rawSha256": "4f55245b29247e471793189e9113a4b24e79062fae38bbe31e3050da2e78dd37",
-      "traceSha256": "0cc130672b38bd686a5b603c30bd2a4dc2d3cc3f8f61407a5cb4a202b87b179b",
-      "wavSha256": "71ca5b8fa793952f847709b265162799f04b398a2c22908cae625863e1b72779"
+      "rawSha256": "ae06d0c70c55fb997b131f5c77ed9de6f1c3c9fb599b5e5cef2c371aeb00b019",
+      "traceSha256": "a313977236333eb6c8777a31d1190015e10b9276289faa621decc0fd56657eb2",
+      "wavSha256": "4702cfea7bf8c816b780a5e234634ff311b3403a741507525a1faea895f4a213"
     },
     "combined-triangle-pulse": {
       "cycles": 65536,
@@ -60,9 +60,9 @@
       "clock": 985248,
       "vcfOffset": 0,
       "temperature": 55,
-      "rawSha256": "2ea4f241afffe23dee17cc4ff4e184904cd96496962fb0c93b21c522ca11163f",
-      "traceSha256": "f19bf763a0d363e792b0296c6a9359aa55bcec09b5f5c0fddf1aef97ba49df84",
-      "wavSha256": "fc0cc48339a5e82bf6a85176e27d42a9d25647980eb7e8fe780a91aaf8bebd07"
+      "rawSha256": "b35f398861bad8ee8c0b07d47644742c7e3ad25a6993b9627ec390c2e04fd1b2",
+      "traceSha256": "93beb02ffe750c9f7b8e1f7dc2c545285132ccaeb5b8543ca8ee773bc4793ea5",
+      "wavSha256": "e4f3617089a2e90fd1bb99644f7cfa5c65b45f8738b15ba444f7cc8d6e2deacc"
     },
     "hard-sync-ring": {
       "cycles": 65536,
@@ -70,9 +70,9 @@
       "clock": 985248,
       "vcfOffset": 0,
       "temperature": 55,
-      "rawSha256": "03be98b5173f0769bd17be8b7a6d873d8a8d47b5d7f98b476ed5e1a685665994",
-      "traceSha256": "74dede1ab3ac3d1652aa50ddc523428715af1a6cf53c98c3c38cfd340c7f2e0d",
-      "wavSha256": "6b4433f933f32cdfb7b3ea3f3839271b23c9121913fc917e3494b54b6aba2474"
+      "rawSha256": "2b9d4fe8a14072ed67636e3813c8a99658373248309eeb612167814596613989",
+      "traceSha256": "7854ca2b470997251608533ba8d3232350e3fa773fd75124392f10e5c3a39964",
+      "wavSha256": "6d94f79c4ef8eede6af2d847127a87d90bd8a20c82ae914d1228d567d5de726c"
     },
     "filter-sweep": {
       "cycles": 65536,
@@ -80,9 +80,9 @@
       "clock": 985248,
       "vcfOffset": 0,
       "temperature": 55,
-      "rawSha256": "3057483a789f766e45abe48bc9d018921b39f450b7b625d9793dce8e56e20120",
-      "traceSha256": "f4fefc2c2334825ea37b5076e0223e426e07e6220b4a040c6118f6647b90f0d9",
-      "wavSha256": "eb66c330728f1044689c52f32d966ba72541e61954617e3bdf8be7e52bf3b3ad"
+      "rawSha256": "30f76849c771454b5ca4ad60955033fcf53c983bd7350c07b2df70f959f23b65",
+      "traceSha256": "4aeee4a918a4c27f32448ad84e8cf8dbb4a2a526e5f78ca806e8526ade2de596",
+      "wavSha256": "6a07675ff37de5172121fa77fff56b8c83862383fe7c60ea90296d3b60853b4f"
     },
     "d418-volume-writes": {
       "cycles": 65536,
@@ -90,9 +90,9 @@
       "clock": 985248,
       "vcfOffset": 0,
       "temperature": 55,
-      "rawSha256": "7674d21d0332ef374b59bcf2e679450723ec40e36f6a619fac21424590daae2e",
-      "traceSha256": "56b4f8a1ebaef678e71cb82ebc05ee1a321046097fa51cbf7685fc06c29f8531",
-      "wavSha256": "a65b3340c9f0b85b58db4d9dfe3f4f139c49227fcb55e7da405ba1972beb3bc0"
+      "rawSha256": "e091bbc9207f254bb1337a2abb7465948805c3349017ab23af75331c0b517678",
+      "traceSha256": "fe3379c5661d51948517646383f9d3094ed64dc73862d11dfc2d097a1e4a8ce8",
+      "wavSha256": "3811aa7308055a26dfb142b0945ec804bfd39b1610f35c6fb24a8349b3450bca"
     },
     "test-bit-reset": {
       "cycles": 65536,
@@ -100,9 +100,9 @@
       "clock": 985248,
       "vcfOffset": 0,
       "temperature": 55,
-      "rawSha256": "28913e5fd39d6ab26806ee2f0bafda96ad2e77d70ddcaedaae8265b229743949",
-      "traceSha256": "e371809f1e7e05466b426a8d89fa2627b1a25a04085e970d3436db3a89f73978",
-      "wavSha256": "67bb8b30fc3e51658025269dbd84cf5d555556c0265212af4d3dcdc79c1e8b65"
+      "rawSha256": "db9a8f3d41287a632c53a0d8968cd7da876109f9ab4aea3e78bb23572052b4cf",
+      "traceSha256": "9360a6ed1ee5410e18ba08e88f4797d094e3fce3c7e7a85466ee1a2da82ec5fc",
+      "wavSha256": "a795e9e8ebafa06c79b61742427ac3b46e1611654b9d42901f61adede58a1415"
     }
   }
 }

@@ -1,0 +1,402 @@
+diff --git a/js/app.js b/js/app.js
+index 85c2a75..a650fcb 100644
+--- a/js/app.js
++++ b/js/app.js
+@@ -980,17 +980,14 @@ function changeC64Subsong(subsongId) {
+     const sidNode = getSidNode();
+     if (activeSystem === 'c64' && trackData && trackData.isSidFile && sidNode) {
+         playbackSessionId++;
+-        sidNode.port.postMessage({
+-            type: 'CHANGE_SUBSONG',
+-            frame: subsongId,
+-            length: trackData.length
+-        });
+         currentSubsongIndex = subsongId;
+         trackData.metadata.currentSubsong = subsongId;
+ 
+         const sldbLengths = trackData.lengths || [180];
+         const songLengthSeconds = sldbLengths[subsongId - 1] || sldbLengths[0] || 180;
+         trackData.length = songLengthSeconds * 50;
++        // STEP1(subsong-length): post the NEW subsong length (the stale one of the previous subsong was sent before)
++        sidNode.port.postMessage({ type: 'CHANGE_SUBSONG', frame: subsongId, length: trackData.length });
+ 
+         lastKnownFrame = 0;
+         previousFrame = 0;
+diff --git a/js/worklets/lib/cpu6502.js b/js/worklets/lib/cpu6502.js
+index 788667b..b557e00 100644
+--- a/js/worklets/lib/cpu6502.js
++++ b/js/worklets/lib/cpu6502.js
+@@ -73,7 +73,7 @@ export class CPU6502 {
+ 
+         this.todTenths = 0; this.todSec = 0; this.todMin = 0; this.todHour = 1; 
+         this.todLatchTenths = 0; this.todLatchSec = 0; this.todLatchMin = 0; this.todLatchHour = 1;
+-        this.todLatched = false; this.todHalted = false; this.todCycleCounter = 19705;
++        this.todLatched = false; this.todHalted = false; this.todCycleCounter = 19705; this.todPulses = 0;
+ 
+         this.defaultIrqLo = 0x31; 
+         this.defaultIrqHi = 0xEA; 
+@@ -271,7 +271,7 @@ export class CPU6502 {
+ 
+         this.todTenths = 0; this.todSec = 0; this.todMin = 0; this.todHour = 1;
+         this.todLatchTenths = 0; this.todLatchSec = 0; this.todLatchMin = 0; this.todLatchHour = 1;
+-        this.todLatched = false; this.todHalted = false; this.todCycleCounter = 19705;
++        this.todLatched = false; this.todHalted = false; this.todCycleCounter = 19705; this.todPulses = 0;
+     }
+ 
+     push(val) {
+@@ -816,7 +816,11 @@ export class CPU6502 {
+             if (this.todCycleCounter <= 0) {
+                 let is50Hz = (this.cia1CtrlA & 0x80) !== 0;
+                 this.todCycleCounter += is50Hz ? 19705 : 16421;
+-                this.incrementTod();
++                // STEP1(tod): the TOD input is a 50/60 Hz pulse; the tenths register advances on every 5th/6th pulse.
++                if (++this.todPulses >= (is50Hz ? 5 : 6)) {
++                    this.todPulses = 0;
++                    this.incrementTod();
++                }
+             }
+ 
+             this.rasterCycles++;
+@@ -942,9 +946,12 @@ export class CPU6502 {
+ 
+             case 0xEA: cycles = 2; break; 
+             case 0x1A: case 0x3A: case 0x5A: case 0x7A: case 0xDA: case 0xFA: cycles = 2; break; 
+-            case 0x04: case 0x14: case 0x34: case 0x44: case 0x54: case 0x64: case 0x74:
+-            case 0x80: case 0x82: case 0x89: case 0xC2: case 0xE2:
+-                this.pc++; cycles = 3; break; 
++            case 0x04: case 0x44: case 0x64: // STEP1(nop): NOP zp = 3 cycles
++                this.pc++; cycles = 3; break;
++            case 0x14: case 0x34: case 0x54: case 0x74: case 0xD4: case 0xF4: // NOP zp,X = 4 cycles (incl. $D4/$F4)
++                this.pc++; cycles = 4; break;
++            case 0x80: case 0x82: case 0x89: case 0xC2: case 0xE2: // NOP #imm = 2 cycles
++                this.pc++; cycles = 2; break; 
+             case 0x0C:
+                 this.pc += 2; cycles = 4; break; 
+             case 0x1C: case 0x3C: case 0x5C: case 0x7C: case 0xDC: case 0xFC: {
+diff --git a/js/worklets/lib/sid-chip.js b/js/worklets/lib/sid-chip.js
+index 25f521c..8ca69bd 100644
+--- a/js/worklets/lib/sid-chip.js
++++ b/js/worklets/lib/sid-chip.js
+@@ -23,6 +23,10 @@ import {
+     SID_FILTER_SUBCLOCK
+ } from './sid-filter-6581.js';
+ 
++// STEP1(lfsr-delay): the noise shift register is reset only after the test bit has been held this long
++// (reSID/VICE: ~35000 cycles for the 6581, ~2.5M for the 8580; chip dependent).
++export const SHIFT_REGISTER_RESET_CYCLES_6581 = 35000;
++
+ // The datasheet defines sixteen linear master-volume steps.
+ const VOLUME_DAC_6581 = new Float32Array(16);
+ for (let i = 0; i < 16; i++) VOLUME_DAC_6581[i] = i / 15;
+@@ -47,7 +51,8 @@ export class SIDChip {
+                 decay_period: RATE_COUNTER_PERIOD[0],
+                 sustain_level: 0,
+                 release_period: RATE_COUNTER_PERIOD[0],
+-                msbRisingEdge: false
++                msbRisingEdge: false,
++                lfsrResetIn: 0 // STEP1(lfsr-delay): cycles until the noise LFSR is reset while the test bit is held
+             };
+             initializeSidEnvelope(voice);
+             this.voices.push(voice);
+@@ -125,10 +130,13 @@ export class SIDChip {
+             const previousGate = (prevCtrl & 1) !== 0;
+             if (gate !== previousGate) setSidEnvelopeGate(ch, gate);
+ 
+-            if (ch.ctrl & 8) {
+-                ch.phase = 0; 
+-                ch.lfsr = 0x7FFFFF;
+-            }
++            // STEP1(lfsr-delay): the test bit clears the accumulator at once; the noise shift register is reset
++            // only after the bit has been held for SHIFT_REGISTER_RESET_CYCLES_6581 cycles.
++            const testNow = (ch.ctrl & 8) !== 0;
++            const testBefore = (prevCtrl & 8) !== 0;
++            if (testNow) ch.phase = 0;
++            if (testNow && !testBefore) ch.lfsrResetIn = SHIFT_REGISTER_RESET_CYCLES_6581;
++            else if (!testNow) ch.lfsrResetIn = 0;
+ 
+             if (reg === base + 5) { 
+                 ch.attack_period = RATE_COUNTER_PERIOD[val >> 4];
+@@ -174,7 +182,7 @@ export class SIDChip {
+ 
+                     if ((ch.ctrl & 0x80) && (ch.ctrl & 0x70) !== 0) {
+                         const testPhase = (newAcc >> 12) & 0xFFF;
+-                        const isPulseLow = (ch.ctrl & 0x40) && (testPhase >= (ch.pw & 0xFFF));
++                        const isPulseLow = (ch.ctrl & 0x40) && (testPhase < (ch.pw & 0xFFF)); // STEP1(pulse): pulse is low below PW (reSID polarity)
+                         
+                         if (isPulseLow || (ch.ctrl & 0x30)) {
+                             bit = 0; 
+@@ -185,6 +193,8 @@ export class SIDChip {
+                 }
+             } else {
+                 ch.msbRisingEdge = false;
++                // STEP1(lfsr-delay): countdown while the test bit is held
++                if (ch.lfsrResetIn > 0 && --ch.lfsrResetIn === 0) ch.lfsr = 0x7FFFFF;
+             }
+         }
+ 
+diff --git a/js/worklets/lib/sid-combined-6581.js b/js/worklets/lib/sid-combined-6581.js
+index a30356e..719aa99 100644
+--- a/js/worklets/lib/sid-combined-6581.js
++++ b/js/worklets/lib/sid-combined-6581.js
+@@ -7,7 +7,7 @@
+ // The transfer is phase-indexed: folding to the triangle value would merge
+ // different rising/falling-phase observations. Values above the 12-bit output
+ // range after external-output normalization are clamped at the model boundary.
+-const TRIANGLE_PULSE_LOW = new Uint16Array([
++const TRIANGLE_PULSE_ON_TABLE = new Uint16Array([
+     1461, 1462, 1462, 1461, 1462, 1461, 1462, 1461, 1461, 1461, 1461, 1462,
+     1462, 1461, 1462, 1462, 1462, 1462, 1462, 1462, 1462, 1462, 1462, 1462,
+     1462, 1462, 1462, 1462, 1462, 1462, 1462, 1463, 1462, 1462, 1462, 1462,
+@@ -35,14 +35,17 @@ const TRIANGLE_PULSE_LOW = new Uint16Array([
+ // The slowly drifting external-reference DC is not a DAC measurement. The
+ // constant state therefore uses the fitted low-state plateau, which also
+ // matches wide-pulse held-out observations after block-local DC removal.
+-const TRIANGLE_PULSE_HIGH = 1461;
++const TRIANGLE_PULSE_OFF_LEVEL = 1461;
+ 
++// STEP1(pulse): pulse is the reSID-polarity comparator (high for acc >= PW). ON_TABLE is the phase-indexed
++// transfer for pulse high, OFF_LEVEL the DAC-zero plateau for pulse low. For a given (phase, PW) the result is
++// identical to the previous inverted comparator combined with the inverted branch.
+ export function trianglePulse12Bit6581R3(phase12, pulse) {
+-    if (pulse !== 0) return TRIANGLE_PULSE_HIGH;
++    if (pulse === 0) return TRIANGLE_PULSE_OFF_LEVEL;
+ 
+     const index = phase12 >>> 4;
+     const fraction = phase12 & 15;
+-    const lower = TRIANGLE_PULSE_LOW[index];
+-    const upper = TRIANGLE_PULSE_LOW[index + 1];
++    const lower = TRIANGLE_PULSE_ON_TABLE[index];
++    const upper = TRIANGLE_PULSE_ON_TABLE[index + 1];
+     return ((lower * (16 - fraction)) + (upper * fraction) + 8) >>> 4;
+ }
+diff --git a/js/worklets/lib/sid-envelope.js b/js/worklets/lib/sid-envelope.js
+index e60842f..392cd01 100644
+--- a/js/worklets/lib/sid-envelope.js
++++ b/js/worklets/lib/sid-envelope.js
+@@ -41,7 +41,7 @@ export function clockSidEnvelope(voice) {
+         voice.gate = resolvedGate;
+         voice.state = resolvedGate ? SID_ENV_ATTACK : SID_ENV_RELEASE;
+         if (resolvedGate) {
+-            voice.rate_counter = 0;
++            // STEP1(rate-counter): GATE never resets the free-running 15-bit rate counter (ADSR delay bug; reSID: "never reset").
+             voice.exponential_counter = 0;
+             voice.exponential_period = 1;
+             voice.hold_zero = false;
+diff --git a/js/worklets/lib/sid-luts.js b/js/worklets/lib/sid-luts.js
+index 602f704..3d58bab 100755
+--- a/js/worklets/lib/sid-luts.js
++++ b/js/worklets/lib/sid-luts.js
+@@ -77,7 +77,7 @@ for (let i = 0; i < 4096; i++) {
+ // =========================================================
+ export const RATE_COUNTER_PERIOD = [
+     9, 32, 63, 95, 149, 220, 267, 313, 
+-    392, 977, 1954, 3126, 3907, 11720, 19530, 31256
++    392, 977, 1954, 3126, 3907, 11720, 19532, 31251
+ ];
+ 
+ // =========================================================
+diff --git a/js/worklets/lib/sid-waveforms-6581.js b/js/worklets/lib/sid-waveforms-6581.js
+index c178059..7786186 100644
+--- a/js/worklets/lib/sid-waveforms-6581.js
++++ b/js/worklets/lib/sid-waveforms-6581.js
+@@ -16,7 +16,8 @@ export function sawtooth12Bit(phase24) {
+ 
+ export function pulse12Bit(phase24, pw12, test) {
+     if (test) return 0x0FFF;
+-    return ((phase24 >>> 12) & 0x0FFF) < (pw12 & 0x0FFF) ? 0x0FFF : 0;
++    // STEP1(pulse): reSID/reSIDfp polarity - high when (acc >> 12) >= PW; PW = 0 is a constant high level.
++    return ((phase24 >>> 12) & 0x0FFF) >= (pw12 & 0x0FFF) ? 0x0FFF : 0;
+ }
+ 
+ export function noise12Bit(lfsr23) {
+diff --git a/test/fixtures/sid-baseline.json b/test/fixtures/sid-baseline.json
+index 1565239..491f0d6 100644
+--- a/test/fixtures/sid-baseline.json
++++ b/test/fixtures/sid-baseline.json
+@@ -20,9 +20,9 @@
+       "clock": 985248,
+       "vcfOffset": 0,
+       "temperature": 55,
+-      "rawSha256": "864248b7c0543c79a1fc65302768abde520b191ffc6a84c920b2157281b4dfe4",
+-      "traceSha256": "dab34924206b1d818930c1a33a65898254919ed4a040e47425af4f1f93abf2c0",
+-      "wavSha256": "3af3f51f8c743c0f788d13a3fb5f84d89099312caf813fabca8bc9df8649c6bb"
++      "rawSha256": "1957e01f67ce7e5c6bfab4118e213c383f8818e07a2fc29a6965ae62f3e2382f",
++      "traceSha256": "65fc0fac59783e2dd28531eecc4be298f94a60af1b070733a4e8274070ee79f7",
++      "wavSha256": "099d2d429ea7b235005536dfec779c8237341d84ef5a64b2f3a7a66222a80181"
+     },
+     "saw-adsr": {
+       "cycles": 65536,
+@@ -30,9 +30,9 @@
+       "clock": 985248,
+       "vcfOffset": 0,
+       "temperature": 55,
+-      "rawSha256": "783f4fde96dc6f5f19a3c60324426ddc4c9863c8917a8362852da18e4a8db33e",
+-      "traceSha256": "869a7c9da5a9f3beec8327e178585e2664d4c03dc8227e93990ba8af4b7f88df",
+-      "wavSha256": "28d8b47b253e5e68a5b90ac74839110b58673eaa8b6101f350a84f207dff90a9"
++      "rawSha256": "584b29637c4bedf6aeee95e1b52776903d2538bbda7347d1c34009c560ad5a88",
++      "traceSha256": "554945d806b7c7f6f615d3650f7018ec2c8917641ed45b0535d743ba86ea0a2f",
++      "wavSha256": "dba70fb36d5f5f0a8c1edbc4bdec303aa08d39251b88298ac436287a84ec77c6"
+     },
+     "triangle-adsr": {
+       "cycles": 65536,
+@@ -40,9 +40,9 @@
+       "clock": 985248,
+       "vcfOffset": 0,
+       "temperature": 55,
+-      "rawSha256": "af3d882f5e5f8e0fdda2aafed5c05ca2240659cb4b271b5e90bf9e9b02e8be01",
+-      "traceSha256": "a4f356d21b7a98c4da4e593f8fd755af0bebfe31e55366e07683fd2fdb533398",
+-      "wavSha256": "282c9649755ebfb7989af7cd94e57929b4ad3240ae02a658d31ed3f04390e9ec"
++      "rawSha256": "606ead92476a109f9e83df4e91546f637969e7500735497c03702a8c4f167107",
++      "traceSha256": "b621b348f7735136a3f9c5948fed436eb3d493eab3a18ad74eeb7da3c079c284",
++      "wavSha256": "91875d4bf9a36738354bcc2cfdad9c0f16ab38ec36c69b41fb6782d07eef9881"
+     },
+     "noise-adsr": {
+       "cycles": 65536,
+@@ -50,9 +50,9 @@
+       "clock": 985248,
+       "vcfOffset": 0,
+       "temperature": 55,
+-      "rawSha256": "4f55245b29247e471793189e9113a4b24e79062fae38bbe31e3050da2e78dd37",
+-      "traceSha256": "0cc130672b38bd686a5b603c30bd2a4dc2d3cc3f8f61407a5cb4a202b87b179b",
+-      "wavSha256": "71ca5b8fa793952f847709b265162799f04b398a2c22908cae625863e1b72779"
++      "rawSha256": "ae06d0c70c55fb997b131f5c77ed9de6f1c3c9fb599b5e5cef2c371aeb00b019",
++      "traceSha256": "a313977236333eb6c8777a31d1190015e10b9276289faa621decc0fd56657eb2",
++      "wavSha256": "4702cfea7bf8c816b780a5e234634ff311b3403a741507525a1faea895f4a213"
+     },
+     "combined-triangle-pulse": {
+       "cycles": 65536,
+@@ -60,9 +60,9 @@
+       "clock": 985248,
+       "vcfOffset": 0,
+       "temperature": 55,
+-      "rawSha256": "2ea4f241afffe23dee17cc4ff4e184904cd96496962fb0c93b21c522ca11163f",
+-      "traceSha256": "f19bf763a0d363e792b0296c6a9359aa55bcec09b5f5c0fddf1aef97ba49df84",
+-      "wavSha256": "fc0cc48339a5e82bf6a85176e27d42a9d25647980eb7e8fe780a91aaf8bebd07"
++      "rawSha256": "b35f398861bad8ee8c0b07d47644742c7e3ad25a6993b9627ec390c2e04fd1b2",
++      "traceSha256": "93beb02ffe750c9f7b8e1f7dc2c545285132ccaeb5b8543ca8ee773bc4793ea5",
++      "wavSha256": "e4f3617089a2e90fd1bb99644f7cfa5c65b45f8738b15ba444f7cc8d6e2deacc"
+     },
+     "hard-sync-ring": {
+       "cycles": 65536,
+@@ -70,9 +70,9 @@
+       "clock": 985248,
+       "vcfOffset": 0,
+       "temperature": 55,
+-      "rawSha256": "03be98b5173f0769bd17be8b7a6d873d8a8d47b5d7f98b476ed5e1a685665994",
+-      "traceSha256": "74dede1ab3ac3d1652aa50ddc523428715af1a6cf53c98c3c38cfd340c7f2e0d",
+-      "wavSha256": "6b4433f933f32cdfb7b3ea3f3839271b23c9121913fc917e3494b54b6aba2474"
++      "rawSha256": "2b9d4fe8a14072ed67636e3813c8a99658373248309eeb612167814596613989",
++      "traceSha256": "7854ca2b470997251608533ba8d3232350e3fa773fd75124392f10e5c3a39964",
++      "wavSha256": "6d94f79c4ef8eede6af2d847127a87d90bd8a20c82ae914d1228d567d5de726c"
+     },
+     "filter-sweep": {
+       "cycles": 65536,
+@@ -80,9 +80,9 @@
+       "clock": 985248,
+       "vcfOffset": 0,
+       "temperature": 55,
+-      "rawSha256": "3057483a789f766e45abe48bc9d018921b39f450b7b625d9793dce8e56e20120",
+-      "traceSha256": "f4fefc2c2334825ea37b5076e0223e426e07e6220b4a040c6118f6647b90f0d9",
+-      "wavSha256": "eb66c330728f1044689c52f32d966ba72541e61954617e3bdf8be7e52bf3b3ad"
++      "rawSha256": "30f76849c771454b5ca4ad60955033fcf53c983bd7350c07b2df70f959f23b65",
++      "traceSha256": "4aeee4a918a4c27f32448ad84e8cf8dbb4a2a526e5f78ca806e8526ade2de596",
++      "wavSha256": "6a07675ff37de5172121fa77fff56b8c83862383fe7c60ea90296d3b60853b4f"
+     },
+     "d418-volume-writes": {
+       "cycles": 65536,
+@@ -90,9 +90,9 @@
+       "clock": 985248,
+       "vcfOffset": 0,
+       "temperature": 55,
+-      "rawSha256": "7674d21d0332ef374b59bcf2e679450723ec40e36f6a619fac21424590daae2e",
+-      "traceSha256": "56b4f8a1ebaef678e71cb82ebc05ee1a321046097fa51cbf7685fc06c29f8531",
+-      "wavSha256": "a65b3340c9f0b85b58db4d9dfe3f4f139c49227fcb55e7da405ba1972beb3bc0"
++      "rawSha256": "e091bbc9207f254bb1337a2abb7465948805c3349017ab23af75331c0b517678",
++      "traceSha256": "fe3379c5661d51948517646383f9d3094ed64dc73862d11dfc2d097a1e4a8ce8",
++      "wavSha256": "3811aa7308055a26dfb142b0945ec804bfd39b1610f35c6fb24a8349b3450bca"
+     },
+     "test-bit-reset": {
+       "cycles": 65536,
+@@ -100,9 +100,9 @@
+       "clock": 985248,
+       "vcfOffset": 0,
+       "temperature": 55,
+-      "rawSha256": "28913e5fd39d6ab26806ee2f0bafda96ad2e77d70ddcaedaae8265b229743949",
+-      "traceSha256": "e371809f1e7e05466b426a8d89fa2627b1a25a04085e970d3436db3a89f73978",
+-      "wavSha256": "67bb8b30fc3e51658025269dbd84cf5d555556c0265212af4d3dcdc79c1e8b65"
++      "rawSha256": "db9a8f3d41287a632c53a0d8968cd7da876109f9ab4aea3e78bb23572052b4cf",
++      "traceSha256": "9360a6ed1ee5410e18ba08e88f4797d094e3fce3c7e7a85466ee1a2da82ec5fc",
++      "wavSha256": "a795e9e8ebafa06c79b61742427ac3b46e1611654b9d42901f61adede58a1415"
+     }
+   }
+ }
+diff --git a/test/sid-digital.test.mjs b/test/sid-digital.test.mjs
+index eaa87af..c4b7330 100644
+--- a/test/sid-digital.test.mjs
++++ b/test/sid-digital.test.mjs
+@@ -27,9 +27,13 @@ test('6581 primitive waveforms preserve the documented 12-bit DAC input', () =>
+     assert.equal(triangle12Bit(0x800000, 1), 0xFFF);
+     assert.equal(triangle12Bit(0xFFF800, 1), 0x000);
+ 
+-    assert.equal(pulse12Bit(0x000000, 0x800, false), 0xFFF);
+-    assert.equal(pulse12Bit(0x800000, 0x800, false), 0x000);
+-    assert.equal(pulse12Bit(0x001000, 0x001, false), 0x000);
++    assert.equal(pulse12Bit(0x000000, 0x800, false), 0x000); // STEP1(pulse): reSID polarity - high from PW upwards
++    assert.equal(pulse12Bit(0x7FF000, 0x800, false), 0x000);
++    assert.equal(pulse12Bit(0x800000, 0x800, false), 0xFFF);
++    assert.equal(pulse12Bit(0x001000, 0x001, false), 0xFFF); // phase == PW is already high
++    assert.equal(pulse12Bit(0x000000, 0x000, false), 0xFFF); // PW = 0: constant high
++    assert.equal(pulse12Bit(0xFFE000, 0xFFF, false), 0x000); // PW = 0xFFF: high only in the last step
++    assert.equal(pulse12Bit(0xFFF000, 0xFFF, false), 0xFFF);
+     assert.equal(pulse12Bit(0x123000, 0x000, true), 0xFFF);
+ });
+ 
+@@ -47,15 +51,25 @@ test('6581 noise taps feed eight full-scale DAC bits without gain attenuation',
+ });
+ 
+ test('6581 other combined selectors retain 12-bit wired-AND without heuristic bleed', () => {
+-    const phase = 0x5A5000;
++    // STEP1(pulse): the pulse comparator is high from PW upwards (reSID polarity)
++    const phase = 0xA5A000; // above PW 0x800: pulse high, the wired-AND passes the other waveforms
+     const triangle = triangle12Bit(phase, 0);
+     const saw = sawtooth12Bit(phase);
+     assert.equal(calculateWaveform12Bit6581R3(0x30, phase, 0x800, 0, 0), triangle & saw);
+     assert.equal(calculateWaveform12Bit6581R3(0x70, phase, 0x800, 0, 0), triangle & saw);
++    assert.equal(calculateWaveform12Bit6581R3(0x60, phase, 0x800, 0, 0), saw);
++
++    // below PW the low pulse input dominates the wired combination
++    const lowPhase = 0x5A5000;
++    assert.equal(calculateWaveform12Bit6581R3(0x70, lowPhase, 0x800, 0, 0), 0);
++    assert.equal(calculateWaveform12Bit6581R3(0x60, lowPhase, 0x800, 0, 0), 0);
++    assert.equal(calculateWaveform12Bit6581R3(0x30, lowPhase, 0x800, 0, 0),
++        triangle12Bit(lowPhase, 0) & sawtooth12Bit(lowPhase));
+ });
+ 
+ test('6581 triangle-pulse uses independently fitted phase and pulse transfer states', () => {
+-    // Public-output reference fit: pulse low is audible and nonlinear, not forced to zero.
++    // Public-output reference fit. With the reSID comparator (high for acc >= PW) the phase-indexed table is the
++    // pulse-high transfer and the DAC-zero plateau is pulse low; values for a given (phase, PW) are unchanged.
+     assert.equal(calculateWaveform12Bit6581R3(0x50, 0xA5A000, 0x800, 0, 0), 1552);
+     assert.equal(calculateWaveform12Bit6581R3(0x50, 0x5A5000, 0x800, 0, 0), 1461);
+     assert.equal(calculateWaveform12Bit6581R3(0x50, 0x7FF800, 0x008, 0, 0), 4095);
+@@ -66,7 +80,8 @@ test('6581 triangle-pulse uses independently fitted phase and pulse transfer sta
+     assert.equal(calculateWaveform12Bit6581R3(0x50, 0x801000, 0, 0, 0), 4095);
+ });
+ 
+-test('GATE traverses two clock stages and restarts the rate phase on attack', () => {
++test('GATE traverses two clock stages and never resets the free-running rate counter', () => {
++    // STEP1(rate-counter): reSID - the rate counter is never reset (ADSR delay bug)
+     const sid = new SIDChip(0);
+     sid.writeReg(5, 0x00);
+     clock(sid, 5);
+@@ -79,8 +94,8 @@ test('GATE traverses two clock stages and restarts the rate phase on attack', ()
+     assert.equal(voice.rate_counter, 6);
+     clock(sid, 1);
+     assert.equal(voice.state, SID_ENV_ATTACK);
+-    assert.equal(voice.rate_counter, 1);
+-    clock(sid, 7);
++    assert.equal(voice.rate_counter, 7);
++    clock(sid, 1);
+     assert.equal(voice.envelope_counter, 0);
+     assert.equal(voice.rate_counter, 8);
+     clock(sid, 1);

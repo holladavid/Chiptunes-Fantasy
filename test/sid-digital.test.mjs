@@ -27,9 +27,13 @@ test('6581 primitive waveforms preserve the documented 12-bit DAC input', () => 
     assert.equal(triangle12Bit(0x800000, 1), 0xFFF);
     assert.equal(triangle12Bit(0xFFF800, 1), 0x000);
 
-    assert.equal(pulse12Bit(0x000000, 0x800, false), 0xFFF);
-    assert.equal(pulse12Bit(0x800000, 0x800, false), 0x000);
-    assert.equal(pulse12Bit(0x001000, 0x001, false), 0x000);
+    assert.equal(pulse12Bit(0x000000, 0x800, false), 0x000); // STEP1(pulse): reSID polarity - high from PW upwards
+    assert.equal(pulse12Bit(0x7FF000, 0x800, false), 0x000);
+    assert.equal(pulse12Bit(0x800000, 0x800, false), 0xFFF);
+    assert.equal(pulse12Bit(0x001000, 0x001, false), 0xFFF); // phase == PW is already high
+    assert.equal(pulse12Bit(0x000000, 0x000, false), 0xFFF); // PW = 0: constant high
+    assert.equal(pulse12Bit(0xFFE000, 0xFFF, false), 0x000); // PW = 0xFFF: high only in the last step
+    assert.equal(pulse12Bit(0xFFF000, 0xFFF, false), 0xFFF);
     assert.equal(pulse12Bit(0x123000, 0x000, true), 0xFFF);
 });
 
@@ -47,15 +51,25 @@ test('6581 noise taps feed eight full-scale DAC bits without gain attenuation', 
 });
 
 test('6581 other combined selectors retain 12-bit wired-AND without heuristic bleed', () => {
-    const phase = 0x5A5000;
+    // STEP1(pulse): the pulse comparator is high from PW upwards (reSID polarity)
+    const phase = 0xA5A000; // above PW 0x800: pulse high, the wired-AND passes the other waveforms
     const triangle = triangle12Bit(phase, 0);
     const saw = sawtooth12Bit(phase);
     assert.equal(calculateWaveform12Bit6581R3(0x30, phase, 0x800, 0, 0), triangle & saw);
     assert.equal(calculateWaveform12Bit6581R3(0x70, phase, 0x800, 0, 0), triangle & saw);
+    assert.equal(calculateWaveform12Bit6581R3(0x60, phase, 0x800, 0, 0), saw);
+
+    // below PW the low pulse input dominates the wired combination
+    const lowPhase = 0x5A5000;
+    assert.equal(calculateWaveform12Bit6581R3(0x70, lowPhase, 0x800, 0, 0), 0);
+    assert.equal(calculateWaveform12Bit6581R3(0x60, lowPhase, 0x800, 0, 0), 0);
+    assert.equal(calculateWaveform12Bit6581R3(0x30, lowPhase, 0x800, 0, 0),
+        triangle12Bit(lowPhase, 0) & sawtooth12Bit(lowPhase));
 });
 
 test('6581 triangle-pulse uses independently fitted phase and pulse transfer states', () => {
-    // Public-output reference fit: pulse low is audible and nonlinear, not forced to zero.
+    // Public-output reference fit. With the reSID comparator (high for acc >= PW) the phase-indexed table is the
+    // pulse-high transfer and the DAC-zero plateau is pulse low; values for a given (phase, PW) are unchanged.
     assert.equal(calculateWaveform12Bit6581R3(0x50, 0xA5A000, 0x800, 0, 0), 1552);
     assert.equal(calculateWaveform12Bit6581R3(0x50, 0x5A5000, 0x800, 0, 0), 1461);
     assert.equal(calculateWaveform12Bit6581R3(0x50, 0x7FF800, 0x008, 0, 0), 4095);
@@ -66,7 +80,8 @@ test('6581 triangle-pulse uses independently fitted phase and pulse transfer sta
     assert.equal(calculateWaveform12Bit6581R3(0x50, 0x801000, 0, 0, 0), 4095);
 });
 
-test('GATE traverses two clock stages and restarts the rate phase on attack', () => {
+test('GATE traverses two clock stages and never resets the free-running rate counter', () => {
+    // STEP1(rate-counter): reSID - the rate counter is never reset (ADSR delay bug)
     const sid = new SIDChip(0);
     sid.writeReg(5, 0x00);
     clock(sid, 5);
@@ -79,8 +94,8 @@ test('GATE traverses two clock stages and restarts the rate phase on attack', ()
     assert.equal(voice.rate_counter, 6);
     clock(sid, 1);
     assert.equal(voice.state, SID_ENV_ATTACK);
-    assert.equal(voice.rate_counter, 1);
-    clock(sid, 7);
+    assert.equal(voice.rate_counter, 7);
+    clock(sid, 1);
     assert.equal(voice.envelope_counter, 0);
     assert.equal(voice.rate_counter, 8);
     clock(sid, 1);

@@ -7,7 +7,7 @@
 // The transfer is phase-indexed: folding to the triangle value would merge
 // different rising/falling-phase observations. Values above the 12-bit output
 // range after external-output normalization are clamped at the model boundary.
-const TRIANGLE_PULSE_LOW = new Uint16Array([
+const TRIANGLE_PULSE_ON_TABLE = new Uint16Array([
     1461, 1462, 1462, 1461, 1462, 1461, 1462, 1461, 1461, 1461, 1461, 1462,
     1462, 1461, 1462, 1462, 1462, 1462, 1462, 1462, 1462, 1462, 1462, 1462,
     1462, 1462, 1462, 1462, 1462, 1462, 1462, 1463, 1462, 1462, 1462, 1462,
@@ -35,14 +35,17 @@ const TRIANGLE_PULSE_LOW = new Uint16Array([
 // The slowly drifting external-reference DC is not a DAC measurement. The
 // constant state therefore uses the fitted low-state plateau, which also
 // matches wide-pulse held-out observations after block-local DC removal.
-const TRIANGLE_PULSE_HIGH = 1461;
+const TRIANGLE_PULSE_OFF_LEVEL = 1461;
 
+// STEP1(pulse): pulse is the reSID-polarity comparator (high for acc >= PW). ON_TABLE is the phase-indexed
+// transfer for pulse high, OFF_LEVEL the DAC-zero plateau for pulse low. For a given (phase, PW) the result is
+// identical to the previous inverted comparator combined with the inverted branch.
 export function trianglePulse12Bit6581R3(phase12, pulse) {
-    if (pulse !== 0) return TRIANGLE_PULSE_HIGH;
+    if (pulse === 0) return TRIANGLE_PULSE_OFF_LEVEL;
 
     const index = phase12 >>> 4;
     const fraction = phase12 & 15;
-    const lower = TRIANGLE_PULSE_LOW[index];
-    const upper = TRIANGLE_PULSE_LOW[index + 1];
+    const lower = TRIANGLE_PULSE_ON_TABLE[index];
+    const upper = TRIANGLE_PULSE_ON_TABLE[index + 1];
     return ((lower * (16 - fraction)) + (upper * fraction) + 8) >>> 4;
 }
